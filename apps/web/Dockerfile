@@ -19,6 +19,7 @@ WORKDIR /app
 COPY . .
 RUN pnpm --filter @nexusops/types build
 RUN pnpm --filter @nexusops/ui build
+RUN pnpm --filter @nexusops/db build
 RUN pnpm --filter @nexusops/api build
 RUN pnpm --filter @nexusops/web build
 
