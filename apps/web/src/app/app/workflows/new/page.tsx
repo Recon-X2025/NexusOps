@@ -11,6 +11,7 @@ import {
   GitBranch, Bell, Mail, Wrench, TicketIcon, Users, Database, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { generateUUID } from "@/lib/uuid";
 
 const TRIGGERS = [
   { value: "ticket_created",  label: "Ticket Created",   icon: TicketIcon },
@@ -44,7 +45,7 @@ export default function NewWorkflowPage() {
     isActive: false,
   });
   const [steps, setSteps] = useState<StepRow[]>([
-    { id: crypto.randomUUID(), type: "notify", config: "" },
+    { id: generateUUID(), type: "notify", config: "" },
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -57,7 +58,7 @@ export default function NewWorkflowPage() {
   });
 
   function addStep() {
-    setSteps((s) => [...s, { id: crypto.randomUUID(), type: "notify", config: "" }]);
+    setSteps((s) => [...s, { id: generateUUID(), type: "notify", config: "" }]);
   }
   function removeStep(id: string) {
     setSteps((s) => s.filter((r) => r.id !== id));

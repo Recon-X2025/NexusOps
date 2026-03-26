@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { generateUUID } from "@/lib/uuid";
 import Link from "next/link";
 import {
   CheckSquare,
@@ -105,7 +106,7 @@ export default function ApprovalsPage() {
       toast.error("Cannot approve: this item has no valid request ID");
       return;
     }
-    decideMutation.mutate({ requestId: id, decision: "approved", comment: "", idempotencyKey: crypto.randomUUID() } as any);
+    decideMutation.mutate({ requestId: id, decision: "approved", comment: "", idempotencyKey: generateUUID() } as any);
     setDecisions((d) => ({ ...d, [id]: "approved" }));
   };
 
@@ -115,7 +116,7 @@ export default function ApprovalsPage() {
       toast.error("Cannot reject: this item has no valid request ID");
       return;
     }
-    decideMutation.mutate({ requestId: id, decision: "rejected", comment: rejectComment, idempotencyKey: crypto.randomUUID() } as any);
+    decideMutation.mutate({ requestId: id, decision: "rejected", comment: rejectComment, idempotencyKey: generateUUID() } as any);
     setDecisions((d) => ({ ...d, [id]: "rejected" }));
     setRejectReasonId(null);
     setRejectComment("");

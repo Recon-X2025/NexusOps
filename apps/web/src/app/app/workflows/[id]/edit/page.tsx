@@ -10,6 +10,7 @@ import {
   Workflow, ChevronRight, Save, X, Loader2, Plus, Trash2, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { generateUUID } from "@/lib/uuid";
 
 const TRIGGERS = [
   { value: "ticket_created",  label: "Ticket Created" },
@@ -52,7 +53,7 @@ export default function EditWorkflowPage() {
         isActive: (wf as any).isActive ?? false,
       });
       const rawSteps: any[] = (wf as any).steps ?? [];
-      setSteps(rawSteps.map((s: any) => ({ id: crypto.randomUUID(), type: s.type ?? "notify", config: JSON.stringify(s.config ?? "") })));
+      setSteps(rawSteps.map((s: any) => ({ id: generateUUID(), type: s.type ?? "notify", config: JSON.stringify(s.config ?? "") })));
       setLoaded(true);
     }
   }, [wf, loaded]);
@@ -62,7 +63,7 @@ export default function EditWorkflowPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  function addStep() { setSteps((s) => [...s, { id: crypto.randomUUID(), type: "notify", config: "" }]); }
+  function addStep() { setSteps((s) => [...s, { id: generateUUID(), type: "notify", config: "" }]); }
   function removeStep(sid: string) { setSteps((s) => s.filter((r) => r.id !== sid)); }
   function updateStep(sid: string, key: keyof StepRow, value: string) {
     setSteps((s) => s.map((r) => r.id === sid ? { ...r, [key]: value } : r));

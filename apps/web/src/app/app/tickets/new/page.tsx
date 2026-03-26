@@ -20,6 +20,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { generateUUID } from "@/lib/uuid";
 
 const TICKET_TYPES = [
   { value: "incident",        label: "Incident",        desc: "Unplanned interruption or reduction in quality of service" },
@@ -147,7 +148,7 @@ export default function NewTicketPage() {
       description: form.description,
       tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       dueDate: form.dueDate ? new Date(form.dueDate) : undefined,
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: generateUUID(),
     });
   };
 
