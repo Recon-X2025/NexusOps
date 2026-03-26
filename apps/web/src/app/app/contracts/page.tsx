@@ -2,6 +2,7 @@
 
 import { SUPPORTED_CURRENCY_CODES } from "@nexusops/types";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   FileText, Plus, Search, Download, Clock, CheckCircle2, AlertTriangle,
@@ -249,8 +250,11 @@ function ContractCreationWizard() {
 
   const stepIndex = STEPS.findIndex(s => s.key === step);
 
+  const utils = trpc.useUtils();
+
   const createFromWizard = trpc.contracts.createFromWizard.useMutation({
     onSuccess: (data) => {
+      void utils.contracts.list.invalidate();
       toast.success(
         data.status === "under_review"
           ? "Contract submitted for review."
@@ -630,9 +634,20 @@ function ContractCreationWizard() {
 
 export default function ContractsPage() {
   const { can } = useRBAC();
+  const searchParams = useSearchParams();
   const visibleTabs = CONTRACT_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "register");
-  const [expandedContract, setExpandedContract] = useState<string | null>(null);
+  const [expandedContract, setExpandedContract] = useState<string | null>(
+    searchParams.get("id"),
+  );
+
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (id) {
+      setTab("register");
+      setExpandedContract(id);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");

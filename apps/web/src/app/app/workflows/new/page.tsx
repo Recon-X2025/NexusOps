@@ -49,9 +49,12 @@ export default function NewWorkflowPage() {
   ]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.workflows.create.useMutation({
     onSuccess: (wf) => {
       toast.success(`Workflow "${(wf as any).name ?? wf.id}" created`);
+      void utils.workflows.list.invalidate();
       router.push("/app/workflows");
     },
     onError: (e: any) => toast.error(e.message),

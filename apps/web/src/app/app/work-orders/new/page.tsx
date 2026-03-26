@@ -36,9 +36,12 @@ export default function NewWorkOrderPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.workOrders.create.useMutation({
     onSuccess: (wo) => {
       toast.success(`Work Order ${(wo as any).number ?? wo.id.slice(0,8)} created`);
+      void utils.workOrders.list.invalidate();
       router.push(`/app/work-orders/${wo.id}`);
     },
     onError: (e: any) => toast.error(e.message),

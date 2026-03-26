@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   Activity,
@@ -111,6 +111,14 @@ function routeBase(href: string) {
 function pathActive(pathname: string, href: string) {
   const base = routeBase(href);
   return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+function childHrefActive(pathname: string, searchString: string, href: string): boolean {
+  const q = href.indexOf("?");
+  if (q < 0) return pathActive(pathname, href);
+  const base = href.slice(0, q);
+  const childSearch = href.slice(q);
+  return pathname === base && searchString === childSearch;
 }
 
 function itemOrChildActive(pathname: string, item: SidebarItem): boolean {
@@ -236,6 +244,7 @@ type SidebarNavContentProps = {
   expandedItems: Set<string>;
   toggleItem: (key: string) => void;
   pathname: string;
+  currentSearch: string;
   badgeMap: Partial<Record<SidebarBadgeKey, number>>;
   searchActive: boolean;
   onNavigate: () => void;
@@ -250,6 +259,7 @@ function SidebarNavContent({
   expandedItems,
   toggleItem,
   pathname,
+  currentSearch,
   badgeMap,
   searchActive,
   onNavigate,
@@ -370,7 +380,7 @@ function SidebarNavContent({
                               <div className="overflow-hidden">
                                 <div className="space-y-0.5 pb-0.5">
                                   {item.children!.map((child: SidebarChild) => {
-                                    const childActive = pathActive(pathname, child.href);
+                                    const childActive = childHrefActive(pathname, currentSearch, child.href);
                                     return (
                                       <Link
                                         key={child.href + child.label}
@@ -412,6 +422,8 @@ function SidebarNavContent({
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const { hasRole, canAccess } = useRBAC();
   const [search, setSearch] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(defaultExpandedSet);
@@ -503,6 +515,7 @@ export function AppSidebar() {
     expandedItems,
     toggleItem,
     pathname,
+    currentSearch,
     badgeMap,
     searchActive,
     onNavigate: () => setMobileOpen(false),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Scale, Plus, Search, Download, FileText, Users,
   CheckCircle2, Clock, ChevronRight, Send, Shield, Eye,
@@ -114,6 +115,7 @@ const PRIORITY_BAR: Record<string, string> = {
 
 export default function LegalPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = LEGAL_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedMatter, setExpandedMatter] = useState<string | null>(null);
@@ -467,7 +469,10 @@ export default function LegalPage() {
                     <p className="text-[11px] text-muted-foreground mt-0.5">Vendor: {cr.vendor ?? "—"} · Value: {cr.value != null ? `$${Number(cr.value).toLocaleString()}` : "—"} · {cr.endDate ? `Expires ${new Date(cr.endDate).toLocaleDateString()}` : "No expiry"}</p>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">View</button>
+                    <button
+                      onClick={() => router.push(`/app/contracts?id=${cr.id}`)}
+                      className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                    >View</button>
                   </div>
                 </div>
               </div>

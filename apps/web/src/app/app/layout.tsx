@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { RBACProvider } from "@/lib/rbac-context";
@@ -10,9 +11,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AppHeader />
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          {/* z-10 + shrink-0: keep nav above main so wide page content can’t steal clicks (flex min-width:auto) */}
+          {/* z-10 + shrink-0: keep nav above main so wide page content can't steal clicks (flex min-width:auto) */}
           <div className="relative z-10 flex h-full min-h-0 shrink-0">
-            <AppSidebar />
+            <Suspense fallback={null}>
+              <AppSidebar />
+            </Suspense>
           </div>
 
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin bg-background">

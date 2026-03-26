@@ -134,7 +134,7 @@ export const dashboardRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const cacheKey = `dashboard:timeseries:${org!.id}:${input.days}`;
+      const cacheKey = `dashboard:timeseries:${org!.id}:${input.days}:${input.teamId ?? "all"}:${input.categoryId ?? "all"}`;
 
       return getCached(cacheKey, async () => {
         const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);

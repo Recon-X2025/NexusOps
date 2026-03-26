@@ -1,6 +1,6 @@
 import { router, protectedProcedure, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { notifications, notificationPreferences, eq, and, desc, count } from "@nexusops/db";
+import { notifications, notificationPreferences, eq, and, asc, desc, count } from "@nexusops/db";
 
 export const notificationsRouter = router({
   list: protectedProcedure
@@ -55,7 +55,7 @@ export const notificationsRouter = router({
     }),
 
   getPreferences: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, ctx.user!.id));
+    return ctx.db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, ctx.user!.id)).orderBy(asc(notificationPreferences.channel), asc(notificationPreferences.eventType));
   }),
 
   updatePreference: protectedProcedure

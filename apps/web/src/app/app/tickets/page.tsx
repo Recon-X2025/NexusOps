@@ -29,6 +29,7 @@ import {
   Activity,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { STALE_TIME } from "@/components/providers/trpc-provider";
 import { formatRelativeTime, cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -96,12 +97,12 @@ export default function TicketsPage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ field: SortField; dir: SortDir }>({ field: "createdAt", dir: "desc" });
 
-  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery();
+  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
   const { data, isLoading, refetch } = trpc.tickets.list.useQuery({
     search: search || undefined,
     statusId: selectedStatusId ?? undefined,
     limit: 50,
-  });
+  }, { staleTime: STALE_TIME.LIVE });
 
   const tickets: TicketRow[] = (data?.items as TicketRow[] | undefined) ?? [];
   const total = data?.items?.length ?? 0;

@@ -13,6 +13,7 @@ import {
   TrendingDown, TrendingUp,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { STALE_TIME } from "@/components/providers/trpc-provider";
 import { useRBAC } from "@/lib/rbac-context";
 import type { Module } from "@nexusops/types";
 import type { RbacAction } from "@nexusops/types";
@@ -114,6 +115,7 @@ function OidcSessionHandler() {
 function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module, a: RbacAction) => boolean; canAccess: (m: Module) => boolean; isAuthenticated: boolean }) {
   const { data: metrics, isPending, isError, error, refetch } = trpc.dashboard.getMetrics.useQuery(undefined, {
     enabled: isAuthenticated && can("reports", "read"),
+    staleTime: STALE_TIME.LIVE,
     retry: 2,
     retryDelay: 1500,
   });

@@ -85,6 +85,7 @@ export const oncallRouter = router({
         const { db, org } = ctx;
         const schedules = await db.select().from(oncallSchedules)
           .where(eq(oncallSchedules.orgId, org!.id))
+          .orderBy(desc(oncallSchedules.createdAt))
           .limit(input.limit);
         // Return escalation chains extracted from schedules
         return schedules.flatMap((s: any) =>
@@ -100,7 +101,8 @@ export const oncallRouter = router({
   activeRotation: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
     const schedules = await db.select().from(oncallSchedules)
-      .where(eq(oncallSchedules.orgId, org!.id));
+      .where(eq(oncallSchedules.orgId, org!.id))
+      .orderBy(desc(oncallSchedules.createdAt));
 
     const now = new Date();
     const weekMs = 7 * 24 * 60 * 60 * 1000;

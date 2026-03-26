@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { projects, projectMilestones, projectTasks, eq, and, desc, count, sql } from "@nexusops/db";
+import { projects, projectMilestones, projectTasks, eq, and, asc, desc, count, sql } from "@nexusops/db";
 import { getNextNumber } from "../lib/auto-number";
 
 export const projectsRouter = router({
@@ -21,8 +21,8 @@ export const projectsRouter = router({
     const [project] = await db.select().from(projects).where(and(eq(projects.id, input.id), eq(projects.orgId, org!.id)));
     if (!project) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const milestones = await db.select().from(projectMilestones).where(eq(projectMilestones.projectId, project.id));
-    const tasks = await db.select().from(projectTasks).where(eq(projectTasks.projectId, project.id));
+    const milestones = await db.select().from(projectMilestones).where(eq(projectMilestones.projectId, project.id)).orderBy(asc(projectMilestones.dueDate));
+    const tasks = await db.select().from(projectTasks).where(eq(projectTasks.projectId, project.id)).orderBy(asc(projectTasks.createdAt));
 
     return { ...project, milestones, tasks };
   }),
@@ -111,7 +111,7 @@ export const projectsRouter = router({
       const { db } = ctx;
       const conditions = [eq(projectTasks.projectId, input.projectId)];
       if (input.sprint) conditions.push(eq(projectTasks.sprint, input.sprint));
-      const tasks = await db.select().from(projectTasks).where(and(...conditions));
+      const tasks = await db.select().from(projectTasks).where(and(...conditions)).orderBy(asc(projectTasks.createdAt));
       const board: Record<string, typeof tasks> = { backlog: [], todo: [], in_progress: [], in_review: [], done: [] };
       for (const task of tasks) { board[task.status]?.push(task); }
       return board;

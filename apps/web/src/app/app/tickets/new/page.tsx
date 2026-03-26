@@ -115,9 +115,12 @@ export default function NewTicketPage() {
       ? PRIORITY_MATRIX[form.impact]?.[form.urgency] ?? "—"
       : "—";
 
+  const utils = trpc.useUtils();
+
   const createTicket = trpc.tickets.create.useMutation({
     onSuccess: (ticket) => {
       toast.success(`Ticket ${ticket?.number} created successfully`);
+      void utils.tickets.list.invalidate();
       router.push(`/app/tickets/${ticket?.id}`);
     },
     onError: (err) => {

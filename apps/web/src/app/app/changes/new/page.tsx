@@ -40,9 +40,12 @@ export default function NewChangePage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.changes.create.useMutation({
     onSuccess: (ch) => {
       toast.success(`Change ${(ch as any).number ?? ch.id.slice(0,8)} created`);
+      void utils.changes.list.invalidate();
       router.push(`/app/changes/${ch.id}`);
     },
     onError: (e: any) => toast.error(e.message),

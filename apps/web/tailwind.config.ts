@@ -1,10 +1,12 @@
+import path from "path";
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: ["class"],
   content: [
-    "./src/**/*.{ts,tsx}",
-    "../../packages/ui/src/**/*.{ts,tsx}",
+    path.resolve(__dirname, "src/**/*.{ts,tsx}"),
+    path.resolve(__dirname, "../../packages/ui/src/**/*.{ts,tsx}"),
   ],
   theme: {
     extend: {
@@ -78,7 +80,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;

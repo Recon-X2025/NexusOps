@@ -2,7 +2,8 @@
 
 // TODO: Wire to trpc.secretarial router when created
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Briefcase, Download, Plus, AlertTriangle, CheckCircle2, Clock, FileText, Users, Building2, Scale, Calendar, BookOpen, Shield } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -67,19 +68,22 @@ const TABS = [
   { key: "calendar",   label: "Compliance Calendar", module: "grc"       as const, action: "read"  as const },
 ];
 
-export default function SecretarialPage() {
+function SecretarialContent() {
   const { can } = useRBAC();
-  const visibleTabs = TABS.filter((t) => can(t.module, t.action));
-  const [tab, setTab] = useState(visibleTabs[0]?.key ?? "overview");
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  useEffect(() => {
-    if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
-  }, [visibleTabs, tab]);
+  // Must be called unconditionally before any early return to satisfy Rules of Hooks
+  const { data: grcAudits, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery();
+
+  const visibleTabs = TABS.filter((t) => can(t.module, t.action));
+
+  const tabParam = searchParams.get("tab");
+  const activeTab = (tabParam && visibleTabs.find(t => t.key === tabParam))
+    ? tabParam
+    : (visibleTabs[0]?.key ?? "overview");
 
   if (!can("grc", "read")) return <AccessDenied module="Secretarial & Company Secretary" />;
-
-  // Partial wire: compliance calendar items from GRC audits
-  const { data: grcAudits, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery();
 
   return (
     <div className="flex flex-col gap-3">
@@ -123,9 +127,9 @@ export default function SecretarialPage() {
       {/* Tabs */}
       <div className="flex border-b border-border bg-card rounded-t">
         {visibleTabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => router.push(`/app/secretarial?tab=${t.key}`)}
             className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors
-              ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
+              ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
             {t.label}
           </button>
         ))}
@@ -134,7 +138,7 @@ export default function SecretarialPage() {
       <div className="bg-card border border-border rounded-b overflow-hidden">
 
         {/* OVERVIEW */}
-        {tab === "overview" && (
+        {activeTab === "overview" && (
           <div className="p-8 text-center">
             <Building2 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-[13px] font-semibold text-foreground/70 mb-1">Company Particulars</p>
@@ -143,7 +147,7 @@ export default function SecretarialPage() {
         )}
 
         {/* BOARD & MEETINGS */}
-        {tab === "board" && (
+        {activeTab === "board" && (
           <div className="p-8 text-center">
             <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-[13px] font-semibold text-foreground/70 mb-1">Board Meetings & Resolutions</p>
@@ -152,7 +156,7 @@ export default function SecretarialPage() {
         )}
 
         {/* MCA / ROC FILINGS */}
-        {tab === "filings" && (
+        {activeTab === "filings" && (
           <div className="p-8 text-center">
             <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-[13px] font-semibold text-foreground/70 mb-1">MCA / ROC Filings</p>
@@ -161,7 +165,7 @@ export default function SecretarialPage() {
         )}
 
         {/* SHARE CAPITAL */}
-        {tab === "share" && (
+        {activeTab === "share" && (
           <div className="p-8 text-center">
             <BookOpen className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-[13px] font-semibold text-foreground/70 mb-1">Share Capital & ESOP</p>
@@ -170,7 +174,7 @@ export default function SecretarialPage() {
         )}
 
         {/* STATUTORY REGISTERS */}
-        {tab === "registers" && (
+        {activeTab === "registers" && (
           <div className="p-8 text-center">
             <BookOpen className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-[13px] font-semibold text-foreground/70 mb-1">Statutory Registers</p>
@@ -179,7 +183,7 @@ export default function SecretarialPage() {
         )}
 
         {/* COMPLIANCE CALENDAR */}
-        {tab === "calendar" && (
+        {activeTab === "calendar" && (
           <div className="p-4 space-y-4">
             <p className="text-[12px] text-muted-foreground">CS compliance calendar. Configure the Secretarial module backend to track MCA filing deadlines.</p>
             {!auditsLoading && grcAudits && (grcAudits as any[]).length > 0 && (
@@ -208,5 +212,13 @@ export default function SecretarialPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function SecretarialPage() {
+  return (
+    <Suspense fallback={null}>
+      <SecretarialContent />
+    </Suspense>
   );
 }

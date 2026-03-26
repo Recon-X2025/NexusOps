@@ -58,8 +58,15 @@ export default function EditWorkflowPage() {
     }
   }, [wf, loaded]);
 
+  const utils = trpc.useUtils();
+
   const updateMutation = trpc.workflows.save.useMutation({
-    onSuccess: () => { toast.success("Workflow saved"); router.push("/app/workflows"); },
+    onSuccess: () => {
+      toast.success("Workflow saved");
+      void utils.workflows.list.invalidate();
+      void utils.workflows.get.invalidate({ id });
+      router.push("/app/workflows");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 

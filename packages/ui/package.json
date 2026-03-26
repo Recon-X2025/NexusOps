@@ -12,7 +12,7 @@
   "types": "./dist/index.d.mts",
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch",
+    "dev": "tsup src/index.ts --watch",
     "lint": "tsc --noEmit"
   },
   "peerDependencies": {

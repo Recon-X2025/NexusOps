@@ -88,7 +88,8 @@ export const reportsRouter = router({
       breached: sql<number>`SUM(CASE WHEN ${tickets.slaBreached} THEN 1 ELSE 0 END)`,
     }).from(tickets)
       .where(eq(tickets.orgId, org!.id))
-      .groupBy(tickets.priorityId);
+      .groupBy(tickets.priorityId)
+      .orderBy(desc(count()));
 
     return priorityCounts.map((row: any) => ({
       priorityId: row.priorityId,

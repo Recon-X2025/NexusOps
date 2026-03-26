@@ -217,12 +217,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: "Briefcase",
         module: "secretarial",               // was "policy" — now correctly gated
         children: [
-          { label: "Company Overview",     href: "/app/secretarial" },
-          { label: "Board & Meetings",     href: "/app/secretarial" },
-          { label: "MCA / ROC Filings",    href: "/app/secretarial" },
-          { label: "Share Capital & ESOP", href: "/app/secretarial" },
-          { label: "Statutory Registers",  href: "/app/secretarial" },
-          { label: "Compliance Calendar",  href: "/app/secretarial" },
+          { label: "Company Overview",     href: "/app/secretarial?tab=overview" },
+          { label: "Board & Meetings",     href: "/app/secretarial?tab=board" },
+          { label: "MCA / ROC Filings",    href: "/app/secretarial?tab=filings" },
+          { label: "Share Capital & ESOP", href: "/app/secretarial?tab=share" },
+          { label: "Statutory Registers",  href: "/app/secretarial?tab=registers" },
+          { label: "Compliance Calendar",  href: "/app/secretarial?tab=calendar" },
         ],
       },
     ],

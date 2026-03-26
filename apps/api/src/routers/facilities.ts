@@ -10,6 +10,7 @@ import {
   eq,
   and,
   desc,
+  asc,
   sql,
 } from "@nexusops/db";
 
@@ -61,8 +62,8 @@ export const facilitiesRouter = router({
         const conditions = [];
         if (input.buildingId) conditions.push(eq(rooms.buildingId, input.buildingId));
         const query = conditions.length > 0
-          ? db.select().from(rooms).where(and(...conditions)).limit(input.limit)
-          : db.select().from(rooms).limit(input.limit);
+          ? db.select().from(rooms).where(and(...conditions)).orderBy(asc(rooms.name)).limit(input.limit)
+          : db.select().from(rooms).orderBy(asc(rooms.name)).limit(input.limit);
         return query;
       }),
 

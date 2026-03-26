@@ -1,6 +1,6 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { ciItems, eq } from "@nexusops/db";
+import { ciItems, eq, asc } from "@nexusops/db";
 
 // itomEvents table does not exist in the current schema.
 // These procedures return graceful fallbacks pending migration.
@@ -39,7 +39,7 @@ export const eventsRouter = router({
       name: ciItems.name,
       ciType: ciItems.ciType,
       status: ciItems.status,
-    }).from(ciItems).where(eq(ciItems.orgId, org!.id)).limit(100);
+    }).from(ciItems).where(eq(ciItems.orgId, org!.id)).orderBy(asc(ciItems.name)).limit(100);
 
     return cis.map((ci: any) => ({
       id: ci.id,
