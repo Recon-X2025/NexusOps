@@ -16,6 +16,9 @@ RUN pnpm install --frozen-lockfile --prod=false
 # ── Build ─────────────────────────────────────────────────────────────────────
 FROM deps AS builder
 WORKDIR /app
+# Accept API URL as build arg so NEXT_PUBLIC_API_URL is correctly inlined
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY . .
 RUN pnpm --filter @nexusops/types build
 RUN pnpm --filter @nexusops/ui build
