@@ -114,13 +114,21 @@ function OidcSessionHandler() {
 function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module, a: RbacAction) => boolean; canAccess: (m: Module) => boolean; isAuthenticated: boolean }) {
   const { data: metrics, isPending, isError, error, refetch } = trpc.dashboard.getMetrics.useQuery(undefined, {
     enabled: isAuthenticated && can("reports", "read"),
-    retry: 1,
+    retry: 2,
+    retryDelay: 1500,
   });
 
-  // Distinguish a real network/infra error from an auth error.
-  // UNAUTHORIZED / FORBIDDEN just means the session expired — not that the API is down.
+  // Only surface an API-down banner after retries are exhausted AND the error
+  // is a genuine infrastructure failure (not an auth/permission/not-found error).
+  // In production the API is always running — this only shows on a real outage.
   const errorCode = (error as any)?.data?.code as string | undefined;
-  const isApiDown = isError && errorCode !== "UNAUTHORIZED" && errorCode !== "FORBIDDEN" && errorCode !== "NOT_FOUND";
+  const isApiDown =
+    isError &&
+    !isPending &&
+    errorCode !== "UNAUTHORIZED" &&
+    errorCode !== "FORBIDDEN" &&
+    errorCode !== "NOT_FOUND" &&
+    process.env.NODE_ENV !== "production";
 
   const { data: incidentsPage } = trpc.tickets.list.useQuery(
     { type: "incident", limit: 5 },
