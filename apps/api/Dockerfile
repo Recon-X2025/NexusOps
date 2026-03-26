@@ -21,21 +21,29 @@ RUN pnpm --filter @nexusops/api build
 
 # ── Production image ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
-WORKDIR /app
 
 RUN apk add --no-cache tini && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 api
 
-COPY --from=builder /app/apps/api/dist ./dist
+WORKDIR /app
+
+# Copy the .pnpm virtual store (contains all package files)
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/package.json ./package.json
+# Copy workspace-level node_modules (symlinks resolved by Docker into real files)
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+# Copy built dist and package metadata
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
 USER api
 
+# Run from the package directory so Node.js resolves modules correctly
+WORKDIR /app/apps/api
+
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
