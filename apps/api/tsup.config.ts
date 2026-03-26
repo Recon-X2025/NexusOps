@@ -8,6 +8,8 @@ export default defineConfig([
     clean: true,
     sourcemap: true,
     target: "node20",
+    // Bundle internal workspace packages so Docker runner doesn't need their node_modules
+    noExternal: ["@nexusops/db", "@nexusops/types", "@nexusops/config"],
     banner: {
       js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
     },
