@@ -10,6 +10,7 @@ import {
   Wrench, GitBranch, Target, CheckCircle, XCircle,
   Layers, Scale,
   Monitor, ShieldCheck, Users, Handshake, Banknote, Code,
+  TrendingDown, TrendingUp,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
