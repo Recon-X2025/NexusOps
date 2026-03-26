@@ -112,10 +112,17 @@ async function bootstrap() {
   });
 
   // ── Plugins ──────────────────────────────────────────────────────────────
+  // CORS_ORIGIN supports comma-separated list: "http://139.84.154.78,https://app.example.com"
+  const corsOrigins: (string | RegExp)[] = [];
+  const rawOrigin =
+    process.env["CORS_ORIGIN"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "";
+  if (rawOrigin) {
+    rawOrigin.split(",").forEach((o) => corsOrigins.push(o.trim()));
+  }
   await fastify.register(cors, {
     origin:
-      process.env["NODE_ENV"] === "production"
-        ? [process.env["NEXT_PUBLIC_APP_URL"] ?? ""]
+      process.env["NODE_ENV"] === "production" && corsOrigins.length > 0
+        ? corsOrigins
         : true,
     credentials: true,
   });
