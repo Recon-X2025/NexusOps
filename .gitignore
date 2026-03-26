@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+.next
+.turbo
+out
+build
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Database
+*.sqlite
+*.db
+drizzle/migrations/*.sql
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test coverage
+coverage
+.nyc_output
+
+# Docker volumes
+postgres-data
+redis-data
+meilisearch-data
+minio-data
+
+# Local pnpm store
+.pnpm-store
+
+# Large binary / local assets
+*.pdf
+
+# Stress-test output / temp
+stress-test-result-*.json

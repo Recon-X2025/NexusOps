@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NexusOps — Investor Overview · Coheron Tech Private Ltd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700;800&family=Lato:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet" />
+<style>
+/* ── Coheron Brand Design System ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  /* Official Coheron Colors (Brand Guide v1.0) */
+  --ocean-blue:   #00BCFF;
+  --blue:         #004FFB;
+  --happy-green:  #00C971;
+  --morning-mint: #D8FFE6;
+  --white:        #FFFFFF;
+  --black:        #000000;
+
+  /* Semantic tokens */
+  --bg:           #000000;
+  --bg2:          #080808;
+  --bg3:          #101010;
+  --bg-card:      rgba(255,255,255,0.03);
+  --text:         #FFFFFF;
+  --muted:        rgba(255,255,255,0.52);
+  --border:       rgba(255,255,255,0.07);
+  --border2:      rgba(255,255,255,0.13);
+  --border-blue:  rgba(0,188,255,0.22);
+  --accent:       #00BCFF;
+  --accent2:      #004FFB;
+  --green:        #00C971;
+  --mint:         #D8FFE6;
+  --red:          #ef4444;
+  --amber:        #f59e0b;
+  --radius:       20px;
+  --glow:         0 0 60px rgba(0,188,255,0.12);
+}
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Lato', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  overflow-x: hidden;
+}
+h1,h2,h3,h4 { font-family: 'Barlow', sans-serif; line-height: 1.2; }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+section { padding: 100px 24px; }
+.container { max-width: 1140px; margin: 0 auto; }
+
+/* ── Label / pill badge ─ Coheron Happy Green tint ─── */
+.label {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--happy-green); background: rgba(0,201,113,.1);
+  border: 1px solid rgba(0,201,113,.28);
+  padding: 5px 14px; border-radius: 99px; margin-bottom: 22px;
+}
+.section-title { font-size: clamp(28px, 4vw, 46px); font-weight: 800; letter-spacing: .01em; margin-bottom: 16px; }
+.section-sub  { font-size: 17px; color: var(--muted); max-width: 620px; line-height: 1.75; font-weight: 300; }
+
+/* ── Fade-in animation ────────────────────────────────────────────── */
+.fade-up { opacity: 0; transform: translateY(28px); transition: opacity .65s ease, transform .65s ease; }
+.fade-up.visible { opacity: 1; transform: translateY(0); }
+
+/* ═══════════════════════════════════════════════════════
+   NAV
+═══════════════════════════════════════════════════════ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 40px;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-logo { display: flex; align-items: center; gap: 12px; }
+/* Coheron double-ring logo mark */
+.nav-logo-mark {
+  width: 32px; height: 32px; position: relative; flex-shrink: 0;
+}
+.nav-logo-mark svg { width: 32px; height: 32px; }
+.nav-wordmark { display: flex; flex-direction: column; gap: 0; }
+.nav-coheron {
+  font-family: 'Barlow', sans-serif; font-size: 14px; font-weight: 800;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--white);
+  line-height: 1;
+}
+.nav-product { font-size: 10px; font-weight: 400; color: var(--ocean-blue); letter-spacing: .1em; text-transform: uppercase; }
+.nav-divider { width: 1px; height: 28px; background: var(--border2); margin: 0 4px; }
+.nav-links { display: flex; gap: 30px; font-size: 13px; font-weight: 400; color: var(--muted); }
+.nav-links a:hover { color: var(--white); transition: color .2s; }
+.nav-cta {
+  background: var(--blue); color: #fff; font-family: 'Barlow', sans-serif;
+  font-size: 13px; font-weight: 600; letter-spacing: .04em;
+  padding: 9px 22px; border-radius: 10px; cursor: pointer;
+  border: none; transition: background .2s, transform .15s;
+}
+.nav-cta:hover { background: #003de0; transform: translateY(-1px); }
+
+/* ═══════════════════════════════════════════════════════
+   HERO
+═══════════════════════════════════════════════════════ */
+#hero {
+  position: relative; min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 160px 24px 100px; text-align: center; overflow: hidden;
+  background: #000;
+}
+/* Coheron-style glass morphism background shapes */
+.hero-shapes {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}
+.hero-shape {
+  position: absolute; border-radius: 28px;
+}
+.hero-shape-1 {
+  width: 520px; height: 380px; right: -80px; bottom: -60px;
+  background: linear-gradient(135deg, rgba(0,188,255,0.28) 0%, rgba(0,188,255,0.10) 100%);
+  backdrop-filter: blur(1px);
+}
+.hero-shape-2 {
+  width: 460px; height: 340px; right: 60px; bottom: 20px;
+  background: linear-gradient(135deg, rgba(0,201,113,0.22) 0%, rgba(216,255,230,0.10) 100%);
+  backdrop-filter: blur(1px);
+}
+.hero-shape-3 {
+  width: 380px; height: 280px; right: 180px; bottom: 80px;
+  background: linear-gradient(135deg, rgba(0,79,251,0.18) 0%, rgba(0,188,255,0.08) 100%);
+}
+/* subtle glow orb */
+.hero-glow {
+  position: absolute; top: -5%; left: 50%; transform: translateX(-50%);
+  width: 700px; height: 500px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,188,255,0.14) 0%, rgba(0,201,113,0.04) 50%, transparent 70%);
+  pointer-events: none;
+}
+.hero-inner { position: relative; z-index: 1; max-width: 900px; }
+
+/* Coheron parent brand badge */
+.hero-brand {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;
+  font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted);
+}
+.hero-brand-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ocean-blue); animation: pulse 2s ease infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(1.5)} }
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ocean-blue); background: rgba(0,188,255,0.08);
+  border: 1px solid rgba(0,188,255,0.22); padding: 6px 16px; border-radius: 99px;
+  margin-bottom: 32px;
+}
+.hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ocean-blue); animation: pulse 2s ease infinite; }
+
+.hero-title {
+  font-size: clamp(40px, 6.5vw, 82px); font-weight: 800;
+  letter-spacing: .01em; margin-bottom: 26px; line-height: 1.04;
+}
+.hero-title .grad {
+  background: linear-gradient(135deg, #FFFFFF 0%, #00BCFF 45%, #00C971 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero-sub {
+  font-size: clamp(16px, 2vw, 19px); color: var(--muted); margin: 0 auto 44px;
+  max-width: 640px; font-weight: 300;
+}
+.hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.btn-primary {
+  background: var(--blue); color: #fff; font-family: 'Barlow', sans-serif;
+  font-weight: 700; font-size: 15px; letter-spacing: .03em;
+  padding: 14px 32px; border-radius: 12px; border: none; cursor: pointer;
+  box-shadow: 0 4px 24px rgba(0,79,251,.35);
+  transition: transform .2s, box-shadow .2s, background .2s;
+}
+.btn-primary:hover { background: #003de0; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,79,251,.45); }
+.btn-outline {
+  background: transparent; color: var(--text); font-family: 'Barlow', sans-serif;
+  font-weight: 600; font-size: 15px; letter-spacing: .03em;
+  padding: 14px 32px; border-radius: 12px; border: 1px solid var(--border2); cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+.btn-outline:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.24); }
+.hero-stats {
+  display: flex; justify-content: center; gap: 52px; flex-wrap: wrap;
+  margin-top: 72px; padding-top: 48px; border-top: 1px solid var(--border);
+}
+.h-stat-n {
+  font-family: 'Barlow', sans-serif; font-size: 38px; font-weight: 800;
+  background: linear-gradient(135deg, #FFFFFF, #00BCFF);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.h-stat-l { font-size: 12px; color: var(--muted); margin-top: 4px; letter-spacing: .05em; font-weight: 400; }
+
+/* ═══════════════════════════════════════════════════════
+   SECTION DIVIDER (Coheron Happy Green)
+═══════════════════════════════════════════════════════ */
+.section-divider {
+  background: var(--happy-green); padding: 64px 24px; overflow: hidden; position: relative;
+}
+.section-divider .container { display: flex; align-items: center; gap: 48px; }
+.section-divider .div-number {
+  font-family: 'Barlow', sans-serif; font-size: 120px; font-weight: 800;
+  color: rgba(0,0,0,0.12); line-height: 1; flex-shrink: 0; letter-spacing: -.02em;
+}
+.section-divider .div-text h3 {
+  font-family: 'Barlow', sans-serif; font-size: 36px; font-weight: 800;
+  color: #000; letter-spacing: .02em;
+}
+.section-divider .div-text p { font-size: 16px; color: rgba(0,0,0,0.6); margin-top: 8px; font-weight: 400; }
+/* Coheron nested-rect motif on dividers */
+.section-divider::after {
+  content: ''; position: absolute; right: -40px; top: 50%; transform: translateY(-50%);
+  width: 320px; height: 220px; border: 1.5px solid rgba(0,0,0,0.1); border-radius: 20px;
+  box-shadow: 20px 20px 0 rgba(0,0,0,0.06);
+}
+
+/* ═══════════════════════════════════════════════════════
+   PROBLEM / POSITIONING
+═══════════════════════════════════════════════════════ */
+#positioning { background: var(--bg2); }
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 56px; }
+@media(max-width:768px){ .pos-grid{ grid-template-columns:1fr; } }
+.pos-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 32px; background: var(--bg3); position: relative; overflow: hidden;
+}
+.pos-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.pos-card.bad::before  { background: var(--red); }
+.pos-card.mid::before  { background: var(--amber); }
+.pos-card.good::before { background: linear-gradient(90deg, var(--blue), var(--ocean-blue)); }
+.pos-card h3 { font-family: 'Barlow', sans-serif; font-size: 17px; font-weight: 700; margin: 16px 0 10px; }
+.pos-card p  { font-size: 14px; color: var(--muted); line-height: 1.75; font-weight: 300; }
+.pos-icon { font-size: 28px; }
+.pos-tag {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; padding: 3px 11px; border-radius: 6px; margin-bottom: 8px;
+}
+.pos-tag.bad  { background: rgba(239,68,68,.12);  color: var(--red); }
+.pos-tag.mid  { background: rgba(245,158,11,.12); color: var(--amber); }
+.pos-tag.good { background: rgba(0,188,255,.12); color: var(--ocean-blue); }
+
+/* ═══════════════════════════════════════════════════════
+   MODULES GRID
+═══════════════════════════════════════════════════════ */
+#modules { background: var(--bg); }
+.modules-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
+  gap: 16px; margin-top: 52px;
+}
+.mod-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; cursor: default; transition: border-color .22s, transform .22s, background .22s;
+}
+.mod-card:hover {
+  border-color: var(--border-blue); transform: translateY(-3px);
+  background: rgba(0,188,255,0.05);
+}
+.mod-icon {
+  width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center;
+  justify-content: center; font-size: 18px; margin-bottom: 14px;
+}
+.mod-name  { font-family: 'Barlow', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; letter-spacing: .02em; }
+.mod-desc  { font-size: 12px; color: var(--muted); line-height: 1.65; font-weight: 300; }
+.mod-badge {
+  display: inline-block; margin-top: 12px; font-size: 10px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; padding: 3px 9px; border-radius: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TECH STACK
+═══════════════════════════════════════════════════════ */
+#tech { background: var(--bg2); }
+.tech-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; margin-top: 52px; }
+@media(max-width:900px){ .tech-grid{ grid-template-columns:repeat(2,1fr); } }
+@media(max-width:480px){ .tech-grid{ grid-template-columns:1fr; } }
+.tech-group {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px 24px;
+}
+.tech-group-title {
+  font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ocean-blue); margin-bottom: 20px;
+}
+.tech-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.tech-item:last-child { border-bottom: none; }
+.tech-item-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.tech-item-name { font-size: 14px; font-weight: 500; }
+.tech-item-sub  { font-size: 11px; color: var(--muted); font-weight: 300; }
+
+/* ═══════════════════════════════════════════════════════
+   PRODUCTION PROOF
+═══════════════════════════════════════════════════════ */
+#production { background: var(--bg); }
+.proof-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; margin-top: 52px; }
+@media(max-width:768px){ .proof-grid{ grid-template-columns:1fr; } }
+.proof-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px 26px; display: flex; flex-direction: column; gap: 14px;
+  transition: border-color .22s;
+}
+.proof-card:hover { border-color: var(--border-blue); }
+.proof-icon { font-size: 28px; }
+.proof-title { font-family:'Barlow',sans-serif; font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+.proof-items { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-top: 4px; }
+.proof-items li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--muted); line-height: 1.55; font-weight: 300; }
+.proof-items li::before { content: '✓'; color: var(--happy-green); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+/* ═══════════════════════════════════════════════════════
+   RBAC / SECURITY
+═══════════════════════════════════════════════════════ */
+#security { background: var(--bg2); }
+.sec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 52px; align-items: start; }
+@media(max-width:768px){ .sec-grid{ grid-template-columns:1fr; } }
+.role-table { width: 100%; border-collapse: collapse; }
+.role-table th {
+  font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.role-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 300; }
+.role-table tr:last-child td { border-bottom: none; }
+.role-tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.rt-admin   { background: rgba(0,79,251,.14);  color: #7aaaff; }
+.rt-manager { background: rgba(0,201,113,.12); color: #4de6a0; }
+.rt-user    { background: rgba(0,188,255,.12); color: #6dd9ff; }
+.rt-viewer  { background: rgba(139,154,181,.12); color: var(--muted); }
+.sec-features { display: flex; flex-direction: column; gap: 16px; }
+.sec-feat {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; display: flex; gap: 14px; align-items: flex-start;
+  transition: border-color .22s;
+}
+.sec-feat:hover { border-color: var(--border-blue); }
+.sec-feat-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.sec-feat-title { font-family:'Barlow',sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+.sec-feat-sub   { font-size: 12px; color: var(--muted); line-height: 1.65; font-weight: 300; }
+
+/* ═══════════════════════════════════════════════════════
+   ARCHITECTURE
+═══════════════════════════════════════════════════════ */
+#architecture { background: var(--bg); }
+.arch-diagram {
+  margin-top: 52px; border: 1px solid var(--border); border-radius: 20px;
+  overflow: hidden; background: var(--bg2);
+}
+.arch-header {
+  display: flex; align-items: center; gap: 10px; padding: 16px 24px;
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+}
+.arch-dot { width: 12px; height: 12px; border-radius: 50%; }
+.arch-body { padding: 36px; display: flex; flex-direction: column; gap: 28px; }
+.arch-layer { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 24px; }
+@media(max-width:600px){ .arch-layer{ grid-template-columns:1fr; gap:12px; } }
+.arch-layer-label {
+  font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-align: right;
+}
+@media(max-width:600px){ .arch-layer-label{ text-align:left; } }
+.arch-layer-items { display: flex; gap: 10px; flex-wrap: wrap; }
+.arch-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 400;
+  white-space: nowrap;
+}
+.arch-chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════
+   BUSINESS MODEL
+═══════════════════════════════════════════════════════ */
+#business { background: var(--bg2); }
+.biz-split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 52px; align-items: start; }
+@media(max-width:768px){ .biz-split{ grid-template-columns:1fr; } }
+.biz-model { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; }
+.biz-model-header {
+  padding: 20px 28px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.biz-model-title { font-family:'Barlow',sans-serif; font-size: 16px; font-weight: 700; }
+.biz-model-tag { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; }
+.biz-rows { padding: 8px 0; }
+.biz-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 28px; border-bottom: 1px solid var(--border); }
+.biz-row:last-child { border-bottom: none; }
+.biz-row-label { font-size: 13px; color: var(--muted); font-weight: 300; }
+.biz-row-value { font-size: 13px; font-weight: 600; }
+.market-block { display: flex; flex-direction: column; gap: 20px; }
+.market-stat {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px 28px;
+}
+.market-stat-n { font-family:'Barlow',sans-serif; font-size: 42px; font-weight: 800; line-height: 1; }
+.market-stat-l { font-size: 13px; color: var(--muted); margin-top: 8px; font-weight: 300; }
+
+/* ═══════════════════════════════════════════════════════
+   ROADMAP
+═══════════════════════════════════════════════════════ */
+#roadmap { background: var(--bg); }
+.roadmap-track { display: flex; flex-direction: column; gap: 0; margin-top: 52px; position: relative; }
+.roadmap-track::before {
+  content:''; position:absolute; left:19px; top:0; bottom:0; width:2px;
+  background: linear-gradient(to bottom, var(--ocean-blue), var(--happy-green), transparent);
+}
+.roadmap-item { display: flex; gap: 28px; align-items: flex-start; padding-bottom: 40px; position: relative; }
+.roadmap-item:last-child { padding-bottom: 0; }
+.roadmap-dot {
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; position: relative; z-index: 1;
+}
+.roadmap-dot.done  { background: rgba(0,201,113,.12); border: 2px solid var(--happy-green); }
+.roadmap-dot.now   { background: rgba(0,188,255,.12); border: 2px solid var(--ocean-blue);
+  box-shadow: 0 0 20px rgba(0,188,255,.35); animation: ring 2.5s ease infinite; }
+.roadmap-dot.next  { background: var(--bg3); border: 2px solid var(--border); }
+@keyframes ring { 0%,100%{box-shadow:0 0 12px rgba(0,188,255,.2)} 50%{box-shadow:0 0 28px rgba(0,188,255,.5)} }
+.roadmap-content { flex: 1; padding-top: 6px; }
+.roadmap-phase { font-family:'Barlow',sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.roadmap-title { font-family:'Barlow',sans-serif; font-size: 19px; font-weight: 800; margin: 5px 0 9px; }
+.roadmap-items { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.roadmap-tag { font-size: 12px; padding: 4px 12px; border-radius: 8px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); font-weight: 300; }
+
+/* ═══════════════════════════════════════════════════════
+   MINT / LIGHT SECTION (Morning Mint highlight)
+═══════════════════════════════════════════════════════ */
+.mint-section { background: var(--morning-mint); color: #000; padding: 80px 24px; }
+.mint-section .section-title { color: #000; }
+.mint-section .section-sub   { color: rgba(0,0,0,0.6); }
+.mint-section .label { color: var(--blue); background: rgba(0,79,251,.1); border-color: rgba(0,79,251,.25); }
+
+/* ═══════════════════════════════════════════════════════
+   CTA
+═══════════════════════════════════════════════════════ */
+#cta {
+  position: relative; overflow: hidden;
+  background: var(--black);
+}
+.cta-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 80% at 50% 100%, rgba(0,201,113,.08) 0%, transparent 60%);
+}
+/* Glass morphism shapes in CTA (mirrors Coheron cover) */
+.cta-shapes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.cta-shape-1 {
+  position: absolute; bottom: -60px; right: -60px;
+  width: 480px; height: 360px; border-radius: 28px;
+  background: linear-gradient(135deg, rgba(0,188,255,.22) 0%, rgba(0,188,255,.06) 100%);
+}
+.cta-shape-2 {
+  position: absolute; bottom: 20px; right: 60px;
+  width: 420px; height: 320px; border-radius: 28px;
+  background: linear-gradient(135deg, rgba(0,201,113,.18) 0%, rgba(216,255,230,.06) 100%);
+}
+.cta-inner { position: relative; z-index: 1; text-align: center; max-width: 720px; margin: 0 auto; }
+.cta-title { font-family:'Barlow',sans-serif; font-size: clamp(28px, 5vw, 54px); font-weight: 800; margin-bottom: 20px; letter-spacing: .01em; }
+.cta-sub   { font-size: 17px; color: var(--muted); margin-bottom: 44px; font-weight: 300; }
+.cta-contacts { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; margin-top: 52px; padding-top: 40px; border-top: 1px solid var(--border); }
+.cta-contact-label { font-family:'Barlow',sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.cta-contact-value { font-size: 15px; font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════════════ */
+footer {
+  background: var(--bg2); border-top: 1px solid var(--border);
+  padding: 36px 40px; display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 16px;
+}
+.footer-brand { font-family:'Barlow',sans-serif; font-size: 15px; font-weight: 800; letter-spacing: .08em; }
+.footer-brand span { color: var(--ocean-blue); }
+.footer-legal { font-size: 12px; color: var(--muted); font-weight: 300; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── NAV ──────────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-logo">
+    <!-- Coheron double-ring logo mark -->
+    <div class="nav-logo-mark">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="16" r="9" stroke="white" stroke-width="2.2"/>
+        <circle cx="20" cy="16" r="9" stroke="white" stroke-width="2.2" stroke-opacity="0.6"/>
+        <circle cx="12" cy="16" r="9" stroke="url(#rg)" stroke-width="2.2" fill="none"/>
+        <defs>
+          <linearGradient id="rg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#00BCFF"/>
+            <stop offset="1" stop-color="#00C971"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <div class="nav-wordmark">
+      <div class="nav-coheron">Coheron Tech</div>
+      <div class="nav-product">NexusOps Platform</div>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="#modules">Modules</a>
+    <a href="#tech">Stack</a>
+    <a href="#production">Production</a>
+    <a href="#business">Business</a>
+    <a href="#roadmap">Roadmap</a>
+  </div>
+  <button class="nav-cta" onclick="document.getElementById('cta').scrollIntoView({behavior:'smooth'})">Get in Touch</button>
+</nav>
+
+<!-- ── HERO ─────────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-shapes">
+    <div class="hero-shape hero-shape-1"></div>
+    <div class="hero-shape hero-shape-2"></div>
+    <div class="hero-shape hero-shape-3"></div>
+  </div>
+  <div class="hero-glow"></div>
+  <div class="hero-inner">
+    <div class="hero-brand"><span class="hero-brand-dot"></span> Coheron Tech Private Ltd</div>
+    <div class="hero-badge"><span class="dot"></span> NexusOps v3.2 · Production-Ready</div>
+    <h1 class="hero-title">
+      Enterprise Service<br/>
+      <span class="grad">Management Reimagined</span>
+    </h1>
+    <p class="hero-sub">
+      NexusOps is a full-scope ServiceNow-grade operations platform —
+      34 modules, RBAC, AI, SSO, durable workflows —
+      at a fraction of the cost. Built for enterprises, priced for growth.
+    </p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="document.getElementById('modules').scrollIntoView({behavior:'smooth'})">
+        Explore Platform →
+      </button>
+      <button class="btn-outline" onclick="document.getElementById('business').scrollIntoView({behavior:'smooth'})">
+        Business Model
+      </button>
+    </div>
+    <div class="hero-stats">
+      <div class="fade-up">
+        <div class="h-stat-n">34</div>
+        <div class="h-stat-l">Enterprise Modules</div>
+      </div>
+      <div class="fade-up">
+        <div class="h-stat-n">264+</div>
+        <div class="h-stat-l">Passing QA Tests</div>
+      </div>
+      <div class="fade-up">
+        <div class="h-stat-n">35</div>
+        <div class="h-stat-l">Permission Scopes</div>
+      </div>
+      <div class="fade-up">
+        <div class="h-stat-n">56</div>
+        <div class="h-stat-l">Live App Routes</div>
+      </div>
+      <div class="fade-up">
+        <div class="h-stat-n">₹0</div>
+        <div class="h-stat-l">Licensing Fees</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── POSITIONING ──────────────────────────────────────────────── -->
+<section id="positioning">
+  <div class="container">
+    <div class="label">Market Gap</div>
+    <h2 class="section-title fade-up">The gap NexusOps fills</h2>
+    <p class="section-sub fade-up">Enterprises are stuck between overpriced giants and under-powered tools. NexusOps is built for the middle.</p>
+    <div class="pos-grid">
+      <div class="pos-card bad fade-up">
+        <div class="pos-tag bad">Too expensive</div>
+        <div class="pos-icon">🏔️</div>
+        <h3>ServiceNow / SAP</h3>
+        <p>$100–200/user/month. 12–18 month implementations. Dedicated admin teams. Locked into proprietary ecosystems with zero flexibility.</p>
+      </div>
+      <div class="pos-card mid fade-up">
+        <div class="pos-tag mid">Too lightweight</div>
+        <div class="pos-icon">📋</div>
+        <h3>Jira / Notion / Monday</h3>
+        <p>Fast to set up, but no real workflows, no RBAC, no procurement, no compliance. Break down fast at 500+ employees.</p>
+      </div>
+      <div class="pos-card good fade-up">
+        <div class="pos-tag good">NexusOps</div>
+        <div class="pos-icon">⚡</div>
+        <h3>Enterprise-grade. Startup-friendly.</h3>
+        <p>Full feature parity with ServiceNow across ITSM, HR, Finance, Security, and more. Self-hosted or managed. Transparent per-seat pricing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION DIVIDER: MODULES ─────────────────────────────────── -->
+<div class="section-divider">
+  <div class="container">
+    <div class="div-number">02</div>
+    <div class="div-text">
+      <h3>Platform Scope</h3>
+      <p>34 enterprise modules. One unified platform.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODULES ──────────────────────────────────────────────────── -->
+<section id="modules">
+  <div class="container">
+    <div class="label">Platform Scope</div>
+    <h2 class="section-title fade-up">34 enterprise modules. One platform.</h2>
+    <p class="section-sub fade-up">Every workflow your enterprise runs — from IT incidents to board meetings — covered in a unified, RBAC-controlled experience.</p>
+    <div class="modules-grid">
+
+      <!-- IT Services -->
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">🎫</div>
+        <div class="mod-name">ITSM — Ticket Engine</div>
+        <div class="mod-desc">Incidents, problems, change requests with full SLA tracking and lifecycle enforcement.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Core</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">🔄</div>
+        <div class="mod-name">Change Management</div>
+        <div class="mod-desc">Normal, emergency, and standard changes with CAB approvals and risk scoring.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Core</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">🖥️</div>
+        <div class="mod-name">Asset & CMDB</div>
+        <div class="mod-desc">Hardware, software, cloud asset lifecycle management with configuration item tracking.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Core</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">🔭</div>
+        <div class="mod-name">IT Ops (ITOM)</div>
+        <div class="mod-desc">Infrastructure monitoring, event management, on-call scheduling, and alert routing.</div>
+        <span class="mod-badge" style="background:rgba(0,201,113,.1);color:#4de6a0">ITOM</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(245,158,11,.12)">🔐</div>
+        <div class="mod-name">Security Operations</div>
+        <div class="mod-desc">Vulnerability management, security incidents, threat intelligence, and compliance.</div>
+        <span class="mod-badge" style="background:rgba(239,68,68,.1);color:#f87171">SecOps</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(239,68,68,.10)">⚖️</div>
+        <div class="mod-name">GRC</div>
+        <div class="mod-desc">Governance, risk, compliance frameworks — policies, controls, audit plans, certifications.</div>
+        <span class="mod-badge" style="background:rgba(239,68,68,.1);color:#f87171">GRC</span>
+      </div>
+
+      <!-- People & Workplace -->
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">👥</div>
+        <div class="mod-name">HR Service Delivery</div>
+        <div class="mod-desc">HR cases, onboarding journeys, leave management, performance reviews and document handling.</div>
+        <span class="mod-badge" style="background:rgba(0,201,113,.1);color:#4de6a0">HR</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">🏢</div>
+        <div class="mod-name">Facilities Management</div>
+        <div class="mod-desc">Space planning, room bookings, maintenance work orders, visitor management.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Workplace</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">🚶</div>
+        <div class="mod-name">Walk-Up Experience</div>
+        <div class="mod-desc">In-person service desk queue management with ticket creation and agent assignment.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Service</span>
+      </div>
+
+      <!-- Customer & Sales -->
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(245,158,11,.10)">🤝</div>
+        <div class="mod-name">Customer Service (CSM)</div>
+        <div class="mod-desc">Customer cases, entitlements, SLA contracts, account management and escalations.</div>
+        <span class="mod-badge" style="background:rgba(245,158,11,.1);color:#fcd34d">CSM</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(245,158,11,.10)">📊</div>
+        <div class="mod-name">CRM & Sales</div>
+        <div class="mod-desc">Lead and opportunity pipeline, account management, quotes, and deal tracking.</div>
+        <span class="mod-badge" style="background:rgba(245,158,11,.1);color:#fcd34d">CRM</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">📚</div>
+        <div class="mod-name">Knowledge Base</div>
+        <div class="mod-desc">Article authoring, version control, approval workflows, and federated search.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Service</span>
+      </div>
+
+      <!-- Finance & Procurement -->
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">💰</div>
+        <div class="mod-name">Financial Management</div>
+        <div class="mod-desc">Budget tracking, cost allocation, expense approvals, and financial reporting.</div>
+        <span class="mod-badge" style="background:rgba(0,201,113,.1);color:#4de6a0">Finance</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">🛒</div>
+        <div class="mod-name">Procurement</div>
+        <div class="mod-desc">Purchase requests with multi-level approval chains, vendor management, and PO tracking.</div>
+        <span class="mod-badge" style="background:rgba(0,201,113,.1);color:#4de6a0">Finance</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">📄</div>
+        <div class="mod-name">Contract Management</div>
+        <div class="mod-desc">Contract lifecycle — drafting, review, e-signature workflow, renewals, and obligations.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Legal</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">⚖️</div>
+        <div class="mod-name">Legal & Secretarial</div>
+        <div class="mod-desc">Legal matters, investigations, MCA/ROC filings, board meetings, and statutory registers.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Legal</span>
+      </div>
+
+      <!-- DevOps & Projects -->
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">🚀</div>
+        <div class="mod-name">DevOps</div>
+        <div class="mod-desc">CI/CD pipeline visibility, deployment tracking, release management, and on-call rotation.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">DevOps</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">📐</div>
+        <div class="mod-name">APM</div>
+        <div class="mod-desc">Application Portfolio Management — lifecycle tracking, tech debt, and rationalization.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">DevOps</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(245,158,11,.10)">📁</div>
+        <div class="mod-name">Project Portfolio (PPM)</div>
+        <div class="mod-desc">Strategic project management, resource allocation, milestones, and portfolio reporting.</div>
+        <span class="mod-badge" style="background:rgba(245,158,11,.1);color:#fcd34d">Strategy</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">🤖</div>
+        <div class="mod-name">Virtual Agent + AI</div>
+        <div class="mod-desc">Claude-powered chatbot, ticket summarisation, resolution suggestions, and NL search.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">AI</span>
+      </div>
+
+      <!-- Additional Modules -->
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">📈</div>
+        <div class="mod-name">Reports & Analytics</div>
+        <div class="mod-desc">Executive dashboards, SLA heatmaps, workload analysis, and trend reporting.</div>
+        <span class="mod-badge" style="background:rgba(0,201,113,.1);color:#4de6a0">Analytics</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">🔔</div>
+        <div class="mod-name">Notifications</div>
+        <div class="mod-desc">Real-time in-app, email, and webhook notification engine with preference management.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Core</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">🏪</div>
+        <div class="mod-name">Service Catalog</div>
+        <div class="mod-desc">Self-service portal with categorised offerings, approval workflows, and fulfillment tracking.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Service</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(245,158,11,.10)">🏭</div>
+        <div class="mod-name">Vendor Management</div>
+        <div class="mod-desc">Vendor onboarding, contract tracking, performance review, and risk assessment.</div>
+        <span class="mod-badge" style="background:rgba(245,158,11,.1);color:#fcd34d">Finance</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,188,255,.10)">🔁</div>
+        <div class="mod-name">Workflow Engine</div>
+        <div class="mod-desc">Durable, retryable approval and automation workflows via BullMQ with dead-letter queues.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Platform</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(239,68,68,.10)">📡</div>
+        <div class="mod-name">On-Call & Events</div>
+        <div class="mod-desc">On-call rotation scheduling, alert routing, escalation paths, and major incident tracking.</div>
+        <span class="mod-badge" style="background:rgba(0,201,113,.1);color:#4de6a0">ITOM</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">🛠️</div>
+        <div class="mod-name">Field Service</div>
+        <div class="mod-desc">Work order management, field agent dispatch, SLA tracking, and completion verification.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Workplace</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">📝</div>
+        <div class="mod-name">Surveys & Feedback</div>
+        <div class="mod-desc">Configurable CSAT, NPS, and internal pulse surveys tied to tickets and service completions.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Service</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,79,251,.12)">🌐</div>
+        <div class="mod-name">OIDC / SAML SSO</div>
+        <div class="mod-desc">Enterprise single sign-on with Okta, Azure AD, Google Workspace. Session reuse and mapping.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Platform</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(0,201,113,.10)">🔍</div>
+        <div class="mod-name">Global Search</div>
+        <div class="mod-desc">Typo-tolerant federated full-text search across tickets, knowledge, people, and assets.</div>
+        <span class="mod-badge" style="background:rgba(0,79,251,.1);color:#7aaaff">Platform</span>
+      </div>
+      <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(239,68,68,.10)">👤</div>
+        <div class="mod-name">Admin Console</div>
+        <div class="mod-desc">User management, org configuration, audit log viewer, module activation, RBAC matrix.</div>
+        <span class="mod-badge" style="background:rgba(239,68,68,.1);color:#f87171">Admin</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION DIVIDER: TECH ─────────────────────────────────────── -->
+<div class="section-divider">
+  <div class="container">
+    <div class="div-number">03</div>
+    <div class="div-text">
+      <h3>Engineering</h3>
+      <p>Modern, type-safe, scalable from day one.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── TECH STACK ────────────────────────────────────────────────── -->
+<section id="tech">
+  <div class="container">
+    <div class="label">Engineering</div>
+    <h2 class="section-title fade-up">Built on the modern enterprise stack</h2>
+    <p class="section-sub fade-up">Every layer chosen for reliability, type-safety, and horizontal scale. No vendor lock-in. 100% open-source dependencies.</p>
+    <div class="tech-grid">
+      <div class="tech-group fade-up">
+        <div class="tech-group-title">Frontend</div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00BCFF"></div><div><div class="tech-item-name">Next.js 15</div><div class="tech-item-sub">App Router · RSC · SSR</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#004FFB"></div><div><div class="tech-item-name">React 19 + TypeScript</div><div class="tech-item-sub">Fully typed end-to-end</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00C971"></div><div><div class="tech-item-name">Tailwind + shadcn/ui</div><div class="tech-item-sub">Enterprise design system</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#D8FFE6"></div><div><div class="tech-item-name">tRPC v11 Client</div><div class="tech-item-sub">Zero-boilerplate API calls</div></div></div>
+      </div>
+      <div class="tech-group fade-up">
+        <div class="tech-group-title">Backend & API</div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#f97316"></div><div><div class="tech-item-name">Fastify</div><div class="tech-item-sub">High-perf HTTP framework</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00BCFF"></div><div><div class="tech-item-name">tRPC v11</div><div class="tech-item-sub">Type-safe API layer</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00C971"></div><div><div class="tech-item-name">Drizzle ORM</div><div class="tech-item-sub">Schema-first, fast queries</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#004FFB"></div><div><div class="tech-item-name">Zod</div><div class="tech-item-sub">Runtime input validation</div></div></div>
+      </div>
+      <div class="tech-group fade-up">
+        <div class="tech-group-title">Data & Search</div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#004FFB"></div><div><div class="tech-item-name">PostgreSQL 16</div><div class="tech-item-sub">ACID · JSONB · Full-text</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#ef4444"></div><div><div class="tech-item-name">Redis + BullMQ</div><div class="tech-item-sub">Queues · Caching</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#f59e0b"></div><div><div class="tech-item-name">Meilisearch</div><div class="tech-item-sub">Typo-tolerant full-text search</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00BCFF"></div><div><div class="tech-item-name">S3-compatible</div><div class="tech-item-sub">MinIO for self-hosted</div></div></div>
+      </div>
+      <div class="tech-group fade-up">
+        <div class="tech-group-title">Platform & AI</div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00C971"></div><div><div class="tech-item-name">OIDC / SAML SSO</div><div class="tech-item-sub">Enterprise auth ready</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#f59e0b"></div><div><div class="tech-item-name">Anthropic Claude</div><div class="tech-item-sub">AI summarisation & routing</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#00BCFF"></div><div><div class="tech-item-name">OpenTelemetry</div><div class="tech-item-sub">Full observability stack</div></div></div>
+        <div class="tech-item"><div class="tech-item-dot" style="background:#004FFB"></div><div><div class="tech-item-name">Helm / Kubernetes</div><div class="tech-item-sub">One-command deploy</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION DIVIDER: PRODUCTION PROOF ────────────────────────── -->
+<div class="section-divider">
+  <div class="container">
+    <div class="div-number">04</div>
+    <div class="div-text">
+      <h3>Production Proof</h3>
+      <p>Not prototype-grade. Hardened for the real world.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRODUCTION PROOF ──────────────────────────────────────────── -->
+<section id="production">
+  <div class="container">
+    <div class="label">Engineering Depth</div>
+    <h2 class="section-title fade-up">Production-hardened, not prototype-grade</h2>
+    <p class="section-sub fade-up">Every system built for production reliability. Not demo quality.</p>
+    <div class="proof-grid">
+      <div class="proof-card fade-up">
+        <div class="proof-icon">🔒</div>
+        <div class="proof-title">Concurrency & Idempotency</div>
+        <ul class="proof-items">
+          <li>Advisory lock in ticket creation — prevents TOCTOU race conditions</li>
+          <li>Optimistic locking (version columns) on tickets, approvals, change requests</li>
+          <li>Idempotency keys on all critical mutations — double-click safe</li>
+          <li>Unique DB constraint enforces key uniqueness at DB level</li>
+          <li>CONFLICT error on stale concurrent writes</li>
+        </ul>
+      </div>
+      <div class="proof-card fade-up">
+        <div class="proof-icon">📡</div>
+        <div class="proof-title">Observability & Tracing</div>
+        <ul class="proof-items">
+          <li><code style="color:var(--ocean-blue)">[TRPC REQUEST]</code> logged for every inbound call</li>
+          <li><code style="color:var(--amber)">[SLOW REQUEST]</code> warns on &gt;500ms responses</li>
+          <li><code style="color:var(--red)">[TRPC ERROR]</code> captures all procedure failures</li>
+          <li>Rolling latency tracker: p50 / p95 / p99 / max distribution</li>
+          <li>2s hard timeout on all queries via Promise.race</li>
+          <li>Full audit log on every mutation (IP, user, changes)</li>
+        </ul>
+      </div>
+      <div class="proof-card fade-up">
+        <div class="proof-icon">🧪</div>
+        <div class="proof-title">Test Coverage</div>
+        <ul class="proof-items">
+          <li>264+ automated QA tests across 10 layers</li>
+          <li>Failure scenario test suite: double-submit, network drop, concurrent approval, invalid transitions</li>
+          <li>Load simulation: 100 concurrent users, 0% failure rate</li>
+          <li>Playwright E2E: auth flows, ticket lifecycle, RBAC enforcement</li>
+          <li>Data integrity audit script (CI-ready, exit 1 on failure)</li>
+        </ul>
+      </div>
+      <div class="proof-card fade-up">
+        <div class="proof-icon">⚙️</div>
+        <div class="proof-title">Structured Logging</div>
+        <ul class="proof-items">
+          <li>tRPC middleware instruments every call with user, org, path, ts</li>
+          <li>Critical action logs on tickets.create, approvals.decide, procurement</li>
+          <li>Auto latency report every 200 requests</li>
+          <li>Shutdown latency summary on SIGTERM</li>
+        </ul>
+      </div>
+      <div class="proof-card fade-up">
+        <div class="proof-icon">🗄️</div>
+        <div class="proof-title">Data Integrity</div>
+        <ul class="proof-items">
+          <li>33-check automated DB audit (FK health, lifecycle, SLA, versions, sessions)</li>
+          <li>All schemas use z.coerce — resilient to frontend type mismatches</li>
+          <li>Sensitive fields redacted in audit logs (passwords, tokens)</li>
+          <li>Row-level access: confidential records filtered by role</li>
+          <li>Multi-tenant isolation enforced at every query (org_id scoping)</li>
+        </ul>
+      </div>
+      <div class="proof-card fade-up">
+        <div class="proof-icon">🌐</div>
+        <div class="proof-title">Enterprise Auth</div>
+        <ul class="proof-items">
+          <li>OIDC SSO with session reuse and provider mapping</li>
+          <li>bcrypt password hashing, SHA-256 session tokens</li>
+          <li>30-day rotating sessions with clock-skew tolerance</li>
+          <li>Logout clears both localStorage and browser cookies</li>
+          <li>Middleware-protected routes (Next.js edge)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECURITY / RBAC ────────────────────────────────────────────── -->
+<section id="security">
+  <div class="container">
+    <div class="label">Access Control</div>
+    <h2 class="section-title fade-up">Enterprise RBAC — 22 roles, 35 permission scopes</h2>
+    <p class="section-sub fade-up">Least-privilege by default. Every API endpoint, every UI button, every tab is gated by a declarative permission matrix.</p>
+    <div class="sec-grid">
+      <div class="fade-up">
+        <table class="role-table">
+          <thead>
+            <tr><th>Role</th><th>Base</th><th>Scope</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="role-tag rt-admin">Admin</span></td><td>owner / admin</td><td>All modules, all orgs</td></tr>
+            <tr><td><span class="role-tag rt-manager">Finance Mgr</span></td><td>member</td><td>Financial, Procurement approve</td></tr>
+            <tr><td><span class="role-tag rt-manager">HR Manager</span></td><td>member</td><td>HR read / write / approve</td></tr>
+            <tr><td><span class="role-tag rt-manager">Ops Manager</span></td><td>member</td><td>Incidents assign, Approvals</td></tr>
+            <tr><td><span class="role-tag rt-user">ITIL Agent</span></td><td>member</td><td>IT modules only</td></tr>
+            <tr><td><span class="role-tag rt-user">Field Op</span></td><td>member</td><td>Work orders only</td></tr>
+            <tr><td><span class="role-tag rt-user">Security Analyst</span></td><td>member</td><td>Security module, no finance</td></tr>
+            <tr><td><span class="role-tag rt-viewer">Requester</span></td><td>member</td><td>Self-service portal only</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="sec-features fade-up">
+        <div class="sec-feat">
+          <div class="sec-feat-icon">🔑</div>
+          <div><div class="sec-feat-title">Additive Matrix Roles</div><div class="sec-feat-sub">Base role + matrix_role combine additively. A member who is also a finance_manager gets both permission sets.</div></div>
+        </div>
+        <div class="sec-feat">
+          <div class="sec-feat-icon">🎛️</div>
+          <div><div class="sec-feat-title">Tab-level enforcement</div><div class="sec-feat-sub">Every tab in every module page carries module + action metadata. Tabs invisible to roles that lack permission — no 403 walls.</div></div>
+        </div>
+        <div class="sec-feat">
+          <div class="sec-feat-icon">🛡️</div>
+          <div><div class="sec-feat-title">permissionProcedure</div><div class="sec-feat-sub">Every tRPC endpoint is wrapped in a typed permission check. Bypassing the frontend still gets a FORBIDDEN response.</div></div>
+        </div>
+        <div class="sec-feat">
+          <div class="sec-feat-icon">📋</div>
+          <div><div class="sec-feat-title">Immutable Audit Trail</div><div class="sec-feat-sub">Every mutation writes to audit_logs with user, org, IP, action, and sanitized change diff. Non-deletable by design.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ARCHITECTURE ──────────────────────────────────────────────── -->
+<section id="architecture">
+  <div class="container">
+    <div class="label">Architecture</div>
+    <h2 class="section-title fade-up">Monorepo. Multi-tenant. Multi-deployment.</h2>
+    <p class="section-sub fade-up">One codebase. Runs on a laptop for dev, a single VM for SMB, or Kubernetes at enterprise scale.</p>
+    <div class="arch-diagram fade-up">
+      <div class="arch-header">
+        <div class="arch-dot" style="background:#ef4444"></div>
+        <div class="arch-dot" style="background:#f59e0b"></div>
+        <div class="arch-dot" style="background:#00C971"></div>
+        <span style="font-size:13px;color:var(--muted);margin-left:10px;font-weight:300">NexusOps Architecture · Coheron Tech</span>
+      </div>
+      <div class="arch-body">
+        <div class="arch-layer">
+          <div class="arch-layer-label">Clients</div>
+          <div class="arch-layer-items">
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#004FFB"></div>Browser (Next.js 15)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00BCFF"></div>Mobile-ready (PWA)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00C971"></div>REST / tRPC API clients</div>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Edge</div>
+          <div class="arch-layer-items">
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#f59e0b"></div>Next.js Middleware (auth)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00C971"></div>OIDC / SAML SSO</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00BCFF"></div>Rate limiting</div>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">API Layer</div>
+          <div class="arch-layer-items">
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#f97316"></div>Fastify + tRPC</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#004FFB"></div>RBAC Middleware</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00BCFF"></div>Audit Middleware</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00C971"></div>Latency Middleware</div>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Services</div>
+          <div class="arch-layer-items">
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#f59e0b"></div>Anthropic Claude (AI)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00C971"></div>BullMQ (workflows)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00BCFF"></div>Meilisearch</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#004FFB"></div>OpenTelemetry</div>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Data</div>
+          <div class="arch-layer-items">
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#004FFB"></div>PostgreSQL 16</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#ef4444"></div>Redis</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00BCFF"></div>S3 / MinIO</div>
+          </div>
+        </div>
+        <div class="arch-layer">
+          <div class="arch-layer-label">Deploy</div>
+          <div class="arch-layer-items">
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00BCFF"></div>Docker Compose (dev)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#00C971"></div>Helm / Kubernetes (prod)</div>
+            <div class="arch-chip"><div class="arch-chip-dot" style="background:#004FFB"></div>Coheron Managed Cloud</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION DIVIDER: BUSINESS ────────────────────────────────── -->
+<div class="section-divider">
+  <div class="container">
+    <div class="div-number">05</div>
+    <div class="div-text">
+      <h3>Business Model</h3>
+      <p>Two deployment models. One pricing advantage.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── BUSINESS MODEL ─────────────────────────────────────────────── -->
+<section id="business">
+  <div class="container">
+    <div class="label">Business</div>
+    <h2 class="section-title fade-up">Two deployment models. One pricing advantage.</h2>
+    <p class="section-sub fade-up">Built to win enterprise deals by being the first ServiceNow alternative with a credible feature surface, at 10× lower TCO.</p>
+    <div class="biz-split">
+      <div class="fade-up">
+        <div class="biz-model">
+          <div class="biz-model-header">
+            <div class="biz-model-title">🏠 Self-Hosted</div>
+            <span class="biz-model-tag" style="background:rgba(0,201,113,.1);color:#4de6a0">Revenue: License + Support</span>
+          </div>
+          <div class="biz-rows">
+            <div class="biz-row"><span class="biz-row-label">Deployment</span><span class="biz-row-value">Client's infra (Docker/K8s)</span></div>
+            <div class="biz-row"><span class="biz-row-label">License</span><span class="biz-row-value">Annual per-seat</span></div>
+            <div class="biz-row"><span class="biz-row-label">Support tier</span><span class="biz-row-value">Starter → Enterprise SLA</span></div>
+            <div class="biz-row"><span class="biz-row-label">Modules</span><span class="biz-row-value">Buy only what you need</span></div>
+            <div class="biz-row"><span class="biz-row-label">Updates</span><span class="biz-row-value">Coheron-signed releases</span></div>
+          </div>
+        </div>
+        <div class="biz-model">
+          <div class="biz-model-header">
+            <div class="biz-model-title">☁️ Coheron-Managed</div>
+            <span class="biz-model-tag" style="background:rgba(0,79,251,.1);color:#7aaaff">Revenue: SaaS MRR</span>
+          </div>
+          <div class="biz-rows">
+            <div class="biz-row"><span class="biz-row-label">Deployment</span><span class="biz-row-value">Coheron-operated cloud</span></div>
+            <div class="biz-row"><span class="biz-row-label">Pricing</span><span class="biz-row-value">Per-seat MRR</span></div>
+            <div class="biz-row"><span class="biz-row-label">Infra</span><span class="biz-row-value">AWS / GCP / Azure</span></div>
+            <div class="biz-row"><span class="biz-row-label">Backups & scaling</span><span class="biz-row-value">Coheron-managed</span></div>
+            <div class="biz-row"><span class="biz-row-label">SLA</span><span class="biz-row-value">99.9% uptime guarantee</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="market-block fade-up">
+        <div class="market-stat">
+          <div class="market-stat-n" style="background:linear-gradient(135deg,#00BCFF,#004FFB);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">$8.9B</div>
+          <div class="market-stat-l">Global ITSM market size (2025) — growing at 14% CAGR</div>
+        </div>
+        <div class="market-stat">
+          <div class="market-stat-n" style="background:linear-gradient(135deg,#004FFB,#00BCFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">$100–200</div>
+          <div class="market-stat-l">ServiceNow per-user/month average. NexusOps targets 80% lower TCO.</div>
+        </div>
+        <div class="market-stat">
+          <div class="market-stat-n" style="background:linear-gradient(135deg,#00C971,#00BCFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">60%</div>
+          <div class="market-stat-l">Mid-market enterprises (500–5000 employees) lack affordable ServiceNow alternatives</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px">
+          <div style="font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;letter-spacing:.04em;margin-bottom:16px">vs. ServiceNow at 500 users</div>
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--muted);font-weight:300">ServiceNow (est.)</span><span style="color:var(--red);font-weight:600">₹50L+ / year</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--muted);font-weight:300">NexusOps Managed</span><span style="color:var(--happy-green);font-weight:600">₹5–8L / year</span></div>
+            <div style="height:1px;background:var(--border);margin:4px 0"></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="font-weight:600">Customer savings</span><span style="color:var(--ocean-blue);font-weight:700">~85%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ROADMAP ────────────────────────────────────────────────────── -->
+<section id="roadmap">
+  <div class="container">
+    <div class="label">Roadmap</div>
+    <h2 class="section-title fade-up">From platform to product</h2>
+    <p class="section-sub fade-up">Core platform is complete and production-hardened. Next phase: GTM, integrations, and multi-tenant cloud.</p>
+    <div class="roadmap-track">
+      <div class="roadmap-item fade-up">
+        <div class="roadmap-dot done">✓</div>
+        <div class="roadmap-content">
+          <div class="roadmap-phase">Phase 1 — Complete</div>
+          <div class="roadmap-title">Core Platform (v3.2)</div>
+          <div style="font-size:14px;color:var(--muted);font-weight:300">All 34 modules built, wired to backend, RBAC-enforced. 264 QA tests green. Production-hardened with idempotency, concurrency, observability, and data integrity audit.</div>
+          <div class="roadmap-items">
+            <span class="roadmap-tag">34 Modules</span><span class="roadmap-tag">RBAC v2</span><span class="roadmap-tag">OIDC SSO</span>
+            <span class="roadmap-tag">AI (Claude)</span><span class="roadmap-tag">Workflows</span><span class="roadmap-tag">Helm Deploy</span>
+          </div>
+        </div>
+      </div>
+      <div class="roadmap-item fade-up">
+        <div class="roadmap-dot now">→</div>
+        <div class="roadmap-content">
+          <div class="roadmap-phase">Phase 2 — In Progress</div>
+          <div class="roadmap-title">GTM & First Customers</div>
+          <div style="font-size:14px;color:var(--muted);font-weight:300">Investor outreach, design partner onboarding, pricing finalisation, and managed cloud infrastructure setup on AWS.</div>
+          <div class="roadmap-items">
+            <span class="roadmap-tag">Design Partners</span><span class="roadmap-tag">Pricing Model</span>
+            <span class="roadmap-tag">Managed Cloud</span><span class="roadmap-tag">Investor Raise</span>
+          </div>
+        </div>
+      </div>
+      <div class="roadmap-item fade-up">
+        <div class="roadmap-dot next">3</div>
+        <div class="roadmap-content">
+          <div class="roadmap-phase">Phase 3 — Q3 2026</div>
+          <div class="roadmap-title">Enterprise Integrations</div>
+          <div style="font-size:14px;color:var(--muted);font-weight:300">SAP, Salesforce, NetSuite, Slack, Teams, and HRMS connectors. REST + webhook framework. App marketplace for partner integrations.</div>
+          <div class="roadmap-items">
+            <span class="roadmap-tag">SAP Connector</span><span class="roadmap-tag">Salesforce Sync</span>
+            <span class="roadmap-tag">Webhook Engine</span><span class="roadmap-tag">App Marketplace</span>
+          </div>
+        </div>
+      </div>
+      <div class="roadmap-item fade-up">
+        <div class="roadmap-dot next">4</div>
+        <div class="roadmap-content">
+          <div class="roadmap-phase">Phase 4 — Q4 2026</div>
+          <div class="roadmap-title">Multi-tenant SaaS Cloud</div>
+          <div style="font-size:14px;color:var(--muted);font-weight:300">Full SaaS deployment with tenant isolation, self-serve onboarding, usage-based billing, and Coheron-managed upgrade SLAs.</div>
+          <div class="roadmap-items">
+            <span class="roadmap-tag">Tenant Isolation</span><span class="roadmap-tag">Self-serve Signup</span>
+            <span class="roadmap-tag">Usage Billing</span><span class="roadmap-tag">SOC 2 Type II</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ─────────────────────────────────────────────────────────── -->
+<section id="cta">
+  <div class="cta-bg"></div>
+  <div class="cta-shapes">
+    <div class="cta-shape-1"></div>
+    <div class="cta-shape-2"></div>
+  </div>
+  <div class="container">
+    <div class="cta-inner fade-up">
+      <div class="label" style="justify-content:center">Coheron Tech Private Ltd · NexusOps</div>
+      <h2 class="cta-title">Ready to see it live?</h2>
+      <p class="cta-sub">We're raising a seed round to go to market. We have a production-ready platform, a clear enterprise target, and a 10× pricing advantage over the incumbent.<br/>Let's talk.</p>
+      <div class="hero-actions">
+        <button class="btn-primary">Request a Demo</button>
+        <button class="btn-outline">Download Pitch Deck</button>
+      </div>
+      <div class="cta-contacts">
+        <div>
+          <div class="cta-contact-label">Company</div>
+          <div class="cta-contact-value">Coheron Tech Private Ltd</div>
+        </div>
+        <div>
+          <div class="cta-contact-label">Product</div>
+          <div class="cta-contact-value">NexusOps v3.2</div>
+        </div>
+        <div>
+          <div class="cta-contact-label">Stage</div>
+          <div class="cta-contact-value">Seed — Platform Complete</div>
+        </div>
+        <div>
+          <div class="cta-contact-label">Website</div>
+          <div class="cta-contact-value">www.coheron.tech</div>
+        </div>
+        <div>
+          <div class="cta-contact-label">Deployment</div>
+          <div class="cta-contact-value">Self-Hosted &amp; Managed Cloud</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ─────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-brand">COHERON <span>TECH</span> · NexusOps</div>
+  <div class="footer-legal">© 2026 Coheron Tech Private Ltd. All rights reserved. This document is confidential and intended for investor review only.</div>
+</footer>
+
+<script>
+// Intersection Observer for fade-up animations
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+}, { threshold: 0.10, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// Counter animation for hero stats
+function animateNumber(el, target, suffix) {
+  const duration = 1500;
+  const start = performance.now();
+  const step = (now) => {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(target * ease);
+    el.textContent = (suffix === '₹') ? '₹0' : current + (suffix || '');
+    if (progress < 1) requestAnimationFrame(step);
+    else el.textContent = (suffix === '₹' ? '₹0' : target + (suffix || ''));
+  };
+  requestAnimationFrame(step);
+}
+
+const heroObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      document.querySelectorAll('.h-stat-n').forEach(el => {
+        const text = el.textContent.trim();
+        if (text === '34')   animateNumber(el, 34,  '');
+        if (text === '264+') animateNumber(el, 264, '+');
+        if (text === '35')   animateNumber(el, 35,  '');
+        if (text === '56')   animateNumber(el, 56,  '');
+      });
+      heroObserver.disconnect();
+    }
+  });
+}, { threshold: 0.5 });
+
+const heroStats = document.querySelector('.hero-stats');
+if (heroStats) heroObserver.observe(heroStats);
+
+// Active nav link on scroll
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-links a');
+const scrollSpy = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => a.style.color = '');
+      const active = document.querySelector(`.nav-links a[href="#${e.target.id}"]`);
+      if (active) active.style.color = '#FFFFFF';
+    }
+  });
+}, { rootMargin: '-40% 0px -40% 0px' });
+sections.forEach(s => scrollSpy.observe(s));
+</script>
+</body>
+</html>

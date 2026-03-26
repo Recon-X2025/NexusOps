@@ -1,0 +1,66 @@
+{
+  "name": "nexusops",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:e2e": "playwright test",
+    "test:ci": "turbo run test && playwright test",
+    "test:stage1": "turbo run test --filter=./packages/db... --filter=./packages/auth...",
+    "test:stage2": "turbo run test --filter=./apps/api...",
+    "test:all": "turbo run test",
+    "test:layer1": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer1*",
+    "test:layer2": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer2*",
+    "test:layer3": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer3*",
+    "test:layer4": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer4*",
+    "test:layer5": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer5*",
+    "test:layer6": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer6*",
+    "test:layer7": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer7*",
+    "test:layer8": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer8*",
+    "test:layer9": "dotenv -e .env.test -- pnpm --filter @nexusops/api vitest run src/__tests__/layer9*",
+    "test:layer10": "playwright test",
+    "test:e2e:ci": "playwright test --reporter=line",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all-layers": "pnpm test:full-qa",
+    "test:full-qa": "bash scripts/run-full-qa.sh",
+    "test:qa-report": "bash scripts/run-full-qa.sh 2>&1 | tee qa-report-$(date +%Y%m%d-%H%M%S).txt",
+    "stress:500": "node scripts/stress-test-500.js",
+    "stress:500:ramp": "RAMP_MS=5000 node scripts/stress-test-500.js",
+    "stress:100": "SESSIONS=100 node scripts/stress-test-500.js",
+    "stress:5000": "node scripts/stress-test-5000.js",
+    "stress:5000:fast": "MAX_CONCURRENT=1000 node scripts/stress-test-5000.js",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "db:push": "turbo run db:push --filter=./packages/db",
+    "db:migrate": "turbo run db:migrate --filter=./packages/db",
+    "db:seed": "turbo run db:seed --filter=./packages/db",
+    "db:studio": "turbo run db:studio --filter=./packages/db",
+    "docker:up": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:down": "docker compose -f docker-compose.dev.yml down",
+    "docker:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "docker:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "docker:test:down": "docker compose -f docker-compose.test.yml down"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^22.0.0",
+    "dotenv-cli": "^11.0.0",
+    "prettier": "^3.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

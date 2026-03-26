@@ -1,0 +1,205 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Canvas & surfaces */
+    --background: 220 14% 95%;          /* #f0f2f5 — light gray canvas */
+    --foreground: 220 28% 12%;          /* #172030 — near black */
+    --card: 0 0% 100%;                  /* white panels */
+    --card-foreground: 220 28% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 28% 12%;
+
+    /* Brand */
+    --primary: 213 96% 40%;             /* #0356ca — enterprise blue */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary / muted */
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 220 28% 12%;
+    --muted: 220 14% 93%;
+    --muted-foreground: 220 9% 48%;     /* #6e7787 */
+    --accent: 213 96% 95%;              /* #e8f0fc hover tint */
+    --accent-foreground: 213 96% 32%;
+
+    /* Semantic */
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 86%;              /* #d4d9e1 */
+    --input: 220 13% 86%;
+    --ring: 213 96% 40%;
+    --radius: 0.2rem;                   /* Tight: enterprise feel */
+
+    /* Header (dark navy banner) */
+    --header-bg: 218 40% 14%;          /* #162131 */
+    --header-fg: 220 14% 88%;
+    --header-border: 218 40% 20%;
+
+    /* Sidebar (white nav) */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 20% 22%;
+    --sidebar-muted: 220 9% 52%;
+    --sidebar-primary: 213 96% 40%;
+    --sidebar-accent: 213 96% 95%;
+    --sidebar-accent-foreground: 213 96% 32%;
+    --sidebar-border: 220 13% 90%;
+    --sidebar-section: 220 9% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-ring: 213 96% 40%;
+
+    /* Priorities */
+    --p-critical: 0 84% 48%;
+    --p-high: 24 95% 50%;
+    --p-medium: 36 91% 50%;
+    --p-low: 142 63% 40%;
+
+    /* Ticket statuses */
+    --s-open: 213 96% 40%;
+    --s-in-progress: 262 78% 55%;
+    --s-pending: 36 91% 50%;
+    --s-resolved: 142 63% 40%;
+    --s-closed: 220 9% 52%;
+  }
+
+  .dark {
+    --background: 220 28% 9%;
+    --foreground: 220 14% 93%;
+    --card: 220 28% 12%;
+    --card-foreground: 220 14% 93%;
+    --popover: 220 28% 12%;
+    --popover-foreground: 220 14% 93%;
+    --primary: 213 96% 55%;
+    --primary-foreground: 220 28% 9%;
+    --secondary: 220 28% 16%;
+    --secondary-foreground: 220 14% 93%;
+    --muted: 220 28% 16%;
+    --muted-foreground: 220 9% 55%;
+    --accent: 213 96% 16%;
+    --accent-foreground: 213 96% 75%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 28% 20%;
+    --input: 220 28% 20%;
+    --ring: 213 96% 55%;
+
+    --header-bg: 220 38% 8%;
+    --header-fg: 220 14% 82%;
+    --header-border: 220 38% 14%;
+
+    --sidebar-background: 220 28% 11%;
+    --sidebar-foreground: 220 14% 85%;
+    --sidebar-muted: 220 9% 50%;
+    --sidebar-primary: 213 96% 55%;
+    --sidebar-accent: 213 96% 14%;
+    --sidebar-accent-foreground: 213 96% 75%;
+    --sidebar-border: 220 28% 18%;
+    --sidebar-section: 220 9% 45%;
+    --sidebar-primary-foreground: 220 28% 9%;
+    --sidebar-ring: 213 96% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-size: 13px;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1 { @apply text-xl font-semibold tracking-tight; }
+  h2 { @apply text-base font-semibold tracking-tight; }
+  h3 { @apply text-sm font-semibold; }
+}
+
+/* ─── Enterprise table styling ────────────────────────────────── */
+@layer components {
+  .ent-table {
+    @apply w-full text-xs border-collapse;
+  }
+  .ent-table thead tr {
+    @apply border-b border-border bg-muted/40;
+  }
+  .ent-table th {
+    @apply px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide select-none;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+  }
+  .ent-table th.sortable {
+    @apply cursor-pointer hover:text-foreground transition-colors;
+  }
+  .ent-table tbody tr {
+    @apply border-b border-border/60 transition-colors;
+  }
+  .ent-table tbody tr:hover {
+    @apply bg-accent/40;
+  }
+  .ent-table tbody tr.selected {
+    @apply bg-accent;
+  }
+  .ent-table td {
+    @apply px-3 py-2 text-xs align-middle;
+  }
+
+  /* Priority indicator bar */
+  .priority-bar {
+    @apply absolute left-0 top-0 bottom-0 w-0.5;
+  }
+  .priority-bar.critical { @apply bg-red-500; }
+  .priority-bar.high     { @apply bg-orange-400; }
+  .priority-bar.medium   { @apply bg-amber-400; }
+  .priority-bar.low      { @apply bg-green-500; }
+
+  /* SLA badge */
+  .sla-breached {
+    @apply inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[0.6rem] font-semibold bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300;
+  }
+  .sla-ok {
+    @apply inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[0.6rem] font-semibold bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300;
+  }
+
+  /* Status badge */
+  .status-badge {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium;
+  }
+
+  /* Field label/value pattern */
+  .field-label {
+    @apply text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5;
+  }
+  .field-value {
+    @apply text-xs text-foreground;
+  }
+
+  /* Enterprise section header */
+  .section-header {
+    @apply flex items-center gap-2 px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-widest text-[hsl(var(--sidebar-section))];
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 2px;
+  }
+
+  /* Tight monospace for IDs */
+  .mono { font-family: "JetBrains Mono", monospace; }
+}

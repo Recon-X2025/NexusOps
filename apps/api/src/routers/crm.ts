@@ -1,0 +1,194 @@
+import { router, permissionProcedure } from "../lib/trpc";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import {
+  crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmQuotes,
+  eq, and, desc, count, sum, sql,
+} from "@nexusops/db";
+import { getNextNumber } from "../lib/auto-number";
+
+export const crmRouter = router({
+  // ── Accounts ──────────────────────────────────────────────────────────────
+  listAccounts: permissionProcedure("accounts", "read")
+    .input(z.object({ tier: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(crmAccounts.orgId, org!.id)];
+      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier as any));
+      return db.select().from(crmAccounts).where(and(...conditions)).orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
+    }),
+
+  createAccount: permissionProcedure("accounts", "write")
+    .input(z.object({ name: z.string(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().optional(), annualRevenue: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [account] = await db.insert(crmAccounts).values({ orgId: org!.id, ...input, ownerId: user!.id }).returning();
+      return account;
+    }),
+
+  updateAccount: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() } as any)
+        .where(and(eq(crmAccounts.id, id), eq(crmAccounts.orgId, org!.id))).returning();
+      return account;
+    }),
+
+  // ── Contacts ──────────────────────────────────────────────────────────────
+  listContacts: permissionProcedure("accounts", "read")
+    .input(z.object({ accountId: z.string().uuid().optional(), limit: z.coerce.number().default(50) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(crmContacts.orgId, org!.id)];
+      if (input.accountId) conditions.push(eq(crmContacts.accountId, input.accountId));
+      return db.select().from(crmContacts).where(and(...conditions)).orderBy(crmContacts.lastName).limit(input.limit);
+    }),
+
+  createContact: permissionProcedure("accounts", "write")
+    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().optional(), phone: z.string().optional(), title: z.string().optional(), accountId: z.string().uuid().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [contact] = await db.insert(crmContacts).values({ orgId: org!.id, ...input }).returning();
+      return contact;
+    }),
+
+  // ── Deals ─────────────────────────────────────────────────────────────────
+  listDeals: permissionProcedure("accounts", "read")
+    .input(z.object({ stage: z.string().optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(crmDeals.orgId, org!.id)];
+      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage as any));
+      if (input.accountId) conditions.push(eq(crmDeals.accountId, input.accountId));
+      return db.select().from(crmDeals).where(and(...conditions)).orderBy(desc(crmDeals.updatedAt)).limit(input.limit);
+    }),
+
+  createDeal: permissionProcedure("accounts", "write")
+    .input(z.object({
+      title: z.string(),
+      accountId: z.string().uuid().optional(),
+      contactId: z.string().uuid().optional(),
+      value: z.string().optional(),
+      probability: z.coerce.number().default(10),
+      expectedClose: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const weightedValue = input.value && input.probability
+        ? String(Number(input.value) * (input.probability / 100)) : undefined;
+      const [deal] = await db.insert(crmDeals).values({
+        orgId: org!.id, ...input, ownerId: user!.id, weightedValue,
+        expectedClose: input.expectedClose ? new Date(input.expectedClose) : undefined,
+      }).returning();
+      return deal;
+    }),
+
+  movePipeline: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const updates: Record<string, any> = { stage: input.stage, updatedAt: new Date() };
+      if (input.stage === "closed_won" || input.stage === "closed_lost") updates.closedAt = new Date();
+      const [deal] = await db.update(crmDeals).set(updates)
+        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      return deal;
+    }),
+
+  // ── Leads ─────────────────────────────────────────────────────────────────
+  listLeads: permissionProcedure("accounts", "read")
+    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(crmLeads.orgId, org!.id)];
+      if (input.status) conditions.push(eq(crmLeads.status, input.status as any));
+      return db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
+    }),
+
+  createLead: permissionProcedure("accounts", "write")
+    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().optional(), company: z.string().optional(), source: z.string().default("website") }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source as any }).returning();
+      return lead;
+    }),
+
+  convertLead: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid(), dealTitle: z.string(), dealValue: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [{ cnt }] = await db.select({ cnt: count() }).from(crmDeals).where(eq(crmDeals.orgId, org!.id));
+      const [deal] = await db.insert(crmDeals).values({
+        orgId: org!.id, title: input.dealTitle, value: input.dealValue, ownerId: user!.id,
+        weightedValue: input.dealValue ? String(Number(input.dealValue) * 0.1) : undefined,
+      }).returning();
+      await db.update(crmLeads).set({ status: "converted", convertedDealId: deal!.id, updatedAt: new Date() })
+        .where(and(eq(crmLeads.id, input.id), eq(crmLeads.orgId, org!.id)));
+      return deal;
+    }),
+
+  // ── Activities ─────────────────────────────────────────────────────────────
+  listActivities: permissionProcedure("accounts", "read")
+    .input(z.object({ dealId: z.string().uuid().optional(), limit: z.coerce.number().default(50) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(crmActivities.orgId, org!.id)];
+      if (input.dealId) conditions.push(eq(crmActivities.dealId, input.dealId));
+      return db.select().from(crmActivities).where(and(...conditions)).orderBy(desc(crmActivities.createdAt)).limit(input.limit);
+    }),
+
+  createActivity: permissionProcedure("accounts", "write")
+    .input(z.object({ type: z.string(), subject: z.string(), description: z.string().optional(), dealId: z.string().uuid().optional(), outcome: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [activity] = await db.insert(crmActivities).values({ orgId: org!.id, ...input, ownerId: user!.id, type: input.type as any }).returning();
+      return activity;
+    }),
+
+  // ── Quotes ────────────────────────────────────────────────────────────────
+  listQuotes: permissionProcedure("accounts", "read")
+    .input(z.object({ dealId: z.string().uuid().optional(), status: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(crmQuotes.orgId, org!.id)];
+      if (input.dealId) conditions.push(eq(crmQuotes.dealId, input.dealId));
+      if (input.status) conditions.push(eq(crmQuotes.status, input.status as any));
+      return db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
+    }),
+
+  createQuote: permissionProcedure("accounts", "write")
+    .input(z.object({
+      dealId: z.string().uuid().optional(),
+      items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string() })).default([]),
+      discountPct: z.string().default("0"),
+      validUntil: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const quoteNumber = await getNextNumber(db, org!.id, "QT");
+      const subtotal = input.items.reduce((acc, i) => acc + Number(i.total), 0);
+      const total = subtotal * (1 - Number(input.discountPct) / 100);
+      const [quote] = await db.insert(crmQuotes).values({
+        orgId: org!.id, quoteNumber, ...input,
+        subtotal: String(subtotal), total: String(total),
+        validUntil: input.validUntil ? new Date(input.validUntil) : undefined,
+      }).returning();
+      return quote;
+    }),
+
+  // ── Dashboard Metrics ──────────────────────────────────────────────────────
+  dashboardMetrics: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
+      .from(crmDeals).where(and(eq(crmDeals.orgId, org!.id), sql`stage NOT IN ('closed_won','closed_lost')`));
+    const [wonDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
+      .from(crmDeals).where(and(eq(crmDeals.orgId, org!.id), eq(crmDeals.stage, "closed_won")));
+    const [newLeads] = await db.select({ cnt: count() }).from(crmLeads).where(and(eq(crmLeads.orgId, org!.id), eq(crmLeads.status, "new")));
+    return {
+      openPipeline: { count: Number(openDeals?.cnt ?? 0), value: openDeals?.total ?? "0" },
+      closedWon: { count: Number(wonDeals?.cnt ?? 0), value: wonDeals?.total ?? "0" },
+      newLeads: Number(newLeads?.cnt ?? 0),
+    };
+  }),
+});

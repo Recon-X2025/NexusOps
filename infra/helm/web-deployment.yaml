@@ -1,0 +1,90 @@
+# NexusOps Web — Kubernetes Deployment (Next.js)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexusops-web
+  labels:
+    app: nexusops-web
+    component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nexusops-web
+  template:
+    metadata:
+      labels:
+        app: nexusops-web
+        component: web
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: web
+          image: nexusops/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_PUBLIC_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusops-config
+                  key: NEXT_PUBLIC_API_URL
+            - name: NEXT_PUBLIC_APP_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusops-config
+                  key: NEXT_PUBLIC_APP_URL
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "800m"
+              memory: "768Mi"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexusops-web
+  labels:
+    app: nexusops-web
+spec:
+  selector:
+    app: nexusops-web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+# ConfigMap for public env vars (no secrets)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexusops-config
+data:
+  NEXT_PUBLIC_API_URL: "https://api.nexusops.io"
+  NEXT_PUBLIC_APP_URL: "https://app.nexusops.io"

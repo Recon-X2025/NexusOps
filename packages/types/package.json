@@ -1,0 +1,53 @@
+{
+  "name": "@nexusops/types",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "import": "./dist/auth.mjs",
+      "require": "./dist/auth.js"
+    },
+    "./tickets": {
+      "types": "./dist/tickets.d.ts",
+      "import": "./dist/tickets.mjs",
+      "require": "./dist/tickets.js"
+    },
+    "./assets": {
+      "types": "./dist/assets.d.ts",
+      "import": "./dist/assets.mjs",
+      "require": "./dist/assets.js"
+    },
+    "./hr": {
+      "types": "./dist/hr.d.ts",
+      "import": "./dist/hr.mjs",
+      "require": "./dist/hr.js"
+    },
+    "./procurement": {
+      "types": "./dist/procurement.d.ts",
+      "import": "./dist/procurement.mjs",
+      "require": "./dist/procurement.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@nexusops/config": "workspace:*",
+    "tsup": "^8.3.0",
+    "typescript": "^5.5.0"
+  }
+}

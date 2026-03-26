@@ -1,0 +1,693 @@
+"use client";
+
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { trpc } from "@/lib/trpc";
+import {
+  ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X,
+  AlertTriangle, MessageSquare, Activity, Paperclip, User,
+  Tag, RefreshCw, CheckCircle2, XCircle, ArrowUpCircle,
+  Printer, Copy, MoreHorizontal, Star, Eye, CalendarDays, Sparkles, Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const TYPE_COLORS: Record<string, string> = {
+  incident: "text-red-700 bg-red-100",
+  request:  "text-blue-700 bg-blue-100",
+  problem:  "text-purple-700 bg-purple-100",
+  change:   "text-cyan-700 bg-cyan-100",
+};
+
+const PRIORITY_COLORS: Record<string, { bar: string; text: string }> = {
+  "1_critical": { bar: "bg-red-600",    text: "text-red-700" },
+  "2_high":     { bar: "bg-orange-500", text: "text-orange-700" },
+  "3_moderate": { bar: "bg-yellow-500", text: "text-yellow-600" },
+  "4_low":      { bar: "bg-green-500",  text: "text-green-700" },
+};
+
+const ACTIVITY_ICON: Record<string, React.ElementType> = {
+  created:       CheckCircle2,
+  updated:       Edit2,
+  comment_added: MessageSquare,
+  note_added:    Lock,
+  assigned:      User,
+  bulk_updated:  RefreshCw,
+};
+
+function FieldRow({
+  label,
+  children,
+  editing,
+  onEdit,
+}: {
+  label: string;
+  children: React.ReactNode;
+  editing?: boolean;
+  onEdit?: () => void;
+}) {
+  return (
+    <div className="group flex items-start gap-2 py-1.5 border-b border-slate-100 last:border-0">
+      <span className="field-label w-32 flex-shrink-0 mt-0.5">{label}</span>
+      <span className="field-value flex-1 min-w-0">{children}</span>
+      {onEdit && !editing && (
+        <button
+          onClick={onEdit}
+          className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/70 hover:text-primary transition-opacity"
+          title="Edit field"
+        >
+          <Edit2 className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ActivityIcon({ action }: { action: string }) {
+  const Icon = ACTIVITY_ICON[action] ?? Activity;
+  return <Icon className="w-3.5 h-3.5" />;
+}
+
+function formatDt(d: string | Date | null | undefined) {
+  if (!d) return "—";
+  const date = new Date(d);
+  return date.toLocaleString("en-IN", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+}
+
+function relativeTime(d: string | Date) {
+  const ms = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export default function TicketDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"notes" | "activity" | "related">("notes");
+  const [commentBody, setCommentBody] = useState("");
+  const [isInternal, setIsInternal] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+
+  const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id });
+  const addComment = trpc.tickets.addComment.useMutation({
+    onSuccess: () => { setCommentBody(""); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateTicket = trpc.tickets.update.useMutation({
+    onSuccess: () => { setEditingField(null); refetch(); toast.success("Updated"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // AI assistance — lazy queries enabled only when user explicitly requests
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const { data: aiSummary, isFetching: summaryLoading } = trpc.ai.summarizeTicket.useQuery(
+    { ticketId: id },
+    { enabled: aiEnabled, retry: false, staleTime: 5 * 60_000 }
+  );
+  const { data: aiSuggestion, isFetching: suggestionLoading } = trpc.ai.suggestResolution.useQuery(
+    { ticketId: id },
+    { enabled: aiEnabled, retry: false, staleTime: 5 * 60_000 }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-60 text-[12px] text-muted-foreground/70">
+        Loading ticket...
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-60 text-[12px] text-red-500">
+        Ticket not found.
+      </div>
+    );
+  }
+
+  const { ticket, comments, activityLog } = data;
+  const pCfg = PRIORITY_COLORS[ticket.priority ?? "4_low"];
+  const typeBadge = TYPE_COLORS[ticket.type ?? "incident"];
+
+  const slaOverdueMs =
+    ticket.slaResolveDueAt
+      ? Date.now() - new Date(ticket.slaResolveDueAt).getTime()
+      : -1;
+  const slaOverdue = slaOverdueMs > 0;
+  const slaOverdueHrs = Math.floor(slaOverdueMs / 3600000);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+        <Link href="/app/tickets" className="hover:text-primary">
+          Incidents
+        </Link>
+        <ChevronRight className="w-3 h-3" />
+        <span className="text-muted-foreground font-medium">{ticket.number}</span>
+      </nav>
+
+      {/* SLA breach banner */}
+      {ticket.slaBreached && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded text-red-700 text-[12px]">
+          <Flame className="w-4 h-4 flex-shrink-0" />
+          <strong>SLA Breached</strong>
+          {slaOverdue && (
+            <span> — Overdue by {slaOverdueHrs > 0 ? `${slaOverdueHrs}h` : "<1h"}.</span>
+          )}
+          <span className="ml-1">Immediate escalation required.</span>
+          <button className="ml-auto flex items-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-[11px] font-medium hover:bg-red-700">
+            <ArrowUpCircle className="w-3 h-3" /> Escalate
+          </button>
+        </div>
+      )}
+
+      {/* Record header */}
+      <div className="bg-card border border-border rounded">
+        <div className="flex items-start gap-3 px-4 py-3 border-b border-border">
+          <div className={`w-1.5 self-stretch rounded-full flex-shrink-0 ${pCfg?.bar ?? "bg-border"}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center flex-wrap gap-1.5 mb-1">
+                  <span className="text-[11px] font-mono text-muted-foreground">{ticket.number}</span>
+                  <span className={`status-badge ${typeBadge} capitalize`}>{ticket.type}</span>
+                  <span className="status-badge text-muted-foreground bg-muted capitalize">
+                    {(ticket.priority ?? "4_low").replace(/_/g, " ").replace(/^\d /, "")}
+                  </span>
+                  {ticket.slaBreached && (
+                    <span className="status-badge text-red-700 bg-red-100 font-semibold">
+                      <Flame className="w-2.5 h-2.5 inline mr-0.5" />SLA Breached
+                    </span>
+                  )}
+                  {ticket.tags?.map((t: string) => (
+                    <span key={t} className="px-1.5 py-0.5 bg-muted text-muted-foreground text-[10px] rounded">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Editable title */}
+                {editingField === "title" ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={editValues.title ?? ticket.title}
+                      onChange={(e) => setEditValues((v) => ({ ...v, title: e.target.value }))}
+                      className="flex-1 text-sm font-semibold border-b border-primary outline-none bg-transparent text-foreground"
+                    />
+                    <button
+                      onClick={() =>
+                        updateTicket.mutate({ id: ticket.id, data: { title: editValues.title } })
+                      }
+                      className="text-green-600"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setEditingField(null)} className="text-red-500">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <h2
+                    className="text-sm font-semibold text-foreground cursor-pointer hover:text-primary group flex items-start gap-1"
+                    onClick={() => {
+                      setEditingField("title");
+                      setEditValues((v) => ({ ...v, title: ticket.title }));
+                    }}
+                  >
+                    {ticket.title}
+                    <Edit2 className="w-3 h-3 mt-0.5 opacity-0 group-hover:opacity-60 flex-shrink-0" />
+                  </h2>
+                )}
+              </div>
+
+              {/* Toolbar */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                  <Edit2 className="w-3 h-3" /> Edit
+                </button>
+                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                  <User className="w-3 h-3" /> Assign
+                </button>
+                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-green-300 rounded hover:bg-green-50 text-green-700">
+                  <CheckCircle2 className="w-3 h-3" /> Resolve
+                </button>
+                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-slate-300 rounded hover:bg-muted/30 text-muted-foreground">
+                  <XCircle className="w-3 h-3" /> Close
+                </button>
+                <button className="p-1.5 border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Two-column layout */}
+      <div className="flex gap-3">
+        {/* Left — tabs */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0">
+          <div className="flex border-b border-border bg-card rounded-t border-x border-t">
+            {(["notes", "activity", "related"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors capitalize
+                  ${activeTab === tab
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground/80"
+                  }`}
+              >
+                {tab === "notes"
+                  ? `Notes & Comments (${comments.length})`
+                  : tab === "activity"
+                    ? `Activity Log (${activityLog.length})`
+                    : "Related Records"}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-card border-x border-b border-border rounded-b">
+            {/* Notes tab */}
+            {activeTab === "notes" && (
+              <div className="p-4 space-y-4">
+                {/* Description */}
+                <div className="p-3 bg-muted/30 border border-border rounded">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Description</div>
+                  <p className="text-[12px] text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                    {ticket.description ?? "No description provided."}
+                  </p>
+                </div>
+
+                {/* Comment composer */}
+                <div className="border border-border rounded">
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+                    <button
+                      onClick={() => setIsInternal(false)}
+                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${!isInternal ? "bg-blue-100 text-blue-700 font-medium" : "text-muted-foreground hover:bg-muted"}`}
+                    >
+                      <Globe className="w-3 h-3" /> Customer Reply
+                    </button>
+                    <button
+                      onClick={() => setIsInternal(true)}
+                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${isInternal ? "bg-yellow-100 text-yellow-700 font-medium" : "text-muted-foreground hover:bg-muted"}`}
+                    >
+                      <Lock className="w-3 h-3" /> Work Note (Internal)
+                    </button>
+                  </div>
+                  <textarea
+                    value={commentBody}
+                    onChange={(e) => setCommentBody(e.target.value)}
+                    rows={3}
+                    placeholder={isInternal ? "Add internal work note (not visible to requester)..." : "Reply to requester..."}
+                    className="w-full px-3 py-2 text-[12px] text-foreground/80 resize-none outline-none"
+                  />
+                  <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <button className="p-1 text-muted-foreground/70 hover:text-muted-foreground">
+                        <Paperclip className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[11px] text-muted-foreground/70">
+                        {isInternal
+                          ? "Internal note — not visible to requester"
+                          : "This message will be sent to the requester"}
+                      </span>
+                    </div>
+                    <button
+                      disabled={!commentBody.trim() || addComment.isPending}
+                      onClick={() =>
+                        addComment.mutate({
+                          ticketId: ticket.id,
+                          body: commentBody,
+                          isInternal,
+                        })
+                      }
+                      className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-40"
+                    >
+                      {addComment.isPending ? "Posting..." : "Post"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Comments */}
+                <div className="space-y-3">
+                  {comments.map((comment: any) => (
+                    <div
+                      key={comment.id}
+                      className={`rounded border p-3 ${
+                        comment.isInternal
+                          ? "bg-yellow-50 border-yellow-200"
+                          : "bg-card border-border"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-semibold">
+                            SU
+                          </span>
+                          <span className="text-[12px] font-semibold text-foreground/80">System User</span>
+                          {comment.isInternal && (
+                            <span className="status-badge text-yellow-700 bg-yellow-100">
+                              <Lock className="w-2.5 h-2.5 inline mr-0.5" /> Work Note
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground/70">
+                          {relativeTime(comment.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-foreground/80 whitespace-pre-wrap">{comment.body}</p>
+                    </div>
+                  ))}
+                  {comments.length === 0 && (
+                    <p className="text-center text-[12px] text-muted-foreground/70 py-4">No comments yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Activity Log */}
+            {activeTab === "activity" && (
+              <div className="p-4">
+                <div className="space-y-0">
+                  {activityLog.map((entry: any, i: number) => (
+                    <div key={entry.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
+                            ${entry.action === "created" ? "bg-green-100 text-green-600"
+                              : entry.action.includes("comment") ? "bg-blue-100 text-blue-600"
+                              : entry.action.includes("note") ? "bg-yellow-100 text-yellow-600"
+                              : "bg-muted text-muted-foreground"
+                            }`}
+                        >
+                          <ActivityIcon action={entry.action} />
+                        </div>
+                        {i < activityLog.length - 1 && (
+                          <div className="w-px flex-1 bg-border my-1" />
+                        )}
+                      </div>
+                      <div className="pb-4 min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-[12px] font-medium text-foreground/80 capitalize">
+                            {entry.action.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground/70">
+                            by System User · {relativeTime(entry.createdAt)}
+                          </span>
+                        </div>
+                        {entry.changes && Object.keys(entry.changes).length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {Object.entries(entry.changes).map(([field, change]: [string, any]) => (
+                              <div key={field} className="text-[11px] text-muted-foreground">
+                                <span className="font-medium text-muted-foreground">{field}</span>
+                                {" changed"}
+                                {change.from != null && (
+                                  <span>
+                                    {" from "}
+                                    <span className="line-through text-muted-foreground/70">
+                                      {String(change.from)}
+                                    </span>
+                                  </span>
+                                )}
+                                {change.to != null && (
+                                  <span>
+                                    {" to "}
+                                    <span className="font-medium text-foreground/80">
+                                      {String(change.to)}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {activityLog.length === 0 && (
+                    <p className="text-center text-[12px] text-muted-foreground/70 py-4">No activity yet</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Related */}
+            {activeTab === "related" && (
+              <div className="p-4 space-y-3">
+                {[
+                  { label: "Related Incidents", items: [] },
+                  { label: "Linked Problem Records", items: [] },
+                  { label: "Change Requests", items: [] },
+                  { label: "Knowledge Articles", items: [] },
+                ].map((section) => (
+                  <div key={section.label} className="border border-border rounded">
+                    <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-muted-foreground">{section.label}</span>
+                      <button className="text-[11px] text-primary hover:underline">+ Link</button>
+                    </div>
+                    <div className="p-3 text-[12px] text-muted-foreground/70 italic">
+                      No related {section.label.toLowerCase()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right panel */}
+        <div className="w-64 flex-shrink-0 space-y-3">
+          {/* Status & Priority */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Incident Details
+              </span>
+            </div>
+            <div className="px-3 py-1">
+              <FieldRow label="Number">{ticket.number}</FieldRow>
+              <FieldRow label="Type">
+                <span className={`status-badge capitalize ${TYPE_COLORS[ticket.type] ?? ""}`}>
+                  {ticket.type}
+                </span>
+              </FieldRow>
+              <FieldRow label="Priority">
+                <span className={`text-[11px] font-semibold ${pCfg?.text ?? ""}`}>
+                  <span className={`inline-block w-2 h-2 rounded-full mr-1 ${pCfg?.bar}`} />
+                  {(ticket.priority ?? "4_low").replace(/_/g, " ").replace(/^(\d) /, (_: string, n: string) => `${n} – `)}
+                </span>
+              </FieldRow>
+              <FieldRow label="Impact">
+                <span className="text-muted-foreground">—</span>
+              </FieldRow>
+              <FieldRow label="Urgency">
+                <span className="text-muted-foreground">—</span>
+              </FieldRow>
+            </div>
+          </div>
+
+          {/* Assignment */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Assignment
+              </span>
+            </div>
+            <div className="px-3 py-1">
+              <FieldRow label="Assigned to">
+                {ticket.assigneeId ? (
+                  <span className="flex items-center gap-1">
+                    <span className="w-5 h-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-semibold">
+                      TS
+                    </span>
+                    <span className="text-foreground/80">Tech Support</span>
+                  </span>
+                ) : (
+                  <span className="text-red-500 text-[11px] font-medium">⚠ Unassigned</span>
+                )}
+              </FieldRow>
+              <FieldRow label="Team">
+                <span className="text-muted-foreground">{ticket.teamId ? "Service Desk" : "—"}</span>
+              </FieldRow>
+              <FieldRow label="Requester">
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <span className="w-5 h-5 rounded-full bg-border text-muted-foreground text-[9px] flex items-center justify-center font-semibold">
+                    SU
+                  </span>
+                  System Admin
+                </span>
+              </FieldRow>
+            </div>
+          </div>
+
+          {/* SLA */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                SLA & Dates
+              </span>
+            </div>
+            <div className="px-3 py-1">
+              <FieldRow label="Response Due">
+                {ticket.slaResponseDueAt ? (
+                  <span
+                    className={
+                      new Date(ticket.slaResponseDueAt) < new Date()
+                        ? "text-red-600 font-medium"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {formatDt(ticket.slaResponseDueAt)}
+                  </span>
+                ) : "—"}
+              </FieldRow>
+              <FieldRow label="Resolve Due">
+                {ticket.slaResolveDueAt ? (
+                  <span
+                    className={
+                      new Date(ticket.slaResolveDueAt) < new Date()
+                        ? "text-red-600 font-medium"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {formatDt(ticket.slaResolveDueAt)}
+                  </span>
+                ) : "—"}
+              </FieldRow>
+              <FieldRow label="Opened">{formatDt(ticket.createdAt)}</FieldRow>
+              <FieldRow label="Updated">{formatDt(ticket.updatedAt)}</FieldRow>
+              {ticket.resolvedAt && (
+                <FieldRow label="Resolved">{formatDt(ticket.resolvedAt)}</FieldRow>
+              )}
+              {ticket.closedAt && (
+                <FieldRow label="Closed">{formatDt(ticket.closedAt)}</FieldRow>
+              )}
+              {ticket.dueDate && (
+                <FieldRow label="Due Date">{formatDt(ticket.dueDate)}</FieldRow>
+              )}
+            </div>
+          </div>
+
+          {/* Classification */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-3 py-2 border-b border-border bg-muted/30">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Classification
+              </span>
+            </div>
+            <div className="px-3 py-1">
+              <FieldRow label="Category">
+                <span className="text-muted-foreground">{ticket.categoryId ?? "—"}</span>
+              </FieldRow>
+              <FieldRow label="Tags">
+                {ticket.tags?.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {ticket.tags.map((t: string) => (
+                      <span
+                        key={t}
+                        className="px-1.5 py-0.5 bg-muted text-muted-foreground text-[10px] rounded"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  "—"
+                )}
+              </FieldRow>
+            </div>
+          </div>
+
+          {/* AI Insights */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <Sparkles className="h-3 w-3 text-indigo-500" />
+                AI Insights
+              </span>
+              {!aiEnabled && (
+                <button
+                  onClick={() => setAiEnabled(true)}
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  Analyse
+                </button>
+              )}
+            </div>
+            <div className="px-3 py-2 text-[11px] text-muted-foreground space-y-2">
+              {!aiEnabled && (
+                <p className="text-muted-foreground/60 italic">Click Analyse for AI-powered summary and resolution suggestions.</p>
+              )}
+              {aiEnabled && (summaryLoading || suggestionLoading) && (
+                <div className="flex items-center gap-1.5 py-1">
+                  <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
+                  <span className="text-indigo-600">Analysing…</span>
+                </div>
+              )}
+              {aiEnabled && aiSummary && (
+                <div>
+                  <p className="font-semibold text-foreground/80 mb-0.5">Summary</p>
+                  <p className="leading-relaxed">{aiSummary.summary}</p>
+                  {aiSummary.keyPoints.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                      {aiSummary.keyPoints.map((pt, i) => <li key={i}>{pt}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {aiEnabled && aiSuggestion && (
+                <div className="mt-2 border-t border-border pt-2">
+                  <p className="font-semibold text-foreground/80 mb-0.5 flex items-center gap-1">
+                    Suggested Resolution
+                    <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-mono ${aiSuggestion.confidence === "high" ? "bg-green-100 text-green-700" : aiSuggestion.confidence === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-muted text-muted-foreground"}`}>
+                      {aiSuggestion.confidence}
+                    </span>
+                  </p>
+                  <p className="leading-relaxed">{aiSuggestion.suggestion}</p>
+                </div>
+              )}
+              {aiEnabled && !summaryLoading && !suggestionLoading && !aiSummary && !aiSuggestion && (
+                <p className="text-muted-foreground/60 italic">AI analysis not available for this ticket.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Watchers */}
+          <div className="bg-card border border-border rounded">
+            <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Watchers
+              </span>
+              <button className="text-[11px] text-primary hover:underline">+ Watch</button>
+            </div>
+            <div className="px-3 py-3">
+              <div className="flex -space-x-1">
+                {["SA", "JC", "TO"].map((init) => (
+                  <span
+                    key={init}
+                    className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-semibold border-2 border-white"
+                    title={init}
+                  >
+                    {init}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground/70 mt-1">3 watchers</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

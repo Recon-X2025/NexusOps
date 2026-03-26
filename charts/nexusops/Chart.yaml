@@ -1,0 +1,17 @@
+apiVersion: v2
+name: nexusops
+description: NexusOps by Coheron — Enterprise workflow orchestration platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - itsm
+  - workflow
+  - erp
+  - servicenow-alternative
+home: https://coheron.com
+sources:
+  - https://github.com/coheron/nexusops
+maintainers:
+  - name: Coheron
+    email: platform@coheron.com
