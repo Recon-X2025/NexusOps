@@ -35,9 +35,29 @@ SERVER_IP=$(curl -s https://api.ipify.org || hostname -I | awk '{print $1}')
 info "Server IP detected: ${BOLD}${SERVER_IP}${RESET}"
 
 # ── 1. System updates ─────────────────────────────────────────────────────────
-info "Updating system packages..."
-apt-get update -qq && apt-get upgrade -y -qq
-apt-get install -y -qq curl git openssl ca-certificates gnupg
+info "Installing required packages..."
+export DEBIAN_FRONTEND=noninteractive
+
+# Wait up to 120s for any existing apt lock to clear
+LOCK_WAIT=0
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+  if [[ $LOCK_WAIT -ge 120 ]]; then
+    warn "apt lock held too long — force-clearing it"
+    kill "$(fuser /var/lib/dpkg/lock-frontend 2>/dev/null)" 2>/dev/null || true
+    rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock
+    dpkg --configure -a -q
+    break
+  fi
+  info "Waiting for apt lock... (${LOCK_WAIT}s)"
+  sleep 5
+  LOCK_WAIT=$((LOCK_WAIT + 5))
+done
+
+apt-get update -qq
+apt-get install -y -qq \
+  -o Dpkg::Options::="--force-confold" \
+  -o Dpkg::Options::="--force-confdef" \
+  curl git openssl ca-certificates gnupg
 
 # ── 2. Install Docker ─────────────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
@@ -58,12 +78,20 @@ else
 fi
 
 # ── 3. Clone / update repo ────────────────────────────────────────────────────
-if [[ -d "$APP_DIR/.git" ]]; then
+if [[ -f "$APP_DIR/docker-compose.vultr-test.yml" ]]; then
+  info "Project files already present at $APP_DIR — skipping clone"
+elif [[ -d "$APP_DIR/.git" ]]; then
   info "Repo already cloned — pulling latest..."
   git -C "$APP_DIR" pull --ff-only
 else
   info "Cloning NexusOps repo..."
-  git clone "$REPO" "$APP_DIR"
+  git clone "$REPO" "$APP_DIR" || {
+    die "Git clone failed. The repo may be private. Run from your Mac first:
+  rsync -az --exclude='node_modules' --exclude='.git' --exclude='.next' \\
+    --exclude='dist' --exclude='.turbo' --exclude='*.pdf' --exclude='.pnpm-store' \\
+    /Users/kathikiyer/Documents/NexusOps/ root@${SERVER_IP}:/opt/nexusops/
+Then re-run this script."
+  }
 fi
 cd "$APP_DIR"
 
