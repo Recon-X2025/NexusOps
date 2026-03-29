@@ -15,6 +15,16 @@ export default defineConfig([
     },
   },
   {
+    entry: ["src/migrate.ts"],
+    format: ["esm"],
+    dts: false,
+    clean: false,
+    sourcemap: false,
+    target: "node20",
+    // Bundle drizzle-orm and postgres into migrate.mjs so it is self-contained
+    noExternal: ["drizzle-orm", "postgres"],
+  },
+  {
     entry: ["src/types.ts"],
     format: ["esm", "cjs"],
     dts: { only: true },
