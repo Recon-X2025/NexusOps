@@ -1,7 +1,7 @@
 # NexusOps — API Specification
 
-**Version:** 1.3  
-**Date:** March 28, 2026  
+**Version:** 1.4  
+**Date:** March 29, 2026  
 **Organisation:** Coheron  
 **Base URL:** `https://<host>/trpc`  
 **Protocol:** tRPC 11 over HTTP (JSON batch)  
@@ -3672,6 +3672,146 @@ Audit logs are queryable by org admins via `admin.auditLog.list`.
 
 ---
 
+## Appendix E — Internal Observability Endpoints
+
+These endpoints are **not** tRPC routes.  They are plain Fastify HTTP routes exposed directly on the API server for platform operators, monitoring sidecars, and CI verification scripts.  They require no authentication; they MUST be firewalled from public access in production (only accessible within the private network or via a bastion).
+
+---
+
+### `GET /internal/metrics`
+
+Returns a point-in-time JSON snapshot of all in-memory counters.  Counters reset on process restart or via the reset route below.
+
+**Response (200 OK):**
+
+```json
+{
+  "since": "2026-03-29T07:55:28.365Z",
+  "timestamp": "2026-03-29T07:55:45.012Z",
+  "total_requests": 1248,
+  "total_errors": 4,
+  "error_rate": 0.0032,
+  "rate_limited": 12,
+  "endpoints": {
+    "/trpc/tickets.create": {
+      "count": 340,
+      "errors": 2,
+      "avg_latency_ms": 41.3,
+      "min_latency_ms": 14,
+      "max_latency_ms": 312,
+      "last_seen": "2026-03-29T07:55:44.901Z"
+    }
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `since` | Wall-clock time of last metrics reset (or process start) |
+| `timestamp` | Wall-clock time of this snapshot |
+| `total_requests` | All HTTP requests since last reset |
+| `total_errors` | Requests that returned HTTP 5xx |
+| `error_rate` | `total_errors / total_requests`; 0 when no requests recorded |
+| `rate_limited` | Requests rejected by `@fastify/rate-limit` (HTTP 429) |
+| `endpoints` | Per-endpoint breakdown keyed by normalised URL (query string stripped) |
+| `endpoints[x].count` | Total requests to this endpoint |
+| `endpoints[x].errors` | 5xx responses on this endpoint |
+| `endpoints[x].avg_latency_ms` | Running arithmetic mean of response time |
+| `endpoints[x].min_latency_ms` | Fastest observed response |
+| `endpoints[x].max_latency_ms` | Slowest observed response |
+
+---
+
+### `POST /internal/metrics/reset`
+
+Resets all counters to zero.  Useful before a load test run or after a known incident is resolved.
+
+**Response (200 OK):**
+
+```json
+{
+  "ok": true,
+  "message": "Metrics reset",
+  "timestamp": "2026-03-29T07:55:28.365Z"
+}
+```
+
+---
+
+### `GET /internal/health`
+
+Evaluates current in-memory metrics against fixed health thresholds and returns a single-field status.  Also returns the active health monitor's last transition timestamp.
+
+**Response (200 OK — all cases; interpret `status` field for operational state):**
+
+```json
+{
+  "status": "HEALTHY",
+  "reasons": [],
+  "summary": {
+    "error_rate": 0.002,
+    "total_requests": 1248,
+    "total_errors": 4,
+    "rate_limited": 12,
+    "slow_endpoints": []
+  },
+  "monitor": {
+    "last_changed_at": "2026-03-29T07:55:04.574Z",
+    "eval_every": 50
+  }
+}
+```
+
+**Status values:**
+
+| `status` | Meaning |
+|---|---|
+| `HEALTHY` | All thresholds clear |
+| `DEGRADED` | One or more soft thresholds breached; service is functional |
+| `UNHEALTHY` | One or more hard thresholds breached; operator action required |
+
+**Health thresholds (hard-coded defaults; change requires a redeploy):**
+
+| Rule | Metric | DEGRADED threshold | UNHEALTHY threshold |
+|---|---|---|---|
+| Global error rate | `error_rate` | > 1 % | > 5 % |
+| Per-endpoint latency | `avg_latency_ms` on any endpoint | > 1 000 ms | > 2 000 ms |
+| Rate-limit pressure | `rate_limited` count | > 100 | — |
+
+> **Minimum traffic floor:** error-rate rules are only applied when `total_requests ≥ 20`; a single 500 on a cold process will not flip the system to UNHEALTHY.
+
+**`monitor` object fields:**
+
+| Field | Description |
+|---|---|
+| `last_changed_at` | ISO timestamp of the last health-status transition (or process start) |
+| `eval_every` | How many completed requests trigger a health re-evaluation (default 50, override via `HEALTH_EVAL_EVERY`) |
+
+**Active health signals (emitted as structured log lines, never in this response):**
+
+When `healthMonitor.ts` detects a status change it emits exactly one log line at the appropriate level:
+
+| Transition | Log level | `event` field |
+|---|---|---|
+| `HEALTHY → DEGRADED` | `warn` | `SYSTEM_DEGRADED` |
+| `DEGRADED → UNHEALTHY` | `error` | `SYSTEM_UNHEALTHY` |
+| `ANY → HEALTHY` | `info` | `SYSTEM_RECOVERED` |
+
+Example signal log:
+```json
+{
+  "level": "warn",
+  "event": "SYSTEM_DEGRADED",
+  "from": "HEALTHY",
+  "to": "DEGRADED",
+  "reasons": ["Error rate elevated: 2.1% (42/2000 requests) — threshold 1%"],
+  "summary": { "error_rate": 0.021, "total_requests": 2000, "total_errors": 42, "rate_limited": 0, "slow_endpoints": [] },
+  "changed_at": "2026-03-29T07:55:04.574Z"
+}
+```
+
+---
+
 ## Revision History
 
 | Version | Date | Author | Changes |
@@ -3680,3 +3820,5 @@ Audit logs are queryable by org admins via `admin.auditLog.list`.
 | 1.1 | 2026-03-27 | Platform Engineering | Added `inventory` and `indiaCompliance` routers. Documented new procedures. |
 | 1.2 | 2026-03-28 | Platform Engineering | Validated all documented endpoints under 200-VU k6 load. `tickets.list` and `dashboard.getMetrics` confirmed stable at 340 req/s with 0% error rate and p(95) 23ms. API contract corrections applied: `walkup.queue.callNext` (`id`→`locationId`), `walkup.queue.complete` (`id`→`visitId`), `crm.convertLead` (`dealTitle` added), `crm.listQuotes` (removed unsupported `limit` param), `facilities.moveRequests.create` (`toLocation` corrected), `facilities.bookings.create` (full payload documented). See `NexusOps_Load_Test_Report_2026.md`. |
 | 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Added `PRECONDITION_FAILED (412)` to §5 error codes: returned by `tickets.create` when the organisation has no open ticket status configured. Added prototype pollution protection note to §5: `__proto__`, `constructor`, and `prototype` keys are stripped at Fastify `preHandler` before any procedure runs. Fixed `tickets.create` to not propagate `INTERNAL_SERVER_ERROR` for invalid enum inputs — Zod validation failures now correctly surface as `BAD_REQUEST (400)`. Fixed `tickets.update` input schema documentation: update fields must be nested under a `data:` key. k6 security test suite (26 adversarial cases) confirmed 100% correct rejection rate and 0 unhandled 500 errors. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
+
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added Appendix E (Internal Observability Endpoints) documenting `GET /internal/metrics`, `POST /internal/metrics/reset`, and `GET /internal/health`. Documented `monitor` field added to health response (`last_changed_at`, `eval_every`). Documented active health signals: structured log lines emitted by `healthMonitor.ts` on HEALTHY/DEGRADED/UNHEALTHY transitions only — zero spam guarantee. See `NexusOps_Active_Health_Signal_Report_2026.md`. |

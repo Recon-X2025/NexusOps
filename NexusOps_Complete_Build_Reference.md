@@ -1,7 +1,7 @@
 # NexusOps Platform — Complete Build Reference
 
 **Version:** 3.4  
-**Doc revision:** March 28, 2026 — v3.5 reflects: k6 security and reliability test suite completed. Six adversarial test scripts (`auth_stress.js`, `rate_limit.js`, `chaos_flow.js`, `race_condition.js`, `invalid_payload.js`, `run_all.js`) run against the tRPC API. 23,798 total requests; **0 unhandled 500 errors**; **100% bad-input rejection** across 26 adversarial cases. Two security bugs discovered and fixed: (1) `tickets.create` returned 500 for invalid enum inputs — fixed by moving `resolveAssignment` outside the DB transaction and running `db:push` for `assignment_rules` table; (2) `__proto__` payloads caused prototype pollution crash — fixed with `sanitizeInput()` Fastify preHandler. Ticket workflow statuses seeded for all 20 load-test organisations. `tickets.update` payload shape corrected in all test scripts (`{ id, data: { ... } }`). See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results.
+**Doc revision:** March 29, 2026 — v3.6 reflects: observability stack fully deployed. Structured logging via Fastify pino instance (`initLogger`/`logInfo`/`logWarn`/`logError`). In-memory metrics collector (`metrics.ts`): total/per-endpoint request+error counts, running-average latency, rate-limit pressure counter. Health evaluator (`health.ts`): pure function mapping `MetricsSnapshot` → `HEALTHY`/`DEGRADED`/`UNHEALTHY`. Active health monitor (`healthMonitor.ts`): counter-triggered (every `HEALTH_EVAL_EVERY` requests, default 50); emits exactly one structured log line per status transition (`SYSTEM_DEGRADED` → `logWarn`, `SYSTEM_UNHEALTHY` → `logError`, `SYSTEM_RECOVERED` → `logInfo`). Three new internal endpoints: `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health` (includes `monitor.last_changed_at` and `monitor.eval_every`). See `NexusOps_Active_Health_Signal_Report_2026.md`.
 
 **Tech Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Shadcn/UI · Lucide Icons · tRPC 11 · Fastify · PostgreSQL (Drizzle ORM)  
 **Repository root:** monorepo (`pnpm` + Turbo)  
@@ -2263,3 +2263,10 @@ All mock users in `apps/web/src/lib/rbac.ts` updated to explicitly carry `"reque
 | `tickets.update` payload shape corrected in k6 scripts: `{ id, data: { ... } }` | ✅ |
 | Full suite: 23,798 requests, 0 unhandled 500 errors, 100% bad-input rejection, p(95) 271ms | ✅ |
 | `NexusOps_K6_Security_and_Load_Test_Report_2026.md` created | ✅ |
+
+| `apps/api/src/lib/logger.ts` rewritten — `initLogger()`/`logInfo()`/`logWarn()`/`logError()` backed by Fastify pino | ✅ |
+| `apps/api/src/lib/metrics.ts` created — in-memory request/error/latency counters | ✅ |
+| `apps/api/src/lib/health.ts` created — pure `evaluateHealth(MetricsSnapshot)` function | ✅ |
+| `apps/api/src/lib/healthMonitor.ts` created — active health signal emitter | ✅ |
+| `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health` routes added | ✅ |
+| `GET /internal/health` response extended with `monitor.last_changed_at` and `monitor.eval_every` | ✅ |

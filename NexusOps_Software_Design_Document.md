@@ -1,7 +1,7 @@
 # NexusOps — Software Design Document (SDD)
 
-**Version:** 1.3  
-**Date:** March 28, 2026  
+**Version:** 1.4  
+**Date:** March 29, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -672,28 +672,132 @@ if (zodErrors?.email) {
 
 ### 5.7 Logging Design
 
-The API uses **pino** for structured JSON logging. All log entries include:
+The API uses **pino** for structured JSON logging, accessed through the Fastify server's built-in logger instance.
+
+**Initialisation:** `initLogger(fastify.log)` is called once immediately after Fastify is created, storing the pino instance in a module-level variable inside `logger.ts`.  This avoids importing `pino` directly (which would require it as an explicit dependency) while preserving full access to Fastify's configured pino instance (including `pino-pretty` in development).
+
+**Canonical emit functions (all code must use these — never `console.*` or direct `fastify.log`):**
+
+| Function | Level | When to use |
+|---|---|---|
+| `logInfo(event, data)` | `info` | Normal operational events |
+| `logWarn(event, data)` | `warn` | Recoverable anomalies (auth failures, slow requests, RBAC denials) |
+| `logError(event, err, data)` | `error` | Unrecoverable errors; `err` provides stack trace in non-production |
+
+**Request log fields (emitted via `onResponse` hook):**
 
 | Field | Source |
-|-------|--------|
-| `level` | `info` (prod) / `debug` (dev) |
-| `time` | ISO timestamp |
-| `requestId` | Fastify request ID |
-| `path` | tRPC procedure path (e.g. `tickets.create`) |
-| `duration` | Request duration in ms |
-| `userId` | From context |
-| `orgId` | From context |
+|---|---|
+| `event` | `"REQUEST"` |
+| `request_id` | Fastify request ID (from `x-request-id` header or `randomUUID()`) |
+| `method` | HTTP method |
+| `url` | Request URL |
+| `status` | HTTP status code |
+| `duration_ms` | `Math.round(reply.elapsedTime)` |
 
-**Specialised log functions:**
+**Specialised log functions (domain-specific wrappers around `emit()`):**
 
 | Function | Trigger | Level |
-|----------|---------|-------|
+|---|---|---|
 | `logAuthFail` | Missing/invalid session token | `warn` |
 | `logRbacDenied` | Permission check failure | `warn` |
 | `logDbError` | PostgreSQL error in procedure | `error` |
 | `logServerError` | Unhandled error in procedure | `error` |
+| `logRateLimit` | Request rejected by rate limiter | `warn` |
 | `[SLOW REQUEST]` | Duration > 500ms | `warn` |
 | Latency report | Every 200 requests | `info` |
+
+**Correlation ID:** Fastify's `genReqId` is overridden to use the incoming `x-request-id` header value if present, otherwise generate a `randomUUID()`.  The same ID appears in every log line for that request.
+
+**Stack traces:** Included in error log entries only when `NODE_ENV !== "production"`.
+
+### 5.8 In-Memory Metrics Design
+
+`apps/api/src/lib/metrics.ts` maintains a single plain JS object (`state`) holding all counters.  There is no `Map`, no class, no async I/O.
+
+**State shape:**
+
+```typescript
+interface MetricsState {
+  since:          string;   // ISO timestamp of last reset
+  total_requests: number;
+  total_errors:   number;   // 5xx responses only
+  rate_limited:   number;   // 429 responses
+  endpoints:      Record<string, EndpointStats>;
+}
+```
+
+**Per-endpoint stats (bounded by URL normalisation):**
+
+```typescript
+interface EndpointStats {
+  count:          number;
+  errors:         number;
+  avg_latency_ms: number;   // Welford-style incremental mean
+  min_latency_ms: number;
+  max_latency_ms: number;
+  last_seen:      string;
+}
+```
+
+**URL normalisation:** Query strings are stripped (`/trpc/tickets.list?input=...` → `/trpc/tickets.list`).  This keeps the endpoint map bounded even under arbitrary query parameters.
+
+**Incremental mean algorithm:** `new_avg = old_avg + (new_value − old_avg) / new_count`.  Exact, O(1) state, no floating-point drift.
+
+**Public API:**
+
+| Function | Called from | Effect |
+|---|---|---|
+| `recordRequest(url, duration, status)` | `onResponse` hook | Updates global + per-endpoint counters; increments `total_errors` when `status >= 500` |
+| `recordError(url)` | tRPC `onError` (for pre-context errors) | Increments error counter without a latency sample |
+| `recordRateLimit()` | `@fastify/rate-limit` `errorResponseBuilder` | Increments `rate_limited` |
+| `getMetricsSnapshot()` | `/internal/metrics` route + health evaluator | Returns shallow copy with rounded averages |
+| `resetMetrics()` | `POST /internal/metrics/reset` | Zeroes all counters; updates `since` |
+
+### 5.9 Health Signal Design
+
+Two components implement health signaling:
+
+**`apps/api/src/lib/health.ts` — Pure evaluator:**
+
+Takes a `MetricsSnapshot` and applies a fixed rule set.  No side effects, no async, no state.  Rules are applied in ascending severity order; the worst-seen status wins.
+
+| Rule | Metric | DEGRADED threshold | UNHEALTHY threshold |
+|---|---|---|---|
+| Error rate | `error_rate` | > 1 % | > 5 % |
+| Endpoint latency | any `avg_latency_ms` | > 1 000 ms | > 2 000 ms |
+| Rate-limit pressure | `rate_limited` | > 100 | — |
+
+Minimum traffic floor: error-rate rules not evaluated until `total_requests ≥ 20`.
+
+Returns `HealthResult { status, reasons[], summary }`.
+
+**`apps/api/src/lib/healthMonitor.ts` — Active emitter:**
+
+Wraps the evaluator with state-change detection and log dispatch.  Module-level state:
+
+```typescript
+let lastStatus:    HealthStatus = "HEALTHY";
+let lastChangedAt: string       = new Date().toISOString();
+let callCount:     number       = 0;
+```
+
+`checkHealth()` is called from the `onResponse` hook after every request.
+
+- **Non-evaluation tick** (the common path): `callCount++` + `callCount % EVAL_EVERY !== 0` → return immediately.  Two operations; no allocations.
+- **Evaluation tick** (every `EVAL_EVERY` calls): `getMetricsSnapshot()` → `evaluateHealth()` → compare with `lastStatus` → if unchanged, return; if changed, call `emitTransition()`.
+
+`emitTransition()` log routing:
+
+| Target status | Log function | `event` value |
+|---|---|---|
+| `DEGRADED` | `logWarn` | `SYSTEM_DEGRADED` |
+| `UNHEALTHY` | `logError` | `SYSTEM_UNHEALTHY` |
+| `HEALTHY` | `logInfo` | `SYSTEM_RECOVERED` |
+
+**Design invariant:** `emitTransition()` is only reached when `newStatus !== lastStatus`, guaranteeing exactly one log line per transition regardless of traffic volume.
+
+`getMonitorState()` returns `{ status, since, eval_every }` for surfacing in `/internal/health`.
 
 ---
 
@@ -1615,13 +1719,18 @@ Two distinct retry layers exist:
 
 | Signal | Mechanism | Storage |
 |--------|-----------|---------|
-| Structured logs | pino JSON | stdout → Docker log driver |
+| Structured request log | `onResponse` hook → `logInfo("REQUEST", ...)` | stdout → Docker log driver |
 | Slow requests | `[SLOW REQUEST]` log > 500ms | Same as above |
 | Latency percentiles | p50/p95/p99 every 200 requests | Same as above |
 | DB pool pressure | Warn at ≥85% every 5s | Same as above |
 | Audit trail | `audit_logs` table | PostgreSQL |
 | Auth failures | `logAuthFail` | Structured log |
 | RBAC violations | `logRbacDenied` | Structured log |
+| Rate-limit rejections | `logRateLimit` + `recordRateLimit()` | Structured log + in-memory counter |
+| Per-endpoint metrics | `recordRequest()` on every `onResponse` | In-memory (`metrics.ts`) |
+| Health status change | `checkHealth()` → `emitTransition()` | Structured log (`SYSTEM_DEGRADED` / `SYSTEM_UNHEALTHY` / `SYSTEM_RECOVERED`) |
+| Live metrics snapshot | `GET /internal/metrics` | In-memory read |
+| Live health status | `GET /internal/health` | In-memory read |
 
 ---
 
@@ -1637,3 +1746,4 @@ Two distinct retry layers exist:
 ---
 
 *This document was generated from a comprehensive analysis of the NexusOps monorepo source code, component architecture, middleware patterns, and infrastructure configuration as of March 26, 2026. It should be updated whenever significant architectural or design decisions are made.*
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack design.** Expanded §5.7 (Logging Design): documented `initLogger()` setter pattern, canonical `logInfo`/`logWarn`/`logError` functions, request log field schema, correlation ID strategy, and stack trace policy. Added §5.8 (In-Memory Metrics Design): `MetricsState` shape, URL normalisation, incremental mean algorithm, and full public API (`recordRequest`, `recordError`, `recordRateLimit`, `getMetricsSnapshot`, `resetMetrics`). Added §5.9 (Health Signal Design): pure `evaluateHealth()` rule table, `healthMonitor.ts` module-level state, non-evaluation vs evaluation tick cost analysis, log routing table, and anti-spam invariant. Updated §16.4 (Observability Hooks) table with rate-limit counter, per-endpoint metrics, health status change signal, and internal endpoint reads. |

@@ -1,7 +1,7 @@
 # NexusOps — Entity Relationship Diagram
 
-**Version:** 1.4  
-**Date:** March 28, 2026  
+**Version:** 1.5  
+**Date:** March 29, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 **Source:** `packages/db/src/schema/` (31 schema files, Drizzle ORM / PostgreSQL 16)
@@ -2791,3 +2791,4 @@ erDiagram
 | 1.2 | 2026-03-27 | Platform Engineering | Added Domain 26 — Inventory Management: `inventory_items`, `inventory_transactions`. Schema file count 29→31. Total tables ~85+. |
 | 1.3 | 2026-03-28 | Platform Engineering | No schema changes. Load testing confirmed all queried entities (`tickets`, `sessions`, `organizations`, `users`) are stable under 200-VU concurrent access at 340 req/s. `sessions` table serves Redis-cached lookups with negligible DB reads at load. See `NexusOps_Load_Test_Report_2026.md`. |
 | 1.4 | 2026-03-28 | Platform Engineering | **`assignment_rules` table now exists in production.** During k6 security testing, the `assignment_rules` table (defined in Drizzle source but absent from compiled `@nexusops/db`) was found to be missing. `@nexusops/db` was rebuilt and `pnpm db:push` applied — the table now exists in all environments. Updated Known Gaps table to remove this gap. Confirmed `ticket_statuses.category` enum drives `tickets.create` pre-condition check: at least one row with `category = 'open'` required per org. Optimistic locking on `tickets.version` validated under 20 concurrent writers — 2,004 clean 409 conflicts, 0 data corruptions, 0 deadlocks. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
+| 1.5 | 2026-03-29 | Platform Engineering | No schema changes. Observability stack deployed (`logger.ts`, `metrics.ts`, `health.ts`, `healthMonitor.ts`). All metrics are held purely in-memory — no new tables, no new columns, no migrations required. Three new HTTP routes added (`GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health`) but these write nothing to the database. See `NexusOps_Active_Health_Signal_Report_2026.md`. |

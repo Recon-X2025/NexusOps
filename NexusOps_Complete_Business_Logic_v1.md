@@ -3159,3 +3159,10 @@ Password reset process:
 - **Platform-wide — prototype pollution protection:** `__proto__`, `constructor`, and `prototype` keys are stripped from all incoming JSON bodies at the Fastify `preHandler` layer, before any business logic runs. This is transparent to all 9 modules.
 - **Module 1 (ITSM) — auto-assignment resilience:** The `resolveAssignment` call is now executed outside the DB transaction in `tickets.create`. If auto-assignment fails (e.g. missing `assignment_rules` table, or no matching rule), the ticket is still created without an assignee. This prevents an infrastructure gap from blocking ticket creation entirely.
 - k6 security suite (26 adversarial cases across all modules' public-facing inputs) confirmed **0 crashes** and **100% correct rejection** of bad inputs. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`.
+
+
+**v1.3 Observability Addendum (March 29, 2026):**
+- **Platform-wide — structured logging:** `logger.ts` rewritten to route through Fastify's pino instance. All log events use `snake_case` fields; `logInfo`, `logWarn`, `logError` are the canonical emit functions. Every request produces a `REQUEST` log line (event, request_id, method, url, status, duration_ms).
+- **Platform-wide — in-memory metrics:** `metrics.ts` tracks `total_requests`, `total_errors`, per-endpoint counts and running-average latency. Updated incrementally in the `onResponse` hook — zero allocation on the hot path.
+- **Platform-wide — health evaluation:** `health.ts` provides a pure `evaluateHealth()` function. Thresholds: error rate > 1% → DEGRADED, > 5% → UNHEALTHY; endpoint avg latency > 1 s → DEGRADED, > 2 s → UNHEALTHY; rate-limited > 100 → DEGRADED.
+- **Platform-wide — active health signaling:** `healthMonitor.ts` emits exactly one structured log line per status transition. Transitions: `SYSTEM_DEGRADED` (logWarn), `SYSTEM_UNHEALTHY` (logError), `SYSTEM_RECOVERED` (logInfo). Evaluation frequency controlled by `HEALTH_EVAL_EVERY` (default 50 requests).

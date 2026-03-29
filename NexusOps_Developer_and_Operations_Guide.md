@@ -1,7 +1,7 @@
 # NexusOps — Developer & Operations Guide
 
-**Version:** 1.3  
-**Date:** March 28, 2026  
+**Version:** 1.4  
+**Date:** March 29, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -1143,6 +1143,88 @@ The `/health/detailed` response includes real-time connection pool statistics fr
 
 A `waiting` value greater than 0 indicates pool exhaustion. Pool pressure warnings are also logged when utilisation exceeds 85%.
 
+### 12.4 In-App Observability Stack
+
+Three additional endpoints are served directly on the API process.  They are **not** exposed to the public internet — access via internal network or SSH tunnel only.
+
+#### `GET /internal/metrics`
+
+Live snapshot of all in-memory counters since the last reset (or process start).
+
+```bash
+curl http://localhost:3001/internal/metrics | jq .
+```
+
+Returns total requests, total 5xx errors, global error rate, rate-limited count, and a per-endpoint breakdown (count, errors, avg/min/max latency, last-seen timestamp).
+
+#### `POST /internal/metrics/reset`
+
+Resets all counters to zero.  Use before a load test or after a known incident to establish a clean baseline.
+
+```bash
+curl -s -X POST http://localhost:3001/internal/metrics/reset | jq .
+```
+
+#### `GET /internal/health`
+
+Evaluates current metrics against hard-coded thresholds.  Always returns HTTP 200; interpret the `status` field.
+
+```bash
+curl http://localhost:3001/internal/health | jq .
+```
+
+Example response:
+
+```json
+{
+  "status": "HEALTHY",
+  "reasons": [],
+  "summary": {
+    "error_rate": 0.002,
+    "total_requests": 1248,
+    "total_errors": 4,
+    "rate_limited": 12,
+    "slow_endpoints": []
+  },
+  "monitor": {
+    "last_changed_at": "2026-03-29T07:55:04.574Z",
+    "eval_every": 50
+  }
+}
+```
+
+**Status values:** `HEALTHY` / `DEGRADED` / `UNHEALTHY`.  `reasons[]` is empty when healthy; otherwise lists the threshold(s) that fired.
+
+**Health thresholds:**
+
+| Rule | DEGRADED | UNHEALTHY |
+|---|---|---|
+| Global error rate | > 1 % | > 5 % |
+| Any endpoint avg latency | > 1 000 ms | > 2 000 ms |
+| Rate-limited requests | > 100 since last reset | — |
+
+#### Active Health Signals
+
+`healthMonitor.ts` watches metrics automatically.  Every `HEALTH_EVAL_EVERY` requests (default **50**) it evaluates health and, **only if the status has changed**, emits one structured log line:
+
+| Transition | Log level | `event` field |
+|---|---|---|
+| `HEALTHY → DEGRADED` | `warn` | `SYSTEM_DEGRADED` |
+| `DEGRADED → UNHEALTHY` | `error` | `SYSTEM_UNHEALTHY` |
+| `ANY → HEALTHY` | `info` | `SYSTEM_RECOVERED` |
+
+In a log aggregator (e.g. Loki, Datadog), alert on `event = "SYSTEM_DEGRADED"` or `event = "SYSTEM_UNHEALTHY"`.
+
+**Tuning `HEALTH_EVAL_EVERY`:**
+
+| Traffic volume | Recommended value |
+|---|---|
+| Development / low traffic | `10` (fast feedback) |
+| Production ≤ 500 req/s | `50` (default) |
+| Production > 500 req/s | `200` (reduce CPU impact of snapshot copy) |
+
+Set via environment variable: `HEALTH_EVAL_EVERY=100`.
+
 ---
 
 ## 13. Operational Procedures
@@ -1753,3 +1835,4 @@ The following environment variables are required for all India compliance engine
 ---
 
 *This guide should be kept up to date as scripts, environment variables, and operational procedures evolve. When adding a new environment variable, add it to §4.4 and §18.5. When adding a new script, add it to §16. When a new known failure mode is discovered and resolved, add it to §15.*
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added §12.4 (In-App Observability Stack) documenting `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health`, active health signals (`SYSTEM_DEGRADED`/`SYSTEM_UNHEALTHY`/`SYSTEM_RECOVERED`), and `HEALTH_EVAL_EVERY` tuning guide. Updated header version. See `NexusOps_Active_Health_Signal_Report_2026.md`. |

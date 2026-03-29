@@ -1,7 +1,7 @@
 # NexusOps — Technical Requirements Document (TRD)
 
-**Version:** 1.3  
-**Date:** March 28, 2026  
+**Version:** 1.4  
+**Date:** March 29, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -861,6 +861,35 @@ Database connection pool pressure warnings (≥ 85% utilisation) MUST be logged 
 #### NFR-OBS-05 — Drizzle Query Logging
 In development (`NODE_ENV !== "production"`), all ORM-generated SQL queries MUST be logged by the Drizzle logger for debugging purposes.
 
+#### NFR-OBS-06 — In-Memory Metrics Collection
+The API MUST maintain in-memory counters for `total_requests`, `total_errors`, per-endpoint request counts, per-endpoint error counts, and per-endpoint running-average latency using O(1) incremental arithmetic.  URL normalisation (query string stripping) MUST bound the endpoint map.  Counters MUST be updated synchronously in the `onResponse` hook with no blocking I/O.
+
+Validation criteria:
+- `GET /internal/metrics` MUST return a valid `MetricsSnapshot` with correct `total_requests`, `total_errors`, and `error_rate` after a known traffic pattern.
+- Resetting via `POST /internal/metrics/reset` MUST set all counters to zero.
+
+#### NFR-OBS-07 — Health Status Evaluation
+The API MUST expose `GET /internal/health` which evaluates live in-memory metrics against the following thresholds and returns `HEALTHY`, `DEGRADED`, or `UNHEALTHY`:
+
+| Rule | DEGRADED | UNHEALTHY |
+|---|---|---|
+| Global error rate | > 1 % (≥ 20 requests) | > 5 % |
+| Any endpoint avg latency | > 1 000 ms | > 2 000 ms |
+| Rate-limited requests | > 100 | — |
+
+The response MUST include a `reasons[]` array (empty when healthy), a `summary` object with supporting numbers, and a `monitor` object containing `last_changed_at` and `eval_every`.  The HTTP status MUST always be 200 — callers inspect the `status` field.
+
+#### NFR-OBS-08 — Active Health Signaling
+The API MUST emit structured log lines when health status changes.  Requirements:
+
+- Health MUST be evaluated every `HEALTH_EVAL_EVERY` completed requests (default 50; configurable via env var without a redeploy).
+- A log line MUST be emitted **only** on status transitions — repeated evaluation of the same status MUST NOT produce additional log lines.
+- Log level MUST match severity: `SYSTEM_DEGRADED` → `warn`, `SYSTEM_UNHEALTHY` → `error`, `SYSTEM_RECOVERED` → `info`.
+- Each signal log line MUST include `event`, `from`, `to`, `reasons`, `summary`, and `changed_at` fields.
+- The evaluation and comparison MUST complete synchronously in the `onResponse` hook without I/O on non-evaluation ticks.
+
+Validation criteria: see `NexusOps_Active_Health_Signal_Report_2026.md` §3 (Verification Results).
+
 ---
 
 ### 4.6 Data Integrity
@@ -1359,3 +1388,4 @@ When deploying updated source files to a running server (emergency patch flow):
 ---
 
 *This document was generated from a comprehensive analysis of the NexusOps monorepo source code, configuration files, Docker manifests, and test infrastructure as of March 26, 2026.*
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability requirements.** Added NFR-OBS-06 (In-Memory Metrics Collection): O(1) counters, URL normalisation, `onResponse` synchronous update, validation via `/internal/metrics` and reset. Added NFR-OBS-07 (Health Status Evaluation): threshold table, mandatory response fields including `monitor`, always-200 contract. Added NFR-OBS-08 (Active Health Signaling): evaluation frequency, zero-spam invariant, log-level routing, required signal fields, `HEALTH_EVAL_EVERY` configurability. Updated header version. See `NexusOps_Active_Health_Signal_Report_2026.md`. |

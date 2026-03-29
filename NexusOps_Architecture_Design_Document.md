@@ -1,7 +1,7 @@
 # NexusOps — Architecture Design Document
 
-**Version:** 1.3  
-**Date:** March 28, 2026  
+**Version:** 1.4  
+**Date:** March 29, 2026  
 **Organisation:** Coheron  
 **Status:** Living Document
 
@@ -910,6 +910,29 @@ A purpose-built k6 test suite in `tests/k6/` continuously validates system secur
 
 See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results.
 
+### 15.6 Active Health Signaling
+
+`apps/api/src/lib/healthMonitor.ts` layers event-driven logging on top of the static health evaluator.  It maintains two module-level variables:
+
+| Variable | Type | Description |
+|---|---|---|
+| `lastStatus` | `"HEALTHY" \| "DEGRADED" \| "UNHEALTHY"` | Last evaluated health status |
+| `lastChangedAt` | `string` (ISO) | Timestamp of last status transition |
+
+**Evaluation trigger:** `checkHealth()` is called from the Fastify `onResponse` hook after every completed request.  A counter gates evaluation to every `EVAL_EVERY` calls (default **50**; override with `HEALTH_EVAL_EVERY` env var).  Non-evaluation ticks cost one integer increment and one modulo check — immeasurable overhead.
+
+**Transition detection and log dispatch:**
+
+| Transition | Log level | `event` |
+|---|---|---|
+| `HEALTHY → DEGRADED` | `logWarn` | `SYSTEM_DEGRADED` |
+| `DEGRADED → UNHEALTHY` | `logError` | `SYSTEM_UNHEALTHY` |
+| `ANY → HEALTHY` | `logInfo` | `SYSTEM_RECOVERED` |
+
+**Anti-spam guarantee:** If the system stays DEGRADED across 10 000 requests, exactly **one** log line is emitted (the initial transition).
+
+**`getMonitorState()`** returns `{ status, since, eval_every }` — surfaced in the `GET /internal/health` response under a `monitor` key.
+
 ---
 
 ## 16. Environment Configuration
@@ -940,6 +963,7 @@ See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results.
 | `DB_POOL_MAX` | PostgreSQL connection pool size |
 | `FLUSH_REDIS_SESSION_ON_START` | Clear session cache on startup |
 | `LICENSE_KEY` | Platform license |
+| `HEALTH_EVAL_EVERY` | How many requests between health evaluations (default 50). Lower values increase evaluation frequency; raise if request volume is very high. |
 
 ### 16.3 Build-Time Variables (Next.js)
 
@@ -1111,3 +1135,4 @@ That document takes precedence over any other document in cases of conflict. It 
 | 1.1 | 2026-03-27 | Platform Engineering | Added India Compliance architecture (§18). Updated router count. |
 | 1.2 | 2026-03-28 | Platform Engineering | Added k6 load testing results to §15 (Observability). Confirmed system sustains 200 concurrent users at 340 req/s with p(95) 23ms and 0% error rate. Browser Core Web Vitals: FCP 450ms avg, LCP 450ms avg, CLS 0.001. See `NexusOps_Load_Test_Report_2026.md`. |
 | 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Expanded §14.5 (Input Validation) to document prototype pollution protection: `sanitizeInput()` Fastify `preHandler` strips `__proto__`/`constructor`/`prototype` keys recursively. Added `PRECONDITION_FAILED` and `CONFLICT` error codes to security error catalogue. Added §15.5 (k6 Security & Reliability Testing): documents all 6 test scenarios, their VU counts and durations, and the March 28 baseline (0 unhandled 500s, 100% bad-input rejection, p95 271ms). See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added §15.6 (Active Health Signaling) documenting `healthMonitor.ts`: counter-based trigger (every `EVAL_EVERY` requests, default 50), status-change detection, and structured log emission (`SYSTEM_DEGRADED` / `SYSTEM_UNHEALTHY` / `SYSTEM_RECOVERED`) with zero-spam guarantee. Added `HEALTH_EVAL_EVERY` to §16.2 optional env vars. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
