@@ -32,6 +32,9 @@ import { approvalsRouter } from "./approvals";
 import { reportsRouter } from "./reports";
 import { searchRouter } from "./search";
 import { aiRouter } from "./ai";
+import { indiaComplianceRouter } from "./india-compliance";
+import { inventoryRouter } from "./inventory";
+import { assignmentRulesRouter } from "./assignment-rules";
 
 export const appRouter = router({
   auth: authRouter,
@@ -69,6 +72,10 @@ export const appRouter = router({
   reports: reportsRouter,
   search: searchRouter,
   ai: aiRouter,
+  // India compliance routers
+  indiaCompliance: indiaComplianceRouter,
+  assignmentRules: assignmentRulesRouter,
+  inventory: inventoryRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -108,13 +108,22 @@ export default function EventManagementPage() {
           <span className="text-[11px] text-muted-foreground/70">IT Operations — AIOps Alert Correlation</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30">
+          <button
+            onClick={() => toast.info("Suppression Rules are managed in Admin → Notification Rules. Configure which alert patterns to silence.", { duration: 5000 })}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+          >
             <BellOff className="w-3 h-3" /> Suppression Rules
           </button>
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30">
+          <button
+            onClick={() => toast.info("Correlation Policies define how related alerts get grouped. Configure in Admin → System Properties.", { duration: 5000 })}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+          >
             <GitMerge className="w-3 h-3" /> Correlation Policies
           </button>
-          <button className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+          <button
+            onClick={() => toast.info("Alert Sources are configured by connecting monitoring integrations in Admin → Integrations.", { duration: 5000 })}
+            className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+          >
             <Bell className="w-3 h-3" /> Alert Sources
           </button>
         </div>

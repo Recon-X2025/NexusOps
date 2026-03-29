@@ -4,6 +4,9 @@ import { z } from "zod";
 import { sendNotification } from "../services/notifications";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { getNextSeq } from "../lib/auto-number";
+import { resolveAssignment } from "../services/assignment";
+import { getRedis } from "../lib/redis";
+import { rateLimit } from "../lib/rate-limit";
 import {
   tickets,
   ticketComments,
@@ -14,6 +17,7 @@ import {
   ticketCategories,
   eq,
   and,
+  or,
   desc,
   asc,
   count,
@@ -60,6 +64,31 @@ export const ticketsRouter = router({
     .input(TicketListFiltersSchema)
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      await rateLimit(ctx.user?.id, org?.id, "tickets.list");
+      const start = Date.now();
+
+      // Input guardrails — applied before any query or cache logic
+      input.limit = input.limit < 1 ? 25 : input.limit > 50 ? 50 : input.limit;
+      if (input.search) input.search = input.search.trim().slice(0, 100);
+      if (input.tags) input.tags = input.tags.slice(0, 10).map((t) => t.slice(0, 30));
+      if (input.cursor && input.cursor.length > 500) input.cursor = undefined;
+
+      // Short-lived cache for the dashboard incidents preview widget.
+      // Only active when called with the exact dashboard parameters.
+      // All other tickets.list calls are unaffected.
+      const cacheKey =
+        input.type === "incident" && input.limit === 5
+          ? `tickets:dashboard:incidents:${org!.id}`
+          : null;
+      if (cacheKey) {
+        try {
+          const hit = await getRedis().get(cacheKey);
+          if (hit) return JSON.parse(hit);
+        } catch {
+          // Redis unavailable — proceed to DB
+        }
+      }
+
       const conditions = [eq(tickets.orgId, org!.id)];
 
       if (input.statusId) conditions.push(eq(tickets.statusId, input.statusId));
@@ -69,6 +98,153 @@ export const ticketsRouter = router({
       if (input.type) conditions.push(eq(tickets.type, input.type));
       if (input.slaBreached !== undefined)
         conditions.push(eq(tickets.slaBreached, input.slaBreached));
+      if (input.statusCategory)
+        conditions.push(
+          inArray(
+            tickets.statusId,
+            db.select({ id: ticketStatuses.id })
+              .from(ticketStatuses)
+              .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, input.statusCategory))),
+          ),
+        );
+      if (input.search && input.search.length >= 2)
+        conditions.push(
+          or(
+            sql`${tickets.title} ILIKE ${"%" + input.search + "%"}`,
+            sql`COALESCE(${tickets.description}, '') ILIKE ${"%" + input.search + "%"}`,
+          )!,
+        );
+      if (input.tags && input.tags.length > 0)
+        conditions.push(
+          sql`${tickets.tags} && ARRAY[${sql.join(
+            input.tags.map((t) => sql`${t}`),
+            sql`, `,
+          )}]::text[]`,
+        );
+
+      // Cursor format detection:
+      //   numeric string (e.g. "25") → legacy OFFSET cursor (backward compat)
+      //   anything else              → new keyset cursor
+      const isOffsetCursor = input.cursor !== undefined && /^\d+$/.test(input.cursor);
+      if (isOffsetCursor)
+        console.warn("tickets.list using legacy offset cursor", { cursor: input.cursor });
+      const useKeyset =
+        (input.orderBy === "createdAt" || input.orderBy === "updatedAt" || input.orderBy === "priority") &&
+        input.order === "desc" &&
+        !isOffsetCursor;
+
+      // Parse keyset cursor when present — absent on page 1, populated on subsequent pages
+      let parsedCursor: { createdAt: Date; id: string } | null = null;
+      if (useKeyset && input.orderBy === "createdAt" && input.cursor) {
+        try {
+          const raw = JSON.parse(
+            Buffer.from(input.cursor, "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          if (
+            raw.v === 1 &&
+            raw.mode === "createdAt" &&
+            raw.dir === "desc" &&
+            typeof raw.createdAt === "string" &&
+            typeof raw.id === "string"
+          ) {
+            parsedCursor = { createdAt: new Date(raw.createdAt), id: raw.id };
+          }
+        } catch {
+          // malformed cursor — treat as first page (parsedCursor stays null)
+        }
+      }
+
+      // Keyset seek condition replaces OFFSET in the new path
+      if (parsedCursor)
+        conditions.push(
+          sql`(${tickets.createdAt} < ${parsedCursor.createdAt} OR (${tickets.createdAt} = ${parsedCursor.createdAt} AND ${tickets.id} < ${parsedCursor.id}))`,
+        );
+
+      let parsedUpdatedAtCursor: { updatedAt: Date; id: string } | null = null;
+      if (useKeyset && input.orderBy === "updatedAt" && input.cursor) {
+        try {
+          const raw = JSON.parse(
+            Buffer.from(input.cursor, "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          if (
+            raw.v === 1 &&
+            raw.mode === "updatedAt" &&
+            raw.dir === "desc" &&
+            typeof raw.updatedAt === "string" &&
+            typeof raw.id === "string"
+          ) {
+            parsedUpdatedAtCursor = { updatedAt: new Date(raw.updatedAt), id: raw.id };
+          }
+        } catch {
+          // malformed cursor — treat as first page (parsedUpdatedAtCursor stays null)
+        }
+      }
+
+      if (parsedUpdatedAtCursor)
+        conditions.push(
+          sql`(${tickets.updatedAt} < ${parsedUpdatedAtCursor.updatedAt} OR (${tickets.updatedAt} = ${parsedUpdatedAtCursor.updatedAt} AND ${tickets.id} < ${parsedUpdatedAtCursor.id}))`,
+        );
+
+      let parsedPriorityCursor: {
+        sortOrder: number | null;
+        createdAt: Date;
+        id: string;
+      } | null = null;
+      if (useKeyset && input.orderBy === "priority" && input.cursor) {
+        try {
+          const raw = JSON.parse(
+            Buffer.from(input.cursor, "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          if (
+            raw.v === 1 &&
+            raw.mode === "priority" &&
+            raw.dir === "desc" &&
+            (typeof raw.sortOrder === "number" || raw.sortOrder === null) &&
+            typeof raw.createdAt === "string" &&
+            typeof raw.id === "string"
+          ) {
+            parsedPriorityCursor = {
+              sortOrder: raw.sortOrder as number | null,
+              createdAt: new Date(raw.createdAt),
+              id: raw.id,
+            };
+          }
+        } catch {
+          // malformed cursor — treat as first page (parsedPriorityCursor stays null)
+        }
+      }
+
+      if (parsedPriorityCursor) {
+        const S = parsedPriorityCursor.sortOrder;
+        const C = parsedPriorityCursor.createdAt;
+        const I = parsedPriorityCursor.id;
+        if (S !== null) {
+          // Case A: cursor row had a non-null sort_order
+          // Rows after it: lower sort_order (non-null) OR same sort_order with later tiebreaker OR any NULL sort_order
+          conditions.push(
+            sql`(
+              (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) < ${S}
+              OR (
+                (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) = ${S}
+                AND (${tickets.createdAt} < ${C} OR (${tickets.createdAt} = ${C} AND ${tickets.id} < ${I}))
+              )
+              OR (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) IS NULL
+            )`,
+          );
+        } else {
+          // Case B: cursor row had no priority (NULLS LAST segment)
+          // Only other NULL sort_order rows can follow; advance through their (createdAt, id) tiebreaker
+          conditions.push(
+            sql`(
+              (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) IS NULL
+              AND (${tickets.createdAt} < ${C} OR (${tickets.createdAt} = ${C} AND ${tickets.id} < ${I}))
+            )`,
+          );
+        }
+      }
+
+      // offsetValue used only in the legacy OFFSET path
+      const offsetValue = isOffsetCursor ? parseInt(input.cursor!) : 0;
 
       const orderDir = input.order === "asc" ? asc : desc;
       const orderCol =
@@ -78,22 +254,101 @@ export const ticketsRouter = router({
             ? tickets.updatedAt
             : tickets.createdAt;
 
-      const rows = await db
-        .select()
+      const qb = db
+        .select({
+          id: tickets.id,
+          orgId: tickets.orgId,
+          number: tickets.number,
+          title: tickets.title,
+          categoryId: tickets.categoryId,
+          priorityId: tickets.priorityId,
+          statusId: tickets.statusId,
+          type: tickets.type,
+          requesterId: tickets.requesterId,
+          assigneeId: tickets.assigneeId,
+          teamId: tickets.teamId,
+          dueDate: tickets.dueDate,
+          slaBreached: tickets.slaBreached,
+          tags: tickets.tags,
+          customFields: tickets.customFields,
+          resolvedAt: tickets.resolvedAt,
+          closedAt: tickets.closedAt,
+          createdAt: tickets.createdAt,
+          updatedAt: tickets.updatedAt,
+        })
         .from(tickets)
         .where(and(...conditions))
-        .orderBy(orderDir(orderCol))
-        .limit(input.limit + 1)
-        .offset(input.cursor ? parseInt(input.cursor) : 0);
+        .orderBy(
+          ...(input.orderBy === "priority"
+            ? input.order === "asc"
+              ? [
+                  sql`(SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) ASC NULLS LAST`,
+                  desc(tickets.createdAt),
+                ]
+              : [
+                  // DESC path — id tiebreaker required for deterministic keyset seek
+                  sql`(SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) DESC NULLS LAST`,
+                  desc(tickets.createdAt),
+                  desc(tickets.id),
+                ]
+            : useKeyset && input.orderBy === "updatedAt"
+              ? [desc(tickets.updatedAt), desc(tickets.id)]
+              : useKeyset
+                ? [desc(tickets.createdAt), desc(tickets.id)]
+                : [orderDir(orderCol)]),
+        )
+        .limit(input.limit + 1);
 
-      const hasMore = rows.length > input.limit;
-      const items = hasMore ? rows.slice(0, -1) : rows;
-      const offset = (input.cursor ? parseInt(input.cursor) : 0) + items.length;
+      // New keyset path: no OFFSET — the seek condition in WHERE handles positioning.
+      // Legacy OFFSET path: used when cursor is numeric or sort mode is not createdAt DESC.
+      try {
+        const rows = await (useKeyset ? qb : qb.offset(offsetValue));
 
-      return {
-        items,
-        nextCursor: hasMore ? String(offset) : null,
-      };
+        const hasMore = rows.length > input.limit;
+        const items = hasMore ? rows.slice(0, -1) : rows;
+
+        // Priority keyset cursor needs the resolved sort_order of the last item.
+        // Fetched via PK lookup — O(1), no join, only executed when a next page exists.
+        let prioritySortOrder: number | null = null;
+        if (useKeyset && input.orderBy === "priority" && hasMore && items.length > 0) {
+          const last = items[items.length - 1]!;
+          if (last.priorityId) {
+            const [prio] = await db
+              .select({ sortOrder: ticketPriorities.sortOrder })
+              .from(ticketPriorities)
+              .where(eq(ticketPriorities.id, last.priorityId));
+            prioritySortOrder = prio?.sortOrder ?? null;
+          }
+          // last.priorityId === null → prioritySortOrder stays null (NULLS LAST segment)
+        }
+
+        let nextCursor: string | null = null;
+        if (hasMore) {
+          if (useKeyset) {
+            const last = items[items.length - 1]!;
+            nextCursor = Buffer.from(
+              JSON.stringify(
+                input.orderBy === "updatedAt"
+                  ? { v: 1, mode: "updatedAt", dir: "desc", updatedAt: last.updatedAt.toISOString(), id: last.id }
+                  : input.orderBy === "priority"
+                    ? { v: 1, mode: "priority", dir: "desc", sortOrder: prioritySortOrder, createdAt: last.createdAt.toISOString(), id: last.id }
+                    : { v: 1, mode: "createdAt", dir: "desc", createdAt: last.createdAt.toISOString(), id: last.id },
+              ),
+            ).toString("base64url");
+          } else {
+            nextCursor = String(offsetValue + items.length);
+          }
+        }
+
+        const result = { items, nextCursor };
+        if (cacheKey)
+          getRedis().setex(cacheKey, 60, JSON.stringify(result)).catch(() => {});
+        console.info("tickets.list", { duration: Date.now() - start, orgId: org?.id });
+        return result;
+      } catch (err) {
+        console.error("tickets.list error", { err });
+        throw err;
+      }
     }),
 
   get: permissionProcedure("incidents", "read")
@@ -149,7 +404,14 @@ export const ticketsRouter = router({
       .limit(1);
 
     if (!defaultStatus) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No open status configured" });
+      // The org's ticket workflow is not fully configured.  This is a
+      // server-side precondition, not a bug — return PRECONDITION_FAILED
+      // (HTTP 412) so it is clearly a 4xx and never surfaces as a 500 in
+      // monitoring or load-test reports.
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Ticket workflow not configured: no 'open' status found for this organisation. Contact your administrator.",
+      });
     }
 
     // Calculate SLA if priority set
@@ -178,6 +440,36 @@ export const ticketsRouter = router({
     const seq = await getNextSeq(db, org!.id, "TKT");
     const number = generateTicketNumber(org!.slug, seq);
 
+    // Auto-assignment is resolved BEFORE the transaction so that a DB error
+    // (e.g. assignment_rules table not yet migrated) cannot abort the
+    // transaction and block ticket creation entirely.  A Postgres transaction
+    // that encounters an error enters an aborted state; any query issued
+    // afterward — even in a separate try/catch — will fail until the
+    // transaction is rolled back.  Moving this call outside the transaction
+    // ensures failures are isolated and non-fatal.
+    let resolvedAssigneeId = input.assigneeId;
+    let resolvedTeamId = input.teamId;
+    if (!resolvedAssigneeId) {
+      try {
+        const assignment = await resolveAssignment(db, org!.id, {
+          entityType: "ticket",
+          matchValue: input.categoryId ?? null,
+        });
+        if (assignment) {
+          resolvedAssigneeId = assignment.assigneeId ?? undefined;
+          resolvedTeamId = resolvedTeamId ?? assignment.teamId;
+          if (assignment.parkedAtCapacity) {
+            console.info("[assignment] Ticket parked at capacity — team queue:", assignment.teamId);
+          }
+        }
+      } catch (assignErr) {
+        // Non-fatal: ticket is created without auto-assignment and can be
+        // assigned manually.  Common cause: assignment_rules table not yet
+        // migrated in this environment.
+        console.warn("[tickets.create] Auto-assignment skipped:", assignErr instanceof Error ? assignErr.message : String(assignErr));
+      }
+    }
+
     const [ticket] = await db.transaction(async (tx: any) => {
       // Re-check idempotency INSIDE the transaction to prevent TOCTOU races.
       if (input.idempotencyKey) {
@@ -204,8 +496,8 @@ export const ticketsRouter = router({
           statusId: defaultStatus.id,
           type: input.type ?? "request",
           requesterId: user!.id,
-          assigneeId: input.assigneeId,
-          teamId: input.teamId,
+          assigneeId: resolvedAssigneeId,
+          teamId: resolvedTeamId,
           dueDate: input.dueDate,
           tags: input.tags ?? [],
           customFields: input.customFields,
@@ -225,10 +517,11 @@ export const ticketsRouter = router({
     });
 
     // Notify assignee (fire-and-forget)
-    if (input.assigneeId && input.assigneeId !== user!.id) {
+    const finalAssigneeId = (ticket as any).assigneeId;
+    if (finalAssigneeId && finalAssigneeId !== user!.id) {
       sendNotification({
         orgId: org!.id,
-        userId: input.assigneeId,
+        userId: finalAssigneeId,
         title: `Ticket assigned: ${ticket!.number}`,
         body: input.title,
         link: `/app/tickets/${ticket!.id}`,
@@ -441,22 +734,16 @@ export const ticketsRouter = router({
   statusCounts: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
 
-    const statuses = await db
-      .select()
+    return db
+      .select({
+        statusId: ticketStatuses.id,
+        name: ticketStatuses.name,
+        color: ticketStatuses.color,
+        count: count(tickets.id),
+      })
       .from(ticketStatuses)
-      .where(eq(ticketStatuses.orgId, org!.id));
-
-    const counts = await Promise.all(
-      statuses.map(async (status: typeof ticketStatuses.$inferSelect) => {
-        const [result] = await db
-          .select({ count: count() })
-          .from(tickets)
-          .where(and(eq(tickets.orgId, org!.id), eq(tickets.statusId, status.id)));
-
-        return { statusId: status.id, name: status.name, color: status.color, count: result?.count ?? 0 };
-      }),
-    );
-
-    return counts;
+      .leftJoin(tickets, and(eq(tickets.statusId, ticketStatuses.id), eq(tickets.orgId, ticketStatuses.orgId)))
+      .where(eq(ticketStatuses.orgId, org!.id))
+      .groupBy(ticketStatuses.id, ticketStatuses.name, ticketStatuses.color);
   }),
 });

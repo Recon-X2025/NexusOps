@@ -1,7 +1,7 @@
 # NexusOps — Technical Requirements Document (TRD)
 
-**Version:** 1.0  
-**Date:** March 26, 2026  
+**Version:** 1.3  
+**Date:** March 28, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -234,6 +234,72 @@ Every ticket MUST support threaded comments and an immutable activity log captur
 #### FR-TICK-05 — Search Indexing
 Tickets MUST be indexed in Meilisearch under the `tickets` index with filterable fields `org_id`, `status`, `type` and searchable fields `title`, `description`, `number`.
 
+#### FR-TICK-06 — Ticket Types
+The system MUST support exactly four ticket types: `INCIDENT` (unplanned service disruption), `SERVICE_REQUEST` (user-initiated provision request), `PROBLEM` (root-cause record linked to one or more incidents), and `CHANGE` (addition, modification, or removal of anything affecting IT services). Change tickets carry three sub-types: `STANDARD` (pre-approved), `NORMAL` (requires CAB approval), and `EMERGENCY` (expedited path).
+
+#### FR-TICK-07 — Priority Matrix
+Priority MUST be computed automatically from the combination of Impact and Urgency:
+
+| Urgency \ Impact | HIGH | MEDIUM | LOW |
+|-----------------|------|--------|-----|
+| HIGH | P1 | P2 | P3 |
+| MEDIUM | P2 | P3 | P4 |
+| LOW | P3 | P4 | P4 |
+
+The computed priority MAY be overridden by a user with at minimum `manager` role, and the override MUST be logged.
+
+#### FR-TICK-08 — Exact SLA Timings
+SLA deadlines MUST be computed per the following matrix:
+
+| Priority | First Response | Resolution | Clock Type |
+|----------|---------------|------------|------------|
+| P1 | 15 minutes | 4 hours | 24×7 calendar time |
+| P2 | 30 minutes | 8 hours | 24×7 calendar time |
+| P3 | 4 hours | 24 hours | Business hours 09:00–18:00 IST Mon–Sat |
+| P4 | 1 business day | 3 business days | Business hours 09:00–18:00 IST Mon–Sat |
+
+For P3 and P4: if a ticket is created after 18:00, the SLA clock MUST start at 09:00 on the next working day.
+
+#### FR-TICK-09 — SLA Warning Thresholds
+The system MUST emit three SLA states before breach: `ON_TRACK` (< 75% elapsed), `WARNING` (75–90% elapsed), `CRITICAL` (90–100% elapsed), and `BREACHED` (> 100% elapsed). The SLA warning and critical states MUST trigger in-platform notifications.
+
+#### FR-TICK-10 — SLA Pause on Pending User Response
+When a ticket status is set to `PENDING_USER`, the SLA resolution clock MUST pause. The pause start timestamp (`sla_paused_at`) and the accumulated pause duration in minutes (`sla_pause_duration_mins`) MUST be stored on the ticket. The clock MUST resume on the next user response or automatically after 24 hours of inactivity.
+
+#### FR-TICK-11 — Three-Level Escalation
+The system MUST support three escalation levels:
+- **Level 1**: Response SLA breached → notify group lead; if still unresponded after 30 additional minutes → escalate to IT Manager (`escalation_level = 1`)
+- **Level 2**: Resolution SLA breached + 2 hours (P1/P2) or + 4 hours (P3/P4) → escalate to IT Manager + requester's manager (`escalation_level = 2`)
+- **Level 3**: Resolution SLA breached + 4 hours (P1/P2) or + 8 hours (P3/P4) → escalate to CTO/VP IT (`escalation_level = 3`)
+
+Each escalation level MUST be stored on the ticket and MUST create an audit log entry.
+
+#### FR-TICK-12 — Complete Status State Machine
+The system MUST enforce the following ticket status transitions and MUST reject any transition not listed:
+
+| From | To | Permitted By |
+|------|----|-------------|
+| NEW | ASSIGNED | System (auto) / Manager |
+| ASSIGNED | IN_PROGRESS | Assigned agent |
+| IN_PROGRESS | PENDING_USER | Assigned agent |
+| PENDING_USER | IN_PROGRESS | System (user reply) / System (24-hr auto-resume) |
+| IN_PROGRESS | RESOLVED | Assigned agent (resolution_notes mandatory) |
+| RESOLVED | CLOSED | User confirm or system auto after 48 hours |
+| RESOLVED | REOPENED | User (within 48 hours of resolution) |
+| CLOSED | REOPENED | User (within 7 calendar days of closure) |
+| REOPENED | IN_PROGRESS | Assigned agent / System |
+
+Tickets MUST NOT be closeable without `resolution_notes` containing at least 20 characters.
+
+#### FR-TICK-13 — Load-Based Agent Assignment
+The default auto-assignment algorithm MUST be load-based: assign to the active agent in the matched group with the fewest open tickets. On tie, use oldest `last_assigned_at`. If no agent is available (all at capacity ≥ 20 open tickets), the ticket MUST remain in `NEW` status and the group lead MUST be alerted every 15 minutes.
+
+#### FR-TICK-14 — Category–Group Mapping
+The system MUST maintain a configuration table mapping each ticket category to a support group: `HARDWARE → hardware-support-team`, `SOFTWARE → software-support-team`, `NETWORK → network-ops-team`, `SECURITY → security-ops-team`, `ACCESS → iam-team`, `OTHER → general-it-team`.
+
+#### FR-TICK-15 — Reopen and Duplicate Rules
+Reopening a closed ticket MUST increment `reopen_count` and reset the SLA clock from the moment of reopening. Tickets older than 7 calendar days from `closed_at` MUST NOT be reopened; the user MUST create a new ticket. On new ticket creation, the system MUST perform a fuzzy-match check (≥ 80% title similarity) against open tickets by the same requester in the same category within the last 24 hours and MUST display a warning if a potential duplicate is detected.
+
 ---
 
 ### 3.5 Module: Asset & CMDB
@@ -284,6 +350,44 @@ The system MUST provide structured onboarding and offboarding checklists with ta
 #### FR-HR-04 — Search Indexing
 Employee records MUST be indexed in the `employees` Meilisearch index with filterable field `org_id` and searchable fields `name`, `description`.
 
+#### FR-HR-05 — Mandatory Indian Identity Fields
+Every employee record MUST store: `PAN` (10-character alphanumeric, format `AAAAA9999A`, validated), `Aadhaar` (12-digit numeric, validated using the Verhoeff algorithm), and `UAN` (12-digit Universal Account Number for EPFO, optional at onboarding, mandatory before first payroll run). The `bank_ifsc` field MUST conform to the pattern `AAAA0NNNNNN`.
+
+#### FR-HR-06 — Tax Regime Declaration
+Each employee MUST declare one of two tax regimes: `OLD` or `NEW`. The declaration MUST be captured at the start of each financial year and MAY be changed once during the year. The regime value MUST drive all TDS computations.
+
+#### FR-HR-07 — Salary Structure Components
+A salary structure MUST decompose CTC into the following components: Basic (% of CTC, 40–50%), HRA (% of Basic — 50% for metro cities, 40% for non-metro), Special Allowance (residual), PF Employee (12% of Basic capped at ₹1,800/month), PF Employer (12% of Basic capped at ₹1,800/month, split as 8.33% EPS + 3.67% EPF), Professional Tax (state-specific), and optionally LTA, Medical Allowance, Conveyance Allowance, and Bonus.
+
+#### FR-HR-08 — Professional Tax
+Professional Tax MUST be deducted per state-specific monthly schedule. The system MUST maintain a state-wise PT schedule covering at minimum: Maharashtra (₹200/month Apr–Feb, ₹300 in March), Karnataka (₹200/month), Tamil Nadu (₹200/month), West Bengal (slab-based), Andhra Pradesh (slab-based), Telangana (slab-based), Gujarat (₹200/month). States without PT (Delhi, Rajasthan, Uttar Pradesh, Haryana) MUST have a zero entry.
+
+#### FR-HR-09 — Old Regime Tax Computation
+Under the Old Regime, the system MUST compute taxable income after deducting: HRA exemption (minimum of HRA received, rent paid minus 10% of Basic, and 50%/40% of Basic for metro/non-metro), standard deduction of ₹50,000, Section 80C (aggregate cap ₹1,50,000), Section 80D (₹25,000 self + ₹25,000 parents; ₹50,000 each if senior citizens), Section 24(b) home loan interest (cap ₹2,00,000), Section 80CCD(2) NPS employer (10% of Basic, no cap), Section 80CCD(1B) NPS additional (cap ₹50,000), and professional tax paid. Tax slabs: 0% up to ₹2,50,000; 5% on ₹2.5L–₹5L; 20% on ₹5L–₹10L; 30% above ₹10L. Section 87A rebate: tax payable up to ₹12,500 if taxable income ≤ ₹5,00,000. Health and Education Cess: 4% on tax plus surcharge.
+
+#### FR-HR-10 — New Regime Tax Computation
+Under the New Regime, the system MUST apply only two deductions: standard deduction of ₹50,000 and Section 80CCD(2) NPS employer contribution. All other deductions (80C, 80D, HRA, 24(b)) are inapplicable. New Regime slabs: 0% up to ₹3,00,000; 5% on ₹3L–₹6L; 10% on ₹6L–₹9L; 15% on ₹9L–₹12L; 20% on ₹12L–₹15L; 30% above ₹15L. Section 87A rebate: tax payable up to ₹25,000 if taxable income ≤ ₹7,00,000. Cess: 4%.
+
+#### FR-HR-11 — Monthly TDS Projection
+Monthly TDS MUST be computed via the income-projection method:
+1. Sum actual gross salary paid April through previous month
+2. Project remaining months at current salary
+3. Compute total projected annual income
+4. Apply tax under declared regime with declared deductions
+5. Subtract TDS already deducted this financial year
+6. Divide remaining tax by remaining months (minimum ₹0)
+
+This computation MUST be recalculated every month and whenever a salary revision is approved.
+
+#### FR-HR-12 — Mid-Year Join and Salary Revision
+For employees joining mid-year, the system MUST prorate the joining month's salary based on the ratio of days worked to total working days in that month, and project the remaining months at full monthly salary for TDS purposes. For salary revisions, the system MUST recompute TDS from the revision month using actual year-to-date income and projected future income at the revised salary.
+
+#### FR-HR-13 — Payroll Approval and Payment Flow
+The monthly payroll cycle MUST enforce: HR Manager review, Finance Manager approval, CFO approval if total payroll exceeds ₹50 lakhs. Bank file generation MUST occur 2 working days before month end. Payslips MUST be password-protected PDFs (password = first 5 characters of PAN in uppercase + date of birth in DDMMYYYY format).
+
+#### FR-HR-14 — Statutory Filing Outputs
+The system MUST generate: ECR (Electronic Challan cum Return) file for EPFO submission by the 15th of the following month; state-wise PT challan data per state deadlines; TDS challan data (Form ITNS 281, Section 192) for payment by the 7th of the following month; Form 24Q quarterly TDS return data; Form 16 (Part A from TRACES, Part B system-generated) by June 15th each year.
+
 ---
 
 ### 3.8 Module: Finance & Accounts
@@ -296,6 +400,45 @@ The system MUST support invoice capture, approval routing, and payment status tr
 
 #### FR-FIN-03 — Contract Tracking
 Contracts MUST be indexed in Meilisearch under the `contracts` index with filterable field `org_id` and searchable fields `title`, `name`, `description`.
+
+#### FR-FIN-04 — GST Tax Type Determination
+The system MUST determine the applicable GST type for every transaction by comparing the supplier's state (derived from the first two digits of the supplier GSTIN) against the place of supply. If states are equal: apply CGST + SGST (each at half the applicable GST rate). If states differ: apply IGST (at the full GST rate).
+
+#### FR-FIN-05 — GST Rate Support
+The system MUST support all five statutory GST rates: 0%, 5%, 12%, 18%, and 28%. Rate selection MUST be driven by the HSN code (goods) or SAC code (services) on each invoice line item.
+
+#### FR-FIN-06 — GSTIN Validation
+Every GSTIN stored in the system MUST be validated against the 15-character format: 2-digit state code (01–38) + 10-character PAN + 1-digit entity number + fixed character 'Z' + 1 check digit computed via the GST checksum algorithm.
+
+#### FR-FIN-07 — Invoice Fields for GST Compliance
+Every tax invoice MUST store: `invoice_number` (unique per GSTIN per FY), `invoice_date`, `supplier_GSTIN`, `buyer_GSTIN`, `place_of_supply`, `is_interstate` (system-computed), HSN/SAC per line item, `taxable_value`, `cgst_amount`, `sgst_amount`, `igst_amount`, `total_tax_amount`, `total_invoice_amount`, and `is_reverse_charge`.
+
+#### FR-FIN-08 — E-Invoice (IRN) Generation
+For organisations with annual turnover exceeding ₹5 crore, the system MUST call the Invoice Registration Portal (IRP) API to obtain an IRN (Invoice Reference Number) for every tax invoice at the time of creation. The IRN, acknowledgement number, acknowledgement date, and QR code data MUST be stored on the invoice record.
+
+#### FR-FIN-09 — E-Way Bill
+For goods invoices with taxable value exceeding ₹50,000, the system MUST generate an e-way bill via the NIC API and store the e-way bill number on the invoice.
+
+#### FR-FIN-10 — ITC Utilisation Sequence
+Input Tax Credit utilisation MUST follow the statutory sequence:
+1. Pay IGST liability: use IGST ITC first, then CGST ITC, then SGST ITC, then cash
+2. Pay CGST liability: use CGST ITC first, then IGST ITC (remaining), then cash — SGST ITC MUST NOT be used for CGST
+3. Pay SGST liability: use SGST ITC first, then IGST ITC (remaining), then cash — CGST ITC MUST NOT be used for SGST
+
+#### FR-FIN-11 — ITC Blocked Credits
+The system MUST flag and exclude from ITC claims all purchases classified under Section 17(5) blocked credits, including: motor vehicles for personal transport (capacity ≤ 13 persons), food and beverages (unless in supply of same), club memberships, works contract for immovable property construction, and CSR activity goods/services.
+
+#### FR-FIN-12 — GSTR-2B Reconciliation
+The system MUST support monthly ITC reconciliation against GSTR-2B data. Reconciliation MUST categorise each purchase invoice as: MATCHED (in both system and GSTR-2B), IN_SYSTEM_NOT_IN_GSTR2B (provisional ITC), IN_GSTR2B_NOT_IN_SYSTEM (investigate), or MISMATCH (values differ). Only MATCHED invoices MUST be included in GSTR-3B ITC claims.
+
+#### FR-FIN-13 — Double-Entry Enforcement
+Every financial transaction MUST be recorded via a double-entry journal entry. The system MUST reject any journal entry where the sum of debits does not exactly equal the sum of credits (`ImbalancedEntryError`). The chart of accounts MUST include separate ledger accounts for Output IGST Payable, Output CGST Payable, Output SGST Payable, Input IGST Receivable, Input CGST Receivable, Input SGST Receivable, RCM CGST Payable, and RCM SGST Payable.
+
+#### FR-FIN-14 — GST Returns Filing Calendar
+The system MUST maintain a compliance calendar for GST returns: GSTR-1 by the 11th of the following month (monthly filers with turnover > ₹5 crore) or 13th of the month after quarter end (QRMP scheme); GSTR-3B by the 20th of the following month; GSTR-9 and GSTR-9C by December 31st of the following FY.
+
+#### FR-FIN-15 — Reverse Charge Mechanism
+For transactions where `is_reverse_charge = TRUE`, the system MUST generate the buyer-side RCM tax entries: debit RCM liability accounts (2115 RCM CGST Payable / 2125 RCM SGST Payable) and simultaneously debit ITC receivable accounts for the eligible portion.
 
 ---
 
@@ -315,6 +458,35 @@ The system MUST track MCA (Ministry of Corporate Affairs) and ROC (Registrar of 
 
 #### FR-GRC-05 — Board & Meetings
 The system MUST support board meeting scheduling, agenda management, minute recording, and resolution tracking.
+
+#### FR-GRC-06 — Risk Scoring Matrix
+Risks MUST be scored using a 5×5 matrix: `risk_score = likelihood × impact`. Likelihood and impact are each rated 1–5 (1=Rare/Negligible, 5=Almost Certain/Catastrophic). Risk ratings MUST be: LOW (1–4), MEDIUM (5–9), HIGH (10–14), CRITICAL (15–25). CRITICAL and HIGH risks MUST trigger escalation notifications.
+
+#### FR-GRC-07 — Inherent vs Residual Risk
+Each risk MUST store both an inherent risk score (before controls) and a residual risk score (after controls). Mapped control IDs MUST be stored as an array on the risk record.
+
+#### FR-GRC-08 — Control Types
+The system MUST support four control types: PREVENTIVE (prevents risk event), DETECTIVE (identifies risk event), CORRECTIVE (reduces impact after event), DIRECTIVE (guides behaviour through policy). Each control MUST record its testing frequency, last tested date, next test date, effectiveness rating (EFFECTIVE / PARTIALLY_EFFECTIVE / INEFFECTIVE / NOT_TESTED), and required evidence description.
+
+#### FR-GRC-09 — Audit Finding Structure
+Audit findings MUST be recorded using the full COSO structure: `criteria` (benchmark), `condition` (what was found), `cause` (root cause), `effect` (business impact), `recommendation` (auditor's recommendation). Severity MUST be one of: CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL. Remediation SLA: CRITICAL = 7 calendar days, HIGH = 30 days, MEDIUM = 60 days, LOW = 90 days, INFORMATIONAL = 180 days.
+
+#### FR-GRC-10 — ROC Annual Filing Calendar
+The system MUST track the following annual ROC/MCA compliance events with exact due dates and per-day penalties:
+- AOC-4 (Financial Statements): 30 days from AGM, penalty ₹100/day
+- MGT-7 / MGT-7A (Annual Return): 60 days from AGM, penalty ₹100/day
+- ADT-1 (Auditor Appointment): 15 days from AGM, penalty ₹300/day
+- DIR-3 KYC (Director KYC): September 30 annually, penalty ₹5,000 one-time
+- MSME-1: April 30 (for Oct–Mar period), October 31 (for Apr–Sep period), penalty ₹100/day
+
+#### FR-GRC-11 — Event-Based ROC Compliance
+The system MUST track event-triggered MCA filings with their deadlines. At minimum: DIR-12 (Director appointment/resignation, 30 days), SH-7 (Authorised capital change, 30 days), PAS-3 (Share allotment, 30 days), CHG-1 (Charge creation, 30 days extendable to 60), INC-22 (Registered office change, 30 days), BEN-2 (Significant Beneficial Owner change, 30 days).
+
+#### FR-GRC-12 — Director KYC Reminder Workflow
+The system MUST send automated reminders to all directors with ACTIVE DIN status whose annual KYC has not been completed: first reminder on September 1, second reminder on September 15, final warning on September 25 with escalation to the Company Secretary. If KYC is not completed by September 30, the director's DIN status MUST be updated to DEACTIVATED and the Board MUST be notified.
+
+#### FR-GRC-13 — Risk-Based Audit Scheduling
+The annual audit calendar MUST be automatically generated based on risk ratings: CRITICAL risks audited quarterly (4 per year), HIGH risks audited semi-annually (2 per year), MEDIUM risks audited annually, LOW risks audited every 2 years. Mandatory regulatory audits (Statutory by June 30, Tax Audit by September 30 if applicable, GST Audit by December 31 if applicable) MUST be included regardless of risk rating.
 
 ---
 
@@ -349,6 +521,21 @@ The system MUST support payroll run creation, computation, approval, and payment
 #### FR-PAY-02 — Payslip Access
 Employees MUST be able to view and download their own payslips. Managers and HR admins MUST be able to access payslips for direct reports and their entire organisation, respectively.
 
+#### FR-PAY-03 — Dual Tax Regime Support
+The payroll engine MUST compute TDS under both the Old Regime and New Regime based on each employee's declared `tax_regime`. Switching between regimes MUST trigger a full TDS recomputation for all remaining months of the financial year.
+
+#### FR-PAY-04 — TDS Monthly Computation
+Monthly TDS MUST be computed via the income-projection method (§FR-HR-11). The computation MUST use the employee's declared deductions (80C investments, 80D premiums, home loan interest, HRA exemption, NPS contributions) entered through the employee's investment declaration workflow.
+
+#### FR-PAY-05 — PF Challan and ECR
+The system MUST generate an EPFO-format ECR file by the 15th of each following month. The ECR MUST include per employee: UAN, employee PF contribution, employer PF contribution (split into EPF 3.67% and EPS 8.33%), and total wages.
+
+#### FR-PAY-06 — TDS Return Data (Form 24Q)
+The system MUST produce Form 24Q (quarterly TDS return for salary) data for each quarter: Q1 (Apr–Jun, due July 31), Q2 (Jul–Sep, due October 31), Q3 (Oct–Dec, due January 31), Q4 (Jan–Mar, due May 31). Each return MUST include BSR code, challan serial number, and per-employee PAN and TDS amount.
+
+#### FR-PAY-07 — Form 16
+Form 16 Part B MUST be system-generated by June 15th of each year for all employees who were employed during the financial year. Part B MUST include: gross salary breakup, HRA exemption computation, all deductions claimed, tax computation under the applicable regime, and net tax payable. Part A (TDS deposited data from TRACES) MUST be importable via the TRACES reconciliation flow.
+
 ---
 
 ### 3.13 Module: Vendor Management
@@ -359,6 +546,21 @@ The system MUST maintain a registry of vendors with contact details, category cl
 #### FR-VEN-02 — Purchase Orders
 The system MUST support PO creation, approval, and fulfilment tracking.
 
+#### FR-VEN-03 — Vendor Master India Compliance Fields
+Every vendor record MUST store: `GSTIN` (15-character, validated), `PAN` (10-character, validated), `tds_section` (194C / 194J / 194I / NIL), `tds_rate` (1% for 194C individuals, 2% for 194C companies, 10% for 194J, 10%/2% for 194I, 0 for NIL), `is_msme` (boolean), and `msme_udyam_number` (mandatory if `is_msme = TRUE`).
+
+#### FR-VEN-04 — Three-Way Invoice Matching
+Before any vendor invoice is approved for payment, the system MUST perform three-way matching against the corresponding PO and GRN. Matching MUST verify: item codes present in PO, invoice quantity ≤ GRN accepted quantity AND ≤ PO quantity, unit price variance ≤ 2% of PO price (configurable tolerance), GST rate matches HSN/SAC expected rate, and vendor GSTIN on invoice matches vendor master. Any flag MUST route the invoice to a Finance Manager exception queue; only fully-matched invoices may proceed directly to payment scheduling.
+
+#### FR-VEN-05 — TDS on Vendor Payments
+The system MUST deduct TDS at the point of payment (or earlier credit, whichever occurs first) per the vendor's `tds_section` and `tds_rate`. TDS MUST NOT be deducted on the GST component of the invoice. Per-transaction and per-financial-year aggregate thresholds MUST be enforced (194C: ₹30,000 per transaction or ₹1,00,000 per year; 194J: ₹30,000 per transaction; 194I: ₹2,40,000 per year).
+
+#### FR-VEN-06 — MSME Payment Compliance
+For vendors flagged `is_msme = TRUE`, the system MUST enforce payment within 45 days of delivery (per MSMED Act 2006). Invoices approaching the 45-day limit MUST generate a warning notification. Overdue MSME payments MUST be included in the MSME-1 half-yearly filing report.
+
+#### FR-VEN-07 — PR Approval Thresholds
+Purchase Requisition approval chains MUST be enforced by total estimated value: ₹0–₹10,000 (Direct Manager only), ₹10,001–₹50,000 (Direct Manager + Department Head), ₹50,001–₹2,00,000 (+ Finance Manager), ₹2,00,001–₹10,00,000 (+ CFO), above ₹10,00,000 (+ CEO/MD). Each approver has 2 business days; auto-escalation triggers at day 4.
+
 ---
 
 ### 3.14 Module: Projects
@@ -368,6 +570,21 @@ The system MUST support projects containing milestones and tasks, with assignmen
 
 #### FR-PROJ-02 — Timeline Visualisation
 Projects MUST expose start and end dates sufficient to render Gantt or timeline views on the frontend.
+
+#### FR-PROJ-03 — Task Dependency Types
+The system MUST support four task dependency types: `FS` (Finish-to-Start: successor cannot start until predecessor is COMPLETED), `SS` (Start-to-Start: successor cannot start until predecessor is IN_PROGRESS), `FF` (Finish-to-Finish: successor cannot complete until predecessor is COMPLETED), `SF` (Start-to-Finish: successor cannot complete until predecessor has started). Each dependency MUST support a configurable `lag_days` offset (default 0).
+
+#### FR-PROJ-04 — Dependency Enforcement
+The system MUST block status transitions for tasks that would violate their dependency conditions. A task blocked by an unmet dependency MUST display status `BLOCKED` and identify the blocking task(s) by name. When a predecessor task changes status and all dependencies of a blocked task are now satisfied, the system MUST automatically transition the blocked task to `NOT_STARTED` and notify all assignees.
+
+#### FR-PROJ-05 — Critical Path Method
+The system MUST compute the critical path for each project using the CPM algorithm: forward pass (earliest start/finish), backward pass (latest start/finish), and float calculation. Tasks with zero float MUST be flagged as critical path tasks and highlighted in the Gantt view. The total project duration MUST equal the earliest finish of the last critical path task.
+
+#### FR-PROJ-06 — Budget Tracking
+Project budget tracking MUST include three components: salary cost (employee CTC per hour × hours logged), procurement cost (POs tagged to the project), and approved expense reimbursements. Budget alerts MUST fire at 75%, 90%, and 100% consumption. At 100%, new PO creation and expense submissions tagged to the project MUST be blocked until a budget extension is approved (Sponsor for ≤ 10% overrun, CFO for 10–25%, CEO/MD for > 25%).
+
+#### FR-PROJ-07 — Time Tracking Validation
+Employees MUST log time only against IN_PROGRESS tasks. Future dates MUST be rejected. Maximum 16 total hours logged by any one employee across all tasks for a single calendar date. Time logging on COMPLETED tasks MUST be permitted for up to 2 calendar days after the task's actual end date.
 
 ---
 
@@ -430,6 +647,34 @@ Org admins MUST be able to configure organisation name, modules enabled, and def
 
 #### FR-ADMIN-03 — Audit Trails
 All destructive and sensitive operations (user deletion, permission changes, payroll submissions) MUST write to an audit trail accessible to platform administrators.
+
+---
+
+### 3.20 India Statutory Compliance Requirements
+
+#### FR-IND-01 — Financial Year
+The system MUST operate on the Indian financial year (April 1 to March 31). All payroll, tax, GST return, and compliance calendar logic MUST use this FY boundary.
+
+#### FR-IND-02 — IST Timezone
+All timestamps displayed to India-based users and all SLA deadline computations MUST use Indian Standard Time (IST, UTC+5:30). All internal storage MUST use UTC; conversion to IST MUST happen at the presentation layer.
+
+#### FR-IND-03 — PAN Validation
+Every PAN stored in the system (employee or vendor) MUST pass format validation: 5 alphabetic characters + 4 digits + 1 alphabetic check character (regex `^[A-Z]{5}[0-9]{4}[A-Z]{1}$`).
+
+#### FR-IND-04 — Aadhaar Validation
+Employee Aadhaar numbers MUST be validated as 12-digit numeric strings passing the Verhoeff check-digit algorithm. Raw Aadhaar numbers MUST be masked in all UI displays (show only last 4 digits) and MUST NOT be returned via any portal-facing API.
+
+#### FR-IND-05 — EPFO Compliance
+Employee Provident Fund deductions MUST apply to all employees regardless of salary level. The PF wage ceiling is ₹15,000/month (employees may opt for higher contributions on full basic, which MUST be configurable). Employer contribution MUST be split: 3.67% to EPF account, 8.33% to EPS (Employee Pension Scheme, capped at ₹1,250/month). ECR file MUST be generated by the 15th of the following month.
+
+#### FR-IND-06 — Data Retention for Compliance
+Financial records (invoices, journal entries, GST returns) MUST be retained for a minimum of 8 years per the Companies Act 2013. Employee records MUST be retained for 8 years from date of exit. Customer data MUST be retained per the Digital Personal Data Protection Act 2023 (DPDP Act); deletion requests MUST be fulfilled within 30 calendar days.
+
+#### FR-IND-07 — Customer Portal Security (DPDP Act 2023)
+The customer-facing portal MUST comply with the Digital Personal Data Protection Act 2023: no cross-customer data access, explicit data minimisation (portal APIs MUST NOT return PAN, Aadhaar, bank details, or any other customer's data), user right-to-erasure workflow within 30 days, and audit logs of all data access events.
+
+#### FR-IND-08 — Multi-GSTIN Support
+Organisations with operations in multiple Indian states MUST be able to register multiple GSTINs. Each GSTIN MUST have its own: ITC ledger (IGST/CGST/SGST balances), output tax liability tracking, and GST return filing schedule. Inter-GSTIN stock transfers MUST be treated as taxable supplies.
 
 ---
 
@@ -581,6 +826,21 @@ All Docker images MUST run application processes as a non-root, unprivileged use
 The Next.js `images.remotePatterns` MUST only allow the following domains for remote image optimisation:
 - `https://**.githubusercontent.com`
 - `https://lh3.googleusercontent.com`
+
+#### NFR-SEC-09 — Prototype Pollution Prevention
+The Fastify API MUST register a `preHandler` hook that recursively sanitizes all incoming JSON request bodies before they reach tRPC or Zod. The keys `__proto__`, `constructor`, and `prototype` MUST be removed from all nested objects. This prevents prototype pollution attacks from crashing the handler or modifying `Object.prototype`.
+
+Validation criteria: A POST to any mutation endpoint with body `{ "__proto__": { "admin": true } }` MUST return `400 BAD_REQUEST` and MUST NOT return `500 INTERNAL_SERVER_ERROR`.
+
+#### NFR-SEC-10 — Error Code Correctness
+The API MUST NOT return `INTERNAL_SERVER_ERROR (500)` for any condition that the application can classify at design time. Specifically:
+
+- Missing org ticket workflow configuration MUST return `PRECONDITION_FAILED (412)`
+- Invalid enum inputs failing Zod validation MUST return `BAD_REQUEST (400)`
+- Optimistic lock version mismatches MUST return `CONFLICT (409)`
+- Unauthenticated access MUST return `UNAUTHORIZED (401)`
+
+Validation criteria: k6 `invalid_payload.js` adversarial suite (26 cases) MUST complete with `invalid_unexpected_500 count == 0`.
 
 ---
 
@@ -909,6 +1169,35 @@ E2E test files:
 - All RBAC permission boundaries MUST have E2E tests via `rbac.spec.ts`.
 - SLA and approval BullMQ workflow logic MUST have integration tests.
 
+### 10.6 k6 Security & Reliability Tests
+
+The platform MUST maintain a k6 security and reliability test suite under `tests/k6/`. All six scripts MUST be runnable against a local development stack. The following thresholds MUST pass on every run:
+
+| Script | MUST-PASS threshold |
+|--------|---------------------|
+| `auth_stress.js` | Zero interrupted iterations; all sessions receive unique tokens |
+| `rate_limit.js` | `rate_limit_server_errors count < 5`; `rate_limit_cross_user_throttle count == 0` |
+| `chaos_flow.js` | `chaos_ticket_create_success_rate > 95%`; `http_req_failed rate < 2%` |
+| `race_condition.js` | `race_update_error count < 5` (zero 500s); writes complete within `p(95) < 3,000ms` |
+| `invalid_payload.js` | `invalid_unexpected_500 count == 0`; `invalid_correct_rejection_rate > 95%` |
+| `run_all.js` | `all_errors count < 10` (zero 500s); `all_bad_input_rejection_rate > 95%`; `http_req_duration p(95) < 2,000ms` |
+
+**Adversarial coverage:** The `invalid_payload.js` suite MUST exercise the following attack categories:
+- Invalid enum values
+- Missing required fields
+- Incorrect field types
+- Prototype pollution (`__proto__`, `constructor`, `prototype` keys)
+- SQL injection patterns in string fields
+- XSS payloads in string fields
+- Oversized payloads (exceeding Zod `.max()`)
+- No authentication token
+- Fake/expired authentication token
+- Malformed JSON body
+
+**Test data prerequisite:** Load-test user organisations (`loadtest0@test.com` → `loadtest19@test.com`) MUST have at least one `ticket_statuses` row with `category = 'open'` per org before `chaos_flow.js` can run. This MUST be documented in the developer onboarding guide.
+
+**Baseline results (March 28, 2026):** 23,798 requests; 0 unhandled 500 errors; 100% bad-input rejection; p(95) 271ms. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`.
+
 ---
 
 ## 11. Deployment Requirements
@@ -1014,18 +1303,20 @@ When deploying updated source files to a running server (emergency patch flow):
 
 ## 13. Known Technical Gaps & Risks
 
-| ID | Gap / Risk | Severity | Recommendation |
-|----|-----------|----------|---------------|
-| TG-01 | `dist/migrate.js` referenced in `docker-compose.prod.yml` but `src/migrate.ts` entry point not confirmed in source | **High** | Create `apps/api/src/migrate.ts` entry point that calls Drizzle migrations, rebuild, and verify compose migrator |
-| TG-02 | `initSearchIndexes()` is defined but not called at API startup | **Medium** | Call `initSearchIndexes()` from `apps/api/src/index.ts` during the startup sequence |
-| TG-03 | `indexDocument()` in `search.ts` has no call sites — search index is never populated from write operations | **Medium** | Wire `indexDocument()` into mutation procedures (e.g. ticket creation, employee creation) |
-| TG-04 | `MEILISEARCH_HOST` (health) vs `MEILISEARCH_URL` (search service) variable name inconsistency | **Low** | Unify to `MEILISEARCH_URL` across all files |
-| TG-05 | `apps/api/package.json` `start` script references `dist/index.js`; Docker CMD uses `dist/index.mjs` | **Medium** | Align to `dist/index.mjs` (ESM tsup output) in both locations |
-| TG-06 | No CPU/memory resource limits on Docker containers | **Medium** | Add `deploy.resources.limits` to all services in `docker-compose.prod.yml` |
-| TG-07 | CSP `script-src` includes `'unsafe-inline'` and `'unsafe-eval'` | **Medium** | Investigate Next.js nonce-based CSP to eliminate `unsafe-eval` in a hardening sprint |
-| TG-08 | No `drizzle/` migration artifacts committed to the repository | **Medium** | Run `db:generate` to produce migration files and commit them; add to git-tracked assets |
-| TG-09 | Mutation hard timeout not enforced (only queries have 8 s limit) | **Low** | Consider adding a configurable mutation timeout for very long-running write operations |
-| TG-10 | API `typedRoutes` in Next.js is `false` | **Low** | Enable after stabilising route structure to catch navigation type errors at compile time |
+| ID | Gap / Risk | Severity | Status |
+|----|-----------|----------|--------|
+| TG-01 | `dist/migrate.js` referenced in `docker-compose.prod.yml` but `src/migrate.ts` entry point not confirmed in source | **High** | Open — create `apps/api/src/migrate.ts` and verify compose migrator |
+| TG-02 | `initSearchIndexes()` is defined but not called at API startup | **Medium** | Open — wire into `apps/api/src/index.ts` startup sequence |
+| TG-03 | `indexDocument()` in `search.ts` has no call sites — search index is never populated from write operations | **Medium** | Open — wire into mutation procedures |
+| TG-04 | `MEILISEARCH_HOST` (health) vs `MEILISEARCH_URL` (search service) variable name inconsistency | **Low** | Open — unify to `MEILISEARCH_URL` |
+| TG-05 | `apps/api/package.json` `start` script references `dist/index.js`; Docker CMD uses `dist/index.mjs` | **Medium** | Open — align to `dist/index.mjs` (ESM tsup output) |
+| TG-06 | No CPU/memory resource limits on Docker containers | **Medium** | Open — add `deploy.resources.limits` to `docker-compose.prod.yml` |
+| TG-07 | CSP `script-src` includes `'unsafe-inline'` and `'unsafe-eval'` | **Medium** | Open — investigate nonce-based CSP |
+| TG-08 | No `drizzle/` migration artifacts committed to the repository | **Medium** | Open — run `db:generate` and commit |
+| TG-09 | Mutation hard timeout not enforced (only queries have 8 s limit) | **Low** | Open |
+| TG-10 | API `typedRoutes` in Next.js is `false` | **Low** | Open |
+| TG-11 | File attachment uploads show toast feedback but do not persist to S3/MinIO | **Low** | By design — requires MinIO/S3 configuration and a file upload API endpoint to be wired |
+| TG-12 | Virtual Agent NLP is rule-based (BOT_FLOWS) — no LLM fallback for unrecognised freetext beyond ticket creation | **Low** | By design — enterprise ITSM bots are typically rule-based; full NLP requires `ANTHROPIC_API_KEY` and a `/trpc/ai.chat` procedure |
 
 ---
 
@@ -1061,6 +1352,9 @@ When deploying updated source files to a running server (emergency patch flow):
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-03-26 | Platform Engineering | Initial document created from full codebase analysis |
+| 1.1 | 2026-03-27 | Platform Engineering | Updated Known Technical Gaps: added TG-11 (file upload persistence) and TG-12 (virtual agent NLP) as acknowledged by-design items. All frontend action gaps (dead buttons, fake setTimeout stubs, hardcoded static data) resolved — no longer listed as gaps. Build compiles clean at 63 pages. Added `inventory` and `indiaCompliance` to system overview. |
+| 1.2 | 2026-03-28 | Platform Engineering | Updated §10 (Testing Requirements) to document k6 load testing infrastructure: `seed_users.js`, `test.js`, `mixed_test.js`, `frontend_test.js`. Confirmed NFR performance targets met or exceeded under 200-VU sustained load (p95 23ms vs 500ms target; 0% error rate). See `NexusOps_Load_Test_Report_2026.md` for full results. Added recommended k6 thresholds to §10. |
+| 1.3 | 2026-03-28 | Platform Engineering | **Security requirements added.** Added NFR-SEC-09 (Prototype Pollution Prevention): MUST apply `sanitizeInput()` Fastify `preHandler` stripping `__proto__`/`constructor`/`prototype` — validation criterion: `__proto__` payload MUST return 400, never 500. Added NFR-SEC-10 (Error Code Correctness): MUST NOT use 500 for classifiable conditions; `PRECONDITION_FAILED (412)` for missing org workflow, `BAD_REQUEST (400)` for enum validation failures. Added §10.6 (k6 Security & Reliability Tests): six scripts with MUST-PASS thresholds, required adversarial coverage categories, test data prerequisites, and March 28 baseline. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
 
 ---
 

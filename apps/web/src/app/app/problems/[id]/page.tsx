@@ -31,7 +31,11 @@ export default function ProblemDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useRBAC();
   const [comment, setComment] = useState("");
-  const [submittingComment, setSubmittingComment] = useState(false);
+
+  const addNote = trpc.changes.addProblemNote.useMutation({
+    onSuccess: () => { setComment(""); toast.success("Update posted"); refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   const { data: allProblems, isLoading, refetch } = trpc.changes.listProblems.useQuery(
     { limit: 200 },
@@ -40,7 +44,7 @@ export default function ProblemDetailPage() {
 
   const updateStatus = trpc.changes.updateProblem.useMutation({
     onSuccess: () => { toast.success("Status updated"); refetch(); },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
   if (!can("problems", "read")) return <AccessDenied module="Problem Management" />;
@@ -146,11 +150,11 @@ export default function ProblemDetailPage() {
                 placeholder="RCA update, workaround note, or status comment…"
                 className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               <button
-                onClick={() => { setSubmittingComment(true); setTimeout(() => { setSubmittingComment(false); setComment(""); toast.success("Update added"); }, 600); }}
-                disabled={submittingComment || !comment.trim()}
+                onClick={() => { if (!comment.trim()) return; addNote.mutate({ problemId: problem.id, note: comment.trim() }); }}
+                disabled={addNote.isPending || !comment.trim()}
                 className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
               >
-                {submittingComment ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
+                {addNote.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
                 Post Update
               </button>
             </div>

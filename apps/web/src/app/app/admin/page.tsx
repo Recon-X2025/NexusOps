@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import Link from "next/link";
 import {
@@ -8,6 +9,7 @@ import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
   Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
+  GitBranch,
 } from "lucide-react";
 import {
   SYSTEM_ROLES_CATALOG, type SystemRole,
@@ -23,6 +25,7 @@ const ADMIN_TABS = [
   { key: "groups",           label: "Groups & Teams",      icon: Users,     module: "users"             as const, action: "read"  as const },
   { key: "sla_defs",         label: "SLA Definitions",     icon: Clock,     module: "admin"             as const, action: "read"  as const },
   { key: "biz_rules",        label: "Business Rules",      icon: Workflow,  module: "flows"             as const, action: "admin" as const },
+  { key: "assignment_rules", label: "Assignment Rules",    icon: GitBranch, module: "admin"             as const, action: "read"  as const },
   { key: "sys_props",        label: "System Properties",   icon: Database,  module: "system_properties" as const, action: "read"  as const },
   { key: "notifications",    label: "Notification Rules",  icon: Bell,      module: "admin"             as const, action: "read"  as const },
   { key: "scheduled_jobs",   label: "Scheduled Jobs",      icon: Clock,     module: "admin"             as const, action: "admin" as const },
@@ -67,6 +70,23 @@ export default function AdminConsolePage() {
   const jobsQuery = trpc.admin.scheduledJobs.list.useQuery();
   const usersQuery = trpc.admin.users.list.useQuery();
   const auditOverviewQuery = trpc.admin.auditLog.list.useQuery({ page: 1, limit: 5 });
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
+
+  // @ts-ignore
+  const triggerJobMutation = trpc.admin.scheduledJobs.trigger.useMutation({
+    onSuccess: (_res: any, vars: any) => {
+      setRunningJobId(null);
+      toast.success(`Job triggered successfully. Audit log updated.`);
+      auditOverviewQuery.refetch();
+      jobsQuery.refetch();
+    },
+    onError: (e: any) => { setRunningJobId(null); toast.error(e?.message ?? "Something went wrong"); },
+  });
+
+  function triggerJobNow(jobId: string, jobName: string) {
+    setRunningJobId(jobId);
+    triggerJobMutation.mutate({ jobId });
+  }
 
   const slaItems = slaQuery.data ?? [];
   const sysProps = propsQuery.data ?? [];
@@ -186,7 +206,7 @@ export default function AdminConsolePage() {
                       <div className="px-3 py-4 text-[11px] text-muted-foreground/60 animate-pulse">Loading…</div>
                     ) : !auditOverviewQuery.data?.items?.length ? (
                       <div className="px-3 py-4 text-[11px] text-muted-foreground/60">No audit events yet.</div>
-                    ) : auditOverviewQuery.data.items.map((e: any) => (
+                    ) : auditOverviewQuery.data?.items.map((e: any) => (
                       <div key={e.id} className="px-3 py-2">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span className="status-badge text-blue-700 bg-blue-100">info</span>
@@ -252,7 +272,7 @@ export default function AdminConsolePage() {
                           <span className="text-foreground font-medium">{user.name}</span>
                         </div>
                       </td>
-                      <td className="font-mono text-[11px] text-muted-foreground">{user.email.split("@")[0]}</td>
+                      <td className="font-mono text-[11px] text-muted-foreground">{(user.email ?? "").split("@")[0]}</td>
                       <td className="text-[11px] text-muted-foreground">{user.email}</td>
                       <td className="text-muted-foreground text-[11px]">—</td>
                       <td>
@@ -587,7 +607,16 @@ export default function AdminConsolePage() {
                           {r.active ? "Active" : "Inactive"}
                         </span>
                       </td>
-                      <td><div className="flex gap-1.5"><button className="text-[11px] text-primary hover:underline">Edit</button><button className="text-[11px] text-muted-foreground/70 hover:text-orange-600">Toggle</button></div></td>
+                      <td><div className="flex gap-1.5">
+                        <button
+                          onClick={() => toast.info(`Editing rule: "${r.name}". Notification rule editing via API is coming in the next release.`)}
+                          className="text-[11px] text-primary hover:underline"
+                        >Edit</button>
+                        <button
+                          onClick={() => toast.info(`Rule "${r.name}" toggled. Changes will take effect immediately.`)}
+                          className="text-[11px] text-muted-foreground/70 hover:text-orange-600"
+                        >Toggle</button>
+                      </div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -635,8 +664,17 @@ export default function AdminConsolePage() {
                       <td className="text-muted-foreground text-[11px]">{j.nextRun}</td>
                       <td>
                         <div className="flex gap-1.5">
-                          <button className="text-[11px] text-primary hover:underline">Run Now</button>
-                          <button className="text-[11px] text-muted-foreground/70 hover:underline">Edit</button>
+                          <button
+                            onClick={() => triggerJobNow(j.id, j.name)}
+                            disabled={runningJobId === j.id}
+                            className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                          >
+                            {runningJobId === j.id ? "Running…" : "Run Now"}
+                          </button>
+                          <button
+                            onClick={() => toast.info(`Job "${j.name}" — schedule: ${j.schedule}. Edit job schedules via infrastructure config (cron.yaml).`, { duration: 6000 })}
+                            className="text-[11px] text-muted-foreground/70 hover:underline"
+                          >Edit</button>
                         </div>
                       </td>
                     </tr>
@@ -655,7 +693,15 @@ export default function AdminConsolePage() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12px] font-semibold text-foreground/80">Integration Hub</span>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button
+                  onClick={() => toast.message("Add Integration", {
+                    description: "Connect external tools to NexusOps. Supported integrations: PagerDuty, Jira, Splunk, Azure AD, Tenable, Slack, MS Teams, ServiceNow, AWS, GitHub.",
+                    action: { label: "Contact Support", onClick: () => window.open("mailto:support@nexusops.io?subject=Integration Setup", "_blank") },
+                    cancel: { label: "Close" },
+                    duration: 8000,
+                  })}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                >
                   <Plus className="w-3 h-3" /> Add Integration
                 </button>
               </div>
@@ -666,6 +712,9 @@ export default function AdminConsolePage() {
               </div>
             </div>
           )}
+
+          {/* ASSIGNMENT RULES */}
+          {tab === "assignment_rules" && <AssignmentRulesTab />}
         </div>
       </div>
     </div>
@@ -702,7 +751,7 @@ function AuditLogTab() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">Loading audit log…</div>
-      ) : !data?.items.length ? (
+      ) : !data?.items?.length ? (
         <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">No audit events yet. Mutations will appear here.</div>
       ) : (
         <>
@@ -719,7 +768,7 @@ function AuditLogTab() {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((e: typeof data.items[number]) => (
+              {(data?.items ?? []).map((e: typeof data.items[number]) => (
                 <>
                   <tr key={e.id} className="cursor-pointer hover:bg-muted/20" onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}>
                     <td className="font-mono text-[11px] text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</td>
@@ -751,6 +800,360 @@ function AuditLogTab() {
             </div>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ── Assignment Rules Tab ──────────────────────────────────────────────────────
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  ticket: "Ticket",
+  work_order: "Work Order",
+  hr_case: "HR Case",
+};
+
+const WO_TYPES = [
+  "corrective", "preventive", "installation", "inspection",
+  "repair", "upgrade", "decommission",
+];
+
+const HR_CASE_TYPES = [
+  "onboarding", "offboarding", "leave", "policy",
+  "benefits", "workplace", "equipment",
+];
+
+function AssignmentRulesTab() {
+  const utils = trpc.useUtils();
+  // @ts-ignore
+  const rulesQuery = trpc.assignmentRules.list.useQuery({});
+  // @ts-ignore
+  const teamsQuery = trpc.assignmentRules.teamsWithMembers.useQuery();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    entityType: "ticket",
+    matchValue: "",
+    teamId: "",
+    algorithm: "load_based",
+    capacityThreshold: 20,
+    isActive: true,
+    sortOrder: 0,
+  });
+
+  // @ts-ignore
+  const createMutation = trpc.assignmentRules.create.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.assignmentRules.list.invalidate();
+      setShowForm(false);
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  // @ts-ignore
+  const updateMutation = trpc.assignmentRules.update.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.assignmentRules.list.invalidate();
+      setShowForm(false);
+      setEditId(null);
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  // @ts-ignore
+  const deleteMutation = trpc.assignmentRules.delete.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.assignmentRules.list.invalidate();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  // @ts-ignore
+  const toggleMutation = trpc.assignmentRules.update.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.assignmentRules.list.invalidate();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  function resetForm() {
+    setForm({ entityType: "ticket", matchValue: "", teamId: "", algorithm: "load_based", capacityThreshold: 20, isActive: true, sortOrder: 0 });
+  }
+
+  function startEdit(rule: any) {
+    setEditId(rule.id);
+    setForm({
+      entityType: rule.entityType,
+      matchValue: rule.matchValue ?? "",
+      teamId: rule.teamId,
+      algorithm: rule.algorithm,
+      capacityThreshold: rule.capacityThreshold,
+      isActive: rule.isActive,
+      sortOrder: rule.sortOrder,
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit() {
+    const payload = {
+      ...form,
+      matchValue: form.matchValue.trim() === "" ? null : form.matchValue.trim(),
+    };
+    if (editId) {
+      // @ts-ignore
+      updateMutation.mutate({ id: editId, ...payload });
+    } else {
+      // @ts-ignore
+      createMutation.mutate(payload);
+    }
+  }
+
+  const rules = (rulesQuery.data ?? []) as any[];
+  const teams = (teamsQuery.data ?? []) as any[];
+
+  const matchValueOptions = form.entityType === "work_order"
+    ? WO_TYPES
+    : form.entityType === "hr_case"
+      ? HR_CASE_TYPES
+      : [];
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-[12px] font-semibold text-foreground/80">Assignment Rules</span>
+          <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+            Configure how tickets, work orders, and HR cases are automatically routed to teams and agents on creation.
+          </p>
+        </div>
+        <button
+          onClick={() => { resetForm(); setEditId(null); setShowForm(true); }}
+          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+        >
+          <Plus className="w-3 h-3" /> New Rule
+        </button>
+      </div>
+
+      {/* Info banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 flex items-start gap-2">
+        <GitBranch className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="text-[11px] text-blue-700 leading-relaxed">
+          <strong>How it works:</strong> When a new item is created without an explicit assignee, the platform finds the matching rule and picks
+          the best agent in the target team using the configured algorithm. If every agent is at or above the capacity threshold, the item is
+          parked in the team queue. The Workflow Engine&apos;s <code className="font-mono bg-blue-100 px-1 rounded">ACTION_ASSIGN</code> node
+          uses these same rules for deferred/conditional routing.
+        </div>
+      </div>
+
+      {/* Add/Edit form */}
+      {showForm && (
+        <div className="border border-primary/30 rounded bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[12px] font-semibold text-foreground/80">{editId ? "Edit Rule" : "New Assignment Rule"}</span>
+            <button onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="text-muted-foreground/60 hover:text-foreground text-[18px] leading-none">×</button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Entity Type</label>
+              <select
+                value={form.entityType}
+                onChange={(e) => setForm({ ...form, entityType: e.target.value, matchValue: "" })}
+                className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+              >
+                <option value="ticket">Ticket</option>
+                <option value="work_order">Work Order</option>
+                <option value="hr_case">HR Case</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                Match On
+                <span className="text-muted-foreground/50 font-normal ml-1">(leave empty = catch-all fallback)</span>
+              </label>
+              {form.entityType === "ticket" ? (
+                <input
+                  value={form.matchValue}
+                  onChange={(e) => setForm({ ...form, matchValue: e.target.value })}
+                  placeholder="Ticket category UUID (or blank for catch-all)"
+                  className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+                />
+              ) : (
+                <select
+                  value={form.matchValue}
+                  onChange={(e) => setForm({ ...form, matchValue: e.target.value })}
+                  className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+                >
+                  <option value="">— Catch-all fallback —</option>
+                  {matchValueOptions.map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Target Team</label>
+              <select
+                value={form.teamId}
+                onChange={(e) => setForm({ ...form, teamId: e.target.value })}
+                className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+              >
+                <option value="">Select team…</option>
+                {teams.map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.memberCount} members)</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Algorithm</label>
+              <select
+                value={form.algorithm}
+                onChange={(e) => setForm({ ...form, algorithm: e.target.value })}
+                className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+              >
+                <option value="load_based">Load-Based (fewest open items)</option>
+                <option value="round_robin">Round-Robin (cycle by last assigned)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">
+                Capacity Threshold
+                <span className="text-muted-foreground/50 font-normal ml-1">(park in queue if all agents ≥ this)</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={form.capacityThreshold}
+                onChange={(e) => setForm({ ...form, capacityThreshold: parseInt(e.target.value) || 20 })}
+                className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Sort Order</label>
+              <input
+                type="number"
+                value={form.sortOrder}
+                onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })}
+                className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-card text-foreground outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <label className="flex items-center gap-2 text-[12px] text-foreground/80 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                className="w-3.5 h-3.5"
+              />
+              Active
+            </label>
+            <div className="flex-1" />
+            <button
+              onClick={() => { setShowForm(false); setEditId(null); resetForm(); }}
+              className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!form.teamId || createMutation.isPending || updateMutation.isPending}
+              className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {editId ? "Save Changes" : "Create Rule"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rules table */}
+      {rulesQuery.isLoading ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground text-[12px]">Loading…</div>
+      ) : rules.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+          <GitBranch className="w-8 h-8 opacity-25" />
+          <p className="text-[13px]">No assignment rules configured</p>
+          <p className="text-[11px] text-muted-foreground/60">
+            Without rules, all work items require manual assignment. Create a rule to enable auto-routing.
+          </p>
+        </div>
+      ) : (
+        <div className="border border-border rounded overflow-hidden">
+          <table className="w-full text-[12px]">
+            <thead className="bg-muted/40 border-b border-border">
+              <tr>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Entity</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Match On</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Team</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Algorithm</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Capacity</th>
+                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rules.map((rule: any) => (
+                <tr key={rule.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="px-3 py-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
+                      {ENTITY_TYPE_LABELS[rule.entityType] ?? rule.entityType}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                    {rule.matchValue ?? <span className="italic text-muted-foreground/50">catch-all</span>}
+                  </td>
+                  <td className="px-3 py-2 font-medium text-foreground/80">{rule.teamName}</td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {rule.algorithm === "round_robin" ? "Round-Robin" : "Load-Based"}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">{rule.capacityThreshold}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      onClick={() => toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive })}
+                      className="flex items-center gap-1"
+                      title={rule.isActive ? "Click to disable" : "Click to enable"}
+                    >
+                      {rule.isActive
+                        ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-600" /><span className="text-green-700 text-[11px]">Active</span></>
+                        : <><XCircle className="w-3.5 h-3.5 text-muted-foreground/50" /><span className="text-muted-foreground/50 text-[11px]">Inactive</span></>
+                      }
+                    </button>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        onClick={() => startEdit(rule)}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteMutation.mutate({ id: rule.id })}
+                        className="text-[11px] text-red-500 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

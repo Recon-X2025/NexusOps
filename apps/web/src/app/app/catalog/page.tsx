@@ -164,6 +164,8 @@ export default function CatalogPage() {
           <div className="grid grid-cols-4 gap-2">
             {CATALOG_CATEGORIES.map((cat) => {
               const Icon = cat.icon;
+              const liveCount = catalogItems.filter((item: any) => item.category === cat.id || item.category === cat.label).length;
+              const displayCount = liveCount > 0 ? liveCount : cat.count;
               return (
                 <button
                   key={cat.id}
@@ -177,7 +179,7 @@ export default function CatalogPage() {
                   <Icon className={`w-4 h-4 flex-shrink-0 ${activeCategory === cat.label ? cat.color.split(" ")[0] : "text-muted-foreground/70"}`} />
                   <div className="min-w-0">
                     <div className="text-[12px] font-medium text-foreground/80 truncate">{cat.label}</div>
-                    <div className="text-[10px] text-muted-foreground/70">{cat.count} items</div>
+                    <div className="text-[10px] text-muted-foreground/70">{displayCount} items</div>
                   </div>
                 </button>
               );

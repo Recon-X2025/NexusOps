@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Star, Plus, Download, BarChart2, CheckCircle2, Clock,
   Send, Users, TrendingUp, MessageSquare, ChevronDown,
   Eye, Edit2, Copy, Trash2, Globe,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const SURVEY_TABS = [
@@ -129,18 +131,87 @@ const BUILDER_TEMPLATE = {
 
 export default function SurveysPage() {
   const { can } = useRBAC();
+  const utils = trpc.useUtils();
   const visibleTabs = SURVEY_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [selectedResult, setSelectedResult] = useState("sv-001");
+  const [editingSurveyId, setEditingSurveyId] = useState<string | null>(null);
+  const [builderTitle, setBuilderTitle] = useState("New Survey");
+  const [builderType, setBuilderType] = useState<string>("csat");
+  const [builderQuestions, setBuilderQuestions] = useState<any[]>(BUILDER_TEMPLATE.questions);
+  const [newQuestionText, setNewQuestionText] = useState("");
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: surveysData } = trpc.surveys.list.useQuery(
+  const { data: surveysData, refetch: refetchSurveys } = trpc.surveys.list.useQuery(
     { limit: 50 },
     { refetchOnWindowFocus: false },
   );
+
+  const createSurvey = trpc.surveys.create.useMutation({
+    onSuccess: (survey) => {
+      toast.success("Survey draft saved");
+      setEditingSurveyId(survey.id);
+      refetchSurveys();
+    },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const updateSurvey = trpc.surveys.update.useMutation({
+    onSuccess: () => { toast.success("Survey draft saved"); refetchSurveys(); },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const activateSurvey = trpc.surveys.activate.useMutation({
+    onSuccess: () => {
+      toast.success("Survey activated — responses will appear in the dashboard");
+      setTab("surveys");
+      refetchSurveys();
+    },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  function handleSaveDraft() {
+    const questions = builderQuestions.map((q, i) => ({
+      id: String(q.id ?? i),
+      type: q.type as any,
+      question: q.text ?? q.question ?? "",
+      required: q.required ?? true,
+      options: q.options,
+    }));
+    if (editingSurveyId) {
+      updateSurvey.mutate({ id: editingSurveyId, title: builderTitle, questions });
+    } else {
+      createSurvey.mutate({ title: builderTitle, type: builderType as any, questions });
+    }
+  }
+
+  function handleActivate() {
+    if (!editingSurveyId) {
+      toast.message("Save the survey as draft first before activating.", { description: "Click Save Draft, then Activate." });
+      return;
+    }
+    activateSurvey.mutate({ id: editingSurveyId });
+  }
+
+  function addQuestion() {
+    if (!newQuestionText.trim()) {
+      toast.error("Enter the question text before adding");
+      return;
+    }
+    setBuilderQuestions((qs) => [
+      ...qs,
+      { id: Date.now(), type: "open_text", text: newQuestionText.trim(), required: false },
+    ]);
+    setNewQuestionText("");
+    toast.success("Question added");
+  }
+
+  function removeQuestion(id: any) {
+    setBuilderQuestions((qs) => qs.filter((q) => q.id !== id));
+  }
 
   if (!can("reports", "read")) return <AccessDenied module="Surveys" />;
 
@@ -166,11 +237,23 @@ export default function SurveysPage() {
           <span className="text-[11px] text-muted-foreground/70">CSAT · NPS · Employee Pulse · Post-Incident · Exit</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(surveys.map((s: any) => ({ Title: s.title, Type: s.type ?? "", Status: s.status ?? "", Responses: s.responses ?? s.responseCount ?? 0, Avg_Score: s.avgScore ?? "", Created: s.createdAt ? new Date(s.createdAt).toLocaleDateString("en-IN") : "" })), "surveys_export")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="hr" action="write">
-            <button onClick={() => setTab("builder")} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+            <button
+              onClick={() => {
+                setBuilderTitle("New Survey");
+                setBuilderType("csat");
+                setBuilderQuestions(BUILDER_TEMPLATE.questions);
+                setEditingSurveyId(null);
+                setTab("builder");
+              }}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
               <Plus className="w-3 h-3" /> Create Survey
             </button>
           </PermissionGate>
@@ -317,7 +400,16 @@ export default function SurveysPage() {
                       <div className="flex gap-1.5">
                         <button onClick={() => { setSelectedResult(sv.id); setTab("results"); }} className="text-[11px] text-primary hover:underline flex items-center gap-0.5"><BarChart2 className="w-3 h-3" />Results</button>
                         <PermissionGate module="hr" action="write">
-                          <button className="text-[11px] text-muted-foreground/70 hover:underline">Edit</button>
+                          <button
+                            onClick={() => {
+                              setBuilderTitle(sv.title);
+                              setBuilderType(sv.type ?? "csat");
+                              setBuilderQuestions(sv.questions ?? BUILDER_TEMPLATE.questions);
+                              setEditingSurveyId(sv.id);
+                              setTab("builder");
+                            }}
+                            className="text-[11px] text-muted-foreground/70 hover:underline"
+                          >Edit</button>
                         </PermissionGate>
                       </div>
                     </td>
@@ -333,13 +425,20 @@ export default function SurveysPage() {
           <div className="p-4 max-w-2xl">
             <div className="mb-4">
               <label className="field-label">Survey Title</label>
-              <input defaultValue={BUILDER_TEMPLATE.title}
-                className="w-full border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary" />
+              <input
+                value={builderTitle}
+                onChange={(e) => setBuilderTitle(e.target.value)}
+                className="w-full border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary"
+              />
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="field-label">Survey Type</label>
-                <select className="w-full border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary">
+                <select
+                  value={builderType}
+                  onChange={(e) => setBuilderType(e.target.value)}
+                  className="w-full border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary"
+                >
                   {Object.entries(TYPE_CFG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
@@ -364,23 +463,25 @@ export default function SurveysPage() {
               </div>
             </div>
 
-            <div className="text-[10px] font-semibold text-muted-foreground/70 uppercase mb-2">Questions ({BUILDER_TEMPLATE.questions.length})</div>
+            <div className="text-[10px] font-semibold text-muted-foreground/70 uppercase mb-2">Questions ({builderQuestions.length})</div>
             <div className="space-y-3">
-              {BUILDER_TEMPLATE.questions.map((q, i) => (
+              {builderQuestions.map((q, i) => (
                 <div key={q.id} className="border border-border rounded overflow-hidden">
                   <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b border-border">
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded bg-primary text-white text-[10px] flex items-center justify-center font-bold">{i+1}</span>
-                      <span className={`status-badge text-[10px] capitalize ${q.type === "rating" ? "text-blue-700 bg-blue-100" : q.type === "single_choice" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{q.type.replace("_"," ")}</span>
+                      <span className={`status-badge text-[10px] capitalize ${q.type === "rating" ? "text-blue-700 bg-blue-100" : q.type === "single_choice" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{(q.type as string).replace("_"," ")}</span>
                       {q.required && <span className="status-badge text-red-600 bg-red-50 text-[9px]">Required</span>}
                     </div>
                     <div className="flex gap-2">
-                      <button className="text-muted-foreground/70 hover:text-muted-foreground"><Edit2 className="w-3 h-3" /></button>
-                      <button className="text-muted-foreground/70 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                      <button
+                        onClick={() => removeQuestion(q.id)}
+                        className="text-muted-foreground/70 hover:text-red-500"
+                      ><Trash2 className="w-3 h-3" /></button>
                     </div>
                   </div>
                   <div className="px-3 py-2">
-                    <p className="text-[12px] text-foreground">{q.text}</p>
+                    <p className="text-[12px] text-foreground">{q.text ?? q.question}</p>
                     {q.type === "rating" && (
                       <div className="flex gap-2 mt-2">
                         {[1,2,3,4,5].map(n => (
@@ -389,24 +490,44 @@ export default function SurveysPage() {
                         <span className="text-[11px] text-muted-foreground/70 ml-1 self-center">(1=Poor, 5=Excellent)</span>
                       </div>
                     )}
-                    {q.type === "single_choice" && (
-                      <div className="flex gap-2 mt-2 flex-wrap">
-                        {q.options?.map(o => <span key={o} className="px-2 py-1 border border-slate-200 rounded text-[11px] text-muted-foreground">{o}</span>)}
-                      </div>
-                    )}
-                    {q.type === "open_text" && <div className="mt-1 h-8 border border-dashed border-slate-200 rounded bg-muted/30/50" />}
+                    {q.type === "open_text" && <div className="mt-1 h-8 border border-dashed border-slate-200 rounded bg-muted/30" />}
                   </div>
                 </div>
               ))}
-              <button className="w-full flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-slate-200 rounded text-[12px] text-muted-foreground/70 hover:border-primary hover:text-primary transition-colors">
-                <Plus className="w-3.5 h-3.5" /> Add Question
-              </button>
+              <div className="flex gap-2">
+                <input
+                  value={newQuestionText}
+                  onChange={(e) => setNewQuestionText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addQuestion()}
+                  placeholder="Type a new question and press Add…"
+                  className="flex-1 border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary"
+                />
+                <button
+                  onClick={addQuestion}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-border rounded text-[12px] text-muted-foreground hover:bg-accent transition"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Question
+                </button>
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button className="px-4 py-2 border border-border text-[12px] rounded hover:bg-muted/30 text-muted-foreground">Save Draft</button>
-              <button className="px-4 py-2 border border-border text-[12px] rounded hover:bg-muted/30 text-muted-foreground">Preview</button>
-              <button className="px-4 py-2 bg-primary text-white text-[12px] rounded hover:bg-primary/90 flex items-center gap-1">
-                <Send className="w-3 h-3" /> Activate Survey
+              <button
+                onClick={handleSaveDraft}
+                disabled={createSurvey.isPending || updateSurvey.isPending}
+                className="px-4 py-2 border border-border text-[12px] rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-60"
+              >
+                {(createSurvey.isPending || updateSurvey.isPending) ? "Saving…" : "Save Draft"}
+              </button>
+              <button
+                onClick={() => setTab("surveys")}
+                className="px-4 py-2 border border-border text-[12px] rounded hover:bg-muted/30 text-muted-foreground"
+              >Preview</button>
+              <button
+                onClick={handleActivate}
+                disabled={activateSurvey.isPending}
+                className="px-4 py-2 bg-primary text-white text-[12px] rounded hover:bg-primary/90 flex items-center gap-1 disabled:opacity-60"
+              >
+                <Send className="w-3 h-3" /> {activateSurvey.isPending ? "Activating…" : "Activate Survey"}
               </button>
             </div>
           </div>

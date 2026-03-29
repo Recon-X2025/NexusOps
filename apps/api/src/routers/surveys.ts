@@ -51,6 +51,32 @@ export const surveysRouter = router({
     return survey;
   }),
 
+  update: permissionProcedure("analytics", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
+      questions: z.array(z.object({
+        id: z.string(),
+        type: z.enum(["rating", "text", "nps", "multiple_choice", "yes_no", "open_text"]),
+        question: z.string(),
+        required: z.boolean().default(true),
+        options: z.array(z.string()).optional(),
+      })).optional(),
+      status: z.enum(["draft", "active", "closed"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      const [survey] = await db
+        .update(surveys)
+        .set({ ...data as any, updatedAt: new Date() })
+        .where(and(eq(surveys.id, id), eq(surveys.orgId, org!.id)))
+        .returning();
+      if (!survey) throw new TRPCError({ code: "NOT_FOUND" });
+      return survey;
+    }),
+
   submit: permissionProcedure("analytics", "write")
     .input(z.object({
       surveyId: z.string().uuid(),

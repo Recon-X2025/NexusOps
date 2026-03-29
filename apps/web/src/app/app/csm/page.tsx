@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Users, Plus, Search, Star, Phone, Mail, Building2, MessageSquare, ChevronRight, TrendingUp, Award, AlertTriangle } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -42,6 +43,38 @@ export default function CSMPage() {
   // @ts-ignore — csm router is being created in a parallel task
   const accountsQuery = trpc.csm.accounts.list.useQuery({});
 
+  const [showNewCase, setShowNewCase] = useState(false);
+  const [caseForm, setCaseForm] = useState({ title: "", description: "", priority: "medium" });
+  const [caseMsg, setCaseMsg] = useState<string | null>(null);
+
+  // @ts-ignore
+  const createCase = trpc.csm.cases.create.useMutation({
+    onSuccess: () => {
+      setCaseMsg("Case created successfully");
+      setShowNewCase(false);
+      setCaseForm({ title: "", description: "", priority: "medium" });
+      casesQuery.refetch();
+      setTimeout(() => setCaseMsg(null), 4000);
+    },
+    onError: (e: any) => {
+      setCaseMsg(`Error: ${e.message}`);
+      setTimeout(() => setCaseMsg(null), 5000);
+    },
+  });
+
+  // Portal users — customer contacts via India compliance router
+  const portalUsersQuery = (trpc as any).indiaCompliance.portalUsers.list.useQuery({});
+  const [suspendReason, setSuspendReason] = useState<Record<string, string>>({});
+  const suspendPortalUser = (trpc as any).indiaCompliance.portalUsers.suspend.useMutation({
+    onSuccess: () => portalUsersQuery.refetch(),
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+  const unlockPortalUser = (trpc as any).indiaCompliance.portalUsers.unlock.useMutation({
+    onSuccess: () => portalUsersQuery.refetch(),
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+  const portalUsers: any[] = portalUsersQuery.data ?? [];
+
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
@@ -68,21 +101,65 @@ export default function CSMPage() {
           <span className="text-[11px] text-muted-foreground/70">Cases · Accounts · Contacts · Customer Health</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => setTab("accounts")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <TrendingUp className="w-3 h-3" /> Account Health
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-            <Plus className="w-3 h-3" /> New Case
+          <button
+            onClick={() => setShowNewCase((v) => !v)}
+            className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+          >
+            <Plus className="w-3 h-3" /> {showNewCase ? "Cancel" : "New Case"}
           </button>
         </div>
       </div>
+
+      {caseMsg && (
+        <div className={`px-3 py-2 rounded text-[12px] font-medium border ${caseMsg.startsWith("Error") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"}`}>{caseMsg}</div>
+      )}
+      {showNewCase && (
+        <div className="bg-card border border-primary/30 rounded p-4">
+          <h3 className="text-[12px] font-semibold text-foreground mb-3">New Customer Case</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Case Title *</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Issue summary" value={caseForm.title} onChange={(e) => setCaseForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Priority</label>
+              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={caseForm.priority} onChange={(e) => setCaseForm((f) => ({ ...f, priority: e.target.value }))}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div className="col-span-3">
+              <label className="text-[11px] text-muted-foreground">Description</label>
+              <textarea className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-16 resize-none" placeholder="Describe the customer issue…" value={caseForm.description} onChange={(e) => setCaseForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              disabled={!caseForm.title || createCase.isPending}
+              onClick={() => createCase.mutate({ title: caseForm.title, description: caseForm.description || undefined, priority: caseForm.priority })}
+              className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createCase.isPending ? "Creating…" : "Create Case"}
+            </button>
+            <button onClick={() => setShowNewCase(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: "Open Cases",        value: openCases,      color: "text-blue-700" },
           { label: "Critical Cases",    value: criticalCases,  color: "text-red-700" },
           { label: "Avg Account Health",value: `${avgHealth}%`, color: avgHealth >= 75 ? "text-green-700" : "text-orange-700" },
-          { label: "Total MRR",         value: `$${(totalMRR/1000).toFixed(0)}K`, color: "text-foreground/80" },
+          { label: "Total MRR",         value: `₹${(totalMRR/1000).toFixed(0)}K`, color: "text-foreground/80" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             {(casesQuery.isLoading || accountsQuery.isLoading) ? (
@@ -242,7 +319,10 @@ export default function CSMPage() {
                       <td className="text-muted-foreground text-[11px]">{a.since}</td>
                       <td className="text-center text-muted-foreground">{a.licenses ?? "—"}</td>
                       <td>
-                        <button className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                        <button
+                          onClick={() => { toast.info(`${a.name} · Health ${a.healthScore ?? "—"}% · Open Cases: ${a.openCases ?? 0} · NPS: ${a.nps ?? "—"} · CSM: ${a.csm ?? "—"} · Licenses: ${a.licenses ?? "—"}`); }}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
+                        >
                           View <ChevronRight className="w-3 h-3" />
                         </button>
                       </td>
@@ -262,10 +342,87 @@ export default function CSMPage() {
         )}
 
         {tab === "contacts" && (
-          <div className="p-8 text-center">
-            <Users className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-[13px] font-medium text-foreground/70 mb-1">Contacts</p>
-            <p className="text-[12px] text-muted-foreground/60">Contact directory will be available once the CSM router is deployed.</p>
+          <div>
+            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <p className="text-[12px] font-semibold text-foreground/80">
+                Customer Portal Users ({portalUsersQuery.isLoading ? "…" : portalUsers.length})
+              </p>
+            </div>
+            {portalUsersQuery.isLoading ? (
+              <div className="flex items-center justify-center h-28 gap-2 text-muted-foreground">
+                <Users className="w-4 h-4 animate-pulse" />
+                <span className="text-xs">Loading contacts…</span>
+              </div>
+            ) : portalUsers.length === 0 ? (
+              <div className="p-8 text-center">
+                <Users className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-[13px] font-medium text-foreground/70 mb-1">No Portal Users</p>
+                <p className="text-[12px] text-muted-foreground/60">Customer portal users created via the external portal or via the API will appear here.</p>
+              </div>
+            ) : (
+              <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Organisation</th>
+                    <th>Role</th>
+                    <th>MFA</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th className="w-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portalUsers.map((u: any) => (
+                    <tr key={u.id}>
+                      <td className="font-medium text-foreground/80">{u.fullName}</td>
+                      <td className="text-muted-foreground text-[11px]">{u.email}</td>
+                      <td className="text-muted-foreground text-[11px]">{u.mobile ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px] max-w-[120px] truncate" title={u.orgId}>{u.orgId}</td>
+                      <td className="capitalize text-[11px] text-muted-foreground">{u.role?.replace(/_/g, " ")}</td>
+                      <td>
+                        <span className={`status-badge text-[10px] ${u.mfaEnabled ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
+                          {u.mfaEnabled ? u.mfaType?.toUpperCase() ?? "On" : "Off"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-badge text-[10px] ${u.status === "active" ? "text-green-700 bg-green-100" : u.status === "suspended" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>
+                          {u.status}
+                        </span>
+                      </td>
+                      <td className="text-[11px] text-muted-foreground">
+                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("en-IN") : "Never"}
+                      </td>
+                      <td>
+                        {u.status === "active" ? (
+                          <div className="flex flex-col gap-1">
+                            <input
+                              className="border border-border rounded px-1 py-0.5 text-[10px] w-28"
+                              placeholder="Reason (required)"
+                              value={suspendReason[u.id] ?? ""}
+                              onChange={e => setSuspendReason(r => ({ ...r, [u.id]: e.target.value }))}
+                            />
+                            <button
+                              disabled={!suspendReason[u.id]?.trim() || suspendPortalUser.isPending}
+                              onClick={() => suspendPortalUser.mutate({ portalUserId: u.id, reason: suspendReason[u.id] })}
+                              className="text-[10px] text-red-600 hover:underline disabled:opacity-40"
+                            >Suspend</button>
+                          </div>
+                        ) : u.status === "suspended" ? (
+                          <button
+                            disabled={unlockPortalUser.isPending}
+                            onClick={() => unlockPortalUser.mutate({ portalUserId: u.id })}
+                            className="text-[11px] text-green-700 hover:underline disabled:opacity-40"
+                          >Unlock</button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 

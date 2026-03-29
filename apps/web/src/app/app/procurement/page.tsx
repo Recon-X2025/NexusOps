@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { downloadCSV } from "@/lib/utils";
+import { toast } from "sonner";
 
 const PROC_TABS = [
   { key: "dashboard",    label: "Dashboard",             module: "procurement"    as const, action: "read"  as const },
@@ -87,11 +89,11 @@ export default function ProcurementPage() {
   if (!can("procurement", "read")) return <AccessDenied module="Procurement" />;
 
   // Correct tRPC paths: procurement.purchaseRequests.list / purchaseOrders.list / vendors.list
-  const { data: prData, isLoading: prLoading } = trpc.procurement.purchaseRequests.list.useQuery(
+  const { data: prData, isLoading: prLoading, refetch: refetchPRs } = trpc.procurement.purchaseRequests.list.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );
-  const { data: poData, isLoading: poLoading } = trpc.procurement.purchaseOrders.list.useQuery(
+  const { data: poData, isLoading: poLoading, refetch: refetchPOs } = trpc.procurement.purchaseOrders.list.useQuery(
     undefined,
     { refetchOnWindowFocus: false },
   );
@@ -100,8 +102,34 @@ export default function ProcurementPage() {
     { refetchOnWindowFocus: false },
   );
 
+  const approvePR  = trpc.procurement.purchaseRequests.approve.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const rejectPR   = trpc.procurement.purchaseRequests.reject.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const createPO   = trpc.procurement.purchaseOrders.createFromPR.useMutation({ onSuccess: () => { refetchPRs(); refetchPOs(); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const [rejectingPR, setRejectingPR]  = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [creatingPO, setCreatingPO]    = useState<string | null>(null);
+  const [poVendorId, setPOVendorId]    = useState("");
+
+  const [showNewPR, setShowNewPR] = useState(false);
+  const [prForm, setPrForm] = useState({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
+  const [prMsg, setPrMsg] = useState<string | null>(null);
+
+  const createPR = trpc.procurement.purchaseRequests.create.useMutation({
+    onSuccess: (pr) => {
+      setPrMsg(`Requisition ${pr.number} created`);
+      setShowNewPR(false);
+      setPrForm({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
+      refetchPRs();
+      setTimeout(() => setPrMsg(null), 4000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requisitions = (prData ?? []) as any[];
+
+  const sendPO   = trpc.procurement.purchaseOrders.send.useMutation({ onSuccess: () => refetchPOs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const receivePO = trpc.procurement.purchaseOrders.markReceived.useMutation({ onSuccess: () => refetchPOs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const purchaseOrders = (poData ?? []) as any[];
 
@@ -123,21 +151,87 @@ export default function ProcurementPage() {
           <span className="text-[11px] text-muted-foreground/70">Requisitions · Purchase Orders · Goods Receipt · Inventory</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(purchaseOrders.map((p: any) => ({ PO_Number: p.number, Vendor: p.vendorName ?? p.vendorId ?? "", Status: p.status, Total: p.totalAmount ?? "", Tax: p.gstAmount ?? "", Created: new Date(p.createdAt).toLocaleDateString("en-IN") })), "purchase_orders")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="procurement" action="write">
-            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-              <Plus className="w-3 h-3" /> New Requisition
+            <button
+              onClick={() => setShowNewPR((v) => !v)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
+              <Plus className="w-3 h-3" /> {showNewPR ? "Cancel" : "New Requisition"}
             </button>
           </PermissionGate>
         </div>
       </div>
 
+      {prMsg && (
+        <div className="px-3 py-2 bg-green-50 border border-green-200 rounded text-[12px] text-green-700 font-medium">{prMsg}</div>
+      )}
+      {showNewPR && (
+        <div className="bg-card border border-primary/30 rounded p-4">
+          <h3 className="text-[12px] font-semibold text-foreground mb-3">New Purchase Requisition</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Title *</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="What do you need?" value={prForm.title} onChange={(e) => setPrForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Priority</label>
+              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={prForm.priority} onChange={(e) => setPrForm((f) => ({ ...f, priority: e.target.value }))}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Department</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="IT / HR / Finance…" value={prForm.department} onChange={(e) => setPrForm((f) => ({ ...f, department: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Justification</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Business reason…" value={prForm.justification} onChange={(e) => setPrForm((f) => ({ ...f, justification: e.target.value }))} />
+            </div>
+            <div className="col-span-3 border-t border-border pt-3">
+              <p className="text-[11px] font-medium text-muted-foreground mb-2">Item (at least 1 required)</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <label className="text-[11px] text-muted-foreground">Description *</label>
+                  <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Item name" value={prForm.itemDesc} onChange={(e) => setPrForm((f) => ({ ...f, itemDesc: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Qty</label>
+                  <input type="number" min="1" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={prForm.itemQty} onChange={(e) => setPrForm((f) => ({ ...f, itemQty: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Unit Price (₹)</label>
+                  <input type="number" min="0" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="0.00" value={prForm.itemPrice} onChange={(e) => setPrForm((f) => ({ ...f, itemPrice: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              disabled={!prForm.title || !prForm.itemDesc || createPR.isPending}
+              onClick={() => createPR.mutate({ title: prForm.title, justification: prForm.justification || undefined, priority: prForm.priority as any, department: prForm.department || undefined, items: [{ description: prForm.itemDesc, quantity: parseInt(prForm.itemQty) || 1, unitPrice: parseFloat(prForm.itemPrice) || 0 }] })}
+              className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createPR.isPending ? "Submitting…" : "Submit Requisition"}
+            </button>
+            <button onClick={() => setShowNewPR(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
+            {createPR.isError && <span className="text-[11px] text-red-600">{(createPR.error as any)?.message}</span>}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-5 gap-2">
         {[
           { label: "Open Purchase Orders",    value: purchaseOrders.filter(po => !["received","invoiced","paid","cancelled"].includes(po.status ?? "")).length, color: "text-blue-700" },
-          { label: "Total PO Value",           value: `$${(totalPOValue / 1000).toFixed(0)}K`,  color: "text-foreground/80" },
+          { label: "Total PO Value",           value: `₹${(totalPOValue / 1000).toFixed(0)}K`,  color: "text-foreground/80" },
           { label: "Pending Approval",          value: pendingApproval,    color: pendingApproval > 0 ? "text-orange-700" : "text-green-700" },
           { label: "Open Requisitions",         value: openPRs,             color: "text-blue-700" },
           { label: "Low/Out of Stock Items",    value: lowStock,            color: lowStock > 0 ? "text-red-700" : "text-green-700" },
@@ -152,12 +246,7 @@ export default function ProcurementPage() {
       {lowStock > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded px-3 py-2 flex items-center gap-2 text-[12px] text-orange-700">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <strong>{lowStock} inventory items</strong> are low stock or out of stock:
-          {INVENTORY.filter((i) => i.status !== "in_stock").map((i) => (
-            <span key={i.partNumber} className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${i.status === "out_of_stock" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-              {i.partNumber}
-            </span>
-          ))}
+          <strong>{lowStock} inventory items</strong> are low stock or out of stock.
         </div>
       )}
 
@@ -240,8 +329,16 @@ export default function ProcurementPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-[11px] text-muted-foreground">₹${Number(po.totalAmount ?? 0).toLocaleString("en-IN")}</span>
                       <PermissionGate module="purchase_orders" action="approve">
-                        <button className="px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200">Approve</button>
-                        <button className="px-2 py-1 bg-red-100 text-red-700 text-[11px] rounded hover:bg-red-200">Reject</button>
+                        <button
+                          disabled={approvePR.isPending}
+                          onClick={() => approvePR.mutate({ id: po.id })}
+                          className="px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200 disabled:opacity-50"
+                        >{approvePR.isPending ? "…" : "Approve"}</button>
+                        <button
+                          disabled={rejectPR.isPending}
+                          onClick={() => rejectPR.mutate({ id: po.id })}
+                          className="px-2 py-1 bg-red-100 text-red-700 text-[11px] rounded hover:bg-red-200 disabled:opacity-50"
+                        >{rejectPR.isPending ? "…" : "Reject"}</button>
                       </PermissionGate>
                     </div>
                   </div>
@@ -336,17 +433,53 @@ export default function ProcurementPage() {
                                     <PermissionGate module="procurement" action="approve">
                                       {prState === "pending" && (
                                         <>
-                                          <button className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200">Approve</button>
-                                          <button className="px-3 py-1 bg-red-100 text-red-700 text-[11px] rounded hover:bg-red-200">Reject</button>
+                                          <button
+                                            disabled={approvePR.isPending}
+                                            onClick={() => approvePR.mutate({ id: pr.id })}
+                                            className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200 disabled:opacity-50"
+                                          >{approvePR.isPending ? "…" : "Approve"}</button>
+                                          <button
+                                            onClick={() => setRejectingPR(rejectingPR === pr.id ? null : pr.id)}
+                                            className="px-3 py-1 bg-red-100 text-red-700 text-[11px] rounded hover:bg-red-200"
+                                          >{rejectingPR === pr.id ? "Cancel" : "Reject"}</button>
                                         </>
                                       )}
                                     </PermissionGate>
                                     {prState === "approved" && (
-                                      <button className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                                        <Plus className="w-3 h-3 inline mr-1" />Create Purchase Order
+                                      <button
+                                        onClick={() => setCreatingPO(creatingPO === pr.id ? null : pr.id)}
+                                        className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                                      >
+                                        <Plus className="w-3 h-3 inline mr-1" />{creatingPO === pr.id ? "Cancel" : "Create Purchase Order"}
                                       </button>
                                     )}
                                   </div>
+                                  {rejectingPR === pr.id && (
+                                    <div className="flex items-end gap-2 mt-2">
+                                      <input className="border border-border rounded px-2 py-1 text-[11px] flex-1" placeholder="Rejection reason (optional)" value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
+                                      <button
+                                        disabled={rejectPR.isPending}
+                                        onClick={() => rejectPR.mutate({ id: pr.id, reason: rejectReason || undefined })}
+                                        className="px-2 py-1 bg-red-600 text-white text-[11px] rounded hover:bg-red-700 disabled:opacity-50"
+                                      >{rejectPR.isPending ? "…" : "Confirm Reject"}</button>
+                                    </div>
+                                  )}
+                                  {creatingPO === pr.id && (
+                                    <div className="flex items-end gap-2 mt-2">
+                                      <select className="border border-border rounded px-2 py-1 text-[11px]" value={poVendorId} onChange={e => setPOVendorId(e.target.value)}>
+                                        <option value="">Select Vendor *</option>
+                                        {((vendorsData as any)?.items ?? []).map((v: any) => (
+                                          <option key={v.id} value={v.id}>{v.name}</option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        disabled={!poVendorId || createPO.isPending}
+                                        onClick={() => createPO.mutate({ prId: pr.id, vendorId: poVendorId })}
+                                        className="px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+                                      >{createPO.isPending ? "…" : "Create PO"}</button>
+                                      {createPO.isError && <span className="text-[11px] text-red-600">{(createPO.error as any)?.message}</span>}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -429,16 +562,27 @@ export default function ProcurementPage() {
                       <p className="text-[12px] text-muted-foreground italic mb-3">Line items not available in list view.</p>
                       <div className="flex gap-2">
                         {(poState === "sent" || poState === "partially_received") && (
-                          <button className="px-3 py-1 bg-blue-100 text-blue-700 text-[11px] rounded hover:bg-blue-200">
-                            <Package className="w-3 h-3 inline mr-1" />Record Goods Receipt
+                          <button
+                            disabled={receivePO.isPending}
+                            onClick={() => receivePO.mutate({ id: po.id })}
+                            className="px-3 py-1 bg-blue-100 text-blue-700 text-[11px] rounded hover:bg-blue-200 disabled:opacity-50"
+                          >
+                            <Package className="w-3 h-3 inline mr-1" />{receivePO.isPending ? "…" : "Record Goods Receipt"}
                           </button>
                         )}
                         {poState === "draft" && (
-                          <button className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                            <Send className="w-3 h-3 inline mr-1" />Send to Supplier
+                          <button
+                            disabled={sendPO.isPending}
+                            onClick={() => sendPO.mutate({ id: po.id })}
+                            className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            <Send className="w-3 h-3 inline mr-1" />{sendPO.isPending ? "Sending…" : "Send to Supplier"}
                           </button>
                         )}
-                        <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">
+                        <button
+                          onClick={() => { window.print(); }}
+                          className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                        >
                           <FileText className="w-3 h-3 inline mr-1" />Print PO
                         </button>
                       </div>
@@ -494,8 +638,12 @@ export default function ProcurementPage() {
                       <td>
                         {poStatus !== "received" && (
                           <PermissionGate module="procurement" action="write">
-                            <button className="px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                              <Package className="w-3 h-3 inline mr-1" />Record Receipt
+                            <button
+                              disabled={receivePO.isPending}
+                              onClick={() => receivePO.mutate({ id: po.id })}
+                              className="px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              <Package className="w-3 h-3 inline mr-1" />{receivePO.isPending ? "…" : "Record Receipt"}
                             </button>
                           </PermissionGate>
                         )}

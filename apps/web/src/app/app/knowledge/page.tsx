@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   BookOpen,
   Search,
@@ -27,6 +29,7 @@ const STATUS_TABS = [
 
 export default function KnowledgePage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = STATUS_TABS.filter((t) => can(t.module, t.action));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -41,6 +44,22 @@ export default function KnowledgePage() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(search), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search]);
+
+  const utils = trpc.useUtils();
+
+  const feedbackMutation = trpc.knowledge.recordFeedback.useMutation({
+    onSuccess: () => { toast.success("Thanks for your feedback!"); utils.knowledge.list.invalidate(); },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const createMutation = trpc.knowledge.create.useMutation({
+    onSuccess: (article) => {
+      toast.success("Article created — opening editor…");
+      utils.knowledge.list.invalidate();
+      router.push(`/app/knowledge/${article.id}`);
+    },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
 
   const { data, isLoading } = trpc.knowledge.list.useQuery(
     {
@@ -76,13 +95,20 @@ export default function KnowledgePage() {
         </div>
         <div className="flex items-center gap-2">
           <PermissionGate module="knowledge" action="admin">
-            <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent">
+            <button
+              onClick={() => router.push("/app/admin?tab=knowledge")}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent"
+            >
               <Filter className="w-3 h-3" /> Manage
             </button>
           </PermissionGate>
           <PermissionGate module="knowledge" action="write">
-            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] font-medium rounded hover:bg-primary/90">
-              <Plus className="w-3 h-3" /> New Article
+            <button
+              onClick={() => createMutation.mutate({ title: "New Article", content: "", tags: [] })}
+              disabled={createMutation.isPending}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] font-medium rounded hover:bg-primary/90 disabled:opacity-60"
+            >
+              {createMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} New Article
             </button>
           </PermissionGate>
         </div>
@@ -227,21 +253,41 @@ export default function KnowledgePage() {
                       <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">{excerpt}</p>
                     )}
                     <div className="flex items-center gap-3 mt-3">
-                      <button className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] rounded hover:bg-primary/90">
+                      <button
+                        onClick={() => router.push(`/app/knowledge/${article.id}`)}
+                        className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] rounded hover:bg-primary/90"
+                      >
                         <BookOpen className="w-3 h-3" /> Read Full Article
                       </button>
                       <PermissionGate module="knowledge" action="write">
-                        <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent">
+                        <button
+                          onClick={() => router.push(`/app/knowledge/${article.id}?edit=1`)}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent"
+                        >
                           <FileText className="w-3 h-3" /> Edit
                         </button>
                       </PermissionGate>
-                      <button className="text-[11px] text-muted-foreground hover:underline">Share Link</button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/app/knowledge/${article.id}`);
+                          toast.success("Link copied to clipboard");
+                        }}
+                        className="text-[11px] text-muted-foreground hover:underline"
+                      >Share Link</button>
                       <div className="ml-auto flex items-center gap-2">
                         <span className="text-[11px] text-muted-foreground">Was this helpful?</span>
-                        <button className="flex items-center gap-0.5 text-[11px] text-green-600 hover:text-green-700 border border-green-200 px-2 py-0.5 rounded hover:bg-green-50">
+                        <button
+                          onClick={() => feedbackMutation.mutate({ articleId: article.id, helpful: true })}
+                          disabled={feedbackMutation.isPending}
+                          className="flex items-center gap-0.5 text-[11px] text-green-600 hover:text-green-700 border border-green-200 px-2 py-0.5 rounded hover:bg-green-50 disabled:opacity-50"
+                        >
                           <ThumbsUp className="w-3 h-3" /> Yes
                         </button>
-                        <button className="flex items-center gap-0.5 text-[11px] text-red-500 hover:text-red-600 border border-red-200 px-2 py-0.5 rounded hover:bg-red-50">
+                        <button
+                          onClick={() => feedbackMutation.mutate({ articleId: article.id, helpful: false })}
+                          disabled={feedbackMutation.isPending}
+                          className="flex items-center gap-0.5 text-[11px] text-red-500 hover:text-red-600 border border-red-200 px-2 py-0.5 rounded hover:bg-red-50 disabled:opacity-50"
+                        >
                           <ThumbsDown className="w-3 h-3" /> No
                         </button>
                       </div>

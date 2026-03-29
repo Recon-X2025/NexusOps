@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Briefcase, Plus, Calendar, AlertTriangle, Loader2,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
-import { formatDate, formatCurrency } from "@/lib/utils";
+import { formatDate, formatCurrency, downloadCSV } from "@/lib/utils";
 
 const PPM_TABS = [
   { key: "portfolio",  label: "Portfolio View",       module: "projects"  as const, action: "read"  as const },
@@ -53,6 +54,20 @@ export default function ProjectsPage() {
     { refetchOnWindowFocus: false },
   );
 
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [projectForm, setProjectForm] = useState({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
+  const [projectMsg, setProjectMsg] = useState<string | null>(null);
+
+  const createProject = trpc.projects.create.useMutation({
+    onSuccess: (p) => {
+      setProjectMsg(`Project ${p.number} created`);
+      setShowNewProject(false);
+      setProjectForm({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
+      setTimeout(() => setProjectMsg(null), 4000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
   type ProjectItem = NonNullable<typeof data>[number];
   const projectList: ProjectItem[] = data ?? [];
 
@@ -72,21 +87,69 @@ export default function ProjectsPage() {
           <span className="text-[11px] text-muted-foreground/70">PPM · Resources · Demand · Agile</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(projectList.map((p: any) => ({ Name: p.name, Status: p.status, Phase: p.phase ?? "", Department: p.department ?? "", Start: p.startDate ? new Date(p.startDate).toLocaleDateString("en-IN") : "", End: p.endDate ? new Date(p.endDate).toLocaleDateString("en-IN") : "", Budget: p.budgetTotal ?? "", Spent: p.budgetSpent ?? "" })), "project_roadmap")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Calendar className="w-3 h-3" /> Roadmap
           </button>
           <PermissionGate module="projects" action="write">
-            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-              <Plus className="w-3 h-3" /> New Project
+            <button
+              onClick={() => setShowNewProject((v) => !v)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
+              <Plus className="w-3 h-3" /> {showNewProject ? "Cancel" : "New Project"}
             </button>
           </PermissionGate>
         </div>
       </div>
 
+      {projectMsg && (
+        <div className="px-3 py-2 bg-green-50 border border-green-200 rounded text-[12px] text-green-700 font-medium">{projectMsg}</div>
+      )}
+
+      {showNewProject && (
+        <div className="bg-card border border-primary/30 rounded p-4">
+          <h3 className="text-[12px] font-semibold text-foreground mb-3">New Project</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Project Name *</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Department</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="IT / Finance / HR…" value={projectForm.department} onChange={(e) => setProjectForm((f) => ({ ...f, department: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Start Date</label>
+              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={projectForm.startDate} onChange={(e) => setProjectForm((f) => ({ ...f, startDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">End Date</label>
+              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={projectForm.endDate} onChange={(e) => setProjectForm((f) => ({ ...f, endDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Budget (₹)</label>
+              <input type="number" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="0" value={projectForm.budgetTotal} onChange={(e) => setProjectForm((f) => ({ ...f, budgetTotal: e.target.value }))} />
+            </div>
+            <div className="col-span-3">
+              <label className="text-[11px] text-muted-foreground">Description</label>
+              <textarea className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-14 resize-none" placeholder="Project objective…" value={projectForm.description} onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button disabled={!projectForm.name || createProject.isPending} onClick={() => createProject.mutate({ name: projectForm.name, description: projectForm.description || undefined, department: projectForm.department || undefined, startDate: projectForm.startDate || undefined, endDate: projectForm.endDate || undefined, budgetTotal: projectForm.budgetTotal || undefined })} className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50">
+              {createProject.isPending ? "Creating…" : "Create Project"}
+            </button>
+            <button onClick={() => setShowNewProject(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: "Total Portfolio Budget",  value: `$${(totalBudget / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
-          { label: "Spent YTD",               value: `$${(totalSpent / 1000).toFixed(0)}K`,     color: "text-blue-700" },
+          { label: "Total Portfolio Budget",  value: `₹${(totalBudget / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
+          { label: "Spent YTD",               value: `₹${(totalSpent / 1000).toFixed(0)}K`,     color: "text-blue-700" },
           { label: "Projects At Risk",        value: atRisk,                                    color: "text-orange-700" },
           { label: "Overallocated Resources", value: overallocated,                              color: "text-red-700" },
         ].map((k) => (
@@ -226,7 +289,10 @@ export default function ProjectsPage() {
               <p className="text-[13px] font-semibold">Demand Management</p>
               <p className="text-[12px] text-muted-foreground/70 mt-1">Demand items will appear here once submitted through the intake process.</p>
               <PermissionGate module="projects" action="write">
-                <button className="mt-3 flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 mx-auto">
+                <button
+                  onClick={() => setTab("demand")}
+                  className="mt-3 flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 mx-auto"
+                >
                   <Plus className="w-3 h-3" /> New Demand Request
                 </button>
               </PermissionGate>
@@ -242,7 +308,10 @@ export default function ProjectsPage() {
                 <span className="text-[11px] text-muted-foreground">Task board across all projects</span>
               </div>
               <PermissionGate module="projects" action="write">
-                <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <button
+                  onClick={() => toast.info("Use the New Story form on this page to add a story to the backlog and assign it to a project.")}
+                  className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                >
                   <Plus className="w-3 h-3" /> Add Story
                 </button>
               </PermissionGate>

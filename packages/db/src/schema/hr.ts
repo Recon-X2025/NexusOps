@@ -1,4 +1,5 @@
 import {
+  boolean,
   decimal,
   index,
   integer,
@@ -24,8 +25,22 @@ export const employmentTypeEnum = pgEnum("employment_type", [
 
 export const employeeStatusEnum = pgEnum("employee_status", [
   "active",
+  "probation",
   "on_leave",
+  "resigned",
+  "terminated",
   "offboarded",
+]);
+
+export const taxRegimeEnum = pgEnum("tax_regime", ["old", "new"]);
+
+export const payrollRunStatusEnum = pgEnum("payroll_run_status", [
+  "draft",
+  "under_review",
+  "hr_approved",
+  "finance_approved",
+  "cfo_approved",
+  "paid",
 ]);
 
 export const hrCaseTypeEnum = pgEnum("hr_case_type", [
@@ -54,6 +69,31 @@ export const leaveStatusEnum = pgEnum("leave_status", [
   "cancelled",
 ]);
 
+// ── Salary Structures ──────────────────────────────────────────────────────
+export const salaryStructures = pgTable(
+  "salary_structures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    structureName: text("structure_name").notNull(),
+    ctcAnnual: decimal("ctc_annual", { precision: 14, scale: 2 }).notNull(),
+    basicPercent: decimal("basic_percent", { precision: 5, scale: 2 }).notNull().default("40"),
+    hraPercentOfBasic: decimal("hra_percent_of_basic", { precision: 5, scale: 2 }).notNull().default("50"),
+    ltaAnnual: decimal("lta_annual", { precision: 12, scale: 2 }).notNull().default("0"),
+    medicalAllowanceAnnual: decimal("medical_allowance_annual", { precision: 12, scale: 2 }).notNull().default("15000"),
+    conveyanceAllowanceAnnual: decimal("conveyance_allowance_annual", { precision: 12, scale: 2 }).notNull().default("19200"),
+    bonusAnnual: decimal("bonus_annual", { precision: 12, scale: 2 }).notNull().default("0"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("salary_structures_org_idx").on(t.orgId),
+  }),
+);
+
 // ── Employees ──────────────────────────────────────────────────────────────
 export const employees = pgTable(
   "employees",
@@ -71,7 +111,19 @@ export const employees = pgTable(
     managerId: uuid("manager_id"),
     employmentType: employmentTypeEnum("employment_type").notNull().default("full_time"),
     location: text("location"),
+    city: text("city"),
+    state: text("state"),
+    isMetroCity: boolean("is_metro_city").notNull().default(false),
+    pan: text("pan"),
+    aadhaar: text("aadhaar"),
+    uan: text("uan"),
+    bankAccountNumber: text("bank_account_number"),
+    bankIfsc: text("bank_ifsc"),
+    bankName: text("bank_name"),
+    taxRegime: taxRegimeEnum("tax_regime").notNull().default("new"),
+    salaryStructureId: uuid("salary_structure_id").references(() => salaryStructures.id, { onDelete: "set null" }),
     startDate: timestamp("start_date", { withTimezone: true }),
+    confirmationDate: timestamp("confirmation_date", { withTimezone: true }),
     endDate: timestamp("end_date", { withTimezone: true }),
     status: employeeStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -209,11 +261,98 @@ export const leaveBalances = pgTable(
   }),
 );
 
+// ── Payroll Runs ───────────────────────────────────────────────────────────
+export const payrollRuns = pgTable(
+  "payroll_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    month: integer("month").notNull(),
+    year: integer("year").notNull(),
+    status: payrollRunStatusEnum("status").notNull().default("draft"),
+    totalGross: decimal("total_gross", { precision: 14, scale: 2 }).notNull().default("0"),
+    totalDeductions: decimal("total_deductions", { precision: 14, scale: 2 }).notNull().default("0"),
+    totalNet: decimal("total_net", { precision: 14, scale: 2 }).notNull().default("0"),
+    totalPfEmployee: decimal("total_pf_employee", { precision: 12, scale: 2 }).notNull().default("0"),
+    totalPfEmployer: decimal("total_pf_employer", { precision: 12, scale: 2 }).notNull().default("0"),
+    totalPt: decimal("total_pt", { precision: 12, scale: 2 }).notNull().default("0"),
+    totalTds: decimal("total_tds", { precision: 12, scale: 2 }).notNull().default("0"),
+    approvedByHrId: uuid("approved_by_hr_id").references(() => users.id, { onDelete: "set null" }),
+    approvedByFinanceId: uuid("approved_by_finance_id").references(() => users.id, { onDelete: "set null" }),
+    approvedByCfoId: uuid("approved_by_cfo_id").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgMonthYearIdx: uniqueIndex("payroll_runs_org_month_year_idx").on(t.orgId, t.month, t.year),
+    orgIdx: index("payroll_runs_org_idx").on(t.orgId),
+  }),
+);
+
+// ── Payslips ───────────────────────────────────────────────────────────────
+export const payslips = pgTable(
+  "payslips",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    payrollRunId: uuid("payroll_run_id")
+      .notNull()
+      .references(() => payrollRuns.id, { onDelete: "cascade" }),
+    month: integer("month").notNull(),
+    year: integer("year").notNull(),
+    basic: decimal("basic", { precision: 12, scale: 2 }).notNull().default("0"),
+    hra: decimal("hra", { precision: 12, scale: 2 }).notNull().default("0"),
+    specialAllowance: decimal("special_allowance", { precision: 12, scale: 2 }).notNull().default("0"),
+    lta: decimal("lta", { precision: 12, scale: 2 }).notNull().default("0"),
+    medicalAllowance: decimal("medical_allowance", { precision: 12, scale: 2 }).notNull().default("0"),
+    conveyanceAllowance: decimal("conveyance_allowance", { precision: 12, scale: 2 }).notNull().default("0"),
+    bonus: decimal("bonus", { precision: 12, scale: 2 }).notNull().default("0"),
+    grossEarnings: decimal("gross_earnings", { precision: 12, scale: 2 }).notNull().default("0"),
+    pfEmployee: decimal("pf_employee", { precision: 12, scale: 2 }).notNull().default("0"),
+    pfEmployer: decimal("pf_employer", { precision: 12, scale: 2 }).notNull().default("0"),
+    professionalTax: decimal("professional_tax", { precision: 10, scale: 2 }).notNull().default("0"),
+    lwf: decimal("lwf", { precision: 10, scale: 2 }).notNull().default("0"),
+    tds: decimal("tds", { precision: 12, scale: 2 }).notNull().default("0"),
+    totalDeductions: decimal("total_deductions", { precision: 12, scale: 2 }).notNull().default("0"),
+    netPay: decimal("net_pay", { precision: 12, scale: 2 }).notNull().default("0"),
+    ytdGross: decimal("ytd_gross", { precision: 14, scale: 2 }).notNull().default("0"),
+    ytdTds: decimal("ytd_tds", { precision: 12, scale: 2 }).notNull().default("0"),
+    taxRegimeUsed: taxRegimeEnum("tax_regime_used").notNull().default("new"),
+    pdfUrl: text("pdf_url"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    employeeMonthYearIdx: uniqueIndex("payslips_employee_month_year_idx").on(t.employeeId, t.month, t.year),
+    orgIdx: index("payslips_org_idx").on(t.orgId),
+    payrollRunIdx: index("payslips_payroll_run_idx").on(t.payrollRunId),
+  }),
+);
+
 // ── Relations ──────────────────────────────────────────────────────────────
 export const employeesRelations = relations(employees, ({ one, many }) => ({
   org: one(organizations, { fields: [employees.orgId], references: [organizations.id] }),
   user: one(users, { fields: [employees.userId], references: [users.id] }),
+  salaryStructure: one(salaryStructures, { fields: [employees.salaryStructureId], references: [salaryStructures.id] }),
   hrCases: many(hrCases),
   leaveRequests: many(leaveRequests),
   leaveBalances: many(leaveBalances),
+  payslips: many(payslips),
+}));
+
+export const payrollRunsRelations = relations(payrollRuns, ({ one, many }) => ({
+  org: one(organizations, { fields: [payrollRuns.orgId], references: [organizations.id] }),
+  payslips: many(payslips),
+}));
+
+export const payslipsRelations = relations(payslips, ({ one }) => ({
+  employee: one(employees, { fields: [payslips.employeeId], references: [employees.id] }),
+  payrollRun: one(payrollRuns, { fields: [payslips.payrollRunId], references: [payrollRuns.id] }),
 }));

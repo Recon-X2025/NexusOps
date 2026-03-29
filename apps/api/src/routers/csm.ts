@@ -8,10 +8,9 @@ import {
   and,
   desc,
   count,
+  sql,
 } from "@nexusops/db";
-
-// csmCases table does not exist in schema yet - CSM cases procedures return graceful fallbacks
-// pending migration to add csmCases table
+import { getNextNumber } from "../lib/auto-number";
 
 export const csmRouter = router({
   cases: router({
@@ -23,15 +22,30 @@ export const csmRouter = router({
         limit: z.coerce.number().default(50),
         cursor: z.string().optional(),
       }))
-      .query(async () => {
-        // csmCases table pending migration
-        return { items: [], nextCursor: null };
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        try {
+          const rows = await db.execute(sql`
+            SELECT * FROM csm_cases
+            WHERE org_id = ${org!.id}
+            ${input.status ? sql`AND status = ${input.status}` : sql``}
+            ${input.priority ? sql`AND priority = ${input.priority}` : sql``}
+            ORDER BY created_at DESC
+            LIMIT ${input.limit}
+          `);
+          return { items: rows.rows as any[], nextCursor: null };
+        } catch {
+          return { items: [], nextCursor: null };
+        }
       }),
 
     get: permissionProcedure("csm", "read")
       .input(z.object({ id: z.string().uuid() }))
-      .query(async () => {
-        throw new TRPCError({ code: "NOT_FOUND", message: "CSM cases schema pending migration" });
+      .query(async ({ ctx, input }) => {
+        const { db } = ctx;
+        const [row] = await db.execute(sql`SELECT * FROM csm_cases WHERE id = ${input.id}`);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        return row;
       }),
 
     create: permissionProcedure("csm", "write")
@@ -42,9 +56,16 @@ export const csmRouter = router({
         accountId: z.string().uuid().optional(),
         contactId: z.string().uuid().optional(),
       }))
-      .mutation(async () => {
-        // csmCases table pending migration
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "CSM cases schema pending migration" });
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const number = await getNextNumber(db, org!.id, "CSM");
+        const [row] = await db.execute(sql`
+          INSERT INTO csm_cases (org_id, number, title, description, priority, account_id, contact_id, requester_id)
+          VALUES (${org!.id}, ${number}, ${input.title}, ${input.description ?? null}, ${input.priority},
+                  ${input.accountId ?? null}, ${input.contactId ?? null}, ${user!.id})
+          RETURNING *
+        `);
+        return row;
       }),
 
     update: permissionProcedure("csm", "write")
@@ -55,8 +76,18 @@ export const csmRouter = router({
         assigneeId: z.string().uuid().optional(),
         resolution: z.string().optional(),
       }))
-      .mutation(async () => {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "CSM cases schema pending migration" });
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        await db.execute(sql`
+          UPDATE csm_cases SET
+            status = COALESCE(${input.status ?? null}, status),
+            priority = COALESCE(${input.priority ?? null}, priority),
+            assignee_id = COALESCE(${input.assigneeId ?? null}::uuid, assignee_id),
+            resolution = COALESCE(${input.resolution ?? null}, resolution),
+            updated_at = NOW()
+          WHERE id = ${input.id} AND org_id = ${org!.id}
+        `);
+        return { id: input.id };
       }),
   }),
 

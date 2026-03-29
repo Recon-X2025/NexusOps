@@ -15,6 +15,7 @@ import {
   lte,
 } from "@nexusops/db";
 import { getRedis } from "../lib/redis";
+import { rateLimit } from "../lib/rate-limit";
 
 const CACHE_TTL = 300; // 5 minutes
 
@@ -45,65 +46,71 @@ async function getCached<T>(key: string, fn: () => Promise<T>): Promise<T> {
 export const dashboardRouter = router({
   getMetrics: permissionProcedure("reports", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
+    await rateLimit(ctx.user?.id, org?.id, "dashboard.getMetrics");
+    const start = Date.now();
     const cacheKey = `dashboard:metrics:${org!.id}`;
 
     return getCached(cacheKey, async () => {
-      const [openCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
-        .where(and(eq(tickets.orgId, org!.id), eq(ticketStatuses.category, "open")));
-
       const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
 
-      const [createdTodayCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, startOfDay)));
-
-      const [resolvedTodayCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .where(
-          and(
-            eq(tickets.orgId, org!.id),
-            sql`${tickets.resolvedAt} IS NOT NULL`,
-            gte(tickets.resolvedAt, startOfDay),
+      const [
+        [openCount],
+        [createdTodayCount],
+        [resolvedTodayCount],
+        [pendingApprovalsCount],
+        [unassignedCount],
+        [slaBreachedCount],
+        [totalCount],
+        [resolvedCount],
+      ] = await Promise.all([
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+          .where(and(eq(tickets.orgId, org!.id), eq(ticketStatuses.category, "open"))),
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, startOfDay))),
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .where(
+            and(
+              eq(tickets.orgId, org!.id),
+              sql`${tickets.resolvedAt} IS NOT NULL`,
+              gte(tickets.resolvedAt, startOfDay),
+            ),
           ),
-        );
-
-      const [pendingApprovalsCount] = await db
-        .select({ count: count() })
-        .from(approvalRequests)
-        .where(and(eq(approvalRequests.orgId, org!.id), eq(approvalRequests.status, "pending")));
-
-      const [unassignedCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
-        .where(
-          and(
-            eq(tickets.orgId, org!.id),
-            sql`${tickets.assigneeId} IS NULL`,
-            sql`${ticketStatuses.category} NOT IN ('resolved', 'closed')`,
+        db
+          .select({ count: count() })
+          .from(approvalRequests)
+          .where(and(eq(approvalRequests.orgId, org!.id), eq(approvalRequests.status, "pending"))),
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+          .where(
+            and(
+              eq(tickets.orgId, org!.id),
+              sql`${tickets.assigneeId} IS NULL`,
+              sql`${ticketStatuses.category} NOT IN ('resolved', 'closed')`,
+            ),
           ),
-        );
-
-      const [slaBreachedCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .where(and(eq(tickets.orgId, org!.id), eq(tickets.slaBreached, true)));
-
-      const [totalCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .where(eq(tickets.orgId, org!.id));
-
-      const [resolvedCount] = await db
-        .select({ count: count() })
-        .from(tickets)
-        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
-        .where(and(eq(tickets.orgId, org!.id), eq(ticketStatuses.category, "resolved")));
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .where(and(eq(tickets.orgId, org!.id), eq(tickets.slaBreached, true))),
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .where(eq(tickets.orgId, org!.id)),
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+          .where(and(eq(tickets.orgId, org!.id), eq(ticketStatuses.category, "resolved"))),
+      ]);
 
       const slaCompliance =
         totalCount && totalCount.count > 0
@@ -121,6 +128,12 @@ export const dashboardRouter = router({
         totalTickets: totalCount?.count ?? 0,
         resolvedTickets: resolvedCount?.count ?? 0,
       };
+    }).then((v) => {
+      console.info("dashboard.getMetrics", { duration: Date.now() - start, orgId: org?.id });
+      return v;
+    }).catch((err: unknown) => {
+      console.error("dashboard.getMetrics error", { err });
+      throw err;
     });
   }),
 

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import {
-  Shield, CheckCircle2, Plus, Target, ChevronRight, Loader2,
+  Shield, CheckCircle2, Plus, Target, ChevronRight, Loader2, X,
 } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/utils";
 
 const SEC_TABS = [
@@ -45,6 +46,8 @@ export default function SecurityOpsPage() {
   const { can } = useRBAC();
   const visibleTabs = SEC_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vulnerabilities");
+  const [showNewIncident, setShowNewIncident] = useState(false);
+  const [incForm, setIncForm] = useState({ title: "", description: "", severity: "medium" as "critical"|"high"|"medium"|"low"|"informational", attackVector: "" });
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -58,10 +61,15 @@ export default function SecurityOpsPage() {
     { limit: 100 },
     { refetchOnWindowFocus: false },
   );
-  const { data: incidents, isLoading: incidentsLoading } = trpc.security.listIncidents.useQuery(
+  const { data: incidents, isLoading: incidentsLoading, refetch: refetchIncidents } = trpc.security.listIncidents.useQuery(
     { limit: 100 },
     { refetchOnWindowFocus: false },
   );
+
+  const createIncident = trpc.security.createIncident.useMutation({
+    onSuccess: (inc: any) => { toast.success(`Security incident ${inc?.id?.slice(0,8) ?? ""} created`); setShowNewIncident(false); setIncForm({ title: "", description: "", severity: "medium", attackVector: "" }); refetchIncidents(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   type VulnItem = NonNullable<typeof vulns>[number];
   type IncidentItem = NonNullable<typeof incidents>["items"][number];
@@ -85,12 +93,18 @@ export default function SecurityOpsPage() {
           <span className="text-[11px] text-muted-foreground">Vulnerability Response · SecOps · Threat Intel</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-accent text-muted-foreground">
+          <button
+            onClick={() => toast.info("To import scan results, export from your scanner (Nessus, Qualys, Trivy) as CSV/JSON and use the API endpoint POST /api/trpc/security.createVulnerability. Bulk import via API is supported.", { duration: 6000 })}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-accent text-muted-foreground">
             <Target className="w-3 h-3" /> Import Scan Results
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 bg-destructive text-destructive-foreground text-[11px] rounded hover:bg-destructive/90">
-            <Plus className="w-3 h-3" /> New Security Incident
-          </button>
+          {can("security", "write") && (
+            <button
+              onClick={() => setShowNewIncident(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-destructive text-destructive-foreground text-[11px] rounded hover:bg-destructive/90">
+              <Plus className="w-3 h-3" /> New Security Incident
+            </button>
+          )}
         </div>
       </div>
 
@@ -282,6 +296,47 @@ export default function SecurityOpsPage() {
           </div>
         )}
       </div>
+
+      {/* New Security Incident Modal */}
+      {showNewIncident && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-red-700 flex items-center gap-2"><Shield className="w-4 h-4" /> New Security Incident</h2>
+              <button onClick={() => setShowNewIncident(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Title <span className="text-red-500">*</span></label>
+              <input value={incForm.title} onChange={(e) => setIncForm(f => ({...f, title: e.target.value}))} placeholder="Brief description of the incident…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-destructive" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Description</label>
+              <textarea rows={3} value={incForm.description} onChange={(e) => setIncForm(f => ({...f, description: e.target.value}))} placeholder="What happened, affected systems, initial indicators…" className="px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-destructive" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Severity</label>
+                <select value={incForm.severity} onChange={(e) => setIncForm(f => ({...f, severity: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  {["critical","high","medium","low","informational"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Attack Vector</label>
+                <input value={incForm.attackVector} onChange={(e) => setIncForm(f => ({...f, attackVector: e.target.value}))} placeholder="e.g. phishing, RCE…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowNewIncident(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!incForm.title.trim()) { toast.error("Title is required"); return; } createIncident.mutate({ title: incForm.title.trim(), description: incForm.description || undefined, severity: incForm.severity, attackVector: incForm.attackVector || undefined }); }}
+                disabled={createIncident.isPending}
+                className="px-4 py-1.5 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 disabled:opacity-50">
+                {createIncident.isPending ? "Creating…" : "Declare Incident"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

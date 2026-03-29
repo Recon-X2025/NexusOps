@@ -9,6 +9,9 @@ import {
   logRbacDenied,
   logDbError,
   logServerError,
+  logInfo,
+  logWarn,
+  logError,
   shortRef,
   type RequestMeta,
 } from "./logger";
@@ -72,7 +75,7 @@ const latencyTracker = (() => {
     return sorted[idx]!;
   }
 
-  function report(label = "[LATENCY REPORT]") {
+  function report(label = "LATENCY_REPORT") {
     if (samples.length === 0) return;
     const ms = samples.map((s) => s.ms).sort((a, b) => a - b);
     const avg = Math.round(ms.reduce((a, b) => a + b, 0) / ms.length);
@@ -92,14 +95,14 @@ const latencyTracker = (() => {
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 5);
 
-    console.log(label, {
+    logInfo(label, {
       samples: ms.length,
       avg,
       p50: percentile(ms, 0.5),
       p95: percentile(ms, 0.95),
       p99: percentile(ms, 0.99),
       max: ms[ms.length - 1],
-      slowEndpoints,
+      slow_endpoints: slowEndpoints,
     });
   }
 
@@ -116,7 +119,7 @@ const latencyTracker = (() => {
 // Print a final summary when the process shuts down (SIGINT / SIGTERM).
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.once(sig, () => {
-    latencyTracker.report("[LATENCY SUMMARY on shutdown]");
+    latencyTracker.report("LATENCY_SUMMARY_SHUTDOWN");
     process.exit(0);
   });
 }
@@ -140,13 +143,12 @@ const loggingMiddleware = t.middleware(async ({ ctx, path, type, next }) => {
   const start = Date.now();
 
   if (!isTest) {
-    console.log("[TRPC REQUEST]", {
-      requestId: ctx.requestId ?? null,
+    logInfo("TRPC_REQUEST", {
+      request_id: ctx.requestId ?? null,
       path,
       type,
-      userId: ctx.user?.id ?? null,
-      orgId: ctx.orgId ?? null,
-      ts: new Date().toISOString(),
+      user_id: ctx.user?.id ?? null,
+      org_id:  ctx.orgId ?? null,
     });
   }
 
@@ -171,11 +173,11 @@ const loggingMiddleware = t.middleware(async ({ ctx, path, type, next }) => {
     } catch (err) {
       const ms = Date.now() - start;
       if (err instanceof TRPCError && err.code === "TIMEOUT" && !isTest) {
-        console.error("[TIMEOUT]", {
-          requestId: ctx.requestId ?? null,
+        logError("QUERY_TIMEOUT", err, {
+          request_id: ctx.requestId ?? null,
           path,
-          duration: ms,
-          userId: ctx.user?.id ?? null,
+          duration_ms: ms,
+          user_id: ctx.user?.id ?? null,
         });
       }
       throw err;
@@ -191,12 +193,12 @@ const loggingMiddleware = t.middleware(async ({ ctx, path, type, next }) => {
     latencyTracker.record(path, duration);
 
     if (duration > SLOW_WARN_MS) {
-      console.warn("[SLOW REQUEST]", {
-        requestId: ctx.requestId ?? null,
+      logWarn("SLOW_REQUEST", {
+        request_id: ctx.requestId ?? null,
         path,
-        duration,
+        duration_ms: duration,
         type,
-        userId: ctx.user?.id ?? null,
+        user_id: ctx.user?.id ?? null,
       });
     }
 
@@ -363,10 +365,10 @@ const retryMutation = t.middleware(async (opts) => {
 
     if (!shouldRetry) return result;
 
-    console.warn("[MUTATION_RETRY]", {
-      path:       opts.path,
-      attempt:    attempt + 1,
-      maxAttempts: MAX_ATTEMPTS,
+    logWarn("MUTATION_RETRY", {
+      path:        opts.path,
+      attempt:     attempt + 1,
+      max_attempts: MAX_ATTEMPTS,
     });
 
     await retryDelay();

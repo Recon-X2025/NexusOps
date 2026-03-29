@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const GRC_TABS = [
   { key: "risk",        label: "Risk Register",        module: "risk"    as const, action: "read" as const },
@@ -61,6 +62,11 @@ export default function GRCPage() {
   const audits: AuditItem[] = auditsData ?? [];
   const vendorRisks: VendorRiskItem[] = vendorRisksData ?? [];
 
+  const createRiskMutation = trpc.grc.createRisk.useMutation({ onSuccess: () => { (trpc as any).grc?.listRisks?.invalidate?.(); setShowNewRisk(false); setRiskForm(EMPTY_RISK); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const EMPTY_RISK = { title: "", category: "operational" as const, likelihood: 3, impact: 3, treatment: "mitigate" as const, description: "", mitigationPlan: "" };
+  const [showNewRisk, setShowNewRisk] = useState(false);
+  const [riskForm, setRiskForm]       = useState(EMPTY_RISK);
+
   // DB stores pre-computed riskScore; fall back to likelihood × impact if missing
   const getRiskScore = (r: RiskItem) => r.riskScore ?? (r.likelihood ?? 0) * (r.impact ?? 0);
   // DB status values: "identified" | "assessed" | "mitigating" | "accepted" | "closed"
@@ -75,8 +81,11 @@ export default function GRCPage() {
           <h1 className="text-sm font-semibold text-foreground">Governance, Risk & Compliance</h1>
           <span className="text-[11px] text-muted-foreground/70">Risk Register · Policy · Audit · BCP · Vendor Risk</span>
         </div>
-        <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-          <Plus className="w-3 h-3" /> New Risk
+        <button
+          onClick={() => setShowNewRisk(v => !v)}
+          className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+        >
+          <Plus className="w-3 h-3" /> {showNewRisk ? "Cancel" : "New Risk"}
         </button>
       </div>
 
@@ -103,6 +112,59 @@ export default function GRCPage() {
           </button>
         ))}
       </div>
+
+      {showNewRisk && (
+        <div className="bg-card border border-border rounded p-4 space-y-3">
+          <p className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Register New Risk</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Risk Title *</label>
+              <input className="w-full border border-border rounded px-2 py-1.5 text-[12px]" placeholder="e.g. Unpatched critical vulnerability in production" value={riskForm.title} onChange={e => setRiskForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Category</label>
+              <select className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.category} onChange={e => setRiskForm(f => ({ ...f, category: e.target.value as any }))}>
+                {["operational","financial","strategic","compliance","technology","reputational"].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Likelihood (1–5)</label>
+              <input type="number" min={1} max={5} className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.likelihood} onChange={e => setRiskForm(f => ({ ...f, likelihood: Number(e.target.value) }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Impact (1–5)</label>
+              <input type="number" min={1} max={5} className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.impact} onChange={e => setRiskForm(f => ({ ...f, impact: Number(e.target.value) }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Treatment</label>
+              <select className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.treatment} onChange={e => setRiskForm(f => ({ ...f, treatment: e.target.value as any }))}>
+                {["accept","mitigate","transfer","avoid"].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+              </select>
+            </div>
+            <div className="col-span-3">
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Description</label>
+              <textarea className="w-full border border-border rounded px-2 py-1.5 text-[12px] h-16 resize-none" placeholder="Describe the risk scenario…" value={riskForm.description} onChange={e => setRiskForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="col-span-3">
+              <label className="block text-[10px] font-medium text-muted-foreground mb-1">Mitigation Plan</label>
+              <textarea className="w-full border border-border rounded px-2 py-1.5 text-[12px] h-14 resize-none" placeholder="Steps to mitigate this risk…" value={riskForm.mitigationPlan} onChange={e => setRiskForm(f => ({ ...f, mitigationPlan: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[11px] font-bold px-2 py-1 rounded ${riskForm.likelihood * riskForm.impact >= 15 ? "bg-red-100 text-red-700" : riskForm.likelihood * riskForm.impact >= 10 ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>
+              Risk Score: {riskForm.likelihood * riskForm.impact} / 25
+            </span>
+            <button
+              disabled={createRiskMutation.isPending || !riskForm.title}
+              onClick={() => createRiskMutation.mutate(riskForm)}
+              className="px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createRiskMutation.isPending ? "Saving…" : "Create Risk"}
+            </button>
+            {createRiskMutation.isError && <span className="text-[11px] text-red-600">{(createRiskMutation.error as any)?.message}</span>}
+          </div>
+        </div>
+      )}
 
       <div className="bg-card border border-border rounded-b overflow-hidden">
         {tab === "risk" && (

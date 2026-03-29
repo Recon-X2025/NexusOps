@@ -1,3 +1,7 @@
+import { config as loadEnv } from "dotenv";
+// .env lives at the monorepo root; pnpm sets CWD to apps/api/ when running scripts
+loadEnv({ path: "../../.env" });
+loadEnv(); // fallback: also load apps/api/.env if present
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -12,7 +16,12 @@ import {
   REDIS_TTL_SECS,
 } from "./middleware/auth";
 import { getRedis } from "./lib/redis";
-import { logRateLimit, logServerError } from "./lib/logger";
+import { randomUUID } from "node:crypto";
+import { logRateLimit, logServerError, initLogger } from "./lib/logger";
+import { sanitizeInput } from "./lib/sanitize";
+import { recordRequest, recordRateLimit, getMetricsSnapshot, resetMetrics } from "./lib/metrics";
+import { evaluateHealth } from "./lib/health";
+import { checkHealth, getMonitorState } from "./lib/healthMonitor";
 // Observability MUST be imported first so auto-instrumentation patches load early
 import { initObservability } from "./services/observability";
 initObservability();
@@ -109,7 +118,26 @@ async function bootstrap() {
           : undefined,
     },
     trustProxy: true,
+    // Suppress Fastify's default "incoming request" / "request completed" messages.
+    // Our onResponse hook (below) emits a single structured REQUEST log per call
+    // in the exact shape we want — no duplication.
+    disableRequestLogging: true,
+    // Honour the x-request-id header from upstream proxies / load balancers.
+    // If absent, generate a UUID.  The value becomes req.id and is included
+    // in every log line that carries request_id.
+    genReqId: (req) => {
+      const fromHeader = req.headers["x-request-id"];
+      if (typeof fromHeader === "string" && fromHeader.length > 0 && fromHeader.length <= 128) {
+        return fromHeader;
+      }
+      return randomUUID();
+    },
   });
+
+  // Wire the logger module to Fastify's pino instance immediately so that all
+  // structured log output shares the same transport (pino-pretty in dev,
+  // raw NDJSON in production).
+  initLogger(fastify.log);
 
   // ── Plugins ──────────────────────────────────────────────────────────────
   // CORS_ORIGIN supports comma-separated list: "http://139.84.154.78,https://app.example.com"
@@ -179,6 +207,9 @@ async function bootstrap() {
         ttlMs:      (context as { ttl: number }).ttl ?? 0,
       });
 
+      // Track rate-limited request count for health evaluation.
+      recordRateLimit();
+
       return {
         statusCode: 429,
         error:      "Too Many Requests",
@@ -200,6 +231,66 @@ async function bootstrap() {
   // ── OIDC Routes ───────────────────────────────────────────────────────────
   const { registerOidcRoutes } = await import("./services/oidc.js");
   await registerOidcRoutes(fastify);
+
+  // ── Prototype-pollution sanitization ─────────────────────────────────────
+  //
+  // Runs on every incoming request BEFORE tRPC (and therefore before Zod)
+  // sees the body.  Strips "__proto__", "constructor", and "prototype" keys
+  // recursively so they can never reach router handlers or pollute the
+  // process-wide prototype chain.
+  //
+  // This is applied at the HTTP layer (not in tRPC middleware) because:
+  //   a) It must run before Zod parsing — a malicious key could confuse
+  //      certain Zod internals before validation even starts.
+  //   b) It protects ALL routes, not just tRPC procedures.
+  fastify.addHook("preHandler", (req, _reply, done) => {
+    if (req.body !== null && req.body !== undefined && typeof req.body === "object") {
+      req.body = sanitizeInput(req.body);
+    }
+    done();
+  });
+
+  // ── Structured HTTP request logging ──────────────────────────────────────
+  //
+  // Fires once per HTTP request after the response is sent.  Emits a flat
+  // JSON log line with the fields required for request tracing:
+  //
+  //   { event, request_id, method, url, status, duration_ms }
+  //
+  // user_id / org_id are NOT available at the HTTP transport layer — they
+  // live inside the tRPC context.  The tRPC loggingMiddleware in trpc.ts
+  // emits a TRPC_REQUEST log that includes both fields, correlated by the
+  // same request_id.  Together the two events give a complete trace:
+  //
+  //   REQUEST       → transport view  (method, url, status, duration)
+  //   TRPC_REQUEST  → application view (path, type, user_id, org_id)
+  //
+  // reply.elapsedTime is maintained by Fastify from onRequest onwards
+  // (fractional milliseconds); Math.round() gives integer ms.
+  fastify.addHook("onResponse", (req, reply, done) => {
+    const duration = reply.elapsedTime;
+    const status   = reply.statusCode;
+
+    // Structured log — one line per HTTP request.
+    fastify.log.info({
+      event:       "REQUEST",
+      request_id:  req.id,
+      method:      req.method,
+      url:         req.url,
+      status,
+      duration_ms: Math.round(duration),
+    });
+
+    // In-memory metrics — O(1) arithmetic, no allocations on the hot path.
+    recordRequest(req.url, duration, status);
+
+    // Active health monitoring — checks every EVAL_EVERY requests and emits
+    // a structured log line if the health status has changed.  Non-evaluation
+    // ticks cost exactly one integer increment and one modulo check.
+    checkHealth();
+
+    done();
+  });
 
   // ── tRPC ─────────────────────────────────────────────────────────────────
   await fastify.register(fastifyTRPCPlugin, {
@@ -273,6 +364,38 @@ async function bootstrap() {
     const { checks, allOk } = await runDetailedChecks();
     reply.status(allOk ? 200 : 503);
     return { status: allOk ? "ready" : "not_ready", checks, timestamp: new Date().toISOString() };
+  });
+
+  // ── Internal Metrics ──────────────────────────────────────────────────────
+  //
+  // These routes are intentionally NOT mounted under /trpc and NOT behind auth
+  // so that ops tooling (scripts, dashboards, health checks) can poll them
+  // without a session token.  Restrict access at the network / reverse-proxy
+  // layer (e.g. only allow requests from 127.0.0.1 or the internal VLAN).
+  //
+  // GET  /internal/metrics        — current snapshot
+  // POST /internal/metrics/reset  — zero all counters
+
+  fastify.get("/internal/metrics", async () => getMetricsSnapshot());
+
+  fastify.post("/internal/metrics/reset", async () => {
+    resetMetrics();
+    return { ok: true, message: "Metrics reset", timestamp: new Date().toISOString() };
+  });
+
+  // GET /internal/health — evaluate current metrics against health thresholds.
+  // Returns HEALTHY / DEGRADED / UNHEALTHY with human-readable reasons.
+  fastify.get("/internal/health", async () => {
+    const metrics = getMetricsSnapshot();
+    const result  = evaluateHealth(metrics);
+    const monitor = getMonitorState();
+    return {
+      ...result,
+      monitor: {
+        last_changed_at: monitor.since,
+        eval_every:      monitor.eval_every,
+      },
+    };
   });
 
   // ── Graceful Shutdown ─────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import {
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { downloadCSV } from "@/lib/utils";
 
 const APM_TABS = [
   { key: "portfolio",  label: "Application Portfolio",       module: "projects"  as const, action: "read"  as const },
@@ -212,9 +213,25 @@ export default function APMPage() {
           <span className="text-[11px] text-muted-foreground/70">Portfolio · Lifecycle · Tech Debt · Cloud · Capability Map</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
-            <Download className="w-3 h-3" /> Export
-          </button>
+          <button
+              onClick={() => downloadCSV(
+                APPS.map((a) => ({
+                  Name: a.name,
+                  Alias: a.alias ?? "",
+                  Category: a.category,
+                  Lifecycle: a.lifecycle ?? "",
+                  DeployModel: a.deployModel ?? "",
+                  TechDebt: a.techDebtLevel ?? "",
+                  AnnualCost: a.annualCost ?? 0,
+                  EOL: a.eolDate ?? "",
+                  Owner: a.owner ?? "",
+                })),
+                "apm_portfolio_export",
+              )}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+            >
+              <Download className="w-3 h-3" /> Export
+            </button>
           <PermissionGate module="cmdb" action="write">
             <button
               onClick={() => createAppMutation.mutate({ name: "New Application", category: "Other" } as any)}
@@ -229,7 +246,7 @@ export default function APMPage() {
       <div className="grid grid-cols-5 gap-2">
         {[
           { label: "Applications",       value: summaryQuery.data?.total ?? APPS.length,                 color: "text-foreground" },
-          { label: "Annual License Cost",value: `$${((summaryQuery.data?.totalAnnualCost ?? totalAnnualCost)/1000000).toFixed(2)}M`, color: "text-foreground/80" },
+          { label: "Annual License Cost",value: `₹${((summaryQuery.data?.totalAnnualCost ?? totalAnnualCost)/1000000).toFixed(2)}M`, color: "text-foreground/80" },
           { label: "Retire Candidates",  value: summaryQuery.data?.retireCandidates ?? retireCandidates,  color: retireCandidates > 0 ? "text-orange-700" : "text-green-700" },
           { label: "High Tech Debt",     value: summaryQuery.data?.highTechDebt ?? criticalDebt,          color: criticalDebt > 0 ? "text-red-700" : "text-green-700" },
           { label: "Cloud Native",       value: `${summaryQuery.data?.cloudNative ?? cloudNative}/${APPS.length}`, color: "text-green-700" },
@@ -283,7 +300,7 @@ export default function APMPage() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <div className="font-mono font-bold text-[14px] text-foreground">
-                          {(app.annualCost ?? 0) > 0 ? `$${((app.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}
+                          {(app.annualCost ?? 0) > 0 ? `₹${((app.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}
                         </div>
                         <div className="text-[10px] text-muted-foreground/70">annual cost</div>
                         <div className="flex items-center gap-1.5 mt-1 justify-end">
@@ -366,7 +383,7 @@ export default function APMPage() {
                         <td className="p-0"><div className={`priority-bar ${lCfg.bar}`} /></td>
                         <td className="font-semibold text-foreground">{a.name}</td>
                         <td><span className={`status-badge ${lCfg.color}`}>{lCfg.label}</span></td>
-                        <td className="font-mono text-[11px] text-foreground/80">{(a.annualCost ?? 0) > 0 ? `$${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
+                        <td className="font-mono text-[11px] text-foreground/80">{(a.annualCost ?? 0) > 0 ? `₹${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
                         <td className="text-center font-mono">{a.users ?? 0}</td>
                         <td>
                           <div className="flex items-center gap-1.5">
@@ -417,7 +434,7 @@ export default function APMPage() {
                       <td><span className={`status-badge ${lCfg.color}`}>{lCfg.label}</span></td>
                       <td><span className={`status-badge capitalize ${DEPLOY_CFG[a.deployModel] ?? "text-muted-foreground bg-muted"}`}>{(a.deployModel ?? "").replace("_"," ")}</span></td>
                       <td className="text-[11px] text-muted-foreground">{a.eolDate ?? a.nextRenewal ?? "—"}</td>
-                      <td className="font-mono text-[11px]">{(a.annualCost ?? 0) > 0 ? `$${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
+                      <td className="font-mono text-[11px]">{(a.annualCost ?? 0) > 0 ? `₹${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
                       <td>
                         {(a.techDebt === "critical" || a.techDebt === "high") && (
                           <button className="text-[11px] text-primary hover:underline">Create Improvement</button>
@@ -463,7 +480,7 @@ export default function APMPage() {
                       <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
                       <td><span className={`status-badge capitalize ${DEPLOY_CFG[a.deployModel] ?? "text-muted-foreground bg-muted"}`}>{(a.deployModel ?? "").replace("_"," ")}</span></td>
                       <td><span className={`status-badge ${effort === "High" ? "text-red-700 bg-red-100" : effort === "Medium" ? "text-orange-700 bg-orange-100" : "text-green-700 bg-green-100"}`}>{effort}</span></td>
-                      <td className="font-mono text-[11px]">{(a.annualCost ?? 0) > 0 ? `$${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
+                      <td className="font-mono text-[11px]">{(a.annualCost ?? 0) > 0 ? `₹${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
                       <td><span className={`status-badge capitalize ${BIZ_VALUE_CFG[a.businessValue] ?? "text-muted-foreground bg-muted"}`}>{a.businessValue}</span></td>
                     </tr>
                   );

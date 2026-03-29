@@ -109,6 +109,11 @@ export const workflowsRouter = router({
         id: z.string().uuid(),
         nodes: z.array(WorkflowNodeSchema),
         edges: z.array(WorkflowEdgeSchema),
+        // Optional metadata updates alongside save
+        name: z.string().min(1).max(200).optional(),
+        description: z.string().optional(),
+        triggerType: z.enum(["ticket_created","ticket_updated","status_changed","scheduled","manual","webhook"]).optional(),
+        isActive: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -120,6 +125,13 @@ export const workflowsRouter = router({
         .where(and(eq(workflows.id, input.id), eq(workflows.orgId, org!.id)));
 
       if (!workflow) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Update metadata if provided
+      const metaUpdates: Record<string, any> = { updatedAt: new Date() };
+      if (input.name !== undefined) metaUpdates.name = input.name;
+      if (input.description !== undefined) metaUpdates.description = input.description;
+      if (input.triggerType !== undefined) metaUpdates.triggerType = input.triggerType;
+      if (input.isActive !== undefined) metaUpdates.isActive = input.isActive;
 
       // Upsert the current draft version
       const nextVersion = workflow.currentVersion + 1;
@@ -136,7 +148,7 @@ export const workflowsRouter = router({
 
       await db
         .update(workflows)
-        .set({ currentVersion: nextVersion, updatedAt: new Date() })
+        .set({ ...metaUpdates, currentVersion: nextVersion })
         .where(eq(workflows.id, input.id));
 
       return version;

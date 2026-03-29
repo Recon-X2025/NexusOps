@@ -1,8 +1,12 @@
 /**
  * Structured event logger for NexusOps API.
  *
- * Every log entry is emitted as a plain JSON-serialisable object so that
- * log aggregators (Datadog, Loki, CloudWatch, etc.) can index each field.
+ * Backed by the Fastify pino instance, wired via `initLogger()` once at
+ * startup.  Every log entry is emitted as JSON so that log aggregators
+ * (Datadog, Loki, CloudWatch, etc.) can index individual fields.
+ *
+ * Before `initLogger()` is called (early startup), a minimal fallback
+ * writes NDJSON directly to stdout / stderr so no log lines are lost.
  *
  * ── Sensitive data rules ──────────────────────────────────────────────────────
  *  - Raw session tokens, passwords, email addresses, and Authorization header
@@ -15,7 +19,93 @@
  *    IDs) is captured.
  */
 
-const isTest = process.env["NODE_ENV"] === "test";
+import type { FastifyBaseLogger } from "fastify";
+
+const isTest   = process.env["NODE_ENV"] === "test";
+const isProd   = process.env["NODE_ENV"] === "production";
+
+// ── Logger singleton ──────────────────────────────────────────────────────────
+
+/** Wired to fastify.log after Fastify is created in index.ts. */
+let _log: FastifyBaseLogger | null = null;
+
+/**
+ * Call once in index.ts immediately after `Fastify(...)` returns.
+ * Ties all structured log output to the same pino instance — and therefore
+ * the same transport — that Fastify itself uses (pino-pretty in dev,
+ * raw NDJSON in production).
+ */
+export function initLogger(logger: FastifyBaseLogger): void {
+  _log = logger;
+}
+
+type LogLevel = "info" | "warn" | "error";
+
+/** Internal emitter — routes through pino when available, raw JSON otherwise. */
+function emit(level: LogLevel, data: Record<string, unknown>): void {
+  if (_log) {
+    _log[level](data);
+    return;
+  }
+  // Fallback: Fastify not yet created (very early startup / import-time side effects).
+  const line = JSON.stringify({ level, time: Date.now(), ...data });
+  (level === "error" ? process.stderr : process.stdout).write(line + "\n");
+}
+
+// ── Generic log utilities (satisfies requirements §4) ─────────────────────────
+
+/**
+ * logInfo — emit a structured info-level event.
+ *
+ * Usage:
+ *   logInfo("TICKET_CREATED", { ticketId, orgId })
+ */
+export function logInfo(
+  event: string,
+  data: Record<string, unknown> = {},
+): void {
+  if (isTest) return;
+  emit("info", { event, ...data });
+}
+
+/**
+ * logWarn — emit a structured warn-level event.
+ *
+ * Usage:
+ *   logWarn("SLOW_REQUEST", { path, duration_ms })
+ */
+export function logWarn(
+  event: string,
+  data: Record<string, unknown> = {},
+): void {
+  if (isTest) return;
+  emit("warn", { event, ...data });
+}
+
+/**
+ * logError — emit a structured error-level event.
+ * Includes error type, message, and (in non-production) stack trace.
+ *
+ * Usage:
+ *   logError("UNHANDLED_EXCEPTION", err, { requestId, path })
+ */
+export function logError(
+  event: string,
+  err: unknown,
+  data: Record<string, unknown> = {},
+): void {
+  if (isTest) return;
+  const e = err instanceof Error ? err : null;
+  emit("error", {
+    event,
+    ...data,
+    error_type:    e?.constructor?.name ?? typeof err,
+    error_message: (e?.message ?? String(err)).slice(0, 200),
+    // Stack traces help diagnose issues in dev/staging; suppressed in
+    // production to avoid leaking internal paths to log aggregators.
+    stack: !isProd ? e?.stack?.slice(0, 800) : undefined,
+  });
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,10 +131,10 @@ function extractDbFields(err: unknown): Record<string, unknown> {
     // PostgreSQL codes are 5-character uppercase-alphanumeric strings.
     if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) {
       return {
-        pgCode:       code,
-        pgTable:      typeof e["table"]      === "string" ? e["table"]      : null,
-        pgConstraint: typeof e["constraint"] === "string" ? e["constraint"] : null,
-        pgSchema:     typeof e["schema"]     === "string" ? e["schema"]     : null,
+        pg_code:       code,
+        pg_table:      typeof e["table"]      === "string" ? e["table"]      : null,
+        pg_constraint: typeof e["constraint"] === "string" ? e["constraint"] : null,
+        pg_schema:     typeof e["schema"]     === "string" ? e["schema"]     : null,
         // NOT included: detail, hint, where — may contain row data
       };
     }
@@ -68,7 +158,7 @@ export interface RequestMeta {
   ip?:       string | null;
 }
 
-// ── Event loggers ─────────────────────────────────────────────────────────────
+// ── Domain-specific log functions ─────────────────────────────────────────────
 
 /**
  * [AUTH_FAIL] — session missing, invalid, or could not be resolved to a user.
@@ -90,15 +180,15 @@ export function logAuthFail(
   },
 ): void {
   if (isTest) return;
-  console.warn("[AUTH_FAIL]", {
-    requestId:  meta.requestId,
-    userId:     meta.userId,
-    orgId:      meta.orgId,
-    route:      meta.route,
-    ip:         meta.ip ?? null,
-    sessionRef: meta.sessionRef ?? null,
-    reason:     meta.reason,
-    ts:         new Date().toISOString(),
+  emit("warn", {
+    event:      "AUTH_FAIL",
+    request_id:  meta.requestId,
+    user_id:     meta.userId,
+    org_id:      meta.orgId,
+    route:       meta.route,
+    ip:          meta.ip ?? null,
+    session_ref: meta.sessionRef ?? null,
+    reason:      meta.reason,
   });
 }
 
@@ -121,16 +211,16 @@ export function logRateLimit(meta: {
   ttlMs:      number;
 }): void {
   if (isTest) return;
-  console.warn("[RATE_LIMIT]", {
-    requestId:  meta.requestId,
-    route:      meta.route,
-    ip:         meta.ip,
-    bucketType: meta.bucketType,
-    limit:      meta.limit,
-    window:     meta.window,
-    ttlMs:      meta.ttlMs,
-    retryAfterSec: Math.ceil(meta.ttlMs / 1000),
-    ts:         new Date().toISOString(),
+  emit("warn", {
+    event:           "RATE_LIMIT",
+    request_id:      meta.requestId,
+    route:           meta.route,
+    ip:              meta.ip,
+    bucket_type:     meta.bucketType,
+    limit:           meta.limit,
+    window:          meta.window,
+    ttl_ms:          meta.ttlMs,
+    retry_after_sec: Math.ceil(meta.ttlMs / 1000),
   });
 }
 
@@ -150,15 +240,15 @@ export function logRbacDenied(
   },
 ): void {
   if (isTest) return;
-  console.warn("[RBAC_DENIED]", {
-    requestId: meta.requestId,
-    userId:    meta.userId,
-    orgId:     meta.orgId,
-    route:     meta.route,
-    module:    meta.module,
-    action:    meta.action,
-    role:      meta.role,
-    ts:        new Date().toISOString(),
+  emit("warn", {
+    event:      "RBAC_DENIED",
+    request_id: meta.requestId,
+    user_id:    meta.userId,
+    org_id:     meta.orgId,
+    route:      meta.route,
+    module:     meta.module,
+    action:     meta.action,
+    role:       meta.role,
   });
 }
 
@@ -180,15 +270,14 @@ export function logDbError(meta: RequestMeta, err: unknown): void {
   const message =
     err instanceof Error ? err.message.slice(0, 120) : String(err).slice(0, 120);
 
-  console.error("[DB_ERROR]", {
-    requestId: meta.requestId,
-    userId:    meta.userId,
-    orgId:     meta.orgId,
-    route:     meta.route,
-    errorType: "DB_ERROR",
+  emit("error", {
+    event:         "DB_ERROR",
+    request_id:    meta.requestId,
+    user_id:       meta.userId,
+    org_id:        meta.orgId,
+    route:         meta.route,
     ...dbFields,
-    errorMessage: message,
-    ts:        new Date().toISOString(),
+    error_message: message,
   });
 }
 
@@ -202,20 +291,16 @@ export function logDbError(meta: RequestMeta, err: unknown): void {
  */
 export function logServerError(meta: RequestMeta, err: unknown): void {
   if (isTest) return;
-  const isProd = process.env["NODE_ENV"] === "production";
   const e = err instanceof Error ? err : null;
-
-  console.error("[SERVER_ERROR]", {
-    requestId:    meta.requestId,
-    userId:       meta.userId,
-    orgId:        meta.orgId,
-    route:        meta.route,
-    errorType:    e?.constructor?.name ?? typeof err,
-    errorMessage: (e?.message ?? String(err)).slice(0, 200),
-    // Stack traces help diagnose issues in dev/staging but are suppressed in
-    // production where they could expose internal paths or library versions.
-    stack:        !isProd ? e?.stack?.slice(0, 800) : undefined,
-    ts:           new Date().toISOString(),
+  emit("error", {
+    event:         "SERVER_ERROR",
+    request_id:    meta.requestId,
+    user_id:       meta.userId,
+    org_id:        meta.orgId,
+    route:         meta.route,
+    error_type:    e?.constructor?.name ?? typeof err,
+    error_message: (e?.message ?? String(err)).slice(0, 200),
+    stack:         !isProd ? e?.stack?.slice(0, 800) : undefined,
   });
 }
 

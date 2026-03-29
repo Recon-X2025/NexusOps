@@ -48,6 +48,8 @@ export default function GRCRiskDetailPage() {
   const [likelihood, setLikelihood] = useState<number | null>(null);
   const [impact, setImpact] = useState<number | null>(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [treatmentDraft, setTreatmentDraft] = useState("");
+  const [editingTreatment, setEditingTreatment] = useState(false);
   const { can } = useRBAC();
   const utils = trpc.useUtils();
 
@@ -61,9 +63,12 @@ export default function GRCRiskDetailPage() {
       utils.grc.getRisk.invalidate({ id });
       setLikelihood(null);
       setImpact(null);
-      toast.success("Risk score updated");
+      setEditingTreatment(false);
+      setTreatmentDraft("");
+      setReviewNote("");
+      toast.success("Risk updated");
     },
-    onError: (e: any) => { console.error("grc.updateRisk failed:", e); toast.error(e.message || "Failed to update risk score"); },
+    onError: (e: any) => { console.error("grc.updateRisk failed:", e); toast.error(e.message || "Failed to update risk"); },
   });
 
   if (!can("grc", "read")) return <AccessDenied module="GRC / Risk Management" />;
@@ -303,12 +308,17 @@ export default function GRCRiskDetailPage() {
               <div className="p-8 text-center">
                 <p className="text-[12px] text-muted-foreground/70">No treatment plan recorded for this risk.</p>
                 <PermissionGate module="grc" action="write">
-                  <button
-                    onClick={() => updateRiskMutation.mutate({ id: risk.id, mitigationPlan: "Draft mitigation plan..." })}
-                    className="mt-3 text-[11px] text-primary hover:underline"
-                  >
-                    + Add Treatment Plan
-                  </button>
+                  {editingTreatment ? (
+                    <div className="mt-3 flex flex-col gap-2 text-left">
+                      <textarea rows={4} value={treatmentDraft} onChange={(e) => setTreatmentDraft(e.target.value)} placeholder="Describe the mitigation plan, controls to implement, timelines…" className="w-full px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setEditingTreatment(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+                        <button onClick={() => { if (!treatmentDraft.trim()) { toast.error("Treatment plan cannot be empty"); return; } updateRiskMutation.mutate({ id: risk.id, mitigationPlan: treatmentDraft.trim() }); }} disabled={updateRiskMutation.isPending} className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">{updateRiskMutation.isPending ? "Saving…" : "Save Treatment Plan"}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setTreatmentDraft(""); setEditingTreatment(true); }} className="mt-3 text-[11px] text-primary hover:underline">+ Add Treatment Plan</button>
+                  )}
                 </PermissionGate>
               </div>
             )}
@@ -332,8 +342,11 @@ export default function GRCRiskDetailPage() {
                   className="w-full px-3 py-2 text-[12px] outline-none resize-none"
                   placeholder="Add risk review note..." />
                 <div className="flex justify-end px-3 py-2 bg-muted/30 border-t border-border">
-                  <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                    <Send className="w-3 h-3" /> Log Review
+                  <button
+                    onClick={() => { if (!reviewNote.trim()) { toast.error("Review note cannot be empty"); return; } updateRiskMutation.mutate({ id: risk.id, mitigationPlan: risk.mitigationPlan ? `${risk.mitigationPlan}\n\n[Review ${new Date().toLocaleDateString()}]: ${reviewNote.trim()}` : reviewNote.trim() }); }}
+                    disabled={updateRiskMutation.isPending || !reviewNote.trim()}
+                    className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50">
+                    <Send className="w-3 h-3" /> {updateRiskMutation.isPending ? "Saving…" : "Log Review"}
                   </button>
                 </div>
               </div>

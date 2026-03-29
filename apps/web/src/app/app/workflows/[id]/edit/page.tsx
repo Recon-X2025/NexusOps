@@ -67,7 +67,7 @@ export default function EditWorkflowPage() {
       void utils.workflows.get.invalidate({ id });
       router.push("/app/workflows");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
   function addStep() { setSteps((s) => [...s, { id: generateUUID(), type: "notify", config: "" }]); }
@@ -86,7 +86,27 @@ export default function EditWorkflowPage() {
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     if (!validate()) return;
-    updateMutation.mutate({ id, nodes: [], edges: [] });
+    // Convert form steps to workflow nodes, connect them with edges
+    const nodes = steps.map((step, i) => ({
+      id: step.id,
+      type: step.type,
+      position: { x: 240, y: 120 + i * 100 },
+      data: { config: step.config },
+    }));
+    const edges = steps.slice(0, -1).map((step, i) => ({
+      id: `e-${step.id}-${steps[i + 1]!.id}`,
+      source: step.id,
+      target: steps[i + 1]!.id,
+    }));
+    updateMutation.mutate({
+      id,
+      nodes: nodes as any,
+      edges: edges as any,
+      name: form.name,
+      description: form.description,
+      triggerType: form.trigger as any,
+      isActive: form.isActive,
+    });
   }
 
   if (!canEdit) return <AccessDenied module="Workflow Designer" />;

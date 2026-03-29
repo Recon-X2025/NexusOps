@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const FIN_TABS = [
@@ -56,6 +58,29 @@ export default function FinancialPage() {
   );
   const { data: apAgingData } = trpc.financial.apAging.useQuery(undefined, { refetchOnWindowFocus: false });
 
+  const approveInvoiceMutation = trpc.financial.approveInvoice.useMutation({ onSuccess: () => (trpc as any).financial?.listInvoices?.invalidate?.(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const markPaidMutation       = trpc.financial.markPaid.useMutation({ onSuccess: () => (trpc as any).financial?.listInvoices?.invalidate?.(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+
+  // India compliance — GST filing calendar (live)
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear  = new Date().getFullYear();
+  const gstCalendarQuery = (trpc as any).financial.gstFilingCalendar.useQuery(
+    { month: currentMonth, year: currentYear },
+    { refetchOnWindowFocus: false },
+  );
+  const tdsChallansQuery = (trpc as any).indiaCompliance.tdsChallans.list.useQuery(
+    {},
+    { refetchOnWindowFocus: false },
+  );
+  const gstFilings: any[] = gstCalendarQuery.data ?? [];
+  const tdsChallans: any[] = tdsChallansQuery.data ?? [];
+
+  const CHALLAN_STATUS_COLOR: Record<string, string> = {
+    paid:    "text-green-700 bg-green-100",
+    pending: "text-orange-700 bg-orange-100",
+    overdue: "text-red-700 bg-red-100",
+  };
+
   type BudgetLine = NonNullable<typeof budgetData>[number];
   type InvoiceItem = NonNullable<typeof invoicesData>["items"][number];
   type ChargebackItem = NonNullable<typeof chargebacksData>[number];
@@ -86,7 +111,13 @@ export default function FinancialPage() {
           <span className="text-[11px] text-muted-foreground/70">Budget · Chargebacks · CAPEX/OPEX · Invoices</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV([
+              ...budgetLines.map((b: any) => ({ Type: "Budget", Department: b.department ?? b.costCenter ?? "", Category: b.category ?? "", FY_Budget: b.allocatedAmount ?? b.total ?? "", YTD_Actual: b.actualAmount ?? b.spent ?? "", Variance: ((b.allocatedAmount ?? 0) - (b.actualAmount ?? 0)).toFixed(2), Status: b.status ?? "" })),
+              ...invoices.map((i: any) => ({ Type: "Invoice", Vendor: i.vendorName ?? "", Invoice_No: i.invoiceNumber ?? i.number ?? "", Amount: i.totalAmount ?? "", Status: i.status ?? "", Due_Date: i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "" })),
+            ], "fy_report")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export FY Report
           </button>
         </div>
@@ -340,17 +371,36 @@ export default function FinancialPage() {
                       <td className="font-mono text-[10px] text-muted-foreground/70">—</td>
                       <td className="font-mono text-[11px] text-primary">{invPoRef ?? "—"}</td>
                       <td><span className={`status-badge capitalize ${INV_STATUS[invStatus] ?? ""}`}>{invStatus}</span></td>
-                      <td>
-                        <div className="flex gap-1.5">
-                          {invStatus === "pending" && (
-                            <PermissionGate module="financial" action="write">
-                              <button className="text-[11px] text-green-700 hover:underline">Approve Payment</button>
-                            </PermissionGate>
-                          )}
-                          {invStatus === "overdue" && <button className="text-[11px] text-red-600 font-semibold hover:underline">Escalate</button>}
-                          <button className="text-[11px] text-primary hover:underline">View</button>
-                        </div>
-                      </td>
+                        <td>
+                          <div className="flex gap-1.5">
+                            {invStatus === "pending" && (
+                              <PermissionGate module="financial" action="write">
+                                <button
+                                  disabled={approveInvoiceMutation.isPending}
+                                  onClick={() => approveInvoiceMutation.mutate({ id: (inv as any).id })}
+                                  className="text-[11px] text-green-700 hover:underline disabled:opacity-50"
+                                >{approveInvoiceMutation.isPending ? "…" : "Approve Payment"}</button>
+                              </PermissionGate>
+                            )}
+                            {invStatus === "approved" && (
+                              <PermissionGate module="financial" action="write">
+                                <button
+                                  disabled={markPaidMutation.isPending}
+                                  onClick={() => markPaidMutation.mutate({ id: (inv as any).id, paymentMethod: "bank_transfer" })}
+                                  className="text-[11px] text-blue-700 hover:underline font-semibold disabled:opacity-50"
+                                >{markPaidMutation.isPending ? "…" : "Mark Paid"}</button>
+                              </PermissionGate>
+                            )}
+                            {invStatus === "overdue" && (
+                              <button
+                                disabled={approveInvoiceMutation.isPending}
+                                onClick={() => approveInvoiceMutation.mutate({ id: (inv as any).id })}
+                                className="text-[11px] text-red-600 font-semibold hover:underline"
+                              >Approve & Escalate</button>
+                            )}
+                            <button onClick={() => { const i = inv as any; toast.info(`Invoice ${i.invoiceNumber ?? i.number} — ${i.vendorName ?? "—"} — ₹${Number(i.totalAmount ?? 0).toLocaleString("en-IN")} — Status: ${i.status} — Due: ${i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "—"}`, { duration: 5000 }); }} className="text-[11px] text-primary hover:underline">View</button>
+                          </div>
+                        </td>
                     </tr>
                   );
                 })}
@@ -452,24 +502,66 @@ export default function FinancialPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="bg-card border border-border rounded p-3">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">GST Return Calendar</p>
-                    {[
-                      { form: "GSTR-1",  freq: "Monthly / Quarterly", due: "11th / 13th of next month", desc: "Outward supplies" },
-                      { form: "GSTR-3B", freq: "Monthly",              due: "20th of next month",        desc: "Summary + tax payment" },
-                      { form: "GSTR-9",  freq: "Annual",               due: "31 December",               desc: "Annual return" },
-                      { form: "GSTR-9C", freq: "Annual",               due: "31 December",               desc: "Reconciliation statement (if turnover > ₹5Cr)" },
-                    ].map(r => (
-                      <div key={r.form} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                        <div>
-                          <span className="font-mono text-[11px] font-bold text-primary">{r.form}</span>
-                          <span className="text-[11px] text-muted-foreground ml-2">{r.desc}</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase">GST Return Calendar — {new Date().toLocaleString("en-IN", { month: "long", year: "numeric" })}</p>
+                      {gstCalendarQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                    </div>
+                    {gstFilings.length > 0 ? (
+                      gstFilings.map((r: any) => (
+                        <div key={r.form} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                          <div>
+                            <span className="font-mono text-[11px] font-bold text-primary">{r.form}</span>
+                            <span className="text-[11px] text-muted-foreground ml-2">{r.description}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] text-muted-foreground/70">{r.frequency}</div>
+                            <div className="text-[10px] font-medium text-foreground/80">Due: {r.dueDate}</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-[10px] text-muted-foreground/70">{r.freq}</div>
-                          <div className="text-[10px] font-medium text-foreground/80">Due: {r.due}</div>
+                      ))
+                    ) : (
+                      [
+                        { form: "GSTR-1",  freq: "Monthly / Quarterly", due: "11th / 13th of next month", desc: "Outward supplies" },
+                        { form: "GSTR-3B", freq: "Monthly",              due: "20th of next month",        desc: "Summary + tax payment" },
+                        { form: "GSTR-9",  freq: "Annual",               due: "31 December",               desc: "Annual return" },
+                        { form: "GSTR-9C", freq: "Annual",               due: "31 December",               desc: "Reconciliation statement (turnover > ₹5Cr)" },
+                      ].map(r => (
+                        <div key={r.form} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                          <div>
+                            <span className="font-mono text-[11px] font-bold text-primary">{r.form}</span>
+                            <span className="text-[11px] text-muted-foreground ml-2">{r.desc}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] text-muted-foreground/70">{r.freq}</div>
+                            <div className="text-[10px] font-medium text-foreground/80">Due: {r.due}</div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
+                  </div>
+
+                  {/* TDS Challan Status — live */}
+                  <div className="bg-card border border-border rounded p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase">TDS Challan Status</p>
+                      {tdsChallansQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                    </div>
+                    {tdsChallans.length > 0 ? (
+                      tdsChallans.slice(0, 4).map((c: any) => (
+                        <div key={c.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                          <div>
+                            <span className="font-mono text-[11px] font-bold text-primary">{c.formType}</span>
+                            <span className="text-[11px] text-muted-foreground ml-2">Q{c.quarter} {c.fy}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[11px] text-foreground/80">₹{Number(c.tdsAmount ?? 0).toLocaleString("en-IN")}</span>
+                            <span className={`status-badge text-[10px] ${CHALLAN_STATUS_COLOR[c.status] ?? "text-muted-foreground bg-muted"}`}>{c.status}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground/50 py-2 text-center">No TDS challans recorded — payments tracked in HR &gt; Payroll Compliance</p>
+                    )}
                   </div>
                 </div>
               </div>

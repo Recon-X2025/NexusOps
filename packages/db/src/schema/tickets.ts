@@ -21,6 +21,10 @@ export const ticketTypeEnum = pgEnum("ticket_type", [
   "change",
 ]);
 
+export const ticketImpactEnum = pgEnum("ticket_impact", ["high", "medium", "low"]);
+export const ticketUrgencyEnum = pgEnum("ticket_urgency", ["high", "medium", "low"]);
+export const ticketRequesterTypeEnum = pgEnum("ticket_requester_type", ["internal", "external"]);
+
 export const ticketStatusCategoryEnum = pgEnum("ticket_status_category", [
   "open",
   "in_progress",
@@ -143,16 +147,25 @@ export const tickets = pgTable(
       .notNull()
       .references(() => ticketStatuses.id),
     type: ticketTypeEnum("type").notNull().default("request"),
+    impact: ticketImpactEnum("impact").notNull().default("medium"),
+    urgency: ticketUrgencyEnum("urgency").notNull().default("medium"),
+    subcategory: text("subcategory"),
     requesterId: uuid("requester_id")
       .notNull()
       .references(() => users.id),
+    requesterType: ticketRequesterTypeEnum("requester_type").notNull().default("internal"),
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+    resolutionNotes: text("resolution_notes"),
+    escalationLevel: integer("escalation_level").notNull().default(0),
+    reopenCount: integer("reopen_count").notNull().default(0),
     dueDate: timestamp("due_date", { withTimezone: true }),
     slaBreached: boolean("sla_breached").notNull().default(false),
     slaResponseDueAt: timestamp("sla_response_due_at", { withTimezone: true }),
     slaResolveDueAt: timestamp("sla_resolve_due_at", { withTimezone: true }),
     slaRespondedAt: timestamp("sla_responded_at", { withTimezone: true }),
+    slaPausedAt: timestamp("sla_paused_at", { withTimezone: true }),
+    slaPauseDurationMins: integer("sla_pause_duration_mins").notNull().default(0),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),

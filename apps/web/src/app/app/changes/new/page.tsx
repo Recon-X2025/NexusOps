@@ -48,7 +48,7 @@ export default function NewChangePage() {
       void utils.changes.list.invalidate();
       router.push(`/app/changes/${ch.id}`);
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
   const set = (k: string, v: string) => {

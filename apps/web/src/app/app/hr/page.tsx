@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const HR_TABS = [
-  { key: "cases",       label: "HR Cases",          module: "hr"         as const, action: "read"  as const },
-  { key: "onboarding",  label: "Onboarding",         module: "onboarding" as const, action: "read"  as const },
-  { key: "offboarding", label: "Offboarding",        module: "hr"         as const, action: "write" as const },
-  { key: "lifecycle",   label: "Lifecycle Events",   module: "hr"         as const, action: "write" as const },
-  { key: "documents",   label: "Employee Documents", module: "hr"         as const, action: "read"  as const },
+  { key: "cases",       label: "HR Cases",            module: "hr"         as const, action: "read"  as const },
+  { key: "onboarding",  label: "Onboarding",           module: "onboarding" as const, action: "read"  as const },
+  { key: "offboarding", label: "Offboarding",          module: "hr"         as const, action: "write" as const },
+  { key: "lifecycle",   label: "Lifecycle Events",     module: "hr"         as const, action: "write" as const },
+  { key: "payroll_compliance", label: "Payroll Compliance", module: "hr"   as const, action: "admin" as const },
+  { key: "documents",   label: "Employee Documents",   module: "hr"         as const, action: "read"  as const },
 ];
 
 const ONBOARDING = [
@@ -71,6 +73,24 @@ export default function HRPage() {
     { refetchOnWindowFocus: false },
   );
 
+  // India payroll compliance — TDS challans + EPFO ECR
+  const tdsChallansQuery = (trpc as any).indiaCompliance.tdsChallans.list.useQuery({}, { refetchOnWindowFocus: false });
+  const epfoEcrQuery     = (trpc as any).indiaCompliance.epfoEcr.list.useQuery({}, { refetchOnWindowFocus: false });
+  const markTdsPaid      = (trpc as any).indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const markEcrSubmitted = (trpc as any).indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const createHRCase     = (trpc as any).hr?.cases?.create?.useMutation({ onSuccess: () => { (trpc as any).hr?.cases?.list?.invalidate?.(); setShowCaseForm(false); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const tdsChallans: any[] = tdsChallansQuery.data ?? [];
+  const epfoEcrs: any[]    = epfoEcrQuery.data ?? [];
+
+  const [tdsPanel, setTdsPanel]   = useState<string | null>(null);
+  const [tdsForm, setTdsForm]     = useState({ bsrCode: "", challanNumber: "", paymentDate: new Date().toISOString().split("T")[0], totalDeposited: "" });
+  const [ecrPanel, setEcrPanel]   = useState<string | null>(null);
+  const [ecrAck, setEcrAck]       = useState("");
+  const [showCaseForm, setShowCaseForm] = useState(false);
+
+  const pendingTDS  = tdsChallans.filter((c: any) => c.status === "pending" || c.status === "overdue").length;
+  const pendingECR  = epfoEcrs.filter((e: any) => e.status === "pending").length;
+
   // cases.list returns { hrCase, employee }[] join — access via c.hrCase.xxx / c.employee.xxx
   type HRCaseRow = NonNullable<typeof casesData>[number];
   const hrCases: HRCaseRow[] = casesData ?? [];
@@ -87,7 +107,10 @@ export default function HRPage() {
           <span className="text-[11px] text-muted-foreground/70">HR Cases · Onboarding · Offboarding · Lifecycle</span>
         </div>
         {can("hr", "write") && (
-          <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+          <button
+            onClick={() => setShowCaseForm(true)}
+            className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+          >
             <Plus className="w-3 h-3" /> New HR Case
           </button>
         )}
@@ -95,10 +118,10 @@ export default function HRPage() {
 
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: "Open HR Cases",      value: openCases,                                                     color: "text-blue-700" },
-          { label: "Active Onboardings", value: ONBOARDING.filter(o => o.state === "active").length,           color: "text-green-700" },
-          { label: "Pending Offboarding",value: OFFBOARDING.filter(o => o.progress < 100).length,             color: "text-orange-700" },
-          { label: "Lifecycle Events",   value: LIFECYCLE.filter(l => l.state !== "complete").length,          color: "text-purple-700" },
+          { label: "Open HR Cases",       value: openCases,                                                                                             color: "text-blue-700" },
+          { label: "Active Onboardings",  value: hrCases.filter((c) => c.hrCase.caseType === "onboarding").length,                                        color: "text-green-700" },
+          { label: "Pending Offboarding", value: hrCases.filter((c) => c.hrCase.caseType === "offboarding").length,                                       color: "text-orange-700" },
+          { label: "TDS / ECR Pending",   value: pendingTDS + pendingECR,                                                                                 color: pendingTDS + pendingECR > 0 ? "text-red-600" : "text-muted-foreground" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -176,37 +199,33 @@ export default function HRPage() {
 
         {tab === "onboarding" && (
           <div className="divide-y divide-border">
-            {ONBOARDING.map((o) => (
-              <div key={o.id} className="px-4 py-3 hover:bg-muted/30">
+            {casesLoading ? (
+              <div className="p-8 text-center text-[12px] text-muted-foreground">Loading onboarding cases…</div>
+            ) : hrCases.filter((c) => c.hrCase.caseType === "onboarding").length === 0 ? (
+              <div className="p-8 text-center text-[12px] text-muted-foreground">No active onboarding cases.</div>
+            ) : hrCases.filter((c) => c.hrCase.caseType === "onboarding").map((c) => (
+              <div key={c.hrCase.id} className="px-4 py-3 hover:bg-muted/30">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-bold text-[11px]">
-                      {o.employee.split(" ").map(n => n[0]).join("")}
+                      {c.employee.employeeId?.slice(0, 2).toUpperCase() ?? "EE"}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[13px] font-semibold text-foreground">{o.employee}</span>
-                        <span className={`status-badge capitalize ${o.state === "complete" ? "text-green-700 bg-green-100" : o.state === "active" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{o.state}</span>
-                        {o.daysTilStart <= 1 && o.state !== "complete" && (
-                          <span className="status-badge text-red-700 bg-red-100 font-semibold">⚠ Starts {o.daysTilStart === 0 ? "today" : "tomorrow"}</span>
-                        )}
+                        <span className="text-[13px] font-semibold text-foreground">{c.employee.employeeId ?? c.hrCase.employeeId.slice(0, 8)}</span>
+                        <span className={`status-badge capitalize text-blue-700 bg-blue-100`}>Onboarding</span>
+                        <span className={`status-badge ${c.hrCase.priority === "high" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>Priority: {c.hrCase.priority}</span>
                       </div>
-                      <div className="text-[11px] text-muted-foreground">{o.role} · {o.dept} · Buddy: {o.buddy}</div>
-                      <div className="text-[11px] text-muted-foreground/70">Start Date: {o.startDate} · Tasks: {o.completedTasks}/{o.totalTasks}</div>
+                      <div className="text-[11px] text-muted-foreground">{c.employee.title ?? "—"} · {c.employee.department ?? "—"}</div>
+                      <div className="text-[11px] text-muted-foreground/70">Opened: {new Date(c.hrCase.createdAt).toLocaleDateString()}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-border rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${o.progress === 100 ? "bg-green-500" : o.daysTilStart <= 1 ? "bg-orange-500" : "bg-primary"}`}
-                          style={{ width: `${o.progress}%` }} />
-                      </div>
-                      <span className="text-[12px] font-semibold text-foreground/80">{o.progress}%</span>
-                    </div>
-                    <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-primary border border-primary/30 rounded hover:bg-primary/5">
-                      View Tasks <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
+                  <a
+                    href={`/app/hr/${c.hrCase.id}`}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-primary border border-primary/30 rounded hover:bg-primary/5"
+                  >
+                    View Tasks <ChevronRight className="w-3 h-3" />
+                  </a>
                 </div>
               </div>
             ))}
@@ -215,37 +234,30 @@ export default function HRPage() {
 
         {tab === "offboarding" && (
           <div className="divide-y divide-border">
-            {OFFBOARDING.map((o) => (
-              <div key={o.id} className="px-4 py-3 hover:bg-muted/30">
+            {casesLoading ? (
+              <div className="p-8 text-center text-[12px] text-muted-foreground">Loading offboarding cases…</div>
+            ) : hrCases.filter((c) => c.hrCase.caseType === "offboarding").length === 0 ? (
+              <div className="p-8 text-center text-[12px] text-muted-foreground">No active offboarding cases.</div>
+            ) : hrCases.filter((c) => c.hrCase.caseType === "offboarding").map((c) => (
+              <div key={c.hrCase.id} className="px-4 py-3 hover:bg-muted/30">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[13px] font-semibold text-foreground">{o.employee}</span>
-                      <span className="text-[11px] text-muted-foreground">{o.role}</span>
-                      <span className="status-badge text-muted-foreground bg-muted">{o.reason}</span>
-                      <span className={`status-badge ${o.progress === 100 ? "text-green-700 bg-green-100" : o.progress < 50 ? "text-red-700 bg-red-100" : "text-yellow-700 bg-yellow-100"}`}>
-                        {o.progress}% complete
+                      <span className="text-[13px] font-semibold text-foreground">{c.employee.employeeId ?? c.hrCase.employeeId.slice(0, 8)}</span>
+                      <span className="text-[11px] text-muted-foreground">{c.employee.title ?? "—"}</span>
+                      <span className="status-badge text-muted-foreground bg-muted">Offboarding</span>
+                      <span className={`status-badge ${c.hrCase.priority === "high" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>
+                        Priority: {c.hrCase.priority}
                       </span>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mb-2">Last Day: {o.lastDay}</div>
-                    <div className="flex gap-4 text-[11px]">
-                      {[
-                        { label: "Access Revoked",      done: o.accessRevoked },
-                        { label: "Equipment Returned",  done: o.equipmentReturned },
-                        { label: "KB Documented",       done: o.kbDocumented },
-                        { label: "Exit Interview",      done: o.exitInterview },
-                      ].map((item) => (
-                        <div key={item.label} className={`flex items-center gap-1 ${item.done ? "text-green-700" : "text-red-600"}`}>
-                          {item.done ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                          {item.label}
-                        </div>
-                      ))}
-                    </div>
+                    <div className="text-[11px] text-muted-foreground mb-2">Opened: {new Date(c.hrCase.createdAt).toLocaleDateString()}</div>
                   </div>
-                  <div className="w-20 h-2 bg-border rounded-full overflow-hidden self-center">
-                    <div className={`h-full rounded-full ${o.progress === 100 ? "bg-green-500" : o.progress < 50 ? "bg-red-500" : "bg-yellow-400"}`}
-                      style={{ width: `${o.progress}%` }} />
-                  </div>
+                  <a
+                    href={`/app/hr/${c.hrCase.id}`}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-primary border border-primary/30 rounded hover:bg-primary/5"
+                  >
+                    View Tasks <ChevronRight className="w-3 h-3" />
+                  </a>
                 </div>
               </div>
             ))}
@@ -268,25 +280,229 @@ export default function HRPage() {
               </tr>
             </thead>
             <tbody>
-              {LIFECYCLE.map((l) => (
-                <tr key={l.id}>
-                  <td className="font-mono text-[11px] text-primary">{l.id}</td>
-                  <td><span className="status-badge text-blue-700 bg-blue-100">{l.type}</span></td>
-                  <td className="font-medium text-foreground">{l.employee}</td>
-                  <td className="text-[11px] text-muted-foreground">{l.from} → {l.to}</td>
-                  <td className="text-[11px] text-muted-foreground">{l.effective}</td>
-                  <td className="text-muted-foreground">{l.approvedBy}</td>
-                  <td>
-                    <span className={`status-badge capitalize ${l.state === "complete" ? "text-green-700 bg-green-100" : l.state === "approved" ? "text-blue-700 bg-blue-100" : "text-orange-700 bg-orange-100"}`}>
-                      {l.state.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td className="text-center font-semibold">{l.hrActions}</td>
-                  <td className="text-center font-semibold">{l.itActions}</td>
-                </tr>
-              ))}
+              {(hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase.caseType)).length > 0
+                ? hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase.caseType)).map((c) => (
+                    <tr key={c.hrCase.id}>
+                      <td className="font-mono text-[11px] text-primary">{c.hrCase.number ?? c.hrCase.id?.slice(0,8)}</td>
+                      <td><span className="status-badge text-blue-700 bg-blue-100 capitalize">{(c.hrCase.caseType ?? "lifecycle").replace(/_/g," ")}</span></td>
+                      <td className="font-medium text-foreground">{c.employee?.name ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{c.hrCase.description ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{c.hrCase.targetDate ? new Date(c.hrCase.targetDate).toLocaleDateString("en-IN") : "—"}</td>
+                      <td className="text-muted-foreground">{c.hrCase.assignedToId ?? "HR"}</td>
+                      <td><span className={`status-badge capitalize ${CASE_STATE_COLOR[c.hrCase.status] ?? ""}`}>{c.hrCase.status?.replace(/_/g," ")}</span></td>
+                      <td className="text-center font-semibold">{c.hrCase.tasks?.filter((t: any) => t.category === "hr").length ?? "—"}</td>
+                      <td className="text-center font-semibold">{c.hrCase.tasks?.filter((t: any) => t.category === "it").length ?? "—"}</td>
+                    </tr>
+                  ))
+                : LIFECYCLE.map((l) => (
+                    <tr key={l.id}>
+                      <td className="font-mono text-[11px] text-primary">{l.id}</td>
+                      <td><span className="status-badge text-blue-700 bg-blue-100">{l.type}</span></td>
+                      <td className="font-medium text-foreground">{l.employee}</td>
+                      <td className="text-[11px] text-muted-foreground">{l.from} → {l.to}</td>
+                      <td className="text-[11px] text-muted-foreground">{l.effective}</td>
+                      <td className="text-muted-foreground">{l.approvedBy}</td>
+                      <td>
+                        <span className={`status-badge capitalize ${l.state === "complete" ? "text-green-700 bg-green-100" : l.state === "approved" ? "text-blue-700 bg-blue-100" : "text-orange-700 bg-orange-100"}`}>
+                          {l.state.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="text-center font-semibold">{l.hrActions}</td>
+                      <td className="text-center font-semibold">{l.itActions}</td>
+                    </tr>
+                  ))
+              )}
             </tbody>
           </table>
+        )}
+
+        {tab === "payroll_compliance" && (
+          <div className="p-4 space-y-4">
+            {(pendingTDS + pendingECR) > 0 && (
+              <div className="flex items-start gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded text-[11px] text-orange-800">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <span><strong>{pendingTDS} TDS challan(s)</strong> and <strong>{pendingECR} EPFO ECR(s)</strong> awaiting action.</span>
+              </div>
+            )}
+
+            {/* TDS Challans */}
+            <div className="border border-border rounded overflow-hidden">
+              <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">TDS Challans (ITNS 281)</span>
+                {tdsChallansQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+              </div>
+              {tdsChallans.length === 0 && !tdsChallansQuery.isLoading ? (
+                <div className="py-6 text-center text-[12px] text-muted-foreground/50">
+                  No TDS challans recorded. Run monthly payroll to generate TDS entries.
+                </div>
+              ) : (
+                <table className="ent-table w-full">
+                  <thead>
+                    <tr>
+                      <th>Form</th>
+                      <th>FY</th>
+                      <th>Quarter</th>
+                      <th>Month</th>
+                      <th>TDS Amount</th>
+                      <th>Interest</th>
+                      <th>Total</th>
+                      <th>Due Date</th>
+                      <th>BSR Code</th>
+                      <th>Challan No.</th>
+                      <th>Status</th>
+                      <th className="w-20">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tdsChallans.map((c: any) => (
+                      <React.Fragment key={c.id}>
+                      <tr>
+                        <td className="font-mono text-[11px] text-primary">{c.formType}</td>
+                        <td className="text-muted-foreground">{c.fy}</td>
+                        <td className="text-center text-muted-foreground">Q{c.quarter}</td>
+                        <td className="text-muted-foreground">{c.month ?? "—"}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(c.tdsAmount ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-orange-600">₹{Number(c.interestAmount ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right font-semibold text-foreground">₹{Number(c.totalPayable ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{c.dueDateDeposit ? new Date(c.dueDateDeposit).toLocaleDateString("en-IN") : "—"}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{c.bsrCode ?? "—"}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{c.challanNumber ?? "—"}</td>
+                        <td>
+                          <span className={`status-badge text-[10px] ${c.status === "paid" ? "text-green-700 bg-green-100" : c.status === "overdue" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td>
+                          {c.status !== "paid" && (
+                            <button
+                              onClick={() => { setTdsPanel(tdsPanel === c.id ? null : c.id); setTdsForm({ bsrCode: "", challanNumber: "", paymentDate: new Date().toISOString().split("T")[0], totalDeposited: "" }); }}
+                              className="text-[11px] text-green-700 hover:underline"
+                            >{tdsPanel === c.id ? "Cancel" : "Mark Paid"}</button>
+                          )}
+                        </td>
+                      </tr>
+                      {tdsPanel === c.id && (
+                        <tr key={`${c.id}-tds-panel`}>
+                          <td colSpan={13} className="bg-green-50/60 px-4 py-3 border-b border-green-200">
+                            <div className="flex items-end gap-3 flex-wrap">
+                              <div>
+                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">BSR Code (7 digits)</label>
+                                <input className="border border-border rounded px-2 py-1 text-[12px] w-28" placeholder="0240019" maxLength={7} value={tdsForm.bsrCode} onChange={e => setTdsForm(f => ({ ...f, bsrCode: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Challan Serial No.</label>
+                                <input className="border border-border rounded px-2 py-1 text-[12px] w-28" placeholder="00123" value={tdsForm.challanNumber} onChange={e => setTdsForm(f => ({ ...f, challanNumber: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Payment Date</label>
+                                <input type="date" className="border border-border rounded px-2 py-1 text-[12px]" value={tdsForm.paymentDate} onChange={e => setTdsForm(f => ({ ...f, paymentDate: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Amount Deposited (₹)</label>
+                                <input type="number" className="border border-border rounded px-2 py-1 text-[12px] w-32" placeholder={String(c.totalPayable ?? 0)} value={tdsForm.totalDeposited} onChange={e => setTdsForm(f => ({ ...f, totalDeposited: e.target.value }))} />
+                              </div>
+                              <button
+                                disabled={markTdsPaid.isPending || !tdsForm.bsrCode || !tdsForm.challanNumber || !tdsForm.totalDeposited}
+                                onClick={() => markTdsPaid.mutate({ id: c.id, bsrCode: tdsForm.bsrCode, challanSerialNumber: tdsForm.challanNumber, paymentDate: new Date(tdsForm.paymentDate || new Date()) as any, totalDeposited: Number(tdsForm.totalDeposited) } as any)}
+                                className="px-3 py-1.5 bg-green-600 text-white text-[11px] rounded hover:bg-green-700 font-medium disabled:opacity-50"
+                              >
+                                {markTdsPaid.isPending ? "Saving…" : "Confirm Payment"}
+                              </button>
+                              {markTdsPaid.isError && <span className="text-[11px] text-red-600">{(markTdsPaid.error as any)?.message}</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* EPFO ECR */}
+            <div className="border border-border rounded overflow-hidden">
+              <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">EPFO Electronic Challan-cum-Return (ECR)</span>
+                {epfoEcrQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+              </div>
+              {epfoEcrs.length === 0 && !epfoEcrQuery.isLoading ? (
+                <div className="py-6 text-center text-[12px] text-muted-foreground/50">
+                  No ECR submissions recorded. Use <code className="bg-muted px-1 rounded text-[11px]">hr.payroll.generateECR</code> after running payroll.
+                </div>
+              ) : (
+                <table className="ent-table w-full">
+                  <thead>
+                    <tr>
+                      <th>Wage Month</th>
+                      <th>FY</th>
+                      <th>Employees</th>
+                      <th>EPF (Employee)</th>
+                      <th>EPS (Employer)</th>
+                      <th>EDLI</th>
+                      <th>Admin</th>
+                      <th>Total</th>
+                      <th>Due Date</th>
+                      <th>TRRN</th>
+                      <th>Status</th>
+                      <th className="w-24">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {epfoEcrs.map((e: any) => (
+                      <React.Fragment key={e.id}>
+                      <tr>
+                        <td className="font-mono text-[11px] text-primary">{e.wageMonth}</td>
+                        <td className="text-muted-foreground">{e.fy}</td>
+                        <td className="text-center font-semibold">{e.totalEmployees ?? "—"}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(e.totalEpfEmployee ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-foreground/80">₹{Number(e.totalEpsEmployer ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-muted-foreground">₹{Number(e.totalEdli ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right text-muted-foreground">₹{Number(e.adminCharges ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-right font-semibold text-foreground">₹{Number(e.totalChallanAmount ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{e.dueDateDeposit ? new Date(e.dueDateDeposit).toLocaleDateString("en-IN") : "—"}</td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{e.trrn ?? "—"}</td>
+                        <td>
+                          <span className={`status-badge text-[10px] ${e.status === "submitted" ? "text-green-700 bg-green-100" : e.status === "overdue" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>
+                            {e.status}
+                          </span>
+                        </td>
+                        <td>
+                          {e.status !== "submitted" && (
+                            <button
+                              onClick={() => { setEcrPanel(ecrPanel === e.id ? null : e.id); setEcrAck(""); }}
+                              className="text-[11px] text-green-700 hover:underline"
+                            >{ecrPanel === e.id ? "Cancel" : "Mark Submitted"}</button>
+                          )}
+                        </td>
+                      </tr>
+                      {ecrPanel === e.id && (
+                        <tr key={`${e.id}-ecr-panel`}>
+                          <td colSpan={13} className="bg-blue-50/60 px-4 py-3 border-b border-blue-200">
+                            <div className="flex items-end gap-3">
+                              <div>
+                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">EPFO Ack Number *</label>
+                                <input className="border border-border rounded px-2 py-1 text-[12px] w-60" placeholder="EPFO/2025-26/MAR/ACK/..." value={ecrAck} onChange={e => setEcrAck(e.target.value)} />
+                              </div>
+                              <button
+                                disabled={markEcrSubmitted.isPending || !ecrAck.trim()}
+                                onClick={() => markEcrSubmitted.mutate({ id: e.id, epfoAckNumber: ecrAck, submittedAt: new Date() })}
+                                className="px-3 py-1.5 bg-blue-600 text-white text-[11px] rounded hover:bg-blue-700 font-medium disabled:opacity-50"
+                              >
+                                {markEcrSubmitted.isPending ? "Saving…" : "Confirm Submission"}
+                              </button>
+                              {markEcrSubmitted.isError && <span className="text-[11px] text-red-600">{(markEcrSubmitted.error as any)?.message}</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         )}
 
         {tab === "documents" && (
@@ -294,7 +510,7 @@ export default function HRPage() {
             <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             Employee document repository — contracts, offer letters, performance reviews, and compliance certifications.
             <div className="mt-3">
-              <button className="px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">Browse Documents</button>
+              <button onClick={() => setTab("documents")} className="px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">Browse Documents</button>
             </div>
           </div>
         )}

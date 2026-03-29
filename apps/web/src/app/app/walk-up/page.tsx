@@ -63,11 +63,11 @@ export default function WalkUpPage() {
   if (!can("incidents", "read")) return <AccessDenied module="Walk-Up Experience" />;
 
   // @ts-ignore
-  const queueQuery = trpc.walkup.queue.list.useQuery();
+  const queueQuery = trpc.walkup.queue.list.useQuery({});
   // @ts-ignore
-  const apptsQuery = trpc.walkup.appointments.list.useQuery();
+  const apptsQuery = trpc.walkup.appointments.list.useQuery({});
   // @ts-ignore
-  const analyticsQuery = trpc.walkup.analytics.useQuery();
+  const analyticsQuery = trpc.walkup.analytics.useQuery({});
 
   // @ts-ignore
   const joinQueueMutation = trpc.walkup.queue.joinQueue.useMutation({
@@ -176,7 +176,7 @@ export default function WalkUpPage() {
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
                         <button
-                          onClick={() => completeMutation.mutate({ id: v.id } as any)}
+                          onClick={() => completeMutation.mutate({ visitId: v.id })}
                           className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200"
                         >
                           Complete
@@ -207,7 +207,7 @@ export default function WalkUpPage() {
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
                         <button
-                          onClick={() => callNextMutation.mutate({ id: v.id } as any)}
+                          onClick={() => callNextMutation.mutate({ locationId: v.locationId })}
                           className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
                         >
                           Assign to Me
@@ -330,7 +330,7 @@ export default function WalkUpPage() {
                       {v.status === "in_service" && (
                         <div className="flex gap-1.5">
                           <button
-                            onClick={() => completeMutation.mutate({ id: v.id } as any)}
+                            onClick={() => completeMutation.mutate({ visitId: v.id })}
                             className="px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200"
                           >
                             Complete

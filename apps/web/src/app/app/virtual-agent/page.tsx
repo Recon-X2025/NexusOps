@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bot, Send, RefreshCw, User, Zap, BookOpen, Wrench, TicketIcon, ChevronRight, ThumbsUp, ThumbsDown, X, Maximize2 } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { trpc } from "@/lib/trpc";
 
 type Message = {
   id: string;
@@ -92,6 +93,19 @@ export default function VirtualAgentPage() {
   const [view, setView] = useState<"chat" | "analytics">("chat");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const { data: myTicketsData } = trpc.tickets.list.useQuery(
+    { limit: 5, statusCategory: "open" },
+    { enabled: can("incidents", "read"), refetchOnWindowFocus: false }
+  );
+  const createTicketMutation = trpc.tickets.create.useMutation({
+    onSuccess: (ticket: any) => {
+      addMessage(`✅ Ticket created!\n\n**${ticket.number}** — ${ticket.title}\n**Priority**: ${ticket.priority ?? "P3"}\n**Status**: Open\n\nThe IT team will respond shortly.`, "bot", {
+        options: ["Track this ticket", "I need more help", "🤝 Talk to a human agent"],
+      });
+    },
+    onError: (e: any) => { addMessage(`Sorry, I couldn't create the ticket: ${e.message}. Please try again or contact the helpdesk.`, "bot"); },
+  });
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -110,11 +124,32 @@ export default function VirtualAgentPage() {
   const handleOption = (opt: string) => {
     addMessage(opt, "user");
     setTimeout(() => {
+      if (opt === "🎫 Check my open tickets") {
+        const tickets = (myTicketsData as any)?.items ?? (myTicketsData as any) ?? [];
+        if (tickets.length === 0) {
+          addMessage("You have no open tickets. 🎉 Everything looks good!", "bot", { options: ["Submit a new request", "🤝 Talk to a human agent"] });
+        } else {
+          const list = tickets.slice(0, 5).map((t: any, i: number) => `${i+1}. **${t.number}** — ${t.title} (${t.status})`).join("\n");
+          addMessage(`Here are your open tickets:\n\n${list}`, "bot", { options: ["I need help with a ticket", "New request", "All caught up, thanks!"] });
+        }
+        return;
+      }
+      if (opt === "Yes, create ticket" || opt === "Create ticket now") {
+        const lastUserMsg = [...messages].reverse().find(m => m.role === "user" && m.text !== opt)?.text ?? "Support request";
+        if (can("incidents", "write")) {
+          createTicketMutation.mutate({ title: lastUserMsg.slice(0, 200), description: lastUserMsg });
+        } else {
+          addMessage("I'm sorry, you don't have permission to create tickets. Please contact your IT team directly.", "bot");
+        }
+        return;
+      }
       const flow = BOT_FLOWS[opt];
       if (flow) {
         addMessage(flow.reply, "bot", { options: flow.options, articleRef: flow.articleRef, handoff: flow.handoff });
       } else {
-        addMessage(`I understand you need help with "${opt}". Let me create a ticket for you. Can you provide more details?`, "bot");
+        addMessage(`I understand you need help with "${opt}". Let me create a ticket for you. Can you provide more details?`, "bot", {
+          options: ["Create ticket now", "Cancel"],
+        });
       }
     }, 600);
   };
@@ -125,15 +160,15 @@ export default function VirtualAgentPage() {
     setInput("");
     addMessage(text, "user");
     setTimeout(() => {
-      addMessage("I'm processing your request. Based on your message, I can help you with that. Would you like me to create a ticket or try self-service options?", "bot", {
-        options: ["Create a ticket", "Show self-service options", "Talk to an agent"],
+      addMessage(`I've noted your request: "${text}"\n\nShall I create a support ticket for this?`, "bot", {
+        options: ["Yes, create ticket", "No, I'll handle it", "🤝 Talk to a human agent"],
       });
     }, 800);
   };
 
-  const totalVolume = 0;
-  const totalDeflected = 0;
-  const avgDeflection = 0;
+  const totalVolume = messages.filter(m => m.role === "user").length;
+  const totalDeflected = messages.filter(m => m.role === "user" && m.text !== "🤝 Talk to a human agent" && m.text !== "Connect me now").length;
+  const avgDeflection = totalVolume > 0 ? Math.round((totalDeflected / totalVolume) * 100) : 0;
 
   return (
     <div className="flex flex-col gap-3 h-full">

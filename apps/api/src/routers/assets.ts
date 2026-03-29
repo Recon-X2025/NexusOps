@@ -295,14 +295,32 @@ export const assetsRouter = router({
       return withUsage;
     }),
 
+    create: permissionProcedure("sam", "write")
+      .input(z.object({
+        productName: z.string().min(1),
+        vendor: z.string().optional(),
+        licenseType: z.enum(["perpetual", "subscription", "trial", "open_source", "freeware"]).default("subscription"),
+        totalSeats: z.coerce.number().int().positive().optional(),
+        costPerSeat: z.string().optional(),
+        expiresAt: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [license] = await db.insert(softwareLicenses).values({
+          orgId: org!.id,
+          productName: input.productName,
+          vendor: input.vendor,
+          licenseType: input.licenseType,
+          totalSeats: input.totalSeats ? String(input.totalSeats) : undefined,
+          costPerSeat: input.costPerSeat,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+          notes: input.notes,
+        } as any).returning();
+        return license;
+      }),
+
     assign: permissionProcedure("sam", "write")
-      .input(
-        z.object({
-          licenseId: z.string().uuid(),
-          assetId: z.string().uuid().optional(),
-          userId: z.string().uuid().optional(),
-        }),
-      )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 

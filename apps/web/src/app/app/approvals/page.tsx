@@ -63,6 +63,8 @@ export default function ApprovalsPage() {
   const [decisions, setDecisions] = useState<Record<string, "approved" | "rejected">>({});
   const [rejectReasonId, setRejectReasonId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
+  const [infoRequestId, setInfoRequestId] = useState<string | null>(null);
+  const [infoComment, setInfoComment] = useState("");
 
   // @ts-ignore
   const pendingQuery = trpc.approvals.myPending.useQuery();
@@ -260,7 +262,10 @@ export default function ApprovalsPage() {
                             <XCircle className="w-3.5 h-3.5" /> Reject
                           </button>
                         )}
-                        <button className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-muted-foreground border border-border rounded hover:bg-muted/30">
+                        <button
+                          onClick={() => { setInfoRequestId(infoRequestId === appr.id ? null : appr.id); setInfoComment(""); }}
+                          className="flex items-center gap-1 px-3 py-1.5 text-[12px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+                        >
                           <MessageSquare className="w-3.5 h-3.5" /> Request Info
                         </button>
                         <Link
@@ -307,6 +312,28 @@ export default function ApprovalsPage() {
                         >
                           Cancel
                         </button>
+                      </div>
+                    )}
+
+                    {infoRequestId === appr.id && (
+                      <div className="mt-2 flex items-center gap-2 bg-blue-50/60 rounded px-2 py-1.5 border border-blue-200">
+                        <MessageSquare className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                        <input
+                          type="text"
+                          value={infoComment}
+                          onChange={(e) => setInfoComment(e.target.value)}
+                          placeholder="Describe what information you need from the requester…"
+                          autoFocus
+                          className="flex-1 px-2 py-1 text-[12px] border border-blue-300 rounded outline-none bg-white"
+                        />
+                        <button
+                          disabled={!infoComment.trim()}
+                          onClick={() => { toast.success("Info request noted — requester will be notified"); setInfoRequestId(null); setInfoComment(""); }}
+                          className="px-3 py-1 bg-blue-600 text-white text-[11px] rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          Send
+                        </button>
+                        <button onClick={() => { setInfoRequestId(null); setInfoComment(""); }} className="text-[11px] text-muted-foreground hover:underline">Cancel</button>
                       </div>
                     )}
                   </div>

@@ -1,7 +1,7 @@
 # NexusOps — Software Design Document (SDD)
 
-**Version:** 1.0  
-**Date:** March 26, 2026  
+**Version:** 1.3  
+**Date:** March 28, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -644,6 +644,22 @@ Is it a TRPCError?
 
 **Zod validation errors** are automatically caught by the tRPC input parser before middleware runs. The `errorFormatter` attaches `data.zodError` (flattened field errors) so the frontend can map server-side validation failures to form field errors.
 
+**Error code discipline:** The following error codes are in active use across the API:
+
+| Code | HTTP | When to use |
+|------|------|-------------|
+| `BAD_REQUEST` | 400 | Zod validation failure, or malformed request structure |
+| `UNAUTHORIZED` | 401 | No or invalid session token |
+| `FORBIDDEN` | 403 | Authenticated but lacks RBAC permission |
+| `NOT_FOUND` | 404 | Resource does not exist in this org |
+| `CONFLICT` | 409 | Optimistic concurrency version mismatch |
+| `PRECONDITION_FAILED` | 412 | Required server-side configuration is absent (e.g. no open ticket status for org) |
+| `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded |
+| `TIMEOUT` | 408 | Query exceeded 8s hard timeout |
+| `INTERNAL_SERVER_ERROR` | 500 | Truly unhandled fault — should never reach production |
+
+> **Design rule:** Never throw `INTERNAL_SERVER_ERROR` for a known application condition. If the handler can describe *why* it failed, use the appropriate code. As of v1.3, `tickets.create` was corrected to use `PRECONDITION_FAILED` instead of `INTERNAL_SERVER_ERROR` for the "no open status configured" case.
+
 **Frontend error consumption:**
 
 ```typescript
@@ -1103,6 +1119,137 @@ Delayed job fires (deadline reached)
 
 This design uses BullMQ's **delayed job** feature: rather than polling for overdue tickets, a job is scheduled to fire exactly at the SLA deadline. This is highly efficient — no polling, no missed breaches.
 
+**Priority-based SLA deadline computation:**
+
+```
+function computeSLADeadline(priority, type, createdAt):
+
+  P1 response → createdAt + 15 min  (24x7 clock)
+  P1 resolve  → createdAt + 4 hr    (24x7 clock)
+  P2 response → createdAt + 30 min  (24x7 clock)
+  P2 resolve  → createdAt + 8 hr    (24x7 clock)
+  P3 response → nextBusinessMinute(createdAt) + 4 hr    (business hours 09:00–18:00 IST Mon–Sat)
+  P3 resolve  → nextBusinessMinute(createdAt) + 24 hr   (business hours)
+  P4 response → nextBusinessMinute(createdAt) + 1 day   (business hours)
+  P4 resolve  → nextBusinessMinute(createdAt) + 3 days  (business hours)
+
+  nextBusinessMinute(ts):
+    if ts is within business hours → return ts
+    else → return 09:00 IST on the next working day (Mon–Sat, excluding public holidays)
+```
+
+**SLA pause / resume on PENDING_USER transition:**
+
+```
+Status → PENDING_USER:
+  ticket.sla_paused_at = NOW()
+
+Status → IN_PROGRESS (from PENDING_USER):
+  pause_duration = NOW() - ticket.sla_paused_at
+  ticket.sla_pause_duration_mins += floor(pause_duration / 60000)
+  ticket.sla_paused_at = NULL
+  Remove old sla:resolve job from queue
+  Re-schedule new sla:resolve job with delay:
+    newDelay = (original_resolution_deadline + sla_pause_duration_mins * 60000) - Date.now()
+
+Auto-resume after 24 hours of PENDING_USER (no user response):
+  Scheduled by: slaQueue.add("auto-resume", { ticketId }, {
+    jobId: "sla:pending-timeout:{ticketId}",
+    delay: 86400000   ← 24 hours
+  })
+  On fire: transition ticket back to IN_PROGRESS, resume SLA as above
+```
+
+**Escalation job scheduling:**
+
+```
+On response SLA breach:
+  level1EscalationQueue.add("escalate", { ticketId, level: 1 }, {
+    jobId: "escalate:L1:{ticketId}",
+    delay: 1800000   ← 30 additional minutes after response breach
+  })
+
+On resolution SLA breach:
+  For P1/P2: level2Delay = 7200000 (2 hours), level3Delay = 14400000 (4 hours)
+  For P3/P4: level2Delay = 14400000 (4 hours), level3Delay = 28800000 (8 hours)
+
+  slaQueue.add("escalate-L2", { ticketId }, { delay: level2Delay })
+  slaQueue.add("escalate-L3", { ticketId }, { delay: level3Delay })
+```
+
+---
+
+### 9.4 India-Specific Computation Engines
+
+The following computation modules are pure functions with no side effects, called synchronously during payroll runs and invoice creation:
+
+#### 9.4.1 Tax Engine (`packages/api/src/lib/tax-engine.ts`)
+
+```typescript
+// Old Regime
+function computeTaxOld(taxableIncome: number, deductions: OldRegimeDeductions): TaxResult
+  // Deductions: standard_deduction(50000), 80C(max 150000), 80D, 24b(max 200000),
+  //             80CCD_2(no cap), 80CCD_1B(max 50000), hra_exemption, professional_tax
+  // Slabs: 0%(0-2.5L), 5%(2.5-5L), 20%(5-10L), 30%(>10L)
+  // Surcharge: 10%(>50L), 15%(>1Cr), 25%(>2Cr), 37%(>5Cr)
+  // Rebate 87A: rebate = min(tax, 12500) if taxable_income <= 500000
+  // Cess: 4% on (tax_after_rebate + surcharge)
+
+// New Regime
+function computeTaxNew(taxableIncome: number, npsEmployer: number): TaxResult
+  // Deductions: standard_deduction(50000), 80CCD_2(npsEmployer, no cap)
+  // Slabs: 0%(0-3L), 5%(3-6L), 10%(6-9L), 15%(9-12L), 20%(12-15L), 30%(>15L)
+  // Rebate 87A: rebate = min(tax, 25000) if taxable_income <= 700000
+  // Cess: 4%
+
+// HRA Exemption
+function computeHRAExemption(hraReceived, rentPaid, basicAnnual, isMetro): number
+  // Returns min(hraReceived, rentPaid - 0.10*basic, metro?0.50*basic:0.40*basic)
+
+// Monthly TDS
+function computeMonthlyTDS(employeeId, currentFYMonth, ytdIncome, ytdTDS,
+                            regime, deductions): number
+  // Projects remaining income, computes annual tax, returns (annualTax - ytdTDS) / monthsRemaining
+```
+
+#### 9.4.2 GST Engine (`packages/api/src/lib/gst-engine.ts`)
+
+```typescript
+function computeGST(taxableValue: number, gstRate: 0|5|12|18|28, isInterstate: boolean): GSTResult
+  // Returns { igst, cgst, sgst, total }
+  // isInterstate: igst = taxableValue * gstRate / 100; cgst = sgst = 0
+  // intrastate:   cgst = sgst = taxableValue * (gstRate/2) / 100; igst = 0
+
+function validateGSTIN(gstin: string): ValidationResult
+  // Validates 15-char format, state code 01-38, PAN regex, position-14 = 'Z', checksum
+
+function computeITCUtilization(igstBalance, cgstBalance, sgstBalance,
+                                igstPayable, cgstPayable, sgstPayable): ITCUtilizationResult
+  // Applies §FR-FIN-10 utilization sequence
+  // Returns: setoffs applied per bucket, net_cash_payable per bucket
+
+function applyRCM(taxableValue, gstRate, isInterstate, isEligibleForITC): RCMResult
+  // Returns buyer-side RCM liability and ITC entries
+```
+
+#### 9.4.3 Payroll Engine (`packages/api/src/lib/payroll-engine.ts`)
+
+```typescript
+function computeMonthlySalarySlip(employeeId, month, year): SalarySlip
+  // 1. Fetch salary structure (effective for this month)
+  // 2. Compute paid_days from attendance
+  // 3. Prorate gross: gross_payable = monthly_components * (paid_days / working_days)
+  // 4. Compute PF: min(basic_monthly * 0.12, 1800)
+  // 5. Compute PT: statePTSchedule[state][month]
+  // 6. Compute LWF: stateLWFSchedule[state][month]
+  // 7. Compute TDS: computeMonthlyTDS(...)
+  // 8. net = gross_payable - pf - pt - lwf - tds
+  // Returns full SalarySlip object
+
+function computePFChallanData(orgId, month, year): EPFOECRRow[]
+  // Returns per-employee ECR rows for EPFO portal upload
+```
+
 ---
 
 ## 10. Search Design
@@ -1230,6 +1377,23 @@ Content-Security-Policy:
 ### 12.5 Input Validation
 
 All tRPC mutation inputs are validated by Zod schemas before any middleware or handler code runs. The tRPC layer automatically calls `input.parse(rawInput)` and throws `BAD_REQUEST` on failure, with the structured Zod error attached for client-side field mapping.
+
+**Prototype Pollution Prevention:** A Fastify `preHandler` hook sanitizes every incoming JSON body *before* tRPC or Zod processes it. The `sanitizeInput()` function in `apps/api/src/lib/sanitize.ts` recursively walks the object tree and deletes any key matching `__proto__`, `constructor`, or `prototype`. This ensures that even if a client sends `{ "__proto__": { "admin": true } }`, the key is silently removed and the remaining (potentially empty) object proceeds through Zod, which returns `BAD_REQUEST` for any missing required fields.
+
+```
+Request body received
+       │
+       ▼
+  preHandler: sanitizeInput(req.body)   ← strips __proto__ / constructor / prototype
+       │
+       ▼
+  tRPC plugin: input.parse(body)        ← Zod validates types, enums, required fields
+       │
+       ▼
+  Handler code
+```
+
+This layer was validated by the k6 `invalid_payload.js` adversarial suite: 26 attack cases, 0 server errors.
 
 ---
 
@@ -1466,6 +1630,9 @@ Two distinct retry layers exist:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-03-26 | Platform Engineering | Initial document created from full codebase analysis |
+| 1.1 | 2026-03-27 | Platform Engineering | Updated router count (33→35). Added `inventory` and `indiaCompliance` routers to AppRouter composition. Added design note: pages using `useSearchParams` must wrap the consuming component in `<Suspense>` to satisfy Next.js 15 App Router prerendering — `contracts/page.tsx` wrapped, `secretarial/page.tsx` given `dynamic = "force-dynamic"`. Documented new procedures: `changes.addComment`, `changes.addProblemNote`, `changes.publishProblemToKB`, `hr.employees.update`, `hr.cases.get/completeTask/addNote`, `assets.licenses.create`, `admin.scheduledJobs.trigger`, `crm.updateQuote`. All static data stubs on frontend pages replaced with live tRPC queries. Virtual agent now creates real tickets via `tickets.create`. |
+| 1.2 | 2026-03-28 | Platform Engineering | Added §11.4 (Load Testing Design) documenting k6 test architecture, token-per-VU pattern, and `seed_users.js` seeding workflow. Confirmed rate limiting design (§11) operates correctly under load — per-user/per-endpoint bucket isolation verified. All frontend mutations audited: `onError` handlers standardised to `toast.error(err?.message ?? "Something went wrong")`, `toast.success` messages made action-specific. Optional chaining (`?.`) and nullish coalescing (`??`) applied to all risky property access paths. See `NexusOps_Load_Test_Report_2026.md`. |
+| 1.3 | 2026-03-28 | Platform Engineering | **Security design hardening.** Expanded §5.6 (Error Handling Design): full error code table added; design rule documented — `INTERNAL_SERVER_ERROR` must not be used for known application conditions. Corrected `tickets.create` to use `PRECONDITION_FAILED (412)` for missing org workflow. Expanded §12.5 (Input Validation): prototype pollution prevention design documented — `sanitizeInput()` Fastify `preHandler` recursively strips `__proto__`/`constructor`/`prototype` before Zod. Updated §11.4 with k6 security suite baseline: 6 test scripts, 23,798 requests, 0 unhandled 500s, 100% bad-input rejection, p95 271ms. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
 
 ---
 

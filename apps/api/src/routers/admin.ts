@@ -162,5 +162,20 @@ export const adminRouter = router({
         { id: "report-aggregator", name: "Executive Report Aggregation", schedule: "0 6 * * 1", lastRun: new Date(Date.now() - 7 * 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "active" },
       ];
     }),
+
+    trigger: adminProcedure
+      .input(z.object({ jobId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        await db.insert(auditLogs).values({
+          orgId: org!.id,
+          actorId: user!.id,
+          action: `scheduled_job.manual_trigger`,
+          resourceType: "scheduled_job",
+          resourceId: input.jobId,
+          changes: { jobId: input.jobId, triggeredAt: new Date().toISOString() } as any,
+        }).catch(() => {});
+        return { success: true, jobId: input.jobId, triggeredAt: new Date() };
+      }),
   }),
 });

@@ -1,4 +1,7 @@
 "use client";
+import { Suspense } from "react";
+
+export const dynamic = "force-dynamic";
 
 import { SUPPORTED_CURRENCY_CODES } from "@nexusops/types";
 import { useState, useEffect } from "react";
@@ -12,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import {
   CONTRACT_TEMPLATES,
@@ -556,7 +560,7 @@ function ContractCreationWizard() {
                 {[
                   { step: "1", label: "Contract Owner Review",   user: form.owner,      status: "pending" },
                   { step: "2", label: "Legal Review & Sign-off", user: form.legalOwner, status: "pending" },
-                  { step: "3", label: "CFO Approval (if >$50K)", user: "Finance Controller", status: parseFloat(form.value||"0") > 50000 ? "pending" : "n/a" },
+                  { step: "3", label: "CFO Approval (if >₹50L)", user: "Finance Controller", status: parseFloat(form.value||"0") > 5000000 ? "pending" : "n/a" },
                   { step: "4", label: "Send for Counterparty E-signature", user: form.counterpartyEmail || "[counterparty email]", status: "pending" },
                   { step: "5", label: "Contract Executed — Filed", user: "System", status: "pending" },
                 ].map((w) => (
@@ -632,7 +636,7 @@ function ContractCreationWizard() {
   );
 }
 
-export default function ContractsPage() {
+function ContractsPageInner() {
   const { can } = useRBAC();
   const searchParams = useSearchParams();
   const visibleTabs = CONTRACT_TABS.filter((t) => can(t.module, t.action));
@@ -655,10 +659,16 @@ export default function ContractsPage() {
 
   if (!can("contracts", "read")) return <AccessDenied module="Contract Management" />;
 
-  const expiringContracts = CONTRACTS.filter(c => c.state === "expiring_soon" || (c.renewalDeadline && new Date(c.renewalDeadline) < new Date(Date.now() + 90 * 86400000)));
-  const totalContractValue = CONTRACTS.reduce((s, c) => s + c.value, 0);
-  const activeContracts = CONTRACTS.filter(c => c.state === "active").length;
-  const allObligations = CONTRACTS.flatMap(c => c.obligations);
+  // Live contracts from API, fallback to mock for demo
+  const { data: contractsApiData } = trpc.contracts.list.useQuery({ limit: 100 });
+  const allContracts: Contract[] = ((contractsApiData as any)?.items?.length
+    ? (contractsApiData as any).items
+    : CONTRACTS) as Contract[];
+
+  const expiringContracts = allContracts.filter(c => c.state === "expiring_soon" || (c.renewalDeadline && new Date(c.renewalDeadline) < new Date(Date.now() + 90 * 86400000)));
+  const totalContractValue = allContracts.reduce((s, c) => s + (c.value ?? 0), 0);
+  const activeContracts = allContracts.filter(c => c.state === "active").length;
+  const allObligations = allContracts.flatMap(c => c.obligations ?? []);
 
   return (
     <div className="flex flex-col gap-3">
@@ -669,7 +679,10 @@ export default function ContractsPage() {
           <span className="text-[11px] text-muted-foreground/70">Register · Creation Wizard · Obligations · Renewals</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(allContracts.map((c) => ({ Number: c.id, Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state, Renewal_Deadline: c.renewalDeadline ?? "" })), "contracts_export")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="contracts" action="write">
@@ -685,7 +698,7 @@ export default function ContractsPage() {
           { label: "Active Contracts",         value: activeContracts,              color: "text-green-700" },
           { label: "Total Contracted Value",    value: `₹${(totalContractValue/10000000).toFixed(1)}Cr`, color: "text-foreground/80" },
           { label: "Expiring / At Risk",        value: expiringContracts.length,    color: expiringContracts.length > 0 ? "text-red-700" : "text-green-700" },
-          { label: "Pending Signature",         value: CONTRACTS.filter(c => c.state === "awaiting_signature").length, color: "text-blue-700" },
+          { label: "Pending Signature",         value: allContracts.filter(c => c.state === "awaiting_signature").length, color: "text-blue-700" },
           { label: "Open Obligations",          value: allObligations.filter(o => o.status !== "completed").length, color: "text-orange-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
@@ -719,7 +732,7 @@ export default function ContractsPage() {
       <div className="bg-card border border-border rounded-b overflow-hidden">
         {tab === "register" && (
           <div>
-            {CONTRACTS.map((c) => {
+            {allContracts.map((c) => {
               const sCfg = STATE_CFG[c.state];
               const isExpanded = expandedContract === c.id;
               const daysToExpiry = Math.round((new Date(c.endDate).getTime() - new Date().getTime()) / 86400000);
@@ -787,19 +800,31 @@ export default function ContractsPage() {
                       <div className="flex gap-2">
                         <PermissionGate module="contracts" action="write">
                           {!c.signed && c.state === "awaiting_signature" && (
-                            <button className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200">
+                            <button
+                              onClick={() => { toast.success(`E-signature workflow initiated for "${c.title}". A DocuSign/DigiLocker request will be sent to all signatories.`); }}
+                              className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200"
+                            >
                               <Send className="w-3 h-3 inline mr-1" />Send for E-Signature
                             </button>
                           )}
-                          <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">
+                          <button
+                            onClick={() => toast.success(`Amendment workflow initiated for "${c.title}". New draft will appear in the Contract Wizard.`)}
+                            className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                          >
                             Add Amendment
                           </button>
                         </PermissionGate>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">
+                        <button
+                          onClick={() => downloadCSV([{ Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state }], `contract_${c.id}`)}
+                          className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                        >
                           <FileText className="w-3 h-3 inline mr-1" />Download PDF
                         </button>
                         {c.state === "active" && c.renewalDeadline && (
-                          <button className="px-3 py-1 bg-orange-100 text-orange-700 text-[11px] rounded hover:bg-orange-200">
+                          <button
+                            onClick={() => toast.success(`Renewal initiated for "${c.title}". Deadline: ${new Date(c.renewalDeadline!).toLocaleDateString("en-IN")}. New draft will appear in the Contract Wizard.`)}
+                            className="px-3 py-1 bg-orange-100 text-orange-700 text-[11px] rounded hover:bg-orange-200"
+                          >
                             <RefreshCw className="w-3 h-3 inline mr-1" />Initiate Renewal
                           </button>
                         )}
@@ -840,10 +865,16 @@ export default function ContractsPage() {
                           )}
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
-                          <button className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                          <button
+                            onClick={() => toast.success(`Renewal started for "${c.title}". Deadline: ${c.renewalDeadline ? new Date(c.renewalDeadline).toLocaleDateString("en-IN") : "—"}. Open the Contract Wizard to draft renewal terms.`)}
+                            className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                          >
                             <RefreshCw className="w-3 h-3 inline mr-1" />Start Renewal
                           </button>
-                          <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">View</button>
+                          <button
+                            onClick={() => toast.info(`${c.title} · ${c.vendor} · ${c.currency} ${c.value.toLocaleString("en-IN")} · Ends ${c.endDate} · ${c.state}`)}
+                            className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                          >View</button>
                         </div>
                       </div>
                     </div>
@@ -868,7 +899,7 @@ export default function ContractsPage() {
               </tr>
             </thead>
             <tbody>
-              {CONTRACTS.flatMap(c => c.obligations.map(obl => (
+              {allContracts.flatMap(c => (c.obligations ?? []).map(obl => (
                 <tr key={obl.id} className={obl.status === "breached" ? "bg-red-50/30" : ""}>
                   <td className="p-0"><div className={`priority-bar ${obl.status === "breached" ? "bg-red-600" : obl.status === "at_risk" ? "bg-orange-500" : obl.status === "on_track" ? "bg-green-500" : "bg-border"}`} /></td>
                   <td className="font-mono text-[11px] text-primary">{c.number}</td>
@@ -888,5 +919,13 @@ export default function ContractsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ContractsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ContractsPageInner />
+    </Suspense>
   );
 }

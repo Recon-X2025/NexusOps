@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -19,6 +20,7 @@ export const riskCategoryEnum = pgEnum("risk_category", [
   "compliance",
   "technology",
   "reputational",
+  "hr",
 ]);
 
 export const riskStatusEnum = pgEnum("risk_status", [
@@ -34,6 +36,38 @@ export const riskTreatmentEnum = pgEnum("risk_treatment", [
   "mitigate",
   "transfer",
   "avoid",
+]);
+
+export const riskRatingEnum = pgEnum("risk_rating", ["low", "medium", "high", "critical"]);
+
+export const controlTypeEnum = pgEnum("control_type", [
+  "preventive",
+  "detective",
+  "corrective",
+  "directive",
+]);
+
+export const controlEffectivenessEnum = pgEnum("control_effectiveness", [
+  "effective",
+  "partially_effective",
+  "ineffective",
+  "not_tested",
+]);
+
+export const findingSeverityEnum = pgEnum("finding_severity", [
+  "critical",
+  "high",
+  "medium",
+  "low",
+  "informational",
+]);
+
+export const findingRemediationStatusEnum = pgEnum("finding_remediation_status", [
+  "open",
+  "in_progress",
+  "completed",
+  "overdue",
+  "risk_accepted",
 ]);
 
 export const policyStatusEnum = pgEnum("policy_status", [
@@ -78,14 +112,19 @@ export const risks = pgTable(
     likelihood: integer("likelihood").notNull().default(3),
     impact: integer("impact").notNull().default(3),
     riskScore: integer("risk_score").notNull().default(9),
+    riskRating: riskRatingEnum("risk_rating").notNull().default("medium"),
     status: riskStatusEnum("status").notNull().default("identified"),
     treatment: riskTreatmentEnum("treatment"),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     reviewDate: timestamp("review_date", { withTimezone: true }),
+    reviewFrequency: text("review_frequency").notNull().default("quarterly"),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
     controls: jsonb("controls").$type<Array<{ id: string; title: string; status: string }>>().default([]),
     mitigationPlan: text("mitigation_plan"),
     residualLikelihood: integer("residual_likelihood"),
     residualImpact: integer("residual_impact"),
+    residualRiskScore: integer("residual_risk_score"),
+    residualRiskRating: riskRatingEnum("residual_risk_rating"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -159,7 +198,80 @@ export const vendorRisks = pgTable(
   (t) => ({ orgIdx: index("vendor_risks_org_idx").on(t.orgId) }),
 );
 
-export const risksRelations = relations(risks, ({ one }) => ({
+// ── Risk Controls ──────────────────────────────────────────────────────────
+export const riskControls = pgTable(
+  "risk_controls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    controlNumber: text("control_number").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    controlType: controlTypeEnum("control_type").notNull().default("preventive"),
+    controlCategory: text("control_category").notNull().default("manual"),
+    controlFrequency: text("control_frequency").notNull().default("monthly"),
+    controlOwnerId: uuid("control_owner_id").references(() => users.id, { onDelete: "set null" }),
+    mappedRiskIds: text("mapped_risk_ids").array().notNull().default([]),
+    effectivenessRating: controlEffectivenessEnum("effectiveness_rating").notNull().default("not_tested"),
+    lastTestedDate: timestamp("last_tested_date", { withTimezone: true }),
+    nextTestDate: timestamp("next_test_date", { withTimezone: true }),
+    lastEvidenceUrl: text("last_evidence_url"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgControlNumberIdx: uniqueIndex("risk_controls_org_number_idx").on(t.orgId, t.controlNumber),
+    orgIdx: index("risk_controls_org_idx").on(t.orgId),
+  }),
+);
+
+// ── Audit Findings ─────────────────────────────────────────────────────────
+export const auditFindings = pgTable(
+  "audit_findings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    auditPlanId: uuid("audit_plan_id")
+      .notNull()
+      .references(() => auditPlans.id, { onDelete: "cascade" }),
+    findingNumber: text("finding_number").notNull(),
+    title: text("title").notNull(),
+    findingSeverity: findingSeverityEnum("finding_severity").notNull().default("medium"),
+    criteria: text("criteria").notNull(),
+    condition: text("condition").notNull(),
+    cause: text("cause").notNull(),
+    effect: text("effect").notNull(),
+    recommendation: text("recommendation"),
+    managementResponse: text("management_response"),
+    agreedAction: text("agreed_action"),
+    actionOwnerId: uuid("action_owner_id").references(() => users.id, { onDelete: "set null" }),
+    remediationStatus: findingRemediationStatusEnum("remediation_status").notNull().default("open"),
+    targetRemediationDate: timestamp("target_remediation_date", { withTimezone: true }),
+    actualRemediationDate: timestamp("actual_remediation_date", { withTimezone: true }),
+    linkedRiskId: uuid("linked_risk_id").references(() => risks.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    auditPlanIdx: index("audit_findings_audit_plan_idx").on(t.auditPlanId),
+    orgIdx: index("audit_findings_org_idx").on(t.orgId),
+    remediationStatusIdx: index("audit_findings_remediation_status_idx").on(t.remediationStatus),
+  }),
+);
+
+export const risksRelations = relations(risks, ({ one, many }) => ({
   org: one(organizations, { fields: [risks.orgId], references: [organizations.id] }),
   owner: one(users, { fields: [risks.ownerId], references: [users.id] }),
+  controls: many(riskControls),
+  auditFindings: many(auditFindings),
+}));
+
+export const riskControlsRelations = relations(riskControls, ({ one }) => ({
+  org: one(organizations, { fields: [riskControls.orgId], references: [organizations.id] }),
+  owner: one(users, { fields: [riskControls.controlOwnerId], references: [users.id] }),
+}));
+
+export const auditFindingsRelations = relations(auditFindings, ({ one }) => ({
+  auditPlan: one(auditPlans, { fields: [auditFindings.auditPlanId], references: [auditPlans.id] }),
+  actionOwner: one(users, { fields: [auditFindings.actionOwnerId], references: [users.id] }),
 }));

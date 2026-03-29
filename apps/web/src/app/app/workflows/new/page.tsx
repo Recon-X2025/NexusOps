@@ -57,7 +57,7 @@ export default function NewWorkflowPage() {
       void utils.workflows.list.invalidate();
       router.push("/app/workflows");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
   function addStep() {

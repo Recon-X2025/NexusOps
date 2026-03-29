@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   RefreshCw,
   Plus,
@@ -64,6 +65,25 @@ export default function ChangesPage() {
     undefined,
     { refetchOnWindowFocus: false },
   );
+
+  const [actionRow, setActionRow] = useState<string | null>(null);
+  const [cabComment, setCabComment] = useState("");
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  const approveCR = trpc.changes.approve.useMutation({
+    onSuccess: () => {
+      setActionMsg("Change approved"); setActionRow(null); setCabComment(""); refetch();
+      setTimeout(() => setActionMsg(null), 3000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+  const rejectCR = trpc.changes.reject.useMutation({
+    onSuccess: () => {
+      setActionMsg("Change rejected"); setActionRow(null); setCabComment(""); refetch();
+      setTimeout(() => setActionMsg(null), 3000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
 
   type ChangeItem = NonNullable<typeof data>["items"][number];
   const items: ChangeItem[] = data?.items ?? [];
@@ -148,6 +168,7 @@ export default function ChangesPage() {
             )}
           </button>
         ))}
+        {actionMsg && <span className="ml-auto mr-3 text-[11px] text-green-700 font-medium">{actionMsg}</span>}
       </div>
 
       {/* Table */}
@@ -173,12 +194,16 @@ export default function ChangesPage() {
                 <th>Risk</th>
                 <th>Scheduled</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.map((chg) => {
                 const stateCfg = STATE_CONFIG[chg.status];
+                const isCab = chg.status === "cab_review" || chg.status === "cab_approval";
+                const isExpanded = actionRow === chg.id;
                 return (
+                  <React.Fragment key={chg.id}>
                   <tr key={chg.id}>
                     <td className="p-0 w-1 relative">
                       <div
@@ -235,7 +260,51 @@ export default function ChangesPage() {
                         {stateCfg?.label ?? chg.status}
                       </span>
                     </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {isCab && can("changes", "approve") ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setActionRow(isExpanded ? null : chg.id)}
+                            className="px-2 py-0.5 rounded text-[11px] bg-green-100 text-green-700 hover:bg-green-200 font-medium"
+                          >
+                            {isExpanded ? "Cancel" : "Decide"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground/40">—</span>
+                      )}
+                    </td>
                   </tr>
+                  {isExpanded && (
+                    <tr className="bg-yellow-50/60 border-t border-yellow-200">
+                      <td colSpan={8} className="px-4 py-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[11px] text-muted-foreground font-medium">CAB Note (optional):</span>
+                          <input
+                            className="flex-1 max-w-xs text-xs border border-border rounded px-2 py-1 bg-background"
+                            placeholder="Add comment for this CAB decision…"
+                            value={cabComment}
+                            onChange={(e) => setCabComment(e.target.value)}
+                          />
+                          <button
+                            disabled={approveCR.isPending}
+                            onClick={() => approveCR.mutate({ changeId: chg.id, comments: cabComment || undefined })}
+                            className="px-3 py-1 rounded bg-green-600 text-white text-[11px] font-medium hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {approveCR.isPending ? "…" : "✓ Approve"}
+                          </button>
+                          <button
+                            disabled={rejectCR.isPending}
+                            onClick={() => rejectCR.mutate({ changeId: chg.id, comments: cabComment || "Rejected by CAB" })}
+                            className="px-3 py-1 rounded bg-red-600 text-white text-[11px] font-medium hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {rejectCR.isPending ? "…" : "✕ Reject"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>

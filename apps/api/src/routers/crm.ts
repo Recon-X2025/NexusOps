@@ -177,6 +177,17 @@ export const crmRouter = router({
       return quote;
     }),
 
+  updateQuote: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid(), status: z.enum(["draft","sent","viewed","accepted","declined","expired"]).optional(), notes: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() } as any)
+        .where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
+      if (!quote) throw new TRPCError({ code: "NOT_FOUND" });
+      return quote;
+    }),
+
   // ── Dashboard Metrics ──────────────────────────────────────────────────────
   dashboardMetrics: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;

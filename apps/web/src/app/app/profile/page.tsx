@@ -22,7 +22,7 @@ const TABS = [
 
 function ProfileTab() {
   const { currentUser } = useRBAC();
-  const [saving, setSaving] = useState(false);
+  const utils = trpc.useUtils();
   const [form, setForm] = useState({
     name: currentUser.name,
     email: currentUser.email,
@@ -33,12 +33,17 @@ function ProfileTab() {
     bio: "",
   });
 
-  function handleSave() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+  const updateProfile = trpc.auth.updateProfile.useMutation({
+    onSuccess: () => {
       toast.success("Profile updated successfully");
-    }, 800);
+      utils.auth.me.invalidate();
+    },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  function handleSave() {
+    const { email: _e, ...rest } = form;
+    updateProfile.mutate(rest);
   }
 
   return (
@@ -101,11 +106,11 @@ function ProfileTab() {
 
       <button
         onClick={handleSave}
-        disabled={saving}
+        disabled={updateProfile.isPending}
         className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
       >
-        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-        {saving ? "Saving…" : "Save Changes"}
+        {updateProfile.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+        {updateProfile.isPending ? "Saving…" : "Save Changes"}
       </button>
     </div>
   );
@@ -114,8 +119,20 @@ function ProfileTab() {
 function SecurityTab() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ current: "", newPwd: "", confirm: "" });
+
+  const sessionsQuery = trpc.auth.listMySessions.useQuery();
+  const revokeSession = trpc.auth.revokeSession.useMutation({
+    onSuccess: () => { toast.success("Session revoked"); sessionsQuery.refetch(); },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
+  const changePassword = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      setForm({ current: "", newPwd: "", confirm: "" });
+      toast.success("Password changed successfully");
+    },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+  });
 
   const strength = (() => {
     const p = form.newPwd;
@@ -135,12 +152,7 @@ function SecurityTab() {
     if (!form.current) { toast.error("Enter your current password"); return; }
     if (form.newPwd.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (form.newPwd !== form.confirm) { toast.error("Passwords do not match"); return; }
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      setForm({ current: "", newPwd: "", confirm: "" });
-      toast.success("Password changed successfully");
-    }, 900);
+    changePassword.mutate({ currentPassword: form.current, newPassword: form.newPwd });
   }
 
   return (
@@ -182,11 +194,11 @@ function SecurityTab() {
         ))}
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={changePassword.isPending}
           className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition mt-1"
         >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-          {saving ? "Updating…" : "Update Password"}
+          {changePassword.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+          {changePassword.isPending ? "Updating…" : "Update Password"}
         </button>
       </div>
 
@@ -200,7 +212,10 @@ function SecurityTab() {
           </div>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">Not enabled</span>
         </div>
-        <button className="flex items-center gap-2 self-start rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent transition">
+        <button
+          onClick={() => toast.info("2FA enrollment is managed by your administrator. Contact your org admin to enable TOTP for your account.")}
+          className="flex items-center gap-2 self-start rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent transition"
+        >
           <Shield className="h-3.5 w-3.5" />
           Enable 2FA
         </button>
@@ -209,21 +224,26 @@ function SecurityTab() {
       {/* Sessions */}
       <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
-        {[
-          { device: "Chrome on macOS", location: "Mumbai, India", last: "Now", current: true },
-          { device: "Mobile — iOS Safari", location: "Mumbai, India", last: "2h ago", current: false },
-        ].map((s, i) => (
-          <div key={i} className="flex items-center justify-between text-sm">
-            <div>
-              <p className="font-medium text-foreground/90">{s.device}</p>
-              <p className="text-xs text-muted-foreground">{s.location} · {s.last}</p>
+        {sessionsQuery.isLoading ? (
+          <div className="text-xs text-muted-foreground">Loading sessions…</div>
+        ) : (
+          (sessionsQuery.data ?? []).map((s) => (
+            <div key={s.id} className="flex items-center justify-between text-sm">
+              <div>
+                <p className="font-medium text-foreground/90">{s.userAgent ?? "Unknown device"}</p>
+                <p className="text-xs text-muted-foreground">{s.ipAddress ?? "Unknown IP"} · {new Date(s.createdAt).toLocaleDateString()}</p>
+              </div>
+              {s.isCurrent
+                ? <span className="text-[10px] text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">Current</span>
+                : <button
+                    onClick={() => revokeSession.mutate({ sessionId: s.id })}
+                    disabled={revokeSession.isPending}
+                    className="text-xs text-red-500 hover:text-red-600 transition disabled:opacity-50"
+                  >Revoke</button>
+              }
             </div>
-            {s.current
-              ? <span className="text-[10px] text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">Current</span>
-              : <button className="text-xs text-red-500 hover:text-red-600 transition">Revoke</button>
-            }
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
@@ -237,6 +257,9 @@ function NotificationsTab() {
     { group: "Security", events: ["security_incident", "vulnerability_found"] },
     { group: "System", events: ["maintenance_window", "system_alert"] },
   ];
+
+  const { data: existingPrefs } = trpc.notifications.getPreferences.useQuery();
+  const updatePref = trpc.notifications.updatePreference.useMutation();
 
   const [prefs, setPrefs] = useState<Record<string, Record<string, boolean>>>(() => {
     const init: Record<string, Record<string, boolean>> = {};
@@ -253,9 +276,19 @@ function NotificationsTab() {
     setPrefs((p) => ({ ...p, [event]: { ...p[event], [channel]: !p[event]?.[channel] } }));
   }
 
-  function handleSave() {
+  async function handleSave() {
     setSaving(true);
-    setTimeout(() => { setSaving(false); toast.success("Notification preferences saved"); }, 700);
+    try {
+      const allEvents = EVENT_GROUPS.flatMap(g => g.events);
+      await Promise.all(allEvents.map(ev =>
+        updatePref.mutateAsync({ eventType: ev, emailEnabled: prefs[ev]?.email ?? true, inAppEnabled: prefs[ev]?.in_app ?? true } as any)
+      ));
+      toast.success("Notification preferences saved");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

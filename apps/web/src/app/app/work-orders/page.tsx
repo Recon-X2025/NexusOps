@@ -6,6 +6,8 @@ import type { inferRouterOutputs } from "@trpc/server";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import type { AppRouter } from "@/lib/trpc";
+import { downloadCSV } from "@/lib/utils";
+import { toast } from "sonner";
 
 type WOListItem = inferRouterOutputs<AppRouter>["workOrders"]["list"]["items"][number];
 import {
@@ -99,6 +101,9 @@ export default function WorkOrdersPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [woActionPanel, setWoActionPanel] = useState<"assign" | "state" | null>(null);
+  const [woNewState, setWoNewState] = useState<string>("");
+  const [woActionMsg, setWoActionMsg] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = trpc.workOrders.list.useQuery({
     state: (activeTab !== "all" ? activeTab : undefined) as "open" | "closed" | "draft" | "work_in_progress" | "dispatched" | "pending_dispatch" | "on_hold" | "complete" | "cancelled" | undefined,
@@ -107,6 +112,19 @@ export default function WorkOrdersPage() {
   });
 
   const { data: metrics } = trpc.workOrders.metrics.useQuery();
+
+  const updateState = trpc.workOrders.updateState.useMutation({
+    onSuccess: (result) => {
+      setWoActionMsg(`Updated ${Array.isArray(result) ? result.length : 1} work order(s)`);
+      setSelected(new Set()); setWoActionPanel(null); setWoNewState("");
+      refetch(); setTimeout(() => setWoActionMsg(null), 3000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const handleBulkStateChange = (state: string) => {
+    Array.from(selected).forEach((id) => updateState.mutate({ id, state: state as WOState }));
+  };
 
   const items = data?.items ?? [];
 
@@ -136,7 +154,10 @@ export default function WorkOrdersPage() {
           >
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30">
+          <button
+            onClick={() => downloadCSV(items.map((w: WOListItem) => ({ Number: (w as any).number, Description: (w as any).shortDescription ?? "", State: (w as any).state, Priority: (w as any).priority ?? "", Assigned_To: (w as any).assignedToId ?? "Unassigned", Location: (w as any).location ?? "", Created: new Date((w as any).createdAt).toLocaleDateString("en-IN") })), "work_orders_export")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <Link
@@ -336,17 +357,53 @@ export default function WorkOrdersPage() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
-        <span>
-          {selected.size > 0
-            ? `${selected.size} record${selected.size > 1 ? "s" : ""} selected`
-            : `${items.length} record${items.length !== 1 ? "s" : ""}`}
-        </span>
-        {selected.size > 0 && (
-          <div className="flex items-center gap-2">
-            <button className="text-primary hover:underline">Assign</button>
-            <button className="text-primary hover:underline">Change State</button>
-            <button className="text-red-600 hover:underline">Cancel</button>
+      <div className="flex flex-col gap-1 text-[11px] text-muted-foreground px-1">
+        <div className="flex items-center justify-between">
+          <span>
+            {selected.size > 0
+              ? `${selected.size} record${selected.size > 1 ? "s" : ""} selected`
+              : `${items.length} record${items.length !== 1 ? "s" : ""}`}
+          </span>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2">
+              {woActionMsg && <span className="text-green-700 font-medium">{woActionMsg}</span>}
+              <button
+                onClick={() => setWoActionPanel(woActionPanel === "state" ? null : "state")}
+                className="text-primary hover:underline"
+              >
+                Change State
+              </button>
+              <button
+                disabled={updateState.isPending}
+                onClick={() => handleBulkStateChange("cancelled")}
+                className="text-red-600 hover:underline disabled:opacity-50"
+              >
+                {updateState.isPending ? "…" : "Cancel"}
+              </button>
+            </div>
+          )}
+        </div>
+        {woActionPanel === "state" && selected.size > 0 && (
+          <div className="flex items-center gap-2 bg-muted/40 rounded px-2 py-1.5 border border-border">
+            <span className="text-[11px] text-muted-foreground">Set state to:</span>
+            <select
+              value={woNewState}
+              onChange={(e) => setWoNewState(e.target.value)}
+              className="text-xs border border-border rounded px-2 py-0.5 bg-background"
+            >
+              <option value="">— Choose —</option>
+              {(["open","pending_dispatch","dispatched","work_in_progress","on_hold","complete","closed"] as WOState[]).map((s) => (
+                <option key={s} value={s}>{STATE_CONFIG[s]?.label ?? s}</option>
+              ))}
+            </select>
+            <button
+              disabled={!woNewState || updateState.isPending}
+              onClick={() => handleBulkStateChange(woNewState)}
+              className="px-3 py-0.5 rounded bg-primary text-white text-[11px] hover:bg-primary/90 disabled:opacity-50"
+            >
+              {updateState.isPending ? "…" : "Apply"}
+            </button>
+            <button onClick={() => setWoActionPanel(null)} className="text-muted-foreground hover:text-foreground">✕</button>
           </div>
         )}
       </div>

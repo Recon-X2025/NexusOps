@@ -93,7 +93,7 @@ export default function VendorsPage() {
 
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: "Total Vendor Spend",  value: `$${(totalSpend / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
+          { label: "Total Vendor Spend",  value: `₹${(totalSpend / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
           { label: "Active Vendors",      value: vendors.filter((v: any) => v.status === "active").length, color: "text-green-700" },
           { label: "At Risk / Review",    value: atRisk, color: atRisk > 0 ? "text-red-700" : "text-green-700" },
           { label: "Contracts Expiring (90d)", value: contracts.filter((c: any) => c.endDate && new Date(c.endDate) < new Date(Date.now() + 90*86400000)).length, color: "text-orange-700" },
@@ -212,7 +212,7 @@ export default function VendorsPage() {
                       <td className="font-mono text-[11px] text-primary">{c.contractNumber ?? c.id?.slice(-10).toUpperCase()}</td>
                       <td className="font-medium text-foreground">{c.vendorId ? `Vendor …${c.vendorId.slice(-6)}` : (c.vendor ?? "—")}</td>
                       <td className="text-muted-foreground">{c.type ?? c.contractType ?? "—"}</td>
-                      <td className="font-mono text-[11px] text-foreground/80">{value > 0 ? `$${(value/1000).toFixed(0)}K` : "—"}</td>
+                      <td className="font-mono text-[11px] text-foreground/80">{value > 0 ? `₹${(value/1000).toFixed(0)}K` : "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{startDate ? new Date(startDate).toISOString().split("T")[0] : "—"}</td>
                       <td className={`text-[11px] ${endDate && new Date(endDate) < new Date(Date.now() + 90*86400000) ? "text-orange-600 font-semibold" : "text-muted-foreground"}`}>
                         {endDate ? new Date(endDate).toISOString().split("T")[0] : "—"}

@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   approvalRequests,
   approvalSteps,
+  users,
   eq,
   and,
   desc,
@@ -16,19 +17,45 @@ import { getWorkflowService } from "../services/workflow";
 export const approvalsRouter = router({
   myPending: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
-    return db.select().from(approvalRequests)
+    const rows = await db.select().from(approvalRequests)
       .where(and(
         eq(approvalRequests.orgId, org!.id),
         eq(approvalRequests.approverId, ctx.user!.id),
         eq(approvalRequests.status, "pending"),
       ))
       .orderBy(desc(approvalRequests.createdAt));
+    // Enrich with requester names
+    const requesterIds = [...new Set(rows.map(r => r.requesterId).filter(Boolean))] as string[];
+    const requesterMap: Record<string, string> = {};
+    if (requesterIds.length > 0) {
+      const requesterRows = await db.select({ id: users.id, name: users.name }).from(users)
+        .where(sql`${users.id} = ANY(${requesterIds})`);
+      for (const u of requesterRows) requesterMap[u.id] = u.name;
+    }
+    return rows.map(r => ({
+      ...r,
+      state: r.status,
+      requestedBy: r.requesterId ? (requesterMap[r.requesterId] ?? r.requesterId) : "Unknown",
+      requestedOn: r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "",
+      dueBy: r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "",
+    }));
   }),
 
-  mySubmitted: permissionProcedure("approvals", "read").query(async () => {
-    // approvalRequests does not have a requestedById column in schema
-    // pending schema update to add requester tracking
-    return [];
+  mySubmitted: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const rows = await db.select().from(approvalRequests)
+      .where(and(
+        eq(approvalRequests.orgId, org!.id),
+        eq(approvalRequests.requesterId, ctx.user!.id),
+      ))
+      .orderBy(desc(approvalRequests.createdAt));
+    return rows.map(r => ({
+      ...r,
+      state: r.status,
+      requestedBy: "Me",
+      requestedOn: r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "",
+      dueBy: r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "",
+    }));
   }),
 
   decide: permissionProcedure("approvals", "approve")
@@ -159,8 +186,25 @@ export const approvalsRouter = router({
         .offset(input.cursor ? parseInt(input.cursor) : 0);
 
       const hasMore = rows.length > input.limit;
+      const items = hasMore ? rows.slice(0, -1) : rows;
+
+      // Enrich with requester names
+      const requesterIds = [...new Set(items.map(r => r.requesterId).filter(Boolean))] as string[];
+      const requesterMap: Record<string, string> = {};
+      if (requesterIds.length > 0) {
+        const requesterRows = await db.select({ id: users.id, name: users.name }).from(users)
+          .where(sql`${users.id} = ANY(${requesterIds})`);
+        for (const u of requesterRows) requesterMap[u.id] = u.name;
+      }
+
       return {
-        items: hasMore ? rows.slice(0, -1) : rows,
+        items: items.map(r => ({
+          ...r,
+          state: r.status,
+          requestedBy: r.requesterId ? (requesterMap[r.requesterId] ?? r.requesterId) : "Unknown",
+          requestedOn: r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "",
+          dueBy: r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "",
+        })),
         nextCursor: hasMore ? String((input.cursor ? parseInt(input.cursor) : 0) + input.limit) : null,
       };
     }),

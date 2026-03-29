@@ -285,6 +285,32 @@ export const procurementRouter = router({
 
         return updated;
       }),
+
+    send: permissionProcedure("purchase_orders", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [updated] = await db
+          .update(purchaseOrders)
+          .set({ status: "sent", updatedAt: new Date() })
+          .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
+      }),
+
+    markReceived: permissionProcedure("purchase_orders", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [updated] = await db
+          .update(purchaseOrders)
+          .set({ status: "received", updatedAt: new Date() })
+          .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
+      }),
   }),
 
   invoices: router({

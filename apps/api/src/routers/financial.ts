@@ -104,13 +104,13 @@ export const financialRouter = router({
     const now = Date.now();
     const buckets = { current: 0, d30: 0, d60: 0, d90: 0, over90: 0 };
     for (const inv of rows) {
-      if (!inv.dueDate) { buckets.current += Number(inv.total); continue; }
+      if (!inv.dueDate) { buckets.current += Number(inv.amount); continue; }
       const days = Math.floor((now - new Date(inv.dueDate).getTime()) / 86400000);
-      if (days <= 0) buckets.current += Number(inv.total);
-      else if (days <= 30) buckets.d30 += Number(inv.total);
-      else if (days <= 60) buckets.d60 += Number(inv.total);
-      else if (days <= 90) buckets.d90 += Number(inv.total);
-      else buckets.over90 += Number(inv.total);
+      if (days <= 0) buckets.current += Number(inv.amount);
+      else if (days <= 30) buckets.d30 += Number(inv.amount);
+      else if (days <= 60) buckets.d60 += Number(inv.amount);
+      else if (days <= 90) buckets.d90 += Number(inv.amount);
+      else buckets.over90 += Number(inv.amount);
     }
     return buckets;
   }),
@@ -132,5 +132,203 @@ export const financialRouter = router({
       const { db, org } = ctx;
       const [cb] = await db.insert(chargebacks).values({ orgId: org!.id, ...input }).returning();
       return cb;
+    }),
+
+  // ── GST Engine ────────────────────────────────────────────────────────────
+  computeGST: permissionProcedure("financial", "read")
+    .input(
+      z.object({
+        taxableValue: z.number().positive(),
+        gstRate: z.union([
+          z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28),
+        ]),
+        supplierState: z.string(),
+        buyerState: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { computeGST } = await import("../lib/india/gst-engine.js");
+      return computeGST({
+        taxableValue: input.taxableValue,
+        gstRate: input.gstRate as 0 | 5 | 12 | 18 | 28,
+        supplierState: input.supplierState,
+        buyerState: input.buyerState,
+      });
+    }),
+
+  validateGSTIN: permissionProcedure("financial", "read")
+    .input(z.object({ gstin: z.string() }))
+    .query(async ({ input }) => {
+      const { validateGSTIN } = await import("../lib/india/validators.js");
+      return validateGSTIN(input.gstin);
+    }),
+
+  computeITC: permissionProcedure("financial", "read")
+    .input(
+      z.object({
+        balance: z.object({ igst: z.number(), cgst: z.number(), sgst: z.number() }),
+        liability: z.object({ igst: z.number(), cgst: z.number(), sgst: z.number() }),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { computeITCUtilisation } = await import("../lib/india/gst-engine.js");
+      return computeITCUtilisation(input.balance, input.liability);
+    }),
+
+  gstFilingCalendar: permissionProcedure("financial", "read")
+    .input(z.object({ month: z.number().int().min(1).max(12), year: z.number().int() }))
+    .query(async ({ input }) => {
+      const { getGSTFilingCalendar } = await import("../lib/india/gst-engine.js");
+      return getGSTFilingCalendar(input.month, input.year);
+    }),
+
+  createGSTInvoice: permissionProcedure("financial", "write")
+    .input(
+      z.object({
+        vendorId: z.string().uuid(),
+        poId: z.string().uuid().optional(),
+        invoiceNumber: z.string().min(1),
+        invoiceDate: z.coerce.date(),
+        supplierGstin: z.string().min(15).max(15),
+        buyerGstin: z.string().min(15).max(15).optional(),
+        placeOfSupply: z.string(),
+        isReverseCharge: z.boolean().default(false),
+        lineItems: z.array(
+          z.object({
+            description: z.string(),
+            hsnSacCode: z.string().optional(),
+            quantity: z.number().positive(),
+            unitPrice: z.number().positive(),
+            gstRate: z.union([
+              z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28),
+            ]),
+          }),
+        ),
+        orgState: z.string(),
+        vendorState: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { computeGST, isEInvoiceRequired, isEWayBillRequired } = await import("../lib/india/gst-engine.js");
+      const { validateGSTIN } = await import("../lib/india/validators.js");
+
+      const gstinValidation = validateGSTIN(input.supplierGstin);
+      if (!gstinValidation.valid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: gstinValidation.error });
+      }
+
+      let totalTaxableValue = 0;
+      let totalCgst = 0, totalSgst = 0, totalIgst = 0;
+      let isInterstate = false;
+
+      for (const item of input.lineItems) {
+        const taxableValue = item.quantity * item.unitPrice;
+        const gstResult = computeGST({
+          taxableValue,
+          gstRate: item.gstRate as 0 | 5 | 12 | 18 | 28,
+          supplierState: input.orgState,
+          buyerState: input.vendorState,
+        });
+        totalTaxableValue += taxableValue;
+        totalCgst += gstResult.cgstAmount;
+        totalSgst += gstResult.sgstAmount;
+        totalIgst += gstResult.igstAmount;
+        isInterstate = gstResult.isInterstate;
+      }
+
+      const totalTax = totalCgst + totalSgst + totalIgst;
+      const totalAmount = totalTaxableValue + totalTax;
+
+      const [invoice] = await db
+        .insert(invoices)
+        .values({
+          orgId: org!.id,
+          invoiceNumber: input.invoiceNumber,
+          invoiceType: "tax_invoice",
+          vendorId: input.vendorId,
+          poId: input.poId ?? null,
+          supplierGstin: input.supplierGstin,
+          buyerGstin: input.buyerGstin ?? null,
+          placeOfSupply: input.placeOfSupply,
+          isInterstate,
+          isReverseCharge: input.isReverseCharge,
+          taxableValue: String(totalTaxableValue),
+          cgstAmount: String(totalCgst),
+          sgstAmount: String(totalSgst),
+          igstAmount: String(totalIgst),
+          totalTaxAmount: String(totalTax),
+          amount: String(totalAmount),
+          invoiceDate: input.invoiceDate,
+          status: "confirmed",
+          matchingStatus: "pending",
+        } as any)
+        .returning();
+
+      const eInvoiceRequired = isEInvoiceRequired(0);
+      const eWayBillRequired = isEWayBillRequired({ isGoods: true, consignmentValue: totalTaxableValue });
+
+      return {
+        invoice,
+        eInvoiceRequired,
+        eWayBillRequired,
+        summary: { totalTaxableValue, totalCgst, totalSgst, totalIgst, totalTax, totalAmount, isInterstate },
+      };
+    }),
+
+  gstr2bReconcile: permissionProcedure("financial", "write")
+    .input(
+      z.object({
+        month: z.number().int().min(1).max(12),
+        year: z.number().int(),
+        gstr2bLines: z.array(
+          z.object({
+            supplierGstin: z.string(),
+            invoiceNumber: z.string(),
+            invoiceDate: z.string(),
+            taxableValue: z.number(),
+            igst: z.number(),
+            cgst: z.number(),
+            sgst: z.number(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { reconcileGSTR2B } = await import("../lib/india/gst-engine.js");
+
+      const startDate = new Date(input.year, input.month - 1, 1);
+      const endDate = new Date(input.year, input.month, 0);
+
+      const allInvoices = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.orgId, org!.id)) as any[];
+
+      const bookLines = allInvoices
+        .filter((inv: any) => {
+          if (!inv.invoiceDate) return false;
+          const d = new Date(inv.invoiceDate);
+          return d >= startDate && d <= endDate;
+        })
+        .map((inv: any) => ({
+          supplierGstin: inv.supplierGstin ?? "",
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().slice(0, 10) : "",
+          taxableValue: Number(inv.taxableValue ?? 0),
+          igst: Number(inv.igstAmount ?? 0),
+          cgst: Number(inv.cgstAmount ?? 0),
+          sgst: Number(inv.sgstAmount ?? 0),
+        }));
+
+      const result = reconcileGSTR2B(bookLines, input.gstr2bLines);
+      const summary = {
+        matched: result.filter((r) => r.status === "matched").length,
+        mismatch: result.filter((r) => r.status === "mismatch").length,
+        missingIn2B: result.filter((r) => r.status === "missing_in_2b").length,
+        missingInBooks: result.filter((r) => r.status === "missing_in_books").length,
+      };
+      return { summary, lines: result };
     }),
 });

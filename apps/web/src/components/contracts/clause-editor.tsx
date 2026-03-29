@@ -53,9 +53,9 @@ const CATEGORY_STYLES: Record<WizardClauseState["category"], string> = {
 
 function currencySymbol(code: string): string {
   try {
-    return new Intl.NumberFormat("en", { style: "currency", currency: code }).formatToParts(0).find((p) => p.type === "currency")?.value ?? "$";
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: code }).formatToParts(0).find((p) => p.type === "currency")?.value ?? "₹";
   } catch {
-    return "$";
+    return "₹";
   }
 }
 

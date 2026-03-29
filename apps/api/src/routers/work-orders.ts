@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, permissionProcedure } from "../lib/trpc";
 import { sendNotification } from "../services/notifications";
 import { getNextSeq } from "../lib/auto-number";
+import { resolveAssignment } from "../services/assignment";
 import {
 
   workOrders,
@@ -120,6 +121,21 @@ export const workOrdersRouter = router({
       const seq = await getNextSeq(db, org!.id, "WO");
       const number = `WO${String(seq).padStart(7, "0")}`;
 
+      // Auto-assign if no explicit assignee provided
+      let resolvedAssignedToId = input.assignedToId;
+      if (!resolvedAssignedToId) {
+        const assignment = await resolveAssignment(db, org!.id, {
+          entityType: "work_order",
+          matchValue: input.type ?? null,
+        });
+        if (assignment) {
+          resolvedAssignedToId = assignment.assigneeId ?? undefined;
+          if (assignment.parkedAtCapacity) {
+            console.info("[assignment] Work order parked at capacity — team queue:", assignment.teamId);
+          }
+        }
+      }
+
       const [wo] = await db
         .insert(workOrders)
         .values({
@@ -133,7 +149,7 @@ export const workOrdersRouter = router({
           category: input.category,
           subcategory: input.subcategory,
           cmdbCi: input.cmdbCi,
-          assignedToId: input.assignedToId,
+          assignedToId: resolvedAssignedToId,
           requestedById: user!.id,
           scheduledStartDate: input.scheduledStartDate
             ? new Date(input.scheduledStartDate)
@@ -152,10 +168,10 @@ export const workOrdersRouter = router({
         note: `Work order ${number} created`,
       });
 
-      if (input.assignedToId && input.assignedToId !== user!.id) {
+      if (resolvedAssignedToId && resolvedAssignedToId !== user!.id) {
         sendNotification({
           orgId: org!.id,
-          userId: input.assignedToId,
+          userId: resolvedAssignedToId,
           title: `Work order assigned: ${number}`,
           body: input.shortDescription,
           link: `/app/work-orders/${wo.id}`,

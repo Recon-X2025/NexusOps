@@ -44,7 +44,7 @@ export default function NewWorkOrderPage() {
       void utils.workOrders.list.invalidate();
       router.push(`/app/work-orders/${wo.id}`);
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
   const set = (k: string, v: string) => {

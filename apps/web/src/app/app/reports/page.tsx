@@ -87,7 +87,7 @@ export default function ReportsPage() {
             <option>Last 90 days</option>
             <option>This fiscal year</option>
           </select>
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button onClick={() => { window.print(); }} className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
             <Download className="w-3 h-3" /> Export PDF
           </button>
         </div>
@@ -236,7 +236,7 @@ export default function ReportsPage() {
                       <div className="flex items-center gap-2">
                         {a.name !== "Unassigned" && (
                           <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold">
-                            {a.name.split(" ").map((n: string) => n[0]).join("")}
+                            {(a.name ?? "").split(" ").map((n: string) => n[0]).join("")}
                           </span>
                         )}
                         <span className={a.name === "Unassigned" ? "text-red-600 font-semibold" : "text-foreground"}>{a.name}</span>

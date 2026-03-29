@@ -28,7 +28,7 @@ export default function WorkflowsPage() {
       refetch();
       toast.success("Workflow updated");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
   });
 
   if (!can("approvals", "read")) return <AccessDenied module="Workflows" />;

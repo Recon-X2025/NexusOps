@@ -1,7 +1,7 @@
 # NexusOps Platform — Complete Build Reference
 
-**Version:** 3.2  
-**Doc revision:** March 25, 2026 — v3.2 reflects: Production-grade RBAC + user story enforcement across all 5 modules. Mandatory `requester` base role for all users, lifecycle guards on tickets/changes, `permissionProcedure` tightened on hr/approvals/procurement approve actions, PermissionGate on all write/admin UI buttons, 254/254 tests green. v3.1 reflects: Full RBAC system refactor (correct role mapping, least-privilege defaults, additive matrix_role, new roles, fixed module gates, 346/346 tests green). v3.0 closed all 5 production gaps — E2E tests (Playwright), durable workflows (BullMQ), AI backend (Anthropic Claude), OIDC SSO, Helm + OpenTelemetry. Prior v2.5 was QA-ready completion with all module pages wired, Meilisearch, and full test suite.
+**Version:** 3.4  
+**Doc revision:** March 28, 2026 — v3.5 reflects: k6 security and reliability test suite completed. Six adversarial test scripts (`auth_stress.js`, `rate_limit.js`, `chaos_flow.js`, `race_condition.js`, `invalid_payload.js`, `run_all.js`) run against the tRPC API. 23,798 total requests; **0 unhandled 500 errors**; **100% bad-input rejection** across 26 adversarial cases. Two security bugs discovered and fixed: (1) `tickets.create` returned 500 for invalid enum inputs — fixed by moving `resolveAssignment` outside the DB transaction and running `db:push` for `assignment_rules` table; (2) `__proto__` payloads caused prototype pollution crash — fixed with `sanitizeInput()` Fastify preHandler. Ticket workflow statuses seeded for all 20 load-test organisations. `tickets.update` payload shape corrected in all test scripts (`{ id, data: { ... } }`). See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results.
 
 **Tech Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Shadcn/UI · Lucide Icons · tRPC 11 · Fastify · PostgreSQL (Drizzle ORM)  
 **Repository root:** monorepo (`pnpm` + Turbo)  
@@ -58,14 +58,13 @@ NexusOps is a comprehensive enterprise service management platform built as a hi
 ### Platform Statistics
 | Metric | Value |
 |--------|-------|
-| Total Modules | 34 (28 core + 4 new + 8 area-group dashboards) |
-| Total Routes | 56 |
+| Total Modules | 35 (28 core + 4 new + 2 new v3.3 + 8 area-group dashboards) |
+| Total Routes | 63 |
 | Sidebar Groups | 9 (Platform at top; Legal & Governance standalone) |
 | System Roles | 22 |
 | Permission Modules | 35 |
 | RBAC-gated Pages | 41+ (tab-level enforcement on all module pages) |
-| Mock Data Entities | 500+ |
-| UI Components | Custom enterprise design system |
+| tRPC Procedures | ~302 across 35 routers |
 | Currency | INR (₹) — `en-IN` locale throughout |
 
 ### What's New in v2.3
@@ -90,7 +89,20 @@ NexusOps is a comprehensive enterprise service management platform built as a hi
 | **Virtual Agent dedicated page** | `/app/virtual-agent` — full-page Virtual Agent interface (in addition to the global floating widget). |
 | **Workflows page** | `/app/workflows` — workflow management page (distinct from the Flow Designer at `/app/flows`). |
 
-### What's New in v2.5 — QA Ready (All Gaps Closed)
+### What's New in v3.3 — Full Platform Wiring Complete
+
+| Change | Detail |
+|--------|--------|
+| **All 18 frontend gaps closed** | Systematic audit and fix of every dead button, fake setTimeout action, and hardcoded static data across all 63 pages. Every user-visible action now calls a live tRPC mutation or query. |
+| **New backend procedures** | `changes.addComment`, `changes.addProblemNote`, `changes.publishProblemToKB` — change and problem management; `hr.employees.update`, `hr.cases.get`, `hr.cases.completeTask`, `hr.cases.addNote` — HR employee and case management; `assets.licenses.create` — software license creation; `admin.scheduledJobs.trigger` — manual job trigger with audit log; `crm.updateQuote` — CRM quote status management. |
+| **Inventory module** | New `packages/db/src/schema/inventory.ts` schema (`inventoryItems`, `inventoryTransactions`) and `apps/api/src/routers/inventory.ts` router with `list`, `create`, `issueStock`, `intake`, `reorder`, and `transactions` procedures. |
+| **Virtual Agent live data** | `virtual-agent/page.tsx`: "Check my open tickets" queries `trpc.tickets.list` for real ticket data; freetext messages and "Yes, create ticket" option call `trpc.tickets.create.useMutation` to create actual tickets; analytics panel computes from conversation history. |
+| **Catalog dynamic counts** | `catalog/page.tsx`: Category item counts now computed dynamically from live `catalogItems` API data rather than hardcoded values. |
+| **Bug fixes** | JSX syntax error in `problems/page.tsx` fixed (modal JSX was placed outside the return wrapper div). `contracts/page.tsx` wrapped in `<Suspense>` boundary to resolve `useSearchParams` Next.js static prerendering error. `secretarial/page.tsx` given `export const dynamic = "force-dynamic"` to fix same error class. |
+| **Clean production build** | `npx next build` now compiles all 63 pages with zero errors. All `contracts`, `secretarial`, `dashboard`, and `profile` pages properly handle `useSearchParams` per Next.js 15 requirements. |
+| **INR currency complete** | All remaining `$` symbol occurrences across legal, apm, and other pages converted to `₹` with `en-IN` locale formatting. |
+
+
 
 #### Input Sanitization (PROMPT R2)
 || Change | Detail |
@@ -500,6 +512,25 @@ All group dashboards respect RBAC — `AccessDenied` is returned if the user lac
 - **Approvals** — `/app/approvals` — unified approval queue across all modules
 - **On-Call Scheduling** — `/app/on-call` — rotation schedules, overrides, escalation chains
 
+### India-Compliant SLA & Escalation Logic
+| Priority | Impact × Urgency | Response SLA | Resolution SLA | Clock |
+|----------|-----------------|-------------|----------------|-------|
+| P1 (Critical) | High × High | 15 min | 4 hrs | 24×7 |
+| P2 (High) | High × Med / Med × High | 30 min | 8 hrs | 24×7 |
+| P3 (Medium) | Med × Med / High × Low | 4 hrs | 24 hrs | Business hours (09:00–18:00 IST Mon–Fri) |
+| P4 (Low) | Low × Any | 1 business day | 3 business days | Business hours |
+
+**SLA Pause / Resume:** SLA clock pauses automatically when status transitions to `PENDING_USER` and resumes when the user responds or the ticket is manually unpaused. Accumulated pause time is stored in `sla_pause_duration_mins` and subtracted from elapsed time in all SLA computations.
+
+**Escalation Chain:**
+1. **L1 → L2**: Response SLA breached → notify assigned agent's manager via BullMQ job
+2. **L2 → L3**: Resolution SLA at 75% elapsed → escalate to group lead + notify requester
+3. **L3 → Director**: Resolution SLA at 100% breached → escalate to department director + all stakeholders
+
+**Ticket Reopening:** A ticket in `CLOSED` state may be reopened within 7 days with a mandatory reopen reason; `reopen_count` increments and SLA clock restarts fresh.
+
+**Duplicate Detection:** On ticket creation, the system checks for open tickets from the same `requester_id` with identical `title` (exact match) + same `category_id` within the past 24 hours and surfaces a warning.
+
 ### Change Management (`/app/changes`)
 - Change Requests (Normal, Standard, Emergency, Expedited)
 - CAB Review Queue with voting
@@ -604,6 +635,53 @@ All group dashboards respect RBAC — `AccessDenied` is returned if the user lac
 - Review history timeline
 - Related policies
 
+### India-Compliant Risk & Audit Logic
+
+**Risk Scoring Matrix (5×5):**
+| Likelihood \ Impact | 1-Negligible | 2-Minor | 3-Moderate | 4-Major | 5-Catastrophic |
+|--------------------:|:-----------:|:-------:|:---------:|:------:|:-------------:|
+| 5 (Almost Certain) | 5-M | 10-H | 15-C | 20-C | 25-C |
+| 4 (Likely) | 4-L | 8-M | 12-H | 16-C | 20-C |
+| 3 (Possible) | 3-L | 6-M | 9-H | 12-H | 15-C |
+| 2 (Unlikely) | 2-L | 4-L | 6-M | 8-M | 10-H |
+| 1 (Rare) | 1-L | 2-L | 3-L | 4-L | 5-M |
+
+Risk rating: L=Low (1–4), M=Medium (5–9), H=High (10–14), C=Critical (15–25)
+
+**Inherent vs Residual Risk:**
+- `risk_score` = inherent (before controls): `likelihood × impact`
+- `residual_risk_score` = after control effectiveness: `residual_likelihood × residual_impact`
+- Target: residual score should fall to risk appetite level (configurable per org)
+
+**Control Types:**
+| Type | Description | Example |
+|------|------------|---------|
+| Preventive | Stops risk from materializing | Access controls, segregation of duties |
+| Detective | Detects risk events that have occurred | Log monitoring, variance analysis |
+| Corrective | Remedies the impact after detection | Incident response, backup restoration |
+| Directive | Establishes policies and authority | Policies, procedures, training |
+
+**Audit Finding Structure (COSO):**
+Each audit finding must capture all four COSO elements:
+1. **Criteria**: The standard, policy, or benchmark expected
+2. **Condition**: What was actually observed / found
+3. **Cause**: Root cause of the gap
+4. **Effect**: Business impact / risk if not remediated
+
+**Remediation SLAs by Severity:**
+| Severity | Target Remediation |
+|---------|------------------|
+| Critical | 14 calendar days |
+| High | 30 calendar days |
+| Medium | 90 calendar days |
+| Low | 180 calendar days |
+
+**Risk-Based Audit Scheduling:**
+- Risks with rating CRITICAL: audit frequency = Quarterly
+- Risks with rating HIGH: audit frequency = Semi-Annual
+- Risks with rating MEDIUM or LOW: audit frequency = Annual
+- BullMQ job runs on 1st of each month to identify audit plans due in next 30 days and notify auditors
+
 ---
 
 ## 10. HR Service Delivery (HRSD)
@@ -626,6 +704,83 @@ All group dashboards respect RBAC — `AccessDenied` is returned if the user lac
 - Timeline of all actions
 - Documents section
 - Notes and collaboration
+
+### India Payroll & Tax Engine
+The HRSD module includes a full India-compliant payroll and tax computation engine:
+
+**Employee Master — India-Specific Fields:**
+- `PAN` (format: AAAAA9999A — validated server-side)
+- `Aadhaar` (12-digit — Verhoeff check digit validated; masked as `XXXX-XXXX-1234` in UI)
+- `UAN` (EPFO Universal Account Number)
+- `Bank IFSC` (format: AAAA0NNNNNN)
+- `Tax Regime` (OLD or NEW — employee declaration; once declared irrevocable for that FY)
+- `State` (determines Professional Tax slab)
+- `Is Metro City` (Delhi, Mumbai, Chennai, Kolkata — determines 50% vs 40% HRA exemption)
+
+**Salary Structure Components:**
+| Component | Basis |
+|-----------|-------|
+| Basic | % of CTC (configurable per structure) |
+| HRA | % of Basic (50% metro / 40% non-metro) |
+| Special Allowance | Balancing figure |
+| LTA | Fixed annual amount |
+| Medical Allowance | Fixed ₹1,250/month |
+| Conveyance Allowance | Fixed ₹1,600/month |
+| Bonus | Fixed or % of Basic |
+| PF (Employee) | 12% of PF wages (capped ₹15,000 wage ceiling) |
+| PF (Employer) | 12% of PF wages: EPS = 8.33% (capped ₹1,250/month), EPF difference |
+| Professional Tax | Slab per state (e.g., Maharashtra: ≤7,500→₹0, 7,501–10,000→₹175, >10,000→₹200) |
+| LWF | State-specific Labour Welfare Fund |
+| TDS | Computed by Tax Engine monthly |
+
+**Tax Computation — Old Regime:**
+- Standard Deduction: ₹50,000
+- HRA Exemption: min(HRA received, Rent paid − 10% Basic Annual, 50%/40% Basic Annual)
+- Section 80C: up to ₹1,50,000 (PF + ELSS + LIC + PPF + home loan principal)
+- Section 80D: ₹25,000 (self family) + ₹25,000 (parents) or ₹50,000 if senior citizens
+- Section 24(b): ₹2,00,000 (housing loan interest)
+- Section 80CCD(1B): ₹50,000 (additional NPS)
+- Slabs: 0–2.5L@0%, 2.5–5L@5%, 5–10L@20%, >10L@30%
+- Section 87A Rebate: if taxable income ≤ ₹5,00,000 → full tax rebate
+- Surcharge: >₹50L@10%, >₹1Cr@15%, >₹2Cr@25%, >₹5Cr@37%
+- Health & Education Cess: 4% on tax + surcharge
+
+**Tax Computation — New Regime:**
+- No deductions except employer NPS (Section 80CCD(2))
+- Slabs: 0–3L@0%, 3–6L@5%, 6–9L@10%, 9–12L@15%, 12–15L@20%, >15L@30%
+- Section 87A Rebate: if taxable income ≤ ₹7,00,000 → full tax rebate
+- Health & Education Cess: 4%
+
+**Monthly TDS Projection:**
+`Monthly TDS = (Annual Tax Liability − YTD TDS Deducted) ÷ Remaining Months`
+
+**Payroll Run Workflow (12 Steps):**
+1. Lock payroll period → freeze attendance & salary data
+2. Compute gross earnings per employee
+3. Compute PF (EPS + EPF), PT, LWF deductions
+4. Project annual income → compute annual tax
+5. Compute monthly TDS = (projected_tax − ytd_tds) ÷ remaining_months
+6. Generate payslips with detailed earnings/deductions breakdown
+7. HR Manager review → approve
+8. Finance Manager review → approve
+9. CFO / Director approval (if payroll > threshold)
+10. Generate ECR file for EPFO upload
+11. Generate PT challan per state
+12. Generate TDS challan (ITNS 281) → update Form 24Q data
+
+**Mid-Year Joins & Salary Revisions:**
+- Mid-year join: Tax computed on projected annualised income from joining month
+- Salary revision: Historic months retain old TDS; future months recomputed on revised projected income
+
+**Statutory Outputs:**
+| Output | Period | Format |
+|--------|--------|--------|
+| ECR (EPFO) | Monthly | Text ECR v2.0 |
+| PT Challan | Monthly | State-specific |
+| TDS Challan (ITNS 281) | Monthly | |
+| Form 24Q | Quarterly | TDS return |
+| Form 16 (Part A) | Annual | |
+| Form 16 (Part B) | Annual | |
 
 ---
 
@@ -675,6 +830,34 @@ Each payslip expands to show:
 - Status update log
 - Team roster with roles
 
+### Task Dependencies & Critical Path
+| Dependency Type | Logic |
+|----------------|-------|
+| Finish-to-Start (FS) | Successor cannot start until predecessor finishes (+ optional `lag_days`) |
+| Start-to-Start (SS) | Successor cannot start until predecessor starts (+ lag) |
+| Finish-to-Finish (FF) | Successor cannot finish until predecessor finishes (+ lag) |
+| Start-to-Finish (SF) | Successor cannot finish until predecessor starts (+ lag) |
+
+The system enforces dependency rules: a task in `NOT_STARTED` / `BLOCKED` state with unmet predecessors cannot be moved to `IN_PROGRESS` (validated on status update). When a predecessor is marked `COMPLETE`, all direct successors with no other unmet dependencies are auto-unblocked.
+
+**Critical Path Method (CPM):**
+- Forward pass: compute earliest start (ES) and earliest finish (EF) for each task
+- Backward pass: compute latest start (LS) and latest finish (LF)
+- Float = LS − ES; tasks with Float = 0 are on the critical path
+- Critical path tasks are highlighted in the Gantt view
+
+### Project Budget Tracking
+| Component | Tracked In |
+|-----------|-----------|
+| Salary / Resource Cost | `budget_lines` (category: LABOUR) |
+| Procurement / Materials | `purchase_orders` linked to project |
+| Expenses / Overheads | `budget_lines` (category: EXPENSE) |
+
+**Overrun Approval Tiers:**
+- ≤10% overrun: Project Manager can self-approve
+- 10–25% overrun: PMO Head approval required
+- >25% overrun: Finance Director + Steering Committee approval required
+
 ---
 
 ## 13. Customer Service Management (CSM)
@@ -689,6 +872,39 @@ Each payslip expands to show:
 | Accounts | Customer account records |
 | Contacts | Customer contact profiles |
 | SLA Performance | SLA metrics by account, case type, agent |
+
+### India-Compliant Case Logic
+
+**Case Types & Default Priority:**
+| Case Type | Default Priority | Notes |
+|-----------|-----------------|-------|
+| Billing Dispute | P1 | Mandatory response within 1 business day |
+| Service Outage | P1 | Escalate immediately to L2 |
+| Compliance Request | P2 | Statutory / DPDP data request |
+| Product Defect | P2 | |
+| Feature Request | P3 | |
+| General Enquiry | P4 | |
+
+**Customer Tier-Based Priority Elevation:**
+| Customer Tier | Auto-elevate By | Example |
+|--------------|----------------|---------|
+| Enterprise (GOLD) | 1 level | P3 → P2 |
+| Premium (SILVER) | 0 levels | No change |
+| Standard | 0 levels | No change |
+
+**SLA by Priority:**
+| Priority | First Response | Resolution | Escalation at |
+|----------|---------------|------------|---------------|
+| P1 | 2 hrs (24×7) | 8 hrs | 50% elapsed |
+| P2 | 4 hrs (24×7) | 24 hrs | 75% elapsed |
+| P3 | 1 business day | 3 business days | 75% elapsed |
+| P4 | 2 business days | 5 business days | No auto-escalation |
+
+**CSAT Scoring:**
+- Survey sent automatically when case status moves to `RESOLVED`
+- Scale: 1 (Very Dissatisfied) to 5 (Very Satisfied)
+- Score ≥ 4 = Positive; 3 = Neutral; ≤ 2 = Negative (triggers manager alert)
+- 7-day response window; non-response counted as neutral in aggregate
 
 ---
 
@@ -735,6 +951,45 @@ Each payslip expands to show:
 | Parts Catalog | Approved parts catalog with pricing and supplier info |
 | Reorder Policies | Automated reorder rules by item, min/max thresholds |
 
+### India-Compliant Procurement Logic
+
+**PR Approval Thresholds:**
+| Amount | Approver |
+|--------|---------|
+| < ₹10,000 | Department Head |
+| ₹10,000 – ₹1,00,000 | Department Head + Finance Manager |
+| ₹1,00,001 – ₹10,00,000 | Department Head + Finance Manager + Procurement Manager |
+| > ₹10,00,000 | All above + CFO |
+
+**Vendor Master — India Compliance Fields:**
+- `GSTIN` (15-char, state-code + PAN + entity + Z + check — server-side validated)
+- `PAN` (10-char — mandatory for TDS deduction)
+- `TDS Section` (194C — Contractors; 194J — Professional services; 194I — Rent; NIL — exempt)
+- `TDS Rate` (1% for 194C individuals, 2% for 194C companies, 10% for 194J)
+- `Is MSME` + `Udyam Registration Number` (mandatory for ≤45-day payment tracking)
+
+**3-Way Invoice Matching Logic:**
+1. System compares: Invoice line items ↔ PO line items ↔ GRN accepted quantities
+2. Match tolerance: ±5% on quantity; ±2% on unit price
+3. **Fully Matched**: all 3 within tolerance → auto-approve for payment
+4. **Price Exception**: invoice unit price differs from PO by >2% → route to Finance Manager
+5. **Quantity Exception**: invoice qty > GRN accepted qty → route to Procurement Manager
+6. **Shortage Exception**: GRN accepted qty < PO qty → partial payment; balance held
+7. **Damage Exception**: GRN marks damage → route to Vendor with debit note workflow
+
+**TDS on Vendor Payments:**
+- TDS deducted at source at time of payment (not invoice booking)
+- System computes: `TDS Amount = Payment Amount × TDS Rate (from vendor.tds_section)`
+- Net payment = `Invoice Amount − TDS Amount`
+- `TDS Amount` posted to `TDS Payable` liability account
+- Deposited via ITNS 281 challan; reflected in Form 26Q
+
+**MSME Act Compliance:**
+- For vendors with `is_msme = true`, system tracks invoice date vs expected payment date
+- If payment not made within 45 days of invoice date: system raises an overdue alert
+- Overdue MSME payment accrues interest at 3× RBI Bank Rate (compounded monthly)
+- Dashboard widget shows all MSME vendors with outstanding invoices approaching 45-day limit
+
 ---
 
 ## 16. Financial Management
@@ -755,13 +1010,65 @@ Each payslip expands to show:
 - Aging report by vendor across 4 buckets
 - Payment run scheduling with multi-level approval (CFO sign-off above threshold)
 - 3-Way Match (PO → Goods Receipt → Invoice) with variance detection
-- Wire transfer / ACH / BACS payment methods
+- Wire transfer / NEFT / RTGS / IMPS payment methods (India — INR only)
 
 ### Accounts Receivable (AR)
 - Customer aging with credit limit % utilisation gauge
 - Chase/escalate actions per overdue customer
 - Customer invoice register (raise, send, collect)
 - Collections pipeline
+
+### India GST Compliance
+**Tax Type Determination:**
+- Supplier state = Buyer state → `CGST + SGST` (each at gstRate/2)
+- Supplier state ≠ Buyer state → `IGST` (at full gstRate)
+
+**Supported GST Rates:** 0%, 5%, 12%, 18%, 28%
+
+**Mandatory Invoice Fields:**
+- `invoice_number` (unique per GSTIN per FY — format: `ORG/FY/NNNNN`)
+- `supplier_gstin` + `buyer_gstin` + `place_of_supply`
+- `hsn_sac_code` per line item + `taxable_value` + `tax_amount`
+- `is_reverse_charge` flag (mandatory for RCM supplies)
+
+**E-Invoice (IRP):**
+- Mandatory for organizations with annual turnover > ₹5 Cr
+- System calls IRP API → receives `IRN` (Invoice Reference Number) + `Ack Number` + `Ack Date`
+- IRN stored in `invoices.e_invoice_irn`; QR code embedded in printed invoice
+
+**E-Way Bill:**
+- Auto-generated for goods movement > ₹50,000 in value
+- Linked to `invoices.eway_bill_number`
+
+**ITC Utilization Sequence:**
+1. IGST balance → pay IGST liability first
+2. IGST balance (remaining) → pay CGST liability
+3. IGST balance (remaining) → pay SGST liability
+4. CGST balance → pay CGST liability
+5. CGST balance (remaining) → pay IGST liability
+6. SGST balance → pay SGST liability
+7. SGST balance (remaining) → pay IGST liability
+8. Cross-head NOT allowed: CGST cannot pay SGST and vice versa
+
+**Blocked ITC (Section 17(5)):**
+Motor vehicles (except dealers), food & beverages, membership clubs, works contract (immovable property), personal consumption — flagged in item master; ITC auto-blocked.
+
+**GST Returns Filing Calendar:**
+| Return | Period | Due Date |
+|--------|--------|---------|
+| GSTR-1 | Monthly | 11th of following month |
+| GSTR-3B | Monthly | 20th of following month |
+| GSTR-2B | Monthly | Auto-generated 14th |
+| GSTR-9 | Annual | 31st December |
+| GSTR-9C | Annual (if >₹5Cr) | 31st December |
+
+**Reverse Charge Mechanism (RCM):**
+- Applicable on: legal fees, security services, goods transport agency, import of services
+- System auto-detects RCM vendors from `vendor.tds_section` + service category
+- Buyer self-invoices; IGST/CGST+SGST posted to both liability and ITC (eligible cases)
+
+**Double-Entry Enforcement:**
+Every journal entry validates `SUM(debit_amounts) = SUM(credit_amounts)` before save; rejected with error if not balanced.
 
 > **Currency:** All budget lines, invoice amounts, AP/AR aging, payment runs, cost allocations, and CAPEX/OPEX figures display in **INR (₹)** using `en-IN` locale (e.g. ₹4,06,667). Purchase Orders fall back to `currency: "INR"` when no currency field is set on the DB record.
 
@@ -838,6 +1145,39 @@ Each payslip expands to show:
 | Compliance Calendar | Year-round regulatory due-date calendar with filing status tracking |
 
 **Key Features:** Corporate governance lifecycle, overdue filing penalty alerts, board resolution workflow, ESOP grant management, MCA/ROC compliance calendar.
+
+### India ROC / MCA Compliance Engine
+
+**Annual Filing Calendar:**
+| Form | Purpose | Deadline | Penalty |
+|------|---------|---------|---------|
+| AOC-4 | Financial statements filing | 30 days from AGM (≈ Oct 29) | ₹100/day after due date |
+| MGT-7 / MGT-7A | Annual Return | 60 days from AGM (≈ Nov 28) | ₹100/day after due date |
+| DIR-3 KYC | Director KYC | September 30 every year | ₹5,000 DIN deactivation fee |
+| INC-20A | Declaration of commencement | Within 180 days of incorporation | ₹50,000 company + ₹1,000/day director |
+
+**Event-Based ROC Forms:**
+| Event | Form | Deadline |
+|-------|------|---------|
+| Allotment of shares | PAS-3 | 30 days of allotment |
+| Change in share capital | SH-7 | 30 days of passing resolution |
+| Director appointment/resignation | DIR-12 | 30 days of event |
+| Registered office change | INC-22 | 30 days of change |
+| Creation / modification of charge | CHG-1 | 30 days of creation |
+| Satisfaction of charge | CHG-4 | 30 days of satisfaction |
+
+**Director KYC Automated Workflow:**
+1. System checks `directors.din_kyc_last_completed` every midnight IST
+2. If September 30 is within 30 days: send email reminder to each director
+3. If September 30 is within 7 days: daily reminder + escalate to Company Secretary
+4. If September 30 passed without KYC: mark `din_kyc_status = DEACTIVATED`; block director from signing in all workflows
+5. Reactivation: fee of ₹5,000 + updated eKYC → `din_kyc_status = ACTIVE`
+
+**Director Register Fields:**
+- DIN (8-digit), Full Name (as per PAN), PAN, Aadhaar (masked), Date of Birth
+- Director Type (Executive / Non-Executive / Independent / Nominee)
+- Date of Appointment + Date of Cessation
+- DSC (Digital Signature Certificate) expiry tracking per token
 
 
 ---
@@ -1888,3 +2228,38 @@ All mock users in `apps/web/src/lib/rbac.ts` updated to explicitly carry `"reque
 | `security-compliance/page.tsx` access guard tightened | ✅ |
 | `rbac-user-stories.test.ts` — 122 tests covering all user stories | ✅ |
 | **Total tests: 254 / 254 passing** | ✅ |
+
+---
+
+### Test Coverage Summary (v3.4 — Load & Browser Tests)
+
+| Test Suite | Tests / Runs | Result |
+|---|---|---|
+| `rbac-unit.test.ts` | 39 | ✅ |
+| `layer3-rbac.test.ts` | 93 | ✅ |
+| `rbac-user-stories.test.ts` | 122 | ✅ |
+| k6 API: `test.js` (200 VUs, 2m, 200 tokens) | 24,037 reqs | ✅ 0% error |
+| k6 API: `mixed_test.js` (200 VUs, 5m) | 117,736 reqs | ✅ 0% error |
+| k6 Browser: `frontend_test.js` (5 VUs, 2m) | 230 checks | ✅ 100% pass |
+
+### v3.4 Summary
+
+| Fix / Addition | Status |
+|---|---|
+| k6 load test scripts: `seed_users.js`, `test.js`, `mixed_test.js`, `frontend_test.js` | ✅ |
+| 200-VU sustained load: 0% error rate, p(95) 23ms | ✅ |
+| Browser test: 230/230 checks, FCP 450ms avg, CLS 0.001 | ✅ |
+| All `useMutation` calls have `onError` handlers across all pages | ✅ |
+| `toast.error(err?.message ?? "Something went wrong")` standardised platform-wide | ✅ |
+| Facilities, Walk-up, CRM API contract mismatches fixed | ✅ |
+| Hardcoded placeholders removed (`"TBD"`, UUID stubs, `"Converted Deal"`) | ✅ |
+| Runtime safety: `?.` and `??` guards applied systematically | ✅ |
+| `NexusOps_Load_Test_Report_2026.md` created | ✅ |
+| k6 security & reliability suite: `auth_stress.js`, `rate_limit.js`, `chaos_flow.js`, `race_condition.js`, `invalid_payload.js`, `run_all.js` | ✅ |
+| SEC-01 fixed: `tickets.create` returned 500 on invalid enum — `resolveAssignment` moved outside transaction, `db:push` run for `assignment_rules` table | ✅ |
+| SEC-02 fixed: `__proto__` payload caused prototype pollution crash — `sanitizeInput()` preHandler strips dangerous keys before tRPC | ✅ |
+| `tickets.create` error code corrected: missing org workflow → `PRECONDITION_FAILED (412)` not `INTERNAL_SERVER_ERROR (500)` | ✅ |
+| Ticket workflow statuses seeded for all 20 load-test organisations | ✅ |
+| `tickets.update` payload shape corrected in k6 scripts: `{ id, data: { ... } }` | ✅ |
+| Full suite: 23,798 requests, 0 unhandled 500 errors, 100% bad-input rejection, p(95) 271ms | ✅ |
+| `NexusOps_K6_Security_and_Load_Test_Report_2026.md` created | ✅ |

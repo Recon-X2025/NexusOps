@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import {
@@ -30,7 +31,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { STALE_TIME } from "@/components/providers/trpc-provider";
-import { formatRelativeTime, cn } from "@/lib/utils";
+import { formatRelativeTime, cn, downloadCSV } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
   incident: "bg-red-500",
@@ -96,6 +97,29 @@ export default function TicketsPage() {
   const [selectedStatusId, setSelectedStatusId] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ field: SortField; dir: SortDir }>({ field: "createdAt", dir: "desc" });
+  const [showAssignPanel, setShowAssignPanel] = useState(false);
+  const [bulkAssigneeEmail, setBulkAssigneeEmail] = useState("");
+  const [bulkActionMsg, setBulkActionMsg] = useState<string | null>(null);
+
+  const bulkUpdate = trpc.tickets.bulkUpdate.useMutation({
+    onSuccess: (result) => {
+      setBulkActionMsg(`Updated ${result.updatedCount} ticket${result.updatedCount !== 1 ? "s" : ""}`);
+      setSelectedRows(new Set());
+      setShowAssignPanel(false);
+      setBulkAssigneeEmail("");
+      refetch();
+      setTimeout(() => setBulkActionMsg(null), 3000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const handleBulkClose = () => {
+    const closedStatus = statusCounts?.find((s) =>
+      ["closed", "resolved", "done"].includes((s.name ?? "").toLowerCase())
+    );
+    if (!closedStatus) { toast.error("No closed status found. Create a 'Closed' status in Admin → SLA Definitions."); return; }
+    bulkUpdate.mutate({ ids: Array.from(selectedRows), data: { statusId: closedStatus.statusId } });
+  };
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
   const { data, isLoading, refetch } = trpc.tickets.list.useQuery({
@@ -173,11 +197,53 @@ export default function TicketsPage() {
           <div className="h-4 w-px bg-border" />
           {view === "queue" && selectedRows.size > 0 && (
             <>
-              <button className="rounded border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-accent transition-colors">
-                Assign
-              </button>
-              <button className="rounded border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-accent transition-colors">
-                Close
+              {bulkActionMsg && (
+                <span className="text-[11px] text-green-700 font-medium px-2">{bulkActionMsg}</span>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setShowAssignPanel((v) => !v)}
+                  className="rounded border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-accent transition-colors"
+                >
+                  Assign
+                </button>
+                {showAssignPanel && (
+                  <div className="absolute top-7 left-0 z-50 bg-card border border-border rounded shadow-md p-2 w-56">
+                    <p className="text-[10px] text-muted-foreground mb-1">Assign {selectedRows.size} ticket(s) to:</p>
+                    <select
+                      className="w-full text-xs border border-border rounded px-2 py-1 mb-2 bg-background"
+                      value={bulkAssigneeEmail}
+                      onChange={(e) => setBulkAssigneeEmail(e.target.value)}
+                    >
+                      <option value="">— Select agent —</option>
+                      <option value="self">Assign to me</option>
+                      <option value="unassign">Unassign</option>
+                    </select>
+                    <div className="flex gap-1">
+                      <button
+                        disabled={bulkUpdate.isPending}
+                        onClick={() => {
+                          if (bulkAssigneeEmail === "unassign") {
+                            bulkUpdate.mutate({ ids: Array.from(selectedRows), data: { assigneeId: null } });
+                          } else {
+                            bulkUpdate.mutate({ ids: Array.from(selectedRows), data: {} });
+                          }
+                        }}
+                        className="flex-1 rounded bg-primary text-white text-[11px] py-1 hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {bulkUpdate.isPending ? "…" : "Apply"}
+                      </button>
+                      <button onClick={() => setShowAssignPanel(false)} className="text-[11px] px-2 py-1 rounded border border-border hover:bg-accent">✕</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                disabled={bulkUpdate.isPending}
+                onClick={handleBulkClose}
+                className="rounded border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                {bulkUpdate.isPending ? "…" : "Close"}
               </button>
               <div className="h-4 w-px bg-border mx-0.5" />
             </>
@@ -188,7 +254,13 @@ export default function TicketsPage() {
                 <Filter className="h-3 w-3" />
                 Filters
               </button>
-              <button className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              <button
+                onClick={() => downloadCSV(tickets.map((t) => {
+                  const statusName = statusCounts?.find((s) => s.statusId === t.statusId)?.name ?? t.statusId ?? "Unknown";
+                  return { Number: t.number, Title: t.title, Type: t.type, Status: statusName, SLA_Breached: t.slaBreached ? "Yes" : "No", Assignee: t.assigneeId ?? "Unassigned", Created: new Date(t.createdAt).toLocaleDateString("en-IN") };
+                }), "tickets_export")}
+                className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
                 <Download className="h-3 w-3" />
                 Export
               </button>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   FolderOpen, ChevronLeft,
   Circle, TrendingUp, Loader2, AlertTriangle, Send, Paperclip,
@@ -40,10 +41,15 @@ export default function ProjectDetailPage() {
 
   if (!can("projects", "read")) return <AccessDenied module="Projects" />;
 
-  const { data: project, isLoading } = trpc.projects.get.useQuery(
+  const { data: project, isLoading, refetch } = trpc.projects.get.useQuery(
     { id },
     { enabled: !!id },
   );
+
+  const completeTask = trpc.projects.updateTask.useMutation({
+    onSuccess: () => { toast.success("Task marked complete"); refetch(); },
+    onError: (err: { message: string }) => toast.error(err?.message ?? "Something went wrong"),
+  });
 
   if (isLoading) {
     return (
@@ -234,7 +240,11 @@ export default function ProjectDetailPage() {
                       <td>
                         {t.status !== "done" && (
                           <PermissionGate module="projects" action="write">
-                            <button className="text-[11px] text-primary hover:underline">Complete</button>
+                            <button
+                              onClick={() => completeTask.mutate({ id: t.id, status: "done" })}
+                              disabled={completeTask.isPending}
+                              className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                            >Complete</button>
                           </PermissionGate>
                         )}
                       </td>

@@ -36,7 +36,6 @@ export default function ChangeDetailPage() {
   const router = useRouter();
   const { can } = useRBAC();
   const [comment, setComment] = useState("");
-  const [submittingComment, setSubmittingComment] = useState(false);
 
   const { data: change, isLoading, refetch } = trpc.changes.get.useQuery(
     { id },
@@ -45,7 +44,7 @@ export default function ChangeDetailPage() {
 
   const updateState = trpc.changes.update.useMutation({
     onSuccess: () => { toast.success("Status updated"); refetch(); },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
   if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
@@ -79,10 +78,14 @@ export default function ChangeDetailPage() {
   };
   const nextStates = TRANSITIONS[change.status ?? "draft"] ?? [];
 
+  const addComment = trpc.changes.addComment.useMutation({
+    onSuccess: () => { setComment(""); toast.success("Comment added"); refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
   function handleComment() {
     if (!comment.trim()) return;
-    setSubmittingComment(true);
-    setTimeout(() => { setSubmittingComment(false); setComment(""); toast.success("Comment added"); }, 600);
+    addComment.mutate({ changeId: id, body: comment.trim() });
   }
 
   return (
@@ -165,10 +168,10 @@ export default function ChangeDetailPage() {
               />
               <button
                 onClick={handleComment}
-                disabled={submittingComment || !comment.trim()}
+                disabled={addComment.isPending || !comment.trim()}
                 className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
               >
-                {submittingComment ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
+                {addComment.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
                 Comment
               </button>
             </div>

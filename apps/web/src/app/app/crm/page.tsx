@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import {
   TrendingUp, Users, Building2, Phone, Mail, Calendar, Star,
@@ -10,6 +11,7 @@ import {
   FileText, Send, Filter, Globe, Briefcase, Award,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const CRM_TABS = [
@@ -299,22 +301,52 @@ export default function CRMPage() {
 
   // ── tRPC data ──────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: dealsData } = trpc.crm.listDeals.useQuery({ limit: 200 });
+  const { data: dealsData, refetch: refetchDeals } = trpc.crm.listDeals.useQuery({ limit: 200 });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: accountsData } = trpc.crm.listAccounts.useQuery({ limit: 200 });
+  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.listAccounts.useQuery({ limit: 200 });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: contactsData } = trpc.crm.listContacts.useQuery({ limit: 200 });
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: leadsData } = trpc.crm.listLeads.useQuery({ limit: 200 });
+  const { data: leadsData, refetch: refetchLeads } = trpc.crm.listLeads.useQuery({ limit: 200 });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.listActivities.useQuery({ limit: 200 });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { data: quotesData, refetch: refetchQuotes } = trpc.crm.listQuotes.useQuery({});
+
+  // Mutations
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const convertLead = trpc.crm.convertLead.useMutation({
+    onSuccess: (res: any) => { toast.success(`Lead converted to account: ${res?.account?.name ?? ""}`); refetchLeads(); refetchAccounts(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const createActivity = trpc.crm.createActivity.useMutation({
+    onSuccess: () => { toast.success("Activity logged"); refetchActivities(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const movePipeline = trpc.crm.movePipeline.useMutation({
+    onSuccess: () => { toast.success("Deal stage updated"); refetchDeals(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const updateQuote = trpc.crm.updateQuote.useMutation({
+    onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} updated`); refetchQuotes(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const DEALS_LIVE = (dealsData ?? DEALS) as any[];
+  const DEALS_LIVE = ((dealsData as any[]) ?? DEALS) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ACCOUNTS_LIVE = (accountsData ?? ACCOUNTS) as any[];
+  const ACCOUNTS_LIVE = ((accountsData as any[]) ?? ACCOUNTS) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const CONTACTS_LIVE = (contactsData ?? CONTACTS) as any[];
+  const CONTACTS_LIVE = ((contactsData as any[]) ?? CONTACTS) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LEADS_LIVE = (leadsData ?? LEADS) as any[];
+  const LEADS_LIVE = ((leadsData as any[]) ?? LEADS) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ACTIVITIES_LIVE = ((activitiesData as any[]) ?? ACTIVITIES) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const QUOTES_LIVE = ((quotesData as any[]) ?? QUOTES) as any[];
 
   const activeDeals = DEALS_LIVE.filter((d: any) => !["closed_won","closed_lost"].includes(d.stage ?? ""));
   const wonDeals    = DEALS_LIVE.filter((d: any) => d.stage === "closed_won");
@@ -333,11 +365,14 @@ export default function CRMPage() {
           <span className="text-[11px] text-muted-foreground/70">Pipeline · Accounts · Contacts · Leads · Quotes</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(ACCOUNTS_LIVE.map((a: any) => ({ Name: a.name ?? a.companyName ?? "", Industry: a.industry ?? "", ARR: a.arr ?? "", Health: a.healthScore ?? "", CSM: a.csm ?? "", Status: a.status ?? "" })), "crm_export")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="csm" action="write">
-            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+            <button onClick={() => setTab("opportunities")} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
               <Plus className="w-3 h-3" /> New Opportunity
             </button>
           </PermissionGate>
@@ -352,7 +387,7 @@ export default function CRMPage() {
           { label: "Closed Won (MTD)",    value: `₹${(totalWon/1000).toFixed(0)}K`, color: "text-green-700", sub: `${wonDeals.length} deals` },
           { label: "Win Rate",            value: `${winRate}%`,  color: winRate >= 50 ? "text-green-700" : "text-orange-600", sub: "closed deals" },
           { label: "Open Leads",          value: LEADS_LIVE.filter(l=>!["converted","dead"].includes(l.status)).length, color: "text-indigo-700", sub: "active leads" },
-          { label: "Overdue Activities",  value: ACTIVITIES.filter(a => !a.completed && new Date(a.dueDate) < new Date()).length, color: "text-red-700", sub: "need action" },
+          { label: "Overdue Activities",  value: ACTIVITIES_LIVE.filter((a: any) => !a.completed && new Date(a.dueDate ?? a.scheduledAt ?? "9999") < new Date()).length, color: "text-red-700", sub: "need action" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -436,7 +471,7 @@ export default function CRMPage() {
                 <button className="text-primary hover:underline text-[11px]">+ New</button>
               </div>
               <div className="divide-y divide-border">
-                {ACTIVITIES.filter(a => !a.completed).slice(0, 4).map((a) => {
+                {ACTIVITIES_LIVE.filter((a: any) => !a.completed).slice(0, 4).map((a: any) => {
                   const cfg = ACTIVITY_TYPE_CFG[a.type];
                   return (
                     <div key={a.id} className="flex items-center justify-between px-3 py-2 hover:bg-muted/30">
@@ -447,7 +482,7 @@ export default function CRMPage() {
                           <p className="text-[11px] text-muted-foreground/70">{a.account} · {a.owner}</p>
                         </div>
                       </div>
-                      <span className="text-[11px] text-muted-foreground/70 flex-shrink-0">{a.dueDate.split(" ")[1]}</span>
+                      <span className="text-[11px] text-muted-foreground/70 flex-shrink-0">{(a.dueDate ?? "").split(" ")[1]}</span>
                     </div>
                   );
                 })}
@@ -504,7 +539,7 @@ export default function CRMPage() {
                         </div>
                         <div className="mt-1.5 flex items-center gap-1">
                           <span className="w-4 h-4 rounded-full bg-primary text-white text-[8px] flex items-center justify-center font-bold">
-                            {deal.owner.split(" ").map((n:string)=>n[0]).join("").slice(0,2)}
+                            {(deal.owner ?? "").split(" ").map((n:string)=>n[0]).join("").slice(0,2)}
                           </span>
                           <span className="text-[10px] text-muted-foreground/70 truncate">{deal.lastActivity}</span>
                         </div>
@@ -652,8 +687,8 @@ export default function CRMPage() {
                   <td className="text-[11px] text-muted-foreground/70">{l.lastActivity}</td>
                   <td>
                     <div className="flex gap-1.5">
-                      {l.status === "qualified" && <button className="text-[11px] text-green-700 hover:underline font-medium">Convert</button>}
-                      <button className="text-[11px] text-primary hover:underline">Edit</button>
+                      {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
+                      <button onClick={() => toast.info(`Lead ${l.number ?? l.id} — ${l.firstName} ${l.lastName} at ${l.company}. Status: ${l.status}. Score: ${l.score ?? "—"}. Source: ${l.source ?? "—"}.`, { duration: 5000 })} className="text-[11px] text-primary hover:underline">Edit</button>
                     </div>
                   </td>
                 </tr>
@@ -667,7 +702,7 @@ export default function CRMPage() {
           <div>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
               <span className="text-[12px] font-semibold text-foreground/80">All Activities</span>
-              <button className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <button onClick={() => createActivity.mutate({ type: "call", subject: "Activity logged from CRM", description: "" })} disabled={createActivity.isPending} className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50">
                 <Plus className="w-3 h-3" /> Log Activity
               </button>
             </div>
@@ -687,7 +722,7 @@ export default function CRMPage() {
                 </tr>
               </thead>
               <tbody>
-                {ACTIVITIES.map((a) => {
+                {ACTIVITIES_LIVE.map((a: any) => {
                   const cfg = ACTIVITY_TYPE_CFG[a.type];
                   return (
                     <tr key={a.id} className={a.completed ? "opacity-60" : ""}>
@@ -717,12 +752,12 @@ export default function CRMPage() {
         {tab === "quotes" && (
           <div>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
-              <span className="text-[12px] font-semibold text-foreground/80">{QUOTES.length} quotes</span>
-              <button className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <span className="text-[12px] font-semibold text-foreground/80">{QUOTES_LIVE.length} quotes</span>
+              <button onClick={() => { setTab("opportunities"); toast.info("Create an opportunity in the Pipeline view first, then attach a quote to it."); }} className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                 <Plus className="w-3 h-3" /> New Quote
               </button>
             </div>
-            {QUOTES.map((q) => {
+            {QUOTES_LIVE.map((q: any) => {
               const isExpanded = expandedQuote === q.id;
               return (
                 <div key={q.id} className="border-b border-border last:border-0">
@@ -759,7 +794,7 @@ export default function CRMPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {q.lineItems.map((li) => (
+                          {(q.lineItems ?? []).map((li) => (
                             <tr key={li.line}>
                               <td className="text-center text-muted-foreground/70">{li.line}</td>
                               <td className="font-semibold text-foreground">{li.product}</td>
@@ -791,15 +826,21 @@ export default function CRMPage() {
                       </table>
                       {q.notes && <p className="text-[11px] text-muted-foreground bg-blue-50 border border-blue-100 rounded px-3 py-2 mb-3">{q.notes}</p>}
                       <div className="flex gap-2">
-                        <button className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                        <button
+                          onClick={() => { updateQuote.mutate({ id: q.id, status: "sent" }); toast.success(`Quote ${q.quoteNumber ?? q.id} marked as sent — customer notification dispatch is pending email config.`); }}
+                          className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                        >
                           <Send className="w-3 h-3 inline mr-1" />Send to Customer
                         </button>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">
+                        <button
+                          onClick={() => downloadCSV([{ Quote_Number: q.quoteNumber ?? q.id, Deal_ID: q.dealId ?? "", Total: q.total, Currency: "INR", Status: q.status, Valid_Until: q.validUntil ?? "" }], `quote_${q.quoteNumber ?? q.id}`)}
+                          className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                        >
                           <FileText className="w-3 h-3 inline mr-1" />Download PDF
                         </button>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">Edit</button>
+                        <button onClick={() => toast.info(`Quote ${q.quoteNumber ?? q.id}: Total ₹${(q.total ?? 0).toLocaleString("en-IN")} | Discount: ${q.discountPct ?? 0}% | Status: ${q.status} | Valid until: ${q.validUntil ?? "—"}`)} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">Edit</button>
                         {q.status !== "accepted" && (
-                          <button className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200">Mark Accepted</button>
+                          <button onClick={() => updateQuote.mutate({ id: q.id, status: "accepted" })} disabled={updateQuote.isPending} className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200 disabled:opacity-50">Mark Accepted</button>
                         )}
                       </div>
                     </div>

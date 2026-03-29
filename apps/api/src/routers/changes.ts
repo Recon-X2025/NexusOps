@@ -7,6 +7,7 @@ import {
 } from "@nexusops/db";
 import { sendNotification } from "../services/notifications";
 import { getNextNumber } from "../lib/auto-number";
+import { getRedis } from "../lib/redis";
 
 
 
@@ -51,6 +52,24 @@ export const changesRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
+
+      // Short-lived cache for the dashboard change window widget.
+      // Active only when called with the exact dashboard parameters (limit=3, no filters).
+      // All other changes.list calls are unaffected.
+      const cacheKey =
+        input.limit === 3 &&
+        !input.status && !input.type && !input.risk && !input.search && !input.cursor
+          ? `changes:dashboard:${org!.id}`
+          : null;
+      if (cacheKey) {
+        try {
+          const hit = await getRedis().get(cacheKey);
+          if (hit) return JSON.parse(hit);
+        } catch {
+          // Redis unavailable — proceed to DB
+        }
+      }
+
       const conditions = [eq(changeRequests.orgId, org!.id)];
       if (input.status) conditions.push(eq(changeRequests.status, input.status as any));
       if (input.type) conditions.push(eq(changeRequests.type, input.type as any));
@@ -66,7 +85,10 @@ export const changesRouter = router({
 
       const hasMore = rows.length > input.limit;
       const items = hasMore ? rows.slice(0, -1) : rows;
-      return { items, nextCursor: hasMore ? String((input.cursor ? parseInt(input.cursor) : 0) + items.length) : null };
+      const result = { items, nextCursor: hasMore ? String((input.cursor ? parseInt(input.cursor) : 0) + items.length) : null };
+      if (cacheKey)
+        getRedis().setex(cacheKey, 90, JSON.stringify(result)).catch(() => {});
+      return result;
     }),
 
   get: permissionProcedure("changes", "read")
@@ -270,6 +292,19 @@ export const changesRouter = router({
     );
   }),
 
+  addComment: permissionProcedure("changes", "write")
+    .input(z.object({ changeId: z.string().uuid(), body: z.string().min(1), isInternal: z.boolean().default(false) }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [change] = await db.select({ id: changeRequests.id }).from(changeRequests)
+        .where(and(eq(changeRequests.id, input.changeId), eq(changeRequests.orgId, org!.id)));
+      if (!change) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(changeRequests)
+        .set({ updatedAt: new Date() })
+        .where(eq(changeRequests.id, input.changeId));
+      return { changeId: input.changeId, body: input.body, authorId: user!.id, createdAt: new Date() };
+    }),
+
   // ── Problems ─────────────────────────────────────────────────────────────
   listProblems: permissionProcedure("problems", "read")
     .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
@@ -297,6 +332,40 @@ export const changesRouter = router({
       const [problem] = await db.update(problems).set({ ...data, updatedAt: new Date() } as any)
         .where(and(eq(problems.id, id), eq(problems.orgId, org!.id))).returning();
       return problem;
+    }),
+
+  addProblemNote: permissionProcedure("problems", "write")
+    .input(z.object({ problemId: z.string().uuid(), note: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [prob] = await db.select({ id: problems.id, notes: problems.notes }).from(problems)
+        .where(and(eq(problems.id, input.problemId), eq(problems.orgId, org!.id)));
+      if (!prob) throw new TRPCError({ code: "NOT_FOUND" });
+      const existingNotes = (prob.notes as any[]) ?? [];
+      const updatedNotes = [...existingNotes, { body: input.note, authorId: user!.id, createdAt: new Date().toISOString() }];
+      await db.update(problems).set({ notes: updatedNotes as any, updatedAt: new Date() } as any)
+        .where(eq(problems.id, input.problemId));
+      return { success: true };
+    }),
+
+  publishProblemToKB: permissionProcedure("problems", "write")
+    .input(z.object({ problemId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [prob] = await db.select().from(problems)
+        .where(and(eq(problems.id, input.problemId), eq(problems.orgId, org!.id)));
+      if (!prob) throw new TRPCError({ code: "NOT_FOUND" });
+      // Import knowledge schema inline to avoid circular deps
+      const { knowledgeArticles } = await import("@nexusops/db");
+      const [article] = await db.insert(knowledgeArticles).values({
+        orgId: org!.id,
+        title: `[Known Error] ${prob.title}`,
+        content: `**Problem:** ${prob.description ?? ""}\n\n**Root Cause:** ${(prob as any).rootCause ?? "Under investigation."}\n\n**Workaround:** ${(prob as any).workaround ?? "None documented."}`,
+        status: "published",
+        authorId: user!.id,
+        tags: ["known-error", "problem-management"],
+      } as any).returning();
+      return article;
     }),
 
   // ── Releases ──────────────────────────────────────────────────────────────

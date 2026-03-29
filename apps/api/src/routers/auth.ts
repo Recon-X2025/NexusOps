@@ -190,6 +190,53 @@ export const authRouter = router({
     return { user: stripPasswordHash(ctx.user!), org: ctx.org };
   }),
 
+  // ── Profile Update ──────────────────────────────────────────────────────
+
+  updateProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(2).max(100).optional(),
+        phone: z.string().max(30).optional(),
+        location: z.string().max(100).optional(),
+        department: z.string().max(100).optional(),
+        jobTitle: z.string().max(100).optional(),
+        bio: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, user } = ctx;
+      const [updated] = await db
+        .update(users)
+        .set({ ...input, updatedAt: new Date() })
+        .where(eq(users.id, user!.id))
+        .returning();
+      return stripPasswordHash(updated!);
+    }),
+
+  // ── Password Change (authenticated) ────────────────────────────────────
+
+  changePassword: protectedProcedure
+    .input(
+      z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(8),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, user } = ctx;
+      const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
+      if (!row?.passwordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
+      }
+      const valid = await verifyPassword(input.currentPassword, row.passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Current password is incorrect" });
+      }
+      const newHash = await hashPassword(input.newPassword);
+      await db.update(users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(users.id, user!.id));
+      return { success: true };
+    }),
+
   // ── Password Reset ──────────────────────────────────────────────────────
 
   requestPasswordReset: publicProcedure

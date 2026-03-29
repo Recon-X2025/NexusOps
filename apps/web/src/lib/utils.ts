@@ -5,6 +5,35 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Download an array of objects as a CSV file.
+ * @param rows   Array of flat objects (values stringified automatically)
+ * @param filename  Desired filename without extension
+ * @param columns  Optional ordered column names; defaults to Object.keys(rows[0])
+ */
+export function downloadCSV(rows: Record<string, unknown>[], filename: string, columns?: string[]): void {
+  if (!rows.length) {
+    alert("No data to export.");
+    return;
+  }
+  const cols = columns ?? Object.keys(rows[0]);
+  const escape = (v: unknown): string => {
+    const s = v == null ? "" : String(v).replace(/"/g, '""');
+    return /[,"\n\r]/.test(s) ? `"${s}"` : s;
+  };
+  const csvContent = [
+    cols.join(","),
+    ...rows.map((r) => cols.map((c) => escape(r[c])).join(",")),
+  ].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   return new Intl.DateTimeFormat("en-IN", {

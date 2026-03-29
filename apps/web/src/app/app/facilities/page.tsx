@@ -93,7 +93,7 @@ export default function FacilitiesPage() {
         </div>
         <PermissionGate module="facilities" action="write">
           <button
-            onClick={() => createMoveMutation.mutate({} as any)}
+            onClick={() => createMoveMutation.mutate({ toLocation: "Default Location" })}
             disabled={createMoveMutation.isPending}
             className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
             <Plus className="w-3 h-3" /> New Facilities Request
@@ -225,7 +225,7 @@ export default function FacilitiesPage() {
               <span className="text-[12px] font-semibold text-foreground/80">Today — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
               <PermissionGate module="facilities" action="write">
                 <button
-                  onClick={() => createBookingMutation.mutate({} as any)}
+                  onClick={() => toast.info("Select a room from the list below to book it")}
                   disabled={createBookingMutation.isPending}
                   className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
                   <Plus className="w-3 h-3" /> {createBookingMutation.isPending ? "Booking…" : "Book a Room"}
@@ -279,7 +279,7 @@ export default function FacilitiesPage() {
                           {room.status === "available" && (
                             <PermissionGate module="facilities" action="write">
                               <button
-                                onClick={() => createBookingMutation.mutate({ roomId: room.id } as any)}
+                                onClick={() => createBookingMutation.mutate({ roomId: room.id, startTime: new Date().toISOString(), endTime: new Date(Date.now() + 3600000).toISOString() })}
                                 disabled={createBookingMutation.isPending}
                                 className="text-[11px] text-primary hover:underline disabled:opacity-50">
                                 Book Now
@@ -305,7 +305,7 @@ export default function FacilitiesPage() {
               <span className="text-[12px] font-semibold text-foreground/80">Move Requests</span>
               <PermissionGate module="facilities" action="write">
                 <button
-                  onClick={() => createMoveMutation.mutate({} as any)}
+                  onClick={() => createMoveMutation.mutate({ toLocation: "Default Location" })}
                   disabled={createMoveMutation.isPending}
                   className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
                   <Plus className="w-3 h-3" /> {createMoveMutation.isPending ? "Submitting…" : "New Move Request"}

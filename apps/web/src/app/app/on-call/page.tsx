@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Phone, Users, Clock, AlertTriangle, CheckCircle2, Plus, Bell, ChevronLeft, ChevronRight } from "lucide-react";
+import { Phone, Users, Clock, AlertTriangle, CheckCircle2, Plus, Bell, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { toast } from "sonner";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -31,14 +32,30 @@ function getCurrentOncall(rotation: Rotation) {
 export default function OnCallPage() {
   const { can } = useRBAC();
   const canView = can("incidents", "read");
+  const canWrite = can("incidents", "write");
   const [week, setWeek] = useState(0);
+  const [showNewRotation, setShowNewRotation] = useState(false);
+  const [newRotationName, setNewRotationName] = useState("");
+  const [newRotationTeam, setNewRotationTeam] = useState("");
+  const [newRotationType, setNewRotationType] = useState<"daily"|"weekly"|"custom">("weekly");
 
   // @ts-ignore
   const schedulesQuery = trpc.oncall.schedules.list.useQuery(undefined, { enabled: canView });
   // @ts-ignore
   const escalationsQuery = trpc.oncall.escalations.list.useQuery({ limit: 50 }, { enabled: canView });
+  const incidentsQuery = { data: [], isLoading: false, error: null };
   // @ts-ignore
-  const incidentsQuery = trpc.oncall.incidents.list.useQuery({ limit: 10 }, { enabled: canView });
+  const createRotation = trpc.oncall.schedules.create.useMutation({
+    onSuccess: () => {
+      toast.success("Rotation created");
+      setShowNewRotation(false);
+      setNewRotationName("");
+      setNewRotationTeam("");
+      schedulesQuery.refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
   const rotations: Rotation[] = (schedulesQuery.data as Rotation[]) ?? [];
   const escalationSteps: any[] = escalationsQuery.data ?? [];
   // Group escalation steps by scheduleName
@@ -69,10 +86,72 @@ export default function OnCallPage() {
           <h1 className="text-sm font-semibold text-foreground">On-Call Scheduling</h1>
           <span className="text-[11px] text-muted-foreground/70">Rotation Management · Escalation Policies · Coverage</span>
         </div>
-        <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+        <button
+          onClick={() => setShowNewRotation(true)}
+          className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+        >
           <Plus className="w-3 h-3" /> New Rotation
         </button>
       </div>
+
+      {/* New Rotation Modal */}
+      {showNewRotation && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h2 className="text-sm font-semibold">New On-Call Rotation</h2>
+              <button onClick={() => setShowNewRotation(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Schedule Name *</label>
+                <input
+                  value={newRotationName}
+                  onChange={(e) => setNewRotationName(e.target.value)}
+                  placeholder="e.g. Platform Engineering On-Call"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Team</label>
+                <input
+                  value={newRotationTeam}
+                  onChange={(e) => setNewRotationTeam(e.target.value)}
+                  placeholder="e.g. Platform Engineering"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Rotation Type</label>
+                <select
+                  value={newRotationType}
+                  onChange={(e) => setNewRotationType(e.target.value as any)}
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
+              <button onClick={() => setShowNewRotation(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => {
+                  if (!newRotationName.trim()) { toast.error("Schedule name is required"); return; }
+                  createRotation.mutate({ name: newRotationName.trim(), team: newRotationTeam.trim() || undefined, rotationType: newRotationType });
+                }}
+                disabled={createRotation.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+              >
+                {createRotation.isPending ? "Creating…" : "Create Rotation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Currently on-call */}
       {schedulesQuery.isLoading ? (

@@ -1,7 +1,7 @@
 # NexusOps — Developer & Operations Guide
 
-**Version:** 1.0  
-**Date:** March 26, 2026  
+**Version:** 1.3  
+**Date:** March 28, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -61,6 +61,12 @@
 15. [Troubleshooting](#15-troubleshooting)
 16. [Utility Scripts Reference](#16-utility-scripts-reference)
 17. [Revision History](#17-revision-history)
+18. [India Compliance Operations](#18-india-compliance-operations)
+    - 18.1 Monthly Payroll Run
+    - 18.2 GST Invoice & E-Invoice Operations
+    - 18.3 ROC Compliance Calendar Operations
+    - 18.4 Customer Portal Operations
+    - 18.5 India Compliance Environment Variables
 
 ---
 
@@ -72,10 +78,12 @@ This guide is the day-to-day operational reference for engineers working on, dep
 
 | Document | Purpose |
 |----------|---------|
-| `NexusOps_Architecture_Design_Document.md` | System-level architecture and design decisions |
-| `NexusOps_Software_Design_Document.md` | Detailed component and pattern design |
-| `NexusOps_Technical_Requirements_Document.md` | Functional and non-functional requirements |
+| `NexusOps_Architecture_Design_Document.md` | System-level architecture and design decisions (§18: India Compliance Architecture) |
+| `NexusOps_Software_Design_Document.md` | Detailed component and pattern design (§9.3 SLA lifecycle, §9.4 India computation engines) |
+| `NexusOps_Technical_Requirements_Document.md` | Functional and non-functional requirements (§3.20 India Statutory Compliance) |
 | `NexusOps_API_Specification.md` | All tRPC procedures, inputs, and outputs |
+| `NexusOps_Complete_Business_Logic_v1.md` | **Authoritative India business logic** — all rules, calculations, workflows, and validations |
+| `NexusOps_Entity_Relationship_Diagram.md` | Full database schema including India compliance tables (Domain 25) |
 
 ---
 
@@ -707,6 +715,88 @@ node scripts/load-test.js           # General load test
 node scripts/stress-test-10000.js   # 10,000 session stress test
 node scripts/failure-test.js        # Failure injection test
 ```
+
+### 8.6 k6 Security & Reliability Test Suite
+
+A purpose-built k6 test suite under `tests/k6/` covers authentication resilience, rate limit enforcement, concurrent workflow correctness, race condition safety, and adversarial input validation. **Requires k6 v1.7.x or later.**
+
+#### Prerequisites
+
+```bash
+# macOS
+brew install k6
+
+# Verify
+k6 version
+
+# Ensure API is running
+curl http://localhost:3001/trpc/auth.login \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"email":"admin@coheron.com","password":"demo1234!"}'
+
+# Get a TEST_TICKET_ID for race condition tests
+psql -U nexusops -d nexusops -c "SELECT id FROM tickets ORDER BY created_at DESC LIMIT 1;"
+```
+
+#### Test Scripts
+
+| Script | VUs | Duration | Purpose |
+|--------|-----|----------|---------|
+| `auth_stress.js` | 0→50 | 1m45s | Login storm — session isolation, no token reuse |
+| `rate_limit.js` | 1–5 | 2m52s | Per-user rate bucket isolation, storm + recovery |
+| `chaos_flow.js` | 30 | 3m | Full 6-step workflow under concurrent multi-tenant load |
+| `race_condition.js` | 20 | 2m | Concurrent writes to a single row — optimistic locking |
+| `invalid_payload.js` | 1 | 3m | 26 adversarial cases: prototype pollution, bad enums, XSS, SQL injection |
+| `run_all.js` | up to 50 | ~7m | All scenarios orchestrated in one run |
+
+#### Running Individual Tests
+
+```bash
+# Auth stress
+k6 run tests/k6/auth_stress.js
+
+# Rate limit
+k6 run tests/k6/rate_limit.js
+
+# Chaos flow (full multi-step workflow)
+k6 run tests/k6/chaos_flow.js
+
+# Race condition — requires a real ticket UUID
+k6 run -e TEST_TICKET_ID=<uuid> tests/k6/race_condition.js
+
+# Adversarial input validation
+k6 run tests/k6/invalid_payload.js
+
+# Full suite
+k6 run -e TEST_TICKET_ID=<uuid> tests/k6/run_all.js
+```
+
+#### Important: Seeding Load-Test Organisation Workflows
+
+The 20 load-test organisations (`loadtest0@test.com` → `loadtest19@test.com`) require `ticket_statuses` rows before `tickets.create` will succeed. Run this once after provisioning load-test users:
+
+```sql
+-- Repeat for each of the 20 load-test org UUIDs
+INSERT INTO ticket_statuses (org_id, name, category, color, sort_order) VALUES
+  ('<org_uuid>', 'Open',        'open',        '#6366f1', 0),
+  ('<org_uuid>', 'In Progress', 'in_progress', '#f59e0b', 1),
+  ('<org_uuid>', 'Resolved',    'resolved',    '#10b981', 2),
+  ('<org_uuid>', 'Closed',      'closed',      '#6b7280', 3);
+```
+
+A convenience script can be found in the session notes; see `NexusOps_K6_Security_and_Load_Test_Report_2026.md` §11.
+
+#### Baseline Results (March 28, 2026)
+
+| Metric | Value |
+|--------|-------|
+| Total requests (full suite) | 23,798 |
+| Unhandled 500 errors | **0** |
+| Bad input rejection rate | **100%** |
+| p(95) all endpoints | 271ms |
+| End-to-end workflow p(95) | 4,334ms |
+| Concurrent workflows (chaos) | 1,655 / 0 failures |
+| Concurrent write conflicts (409) | 2,004 (optimistic locking — expected) |
 
 ### 8.6 Test Environment Setup
 
@@ -1423,7 +1513,243 @@ All scripts are in the `scripts/` directory.
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-03-26 | Platform Engineering | Initial document created from codebase and infrastructure analysis |
+| 1.1 | 2026-03-26 | Platform Engineering | Added §18 India Compliance Operations covering Payroll, GST, ROC, and Portal compliance procedures |
 
 ---
 
-*This guide should be kept up to date as scripts, environment variables, and operational procedures evolve. When adding a new environment variable, add it to §4.4. When adding a new script, add it to §16. When a new known failure mode is discovered and resolved, add it to §15.*
+## 18. India Compliance Operations
+
+This section covers day-to-day operational procedures for running India-specific compliance engines: Payroll, GST, ROC, and the Customer Portal.
+
+---
+
+### 18.1 Monthly Payroll Run
+
+**Prerequisite environment variables:**
+```bash
+IRP_API_URL=https://einvoice1.gst.gov.in/eicore/v1.03
+IRP_GSP_GSTIN=<your GSP GSTIN>
+IRP_API_KEY=<IRP API Key from GSP>
+EPFO_PORTAL_URL=https://unifiedportal-mem.epfindia.gov.in
+```
+
+**Step-by-step procedure:**
+
+1. **Lock payroll period** (1st–3rd of following month):
+   ```bash
+   curl -X POST http://localhost:3001/trpc/hr.payroll.lockPeriod \
+     -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -d '{"month": 3, "year": 2026}'
+   ```
+
+2. **Run payroll computation** (generates all payslips in DRAFT):
+   ```bash
+   curl -X POST http://localhost:3001/trpc/hr.payroll.runMonthlyPayroll \
+     -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -d '{"month": 3, "year": 2026, "orgId": "<ORG_UUID>"}'
+   ```
+
+3. **Review payslips** — HR Manager logs into `/app/hr → Payroll → Month Review`; checks for anomalies (negative net pay, unusually high TDS). Any corrections require unlocking affected employee rows, editing salary data, and re-running.
+
+4. **Approve** — Three-tier approval flow in `/app/approvals`:
+   - HR Manager → Approve
+   - Finance Manager → Approve
+   - CFO → Approve (if payroll > configured threshold)
+
+5. **Generate ECR file** for EPFO:
+   ```bash
+   curl -X POST http://localhost:3001/trpc/hr.payroll.generateECR \
+     -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -d '{"month": 3, "year": 2026, "orgId": "<ORG_UUID>"}' \
+     -o ./ecr_march_2026.txt
+   ```
+   Upload the generated `.txt` file to EPFO Unified Portal under ECR 2.0 submission.
+
+6. **Generate PT challans** per state (system groups employees by `employees.state`):
+   ```bash
+   curl -X GET "http://localhost:3001/trpc/hr.payroll.getPTChallanData?month=3&year=2026"
+   ```
+   Download one challan per state and pay via respective State Government portal.
+
+7. **Generate TDS challan (ITNS 281)**:
+   ```bash
+   curl -X GET "http://localhost:3001/trpc/hr.payroll.getTDSChallanData?month=3&year=2026"
+   ```
+   Pay via NSDL TIN 2.0 portal. Update `tds_challan_records` with BSR code + challan serial number.
+
+8. **Update Form 24Q data** — TDS challan payment details are automatically linked in the Form 24Q quarterly return data. No separate action needed.
+
+9. **Generate Form 16** (Annual — April after FY close):
+   ```bash
+   curl -X POST http://localhost:3001/trpc/hr.payroll.generateForm16 \
+     -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -d '{"fiscalYear": "2025-26", "orgId": "<ORG_UUID>"}'
+   ```
+   PDFs are generated and stored; employees can download from `/app/employee-portal → Tax & Declarations`.
+
+---
+
+### 18.2 GST Invoice & E-Invoice Operations
+
+**Prerequisites:**
+- `IRP_API_URL`, `IRP_GSP_GSTIN`, `IRP_API_KEY` set (see §4.4)
+- Org's own GSTIN registered in organization settings
+- All vendor GSTINs validated and stored in `vendors.gstin`
+
+**Creating a GST-compliant invoice:**
+
+```bash
+curl -X POST http://localhost:3001/trpc/financial.createGSTInvoice \
+  -H "Authorization: Bearer $FINANCE_TOKEN" \
+  -d '{
+    "vendorId": "<UUID>",
+    "poId": "<UUID>",
+    "invoiceDate": "2026-03-15",
+    "lineItems": [
+      {
+        "description": "IT Consulting Services",
+        "hsnSacCode": "998313",
+        "quantity": 1,
+        "unitPrice": 100000,
+        "gstRate": 18
+      }
+    ]
+  }'
+```
+
+The system automatically:
+1. Determines `isInterstate` from `orgState` vs `vendorState`
+2. Computes CGST+SGST (intrastate) or IGST (interstate)
+3. Calls IRP API to generate `IRN` if org turnover > ₹5 Cr
+4. Stores `e_invoice_irn`, `e_invoice_ack_number`, `e_invoice_ack_date`
+5. Auto-generates E-Way Bill if `taxable_value > ₹50,000` and supply is goods
+
+**E-Invoice failure handling:**
+- If IRP API is unavailable, invoice is saved in DRAFT; BullMQ retries every 15 minutes up to 48 hours
+- After 48 hours of failure, compliance alert is raised to Finance Admin
+- Manual IRN upload endpoint: `financial.invoices.manualUploadIRN`
+
+**GSTR-2B Reconciliation (Monthly):**
+
+```bash
+# Download GSTR-2B JSON from GST portal, then reconcile:
+curl -X POST http://localhost:3001/trpc/financial.reconcileGSTR2B \
+  -H "Authorization: Bearer $FINANCE_TOKEN" \
+  -d '{"month": 3, "year": 2026, "gstr2bFilePath": "/uploads/gstr2b_march_2026.json"}'
+```
+
+Produces a reconciliation report with:
+- Matched: ITC claim allowed
+- Mismatch: supplier has filed, but values differ (system flags for review)
+- Missing in GSTR-2B: supplier has not filed; ITC cannot be claimed yet
+
+---
+
+### 18.3 ROC Compliance Calendar Operations
+
+**Checking upcoming filings:**
+
+```bash
+curl -X GET "http://localhost:3001/trpc/secretarial.complianceCalendar.upcoming?daysAhead=30" \
+  -H "Authorization: Bearer $CS_TOKEN"
+```
+
+**Director KYC reminder job** — runs automatically at midnight IST daily via BullMQ queue `compliance-reminders`. To trigger manually:
+
+```bash
+curl -X POST http://localhost:3001/trpc/secretarial.directors.triggerKYCReminders \
+  -H "Authorization: Bearer $CS_TOKEN"
+```
+
+**Filing a completed form:**
+
+```bash
+curl -X POST http://localhost:3001/trpc/secretarial.complianceCalendar.markFiled \
+  -H "Authorization: Bearer $CS_TOKEN" \
+  -d '{
+    "itemId": "<compliance_calendar_item_uuid>",
+    "filedDate": "2026-10-15",
+    "srn": "B12345678",
+    "ackDocumentUrl": "https://storage.../AOC4_ack.pdf"
+  }'
+```
+
+**Penalty computation** — system auto-computes `penalty_per_day_inr × days_overdue`:
+```bash
+curl -X GET "http://localhost:3001/trpc/secretarial.complianceCalendar.penaltyReport?fiscalYear=2025-26"
+```
+
+---
+
+### 18.4 Customer Portal Operations
+
+**Portal user lifecycle:**
+
+```bash
+# Create portal user (tied to CRM account):
+curl -X POST http://localhost:3001/trpc/portal.users.create \
+  -H "Authorization: Bearer $CSM_TOKEN" \
+  -d '{"customerId": "<UUID>", "fullName": "Ravi Kumar", "email": "ravi@acmecorp.in", "phone": "+919876543210"}'
+
+# Portal user gets an OTP email/SMS to set password; account goes from PENDING_APPROVAL → ACTIVE
+
+# Suspend a portal user:
+curl -X POST http://localhost:3001/trpc/portal.users.suspend \
+  -H "Authorization: Bearer $CSM_ADMIN_TOKEN" \
+  -d '{"portalUserId": "<UUID>", "reason": "Security review"}'
+```
+
+**DPDP Act 2023 Data Access Request:**
+```bash
+# Process a data access request from a portal user:
+curl -X POST http://localhost:3001/trpc/portal.dpdp.processDataRequest \
+  -H "Authorization: Bearer $DPO_TOKEN" \
+  -d '{"portalUserId": "<UUID>", "requestType": "ACCESS"}'
+# requestType: ACCESS | CORRECTION | ERASURE | NOMINATION
+```
+
+**Reviewing portal audit logs:**
+```bash
+# Last 100 portal actions for a specific customer:
+curl -X GET "http://localhost:3001/trpc/portal.auditLog.list?customerId=<UUID>&limit=100" \
+  -H "Authorization: Bearer $CS_ADMIN_TOKEN"
+```
+
+**Session and security monitoring:**
+- Portal sessions expire after 30 minutes of inactivity (non-configurable)
+- Account locks after 5 consecutive failed logins; unlock via `portal.users.unlock`
+- MFA (OTP/TOTP) enforcement configurable per org in Admin Console → Portal Settings
+- API rate limit: 100 requests/minute/IP (enforced at Fastify middleware layer)
+
+---
+
+### 18.5 India Compliance Environment Variables
+
+The following environment variables are required for all India compliance engines. Add these to `.env.production` (see §4.3):
+
+| Variable | Required For | Example Value |
+|----------|-------------|--------------|
+| `IRP_API_URL` | E-Invoice generation | `https://einvoice1.gst.gov.in/eicore/v1.03` |
+| `IRP_GSP_GSTIN` | E-Invoice IRP auth | `27AADCB2230M1ZP` |
+| `IRP_API_KEY` | E-Invoice IRP auth | `<secret from GSP onboarding>` |
+| `ORG_GSTIN` | GST computation (own org) | `29ABCDE1234F2Z5` |
+| `ORG_STATE` | Inter/intra-state detection | `Karnataka` |
+| `EPFO_PORTAL_URL` | ECR submission (informational) | `https://unifiedportal-mem.epfindia.gov.in` |
+| `PT_STATES_ENABLED` | Comma-separated states for PT | `Maharashtra,Karnataka,West Bengal` |
+| `INDIA_TIMEZONE` | All compliance timestamps | `Asia/Kolkata` (always IST) |
+| `INDIA_FINANCIAL_YEAR_START_MONTH` | FY computation | `4` (April) |
+
+---
+
+## 17. Revision History
+
+| Version | Date | Author | Summary |
+|---------|------|--------|---------|
+| 1.0 | March 26, 2026 | Platform Engineering | Initial release |
+| 1.1 | March 27, 2026 | Platform Engineering | Updated router count (33→35, added `inventory` and `indiaCompliance`). Noted `export const dynamic = "force-dynamic"` requirement for pages using `useSearchParams` in Next.js 15. Added inventory module operational notes. Noted production build is clean at 63 pages. |
+| 1.2 | March 28, 2026 | Platform Engineering | Added §8.5 (Load Testing with k6): documents `seed_users.js`, `test.js`, `mixed_test.js`, `frontend_test.js` scripts, seed workflow, and run commands. Documents k6 v1.7.0 breaking change (`--experimental-browser` flag removed). Confirmed 200-VU sustained load at 340 req/s with 0% error rate. See `NexusOps_Load_Test_Report_2026.md` for full results and recommended thresholds. |
+| 1.3 | March 28, 2026 | Platform Engineering | Expanded §8.5 into §8.5 + §8.6: new §8.6 (k6 Security & Reliability Test Suite) documents all 6 security/reliability test scripts, prerequisites, run commands, load-test org seeding procedure, and March 28 baseline results (0 unhandled 500s, 100% bad-input rejection, p95 271ms). Updated §10 scripts table with `k6 run` commands. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results. |
+
+---
+
+*This guide should be kept up to date as scripts, environment variables, and operational procedures evolve. When adding a new environment variable, add it to §4.4 and §18.5. When adding a new script, add it to §16. When a new known failure mode is discovered and resolved, add it to §15.*

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, Search, GitMerge, Server, Cpu, HardDrive, Wifi, Shield, Globe, Plus, RefreshCw, ChevronRight, Cloud } from "lucide-react";
+import { Database, Search, GitMerge, Server, Cpu, HardDrive, Wifi, Shield, Globe, Plus, RefreshCw, ChevronRight, Cloud, X } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const CMDB_TABS = [
   { key: "cis",         label: "CI Browser",  module: "cmdb" as const, action: "read"  as const },
@@ -41,12 +42,14 @@ export default function CMDBPage() {
   const visibleTabs = CMDB_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "cis");
   const [search, setSearch] = useState("");
+  const [showAddCI, setShowAddCI] = useState(false);
+  const [ciForm, setCIForm] = useState({ name: "", class: "Linux Server", location: "", ipAddress: "", status: "operational" as "operational"|"degraded"|"critical"|"maintenance"|"retired" });
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: cisData } = trpc.assets.cmdb.list.useQuery(
+  const { data: cisData, refetch: refetchCIs } = trpc.assets.cmdb.list.useQuery(
     undefined,
     { refetchOnWindowFocus: false },
   );
@@ -54,6 +57,11 @@ export default function CMDBPage() {
     undefined,
     { refetchOnWindowFocus: false },
   );
+
+  const createCI = trpc.assets.create.useMutation({
+    onSuccess: () => { toast.success("CI added to CMDB"); setShowAddCI(false); setCIForm({ name: "", class: "Linux Server", location: "", ipAddress: "", status: "operational" }); refetchCIs(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   if (!can("cmdb", "read")) return <AccessDenied module="Configuration Management" />;
   const [selectedCI, setSelectedCI] = useState<string | null>(null);
@@ -74,12 +82,18 @@ export default function CMDBPage() {
           <span className="text-[11px] text-muted-foreground/70">CI Browser · Service Map · Discovery</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => { refetchCIs(); toast.success("Discovery scan initiated — refreshing CI inventory…"); }}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
             <RefreshCw className="w-3 h-3" /> Run Discovery
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-            <Plus className="w-3 h-3" /> Add CI
-          </button>
+          {can("cmdb", "write") && (
+            <button
+              onClick={() => setShowAddCI(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <Plus className="w-3 h-3" /> Add CI
+            </button>
+          )}
         </div>
       </div>
 
@@ -230,6 +244,55 @@ export default function CMDBPage() {
           </table>
         )}
       </div>
+
+      {/* Add CI Modal */}
+      {showAddCI && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Add Configuration Item</h2>
+              <button onClick={() => setShowAddCI(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">CI Name <span className="text-red-500">*</span></label>
+              <input value={ciForm.name} onChange={(e) => setCIForm(f => ({...f, name: e.target.value}))} placeholder="e.g. prod-db-01" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Class</label>
+                <select value={ciForm.class} onChange={(e) => setCIForm(f => ({...f, class: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  {["Linux Server","Windows Server","Database Server","Application Server","Network Switch","Firewall","Load Balancer","Cloud Database","Virtual Machine","Container"].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Status</label>
+                <select value={ciForm.status} onChange={(e) => setCIForm(f => ({...f, status: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  {["operational","degraded","critical","maintenance","retired"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Location</label>
+                <input value={ciForm.location} onChange={(e) => setCIForm(f => ({...f, location: e.target.value}))} placeholder="e.g. DC1-Rack-A3" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">IP Address</label>
+                <input value={ciForm.ipAddress} onChange={(e) => setCIForm(f => ({...f, ipAddress: e.target.value}))} placeholder="e.g. 10.0.1.45" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowAddCI(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!ciForm.name.trim()) { toast.error("Name is required"); return; } createCI.mutate({ name: ciForm.name.trim(), class: ciForm.class, location: ciForm.location || undefined, ipAddress: ciForm.ipAddress || undefined, status: ciForm.status } as any); }}
+                disabled={createCI.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                {createCI.isPending ? "Adding…" : "Add CI"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   Scale, Plus, Search, Download, FileText, Users,
@@ -8,6 +9,7 @@ import {
   BookOpen, Lock, Globe, Building2, Briefcase, Tag,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const LEGAL_TABS = [
@@ -124,7 +126,7 @@ export default function LegalPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: mattersData, isLoading: loadingMatters } = trpc.legal.listMatters.useQuery(
+  const { data: mattersData, isLoading: loadingMatters, refetch: refetchMatters } = trpc.legal.listMatters.useQuery(
     { limit: 50 },
     { refetchOnWindowFocus: false },
   );
@@ -144,6 +146,11 @@ export default function LegalPage() {
     { limit: 50 },
     { refetchOnWindowFocus: false },
   );
+
+  const updateMatter = trpc.legal.updateMatter.useMutation({
+    onSuccess: (m: any) => { toast.success(`Matter ${m?.number ?? ""} updated`); refetchMatters(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   if (!can("contracts", "read") && !can("grc", "read")) return <AccessDenied module="Legal Service Delivery" />;
 
@@ -168,11 +175,17 @@ export default function LegalPage() {
           <span className="text-[11px] text-muted-foreground/70">Matters · Requests · Investigations · Contract Review</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(matters.map((m: any) => ({ Number: m.number ?? m.id, Title: m.title, Type: m.type ?? "", Status: m.status, Priority: m.priority ?? "", Assigned_Counsel: m.assignedCounsel ?? "", Open_Date: m.createdAt ? new Date(m.createdAt).toLocaleDateString("en-IN") : "" })), "legal_matters")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="grc" action="write">
-            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+            <button
+              onClick={() => setTab("matters")}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
               <Plus className="w-3 h-3" /> New Legal Request
             </button>
           </PermissionGate>
@@ -182,7 +195,7 @@ export default function LegalPage() {
       <div className="grid grid-cols-5 gap-2">
         {[
           { label: "Active Matters",       value: activeMatters.length,   color: "text-foreground" },
-          { label: "Estimated Exposure",   value: `$${(totalExposure/1000).toFixed(0)}K`, color: "text-red-700" },
+          { label: "Estimated Exposure",   value: `₹${(totalExposure/1000).toFixed(0)}K`, color: "text-red-700" },
           { label: "Open Legal Requests",  value: openRequests,           color: "text-blue-700" },
           { label: "Open Investigations",  value: openInvestigations,     color: openInvestigations > 0 ? "text-orange-700" : "text-green-700" },
           { label: "Critical Priority",    value: criticalItems,          color: criticalItems > 0 ? "text-red-700" : "text-green-700" },
@@ -218,7 +231,7 @@ export default function LegalPage() {
                     <div key={p} className="flex items-center gap-2 text-[11px]">
                       <span className="text-muted-foreground flex-1">{p}</span>
                       <span className="font-bold text-foreground">{count}</span>
-                      <span className="font-mono text-muted-foreground">${(cost/1000).toFixed(0)}K</span>
+                      <span className="font-mono text-muted-foreground">₹{(cost/1000).toFixed(0)}K</span>
                     </div>
                   );
                 })}
@@ -319,9 +332,9 @@ export default function LegalPage() {
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[14px] font-bold text-foreground">${m.estimatedCost.toLocaleString()}</div>
+                      <div className="text-[14px] font-bold text-foreground">₹{(m.estimatedCost ?? 0).toLocaleString("en-IN")}</div>
                       <div className="text-[10px] text-muted-foreground/70">Est. exposure</div>
-                      <div className="text-[11px] text-muted-foreground">${m.actualCost.toLocaleString()} spent ({pctCost}%)</div>
+                      <div className="text-[11px] text-muted-foreground">₹{(m.actualCost ?? 0).toLocaleString("en-IN")} spent ({pctCost}%)</div>
                       <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden mt-1">
                         <div className={`h-full rounded-full ${pctCost > 80 ? "bg-red-500" : pctCost > 60 ? "bg-orange-400" : "bg-primary"}`} style={{width:`${pctCost}%`}} />
                       </div>
@@ -335,7 +348,7 @@ export default function LegalPage() {
                           { label: "Tasks",           value: `${m.tasks.done}/${m.tasks.total} done` },
                           { label: "Practice",        value: m.practice },
                           { label: "Opened",          value: m.openedDate },
-                          { label: "Budget Used",     value: `${pctCost}% of $${m.estimatedCost.toLocaleString()}` },
+                          { label: "Budget Used",     value: `${pctCost}% of ₹${(m.estimatedCost ?? 0).toLocaleString("en-IN")}` },
                         ].map(f => (
                           <div key={f.label} className="text-[11px]">
                             <span className="text-muted-foreground/70">{f.label}: </span>
@@ -344,11 +357,11 @@ export default function LegalPage() {
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <button className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Matter</button>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground">Add Task</button>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground">Upload Document</button>
-                        {m.status === "active" && <button className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground">Place on Hold</button>}
-                        {m.status === "active" && <button className="px-3 py-1 bg-red-50 text-red-700 text-[11px] rounded hover:bg-red-100 border border-red-200">Close Matter</button>}
+                        <button onClick={() => toast.info(`Matter ${m.number ?? m.id} — ${m.title}\nType: ${m.type ?? "—"} | Status: ${m.status} | Phase: ${m.phase ?? "—"}\nCounsel: ${m.assignedCounsel ?? "Unassigned"}\n${m.description ?? ""}`, { duration: 6000 })} className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Matter</button>
+                        <button onClick={() => { setTab("requests"); toast.info("Fill in the Legal Request form to create a task for this matter.", { duration: 3000 }); }} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground">Add Task</button>
+                        <label className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground cursor-pointer">Upload Document<input type="file" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) toast.info(`Document "${f.name}" received — documents will be stored once DMS integration is enabled.`); e.target.value = ""; }} /></label>
+                        {m.status === "active" && <button onClick={() => updateMatter.mutate({ id: m.id, status: "hold" })} disabled={updateMatter.isPending} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground disabled:opacity-50">Place on Hold</button>}
+                        {(m.status === "active" || m.status === "hold") && <button onClick={() => toast.message(`Close matter "${m.title}"?`, { description: "This action will archive the matter. It can be reopened if needed.", action: { label: "Close Matter", onClick: () => updateMatter.mutate({ id: m.id, status: "closed" }) }, cancel: { label: "Cancel" } })} className="px-3 py-1 bg-red-50 text-red-700 text-[11px] rounded hover:bg-red-100 border border-red-200">Close Matter</button>}
                       </div>
                     </div>
                   )}

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   Bug,
   Plus,
@@ -14,6 +16,7 @@ import {
   ChevronRight,
   BookOpen,
   Loader2,
+  X,
 } from "lucide-react";
 
 const STATE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -47,8 +50,13 @@ const TABS = [
 
 export default function ProblemsPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = TABS.filter((t) => can(t.module, t.action));
   const [activeTab, setActiveTab] = useState(visibleTabs[0]?.key ?? "all");
+  const [showNewProblem, setShowNewProblem] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newPriority, setNewPriority] = useState("medium");
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === activeTab)) setActiveTab(visibleTabs[0]?.key ?? "");
@@ -59,10 +67,20 @@ export default function ProblemsPage() {
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
 
-  const { data: allData, isLoading } = trpc.changes.listProblems.useQuery(
+  const { data: allData, isLoading, refetch } = trpc.changes.listProblems.useQuery(
     { limit: 100 },
     { refetchOnWindowFocus: false },
   );
+
+  const createProblem = trpc.changes.createProblem.useMutation({
+    onSuccess: (prob) => { toast.success(`Problem ${prob?.number ?? ""} created`); setShowNewProblem(false); setNewTitle(""); setNewDesc(""); refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const publishToKB = trpc.changes.publishProblemToKB.useMutation({
+    onSuccess: (article: any) => toast.success(`Published to Knowledge Base as "${article?.title ?? "article"}"`),
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   type ProblemItem = NonNullable<typeof allData>[number];
   const allProblems: ProblemItem[] = allData ?? [];
@@ -85,12 +103,18 @@ export default function ProblemsPage() {
           <span className="text-[11px] text-muted-foreground">Root Cause Analysis & Known Errors</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent">
+          <button
+            onClick={() => toast.info("Viewing known errors — filter the table by 'Known Error' status to see all active errors and their workarounds.")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent">
             <BookOpen className="w-3 h-3" /> Known Errors DB
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] font-medium rounded hover:bg-primary/90">
-            <Plus className="w-3 h-3" /> New Problem
-          </button>
+          {can("problems", "write") && (
+            <button
+              onClick={() => setShowNewProblem(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] font-medium rounded hover:bg-primary/90">
+              <Plus className="w-3 h-3" /> New Problem
+            </button>
+          )}
         </div>
       </div>
 
@@ -142,7 +166,12 @@ export default function ProblemsPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button className="text-[11px] text-primary hover:underline">Publish to KB</button>
+                <button
+                  onClick={() => publishToKB.mutate({ problemId: ke.id })}
+                  disabled={publishToKB.isPending}
+                  className="text-[11px] text-primary hover:underline disabled:opacity-50">
+                  {publishToKB.isPending ? "Publishing…" : "Publish to KB"}
+                </button>
                 <Link href={`/app/problems/${ke.id}`} className="text-[11px] text-primary hover:underline">
                   View <ChevronRight className="w-3 h-3 inline" />
                 </Link>
@@ -270,19 +299,26 @@ export default function ProblemsPage() {
                             </div>
                           </div>
                           <div className="mt-3 flex items-center gap-3">
-                            <Link
+                          <Link
                               href={`/app/problems/${prob.id}`}
                               className="text-[11px] text-primary hover:underline flex items-center gap-1"
                             >
                               <FileText className="w-3 h-3" /> Full Problem Record
                             </Link>
-                            <button className="text-[11px] text-primary hover:underline flex items-center gap-1">
+                            <button
+                              onClick={() => toast.info("To link an incident, open the ticket and use the 'Related Items' section to associate it with this problem.")}
+                              className="text-[11px] text-primary hover:underline flex items-center gap-1">
                               <Link2 className="w-3 h-3" /> Link Incident
                             </button>
-                            <button className="text-[11px] text-primary hover:underline flex items-center gap-1">
+                            <button
+                              onClick={() => router.push(`/app/changes/new?fromProblem=${prob.id}&title=${encodeURIComponent("Fix: " + prob.title)}`)}
+                              className="text-[11px] text-primary hover:underline flex items-center gap-1">
                               <RefreshCw className="w-3 h-3" /> Raise Change
                             </button>
-                            <button className="text-[11px] text-primary hover:underline flex items-center gap-1">
+                            <button
+                              onClick={() => publishToKB.mutate({ problemId: prob.id })}
+                              disabled={publishToKB.isPending}
+                              className="text-[11px] text-primary hover:underline flex items-center gap-1 disabled:opacity-50">
                               <BookOpen className="w-3 h-3" /> Publish KB Article
                             </button>
                           </div>
@@ -299,6 +335,41 @@ export default function ProblemsPage() {
           {displayed.length} record{displayed.length !== 1 ? "s" : ""}
         </div>
       </div>
-    </div>
-  );
+
+    {/* New Problem Modal */}
+    {showNewProblem && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">New Problem Record</h2>
+            <button onClick={() => setShowNewProblem(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium">Title <span className="text-red-500">*</span></label>
+            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Describe the problem…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium">Description</label>
+            <textarea rows={3} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Symptoms, affected services, initial investigation…" className="px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium">Priority</label>
+            <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+              {["critical","high","medium","low"].map(p => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowNewProblem(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => { if (!newTitle.trim()) { toast.error("Title is required"); return; } createProblem.mutate({ title: newTitle.trim(), description: newDesc.trim() || undefined, priority: newPriority }); }}
+              disabled={createProblem.isPending}
+              className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+              {createProblem.isPending ? "Creating…" : "Create Problem"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckSquare, AlertTriangle, CheckCircle2, Clock, Plus, RefreshCw, Shield, Target } from "lucide-react";
+import { CheckSquare, AlertTriangle, CheckCircle2, Clock, Plus, RefreshCw, Shield, Target, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { toast } from "sonner";
 
 const AUDIT_STATUS_COLOR: Record<string, string> = {
   planned:     "text-slate-700 bg-slate-100",
@@ -30,9 +31,16 @@ const FINDING_SEVERITY_COLOR: Record<string, string> = {
 export default function CompliancePage() {
   const { can } = useRBAC();
   const canView = can("grc", "read");
+  const [showAddBaseline, setShowAddBaseline] = useState(false);
+  const [baselineForm, setBaselineForm] = useState({ name: "", framework: "ISO 27001", scope: "", frequency: "quarterly" as "monthly"|"quarterly"|"annual" });
   // @ts-ignore
   const auditsQuery = trpc.grc.listAudits.useQuery({ limit: 50 }, { enabled: canView });
   const risksQuery = trpc.grc.listRisks.useQuery({ limit: 50 }, { enabled: canView });
+
+  const createAudit = trpc.grc.createAudit.useMutation({
+    onSuccess: () => { toast.success("Compliance baseline/audit created"); setShowAddBaseline(false); setBaselineForm({ name: "", framework: "ISO 27001", scope: "", frequency: "quarterly" }); auditsQuery.refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   if (!canView) return <AccessDenied module="Compliance" />;
 
@@ -64,9 +72,13 @@ export default function CompliancePage() {
           >
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-            <Plus className="w-3 h-3" /> Add Baseline
-          </button>
+          {can("grc", "write") && (
+            <button
+              onClick={() => setShowAddBaseline(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <Plus className="w-3 h-3" /> Add Baseline
+            </button>
+          )}
         </div>
       </div>
 
@@ -275,6 +287,49 @@ export default function CompliancePage() {
           </table>
         )}
       </div>
+
+      {/* Add Baseline Modal */}
+      {showAddBaseline && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Add Compliance Baseline / Audit</h2>
+              <button onClick={() => setShowAddBaseline(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Audit Name <span className="text-red-500">*</span></label>
+              <input value={baselineForm.name} onChange={(e) => setBaselineForm(f => ({...f, name: e.target.value}))} placeholder="e.g. ISO 27001 Annual Review" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Framework</label>
+                <select value={baselineForm.framework} onChange={(e) => setBaselineForm(f => ({...f, framework: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  {["ISO 27001","SOC 2","PCI-DSS","NIST CSF","CIS Controls","GDPR","HIPAA","ISO 9001"].map(fw => <option key={fw} value={fw}>{fw}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Frequency</label>
+                <select value={baselineForm.frequency} onChange={(e) => setBaselineForm(f => ({...f, frequency: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  {["monthly","quarterly","annual"].map(fr => <option key={fr} value={fr} className="capitalize">{fr.charAt(0).toUpperCase() + fr.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Scope</label>
+              <input value={baselineForm.scope} onChange={(e) => setBaselineForm(f => ({...f, scope: e.target.value}))} placeholder="e.g. All production systems, Finance department" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowAddBaseline(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!baselineForm.name.trim()) { toast.error("Audit name is required"); return; } createAudit.mutate({ name: baselineForm.name.trim(), type: "compliance" as any, framework: baselineForm.framework, scope: baselineForm.scope || undefined } as any); }}
+                disabled={createAudit.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                {createAudit.isPending ? "Creating…" : "Create Baseline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

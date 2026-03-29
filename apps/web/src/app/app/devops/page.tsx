@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   GitBranch, GitMerge, Play, CheckCircle2, XCircle, Clock, AlertTriangle,
   Plus, Download, RefreshCw, Zap, Package, Shield, BarChart2,
-  Code, Server, Activity, ChevronRight, Eye, Terminal,
+  Code, Server, Activity, ChevronRight, Eye, Terminal, X,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const DEVOPS_TABS = [
@@ -112,16 +114,18 @@ export default function DevOpsPage() {
   const visibleTabs = DEVOPS_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null);
+  const [showTrigger, setShowTrigger] = useState(false);
+  const [triggerForm, setTriggerForm] = useState({ pipelineName: "", branch: "main", trigger: "manual" });
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: pipelinesData } = trpc.devops.listPipelines.useQuery(
+  const { data: pipelinesData, refetch: refetchPipelines } = trpc.devops.listPipelines.useQuery(
     { limit: 50 },
     { refetchOnWindowFocus: false },
   );
-  const { data: deploymentsData } = trpc.devops.listDeployments.useQuery(
+  const { data: deploymentsData, refetch: refetchDeployments } = trpc.devops.listDeployments.useQuery(
     { limit: 50 },
     { refetchOnWindowFocus: false },
   );
@@ -129,6 +133,16 @@ export default function DevOpsPage() {
     undefined,
     { refetchOnWindowFocus: false },
   );
+
+  const createPipelineRun = trpc.devops.createPipelineRun.useMutation({
+    onSuccess: (run: any) => { toast.success(`Pipeline "${run?.pipelineName ?? triggerForm.pipelineName}" triggered successfully`); setShowTrigger(false); setTriggerForm({ pipelineName: "", branch: "main", trigger: "manual" }); refetchPipelines(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const rollbackDeployment = trpc.devops.createDeployment.useMutation({
+    onSuccess: (dep: any) => { toast.success(`Rollback deployment initiated for ${dep?.appName ?? ""}`); refetchDeployments(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   if (!can("changes", "read") && !can("projects", "read")) return <AccessDenied module="DevOps" />;
 
@@ -149,11 +163,17 @@ export default function DevOpsPage() {
           <span className="text-[11px] text-muted-foreground/70">CI/CD Pipelines · Deployments · Change Velocity · Agile</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => downloadCSV(pipelines.map((p: any) => ({ Pipeline: p.name ?? p.id, Service: p.service ?? "", Branch: p.branch ?? "", Status: p.status ?? "", Triggered_By: p.triggeredBy ?? "", Duration: p.durationMs ? `${(p.durationMs/1000).toFixed(1)}s` : "", Last_Run: p.lastRunAt ? new Date(p.lastRunAt).toLocaleDateString("en-IN") : "" })), "devops_pipelines")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="changes" action="write">
-            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+            <button
+              onClick={() => setShowTrigger(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
               <Plus className="w-3 h-3" /> Trigger Pipeline
             </button>
           </PermissionGate>
@@ -249,7 +269,7 @@ export default function DevOpsPage() {
                         <td>
                           {d.rollbackAvailable && d.status === "successful" && (
                             <PermissionGate module="changes" action="write">
-                              <button className="text-[11px] text-orange-600 hover:underline">Rollback</button>
+                              <button onClick={() => rollbackDeployment.mutate({ appName: d.service ?? d.appName ?? "unknown", environment: d.environment ?? "production", version: `${d.version}-rollback`, pipelineRunId: d.pipelineRunId })} className="text-[11px] text-orange-600 hover:underline">Rollback</button>
                             </PermissionGate>
                           )}
                         </td>
@@ -310,12 +330,19 @@ export default function DevOpsPage() {
                         ))}
                       </div>
                       <div className="flex gap-2 mt-3">
-                        <button className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground">
+                        <button
+                          onClick={() => toast.info(`Full log streaming for pipeline ${p.name ?? p.id} coming soon. Open your CI/CD system directly to view logs.`)}
+                          className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground"
+                        >
                           <Terminal className="w-3 h-3" /> View Logs
                         </button>
                         {p.status === "failed" && (
                           <PermissionGate module="changes" action="write">
-                            <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                            <button
+                              onClick={() => createPipelineRun.mutate({ pipelineName: p.name ?? p.id, branch: p.branch ?? "main", trigger: "manual" })}
+                              disabled={createPipelineRun.isPending}
+                              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+                            >
                               <RefreshCw className="w-3 h-3" /> Re-run
                             </button>
                           </PermissionGate>
@@ -444,6 +471,43 @@ export default function DevOpsPage() {
           </div>
         )}
       </div>
+
+      {/* Trigger Pipeline Modal */}
+      {showTrigger && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold flex items-center gap-2"><Play className="w-4 h-4 text-primary" /> Trigger Pipeline</h2>
+              <button onClick={() => setShowTrigger(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Pipeline Name <span className="text-red-500">*</span></label>
+              <input value={triggerForm.pipelineName} onChange={(e) => setTriggerForm(f => ({...f, pipelineName: e.target.value}))} placeholder="e.g. backend-api, frontend-web" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Branch</label>
+                <input value={triggerForm.branch} onChange={(e) => setTriggerForm(f => ({...f, branch: e.target.value}))} placeholder="main" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium">Trigger</label>
+                <select value={triggerForm.trigger} onChange={(e) => setTriggerForm(f => ({...f, trigger: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  {["manual","scheduled","webhook"].map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowTrigger(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!triggerForm.pipelineName.trim()) { toast.error("Pipeline name is required"); return; } createPipelineRun.mutate({ pipelineName: triggerForm.pipelineName.trim(), branch: triggerForm.branch || "main", trigger: triggerForm.trigger }); }}
+                disabled={createPipelineRun.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                {createPipelineRun.isPending ? "Triggering…" : "Trigger Pipeline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

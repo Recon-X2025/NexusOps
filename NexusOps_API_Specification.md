@@ -1,7 +1,7 @@
 # NexusOps — API Specification
 
-**Version:** 1.0  
-**Date:** March 2026  
+**Version:** 1.3  
+**Date:** March 28, 2026  
 **Organisation:** Coheron  
 **Base URL:** `https://<host>/trpc`  
 **Protocol:** tRPC 11 over HTTP (JSON batch)  
@@ -49,7 +49,8 @@
    - [approvals](#630-approvals)
    - [reports](#631-reports)
    - [search](#632-search)
-   - [ai](#633-ai)
+   - [indiaCompliance](#634-indiacompliance)
+   - [inventory](#635-inventory)
 
 ---
 
@@ -187,11 +188,14 @@ tRPC maps errors to standard JSON-RPC codes with additional HTTP status context:
 | `UNAUTHORIZED` | 401 | No or invalid session |
 | `FORBIDDEN` | 403 | Authenticated but lacks required RBAC permission |
 | `NOT_FOUND` | 404 | Requested resource does not exist in this org |
-| `BAD_REQUEST` | 400 | Input validation failed (Zod) |
-| `CONFLICT` | 409 | Optimistic concurrency conflict (version mismatch) |
+| `BAD_REQUEST` | 400 | Input validation failed (Zod), or malformed request |
+| `CONFLICT` | 409 | Optimistic concurrency conflict (version mismatch on `tickets.update` etc.) |
+| `PRECONDITION_FAILED` | 412 | Required server-side configuration is missing (e.g. no open ticket status exists for the org) |
 | `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded |
 | `TIMEOUT` | 408 | Query exceeded 8s hard timeout |
 | `INTERNAL_SERVER_ERROR` | 500 | Unhandled server error |
+
+> **Prototype pollution protection:** All incoming JSON bodies are recursively sanitized at the Fastify `preHandler` layer before tRPC or Zod processing. Keys `__proto__`, `constructor`, and `prototype` are stripped. Payloads containing only these keys are reduced to empty objects and subsequently rejected by Zod validation as `BAD_REQUEST`.
 
 ---
 
@@ -474,14 +478,29 @@ Updates a system configuration property.
 #### `admin.notificationRules.list`
 **Type:** Query · **Access:** `ADMIN`
 
-Lists notification rules. *(Stub — returns empty array.)*
+Lists notification routing rules for the organisation.
 
 ---
 
 #### `admin.scheduledJobs.list`
 **Type:** Query · **Access:** `ADMIN`
 
-Lists scheduled background jobs. *(Stub.)*
+Lists scheduled background jobs with their last-run status and next scheduled time.
+
+---
+
+#### `admin.scheduledJobs.trigger`
+**Type:** Mutation · **Access:** `ADMIN`
+
+Manually triggers a scheduled job by ID, creating an audit log entry for the manual trigger event.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `jobId` | string |
+
+**Returns:** `{ success: true, jobId: string, triggeredAt: Date }`
 
 ---
 
@@ -620,6 +639,65 @@ Returns ticket counts grouped by status for the organisation.
 
 ---
 
+#### `tickets.computeSLAStatus`
+**Type:** Query · **Access:** `PERM(incidents, read)`
+
+Returns the current SLA status for a single ticket, accounting for pause duration.
+
+**Input:** `{ id: uuid }`
+
+**Returns:**
+```json
+{
+  "responseSLAStatus": "ON_TRACK | WARNING | CRITICAL | BREACHED | RESPONDED",
+  "resolutionSLAStatus": "ON_TRACK | WARNING | CRITICAL | BREACHED | COMPLETED",
+  "effectiveElapsedMins": 42,
+  "slaRemainingMins": 198,
+  "slaResponseDueAt": "2026-03-26T10:15:00+05:30",
+  "slaResolutionDueAt": "2026-03-26T14:00:00+05:30"
+}
+```
+
+---
+
+#### `tickets.escalate`
+**Type:** Mutation · **Access:** `PERM(incidents, assign)`
+
+Manually escalates a ticket and increments `escalation_level`. System auto-escalation calls the same underlying logic.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `id` | uuid (required) |
+| `reason` | `RESPONSE_SLA_BREACH \| RESOLUTION_SLA_BREACH \| MANUAL` (required) |
+| `notes` | string? |
+
+**Returns:** Updated `Ticket` with new `escalation_level` + audit log entry  
+**Errors:** `MAX_ESCALATION_LEVEL` if `escalation_level` is already 3
+
+---
+
+#### `tickets.pauseSLA`
+**Type:** Mutation · **Access:** `PERM(incidents, write)`
+
+Sets ticket status to `PENDING_USER`, pauses SLA clock, and schedules 24-hour auto-resume job.
+
+**Input:** `{ id: uuid, reason: string }`  
+**Returns:** Updated `Ticket` with `sla_paused_at` set
+
+---
+
+#### `tickets.resumeSLA`
+**Type:** Mutation · **Access:** `PERM(incidents, write)`
+
+Resumes SLA clock from `PENDING_USER` state. Accumulates pause duration and reschedules SLA breach jobs.
+
+**Input:** `{ id: uuid }`  
+**Returns:** Updated `Ticket` with `sla_pause_duration_mins` updated and new `sla_resolution_due_at`
+
+---
+
 ### 6.4 `changes`
 
 Change request, problem, and release management.
@@ -745,6 +823,50 @@ Records a rejection and cancels the change request.
 
 **Input:** `{ name: string, version: string, plannedDate?: string, notes?: string }`  
 **Returns:** `Release` with `createdBy`
+
+---
+
+#### `changes.addComment`
+**Type:** Mutation · **Access:** `PERM(changes, write)`
+
+Adds a comment or internal note to a change request and updates the change's `updatedAt` timestamp.
+
+**Input:**
+
+| Field | Type | Default |
+|-------|------|---------|
+| `changeId` | uuid | required |
+| `body` | string (min 1) | required |
+| `isInternal` | boolean | `false` |
+
+**Returns:** `{ changeId, body, authorId, createdAt }`
+
+---
+
+#### `changes.addProblemNote`
+**Type:** Mutation · **Access:** `PERM(problems, write)`
+
+Appends a note to a problem record's `notes` JSON array.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `problemId` | uuid |
+| `note` | string (min 1) |
+
+**Returns:** `{ success: true }`
+
+---
+
+#### `changes.publishProblemToKB`
+**Type:** Mutation · **Access:** `PERM(problems, write)`
+
+Creates a published Knowledge Base article from a problem record, prefixed as `[Known Error]`.  
+The article includes the problem description, root cause, and workaround.
+
+**Input:** `{ problemId: uuid }`  
+**Returns:** Created `KbArticle`
 
 ---
 
@@ -944,6 +1066,27 @@ Performs a graph walk to find upstream and downstream CIs affected by a given CI
 **Type:** Query · **Access:** `PERM(sam, read)`
 
 **Returns:** `SoftwareLicense[]` with `usedSeats` and `utilizationPct`
+
+---
+
+#### `assets.licenses.create`
+**Type:** Mutation · **Access:** `PERM(sam, write)`
+
+Creates a new software license record.
+
+**Input:**
+
+| Field | Type | Default |
+|-------|------|---------|
+| `productName` | string (min 1) | required |
+| `vendor` | string? | — |
+| `licenseType` | `perpetual` \| `subscription` \| `trial` \| `open_source` \| `freeware` | `subscription` |
+| `totalSeats` | int (positive)? | — |
+| `costPerSeat` | string? | — |
+| `expiresAt` | string (ISO date)? | — |
+| `notes` | string? | — |
+
+**Returns:** Created `SoftwareLicense`
 
 ---
 
@@ -1150,10 +1293,62 @@ Human resources: employees, cases, leave management, and onboarding.
 
 ---
 
+#### `hr.employees.update`
+**Type:** Mutation · **Access:** `PERM(hr, write)`
+
+Updates an existing employee's profile fields.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `id` | uuid |
+| `department` | string? |
+| `title` | string? |
+| `managerId` | uuid \| null? |
+| `location` | string? |
+| `employmentType` | enum? |
+| `phone` | string? |
+| `emergencyContact` | string? |
+
+**Returns:** Updated `Employee`
+
+---
+
 #### `hr.cases.list`
 **Type:** Query · **Access:** `PERM(hr, read)`
 
 **Returns:** `HrCase[]`
+
+---
+
+#### `hr.cases.get`
+**Type:** Query · **Access:** `PERM(hr, read)`
+
+Returns a single HR case with its expanded task list and activity notes.
+
+**Input:** `{ id: uuid }`  
+**Returns:** `{ ...hrCase, tasks: HrCaseTask[], notes: object[] }`
+
+---
+
+#### `hr.cases.completeTask`
+**Type:** Mutation · **Access:** `PERM(hr, write)`
+
+Marks a task within an HR case as completed.
+
+**Input:** `{ taskId: uuid, notes?: string }`  
+**Returns:** Updated `HrCaseTask`
+
+---
+
+#### `hr.cases.addNote`
+**Type:** Mutation · **Access:** `PERM(hr, write)`
+
+Appends a note to an HR case's activity log.
+
+**Input:** `{ caseId: uuid, note: string }`  
+**Returns:** `{ success: true }`
 
 ---
 
@@ -1227,6 +1422,104 @@ Starts an onboarding workflow for an employee based on a template.
 
 **Input:** `{ name: string, department?: string, tasks: Task[] }`  
 **Returns:** `OnboardingTemplate`
+
+---
+
+#### `hr.payroll.computeAnnualIncome`
+**Type:** Query · **Access:** `PERM(payroll, read)`
+
+Projects an employee's annual income for a given financial year, accounting for mid-year joins and salary revisions.
+
+**Input:** `{ employeeId: uuid, financialYear: string (e.g. "2025-26") }`
+
+**Returns:**
+```json
+{
+  "grossAnnualIncome": 1200000,
+  "monthWiseBreakup": [{ "month": "Apr-2025", "gross": 100000 }, ...],
+  "componentWiseBreakup": { "basic": 480000, "hra": 240000, "specialAllowance": 480000 }
+}
+```
+
+---
+
+#### `hr.payroll.computeTaxOld`
+**Type:** Query · **Access:** `PERM(payroll, read)`
+
+Computes income tax under the Old Regime for a given employee's declared deductions.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `employeeId` | uuid |
+| `financialYear` | string |
+| `deductions` | `{ sec80C, sec80D_self, sec80D_parents, sec24b, sec80CCD_1B, sec80CCD_2, hra_exemption, professional_tax }` |
+
+**Returns:**
+```json
+{
+  "grossIncome": 1200000,
+  "totalDeductions": 350000,
+  "netTaxableIncome": 850000,
+  "slabTax": 80000,
+  "surcharge": 0,
+  "rebate87A": 0,
+  "cess": 3200,
+  "totalTax": 83200
+}
+```
+
+---
+
+#### `hr.payroll.computeTaxNew`
+**Type:** Query · **Access:** `PERM(payroll, read)`
+
+Computes income tax under the New Regime (standard deduction + 80CCD(2) only).
+
+**Input:** `{ employeeId: uuid, financialYear: string, npsEmployerContribution?: number }`
+
+**Returns:** Same structure as `computeTaxOld`
+
+---
+
+#### `hr.payroll.computeTDS`
+**Type:** Query · **Access:** `PERM(payroll, read)`
+
+Computes the monthly TDS amount using the income-projection method for the given month.
+
+**Input:** `{ employeeId: uuid, month: number (1–12), year: number }`
+
+**Returns:**
+```json
+{
+  "monthlyTDS": 6934,
+  "projectedAnnualIncome": 1200000,
+  "projectedAnnualTax": 83200,
+  "tdsDeductedYTD": 41600,
+  "monthsRemaining": 6
+}
+```
+
+---
+
+#### `hr.payroll.runMonthlyPayroll`
+**Type:** Mutation · **Access:** `PERM(payroll, write)`
+
+Triggers the full monthly payroll computation for all active employees. Requires HR Manager approval status before execution.
+
+**Input:** `{ month: number, year: number, approvedBy: uuid }`  
+**Returns:** `{ processedCount: number, totalNetPayroll: number, errorEmployeeIds: uuid[] }`
+
+---
+
+#### `hr.payroll.generatePayslip`
+**Type:** Query · **Access:** `PERM(payroll, read)`
+
+Returns payslip data for a specific employee and month. Payslip PDF generation is a separate download endpoint.
+
+**Input:** `{ employeeId: uuid, month: number, year: number }`  
+**Returns:** Full `SalarySlip` object with all earnings, deductions, and net pay
 
 ---
 
@@ -1325,6 +1618,51 @@ Compares an invoice total against its matched PO for discrepancy detection.
 
 **Input:** `{ invoiceId: uuid, poId: uuid }`  
 **Returns:** Comparison result with variance
+
+---
+
+#### `procurement.invoices.threeWayMatch`
+**Type:** Mutation · **Access:** `PERM(financial, write)`
+
+Performs full three-way matching (PO + GRN + Vendor Invoice) and returns a detailed match result with per-line flags.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `grnId` | uuid (required) |
+| `vendorInvoiceId` | uuid (required) |
+
+**Returns:**
+```json
+{
+  "matchingStatus": "FULLY_MATCHED | EXCEPTION",
+  "flags": [
+    { "type": "INVOICE_QTY_EXCEEDS_GRN", "itemCode": "ITM-001", "invoiceQty": 10, "grnQty": 8 },
+    { "type": "PRICE_VARIANCE", "itemCode": "ITM-002", "poPrice": 500, "invoicePrice": 520, "variancePercent": 4 }
+  ],
+  "matchedItems": [{ "itemCode": "ITM-003", "qty": 5, "unitPrice": 200 }]
+}
+```
+If `matchingStatus = FULLY_MATCHED`: automatically posts journal entry and schedules payment.  
+If `matchingStatus = EXCEPTION`: routes to Finance Manager exception queue.
+
+---
+
+#### `procurement.invoices.resolveException`
+**Type:** Mutation · **Access:** `PERM(financial, write)`
+
+Finance Manager resolution for a three-way match exception.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `invoiceId` | uuid |
+| `action` | `ACCEPT_WITH_VARIANCE \| REQUEST_REVISED_INVOICE \| CREATE_DEBIT_NOTE \| REJECT` |
+| `reason` | string |
+
+**Returns:** Updated invoice record with resolution status
 
 ---
 
@@ -1662,6 +2000,111 @@ Returns accounts-payable aging buckets (0–30, 31–60, 61–90, 90+ days).
 
 ---
 
+#### `financial.computeGST`
+**Type:** Query · **Access:** `PERM(financial, read)`
+
+Computes GST breakdown (CGST+SGST or IGST) for a given taxable value.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `taxableValue` | number |
+| `gstRate` | `0 \| 5 \| 12 \| 18 \| 28` |
+| `isInterstate` | boolean |
+
+**Returns:**
+```json
+{
+  "igstAmount": 0,
+  "cgstAmount": 900,
+  "sgstAmount": 900,
+  "totalTax": 1800,
+  "totalWithTax": 11800
+}
+```
+
+---
+
+#### `financial.createGSTInvoice`
+**Type:** Mutation · **Access:** `PERM(financial, write)`
+
+Creates a GST-compliant tax invoice with GSTIN validation, line-item GST computation, e-invoice IRN generation (if applicable), and journal entry posting.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `invoiceType` | `TAX_INVOICE \| CREDIT_NOTE \| DEBIT_NOTE` |
+| `supplierGSTIN` | string (15-char validated) |
+| `buyerGSTIN` | string? |
+| `buyerName` | string |
+| `buyerAddress` | string |
+| `placeOfSupply` | string (state name) |
+| `lineItems` | `LineItem[]` (each with hsn_sac_code, quantity, unitPrice, gstRate) |
+| `isReverseCharge` | boolean |
+| `originalInvoiceNumber` | string? (mandatory for CREDIT_NOTE) |
+
+**Returns:** Complete invoice object including `e_invoice_irn`, `e_invoice_qr_code`, `eway_bill_number` (if applicable)  
+**Errors:** `GSTIN_INVALID`, `HSN_INVALID`, `E_INVOICE_API_ERROR`, `IMBALANCED_ENTRY`
+
+---
+
+#### `financial.calculateITC`
+**Type:** Query · **Access:** `PERM(financial, read)`
+
+Computes available Input Tax Credit for a period and determines ITC utilisation against output tax liability.
+
+**Input:** `{ periodFrom: date, periodTo: date, gstin: string }`
+
+**Returns:**
+```json
+{
+  "itcIGST": 50000,
+  "itcCGST": 25000,
+  "itcSGST": 25000,
+  "outputIGST": 30000,
+  "outputCGST": 20000,
+  "outputSGST": 20000,
+  "netCashIGST": 0,
+  "netCashCGST": 0,
+  "netCashSGST": 0,
+  "totalCashPayable": 0,
+  "unmatchedInvoiceCount": 3,
+  "unmatchedInvoiceNumbers": ["INV-001", "INV-002", "INV-003"]
+}
+```
+
+---
+
+#### `financial.postJournalEntry`
+**Type:** Mutation · **Access:** `PERM(financial, write)`
+
+Posts a manual double-entry journal entry. Automatically validates that total debits equal total credits before posting.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `reference` | string (description / invoice ref) |
+| `entryDate` | date |
+| `lines` | `{ accountCode: string, debit?: number, credit?: number, description?: string }[]` |
+
+**Returns:** `{ journalEntryId: uuid, totalDebit: number, totalCredit: number }`  
+**Errors:** `IMBALANCED_ENTRY` if sum(debits) ≠ sum(credits)
+
+---
+
+#### `financial.gstReturnsCalendar`
+**Type:** Query · **Access:** `PERM(financial, read)`
+
+Returns the GST returns filing calendar for the organisation's GSTIN(s) with due dates and current filing status.
+
+**Input:** `{ financialYear: string }`  
+**Returns:** `{ returns: GSTReturnDue[] }` each with `{ returnType, gstin, periodFrom, periodTo, dueDate, status }`
+
+---
+
 ### 6.14 `contracts`
 
 Contract lifecycle management.
@@ -1946,6 +2389,23 @@ Converts a lead to a contact and optionally creates an account and deal.
 
 **Input:** `{ dealId, lineItems: { description, qty, unitPrice }[], validUntil? }`  
 **Returns:** `CrmQuote`
+
+---
+
+#### `crm.updateQuote`
+**Type:** Mutation · **Access:** `PERM(accounts, write)`
+
+Updates the status or notes on an existing CRM quote.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `id` | uuid |
+| `status` | `draft` \| `sent` \| `viewed` \| `accepted` \| `declined` \| `expired`? |
+| `notes` | string? |
+
+**Returns:** Updated `CrmQuote`
 
 ---
 
@@ -2381,6 +2841,81 @@ Customer Success Management.
 
 ---
 
+#### `csm.cases.create`
+**Type:** Mutation · **Access:** `PERM(csm, write)`
+
+Creates a new customer support case with auto-priority assignment and agent assignment.
+
+**Input:**
+
+| Field | Type |
+|-------|------|
+| `customerId` | uuid (required) |
+| `contactName` | string |
+| `contactEmail` | string |
+| `contactPhone` | string |
+| `caseType` | `COMPLAINT \| QUERY \| FEEDBACK \| REFUND_REQUEST \| WARRANTY_CLAIM \| ESCALATION` |
+| `subject` | string (min 10 chars) |
+| `description` | string (min 30 chars) |
+| `channel` | `EMAIL \| PHONE \| PORTAL \| CHAT \| IN_PERSON` |
+| `priority` | `P1 \| P2 \| P3 \| P4`? (auto-elevated for GOLD/ENTERPRISE tier) |
+| `productId` | uuid? |
+| `orderId` | uuid? |
+| `attachments` | string[]? |
+
+**Returns:** Full `Case` object with computed `sla_due_at` and assigned agent
+
+---
+
+#### `csm.cases.resolve`
+**Type:** Mutation · **Access:** `PERM(csm, write)`
+
+Resolves a case, records resolution notes, and triggers CSAT survey.
+
+**Input:** `{ id: uuid, resolutionNotes: string (min 30 chars) }`  
+**Returns:** Updated `Case` with `resolved_at` and status `RESOLVED`
+
+---
+
+#### `csm.cases.escalate`
+**Type:** Mutation · **Access:** `PERM(csm, write)`
+
+Escalates a case and routes to the next escalation level owner.
+
+**Input:** `{ id: uuid, reason: string }`  
+**Returns:** Updated `Case` with incremented `escalation_level`
+
+---
+
+#### `csm.cases.computeCSATScore`
+**Type:** Query · **Access:** `PERM(csm, read)`
+
+Computes CSAT statistics for a customer over a date range.
+
+**Input:** `{ customerId: uuid, periodFrom: date, periodTo: date }`
+
+**Returns:**
+```json
+{
+  "avgCSAT": 4.2,
+  "totalCases": 25,
+  "scoredCases": 18,
+  "scoreDistribution": { "1": 0, "2": 1, "3": 2, "4": 8, "5": 7 }
+}
+```
+
+---
+
+#### `csm.cases.recordCSAT`
+**Type:** Mutation · **Access:** `PUBLIC` (customer portal token)
+
+Records a CSAT score from a customer survey response.
+
+**Input:** `{ caseId: uuid, score: 1 | 2 | 3 | 4 | 5, comment?: string }`  
+**Returns:** Updated `Case` with `csat_score` and `csat_comment`
+
+---
+
 #### `csm.dashboard`
 **Type:** Query · **Access:** `PERM(csm, read)`
 
@@ -2779,7 +3314,7 @@ Returns approval items currently pending the authenticated user's decision.
 
 Returns approval requests submitted by the current user.
 
-**Returns:** `ApprovalStep[]` *(currently returns empty array — wiring pending)*
+**Returns:** `ApprovalStep[]`
 
 ---
 
@@ -2902,18 +3437,153 @@ Suggests a resolution for a ticket based on its category, description, and simil
 
 ---
 
+### 6.34 `indiaCompliance`
+
+India statutory compliance management — ROC filings, director KYC, and compliance calendar.
+
+---
+
+#### `indiaCompliance.calendar.list`
+**Type:** Query · **Access:** `PERM(secretarial, read)`
+
+Returns the compliance calendar items for the organisation (MCA filings, GST returns, TDS deadlines, etc.).
+
+**Input:** `{ year?: number, status?: string }`  
+**Returns:** `ComplianceCalendarItem[]` with due dates, filing status, and penalty computations
+
+---
+
+#### `indiaCompliance.calendar.markFiled`
+**Type:** Mutation · **Access:** `PERM(secretarial, write)`
+
+Marks a compliance calendar item as filed and records the actual filing date.
+
+**Input:** `{ id: uuid, filedAt?: string }`  
+**Returns:** Updated `ComplianceCalendarItem`
+
+---
+
+#### `indiaCompliance.directors.list`
+**Type:** Query · **Access:** `PERM(secretarial, read)`
+
+Lists all directors in the organisation.
+
+**Input:** `{ isActive?: boolean }`  
+**Returns:** `Director[]`
+
+---
+
+#### `indiaCompliance.directors.triggerKYCReminders`
+**Type:** Mutation · **Access:** `PERM(secretarial, write)`
+
+Sends DIR-3 KYC reminders to all directors whose KYC is pending or due for renewal.
+
+**Input:** None  
+**Returns:** `{ sent: number, directors: Director[] }`
+
+---
+
+#### `indiaCompliance.directors.markKYCComplete`
+**Type:** Mutation · **Access:** `PERM(secretarial, write)`
+
+Records that a director's KYC has been filed.
+
+**Input:** `{ directorId: uuid, filedAt?: string }`  
+**Returns:** Updated `Director`
+
+---
+
+### 6.35 `inventory`
+
+Inventory management — stock tracking, intake, issuance, and reorder management.
+
+---
+
+#### `inventory.list`
+**Type:** Query · **Access:** `PERM(procurement, read)`
+
+Returns inventory items for the organisation.
+
+**Input:** `{ category?, status?, lowStock?: boolean, limit? }`  
+**Returns:** `InventoryItem[]`
+
+---
+
+#### `inventory.create`
+**Type:** Mutation · **Access:** `PERM(procurement, write)`
+
+Creates a new inventory item record.
+
+**Input:**
+
+| Field | Type | Default |
+|-------|------|---------|
+| `name` | string | required |
+| `sku` | string? | — |
+| `category` | string? | — |
+| `unitCost` | string? | — |
+| `quantityOnHand` | int | `0` |
+| `reorderPoint` | int | `0` |
+| `reorderQuantity` | int | `0` |
+| `location` | string? | — |
+| `supplierId` | uuid? | — |
+
+**Returns:** Created `InventoryItem`
+
+---
+
+#### `inventory.issueStock`
+**Type:** Mutation · **Access:** `PERM(procurement, write)`
+
+Issues (decrements) stock for an inventory item and records the transaction.
+
+**Input:** `{ itemId: uuid, quantity: int (positive), reason?: string, issuedTo?: uuid }`  
+**Returns:** Updated `InventoryItem` + `InventoryTransaction`
+
+---
+
+#### `inventory.intake`
+**Type:** Mutation · **Access:** `PERM(procurement, write)`
+
+Records a stock intake (increment) for an inventory item.
+
+**Input:** `{ itemId: uuid, quantity: int (positive), reason?: string, poId?: uuid }`  
+**Returns:** Updated `InventoryItem` + `InventoryTransaction`
+
+---
+
+#### `inventory.reorder`
+**Type:** Mutation · **Access:** `PERM(procurement, write)`
+
+Creates a purchase request for a low-stock item and marks it as on-order.
+
+**Input:** `{ itemId: uuid, quantity: int (positive) }`  
+**Returns:** `{ success: true, itemId: uuid, orderedQuantity: number }`
+
+---
+
+#### `inventory.transactions`
+**Type:** Query · **Access:** `PERM(procurement, read)`
+
+Returns the transaction history for an inventory item.
+
+**Input:** `{ itemId: uuid, limit?: number }`  
+**Returns:** `InventoryTransaction[]`
+
+---
+
 ## Appendix A — Procedure Access Summary
 
 | Router | Total Procedures | Public | Auth | Permission | Admin |
 |--------|-----------------|--------|------|------------|-------|
 | auth | 12 | 5 | 4 | 3 | 0 |
-| admin | 9 | 0 | 0 | 0 | 9 |
+| admin | 10 | 0 | 0 | 0 | 10 |
 | tickets | 7 | 0 | 0 | 7 | 0 |
-| changes | 13 | 0 | 0 | 13 | 0 |
+| changes | 16 | 0 | 0 | 16 | 0 |
 | workOrders | 7 | 0 | 0 | 7 | 0 |
-| assets | 15 | 0 | 0 | 15 | 0 |
+| assets | 16 | 0 | 0 | 16 | 0 |
 | workflows | 9 | 0 | 0 | 9 | 0 |
-| hr | 11 | 0 | 0 | 11 | 0 |
+| hr | 15 | 0 | 0 | 15 | 0 |
 | procurement | 9 | 0 | 0 | 9 | 0 |
 | dashboard | 3 | 0 | 0 | 3 | 0 |
 | security | 10 | 0 | 0 | 10 | 0 |
@@ -2921,7 +3591,7 @@ Suggests a resolution for a ticket based on its category, description, and simil
 | financial | 10 | 0 | 0 | 10 | 0 |
 | contracts | 8 | 0 | 0 | 8 | 0 |
 | projects | 10 | 0 | 0 | 10 | 0 |
-| crm | 12 | 0 | 0 | 12 | 0 |
+| crm | 13 | 0 | 0 | 13 | 0 |
 | legal | 9 | 0 | 0 | 9 | 0 |
 | devops | 7 | 0 | 0 | 7 | 0 |
 | surveys | 6 | 0 | 1 | 5 | 0 |
@@ -2939,7 +3609,9 @@ Suggests a resolution for a ticket based on its category, description, and simil
 | reports | 4 | 0 | 0 | 4 | 0 |
 | search | 1 | 0 | 1 | 0 | 0 |
 | ai | 2 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **~282** | **5** | **16** | **252** | **9** |
+| indiaCompliance | 5 | 0 | 0 | 5 | 0 |
+| inventory | 6 | 0 | 0 | 6 | 0 |
+| **TOTAL** | **~302** | **5** | **16** | **272** | **10** |
 
 ---
 
@@ -2997,3 +3669,14 @@ Audit logs are queryable by org admins via `admin.auditLog.list`.
 *End of API Specification*
 
 *For questions, contact the NexusOps platform team at Coheron.*
+
+---
+
+## Revision History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2026-03-26 | Platform Engineering | Initial document |
+| 1.1 | 2026-03-27 | Platform Engineering | Added `inventory` and `indiaCompliance` routers. Documented new procedures. |
+| 1.2 | 2026-03-28 | Platform Engineering | Validated all documented endpoints under 200-VU k6 load. `tickets.list` and `dashboard.getMetrics` confirmed stable at 340 req/s with 0% error rate and p(95) 23ms. API contract corrections applied: `walkup.queue.callNext` (`id`→`locationId`), `walkup.queue.complete` (`id`→`visitId`), `crm.convertLead` (`dealTitle` added), `crm.listQuotes` (removed unsupported `limit` param), `facilities.moveRequests.create` (`toLocation` corrected), `facilities.bookings.create` (full payload documented). See `NexusOps_Load_Test_Report_2026.md`. |
+| 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Added `PRECONDITION_FAILED (412)` to §5 error codes: returned by `tickets.create` when the organisation has no open ticket status configured. Added prototype pollution protection note to §5: `__proto__`, `constructor`, and `prototype` keys are stripped at Fastify `preHandler` before any procedure runs. Fixed `tickets.create` to not propagate `INTERNAL_SERVER_ERROR` for invalid enum inputs — Zod validation failures now correctly surface as `BAD_REQUEST (400)`. Fixed `tickets.update` input schema documentation: update fields must be nested under a `data:` key. k6 security test suite (26 adversarial cases) confirmed 100% correct rejection rate and 0 unhandled 500 errors. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |

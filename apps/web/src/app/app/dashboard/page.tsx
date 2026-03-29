@@ -13,6 +13,7 @@ import {
   TrendingDown, TrendingUp,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { STALE_TIME } from "@/components/providers/trpc-provider";
 import { useRBAC } from "@/lib/rbac-context";
 import type { Module } from "@nexusops/types";
@@ -118,6 +119,11 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
     staleTime: STALE_TIME.LIVE,
     retry: 2,
     retryDelay: 1500,
+  });
+
+  const decideMutation = trpc.approvals.decide.useMutation({
+    onSuccess: () => { toast.success("Action completed"); refetch(); },
+    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
   });
 
   // Only surface an API-down banner after retries are exhausted AND the error
@@ -460,8 +466,8 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                   </div>
                   <p className="text-[11px] text-foreground/80 truncate">{ap.title ?? ap.entityId}</p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <button className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[11px] hover:bg-green-200">Approve</button>
-                    <button className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[11px] hover:bg-red-200">Reject</button>
+                    <button onClick={() => decideMutation.mutate({ requestId: ap.id, decision: "approved", comment: "Approved from dashboard" })} disabled={decideMutation.isPending} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[11px] hover:bg-green-200 disabled:opacity-50">Approve</button>
+                    <button onClick={() => decideMutation.mutate({ requestId: ap.id, decision: "rejected", comment: "Rejected from dashboard" })} disabled={decideMutation.isPending} className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[11px] hover:bg-red-200 disabled:opacity-50">Reject</button>
                   </div>
                 </div>
               ))}

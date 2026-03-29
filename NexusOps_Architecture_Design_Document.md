@@ -1,7 +1,7 @@
 # NexusOps — Architecture Design Document
 
-**Version:** 1.0  
-**Date:** March 2026  
+**Version:** 1.3  
+**Date:** March 28, 2026  
 **Organisation:** Coheron  
 **Status:** Living Document
 
@@ -26,6 +26,7 @@
 15. [Observability & Monitoring](#15-observability--monitoring)
 16. [Environment Configuration](#16-environment-configuration)
 17. [Key Architectural Decisions](#17-key-architectural-decisions)
+18. [India Compliance Architecture](#18-india-compliance-architecture)
 
 ---
 
@@ -252,8 +253,8 @@ The API is a **Fastify 5** server exposing a **tRPC 11** adapter mounted at `/tr
 apps/api/src/
 ├── index.ts               # Fastify server bootstrap, plugin registration, health routes
 ├── routers/
-│   ├── index.ts           # AppRouter — merges all 33 domain routers
-│   └── *.ts               # 33 domain routers (one per module)
+│   ├── index.ts           # AppRouter — merges all 35 domain routers
+│   └── *.ts               # 35 domain routers (one per module)
 ├── middleware/
 │   └── auth.ts            # createContext: session resolution, Redis cache, L1 in-memory cache
 ├── lib/
@@ -370,6 +371,8 @@ All schemas live in `packages/db/src/schema/` and are re-exported from a single 
 | **Legal** | `legal.ts` | `legalMatters`, `legalRequests`, `investigations` |
 | **Facilities** | `facilities.ts` | `buildings`, `rooms`, `roomBookings`, `moveRequests`, `facilityRequests` |
 | **DevOps** | `devops.ts` | `pipelineRuns`, `deployments` |
+| **Inventory** | `inventory.ts` | `inventoryItems`, `inventoryTransactions` |
+| **India Compliance** | `india-compliance.ts` | `complianceCalendarItems`, `directors`, `portalUsers`, `tdsChallanRecords`, `epfoEcrSubmissions` |
 
 ### 6.3 Multi-tenancy
 
@@ -542,25 +545,25 @@ export const deleteOrg = adminProcedure
 
 ## 10. API Design — tRPC Routers
 
-The `AppRouter` merges **33 domain routers** plus the `auth` router, all mounted at `/trpc`.
+The `AppRouter` merges **35 domain routers** plus the `auth` router, all mounted at `/trpc`.
 
 | Router | Module | Key Procedures |
 |--------|--------|---------------|
 | `auth` | — | `login`, `signup`, `logout`, `me`, `forgotPassword`, `resetPassword`, `updateProfile` |
-| `admin` | `admin` | Org management, user management, invite, role assignment |
+| `admin` | `admin` | Org management, user management, invite, role assignment, scheduled job triggers |
 | `dashboard` | multiple | `getMetrics`, `getRecentActivity`, `getAlerts` |
 | `tickets` | `incidents` | CRUD, assign, comment, SLA tracking, activity log |
-| `changes` | `changes` | Change request lifecycle, approvals, CAB |
+| `changes` | `changes` | Change request lifecycle, approvals, CAB, comments, problem notes, KB publish |
 | `workOrders` | `work_orders` | Field service jobs, tasks, parts |
-| `assets` | `cmdb`, `ham`, `sam` | CI items, relationships, software licenses |
+| `assets` | `cmdb`, `ham`, `sam` | CI items, relationships, software licenses (create/assign/revoke) |
 | `workflows` | `workflows` | Builder CRUD, trigger, run history |
-| `hr` | `hr`, `onboarding` | Employees, cases, leave, onboarding templates |
+| `hr` | `hr`, `onboarding` | Employees (create/update), cases (get/completeTask/addNote), leave, onboarding templates |
 | `procurement` | `procurement` | Purchase requests, POs, invoices, approval chains |
 | `financial` | `financial` | Budget lines, chargebacks |
 | `contracts` | `contracts` | Contract lifecycle, obligations |
 | `legal` | `legal` | Matters, requests, investigations |
 | `projects` | `projects` | Projects, milestones, tasks |
-| `crm` | `accounts` | Accounts, contacts, deals, leads, activities, quotes |
+| `crm` | `accounts` | Accounts, contacts, deals, leads, activities, quotes (create/update) |
 | `csm` | `csm` | Customer success management |
 | `catalog` | `catalog` | Service catalog items, requests |
 | `security` | `security` | Incidents, vulnerabilities |
@@ -579,6 +582,8 @@ The `AppRouter` merges **33 domain routers** plus the `auth` router, all mounted
 | `search` | — | Meilisearch federated search across modules |
 | `apm` | `reports` | Application performance monitoring metrics |
 | `ai` | — | Virtual agent / Anthropic AI integration |
+| `indiaCompliance` | `secretarial` | ROC filings calendar, director KYC, compliance tracking |
+| `inventory` | `procurement` | Inventory items, stock intake, issuance, reorder management |
 
 ---
 
@@ -829,6 +834,26 @@ Every **mutation** through `protectedProcedure` writes an entry to the `auditLog
 
 All tRPC procedure inputs are validated with **Zod** schemas before reaching the handler. Shared schemas from `@nexusops/types` ensure front-end and back-end validation are identical.
 
+**Prototype Pollution Protection:** A Fastify `preHandler` hook applies `sanitizeInput()` recursively to every incoming JSON body before tRPC or Zod processing. The keys `__proto__`, `constructor`, and `prototype` are stripped from all objects (including nested ones) and arrays. This prevents prototype pollution attacks from ever reaching application code.
+
+```
+Incoming JSON body
+       │
+       ▼
+  sanitizeInput()          ← strips __proto__ / constructor / prototype keys
+       │
+       ▼
+  Fastify route handler    ← tRPC plugin receives clean body
+       │
+       ▼
+  Zod .parse() / .safeParse()  ← validates types, required fields, enum values
+       │
+       ▼
+  tRPC handler (business logic)
+```
+
+**Error code discipline:** Validation failures surface as `BAD_REQUEST (400)`. Configuration pre-conditions (e.g. missing org workflow setup) surface as `PRECONDITION_FAILED (412)`. `INTERNAL_SERVER_ERROR (500)` is reserved for truly unhandled faults — the k6 adversarial test suite confirmed 0 unhandled 500s across 26 attack categories.
+
 ### 14.6 SQL Injection Prevention
 
 Drizzle ORM uses **parameterised queries** exclusively. No raw SQL string interpolation of user input is permitted.
@@ -861,6 +886,29 @@ Every query is scoped with `where(eq(table.orgId, ctx.org.id))`. The `permission
 ### 15.4 Search Index
 
 Meilisearch maintains a real-time full-text search index over key entity types (tickets, assets, knowledge articles, etc.), powered by the `search` tRPC router and the `src/services/search.ts` indexing service.
+
+### 15.5 k6 Security & Reliability Testing
+
+A purpose-built k6 test suite in `tests/k6/` continuously validates system security and reliability. It covers six dimensions:
+
+| Test | VUs | Duration | What it validates |
+|---|---|---|---|
+| `auth_stress.js` | 0→50 | 1m45s | Login throughput, session isolation, no token reuse |
+| `rate_limit.js` | 1–5 | 2m52s | Per-user rate bucket isolation, storm rejection, window recovery |
+| `chaos_flow.js` | 30 | 3m | Full 6-step workflow (login→create→update→list→logout) under concurrent load |
+| `race_condition.js` | 20 | 2m | Concurrent writes to a single row — optimistic locking, no deadlocks |
+| `invalid_payload.js` | 1 | 3m | 26 adversarial input cases — prototype pollution, bad enums, XSS, SQL injection |
+| `run_all.js` | up to 50 | 7m | All scenarios orchestrated in a single run |
+
+**Baseline results (March 28, 2026):**
+- 23,798 total requests across full suite
+- **0 unhandled server errors (500s)**
+- **100% bad input rejection** (all 26 adversarial cases)
+- p(95) 271ms across all endpoints
+- 1,655 complete end-to-end workflows with zero failures
+- Optimistic locking confirmed: 9,151 concurrent writes → 2,004 clean 409 conflicts, 0 data corruptions
+
+See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results.
 
 ---
 
@@ -935,7 +983,7 @@ Variables prefixed with `NEXT_PUBLIC_` are embedded at build time and exposed to
 
 **Decision:** Pages with internal tab navigation use `?tab=<key>` query params (rather than local state) to control which tab is active.  
 **Rationale:** Enables sidebar sub-items to link directly to specific tabs; browser back/forward navigation works correctly; deep-links are shareable.  
-**Trade-off:** Slightly more complex page components; requires `useSearchParams` with `<Suspense>` wrapper.
+**Trade-off:** Pages using `useSearchParams` must wrap the component in a `<Suspense>` boundary (or export `dynamic = "force-dynamic"` for purely-client pages) to satisfy Next.js App Router's static prerendering requirements.
 
 ### ADR-007: Multi-tenant by `orgId` Query Scoping
 
@@ -945,6 +993,121 @@ Variables prefixed with `NEXT_PUBLIC_` are embedded at build time and exposed to
 
 ---
 
+## 18. India Compliance Architecture
+
+This section documents the India-specific compliance systems embedded within NexusOps. All components described here are fully integrated into the existing module architecture; no separate service is required.
+
+### 18.1 India Compliance Layer Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  India Compliance Layer                      │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │  Tax Engine  │  │  GST Engine  │  │  Compliance      │   │
+│  │  (Payroll)   │  │  (Finance)   │  │  Calendar (ROC)  │   │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘   │
+│         │                 │                    │              │
+│  ┌──────▼───────┐  ┌──────▼───────┐  ┌────────▼─────────┐   │
+│  │ Old/New      │  │ CGST/SGST/   │  │ AOC-4 / MGT-7    │   │
+│  │ Regime TDS   │  │ IGST + ITC   │  │ DIR-3 KYC        │   │
+│  │ PF / PT / LWF│  │ E-Invoice    │  │ Event-based ROC  │   │
+│  └──────────────┘  └──────────────┘  └──────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 18.2 Tax Engine Location and Responsibilities
+
+**Package:** `packages/api/src/lib/tax-engine.ts`
+
+| Function | Input | Output |
+|----------|-------|--------|
+| `computeTaxOld` | Taxable income + 8 deduction categories | `{ slabTax, surcharge, rebate87A, cess, totalTax }` |
+| `computeTaxNew` | Taxable income + NPS employer | `{ slabTax, surcharge, rebate87A, cess, totalTax }` |
+| `computeHRAExemption` | HRA received, rent paid, basic, isMetro | HRA exempt amount |
+| `computeMonthlyTDS` | Employee ID, FY month, YTD data | Monthly TDS amount |
+| `computePFDeduction` | Basic salary | `{ employeeContrib, employerContrib, eps, epf }` |
+| `getStatePT` | State name, calendar month | PT amount for that month |
+
+All functions are **pure** (no database calls, no side effects). They are called synchronously by the payroll router procedures and by the `hr.payroll.*` tRPC procedures.
+
+### 18.3 GST Engine Location and Responsibilities
+
+**Package:** `packages/api/src/lib/gst-engine.ts`
+
+| Function | Responsibility |
+|----------|----------------|
+| `computeGST` | CGST+SGST vs IGST based on `isInterstate` flag |
+| `validateGSTIN` | 15-char format + state code + PAN + checksum |
+| `computeITCUtilization` | Statutory ITC utilisation sequence across 3 buckets |
+| `applyRCM` | Buyer-side RCM liability and ITC entries |
+| `reconcileGSTR2B` | Match system invoices against GSTR-2B data |
+
+The `financial.createGSTInvoice` tRPC procedure calls this engine and, for companies with turnover > ₹5 crore, additionally calls the **IRP (Invoice Registration Portal) API** to obtain an IRN. The IRP API base URL is configured via `env.IRP_API_URL` and authentication via `env.IRP_API_TOKEN`.
+
+### 18.4 Statutory Filing Outputs
+
+The following reports are generated by the payroll and finance modules and must be submitted to government portals. NexusOps generates the data files; actual portal submission is manual.
+
+| Output | Format | Frequency | Due Date | Submitted To |
+|--------|--------|-----------|----------|-------------|
+| ECR (PF Challan) | CSV per EPFO spec | Monthly | 15th of following month | EPFO Unified Portal |
+| PT Challan data | State-specific format | Monthly | Varies per state | State PT portal |
+| TDS Challan (ITNS 281) | Government format | Monthly | 7th of following month | NSDL/TRACES |
+| Form 24Q | XML | Quarterly | 31 Jul / 31 Oct / 31 Jan / 31 May | TRACES |
+| Form 16 Part B | PDF | Annual | 15 June | Employee distribution |
+| GSTR-1 data | JSON per GST spec | Monthly or Quarterly | 11th or 13th | GST Portal |
+| GSTR-3B data | JSON per GST spec | Monthly | 20th | GST Portal |
+
+### 18.5 Compliance Calendar Engine
+
+**Package:** `packages/api/src/lib/compliance-calendar.ts`
+
+The compliance calendar engine:
+1. Seeds all annual ROC/MCA events (AOC-4, MGT-7, ADT-1, DIR-3 KYC, MSME-1) at the start of each financial year with computed due dates
+2. Seeds GST return deadlines per the organisation's GSTIN filing frequency (monthly or quarterly)
+3. Sends BullMQ-scheduled reminder jobs at configurable days before each due date (default: 30, 15, 7, 1 days)
+4. On due date breach: increments `days_overdue` and computes `total_penalty_inr = days_overdue × penalty_per_day`
+5. Director KYC reminder flow: creates three scheduled notifications on September 1, 15, and 25, with escalation to the Company Secretary on September 25
+
+### 18.6 Customer Portal Security (DPDP Act 2023 Compliance)
+
+The customer portal enforces DPDP Act 2023 compliance at the API gateway layer:
+
+| Requirement | Implementation |
+|-------------|----------------|
+| Customer data isolation | `customer_id` extracted from JWT only; never accepted as query parameter |
+| Data minimisation | Portal DTOs explicitly exclude PAN, Aadhaar, bank account, and all internal fields |
+| Right to erasure | `portal.deleteMyData` procedure; fulfilled within 30 calendar days via async job |
+| Consent logging | All portal data access events written to `portal_audit_log` table |
+| No cross-customer access | HTTP 403 (not 404) on any cross-customer resource access attempt |
+
+### 18.7 Cross-Reference to Business Logic Document
+
+The authoritative source for all India-specific business rules, computation formulas, slab rates, state-wise tax tables, and workflow definitions is:
+
+**`NexusOps_Complete_Business_Logic_v1.md`**
+
+That document takes precedence over any other document in cases of conflict. It defines:
+- All 9 module workflows with step-by-step states
+- Exact Indian tax slab rates and deduction limits (Old and New regime)
+- GST rate table with examples and ITC utilisation sequence
+- ROC filing deadlines and penalties per the Companies Act 2013
+- Customer portal security model and data isolation rules
+
+---
+
 *End of Architecture Design Document*
 
 *For questions about this document, contact the NexusOps platform team at Coheron.*
+
+---
+
+## Revision History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2026-03-26 | Platform Engineering | Initial document |
+| 1.1 | 2026-03-27 | Platform Engineering | Added India Compliance architecture (§18). Updated router count. |
+| 1.2 | 2026-03-28 | Platform Engineering | Added k6 load testing results to §15 (Observability). Confirmed system sustains 200 concurrent users at 340 req/s with p(95) 23ms and 0% error rate. Browser Core Web Vitals: FCP 450ms avg, LCP 450ms avg, CLS 0.001. See `NexusOps_Load_Test_Report_2026.md`. |
+| 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Expanded §14.5 (Input Validation) to document prototype pollution protection: `sanitizeInput()` Fastify `preHandler` strips `__proto__`/`constructor`/`prototype` keys recursively. Added `PRECONDITION_FAILED` and `CONFLICT` error codes to security error catalogue. Added §15.5 (k6 Security & Reliability Testing): documents all 6 test scenarios, their VU counts and durations, and the March 28 baseline (0 unhandled 500s, 100% bad-input rejection, p95 271ms). See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |

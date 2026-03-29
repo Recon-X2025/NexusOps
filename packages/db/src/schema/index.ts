@@ -1,12 +1,14 @@
 export * from "./counters";
 export * from "./auth";
 export * from "./tickets";
+export * from "./assignment";
 export * from "./assets";
 export * from "./workflows";
 export * from "./hr";
 export * from "./procurement";
 export * from "./portal";
 export * from "./integrations";
+export * from "./inventory";
 export * from "./work-orders";
 // Phase 2 schemas
 export * from "./changes";
@@ -27,6 +29,8 @@ export * from "./walkup";
 export * from "./apm";
 export * from "./oncall";
 export * from "./catalog";
+// India compliance schemas
+export * from "./india-compliance";
 
 // Re-export drizzle operators used in routers
 export {
