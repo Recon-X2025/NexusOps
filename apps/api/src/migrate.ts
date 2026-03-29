@@ -22,8 +22,8 @@ async function run() {
   const db     = drizzle(client);
 
   // Migration SQL files live at packages/db/drizzle/ relative to /app.
-  // In the Docker runner image this resolves to /app/packages/db/drizzle.
-  const migrationsFolder = resolve(__dirname, "../../packages/db/drizzle");
+  // __dirname resolves to /app/apps/api/dist, so go 3 levels up.
+  const migrationsFolder = resolve(__dirname, "../../../packages/db/drizzle");
 
   console.log("[MIGRATE] folder:", migrationsFolder);
   await migrate(db, { migrationsFolder });
