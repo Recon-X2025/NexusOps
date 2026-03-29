@@ -47,4 +47,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/index.mjs"]
+CMD ["sh", "-c", "pnpm --filter @nexusops/db db:migrate && node dist/index.mjs"]

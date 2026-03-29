@@ -12,6 +12,7 @@
   "types": "./dist/types.d.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "start:dev": "pnpm --filter @nexusops/db db:migrate && tsx src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
