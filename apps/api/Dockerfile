@@ -35,6 +35,9 @@ COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 # Copy built dist and package metadata
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+# Copy db migration files so drizzle-kit migrate can run at startup
+COPY --from=builder /app/packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
+COPY --from=builder /app/packages/db/drizzle ./packages/db/drizzle
 
 USER api
 
@@ -47,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "pnpm --filter @nexusops/db db:migrate && node dist/index.mjs"]
+CMD ["sh", "-c", "/app/node_modules/.bin/drizzle-kit migrate --config /app/packages/db/drizzle.config.ts && node dist/index.mjs"]
