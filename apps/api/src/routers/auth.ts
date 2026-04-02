@@ -2,6 +2,8 @@ import { router, publicProcedure, protectedProcedure, permissionProcedure } from
 import { invalidateSessionCache } from "../middleware/auth";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { logInfo, logWarn } from "../lib/logger";
+import { withBcryptSlot } from "../lib/bcrypt-semaphore";
 import {
   users,
   organizations,
@@ -134,6 +136,7 @@ export const authRouter = router({
 
   login: publicProcedure.input(LoginSchema).mutation(async ({ ctx, input }) => {
     const { db } = ctx;
+    const t0 = Date.now();
 
     const [user] = await db
       .select()
@@ -141,32 +144,45 @@ export const authRouter = router({
       .where(eq(users.email, input.email))
       .limit(1);
 
+    const tDbUser = Date.now();
+
     if (!user) {
       await recordFailedLogin(input.email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", { reason: "user_not_found", email: input.email, db_ms: tDbUser - t0 });
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
 
     if (user.status === "disabled") {
       await recordFailedLogin(input.email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", { reason: "account_disabled", user_id: user.id });
       throw new TRPCError({ code: "FORBIDDEN", message: "Account disabled" });
     }
 
     if (!user.passwordHash) {
       await recordFailedLogin(input.email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", { reason: "no_password_hash", user_id: user.id });
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
 
-    const passwordOk = await verifyPassword(input.password, user.passwordHash);
+    const tBcryptStart = Date.now();
+    const passwordOk = await withBcryptSlot(() => verifyPassword(input.password, user.passwordHash!));
+    const tBcryptEnd = Date.now();
+
     if (!passwordOk) {
       await recordFailedLogin(input.email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", {
+        reason:    "wrong_password",
+        user_id:   user.id,
+        bcrypt_ms: tBcryptEnd - tBcryptStart,
+      });
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
 
     await clearLoginAttempts(input.email);
 
     const sessionId = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent);
-    console.log("LOGIN SUCCESS USER:", user.id);
-    console.log("SESSION PLAINTEXT:", sessionId);
+    const tSession = Date.now();
+
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
     const [org] = await db
@@ -174,6 +190,17 @@ export const authRouter = router({
       .from(organizations)
       .where(eq(organizations.id, user.orgId))
       .limit(1);
+
+    const tTotal = Date.now();
+    logInfo("AUTH_LOGIN_SUCCESS", {
+      request_id: ctx.requestId,
+      user_id:    user.id,
+      org_id:     user.orgId,
+      db_ms:      tDbUser - t0,
+      bcrypt_ms:  tBcryptEnd - tBcryptStart,
+      session_ms: tSession - tBcryptEnd,
+      total_ms:   tTotal - t0,
+    });
 
     return { user: stripPasswordHash(user), org, sessionId };
   }),

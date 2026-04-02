@@ -30,15 +30,20 @@ export type Context = {
   sessionId: string | null;
   ipAddress: string | null;
   userAgent: string | null;
+  /** Value of the X-Idempotency-Key request header, if provided. */
+  idempotencyKey: string | null;
 };
 
 const t = initTRPC.context<Context>().create({
-  errorFormatter({ shape, error }) {
+  errorFormatter({ shape, error, ctx }) {
     return {
       ...shape,
       data: {
         ...shape.data,
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+        // traceId lets the caller correlate client-side error logs with
+        // server-side structured logs using the same request_id value.
+        traceId: (ctx as Context | undefined)?.requestId ?? null,
       },
     };
   },

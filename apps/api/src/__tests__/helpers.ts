@@ -103,8 +103,10 @@ export function makeContext(
     org: { id: orgId, name: 'Test Org', slug: 'test-org' },
     orgId,
     sessionId: 'test-session',
+    requestId: null,
     ipAddress: '127.0.0.1',
     userAgent: 'vitest',
+    idempotencyKey: null,
     ...overrides,
   };
 }
@@ -254,8 +256,10 @@ export async function loginAndGetToken(email: string, password: string): Promise
     org: null,
     orgId: null,
     sessionId: null,
+    requestId: null,
     ipAddress: '127.0.0.1',
     userAgent: 'vitest',
+    idempotencyKey: null,
   });
   const result = await caller.auth.login({ email, password });
   // FIX: 2026-03-25 — auth.login returns { sessionId } not { sessionToken }

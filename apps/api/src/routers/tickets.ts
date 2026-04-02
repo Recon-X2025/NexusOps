@@ -1,12 +1,56 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { sendNotification } from "../services/notifications";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { getNextSeq } from "../lib/auto-number";
 import { resolveAssignment } from "../services/assignment";
 import { getRedis } from "../lib/redis";
 import { rateLimit } from "../lib/rate-limit";
+import { logInfo } from "../lib/logger";
+
+// ── Idempotency helpers ───────────────────────────────────────────────────────
+//
+// Response snapshots are stored in Redis under idempotent:{orgId}:{key} with a
+// 24-hour TTL.  On a duplicate request the exact same JSON is returned without
+// touching the DB — guaranteeing response identity even if the return shape
+// changes in future code.  The TTL matches typical client retry windows.
+
+const IDEMPOTENT_CACHE_TTL_SECS = 86_400; // 24 hours
+
+function idempotentRedisKey(orgId: string, key: string) {
+  return `idempotent:${orgId}:${key}`;
+}
+
+async function getCachedIdempotentResponse(
+  orgId: string,
+  key: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await getRedis().get(idempotentRedisKey(orgId, key));
+    if (!raw) return null;
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedIdempotentResponse(
+  orgId: string,
+  key: string,
+  ticket: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getRedis().setex(
+      idempotentRedisKey(orgId, key),
+      IDEMPOTENT_CACHE_TTL_SECS,
+      JSON.stringify(ticket),
+    );
+  } catch {
+    // Non-fatal — the DB still holds the idempotency_key column as the source of truth
+  }
+}
 import {
   tickets,
   ticketComments,
@@ -35,6 +79,20 @@ import {
 function generateTicketNumber(orgSlug: string, seq: number): string {
   const prefix = orgSlug.toUpperCase().replace(/-/g, "").slice(0, 4);
   return `${prefix}-${String(seq).padStart(4, "0")}`;
+}
+
+/**
+ * Derive a stable idempotency key from caller context when the client does not
+ * supply one.  The 5-second window means concurrent requests within the same
+ * window for the same org/user/title will share a key and deduplicate.
+ * Requests more than 5 s apart get different keys and are accepted normally.
+ */
+function autoIdempotencyKey(orgId: string, userId: string, title: string): string {
+  const window5s = Math.floor(Date.now() / 5_000);
+  return createHash("sha256")
+    .update(`${orgId}:${userId}:${title.toLowerCase().trim().slice(0, 200)}:${window5s}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 /**
@@ -388,12 +446,36 @@ export const ticketsRouter = router({
     .mutation(async ({ ctx, input }) => {
     const { db, org, user } = ctx;
 
-    console.log("[ACTION]", {
-      action: "tickets.create",
-      userId: user.id,
-      orgId: org!.id,
-      title: input.title,
-      type: input.type,
+    // Resolve idempotency key: header > input > auto-generated 5s window hash.
+    // A client that sends X-Idempotency-Key OR input.idempotencyKey gets exact
+    // deduplication.  A client that sends neither gets deduplication within a
+    // 5-second window for the same org/user/title combination.
+    const idempotencyKey: string =
+      ctx.idempotencyKey ??
+      input.idempotencyKey ??
+      autoIdempotencyKey(org!.id, user!.id, input.title);
+
+    // ── Fast path: Redis snapshot hit ────────────────────────────────────────
+    // Check Redis before touching the DB.  If we have a stored snapshot from a
+    // previous successful create with this key, return it immediately.  This
+    // guarantees identical response shape across all retries.
+    const cached = await getCachedIdempotentResponse(org!.id, idempotencyKey);
+    if (cached) {
+      logInfo("TICKET_IDEMPOTENT_CACHE_HIT", {
+        request_id:      ctx.requestId,
+        idempotency_key: idempotencyKey.slice(0, 8) + "…",
+        ticket_id:       cached["id"],
+      });
+      return cached as ReturnType<typeof Object.assign>;
+    }
+
+    logInfo("TICKET_CREATE", {
+      request_id: ctx.requestId,
+      user_id:    user!.id,
+      org_id:     org!.id,
+      title:      input.title,
+      type:       input.type,
+      idempotency_key: idempotencyKey.slice(0, 8) + "…",
     });
 
     // Get default open status
@@ -470,43 +552,86 @@ export const ticketsRouter = router({
       }
     }
 
-    const [ticket] = await db.transaction(async (tx: any) => {
-      // Re-check idempotency INSIDE the transaction to prevent TOCTOU races.
-      if (input.idempotencyKey) {
-        const [existing] = await tx
-          .select()
-          .from(tickets)
-          .where(and(eq(tickets.orgId, org!.id), eq(tickets.idempotencyKey, input.idempotencyKey)))
-          .limit(1);
-        if (existing) {
-          console.log("[IDEMPOTENT]", { action: "tickets.create", idempotencyKey: input.idempotencyKey, ticketId: existing.id });
-          return [existing];
-        }
-      }
+    const [ticket] = await (async () => {
+        try {
+        return await db.transaction(async (tx: any) => {
+          // Optimistic check: if the key is already in use, return the existing ticket
+          // immediately without consuming a sequence number or doing any writes.
+          const [existing] = await tx
+            .select()
+            .from(tickets)
+            .where(and(eq(tickets.orgId, org!.id), eq(tickets.idempotencyKey, idempotencyKey)))
+            .limit(1);
+          if (existing) {
+            logInfo("TICKET_IDEMPOTENT", {
+              request_id:      ctx.requestId,
+              idempotency_key: idempotencyKey.slice(0, 8) + "…",
+              ticket_id:       existing.id,
+            });
+            // Backfill Redis so future duplicates never reach the DB.
+            setCachedIdempotentResponse(org!.id, idempotencyKey, existing as Record<string, unknown>).catch(() => {});
+            return [existing];
+          }
 
-      return tx
-        .insert(tickets)
-        .values({
-          orgId: org!.id,
-          number,
-          title: input.title,
-          description: input.description,
-          categoryId: input.categoryId,
-          priorityId: input.priorityId,
-          statusId: defaultStatus.id,
-          type: input.type ?? "request",
-          requesterId: user!.id,
-          assigneeId: resolvedAssigneeId,
-          teamId: resolvedTeamId,
-          dueDate: input.dueDate,
-          tags: input.tags ?? [],
-          customFields: input.customFields,
-          slaResponseDueAt,
-          slaResolveDueAt,
-          idempotencyKey: input.idempotencyKey ?? null,
-        })
-        .returning();
-    });
+          return tx
+            .insert(tickets)
+            .values({
+              orgId: org!.id,
+              number,
+              title: input.title,
+              description: input.description,
+              categoryId: input.categoryId,
+              priorityId: input.priorityId,
+              statusId: defaultStatus.id,
+              type: input.type ?? "request",
+              requesterId: user!.id,
+              assigneeId: resolvedAssigneeId,
+              teamId: resolvedTeamId,
+              dueDate: input.dueDate,
+              tags: input.tags ?? [],
+              customFields: input.customFields,
+              slaResponseDueAt,
+              slaResolveDueAt,
+              idempotencyKey,
+            })
+            .returning();
+        });
+      } catch (err: unknown) {
+        // 23505 = unique_violation — another concurrent request won the race and
+        // already inserted with this idempotency key.  Fetch and return that
+        // existing ticket so the caller gets a consistent response.
+        const pgCode = (err as { code?: string })?.code;
+        if (pgCode === "23505") {
+          // Try Redis snapshot first — fastest and most consistent path.
+          const snapshot = await getCachedIdempotentResponse(org!.id, idempotencyKey);
+          if (snapshot) {
+            logInfo("TICKET_IDEMPOTENT_RACE_CACHE", {
+              request_id:      ctx.requestId,
+              idempotency_key: idempotencyKey.slice(0, 8) + "…",
+              ticket_id:       snapshot["id"],
+            });
+            return [snapshot as Record<string, unknown>];
+          }
+          // Redis miss (cache not yet populated by the winner) — fall back to DB.
+          const [existing] = await db
+            .select()
+            .from(tickets)
+            .where(and(eq(tickets.orgId, org!.id), eq(tickets.idempotencyKey, idempotencyKey)))
+            .limit(1);
+          if (existing) {
+            logInfo("TICKET_IDEMPOTENT_RACE", {
+              request_id:      ctx.requestId,
+              idempotency_key: idempotencyKey.slice(0, 8) + "…",
+              ticket_id:       existing.id,
+            });
+            // Backfill Redis for next retry.
+            setCachedIdempotentResponse(org!.id, idempotencyKey, existing as Record<string, unknown>).catch(() => {});
+            return [existing];
+          }
+        }
+        throw err;
+      }
+    })();
 
     // Log creation
     await db.insert(ticketActivityLogs).values({
@@ -550,6 +675,10 @@ export const ticketsRouter = router({
         console.warn("[tickets.create] Failed to schedule SLA jobs:", err);
       }
     }
+
+    // Cache the response snapshot in Redis so all retries with the same
+    // idempotency key receive the exact same response without any DB reads.
+    setCachedIdempotentResponse(org!.id, idempotencyKey, ticket as unknown as Record<string, unknown>).catch(() => {});
 
     return ticket;
   }),

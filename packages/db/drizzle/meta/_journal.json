@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1774779929927,
+      "tag": "0000_tidy_lethal_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775000000000,
+      "tag": "0003_tickets_idempotency_unique",
+      "breakpoints": true
+    }
+  ]
+}

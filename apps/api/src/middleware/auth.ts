@@ -294,11 +294,19 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
 
   const token = bearerToken || sessionCookie || null;
 
+  // X-Idempotency-Key header — passed through to procedures that need it
+  const idempotencyKeyHeader = rawHeaders["x-idempotency-key"] as string | undefined;
+  const headerIdempotencyKey =
+    typeof idempotencyKeyHeader === "string" && idempotencyKeyHeader.length > 0 && idempotencyKeyHeader.length <= 128
+      ? idempotencyKeyHeader
+      : null;
+
   if (!token) {
     return {
       db, user: null, org: null, orgId: null, sessionId: null,
       requestId: (req.id as string) ?? null,
       ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      idempotencyKey: headerIdempotencyKey,
     };
   }
 
@@ -328,6 +336,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       db, user: user ?? null, org: org ?? null, orgId: (org?.id as string | undefined) ?? null, sessionId: null,
       requestId: (req.id as string) ?? null,
       ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      idempotencyKey: headerIdempotencyKey,
     };
   }
 
@@ -342,6 +351,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       db, user: l1.user, org: l1.org, orgId: (l1.org?.id as string | undefined) ?? null, sessionId,
       requestId: (req.id as string) ?? null,
       ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      idempotencyKey: headerIdempotencyKey,
     };
   }
 
@@ -365,12 +375,13 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
 
   return {
     db,
-    user:      user ?? null,
-    org:       org  ?? null,
-    orgId:     (org?.id as string | undefined) ?? null,
+    user:           user ?? null,
+    org:            org  ?? null,
+    orgId:          (org?.id as string | undefined) ?? null,
     sessionId,
-    requestId: (req.id as string) ?? null,
-    ipAddress: req.ip ?? null,
-    userAgent: req.headers["user-agent"] ?? null,
+    requestId:      (req.id as string) ?? null,
+    ipAddress:      req.ip ?? null,
+    userAgent:      req.headers["user-agent"] ?? null,
+    idempotencyKey: headerIdempotencyKey,
   };
 }

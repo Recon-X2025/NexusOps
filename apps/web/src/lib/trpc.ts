@@ -48,7 +48,6 @@ export function getTRPCClient() {
         headers() {
           if (typeof window !== "undefined") {
             const session = localStorage.getItem("nexusops_session");
-            console.debug("TRPC HEADERS TOKEN:", session);
             return session
               ? { authorization: `Bearer ${session}` }
               : {};

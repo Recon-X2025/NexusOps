@@ -54,6 +54,8 @@ function printStartupConfig(): void {
     "  Rate Limiting",
     `    Per-token max    : ${RATE_LIMIT_PER_TOKEN.toLocaleString()} req / ${RATE_LIMIT_WINDOW}`,
     `    Anonymous max    : ${RATE_LIMIT_ANON.toLocaleString()} req / ${RATE_LIMIT_WINDOW}`,
+    `    Burst max        : ${RATE_LIMIT_BURST_MAX.toLocaleString()} req / ${RATE_LIMIT_BURST_WINDOW}`,
+    `    Disabled         : ${RATE_LIMIT_DISABLED}`,
     "    Bucket strategy  : per session token (user:*) or per IP (anon:*)",
     D,
     "  Session Cache",
@@ -77,24 +79,35 @@ function printStartupConfig(): void {
 // Limits are applied per-bucket (never globally), so one user's burst cannot
 // consume another user's quota.  Two bucket types:
 //
-//   user:<token>  — one bucket per authenticated session token
-//   anon:<ip>     — one bucket per IP for unauthenticated requests
+//   user:<token>:<endpoint>  — one bucket per authenticated session token × endpoint
+//   anon:<ip>                — one bucket per IP for unauthenticated requests
 //
 // Env-var controls (all optional):
 //
-//   RATE_LIMIT_MAX       max req / window per authenticated token
-//                        prod default: 1 000  |  dev default: 10 000
-//                        → set to 200 000 in .env for 10K-session stress tests
+//   RATE_LIMIT_DISABLED      set to "true" to bypass rate limiting entirely
+//                            (useful for load testing; NEVER use in production)
 //
-//   RATE_LIMIT_ANON_MAX  max req / window per IP (no token present)
-//                        prod default: 100  |  dev default: 1 000
+//   RATE_LIMIT_MAX           max req / window per authenticated token+endpoint
+//                            prod default: 1 000  |  dev default: 10 000
 //
-//   RATE_LIMIT_WINDOW    sliding-window length — any ms-compatible string
-//                        default: "1 minute"
+//   RATE_LIMIT_ANON_MAX      max req / window per IP (no token present)
+//                            prod default: 100  |  dev default: 1 000
 //
-// Rate limiting is NEVER disabled; only its ceiling is configurable.
+//   RATE_LIMIT_WINDOW        sliding-window length — any ms-compatible string
+//                            default: "1 minute"
+//
+//   RATE_LIMIT_BURST_MAX     burst ceiling: requests allowed within the BURST
+//                            window before the harder RATE_LIMIT_MAX kicks in.
+//                            default: RATE_LIMIT_MAX * 2 (i.e., 2× burst for
+//                            short windows).  Disabled when set to 0.
+//
+//   RATE_LIMIT_BURST_WINDOW  burst check window (must be shorter than WINDOW)
+//                            default: "5 seconds"
 
 const _isProd = process.env["NODE_ENV"] === "production";
+
+const RATE_LIMIT_DISABLED =
+  process.env["RATE_LIMIT_DISABLED"] === "true" && !_isProd;
 
 const RATE_LIMIT_PER_TOKEN = parseInt(
   process.env["RATE_LIMIT_MAX"] ?? (_isProd ? "1000" : "10000"),
@@ -108,6 +121,16 @@ const RATE_LIMIT_ANON = parseInt(
 
 const RATE_LIMIT_WINDOW = process.env["RATE_LIMIT_WINDOW"] ?? "1 minute";
 
+// Burst window: shorter window with a higher ceiling.
+// Default: 2× the per-token max within a 5-second window — allows legitimate
+// UI actions (bulk operations, page loads with multiple concurrent tRPC calls)
+// without triggering the slower per-minute limit.
+const RATE_LIMIT_BURST_WINDOW = process.env["RATE_LIMIT_BURST_WINDOW"] ?? "5 seconds";
+const RATE_LIMIT_BURST_MAX    = parseInt(
+  process.env["RATE_LIMIT_BURST_MAX"] ?? String(Math.ceil(RATE_LIMIT_PER_TOKEN / 6)),
+  10,
+);
+
 async function bootstrap() {
   const fastify = Fastify({
     logger: {
@@ -118,6 +141,10 @@ async function bootstrap() {
           : undefined,
     },
     trustProxy: true,
+    // Hard limit on incoming request body size.
+    // 1 MB is generous for a tRPC API; anything larger is almost certainly
+    // a mis-configured client or an abuse attempt.
+    bodyLimit: parseInt(process.env["MAX_BODY_BYTES"] ?? String(1 * 1024 * 1024), 10),
     // Suppress Fastify's default "incoming request" / "request completed" messages.
     // Our onResponse hook (below) emits a single structured REQUEST log per call
     // in the exact shape we want — no duplication.
@@ -161,30 +188,33 @@ async function bootstrap() {
 
   await fastify.register(rateLimit, {
     global: true,
-    // Dynamic max: authenticated tokens get the generous per-token ceiling;
-    // anonymous IP buckets get the tighter anti-abuse ceiling.
     max: (_req, key) =>
       (key as string).startsWith("user:") ? RATE_LIMIT_PER_TOKEN : RATE_LIMIT_ANON,
     timeWindow: RATE_LIMIT_WINDOW,
-    // If Redis is unavailable, skip rate limiting rather than 500-ing every request.
+    // allowList: bypass rate limiting entirely when RATE_LIMIT_DISABLED=true
+    // (load testing mode, only ever true outside production).
+    allowList: RATE_LIMIT_DISABLED ? () => true : undefined,
     skipOnError: true,
     redis: getRedis(),
-    // Bucket by session token (per-user) or IP (anonymous).
-    // Using the raw token — not the full "Bearer …" header — keeps keys clean
-    // and allows cookie-authenticated requests to share the same bucket as
-    // their Bearer-equivalent.
+    // Bucket by session token + endpoint (per-user, per-route) or IP (anonymous).
+    // Including the normalised endpoint prevents a single heavy endpoint from
+    // consuming another endpoint's quota for the same user.
     keyGenerator: (req) => {
       const auth = req.headers.authorization as string | undefined;
       if (auth?.startsWith("Bearer ")) {
-        return `user:${auth.slice(7)}`;
+        const endpoint = (req.url ?? "").split("?")[0] ?? "";
+        return `user:${auth.slice(7)}:${endpoint}`;
       }
       // Cookie-based session (browser clients)
       const cookies = req.headers.cookie as string | undefined;
       if (cookies) {
         const match = cookies.match(/nexusops_session=([^;]+)/);
-        if (match?.[1]) return `user:${match[1]}`;
+        if (match?.[1]) {
+          const endpoint = (req.url ?? "").split("?")[0] ?? "";
+          return `user:${match[1]}:${endpoint}`;
+        }
       }
-      // Unauthenticated: bucket by IP
+      // Unauthenticated: bucket by IP only (no endpoint suffix — keeps anon buckets cheap)
       return `anon:${req.ip ?? "unknown"}`;
     },
     // Emit a structured [RATE_LIMIT] log and return a consistent 429 payload.
@@ -232,6 +262,40 @@ async function bootstrap() {
   const { registerOidcRoutes } = await import("./services/oidc.js");
   await registerOidcRoutes(fastify);
 
+  // ── Burst rate limiter ────────────────────────────────────────────────────
+  // Secondary, shorter-window limiter that caps instantaneous bursts.
+  // Registered only when RATE_LIMIT_BURST_MAX > 0 (enabled by default).
+  // Uses a dedicated Redis key prefix (rl_burst:) so it doesn't interfere with
+  // the main rate limit bucket.
+  if (!RATE_LIMIT_DISABLED && RATE_LIMIT_BURST_MAX > 0) {
+    await fastify.register(rateLimit, {
+      global: false, // apply only where explicitly added — we add it globally below
+      nameSpace: "rl_burst:",
+      max: RATE_LIMIT_BURST_MAX,
+      timeWindow: RATE_LIMIT_BURST_WINDOW,
+      skipOnError: true,
+      redis: getRedis(),
+      keyGenerator: (req) => {
+        const auth = req.headers.authorization as string | undefined;
+        if (auth?.startsWith("Bearer ")) return `rl_burst:user:${auth.slice(7)}`;
+        const cookies = req.headers.cookie as string | undefined;
+        if (cookies) {
+          const match = cookies.match(/nexusops_session=([^;]+)/);
+          if (match?.[1]) return `rl_burst:user:${match[1]}`;
+        }
+        return `rl_burst:anon:${req.ip ?? "unknown"}`;
+      },
+      errorResponseBuilder: (req, context) => {
+        recordRateLimit();
+        return {
+          statusCode: 429,
+          error:      "Too Many Requests",
+          message:    `Burst limit exceeded. Retry after ${Math.ceil(((context as { ttl: number }).ttl ?? 0) / 1000)}s.`,
+        };
+      },
+    });
+  }
+
   // ── Prototype-pollution sanitization ─────────────────────────────────────
   //
   // Runs on every incoming request BEFORE tRPC (and therefore before Zod)
@@ -247,6 +311,40 @@ async function bootstrap() {
     if (req.body !== null && req.body !== undefined && typeof req.body === "object") {
       req.body = sanitizeInput(req.body);
     }
+    done();
+  });
+
+  // ── In-flight concurrency guard ───────────────────────────────────────────
+  //
+  // Caps the number of requests being actively processed.  Returns HTTP 503
+  // immediately when the limit is exceeded rather than queuing indefinitely,
+  // which would degrade all concurrent requests.  This protects the DB
+  // connection pool and prevents memory exhaustion from unbounded fan-out.
+  //
+  // MAX_IN_FLIGHT is intentionally much higher than the DB pool max — it
+  // accounts for requests that are auth-checking, serializing, etc. without
+  // holding a DB connection.
+  //
+  // Configure:
+  //   MAX_IN_FLIGHT   max simultaneous requests in processing (default: 500)
+  const MAX_IN_FLIGHT = parseInt(process.env["MAX_IN_FLIGHT"] ?? "500", 10);
+  let inFlight = 0;
+
+  fastify.addHook("onRequest", (req, reply, done) => {
+    if (++inFlight > MAX_IN_FLIGHT) {
+      inFlight--;
+      reply.status(503).send({
+        statusCode: 503,
+        error:      "Service Unavailable",
+        message:    "Server is temporarily overloaded. Please retry shortly.",
+      });
+      return;
+    }
+    done();
+  });
+
+  fastify.addHook("onResponse", (_req, _reply, done) => {
+    inFlight--;
     done();
   });
 
@@ -376,7 +474,10 @@ async function bootstrap() {
   // GET  /internal/metrics        — current snapshot
   // POST /internal/metrics/reset  — zero all counters
 
-  fastify.get("/internal/metrics", async () => getMetricsSnapshot());
+  fastify.get("/internal/metrics", async () => {
+    const { getBcryptStats } = await import("./lib/bcrypt-semaphore.js");
+    return { ...getMetricsSnapshot(), bcrypt: getBcryptStats() };
+  });
 
   fastify.post("/internal/metrics/reset", async () => {
     resetMetrics();
@@ -389,8 +490,14 @@ async function bootstrap() {
     const metrics = getMetricsSnapshot();
     const result  = evaluateHealth(metrics);
     const monitor = getMonitorState();
+    const { getBcryptStats } = await import("./lib/bcrypt-semaphore.js");
     return {
       ...result,
+      concurrency: {
+        in_flight:     inFlight,
+        max_in_flight: MAX_IN_FLIGHT,
+      },
+      bcrypt: getBcryptStats(),
       monitor: {
         last_changed_at: monitor.since,
         eval_every:      monitor.eval_every,

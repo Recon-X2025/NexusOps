@@ -183,7 +183,11 @@ export const tickets = pgTable(
     assigneeIdx: index("tickets_assignee_idx").on(t.assigneeId),
     requesterIdx: index("tickets_requester_idx").on(t.requesterId),
     createdAtIdx: index("tickets_created_at_idx").on(t.createdAt),
-    idempotencyKeyIdx: index("tickets_idempotency_key_idx").on(t.idempotencyKey),
+    // Partial unique index: only enforce uniqueness when the key is non-null.
+    // Allows unlimited inserts without a key while deduplicating keyed requests.
+    idempotencyKeyIdx: uniqueIndex("tickets_idempotency_key_idx")
+      .on(t.orgId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
   }),
 );
 

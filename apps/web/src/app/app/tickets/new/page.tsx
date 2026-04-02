@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
@@ -110,6 +110,13 @@ export default function NewTicketPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Stable per-form-session idempotency key: generated once when the form
+  // mounts and reused on every submit attempt.  This guarantees that even if
+  // the user clicks "Submit" multiple times in quick succession (race between
+  // clicks and React re-renders), the server will deduplicate to a single ticket.
+  // A new key is generated only after a successful create (form resets).
+  const idempotencyKeyRef = useRef<string>(generateUUID());
+
   const calculatedPriority =
     form.impact && form.urgency
       ? PRIORITY_MATRIX[form.impact]?.[form.urgency] ?? "—"
@@ -120,6 +127,7 @@ export default function NewTicketPage() {
   const createTicket = trpc.tickets.create.useMutation({
     onSuccess: (ticket) => {
       toast.success(`Ticket ${ticket?.number} created successfully`);
+      idempotencyKeyRef.current = generateUUID(); // rotate key for next submission
       void utils.tickets.list.invalidate();
       router.push(`/app/tickets/${ticket?.id}`);
     },
@@ -151,7 +159,7 @@ export default function NewTicketPage() {
       description: form.description,
       tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       dueDate: form.dueDate ? new Date(form.dueDate) : undefined,
-      idempotencyKey: generateUUID(),
+      idempotencyKey: idempotencyKeyRef.current,
     });
   };
 
