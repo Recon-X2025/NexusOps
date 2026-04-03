@@ -16,7 +16,10 @@ type LoginForm = z.infer<typeof LoginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ??
+    (typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.hostname}:3001`
+      : "http://localhost:3001");
 
   const {
     register,

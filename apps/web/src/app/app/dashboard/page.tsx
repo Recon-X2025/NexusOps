@@ -200,7 +200,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
 
       {isApiDown && (
         <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-          Could not reach the NexusOps API ({process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"}). Start the API
+          Could not reach the NexusOps API ({process.env.NEXT_PUBLIC_API_URL ?? (typeof window !== "undefined" ? `${window.location.hostname}:3001` : "localhost:3001")}). Start the API
           (<code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">pnpm --filter @nexusops/api dev</code>) and
           ensure Postgres/Redis match your <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">.env</code>.
           KPIs below use demo fallbacks until the connection works.

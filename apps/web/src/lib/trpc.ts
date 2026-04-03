@@ -32,8 +32,23 @@ function fetchWithTimeout(
   );
 }
 
+function resolveApiBase(): string {
+  // Build-time override (e.g. for custom domains / HTTPS setups)
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Client-side: derive from the browser's current hostname so the app
+  // works on any host (localhost in dev, a real IP/domain in production)
+  // without needing to bake the URL into the bundle at build time.
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
+  }
+  // SSR fallback — only used for server-side rendering, not visible to clients
+  return "http://localhost:3001";
+}
+
 export function getTRPCClient() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const apiBase = resolveApiBase();
 
   return trpc.createClient({
     links: [
