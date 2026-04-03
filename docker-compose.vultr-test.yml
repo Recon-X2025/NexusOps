@@ -15,18 +15,23 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://${SERVER_IP:-localhost}:3001
+        # SERVER_IP is resolved at build time. If unset, the frontend now
+        # derives the API host from window.location at runtime (see trpc.ts),
+        # so leaving this blank is safe and works on any host.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     restart: unless-stopped
     ports:
       - "80:3000"
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://${SERVER_IP:-localhost}:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ 2>&1 | grep -qE 'connected|200|302|307' || exit 1"]
+      # Use wget exit code directly — BusyBox wget --spider exits 0 on any 2xx/3xx,
+      # no need to pipe through grep (which was broken in Alpine).
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 10s
       retries: 3
