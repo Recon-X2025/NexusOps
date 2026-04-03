@@ -49,7 +49,7 @@ export function getTRPCClient() {
     links: [
       loggerLink({
         enabled: (opts) =>
-          process.env.NODE_ENV === "development" ||
+          process.env.NODE_ENV !== "production" &&
           (opts.direction === "down" && opts.result instanceof Error),
       }),
       httpBatchLink({

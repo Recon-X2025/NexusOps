@@ -426,7 +426,7 @@ export function AppHeader() {
   // @ts-ignore - search router created in parallel
   const searchResults = trpc.search.global.useQuery(
     { query: debouncedQuery, limit: 20 },
-    { enabled: debouncedQuery.length > 1 },
+    { enabled: isAuthenticated && debouncedQuery.length > 1 },
   );
 
   const results: Array<{ id: string; type: string; title: string; description?: string; href: string }> =
