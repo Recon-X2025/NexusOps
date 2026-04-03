@@ -90,6 +90,7 @@ export const InviteAcceptSchema = z.object({
 export const InviteCreateSchema = z.object({
   email: z.string().email(),
   role: UserRoleEnum,
+  matrixRole: z.string().nullable().optional(),
   name: z.string().min(1).max(100).optional(),
 });
 

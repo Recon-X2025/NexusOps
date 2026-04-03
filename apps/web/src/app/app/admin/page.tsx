@@ -60,6 +60,18 @@ export default function AdminConsolePage() {
   const [selectedRole, setSelectedRole] = useState<SystemRole | null>(null);
   const [showSensitive, setShowSensitive] = useState(false);
 
+  // ── User management modal state ──────────────────────────────────────────
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "member" | "viewer">("member");
+  const [inviteMatrixRole, setInviteMatrixRole] = useState("");
+  const [inviteResult, setInviteResult] = useState<string | null>(null);
+
+  const [editUser, setEditUser] = useState<{ id: string; name: string; role: string; matrixRole: string | null; status: string } | null>(null);
+  const [editRole, setEditRole] = useState<"owner" | "admin" | "member" | "viewer">("member");
+  const [editMatrixRole, setEditMatrixRole] = useState("");
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
+
   // @ts-ignore
   const slaQuery = trpc.admin.slaDefinitions.list.useQuery();
   // @ts-ignore
@@ -71,6 +83,30 @@ export default function AdminConsolePage() {
   const usersQuery = trpc.admin.users.list.useQuery();
   const auditOverviewQuery = trpc.admin.auditLog.list.useQuery({ page: 1, limit: 5 });
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
+
+  const inviteUserMutation = trpc.auth.inviteUser.useMutation({
+    onSuccess: (res) => {
+      setInviteResult(res.inviteUrl);
+      usersQuery.refetch();
+      toast.success(`Invite sent to ${inviteEmail}`);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to send invite"),
+  });
+  const updateUserMutation = trpc.admin.users.update.useMutation({
+    onSuccess: () => { usersQuery.refetch(); setEditUser(null); toast.success("User role updated"); },
+    onError: (e: any) => toast.error(e.message || "Failed to update user"),
+  });
+  const deactivateUserMutation = trpc.admin.users.update.useMutation({
+    onSuccess: (_r, vars) => {
+      usersQuery.refetch();
+      toast.success(`User ${vars.status === "active" ? "activated" : "suspended"}`);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update user status"),
+  });
+  const deleteUserMutation = trpc.auth.deleteUser.useMutation({
+    onSuccess: () => { usersQuery.refetch(); setConfirmDeleteUser(null); toast.success("User deleted"); },
+    onError: (e: any) => toast.error(e.message || "Failed to delete user"),
+  });
 
   // @ts-ignore
   const triggerJobMutation = trpc.admin.scheduledJobs.trigger.useMutation({
@@ -108,6 +144,7 @@ export default function AdminConsolePage() {
   );
 
   return (
+    <>
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -233,7 +270,10 @@ export default function AdminConsolePage() {
                   <input value={searchUsers} onChange={(e) => setSearchUsers(e.target.value)}
                     placeholder="Search users..." className="text-[11px] outline-none flex-1 placeholder:text-muted-foreground/70" />
                 </div>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button
+                  onClick={() => { setInviteEmail(""); setInviteRole("member"); setInviteMatrixRole(""); setInviteResult(null); setShowInviteModal(true); }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                >
                   <Plus className="w-3 h-3" /> New User
                 </button>
                 <button className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
@@ -297,9 +337,23 @@ export default function AdminConsolePage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1.5">
-                          <button className="p-1 text-muted-foreground/70 hover:text-primary"><Edit2 className="w-3 h-3" /></button>
-                          <button className="p-1 text-muted-foreground/70 hover:text-red-600"><Lock className="w-3 h-3" /></button>
-                          <button className="p-1 text-muted-foreground/70 hover:text-red-600"><Trash2 className="w-3 h-3" /></button>
+                          <button
+                            onClick={() => { setEditUser({ id: user.id, name: user.name, role: user.role, matrixRole: user.matrixRole ?? null, status: user.status ?? "active" }); setEditRole(user.role as any); setEditMatrixRole(user.matrixRole ?? ""); }}
+                            className="p-1 text-muted-foreground/70 hover:text-primary"
+                            title="Edit role"
+                          ><Edit2 className="w-3 h-3" /></button>
+                          <button
+                            onClick={() => deactivateUserMutation.mutate({ userId: user.id, status: user.status === "active" ? "disabled" : "active" })}
+                            className={`p-1 ${user.status === "active" ? "text-muted-foreground/70 hover:text-orange-600" : "text-orange-600 hover:text-muted-foreground/70"}`}
+                            title={user.status === "active" ? "Suspend user" : "Activate user"}
+                            disabled={user.id === currentUser.id}
+                          ><Lock className="w-3 h-3" /></button>
+                          <button
+                            onClick={() => setConfirmDeleteUser({ id: user.id, name: user.name })}
+                            className="p-1 text-muted-foreground/70 hover:text-red-600"
+                            title="Delete user"
+                            disabled={user.id === currentUser.id}
+                          ><Trash2 className="w-3 h-3" /></button>
                         </div>
                       </td>
                     </tr>
@@ -697,7 +751,7 @@ export default function AdminConsolePage() {
                   onClick={() => toast.message("Add Integration", {
                     description: "Connect external tools to NexusOps. Supported integrations: PagerDuty, Jira, Splunk, Azure AD, Tenable, Slack, MS Teams, ServiceNow, AWS, GitHub.",
                     action: { label: "Contact Support", onClick: () => window.open("mailto:support@nexusops.io?subject=Integration Setup", "_blank") },
-                    cancel: { label: "Close" },
+                    cancel: { label: "Close", onClick: () => {} },
                     duration: 8000,
                   })}
                   className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
@@ -718,6 +772,187 @@ export default function AdminConsolePage() {
         </div>
       </div>
     </div>
+
+      {/* ── Invite User Modal ─────────────────────────────────────── */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-[460px] max-w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Invite New User</h3>
+              <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+            {!inviteResult ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">Email *</label>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="user@company.com"
+                    className="w-full border border-border rounded px-2 py-1.5 text-[12px] outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">Membership Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as any)}
+                    className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background outline-none focus:border-primary"
+                  >
+                    <option value="member">Member — standard access</option>
+                    <option value="viewer">Viewer — read-only</option>
+                    <option value="admin">Admin — full platform admin</option>
+                    <option value="owner">Owner — full owner rights</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                    System Role <span className="text-muted-foreground/60">(fine-grained RBAC)</span>
+                  </label>
+                  <select
+                    value={inviteMatrixRole}
+                    onChange={(e) => setInviteMatrixRole(e.target.value)}
+                    className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background outline-none focus:border-primary"
+                  >
+                    <option value="">— None (uses membership role only) —</option>
+                    {SYSTEM_ROLES_CATALOG.map((r) => (
+                      <option key={r.role} value={r.role}>{r.displayName} — {r.description.slice(0, 60)}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">
+                    The system role controls which modules this user can access (e.g. itil, security_analyst, hr_manager).
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button onClick={() => setShowInviteModal(false)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
+                  <button
+                    disabled={!inviteEmail.trim() || inviteUserMutation.isPending}
+                    onClick={async () => {
+                      const invite = await inviteUserMutation.mutateAsync({ email: inviteEmail.trim(), role: inviteRole, matrixRole: inviteMatrixRole || null });
+                      setInviteResult(invite.inviteUrl);
+                    }}
+                    className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
+                  >
+                    {inviteUserMutation.isPending ? "Sending…" : "Send Invite"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-[12px] font-medium">Invite created for {inviteEmail}</span>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Invite URL (share with user)</label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-[11px] bg-muted/40 border border-border rounded px-2 py-1.5 break-all">{inviteResult}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(inviteResult); toast.success("Copied!"); }}
+                      className="px-2 py-1.5 border border-border rounded text-[11px] hover:bg-muted/30"
+                    >Copy</button>
+                  </div>
+                </div>
+                {inviteMatrixRole && (
+                  <p className="text-[11px] text-muted-foreground bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                    After the user accepts the invite, use <strong>Edit Role</strong> to assign the <code>{inviteMatrixRole}</code> system role.
+                  </p>
+                )}
+                <div className="flex justify-end">
+                  <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90">Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit User Role Modal ───────────────────────────────────── */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-[460px] max-w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Edit User Role — {editUser.name}</h3>
+              <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">Membership Role</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as any)}
+                  className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background outline-none focus:border-primary"
+                >
+                  <option value="member">Member — standard access</option>
+                  <option value="viewer">Viewer — read-only</option>
+                  <option value="admin">Admin — full platform admin</option>
+                  <option value="owner">Owner — full owner rights</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  System Role <span className="text-muted-foreground/60">(fine-grained RBAC — controls module access)</span>
+                </label>
+                <select
+                  value={editMatrixRole}
+                  onChange={(e) => setEditMatrixRole(e.target.value)}
+                  className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background outline-none focus:border-primary"
+                >
+                  <option value="">— None (uses membership role only) —</option>
+                  {SYSTEM_ROLES_CATALOG.map((r) => (
+                    <option key={r.role} value={r.role}>{r.displayName} — {r.description.slice(0, 55)}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground/70 mt-1">
+                  Setting a system role grants this user access to the modules and actions defined in the RBAC matrix for that role.
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button onClick={() => setEditUser(null)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
+                <button
+                  disabled={updateUserMutation.isPending}
+                  onClick={() => updateUserMutation.mutate({ userId: editUser.id, role: editRole, matrixRole: editMatrixRole || null })}
+                  className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
+                >
+                  {updateUserMutation.isPending ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Delete Modal ───────────────────────────────────── */}
+      {confirmDeleteUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-[380px] max-w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <h3 className="text-sm font-semibold">Delete User</h3>
+            </div>
+            <p className="text-[12px] text-muted-foreground">
+              Are you sure you want to permanently delete <strong>{confirmDeleteUser.name}</strong>?
+              This action cannot be undone and will remove all their sessions and access.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setConfirmDeleteUser(null)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
+              <button
+                disabled={deleteUserMutation.isPending}
+                onClick={() => deleteUserMutation.mutate({ userId: confirmDeleteUser.id })}
+                className="px-3 py-1.5 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-40"
+              >
+                {deleteUserMutation.isPending ? "Deleting…" : "Delete User"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

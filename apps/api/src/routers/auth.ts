@@ -475,6 +475,44 @@ export const authRouter = router({
 
   // ── Session Management ──────────────────────────────────────────────────
 
+  deactivateUser: permissionProcedure("users", "write")
+    .input(z.object({ userId: z.string().uuid(), active: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      if (input.userId === user!.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot deactivate your own account." });
+      }
+      const [target] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
+        .limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      const [updated] = await db
+        .update(users)
+        .set({ status: input.active ? "active" : "inactive", updatedAt: new Date() })
+        .where(eq(users.id, input.userId))
+        .returning();
+      return stripPasswordHash(updated!);
+    }),
+
+  deleteUser: permissionProcedure("users", "delete")
+    .input(z.object({ userId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      if (input.userId === user!.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot delete your own account." });
+      }
+      const [target] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
+        .limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      await db.delete(users).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
   listMySessions: protectedProcedure.query(async ({ ctx }) => {
     const { db, user } = ctx;
     const rows = await db
