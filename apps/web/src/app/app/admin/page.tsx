@@ -160,7 +160,7 @@ export default function AdminConsolePage() {
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground/70">Logged in as:</span>
           <span className="text-[11px] font-mono font-semibold text-foreground/80">{currentUser.username}</span>
-          <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-mono">{currentUser.roles[0]}</span>
+          <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-mono">{currentUser.roles.filter(r => r !== "requester")[0] ?? "requester"}</span>
         </div>
       </div>
 

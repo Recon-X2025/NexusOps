@@ -59,6 +59,7 @@ import {
   ticketStatuses,
   ticketPriorities,
   ticketCategories,
+  users,
   eq,
   and,
   or,
@@ -420,11 +421,23 @@ export const ticketsRouter = router({
 
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
 
-    const comments = await db
-      .select()
+    const rawComments = await db
+      .select({
+        id: ticketComments.id,
+        ticketId: ticketComments.ticketId,
+        authorId: ticketComments.authorId,
+        authorName: users.name,
+        body: ticketComments.body,
+        isInternal: ticketComments.isInternal,
+        createdAt: ticketComments.createdAt,
+        updatedAt: ticketComments.updatedAt,
+      })
       .from(ticketComments)
+      .leftJoin(users, eq(ticketComments.authorId, users.id))
       .where(eq(ticketComments.ticketId, ticket.id))
       .orderBy(asc(ticketComments.createdAt));
+
+    const comments = rawComments;
 
     const activityLog = await db
       .select()
@@ -900,4 +913,23 @@ export const ticketsRouter = router({
       .where(eq(ticketStatuses.orgId, org!.id))
       .groupBy(ticketStatuses.id, ticketStatuses.name, ticketStatuses.color);
   }),
+
+  toggleWatch: permissionProcedure("incidents", "read")
+    .input(z.object({ ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      // Check if already watching
+      const [existing] = await db
+        .select()
+        .from(ticketWatchers)
+        .where(and(eq(ticketWatchers.ticketId, input.ticketId), eq(ticketWatchers.userId, user!.id)))
+        .limit(1);
+      if (existing) {
+        await db.delete(ticketWatchers).where(and(eq(ticketWatchers.ticketId, input.ticketId), eq(ticketWatchers.userId, user!.id)));
+        return { watching: false };
+      } else {
+        await db.insert(ticketWatchers).values({ ticketId: input.ticketId, userId: user!.id }).onConflictDoNothing();
+        return { watching: true };
+      }
+    }),
 });

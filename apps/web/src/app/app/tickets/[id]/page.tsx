@@ -114,6 +114,11 @@ export default function TicketDetailPage() {
     refetchOnWindowFocus: false,
   });
 
+  const toggleWatch = trpc.tickets.toggleWatch.useMutation({
+    onSuccess: (res) => { setWatching(res.watching); toast.success(res.watching ? "Added to watchlist" : "Removed from watchlist"); },
+    onError: (e) => toast.error(e?.message ?? "Failed to update watchlist"),
+  });
+
   const addComment = trpc.tickets.addComment.useMutation({
     onSuccess: () => { setCommentBody(""); refetch(); },
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
@@ -305,7 +310,7 @@ export default function TicketDetailPage() {
                     <button onClick={() => { setShowMoreActions(false); setActiveTab("related"); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">View Related Items</button>
                     <button onClick={() => { setShowMoreActions(false); router.push(`/app/problems`); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">Create Problem</button>
                     <button onClick={() => { setShowMoreActions(false); router.push(`/app/changes/new?source=ticket&ticket=${id}`); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">Create Change</button>
-                    <button onClick={() => { setShowMoreActions(false); setWatching((v) => !v); toast.success(watching ? "Removed from watchlist" : "Added to watchlist"); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">{watching ? "Unwatch" : "Watch"}</button>
+                    <button onClick={() => { setShowMoreActions(false); toggleWatch.mutate({ ticketId: id }); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">{watching ? "Unwatch" : "Watch"}</button>
                   </div>
                 )}
                 </div>

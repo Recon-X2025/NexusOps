@@ -333,6 +333,8 @@ async function bootstrap() {
   fastify.addHook("onRequest", (req, reply, done) => {
     if (++inFlight > MAX_IN_FLIGHT) {
       inFlight--;
+      // Mark this request as NOT counted so onResponse doesn't double-decrement
+      (req as any)._inflight = false;
       reply.status(503).send({
         statusCode: 503,
         error:      "Service Unavailable",
@@ -340,11 +342,12 @@ async function bootstrap() {
       });
       return;
     }
+    (req as any)._inflight = true;
     done();
   });
 
-  fastify.addHook("onResponse", (_req, _reply, done) => {
-    inFlight--;
+  fastify.addHook("onResponse", (req, _reply, done) => {
+    if ((req as any)._inflight) inFlight--;
     done();
   });
 
@@ -466,11 +469,27 @@ async function bootstrap() {
 
   // ── Internal Metrics ──────────────────────────────────────────────────────
   //
-  // These routes are intentionally NOT mounted under /trpc and NOT behind auth
-  // so that ops tooling (scripts, dashboards, health checks) can poll them
-  // without a session token.  Restrict access at the network / reverse-proxy
-  // layer (e.g. only allow requests from 127.0.0.1 or the internal VLAN).
-  //
+  // ── Guarded internal check ───────────────────────────────────────────────
+  // Require X-Internal-Token header matching INTERNAL_API_TOKEN env var.
+  // If INTERNAL_API_TOKEN is not set, fall back to allowing localhost only.
+  const INTERNAL_API_TOKEN = process.env["INTERNAL_API_TOKEN"];
+  fastify.addHook("preHandler", async (req, reply) => {
+    if (!req.url?.startsWith("/internal/")) return;
+    const token = req.headers["x-internal-token"];
+    if (INTERNAL_API_TOKEN) {
+      if (token !== INTERNAL_API_TOKEN) {
+        return reply.status(401).send({ error: "Unauthorized", message: "Valid X-Internal-Token header required" });
+      }
+    } else {
+      // No token configured — only allow requests from localhost/Docker network
+      const ip = req.ip ?? (req.socket?.remoteAddress ?? "");
+      const isLocal = ip === "127.0.0.1" || ip === "::1" || ip.startsWith("172.") || ip.startsWith("10.");
+      if (!isLocal) {
+        return reply.status(401).send({ error: "Unauthorized", message: "Internal endpoint — set INTERNAL_API_TOKEN env var for remote access" });
+      }
+    }
+  });
+
   // GET  /internal/metrics        — current snapshot
   // POST /internal/metrics/reset  — zero all counters
 

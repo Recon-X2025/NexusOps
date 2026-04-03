@@ -264,6 +264,18 @@ export const authRouter = router({
       }
       const newHash = await hashPassword(input.newPassword);
       await db.update(users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(users.id, user!.id));
+
+      // Invalidate ALL active sessions for this user — prevents session hijacking
+      // where an attacker with an old token retains access after the victim changes password.
+      const userSessions = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, user!.id));
+      if (userSessions.length > 0) {
+        await db.delete(sessions).where(eq(sessions.userId, user!.id));
+        // Clear in-memory/Redis session cache for each session
+        for (const s of userSessions) {
+          invalidateSessionCache(s.id).catch(() => {});
+        }
+      }
+
       return { success: true };
     }),
 
