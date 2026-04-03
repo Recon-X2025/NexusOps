@@ -534,7 +534,7 @@ footer {
     </h1>
     <p class="hero-sub">
       NexusOps is a full-scope ServiceNow-grade operations platform —
-      34 modules, RBAC, AI, SSO, durable workflows —
+      35 modules, RBAC, AI, SSO, durable workflows —
       at a fraction of the cost. Built for enterprises, priced for growth.
     </p>
     <div class="hero-actions">
@@ -547,11 +547,11 @@ footer {
     </div>
     <div class="hero-stats">
       <div class="fade-up">
-        <div class="h-stat-n">34</div>
+        <div class="h-stat-n">35</div>
         <div class="h-stat-l">Enterprise Modules</div>
       </div>
       <div class="fade-up">
-        <div class="h-stat-n">264+</div>
+        <div class="h-stat-n">300+</div>
         <div class="h-stat-l">Passing QA Tests</div>
       </div>
       <div class="fade-up">
@@ -605,7 +605,7 @@ footer {
     <div class="div-number">02</div>
     <div class="div-text">
       <h3>Platform Scope</h3>
-      <p>34 enterprise modules. One unified platform.</p>
+      <p>35 enterprise modules. One unified platform.</p>
     </div>
   </div>
 </div>
@@ -614,7 +614,7 @@ footer {
 <section id="modules">
   <div class="container">
     <div class="label">Platform Scope</div>
-    <h2 class="section-title fade-up">34 enterprise modules. One platform.</h2>
+    <h2 class="section-title fade-up">35 enterprise modules. One platform.</h2>
     <p class="section-sub fade-up">Every workflow your enterprise runs — from IT incidents to board meetings — covered in a unified, RBAC-controlled experience.</p>
     <div class="modules-grid">
 
@@ -792,6 +792,12 @@ footer {
         <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Workplace</span>
       </div>
       <div class="mod-card fade-up">
+        <div class="mod-icon" style="background:rgba(245,158,11,.10)">📦</div>
+        <div class="mod-name">Inventory & Parts</div>
+        <div class="mod-desc">Parts stock tracking, reorder alerts, issue and intake workflows for field service operations.</div>
+        <span class="mod-badge" style="background:rgba(0,188,255,.1);color:#6dd9ff">Workplace</span>
+      </div>
+      <div class="mod-card fade-up">
         <div class="mod-icon" style="background:rgba(0,201,113,.10)">📝</div>
         <div class="mod-name">Surveys & Feedback</div>
         <div class="mod-desc">Configurable CSAT, NPS, and internal pulse surveys tied to tickets and service completions.</div>
@@ -914,9 +920,9 @@ footer {
         <div class="proof-icon">🧪</div>
         <div class="proof-title">Test Coverage</div>
         <ul class="proof-items">
-          <li>264+ automated QA tests across 10 layers</li>
+          <li>300+ automated QA tests across 10 layers</li>
           <li>Failure scenario test suite: double-submit, network drop, concurrent approval, invalid transitions</li>
-          <li>Load simulation: 100 concurrent users, 0% failure rate</li>
+          <li>Round 3 QA validation: 95/100 score — production-ready verdict</li>
           <li>Playwright E2E: auth flows, ticket lifecycle, RBAC enforcement</li>
           <li>Data integrity audit script (CI-ready, exit 1 on failure)</li>
         </ul>
@@ -1157,9 +1163,9 @@ footer {
         <div class="roadmap-content">
           <div class="roadmap-phase">Phase 1 — Complete</div>
           <div class="roadmap-title">Core Platform (v3.2)</div>
-          <div style="font-size:14px;color:var(--muted);font-weight:300">All 34 modules built, wired to backend, RBAC-enforced. 264 QA tests green. Production-hardened with idempotency, concurrency, observability, and data integrity audit.</div>
+          <div style="font-size:14px;color:var(--muted);font-weight:300">All 35 modules built, wired to backend, RBAC-enforced. 300+ QA tests green. Round 3 validation score: 95/100 — production-hardened with idempotency, concurrency, observability, and data integrity audit.</div>
           <div class="roadmap-items">
-            <span class="roadmap-tag">34 Modules</span><span class="roadmap-tag">RBAC v2</span><span class="roadmap-tag">OIDC SSO</span>
+            <span class="roadmap-tag">35 Modules</span><span class="roadmap-tag">RBAC v2</span><span class="roadmap-tag">OIDC SSO</span>
             <span class="roadmap-tag">AI (Claude)</span><span class="roadmap-tag">Workflows</span><span class="roadmap-tag">Helm Deploy</span>
           </div>
         </div>
@@ -1281,9 +1287,8 @@ const heroObserver = new IntersectionObserver((entries) => {
     if (e.isIntersecting) {
       document.querySelectorAll('.h-stat-n').forEach(el => {
         const text = el.textContent.trim();
-        if (text === '34')   animateNumber(el, 34,  '');
-        if (text === '264+') animateNumber(el, 264, '+');
         if (text === '35')   animateNumber(el, 35,  '');
+        if (text === '300+') animateNumber(el, 300, '+');
         if (text === '56')   animateNumber(el, 56,  '');
       });
       heroObserver.disconnect();
