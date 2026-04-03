@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { AccessDenied } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
@@ -29,6 +30,7 @@ function fmt(n: number | undefined | null) {
 }
 
 export default function EmployeePortalPage() {
+  const router = useRouter();
   const [tab, setTab] = useState("dashboard");
   const [expandedPayslip, setExpandedPayslip] = useState<string | null>(null);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
@@ -548,7 +550,7 @@ export default function EmployeePortalPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase">Personal Information</span>
-                <button onClick={() => toast.info("To update personal information, please raise an HR case from the HR module or contact HR directly.")} className="text-[11px] text-primary hover:underline flex items-center gap-1"><Edit2 className="w-3 h-3" />Edit</button>
+                <button onClick={() => router.push("/app/hr?tab=cases&new=true&type=policy")} className="text-[11px] text-primary hover:underline flex items-center gap-1"><Edit2 className="w-3 h-3" />Edit</button>
               </div>
               {employeeQuery.isLoading ? (
                 <div className="p-4 animate-pulse space-y-2">
@@ -583,7 +585,7 @@ export default function EmployeePortalPage() {
               <div className="border border-border rounded overflow-hidden">
                 <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase">Payroll & Banking</span>
-                  <button onClick={() => toast.info("To update payroll or banking details, raise an HR case from the HR module or contact your Payroll team.")} className="text-[11px] text-primary hover:underline flex items-center gap-1"><Edit2 className="w-3 h-3" />Update</button>
+                  <button onClick={() => router.push("/app/hr?tab=cases&new=true&type=payroll")} className="text-[11px] text-primary hover:underline flex items-center gap-1"><Edit2 className="w-3 h-3" />Update</button>
                 </div>
                 <div className="p-4 space-y-2">
                   {[

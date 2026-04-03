@@ -114,6 +114,26 @@ export const crmRouter = router({
       return lead;
     }),
 
+  updateLead: permissionProcedure("accounts", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
+      email: z.string().optional(),
+      company: z.string().optional(),
+      title: z.string().optional(),
+      status: z.enum(["new","contacted","qualified","disqualified","converted"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      const [lead] = await db.update(crmLeads)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(eq(crmLeads.id, id), eq(crmLeads.orgId, org!.id)))
+        .returning();
+      return lead;
+    }),
+
   convertLead: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid(), dealTitle: z.string(), dealValue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {

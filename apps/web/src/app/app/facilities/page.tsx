@@ -225,7 +225,7 @@ export default function FacilitiesPage() {
               <span className="text-[12px] font-semibold text-foreground/80">Today — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
               <PermissionGate module="facilities" action="write">
                 <button
-                  onClick={() => toast.info("Select a room from the list below to book it")}
+                  onClick={() => setTab("bookings")}
                   disabled={createBookingMutation.isPending}
                   className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
                   <Plus className="w-3 h-3" /> {createBookingMutation.isPending ? "Booking…" : "Book a Room"}

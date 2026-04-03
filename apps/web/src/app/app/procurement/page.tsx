@@ -10,6 +10,7 @@ import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { downloadCSV } from "@/lib/utils";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const PROC_TABS = [
   { key: "dashboard",    label: "Dashboard",             module: "procurement"    as const, action: "read"  as const },
@@ -77,6 +78,7 @@ const INV_STATUS_CFG: Record<string, { label: string; color: string; bar: string
 
 export default function ProcurementPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = PROC_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedPO, setExpandedPO] = useState<string | null>(null);
@@ -405,7 +407,7 @@ export default function ProcurementPage() {
                           <td className="font-mono text-[10px] text-muted-foreground/70">{pr.budgetCode ?? "—"}</td>
                           <td>
                             {prState === "approved"
-                              ? <button onClick={() => toast.info("Creating a Purchase Order from this PR — PO creation wizard coming soon.")} className="text-[11px] text-primary hover:underline">+ Create PO</button>
+                              ? <button onClick={() => setTab("purchase-orders")} className="text-[11px] text-primary hover:underline">+ Create PO</button>
                               : "—"
                             }
                           </td>

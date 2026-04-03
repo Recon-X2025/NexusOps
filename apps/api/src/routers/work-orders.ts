@@ -210,6 +210,31 @@ export const workOrdersRouter = router({
       return wo;
     }),
 
+  update: permissionProcedure("work_orders", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      shortDescription: z.string().min(3).max(500).optional(),
+      description: z.string().optional(),
+      priority: WOPriorityEnum.optional(),
+      location: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const { id, ...updates } = input;
+      const [wo] = await db
+        .update(workOrders)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(and(eq(workOrders.id, id), eq(workOrders.orgId, org!.id)))
+        .returning();
+      await db.insert(workOrderActivityLogs).values({
+        workOrderId: id,
+        userId: user!.id,
+        action: "updated",
+        note: "Work order details updated",
+      });
+      return wo;
+    }),
+
   updateTask: permissionProcedure("work_orders", "write")
     .input(z.object({
       id: z.string().uuid(),

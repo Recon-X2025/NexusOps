@@ -45,6 +45,7 @@ export default function ReportsPage() {
   const { can } = useRBAC();
   const visibleTabs = REPORT_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "overview");
+  const [dateRange, setDateRange] = useState("30");
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -62,7 +63,7 @@ export default function ReportsPage() {
   // @ts-ignore
   const workloadQuery = trpc.reports.workloadAnalysis.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   // @ts-ignore
-  const trendQuery = trpc.reports.trendAnalysis.useQuery({ days: 30 }, { staleTime: 5 * 60 * 1000 });
+  const trendQuery = trpc.reports.trendAnalysis.useQuery({ days: Number(dateRange) }, { staleTime: 5 * 60 * 1000 });
 
   if (!can("reports", "read") && !can("analytics", "read")) return <AccessDenied module="Analytics & Reporting" />;
 
@@ -83,10 +84,14 @@ export default function ReportsPage() {
           <span className="text-[11px] text-muted-foreground/70">Reports · SLA Dashboard · Workload Analysis · Trends</span>
         </div>
         <div className="flex items-center gap-2">
-          <select className="px-2 py-1 text-[11px] border border-border rounded bg-card text-foreground/80">
-            <option>Last 30 days</option>
-            <option>Last 90 days</option>
-            <option>This fiscal year</option>
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className="px-2 py-1 text-[11px] border border-border rounded bg-card text-foreground/80"
+          >
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">This fiscal year</option>
           </select>
           <button onClick={() => { window.print(); }} className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
             <Download className="w-3 h-3" /> Export PDF

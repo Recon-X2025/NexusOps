@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import {
   GitBranch, GitMerge, Play, CheckCircle2, XCircle, Clock, AlertTriangle,
   Plus, Download, RefreshCw, Zap, Package, Shield, BarChart2,
@@ -111,6 +112,7 @@ const ITEM_TYPE_CFG: Record<string, string> = {
 
 export default function DevOpsPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = DEVOPS_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null);
@@ -331,7 +333,7 @@ export default function DevOpsPage() {
                       </div>
                       <div className="flex gap-2 mt-3">
                         <button
-                          onClick={() => toast.info(`Full log streaming for pipeline ${p.name ?? p.id} coming soon. Open your CI/CD system directly to view logs.`)}
+                          onClick={() => setTab("pipelines")}
                           className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground"
                         >
                           <Terminal className="w-3 h-3" /> View Logs

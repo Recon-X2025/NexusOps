@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Layers, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Plus, Download, Database, Cloud, Server,
@@ -177,6 +178,7 @@ function SkeletonRows({ count = 4 }: { count?: number }) {
 
 export default function APMPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = APM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "portfolio");
   const [expandedApp, setExpandedApp] = useState<string | null>(null);
@@ -438,7 +440,10 @@ export default function APMPage() {
                       <td className="font-mono text-[11px]">{(a.annualCost ?? 0) > 0 ? `₹${((a.annualCost ?? 0)/1000).toFixed(0)}K` : "Internal"}</td>
                       <td>
                         {(a.techDebt === "critical" || a.techDebt === "high") && (
-                          <button className="text-[11px] text-primary hover:underline">Create Improvement</button>
+                          <button
+                            onClick={() => router.push(`/app/tickets/new?type=request&title=${encodeURIComponent("Tech Debt Improvement: " + a.name)}&description=${encodeURIComponent("Application: " + a.name + " has " + a.techDebt + " tech debt level. Improvement required.")}`)}
+                            className="text-[11px] text-primary hover:underline"
+                          >Create Improvement</button>
                         )}
                       </td>
                     </tr>

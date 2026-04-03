@@ -8,6 +8,7 @@ import {
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const WALKUP_TABS = [
   { key: "queue",        label: "Live Queue",       module: "incidents"  as const, action: "read"  as const },
@@ -53,6 +54,7 @@ function SkeletonQueueItem() {
 
 export default function WalkUpPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = WALKUP_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "queue");
 
@@ -84,7 +86,11 @@ export default function WalkUpPage() {
     onError: (e: any) => { console.error("walkup.complete failed:", e); toast.error(e.message || "Failed to complete visit"); },
   });
 
-  if (!can("incidents", "read")) return <AccessDenied module="Walk-Up Experience" />;
+  // @ts-ignore
+  const holdMutation = trpc.walkup.queue.hold.useMutation({
+    onSuccess: () => { queueQuery.refetch(); toast.success("Visit put on hold"); },
+    onError: (e: any) => toast.error(e.message || "Failed to put on hold"),
+  });
 
   const allVisits: any[] = (Array.isArray(queueQuery.data) ? queueQuery.data : (queueQuery.data as any)?.items ?? []);
   const allAppointments: any[] = (Array.isArray(apptsQuery.data) ? apptsQuery.data : (apptsQuery.data as any)?.items ?? []);
@@ -111,7 +117,7 @@ export default function WalkUpPage() {
             <Plus className="w-3 h-3" /> Check In Walk-Up
           </button>
           <button
-            onClick={() => toast.info("To book an appointment, use the Appointments tab below.")}
+            onClick={() => setTab("appointments")}
             className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Calendar className="w-3 h-3" /> Book Appointment
@@ -219,7 +225,10 @@ export default function WalkUpPage() {
                         >
                           Assign to Me
                         </button>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded text-muted-foreground hover:bg-muted/30">Hold</button>
+                        <button
+                          onClick={() => holdMutation.mutate({ visitId: v.id })}
+                          className="px-3 py-1 border border-border text-[11px] rounded text-muted-foreground hover:bg-muted/30"
+                        >Hold</button>
                       </div>
                     </div>
                   );
@@ -300,9 +309,9 @@ export default function WalkUpPage() {
                       <td><span className={`status-badge capitalize ${a.status === "confirmed" ? "text-blue-700 bg-blue-100" : a.status === "completed" ? "text-green-700 bg-green-100" : a.status === "cancelled" ? "text-muted-foreground/70 bg-muted/30" : "text-yellow-700 bg-yellow-100"}`}>{a.status}</span></td>
                       <td>
                         <div className="flex gap-1.5">
-                          {a.status === "booked" && <button onClick={() => toast.info("Assign this appointment to an agent via the scheduling system.")} className="text-[11px] text-primary hover:underline">Assign</button>}
-                          {a.status === "confirmed" && <button onClick={() => toast.info("Session started — check in the walk-up queue for live status.")} className="text-[11px] text-green-700 hover:underline">Start</button>}
-                          <button onClick={() => toast.info(`Appointment: ${a.employee} — ${a.description}`)} className="text-[11px] text-muted-foreground/70 hover:underline">View</button>
+                          {a.status === "booked" && <button onClick={() => router.push(`/app/tickets/new?type=incident&title=${encodeURIComponent("Walk-Up Appointment: " + (a.employee ?? ""))}&description=${encodeURIComponent(a.description ?? "")}`)} className="text-[11px] text-primary hover:underline">Assign</button>}
+                          {a.status === "confirmed" && <button onClick={() => { setTab("queue"); toast.success("Navigated to queue — find the walk-up visit to start the session."); }} className="text-[11px] text-green-700 hover:underline">Start</button>}
+                          <button onClick={() => toast.success(`Appointment: ${a.employee} — ${a.description} (${a.status})`)} className="text-[11px] text-muted-foreground/70 hover:underline">View</button>
                         </div>
                       </td>
                     </tr>
@@ -342,7 +351,10 @@ export default function WalkUpPage() {
                           >
                             Complete
                           </button>
-                          <button className="px-2 py-1 border border-border text-[11px] rounded text-muted-foreground hover:bg-muted/30">Incident</button>
+                          <button
+                            onClick={() => router.push(`/app/tickets/new?type=incident&source=walkup&visit=${v.id}&description=${encodeURIComponent(v.description ?? "")}`)}
+                            className="px-2 py-1 border border-border text-[11px] rounded text-muted-foreground hover:bg-muted/30"
+                          >Incident</button>
                         </div>
                       )}
                     </div>

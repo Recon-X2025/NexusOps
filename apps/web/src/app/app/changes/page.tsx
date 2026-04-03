@@ -148,7 +148,7 @@ export default function ChangesPage() {
         <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-[12px]">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <strong>{cabPending} change{cabPending > 1 ? "s" : ""}</strong> awaiting CAB review and approval before scheduled implementation window.
-          <Link href="#" className="ml-auto text-yellow-700 hover:underline font-medium whitespace-nowrap">
+          <Link href="/app/changes?tab=cab_approval" className="ml-auto text-yellow-700 hover:underline font-medium whitespace-nowrap">
             Review Now <ChevronRight className="w-3 h-3 inline" />
           </Link>
         </div>

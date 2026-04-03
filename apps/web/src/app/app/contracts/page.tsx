@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 import { SUPPORTED_CURRENCY_CODES } from "@nexusops/types";
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   FileText, Plus, Search, Download, Clock, CheckCircle2, AlertTriangle,
@@ -255,6 +255,11 @@ function ContractCreationWizard() {
   const stepIndex = STEPS.findIndex(s => s.key === step);
 
   const utils = trpc.useUtils();
+
+  const completeObligation = trpc.contracts.completeObligation.useMutation({
+    onSuccess: () => { void utils.contracts.list.invalidate(); toast.success("Obligation marked as completed"); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update obligation"),
+  });
 
   const createFromWizard = trpc.contracts.createFromWizard.useMutation({
     onSuccess: (data) => {
@@ -638,6 +643,7 @@ function ContractCreationWizard() {
 
 function ContractsPageInner() {
   const { can } = useRBAC();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const visibleTabs = CONTRACT_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "register");
@@ -874,7 +880,7 @@ function ContractsPageInner() {
                             <RefreshCw className="w-3 h-3 inline mr-1" />Start Renewal
                           </button>
                           <button
-                            onClick={() => toast.info(`${c.title} · ${c.vendor} · ${c.currency} ${c.value.toLocaleString("en-IN")} · Ends ${c.endDate} · ${c.state}`)}
+                            onClick={() => setExpandedContract(expandedContract === c.id ? null : c.id)}
                             className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
                           >View</button>
                         </div>
@@ -911,7 +917,17 @@ function ContractsPageInner() {
                   <td><span className={`status-badge capitalize ${OBL_STATUS_CFG[obl.status]}`}>{obl.status.replace("_"," ")}</span></td>
                   <td>
                     <PermissionGate module="contracts" action="write">
-                      <button className="text-[11px] text-primary hover:underline">Update</button>
+                      <button
+                        onClick={() => {
+                          if (/^[0-9a-f-]{36}$/i.test(obl.id)) {
+                            completeObligation.mutate({ id: obl.id });
+                          } else {
+                            toast.success("Obligation marked complete (demo data)");
+                          }
+                        }}
+                        disabled={completeObligation.isPending || obl.status === "completed"}
+                        className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                      >Update</button>
                     </PermissionGate>
                   </td>
                 </tr>

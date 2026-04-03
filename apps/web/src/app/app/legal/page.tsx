@@ -357,8 +357,14 @@ export default function LegalPage() {
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => toast.info(`Matter ${m.number ?? m.id} — ${m.title}\nType: ${m.type ?? "—"} | Status: ${m.status} | Phase: ${m.phase ?? "—"}\nCounsel: ${m.assignedCounsel ?? "Unassigned"}\n${m.description ?? ""}`, { duration: 6000 })} className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Matter</button>
-                        <button onClick={() => { setTab("requests"); toast.info("Fill in the Legal Request form to create a task for this matter.", { duration: 3000 }); }} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground">Add Task</button>
+                        <button
+                          onClick={() => { setExpandedMatter(m.id); setTab("matters"); }}
+                          className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                        >View Full Matter</button>
+                        <button
+                          onClick={() => { setTab("requests"); }}
+                          className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground"
+                        >Add Task</button>
                         <label className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground cursor-pointer">Upload Document<input type="file" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) toast.info(`Document "${f.name}" received — documents will be stored once DMS integration is enabled.`); e.target.value = ""; }} /></label>
                         {m.status === "active" && <button onClick={() => updateMatter.mutate({ id: m.id, status: "hold" })} disabled={updateMatter.isPending} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground disabled:opacity-50">Place on Hold</button>}
                         {(m.status === "active" || m.status === "hold") && <button onClick={() => toast.message(`Close matter "${m.title}"?`, { description: "This action will archive the matter. It can be reopened if needed.", action: { label: "Close Matter", onClick: () => updateMatter.mutate({ id: m.id, status: "closed" }) }, cancel: { label: "Cancel" } })} className="px-3 py-1 bg-red-50 text-red-700 text-[11px] rounded hover:bg-red-100 border border-red-200">Close Matter</button>}
@@ -515,16 +521,25 @@ export default function LegalPage() {
               ) : kbArticles.map((kb: any) => (
                 <tr key={kb.id}>
                   <td className="p-0"><div className={`priority-bar ${kb.restricted ? "bg-red-500" : "bg-green-500"}`} /></td>
-                  <td className="font-medium text-primary hover:underline cursor-pointer">{kb.title}</td>
+                  <td
+                    className="font-medium text-primary hover:underline cursor-pointer"
+                    onClick={() => router.push(`/app/knowledge/${kb.id}`)}
+                  >{kb.title}</td>
                   <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{kb.category ?? kb.categoryId ?? "General"}</span></td>
                   <td className="text-muted-foreground">{kb.authorId ?? kb.author ?? "—"}</td>
                   <td className="text-[11px] text-muted-foreground/70">{kb.updatedAt ? new Date(kb.updatedAt).toLocaleDateString() : kb.updated ?? "—"}</td>
                   <td><span className={`status-badge ${kb.restricted ? "text-red-700 bg-red-100 flex items-center gap-1" : "text-green-700 bg-green-100"}`}>{kb.restricted ? <><Lock className="w-2.5 h-2.5" />Restricted</> : "All Staff"}</span></td>
                   <td>
                     <div className="flex gap-1.5">
-                      <button className="text-[11px] text-primary hover:underline flex items-center gap-0.5"><Eye className="w-3 h-3" />Read</button>
+                      <button
+                        onClick={() => router.push(`/app/knowledge/${kb.id}`)}
+                        className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
+                      ><Eye className="w-3 h-3" />Read</button>
                       <PermissionGate module="grc" action="write">
-                        <button className="text-[11px] text-muted-foreground/70 hover:underline">Edit</button>
+                        <button
+                          onClick={() => router.push(`/app/knowledge/${kb.id}?edit=1`)}
+                          className="text-[11px] text-muted-foreground/70 hover:underline"
+                        >Edit</button>
                       </PermissionGate>
                     </div>
                   </td>

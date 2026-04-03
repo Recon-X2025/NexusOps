@@ -75,7 +75,18 @@ export default function HRPage() {
   const epfoEcrQuery     = (trpc as any).indiaCompliance.epfoEcr.list.useQuery({}, { refetchOnWindowFocus: false });
   const markTdsPaid      = (trpc as any).indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const markEcrSubmitted = (trpc as any).indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
-  const createHRCase     = (trpc as any).hr?.cases?.create?.useMutation({ onSuccess: () => { (trpc as any).hr?.cases?.list?.invalidate?.(); setShowCaseForm(false); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const utils = trpc.useUtils();
+  const createHRCase = trpc.hr.cases.create.useMutation({
+    onSuccess: () => {
+      toast.success("HR Case created successfully");
+      utils.hr.cases.list.invalidate();
+      setShowCaseForm(false);
+      setCaseForm({ employeeId: "", caseType: "policy", notes: "" });
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const [caseForm, setCaseForm] = useState({ employeeId: "", caseType: "policy" as const, notes: "" });
   const tdsChallans: any[] = tdsChallansQuery.data ?? [];
   const epfoEcrs: any[]    = epfoEcrQuery.data ?? [];
 
@@ -516,6 +527,79 @@ export default function HRPage() {
           </div>
         )}
       </div>
+
+      {/* New HR Case Modal */}
+      {showCaseForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Plus className="w-4 h-4 text-primary" /> New HR Case
+              </h2>
+              <button onClick={() => setShowCaseForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Case Type *</label>
+                <select
+                  value={caseForm.caseType}
+                  onChange={(e) => setCaseForm((f) => ({ ...f, caseType: e.target.value as any }))}
+                  className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
+                >
+                  <option value="policy">Policy Question</option>
+                  <option value="benefits">Benefits</option>
+                  <option value="workplace">Workplace Issue</option>
+                  <option value="equipment">Equipment Request</option>
+                  <option value="leave">Leave Request</option>
+                  <option value="onboarding">Onboarding</option>
+                  <option value="offboarding">Offboarding</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Employee ID *</label>
+                <select
+                  value={caseForm.employeeId}
+                  onChange={(e) => setCaseForm((f) => ({ ...f, employeeId: e.target.value }))}
+                  className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
+                >
+                  <option value="">— select employee —</option>
+                  {hrCases.map((c) => c.employee && (
+                    <option key={c.employee.employeeId} value={c.hrCase.employeeId}>
+                      {c.employee.employeeId} {c.employee.title ? `— ${c.employee.title}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Description / Notes</label>
+                <textarea
+                  rows={4}
+                  value={caseForm.notes}
+                  onChange={(e) => setCaseForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Describe the HR case…"
+                  className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground resize-none outline-none"
+                />
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowCaseForm(false)}
+                className="px-3 py-1.5 text-[12px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={createHRCase.isPending || !caseForm.employeeId}
+                onClick={() => createHRCase.mutate({ employeeId: caseForm.employeeId, caseType: caseForm.caseType, notes: caseForm.notes || undefined })}
+                className="px-4 py-1.5 text-[12px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1"
+              >
+                {createHRCase.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                Create Case
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

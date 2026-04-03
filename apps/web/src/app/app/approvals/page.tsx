@@ -329,8 +329,16 @@ export default function ApprovalsPage() {
                           className="flex-1 px-2 py-1 text-[12px] border border-blue-300 rounded outline-none bg-white"
                         />
                         <button
-                          disabled={!infoComment.trim()}
-                          onClick={() => { toast.success("Info request noted — requester will be notified"); setInfoRequestId(null); setInfoComment(""); }}
+                          disabled={!infoComment.trim() || decideMutation.isPending}
+                          onClick={() => {
+                            if (isRealId(appr.id)) {
+                              decideMutation.mutate({ requestId: appr.id, decision: "rejected", comment: `More information requested: ${infoComment}`, idempotencyKey: generateUUID() });
+                            } else {
+                              toast.success("Info request noted — requester will be notified");
+                            }
+                            setInfoRequestId(null);
+                            setInfoComment("");
+                          }}
                           className="px-3 py-1 bg-blue-600 text-white text-[11px] rounded hover:bg-blue-700 disabled:opacity-50"
                         >
                           Send

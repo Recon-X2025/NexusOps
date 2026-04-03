@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { inferRouterOutputs } from "@trpc/server";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -44,6 +45,7 @@ function overdueLabel(dueAt: Date | string) {
 
 export default function EscalationQueuePage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const [filter, setFilter] = useState<"breached" | "approaching" | "all">("breached");
 
   const { data: allTickets, isLoading, refetch } = trpc.tickets.list.useQuery({
@@ -52,6 +54,11 @@ export default function EscalationQueuePage() {
   });
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery();
+
+  const bulkUpdate = trpc.tickets.bulkUpdate.useMutation({
+    onSuccess: () => { refetch(); toast.success("Ticket escalated"); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to escalate"),
+  });
 
   if (!can("escalations", "read")) return <AccessDenied module="Escalation Queue" />;
 
@@ -264,13 +271,16 @@ export default function EscalationQueuePage() {
                     <td>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => toast.info("Escalating this ticket — it will be promoted to the next tier and management notified.")}
+                          onClick={() => {
+                            const criticalStatus = statusCounts?.find((s) => ["open","in_progress"].includes((s.name ?? "").toLowerCase()));
+                            bulkUpdate.mutate({ ids: [ticket.id], data: { tags: [...(ticket.tags ?? []), "escalated"] } });
+                          }}
                           className="flex items-center gap-0.5 text-[11px] text-primary hover:underline"
                         >
                           <ArrowUpCircle className="w-3 h-3" /> Escalate
                         </button>
                         <button
-                          onClick={() => toast.info("To reassign, open the ticket and use the Assign panel.")}
+                          onClick={() => router.push(`/app/tickets/${ticket.id}`)}
                           className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:underline"
                         >
                           <User className="w-3 h-3" /> Reassign

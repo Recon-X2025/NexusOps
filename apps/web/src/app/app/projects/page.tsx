@@ -292,7 +292,7 @@ export default function ProjectsPage() {
               <p className="text-[12px] text-muted-foreground/70 mt-1">Demand items will appear here once submitted through the intake process.</p>
               <PermissionGate module="projects" action="write">
                 <button
-                  onClick={() => setTab("demand")}
+                  onClick={() => setShowNewProject(true)}
                   className="mt-3 flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 mx-auto"
                 >
                   <Plus className="w-3 h-3" /> New Demand Request
@@ -311,7 +311,8 @@ export default function ProjectsPage() {
               </div>
               <PermissionGate module="projects" action="write">
                 <button
-                  onClick={() => toast.info("Use the New Story form on this page to add a story to the backlog and assign it to a project.")}
+                <button
+                  onClick={() => setShowNewProject(true)}
                   className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
                 >
                   <Plus className="w-3 h-3" /> Add Story

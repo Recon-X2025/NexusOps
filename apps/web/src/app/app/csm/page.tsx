@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useRouter } from "next/navigation";
 import { Users, Plus, Search, Star, Phone, Mail, Building2, MessageSquare, ChevronRight, TrendingUp, Award, AlertTriangle } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 
@@ -34,6 +35,7 @@ const CASE_STATE: Record<string, string> = {
 
 export default function CSMPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = CSM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "cases");
 
@@ -320,7 +322,7 @@ export default function CSMPage() {
                       <td className="text-center text-muted-foreground">{a.licenses ?? "—"}</td>
                       <td>
                         <button
-                          onClick={() => { toast.info(`${a.name} · Health ${a.healthScore ?? "—"}% · Open Cases: ${a.openCases ?? 0} · NPS: ${a.nps ?? "—"} · CSM: ${a.csm ?? "—"} · Licenses: ${a.licenses ?? "—"}`); }}
+                          onClick={() => router.push(`/app/crm?tab=accounts&id=${a.id ?? ""}`)}
                           className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
                         >
                           View <ChevronRight className="w-3 h-3" />

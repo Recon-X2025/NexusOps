@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Bot, Send, RefreshCw, User, Zap, BookOpen, Wrench, TicketIcon, ChevronRight, ThumbsUp, ThumbsDown, X, Maximize2 } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { useRouter } from "next/navigation";
 
 type Message = {
   id: string;
@@ -87,6 +88,7 @@ const BOT_FLOWS: Record<string, { reply: string; options?: string[]; articleRef?
 
 export default function VirtualAgentPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [view, setView] = useState<"chat" | "analytics">("chat");
@@ -220,7 +222,10 @@ export default function VirtualAgentPage() {
                     }`}>
                       <p className="whitespace-pre-wrap">{msg.text}</p>
                       {msg.articleRef && (
-                        <div className="mt-2 flex items-center gap-1.5 p-2 bg-blue-50 rounded border border-blue-200">
+                        <div
+                          onClick={() => router.push("/app/knowledge")}
+                          className="mt-2 flex items-center gap-1.5 p-2 bg-blue-50 rounded border border-blue-200 cursor-pointer hover:bg-blue-100"
+                        >
                           <BookOpen className="w-3 h-3 text-blue-600 flex-shrink-0" />
                           <span className="text-[11px] text-blue-700 font-medium">{msg.articleRef}</span>
                           <ChevronRight className="w-3 h-3 text-blue-500 ml-auto" />

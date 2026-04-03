@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import {
   Plus,
@@ -89,6 +90,8 @@ type TicketRow = {
 
 export default function TicketsPage() {
   const { can } = useRBAC();
+  const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"overview" | "queue">("queue");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -101,6 +104,7 @@ export default function TicketsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterType, setFilterType] = useState<string>("");
   const [filterSla, setFilterSla] = useState<"" | "breached" | "ok">("");
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   // Debounce search input so the query only fires after the user stops typing
   useEffect(() => {
@@ -774,9 +778,35 @@ export default function TicketsPage() {
 
                       {/* Actions */}
                       <td onClick={(e) => e.stopPropagation()}>
-                        <button className="rounded p-1 text-muted-foreground opacity-0 hover:opacity-100 hover:bg-accent transition group-hover:opacity-100">
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="relative">
+                          <button
+                            className="rounded p-1 text-muted-foreground opacity-0 hover:opacity-100 hover:bg-accent transition group-hover:opacity-100"
+                            onClick={() => setMenuOpenId(menuOpenId === ticket.id ? null : ticket.id)}
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </button>
+                          {menuOpenId === ticket.id && (
+                            <div className="absolute right-0 top-full mt-1 z-20 w-40 bg-card border border-border rounded shadow-lg py-1">
+                              <button
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-muted/30"
+                                onClick={() => { setMenuOpenId(null); router.push(`/app/tickets/${ticket.id}`); }}
+                              >Open</button>
+                              <button
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-muted/30"
+                                onClick={() => {
+                                  setMenuOpenId(null);
+                                  const closedStatus = statusCounts?.find((s) => ["closed", "resolved"].includes((s.name ?? "").toLowerCase()));
+                                  if (!closedStatus) { toast.error("No closed status found"); return; }
+                                  bulkUpdate.mutate({ ids: [ticket.id], data: { statusId: closedStatus.statusId } });
+                                }}
+                              >Close</button>
+                              <button
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-muted/30 text-muted-foreground border-t border-border mt-1 pt-1"
+                                onClick={() => { setMenuOpenId(null); router.push(`/app/tickets/${ticket.id}`); }}
+                              >Assign…</button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

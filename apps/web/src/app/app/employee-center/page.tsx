@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import {
@@ -29,6 +30,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function EmployeeCenterPage() {
   const [search, setSearch] = useState("");
+  const router = useRouter();
   const { can } = useRBAC();
   const canView = can("requests", "read") || can("catalog", "read");
 
@@ -198,7 +200,11 @@ export default function EmployeeCenterPage() {
               ) : (kbQuery.data?.items ?? kbQuery.data as any ?? []).length === 0 ? (
                 <div className="px-4 py-4 text-center text-[11px] text-muted-foreground/50">No knowledge articles available yet</div>
               ) : (kbQuery.data?.items ?? kbQuery.data as any ?? []).slice(0, 4).map((art: any) => (
-                <div key={art.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 cursor-pointer">
+                <div
+                  key={art.id}
+                  onClick={() => router.push(`/app/knowledge/${art.id}`)}
+                  className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 cursor-pointer"
+                >
                   <div>
                     <p className="text-[12px] text-foreground/80">{art.title}</p>
                     <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground/70">
@@ -233,13 +239,13 @@ export default function EmployeeCenterPage() {
                   <div className="text-[10px] text-blue-500">For complex issues</div>
                 </div>
               </Link>
-              <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded cursor-pointer hover:bg-green-100 transition-colors">
+              <a href="tel:+914357" className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded cursor-pointer hover:bg-green-100 transition-colors">
                 <Bell className="w-4 h-4 text-green-600 flex-shrink-0" />
                 <div>
                   <div className="text-[12px] font-medium text-green-700">Call Service Desk</div>
                   <div className="text-[10px] text-green-500">Ext. 4357 · Mon–Fri 7am–7pm</div>
                 </div>
-              </div>
+              </a>
             </div>
           </div>
 

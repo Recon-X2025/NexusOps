@@ -292,6 +292,10 @@ export default function CRMPage() {
   const visibleTabs = CRM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
+  const [editingLead, setEditingLead] = useState<any | null>(null);
+  const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", status: "new" as string });
+  const [showNewQuote, setShowNewQuote] = useState(false);
+  const [newQuoteDesc, setNewQuoteDesc] = useState("");
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -317,6 +321,16 @@ export default function CRMPage() {
   const convertLead = trpc.crm.convertLead.useMutation({
     onSuccess: (res: any) => { toast.success(`Lead converted to account: ${res?.account?.name ?? ""}`); refetchLeads(); refetchAccounts(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const updateLeadMutation = trpc.crm.updateLead.useMutation({
+    onSuccess: () => { toast.success("Lead updated"); refetchLeads(); setEditingLead(null); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update lead"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const createQuoteMutation = trpc.crm.createQuote.useMutation({
+    onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} created`); refetchQuotes(); setShowNewQuote(false); setNewQuoteDesc(""); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create quote"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const createActivity = trpc.crm.createActivity.useMutation({
@@ -689,7 +703,10 @@ export default function CRMPage() {
                   <td>
                     <div className="flex gap-1.5">
                       {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
-                      <button onClick={() => toast.info(`Lead ${l.number ?? l.id} — ${l.firstName} ${l.lastName} at ${l.company}. Status: ${l.status}. Score: ${l.score ?? "—"}. Source: ${l.source ?? "—"}.`, { duration: 5000 })} className="text-[11px] text-primary hover:underline">Edit</button>
+                      <button
+                        onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", status: l.status }); }}
+                        className="text-[11px] text-primary hover:underline"
+                      >Edit</button>
                     </div>
                   </td>
                 </tr>
@@ -754,7 +771,10 @@ export default function CRMPage() {
           <div>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
               <span className="text-[12px] font-semibold text-foreground/80">{QUOTES_LIVE.length} quotes</span>
-              <button onClick={() => { setTab("opportunities"); toast.info("Create an opportunity in the Pipeline view first, then attach a quote to it."); }} className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <button
+                onClick={() => setShowNewQuote(true)}
+                className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+              >
                 <Plus className="w-3 h-3" /> New Quote
               </button>
             </div>
@@ -839,7 +859,15 @@ export default function CRMPage() {
                         >
                           <FileText className="w-3 h-3 inline mr-1" />Download PDF
                         </button>
-                        <button onClick={() => toast.info(`Quote ${q.quoteNumber ?? q.id}: Total ₹${(q.total ?? 0).toLocaleString("en-IN")} | Discount: ${q.discountPct ?? 0}% | Status: ${q.status} | Valid until: ${q.validUntil ?? "—"}`)} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">Edit</button>
+                        <button
+                          onClick={() => {
+                            const newStatus = prompt(`Change quote status (current: ${q.status}):\ndraft / sent / viewed / accepted / declined / expired`);
+                            if (newStatus && ["draft","sent","viewed","accepted","declined","expired"].includes(newStatus)) {
+                              updateQuote.mutate({ id: q.id, status: newStatus as any });
+                            }
+                          }}
+                          className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+                        >Edit</button>
                         {q.status !== "accepted" && (
                           <button onClick={() => updateQuote.mutate({ id: q.id, status: "accepted" })} disabled={updateQuote.isPending} className="px-3 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200 disabled:opacity-50">Mark Accepted</button>
                         )}
@@ -934,6 +962,90 @@ export default function CRMPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Lead Modal */}
+      {editingLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Edit Lead: {editingLead.firstName} {editingLead.lastName}</h2>
+              <button onClick={() => setEditingLead(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {(["firstName","lastName","email","company","title"] as const).map((f) => (
+                <div key={f}>
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">{f.replace(/([A-Z])/g, " $1")}</label>
+                  <input
+                    value={(editLeadForm as any)[f]}
+                    onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, [f]: e.target.value }))}
+                    className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none"
+                  />
+                </div>
+              ))}
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Status</label>
+                <select
+                  value={editLeadForm.status}
+                  onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, status: e.target.value }))}
+                  className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card"
+                >
+                  {["new","contacted","qualified","disqualified"].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
+              <button onClick={() => setEditingLead(null)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/30">Cancel</button>
+              <button
+                disabled={updateLeadMutation.isPending}
+                onClick={() => {
+                  if (/^[0-9a-f-]{36}$/i.test(editingLead.id)) {
+                    updateLeadMutation.mutate({ id: editingLead.id, ...editLeadForm, status: editLeadForm.status as any });
+                  } else {
+                    toast.success("Lead updated (demo data)");
+                    setEditingLead(null);
+                  }
+                }}
+                className="px-4 py-1.5 text-[12px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+              >
+                {updateLeadMutation.isPending ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Quote Modal */}
+      {showNewQuote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-sm font-semibold">New Quote</h2>
+              <button onClick={() => setShowNewQuote(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Description / Item</label>
+                <input
+                  value={newQuoteDesc}
+                  onChange={(e) => setNewQuoteDesc(e.target.value)}
+                  placeholder="e.g. NexusOps Enterprise License"
+                  className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none"
+                />
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex justify-end gap-2">
+              <button onClick={() => setShowNewQuote(false)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/30">Cancel</button>
+              <button
+                disabled={createQuoteMutation.isPending || !newQuoteDesc.trim()}
+                onClick={() => createQuoteMutation.mutate({ items: [{ description: newQuoteDesc, quantity: 1, unitPrice: "0", total: "0" }] })}
+                className="px-4 py-1.5 text-[12px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+              >
+                {createQuoteMutation.isPending ? "Creating…" : "Create Quote"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

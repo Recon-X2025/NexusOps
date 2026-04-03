@@ -108,6 +108,10 @@ export default function WorkOrderDetailPage() {
     onSuccess: () => { refetch(); toast.success("Status updated"); },
     onError: (e: any) => { console.error("workOrders.updateState failed:", e); toast.error(e.message || "Failed to update status"); },
   });
+  const updateWO = trpc.workOrders.update.useMutation({
+    onSuccess: () => { refetch(); setEditingTitle(false); toast.success("Work order updated"); },
+    onError: (e: any) => toast.error(e.message || "Failed to update work order"),
+  });
   const addNote = trpc.workOrders.addNote.useMutation({
     onSuccess: () => {
       setNoteText("");
@@ -261,11 +265,13 @@ export default function WorkOrderDetailPage() {
                 <button
                   onClick={() => {
                     if (editTitleValue.trim()) {
-                      toast.success("Title saved (local preview — full edit form coming soon)");
+                      updateWO.mutate({ id: wo.id, shortDescription: editTitleValue.trim() });
+                    } else {
+                      setEditingTitle(false);
                     }
-                    setEditingTitle(false);
                   }}
-                  className="px-2 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90"
+                  disabled={updateWO.isPending}
+                  className="px-2 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
                 >Save</button>
                 <button
                   onClick={() => setEditingTitle(false)}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
@@ -34,6 +35,7 @@ const INV_STATUS: Record<string, string> = {
 
 export default function FinancialPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = FIN_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "budget");
 
@@ -400,7 +402,7 @@ export default function FinancialPage() {
                                 className="text-[11px] text-red-600 font-semibold hover:underline"
                               >Approve & Escalate</button>
                             )}
-                            <button onClick={() => { const i = inv as any; toast.info(`Invoice ${i.invoiceNumber ?? i.number} — ${i.vendorName ?? "—"} — ₹${Number(i.totalAmount ?? 0).toLocaleString("en-IN")} — Status: ${i.status} — Due: ${i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "—"}`, { duration: 5000 }); }} className="text-[11px] text-primary hover:underline">View</button>
+                            <button onClick={() => { const i = inv as any; router.push(`/app/procurement?tab=invoices&id=${i.id ?? ""}`); }} className="text-[11px] text-primary hover:underline">View</button>
                           </div>
                         </td>
                     </tr>

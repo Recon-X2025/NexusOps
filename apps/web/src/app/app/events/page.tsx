@@ -10,6 +10,7 @@ import {
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 type Severity = "critical" | "major" | "minor" | "warning" | "info" | "clear";
 type EventState = "open" | "in_progress" | "resolved" | "suppressed" | "flapping";
@@ -55,6 +56,7 @@ const TABS = [
 
 export default function EventManagementPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -112,19 +114,19 @@ export default function EventManagementPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => toast.info("Suppression Rules are managed in Admin → Notification Rules. Configure which alert patterns to silence.", { duration: 5000 })}
+            onClick={() => router.push("/app/admin?tab=notifications")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
           >
             <BellOff className="w-3 h-3" /> Suppression Rules
           </button>
           <button
-            onClick={() => toast.info("Correlation Policies define how related alerts get grouped. Configure in Admin → System Properties.", { duration: 5000 })}
+            onClick={() => router.push("/app/admin?tab=system")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
           >
             <GitMerge className="w-3 h-3" /> Correlation Policies
           </button>
           <button
-            onClick={() => toast.info("Alert Sources are configured by connecting monitoring integrations in Admin → Integrations.", { duration: 5000 })}
+            onClick={() => router.push("/app/admin?tab=integrations")}
             className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
           >
             <Bell className="w-3 h-3" /> Alert Sources
@@ -271,7 +273,10 @@ export default function EventManagementPage() {
                             {evt.linkedIncident}
                           </Link>
                         ) : (
-                          <button className="text-[11px] text-muted-foreground/70 hover:text-primary">+ Create</button>
+                          <button
+                            className="text-[11px] text-muted-foreground/70 hover:text-primary"
+                            onClick={(e) => { e.stopPropagation(); router.push(`/app/tickets/new?type=incident&source=event&node=${encodeURIComponent(evt.node ?? "")}&metric=${encodeURIComponent(evt.metric ?? "")}`); }}
+                          >+ Create</button>
                         )}
                       </td>
                     </tr>
@@ -295,7 +300,10 @@ export default function EventManagementPage() {
                               <div className="text-muted-foreground">Event count: {evt.count ?? 0}</div>
                             </div>
                             <div className="flex flex-col gap-1.5">
-                              <button className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                              <button
+                                className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                                onClick={(e) => { e.stopPropagation(); router.push(`/app/tickets/new?type=incident&source=event&node=${encodeURIComponent(evt.node ?? "")}&metric=${encodeURIComponent(evt.metric ?? "")}`); }}
+                              >
                                 Create Incident
                               </button>
                               <button

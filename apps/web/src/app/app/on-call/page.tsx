@@ -5,6 +5,7 @@ import { Phone, Users, Clock, AlertTriangle, CheckCircle2, Plus, Bell, ChevronLe
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -31,6 +32,7 @@ function getCurrentOncall(rotation: Rotation) {
 
 export default function OnCallPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const canView = can("incidents", "read");
   const canWrite = can("incidents", "write");
   const [week, setWeek] = useState(0);
@@ -185,7 +187,7 @@ export default function OnCallPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => toast.success(`Paging ${rot.team} on-call engineer — they will be notified via their registered pager/phone.`)}
+                  onClick={() => router.push(`/app/tickets/new?type=incident&title=${encodeURIComponent("On-Call Page: " + (rot.team ?? "Team"))}&urgency=high&impact=high`)}
                   className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200"
                 >
                   <Phone className="w-3 h-3" /> Page Now

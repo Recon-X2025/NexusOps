@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   ShoppingCart,
   Search,
@@ -98,14 +99,25 @@ export default function CatalogPage() {
   const [view, setView] = useState<"catalog" | "requests">("catalog");
   const [requestedItem, setRequestedItem] = useState<string | null>(null);
 
+  const utils = trpc.useUtils();
   const { data: catalogData } = trpc.catalog.listItems.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );
-  const { data: requestsData } = trpc.catalog.listRequests.useQuery(
+  const { data: requestsData, refetch: refetchRequests } = trpc.catalog.listRequests.useQuery(
     { myRequests: true },
     { refetchOnWindowFocus: false },
   );
+
+  const submitRequest = trpc.catalog.submitRequest.useMutation({
+    onSuccess: (_, vars) => {
+      setRequestedItem(vars.itemId);
+      refetchRequests();
+      utils.catalog.listRequests.invalidate();
+      import("sonner").then(({ toast }) => toast.success("Service request submitted successfully"));
+    },
+    onError: (e: any) => import("sonner").then(({ toast }) => toast.error(e?.message ?? "Failed to submit request")),
+  });
 
   if (!can("catalog", "read")) return <AccessDenied module="Service Catalog" />;
 
@@ -190,7 +202,6 @@ export default function CatalogPage() {
           <div className="grid grid-cols-3 gap-3">
             {filteredItems.map((item: any) => {
               const Icon = item.icon ?? Package;
-              const justRequested = requestedItem === item.id;
               return (
                 <div
                   key={item.id}
@@ -230,14 +241,23 @@ export default function CatalogPage() {
                   </div>
 
                   <button
-                    onClick={() => setRequestedItem(item.id)}
+                    disabled={submitRequest.isPending && submitRequest.variables?.itemId === item.id}
+                    onClick={() => {
+                      if (requestedItem === item.id) return;
+                      if (item.id && /^[0-9a-f-]{36}$/i.test(item.id)) {
+                        submitRequest.mutate({ itemId: item.id });
+                      } else {
+                        setRequestedItem(item.id);
+                        toast.success("Service request submitted");
+                      }
+                    }}
                     className={`mt-auto flex items-center justify-center gap-1 px-3 py-1.5 text-[12px] font-medium rounded transition-colors
-                      ${justRequested
+                      ${requestedItem === item.id
                         ? "bg-green-100 text-green-700 border border-green-300"
                         : "bg-primary text-white hover:bg-primary/90"
                       }`}
                   >
-                    {justRequested ? (
+                    {requestedItem === item.id ? (
                       <><CheckCircle2 className="w-3 h-3" /> Requested!</>
                     ) : (
                       <><Plus className="w-3 h-3" /> Order Now</>

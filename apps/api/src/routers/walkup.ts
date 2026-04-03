@@ -98,6 +98,17 @@ export const walkupRouter = router({
           .returning();
         return updated;
       }),
+
+    hold: permissionProcedure("incidents", "write")
+      .input(z.object({ visitId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [updated] = await db.update(walkupVisits)
+          .set({ status: "on_hold", updatedAt: new Date() })
+          .where(and(eq(walkupVisits.id, input.visitId), eq(walkupVisits.orgId, org!.id)))
+          .returning();
+        return updated;
+      }),
   }),
 
   appointments: router({

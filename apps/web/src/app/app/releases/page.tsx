@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GitBranch, Plus, Calendar, AlertTriangle, Package, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ const RISK_COLOR: Record<string, string> = {
 
 export default function ReleasesPage() {
   const { can } = useRBAC();
+  const router = useRouter();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showNewRelease, setShowNewRelease] = useState(false);
@@ -67,7 +69,7 @@ export default function ReleasesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => toast.info("Release calendar view — switch to calendar layout coming soon.")}
+            onClick={() => setExpandedId(null)}
             className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Calendar className="w-3 h-3" /> Release Calendar
@@ -199,9 +201,9 @@ export default function ReleasesPage() {
                       <p className="text-[11px] text-muted-foreground/60">No deployment steps logged yet.</p>
                     )}
                     <div className="flex items-center gap-3 mt-3">
-                      <button onClick={() => toast.info("Full pipeline view — open the Change record linked to this release for the complete CI/CD pipeline.")} className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Pipeline</button>
-                      <button onClick={() => toast.warning("Initiating rollback requires CAB approval. Open a Change Request to proceed.")} className="px-3 py-1 border border-red-300 text-red-600 text-[11px] rounded hover:bg-red-50">Rollback</button>
-                      <button onClick={() => toast.info("Deployment logs are stored in your CI/CD system. Check the pipeline link in the associated Change record.")} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">View Logs</button>
+                      <button onClick={() => router.push(`/app/changes?search=${encodeURIComponent((rel.changeRef as string) ?? rel.id ?? "")}`)} className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Pipeline</button>
+                      <button onClick={() => router.push(`/app/changes/new?type=emergency&source=rollback&release=${rel.id ?? ""}`)} className="px-3 py-1 border border-red-300 text-red-600 text-[11px] rounded hover:bg-red-50">Rollback</button>
+                      <button onClick={() => router.push(`/app/changes?search=${encodeURIComponent((rel.changeRef as string) ?? rel.id ?? "")}`)} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">View Logs</button>
                     </div>
                   </div>
                 )}

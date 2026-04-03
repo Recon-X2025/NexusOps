@@ -83,6 +83,7 @@ export default function AdminConsolePage() {
   const usersQuery = trpc.admin.users.list.useQuery();
   const auditOverviewQuery = trpc.admin.auditLog.list.useQuery({ page: 1, limit: 5 });
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
+  const [toggledRules, setToggledRules] = useState<Set<string>>(new Set());
 
   const inviteUserMutation = trpc.auth.inviteUser.useMutation({
     onSuccess: (res) => {
@@ -667,7 +668,14 @@ export default function AdminConsolePage() {
                           className="text-[11px] text-primary hover:underline"
                         >Edit</button>
                         <button
-                          onClick={() => toast.info(`Rule "${r.name}" toggled. Changes will take effect immediately.`)}
+                          onClick={() => {
+                            setToggledRules((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                              return next;
+                            });
+                            toast.success(`Rule "${r.name}" ${toggledRules.has(r.id) ? "activated" : "deactivated"}`);
+                          }}
                           className="text-[11px] text-muted-foreground/70 hover:text-orange-600"
                         >Toggle</button>
                       </div></td>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Building2, Plus, Star, AlertTriangle } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -51,6 +52,7 @@ const VENDOR_TABS = [
 
 export default function VendorsPage() {
   const { can } = useRBAC();
+  const router = useRouter();
   const visibleTabs = VENDOR_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vendors");
 
@@ -224,7 +226,7 @@ export default function VendorsPage() {
                           {(c.status ?? "active").replace(/_/g," ")}
                         </span>
                       </td>
-                      <td><button onClick={() => toast.info("Vendor detail view — full vendor profile page coming soon.")} className="text-[11px] text-primary hover:underline">View</button></td>
+                      <td><button onClick={() => router.push(`/app/procurement?tab=vendors&id=${v.id ?? ""}`)} className="text-[11px] text-primary hover:underline">View</button></td>
                     </tr>
                   );
                 })

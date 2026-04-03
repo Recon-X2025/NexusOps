@@ -107,7 +107,7 @@ export default function TicketDetailPage() {
   const [showResolvePanel, setShowResolvePanel] = useState(false);
   const [showClosePanel, setShowClosePanel] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
-  const [watching, setWatching] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
 
   const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id });
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, {
@@ -293,12 +293,22 @@ export default function TicketDetailPage() {
                 >
                   <XCircle className="w-3 h-3" /> {updateTicket.isPending ? "…" : "Close"}
                 </button>
+                <div className="relative">
                 <button
-                  onClick={() => toast.info("More actions coming soon")}
+                  onClick={() => setShowMoreActions((v) => !v)}
                   className="p-1.5 border border-border rounded hover:bg-muted/30 text-muted-foreground"
                 >
                   <MoreHorizontal className="w-3.5 h-3.5" />
                 </button>
+                {showMoreActions && (
+                  <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-card border border-border rounded shadow-lg py-1">
+                    <button onClick={() => { setShowMoreActions(false); setActiveTab("related"); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">View Related Items</button>
+                    <button onClick={() => { setShowMoreActions(false); router.push(`/app/problems`); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">Create Problem</button>
+                    <button onClick={() => { setShowMoreActions(false); router.push(`/app/changes/new?source=ticket&ticket=${id}`); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">Create Change</button>
+                    <button onClick={() => { setShowMoreActions(false); setWatching((v) => !v); toast.success(watching ? "Removed from watchlist" : "Added to watchlist"); }} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/40">{watching ? "Unwatch" : "Watch"}</button>
+                  </div>
+                )}
+                </div>
               </div>
             </div>
           </div>
@@ -597,7 +607,13 @@ export default function TicketDetailPage() {
                   <div key={section.label} className="border border-border rounded">
                     <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-muted-foreground">{section.label}</span>
-                      <button onClick={() => toast.info("To link a related item, open the target record and use its Related Items panel.")} className="text-[11px] text-primary hover:underline">+ Link</button>
+                      <button onClick={() => {
+                        if (section.label === "Related Incidents" || section.label === "Linked Problem Records" || section.label === "Change Requests") {
+                          router.push(`/app/tickets`);
+                        } else if (section.label === "Knowledge Articles") {
+                          router.push(`/app/knowledge`);
+                        }
+                      }} className="text-[11px] text-primary hover:underline">+ Link</button>
                     </div>
                     <div className="p-3 text-[12px] text-muted-foreground/70 italic">
                       No related {section.label.toLowerCase()}

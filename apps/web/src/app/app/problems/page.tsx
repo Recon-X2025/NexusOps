@@ -105,7 +105,7 @@ export default function ProblemsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => toast.info("Viewing known errors — filter the table by 'Known Error' status to see all active errors and their workarounds.")}
+            onClick={() => setActiveTab("known_error")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent">
             <BookOpen className="w-3 h-3" /> Known Errors DB
           </button>
@@ -307,7 +307,7 @@ export default function ProblemsPage() {
                               <FileText className="w-3 h-3" /> Full Problem Record
                             </Link>
                             <button
-                              onClick={() => toast.info("To link an incident, open the ticket and use the 'Related Items' section to associate it with this problem.")}
+                              onClick={() => router.push(`/app/tickets?problem=${prob.id}`)}
                               className="text-[11px] text-primary hover:underline flex items-center gap-1">
                               <Link2 className="w-3 h-3" /> Link Incident
                             </button>

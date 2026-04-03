@@ -52,6 +52,17 @@ export default function SecurityIncidentDetailPage() {
     onError: (e: any) => { console.error("security.transition failed:", e); toast.error(e.message || "Failed to update status"); },
   });
 
+  // @ts-ignore
+  const addContainmentMutation = trpc.security.addContainment.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.security.getIncident.invalidate({ id });
+      setNote("");
+      toast.success("Action recorded");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to record action"),
+  });
+
   if (!can("security", "read")) return <AccessDenied module="Security Incidents" />;
 
   if (incidentQuery.isLoading) {
@@ -267,8 +278,14 @@ export default function SecurityIncidentDetailPage() {
                         <td>
                           <PermissionGate module="security" action="write">
                             <div className="flex gap-1.5">
-                              <button className="text-[11px] text-red-600 hover:underline">Block</button>
-                              <button className="text-[11px] text-primary hover:underline">Add to Threat Intel</button>
+                              <button
+                                onClick={() => addContainmentMutation.mutate({ id, action: `Blocked IOC: ${ioc.type} — ${ioc.value}`, performedBy: "current_user" })}
+                                className="text-[11px] text-red-600 hover:underline"
+                              >Block</button>
+                              <button
+                                onClick={() => addContainmentMutation.mutate({ id, action: `Added to Threat Intel: ${ioc.type} — ${ioc.value}`, performedBy: "current_user" })}
+                                className="text-[11px] text-primary hover:underline"
+                              >Add to Threat Intel</button>
                             </div>
                           </PermissionGate>
                         </td>
@@ -290,7 +307,11 @@ export default function SecurityIncidentDetailPage() {
                       <button className="text-muted-foreground/70 hover:text-muted-foreground">
                         <Paperclip className="w-3.5 h-3.5" />
                       </button>
-                      <button className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                      <button
+                        disabled={addContainmentMutation.isPending || !note.trim()}
+                        onClick={() => addContainmentMutation.mutate({ id, action: `Note: ${note}`, performedBy: "current_user" })}
+                        className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60"
+                      >
                         <Send className="w-3 h-3" /> Add Note
                       </button>
                     </div>
@@ -333,14 +354,19 @@ export default function SecurityIncidentDetailPage() {
             </div>
             <div className="p-2 space-y-1.5">
               {[
-                { label: "Generate DPDP Breach Report",   icon: FileText,      color: "text-red-600" },
-                { label: "Escalate to CISO",              icon: AlertTriangle, color: "text-orange-600" },
-                { label: "Add IOC to Threat Intel",       icon: Shield,        color: "text-primary" },
-                { label: "Block IP at firewall",          icon: Lock,          color: "text-primary" },
-                { label: "Export Evidence Package",       icon: FileText,      color: "text-muted-foreground" },
-                { label: "Schedule Post-Incident Review", icon: Clock,         color: "text-muted-foreground" },
+                { label: "Generate DPDP Breach Report",   icon: FileText,      color: "text-red-600",          action: "Generated DPDP Breach Report" },
+                { label: "Escalate to CISO",              icon: AlertTriangle, color: "text-orange-600",       action: "Escalated to CISO" },
+                { label: "Add IOC to Threat Intel",       icon: Shield,        color: "text-primary",          action: "Added IOCs to Threat Intel database" },
+                { label: "Block IP at firewall",          icon: Lock,          color: "text-primary",          action: "Block IP at firewall — pending firewall rule push" },
+                { label: "Export Evidence Package",       icon: FileText,      color: "text-muted-foreground", action: "Evidence package export requested" },
+                { label: "Schedule Post-Incident Review", icon: Clock,         color: "text-muted-foreground", action: "Post-Incident Review scheduled" },
               ].map((a) => (
-                <button key={a.label} className="w-full flex items-center gap-2 px-2 py-1.5 text-[11px] text-foreground/80 hover:bg-muted/30 rounded text-left">
+                <button
+                  key={a.label}
+                  disabled={addContainmentMutation.isPending}
+                  onClick={() => addContainmentMutation.mutate({ id, action: a.action, performedBy: "current_user" })}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-[11px] text-foreground/80 hover:bg-muted/30 rounded text-left disabled:opacity-60"
+                >
                   <a.icon className={`w-3 h-3 flex-shrink-0 ${a.color}`} />
                   {a.label}
                 </button>
