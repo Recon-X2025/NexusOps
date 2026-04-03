@@ -71,8 +71,7 @@ export default function EventManagementPage() {
   // @ts-ignore
   const eventsQuery = trpc.events.list.useQuery({ limit: 50 });
 
-  if (!can("events", "read")) return <AccessDenied module="Event Management" />;
-
+  // All mutations declared BEFORE the access-denied guard — Rules of Hooks compliance
   // @ts-ignore
   const acknowledgeEvent = trpc.events.acknowledge?.useMutation?.({
     onSuccess: () => { eventsQuery.refetch(); toast.success("Event acknowledged"); },
@@ -83,6 +82,8 @@ export default function EventManagementPage() {
     onSuccess: () => { eventsQuery.refetch(); toast.success("Event suppressed"); },
     onError: (e: any) => { console.error("events.suppress failed:", e); toast.error(e.message || "Failed to suppress event"); },
   });
+
+  if (!can("events", "read")) return <AccessDenied module="Event Management" />;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allEvents: any[] = eventsQuery.data?.items ?? [];

@@ -42,13 +42,13 @@ export default function SAMPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  if (!can("sam", "read")) return <AccessDenied module="Software Asset Management" />;
-
-  // @ts-ignore
+  // @ts-ignore — must be declared BEFORE the access-denied guard to satisfy Rules of Hooks
   const assignLicense = trpc.assets.licenses.assign?.useMutation?.({
     onSuccess: () => { void licensesQuery.refetch(); toast.success("License assigned"); },
     onError: (e: any) => { console.error("sam.licenses.assign failed:", e); toast.error(e.message || "Failed to assign license"); },
   });
+
+  if (!can("sam", "read")) return <AccessDenied module="Software Asset Management" />;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const licenses: any[] = licensesQuery.data ?? [];

@@ -47,6 +47,11 @@ export default function ChangeDetailPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
+  // addComment declared BEFORE loading/not-found/RBAC guards — Rules of Hooks compliance
+  const addComment = trpc.changes.addComment.useMutation({
+    onSuccess: () => { setComment(""); toast.success("Comment added"); refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-48 text-muted-foreground gap-2">
@@ -76,11 +81,6 @@ export default function ChangeDetailPage() {
     cancelled:      [],
   };
   const nextStates = TRANSITIONS[change.status ?? "draft"] ?? [];
-
-  const addComment = trpc.changes.addComment.useMutation({
-    onSuccess: () => { setComment(""); toast.success("Comment added"); refetch(); },
-    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
-  });
 
   if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
 
