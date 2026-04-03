@@ -40,9 +40,6 @@ export default function ReleasesPage() {
   const createRelease = trpc.changes.createRelease.useMutation({
     onSuccess: () => {
       void releasesQuery.refetch();
-
-  if (!can("changes", "read")) return <AccessDenied module="Release Management" />;
-
       setShowNewRelease(false);
       setNewReleaseName("");
       toast.success("Release created");
@@ -51,6 +48,8 @@ export default function ReleasesPage() {
   });
 
   const releases = releasesQuery.data ?? [];
+
+  if (!can("changes", "read")) return <AccessDenied module="Release Management" />;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inFlight = releases.filter((r: any) => ["deployment", "post_deployment"].includes(r.state)).length;

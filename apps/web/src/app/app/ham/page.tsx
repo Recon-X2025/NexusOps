@@ -57,10 +57,7 @@ export default function HAMPage() {
 
   const createAsset = trpc.assets.create.useMutation({
     onSuccess: (a) => {
-      setAssetMsg(`Asset ${a.assetTag} added`);
-
-  if (!can("ham", "read")) return <AccessDenied module="Hardware Asset Management" />;
-
+      setAssetMsg(`Asset ${(a as any).assetTag ?? "new"} added`);
       setShowAddAsset(false);
       setAssetForm({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "" });
       assetsQuery.refetch();
@@ -72,8 +69,12 @@ export default function HAMPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const assets: any[] = assetsQuery.data?.items ?? [];
 
+  if (!can("ham", "read")) return <AccessDenied module="Hardware Asset Management" />;
+
   const expiringWarranty = assets.filter((a) => {
+    if (!a.warrantyEnd) return false;
     const end = new Date(a.warrantyEnd);
+    if (isNaN(end.getTime())) return false;
     const soon = new Date(Date.now() + 180 * 86400000);
     return end <= soon;
   }).length;

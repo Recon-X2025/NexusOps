@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { toast } from "sonner";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,7 +14,7 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function downloadCSV(rows: Record<string, unknown>[], filename: string, columns?: string[]): void {
   if (!rows.length) {
-    alert("No data to export.");
+    toast.error("No data to export.");
     return;
   }
   const cols = columns ?? Object.keys(rows[0] ?? {});
@@ -43,8 +44,10 @@ export function formatDate(date: Date | string | null | undefined): string {
   }).format(new Date(date));
 }
 
-export function formatRelativeTime(date: Date | string): string {
+export function formatRelativeTime(date: Date | string | null | undefined): string {
+  if (!date) return "—";
   const d = new Date(date);
+  if (isNaN(d.getTime())) return "—";
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);

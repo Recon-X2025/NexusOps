@@ -108,6 +108,7 @@ export default function TicketDetailPage() {
   const [showClosePanel, setShowClosePanel] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
   const [showMoreActions, setShowMoreActions] = useState(false);
+  const [watching, setWatching] = useState(false);
 
   const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id });
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, {
@@ -164,7 +165,9 @@ export default function TicketDetailPage() {
     );
   }
 
-  const { ticket, comments, activityLog } = data;
+  const { ticket, comments: rawComments, activityLog: rawActivityLog } = data;
+  const comments: any[] = rawComments ?? [];
+  const activityLog: any[] = rawActivityLog ?? [];
   const urgency = (ticket.urgency ?? "medium") as "high" | "medium" | "low";
   const impact  = (ticket.impact  ?? "medium") as "high" | "medium" | "low";
   const uCfg = URGENCY_COLORS[urgency];

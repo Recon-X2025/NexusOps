@@ -457,8 +457,8 @@ export default function CRMPage() {
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Deals Requiring Attention</div>
               <div className="divide-y divide-border">
                 {activeDeals.slice(0, 5).map((deal) => {
-                  const cfg = STAGE_CFG[deal.stage as DealStage];
-                  const daysToClose = Math.round((new Date(deal.closeDate).getTime() - new Date().getTime()) / 86400000);
+                  const cfg = STAGE_CFG[deal.stage as DealStage] ?? { label: deal.stage ?? "—", color: "text-muted-foreground bg-muted" };
+                  const daysToClose = deal.closeDate ? Math.round((new Date(deal.closeDate).getTime() - new Date().getTime()) / 86400000) : null;
                   return (
                     <div key={deal.id} className="flex items-start justify-between px-3 py-2.5 hover:bg-muted/30">
                       <div>
@@ -487,7 +487,7 @@ export default function CRMPage() {
               </div>
               <div className="divide-y divide-border">
                 {ACTIVITIES_LIVE.filter((a: any) => !a.completed).slice(0, 4).map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type];
+                  const cfg = ACTIVITY_TYPE_CFG[a.type] ?? { color: "bg-muted", label: a.type ?? "Activity" };
                   return (
                     <div key={a.id} className="flex items-center justify-between px-3 py-2 hover:bg-muted/30">
                       <div className="flex items-start gap-2">
@@ -741,7 +741,7 @@ export default function CRMPage() {
               </thead>
               <tbody>
                 {ACTIVITIES_LIVE.map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type];
+                  const cfg = ACTIVITY_TYPE_CFG[a.type] ?? { color: "bg-muted", label: a.type ?? "Activity" };
                   return (
                     <tr key={a.id} className={a.completed ? "opacity-60" : ""}>
                       <td className="p-0"><div className={`priority-bar ${a.completed ? "bg-green-500" : "bg-blue-400"}`} /></td>

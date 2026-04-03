@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -90,7 +90,7 @@ function ageLabel(d: Date | string) {
 
 export default function WorkOrdersPage() {
   const { can } = useRBAC();
-  const visibleTabs = STATE_TABS.filter((t) => can(t.module, t.action));
+  const visibleTabs = useMemo(() => STATE_TABS.filter((t) => can(t.module, t.action)), [can]);
   const [activeTab, setActiveTab] = useState(visibleTabs[0]?.key ?? "all");
 
   useEffect(() => {
@@ -118,9 +118,6 @@ export default function WorkOrdersPage() {
   const updateState = trpc.workOrders.updateState.useMutation({
     onSuccess: (result) => {
       setWoActionMsg(`Updated ${Array.isArray(result) ? result.length : 1} work order(s)`);
-
-  if (!can("work_orders", "read")) return <AccessDenied module="Field Service Management" />;
-
       setSelected(new Set()); setWoActionPanel(null); setWoNewState("");
       refetch(); setTimeout(() => setWoActionMsg(null), 3000);
     },
@@ -145,6 +142,8 @@ export default function WorkOrdersPage() {
       setSelected(new Set(filteredItems.map((i: WOListItem) => i.id)));
     }
   };
+
+  if (!can("work_orders", "read")) return <AccessDenied module="Field Service Management" />;
 
   return (
     <div className="flex flex-col h-full gap-3">

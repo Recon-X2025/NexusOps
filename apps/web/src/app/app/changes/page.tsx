@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -49,7 +49,7 @@ export default function ChangesPage() {
   const { can } = useRBAC();
   const hasAccess = can("changes", "read");
 
-  const visibleTabs = TABS.filter((t) => can(t.module, t.action));
+  const visibleTabs = useMemo(() => TABS.filter((t) => can(t.module, t.action)), [can]);
   const [activeTab, setActiveTab] = useState(visibleTabs[0]?.key ?? "all");
 
   useEffect(() => {
@@ -247,12 +247,12 @@ export default function ChangesPage() {
                               : "text-muted-foreground bg-muted"
                         }`}
                       >
-                        {chg.type.charAt(0).toUpperCase() + chg.type.slice(1)}
+                        {(chg.type ?? "standard").charAt(0).toUpperCase() + (chg.type ?? "standard").slice(1)}
                       </span>
                     </td>
                     <td>
                       <span className={`status-badge ${RISK_COLORS[chg.risk] ?? "text-muted-foreground bg-muted"}`}>
-                        {chg.risk.charAt(0).toUpperCase() + chg.risk.slice(1)}
+                        {(chg.risk ?? "low").charAt(0).toUpperCase() + (chg.risk ?? "low").slice(1)}
                       </span>
                     </td>
                     <td>

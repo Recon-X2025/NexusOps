@@ -256,11 +256,6 @@ function ContractCreationWizard() {
 
   const utils = trpc.useUtils();
 
-  const completeObligation = trpc.contracts.completeObligation.useMutation({
-    onSuccess: () => { void utils.contracts.list.invalidate(); toast.success("Obligation marked as completed"); },
-    onError: (e: any) => toast.error(e?.message ?? "Failed to update obligation"),
-  });
-
   const createFromWizard = trpc.contracts.createFromWizard.useMutation({
     onSuccess: (data) => {
       void utils.contracts.list.invalidate();
@@ -667,6 +662,12 @@ function ContractsPageInner() {
   // Live contracts from API, fallback to mock for demo
   const { data: contractsApiData } = trpc.contracts.list.useQuery({ limit: 100 });
 
+  const utils = trpc.useUtils();
+  const completeObligation = trpc.contracts.completeObligation.useMutation({
+    onSuccess: () => { void utils.contracts.list.invalidate(); toast.success("Obligation marked as completed"); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update obligation"),
+  });
+
   if (!can("contracts", "read")) return <AccessDenied module="Contract Management" />;
 
   const allContracts: Contract[] = ((contractsApiData as any)?.items?.length
@@ -741,9 +742,13 @@ function ContractsPageInner() {
         {tab === "register" && (
           <div>
             {allContracts.map((c) => {
-              const sCfg = STATE_CFG[c.state];
+              const rawState = (c as any).state ?? (c as any).status ?? "active";
+              const sCfg = STATE_CFG[rawState as ContractState] ?? STATE_CFG.active;
               const isExpanded = expandedContract === c.id;
-              const daysToExpiry = Math.round((new Date(c.endDate).getTime() - new Date().getTime()) / 86400000);
+              const endDateVal = (c as any).endDate ?? (c as any).end_date;
+              const daysToExpiry = endDateVal
+                ? Math.round((new Date(endDateVal).getTime() - new Date().getTime()) / 86400000)
+                : null;
 
               return (
                 <div key={c.id} className="border-b border-border last:border-0">
@@ -754,8 +759,8 @@ function ContractsPageInner() {
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-mono text-[11px] text-primary">{c.number}</span>
                         <span className={`status-badge ${sCfg.color}`}>{sCfg.label}</span>
-                        <span className={`status-badge ${RISK_CFG[c.riskLevel]}`}>Risk: {c.riskLevel}</span>
-                        <span className="status-badge text-muted-foreground bg-muted text-[10px]">{TYPE_LABELS[c.type]}</span>
+                        <span className={`status-badge ${RISK_CFG[c.riskLevel ?? "low"] ?? RISK_CFG.low}`}>Risk: {c.riskLevel ?? "low"}</span>
+                        <span className="status-badge text-muted-foreground bg-muted text-[10px]">{TYPE_LABELS[c.type] ?? c.type}</span>
                         {!c.signed && <span className="status-badge text-orange-700 bg-orange-100 text-[10px]">⚠ Not signed</span>}
                         {c.autoRenew && <span className="status-badge text-blue-700 bg-blue-100 text-[10px]">↻ Auto-renew</span>}
                       </div>
@@ -763,7 +768,7 @@ function ContractsPageInner() {
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         Counterparty: <strong>{c.counterparty}</strong> ·
                         Owner: {c.owner} ·
-                        {c.endDate} ({daysToExpiry > 0 ? `${daysToExpiry}d remaining` : `expired ${Math.abs(daysToExpiry)}d ago`})
+                        {endDateVal} ({daysToExpiry !== null ? (daysToExpiry > 0 ? `${daysToExpiry}d remaining` : `expired ${Math.abs(daysToExpiry)}d ago`) : "—"})
                         {c.renewalDeadline && ` · Renewal deadline: ${c.renewalDeadline}`}
                       </p>
                     </div>
@@ -791,16 +796,16 @@ function ContractsPageInner() {
                           </div>
                         ))}
                       </div>
-                      <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Obligations ({c.obligations.length})</div>
+                      <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Obligations ({(c.obligations ?? []).length})</div>
                       <table className="ent-table w-full mb-3">
                         <thead><tr><th>Obligation</th><th>Party</th><th>Frequency / Due</th><th>Status</th></tr></thead>
                         <tbody>
-                          {c.obligations.map(obl => (
+                          {(c.obligations ?? []).map(obl => (
                             <tr key={obl.id}>
                               <td className="text-foreground">{obl.description}</td>
                               <td><span className={`status-badge ${obl.party === "us" ? "text-blue-700 bg-blue-100" : obl.party === "counterparty" ? "text-purple-700 bg-purple-100" : "text-muted-foreground bg-muted"}`}>{obl.party === "us" ? "Our obligation" : obl.party === "counterparty" ? c.counterparty : "Both parties"}</span></td>
                               <td className="text-[11px] text-muted-foreground">{obl.recurring ?? obl.dueDate ?? "—"}</td>
-                              <td><span className={`status-badge capitalize ${OBL_STATUS_CFG[obl.status]}`}>{obl.status.replace("_"," ")}</span></td>
+                              <td><span className={`status-badge capitalize ${OBL_STATUS_CFG[obl.status] ?? "text-muted-foreground bg-muted"}`}>{(obl.status ?? "").replace("_"," ")}</span></td>
                             </tr>
                           ))}
                         </tbody>

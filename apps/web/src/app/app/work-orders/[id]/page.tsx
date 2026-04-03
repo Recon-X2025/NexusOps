@@ -151,7 +151,9 @@ export default function WorkOrderDetailPage() {
     );
   }
 
-  const { workOrder: wo, tasks, activityLogs } = data;
+  const { workOrder: wo, tasks: rawTasks, activityLogs: rawActivityLogs } = data;
+  const tasks: WOTaskRow[] = rawTasks ?? [];
+  const activityLogs: WOActivityLogRow[] = rawActivityLogs ?? [];
   const pColor = PRIORITY_COLORS[wo.priority] ?? "bg-slate-400";
   const pLabel = PRIORITY_LABELS[wo.priority] ?? wo.priority;
   const taskProgress = tasks.length

@@ -59,12 +59,10 @@ export default function ProjectsPage() {
 
   const createProject = trpc.projects.create.useMutation({
     onSuccess: (p) => {
-      setProjectMsg(`Project ${p.number} created`);
-
-  if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
-
+      setProjectMsg(`Project ${(p as any).number ?? "new"} created`);
       setShowNewProject(false);
       setProjectForm({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
+      refetch();
       setTimeout(() => setProjectMsg(null), 4000);
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
@@ -72,6 +70,8 @@ export default function ProjectsPage() {
 
   type ProjectItem = NonNullable<typeof data>[number];
   const projectList: ProjectItem[] = data ?? [];
+
+  if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
 
   const taskList = [] as any[];
 

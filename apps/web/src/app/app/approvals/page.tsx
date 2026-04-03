@@ -75,9 +75,6 @@ export default function ApprovalsPage() {
   const decideMutation = trpc.approvals.decide.useMutation({
     onSuccess: () => {
       pendingQuery.refetch();
-
-  if (!can("approvals", "read")) return <AccessDenied module="Approvals" />;
-
       allQuery.refetch();
       toast.success("Decision recorded");
     },
@@ -85,6 +82,8 @@ export default function ApprovalsPage() {
   });
 
   const pendingItems: any[] = pendingQuery.data ?? [];
+
+  if (!can("approvals", "read")) return <AccessDenied module="Approvals" />;
   const submittedItems: any[] = submittedQuery.data ?? [];
   const allItems: any[] = allQuery.data?.items ?? (Array.isArray(allQuery.data) ? allQuery.data : []);
 

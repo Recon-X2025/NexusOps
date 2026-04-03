@@ -131,8 +131,8 @@ export default function HRPage() {
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: "Open HR Cases",       value: openCases,                                                                                             color: "text-blue-700" },
-          { label: "Active Onboardings",  value: hrCases.filter((c) => c.hrCase.caseType === "onboarding").length,                                        color: "text-green-700" },
-          { label: "Pending Offboarding", value: hrCases.filter((c) => c.hrCase.caseType === "offboarding").length,                                       color: "text-orange-700" },
+          { label: "Active Onboardings",  value: hrCases.filter((c) => c.hrCase?.caseType === "onboarding").length,                                        color: "text-green-700" },
+          { label: "Pending Offboarding", value: hrCases.filter((c) => c.hrCase?.caseType === "offboarding").length,                                       color: "text-orange-700" },
           { label: "TDS / ECR Pending",   value: pendingTDS + pendingECR,                                                                                 color: pendingTDS + pendingECR > 0 ? "text-red-600" : "text-muted-foreground" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
@@ -213,27 +213,27 @@ export default function HRPage() {
           <div className="divide-y divide-border">
             {casesLoading ? (
               <div className="p-8 text-center text-[12px] text-muted-foreground">Loading onboarding cases…</div>
-            ) : hrCases.filter((c) => c.hrCase.caseType === "onboarding").length === 0 ? (
+            ) : hrCases.filter((c) => c.hrCase?.caseType === "onboarding").length === 0 ? (
               <div className="p-8 text-center text-[12px] text-muted-foreground">No active onboarding cases.</div>
-            ) : hrCases.filter((c) => c.hrCase.caseType === "onboarding").map((c) => (
-              <div key={c.hrCase.id} className="px-4 py-3 hover:bg-muted/30">
+            ) : hrCases.filter((c) => c.hrCase?.caseType === "onboarding").map((c) => (
+              <div key={c.hrCase?.id ?? c.hrCase?.employeeId} className="px-4 py-3 hover:bg-muted/30">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-bold text-[11px]">
-                      {c.employee.employeeId?.slice(0, 2).toUpperCase() ?? "EE"}
+                      {c.employee?.employeeId?.slice(0, 2).toUpperCase() ?? "EE"}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[13px] font-semibold text-foreground">{c.employee.employeeId ?? c.hrCase.employeeId.slice(0, 8)}</span>
+                        <span className="text-[13px] font-semibold text-foreground">{c.employee?.employeeId ?? c.hrCase?.employeeId?.slice(0, 8) ?? "—"}</span>
                         <span className={`status-badge capitalize text-blue-700 bg-blue-100`}>Onboarding</span>
-                        <span className={`status-badge ${c.hrCase.priority === "high" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>Priority: {c.hrCase.priority}</span>
+                        <span className={`status-badge ${c.hrCase?.priority === "high" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>Priority: {c.hrCase?.priority ?? "normal"}</span>
                       </div>
-                      <div className="text-[11px] text-muted-foreground">{c.employee.title ?? "—"} · {c.employee.department ?? "—"}</div>
-                      <div className="text-[11px] text-muted-foreground/70">Opened: {new Date(c.hrCase.createdAt).toLocaleDateString()}</div>
+                      <div className="text-[11px] text-muted-foreground">{c.employee?.title ?? "—"} · {c.employee?.department ?? "—"}</div>
+                      <div className="text-[11px] text-muted-foreground/70">Opened: {c.hrCase?.createdAt ? new Date(c.hrCase.createdAt).toLocaleDateString() : "—"}</div>
                     </div>
                   </div>
                   <a
-                    href={`/app/hr/${c.hrCase.id}`}
+                    href={`/app/hr/${c.hrCase?.id ?? ""}`}
                     className="flex items-center gap-1 px-2 py-1 text-[11px] text-primary border border-primary/30 rounded hover:bg-primary/5"
                   >
                     View Tasks <ChevronRight className="w-3 h-3" />
@@ -248,24 +248,24 @@ export default function HRPage() {
           <div className="divide-y divide-border">
             {casesLoading ? (
               <div className="p-8 text-center text-[12px] text-muted-foreground">Loading offboarding cases…</div>
-            ) : hrCases.filter((c) => c.hrCase.caseType === "offboarding").length === 0 ? (
+            ) : hrCases.filter((c) => c.hrCase?.caseType === "offboarding").length === 0 ? (
               <div className="p-8 text-center text-[12px] text-muted-foreground">No active offboarding cases.</div>
-            ) : hrCases.filter((c) => c.hrCase.caseType === "offboarding").map((c) => (
-              <div key={c.hrCase.id} className="px-4 py-3 hover:bg-muted/30">
+            ) : hrCases.filter((c) => c.hrCase?.caseType === "offboarding").map((c) => (
+              <div key={c.hrCase?.id ?? c.hrCase?.employeeId} className="px-4 py-3 hover:bg-muted/30">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[13px] font-semibold text-foreground">{c.employee.employeeId ?? c.hrCase.employeeId.slice(0, 8)}</span>
-                      <span className="text-[11px] text-muted-foreground">{c.employee.title ?? "—"}</span>
+                      <span className="text-[13px] font-semibold text-foreground">{c.employee?.employeeId ?? c.hrCase?.employeeId?.slice(0, 8) ?? "—"}</span>
+                      <span className="text-[11px] text-muted-foreground">{c.employee?.title ?? "—"}</span>
                       <span className="status-badge text-muted-foreground bg-muted">Offboarding</span>
-                      <span className={`status-badge ${c.hrCase.priority === "high" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>
-                        Priority: {c.hrCase.priority}
+                      <span className={`status-badge ${c.hrCase?.priority === "high" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>
+                        Priority: {c.hrCase?.priority ?? "normal"}
                       </span>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mb-2">Opened: {new Date(c.hrCase.createdAt).toLocaleDateString()}</div>
+                    <div className="text-[11px] text-muted-foreground mb-2">Opened: {c.hrCase?.createdAt ? new Date(c.hrCase.createdAt).toLocaleDateString() : "—"}</div>
                   </div>
                   <a
-                    href={`/app/hr/${c.hrCase.id}`}
+                    href={`/app/hr/${c.hrCase?.id ?? ""}`}
                     className="flex items-center gap-1 px-2 py-1 text-[11px] text-primary border border-primary/30 rounded hover:bg-primary/5"
                   >
                     View Tasks <ChevronRight className="w-3 h-3" />
@@ -292,14 +292,14 @@ export default function HRPage() {
               </tr>
             </thead>
             <tbody>
-              {(hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase.caseType)).length > 0
-                ? hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase.caseType)).map((c) => (
-                    <tr key={c.hrCase.id}>
-                      <td className="font-mono text-[11px] text-primary">{c.hrCase.number ?? c.hrCase.id?.slice(0,8)}</td>
-                      <td><span className="status-badge text-blue-700 bg-blue-100 capitalize">{(c.hrCase.caseType ?? "lifecycle").replace(/_/g," ")}</span></td>
+              {(hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase?.caseType ?? "")).length > 0
+                ? hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase?.caseType ?? "")).map((c) => (
+                    <tr key={c.hrCase?.id ?? c.hrCase?.employeeId}>
+                      <td className="font-mono text-[11px] text-primary">{c.hrCase?.number ?? c.hrCase?.id?.slice(0,8) ?? "—"}</td>
+                      <td><span className="status-badge text-blue-700 bg-blue-100 capitalize">{(c.hrCase?.caseType ?? "lifecycle").replace(/_/g," ")}</span></td>
                       <td className="font-medium text-foreground">{c.employee?.name ?? "—"}</td>
-                      <td className="text-[11px] text-muted-foreground">{c.hrCase.description ?? "—"}</td>
-                      <td className="text-[11px] text-muted-foreground">{c.hrCase.targetDate ? new Date(c.hrCase.targetDate).toLocaleDateString("en-IN") : "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{c.hrCase?.description ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{c.hrCase?.targetDate ? new Date(c.hrCase.targetDate).toLocaleDateString("en-IN") : "—"}</td>
                       <td className="text-muted-foreground">{c.hrCase.assignedToId ?? "HR"}</td>
                       <td><span className={`status-badge capitalize ${CASE_STATE_COLOR[c.hrCase.status] ?? ""}`}>{c.hrCase.status?.replace(/_/g," ")}</span></td>
                       <td className="text-center font-semibold">{c.hrCase.tasks?.filter((t: any) => t.category === "hr").length ?? "—"}</td>
