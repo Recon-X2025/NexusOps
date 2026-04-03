@@ -100,6 +100,7 @@ export default function TicketDetailPage() {
 
   // Action panel state
   const [showAssignPanel, setShowAssignPanel] = useState(false);
+  const [assigneeId, setAssigneeId] = useState<string>("");
   const [showResolvePanel, setShowResolvePanel] = useState(false);
   const [showClosePanel, setShowClosePanel] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
@@ -119,8 +120,13 @@ export default function TicketDetailPage() {
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
   });
   const assignTicket = trpc.tickets.assign.useMutation({
-    onSuccess: () => { setShowAssignPanel(false); refetch(); toast.success("Ticket assigned"); },
+    onSuccess: () => { setShowAssignPanel(false); setAssigneeId(""); refetch(); toast.success("Ticket assigned"); },
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const { data: usersData } = trpc.auth.listUsers.useQuery(undefined, {
+    enabled: showAssignPanel,
+    staleTime: 5 * 60_000,
   });
 
   // AI assistance — lazy queries enabled only when user explicitly requests
@@ -292,14 +298,29 @@ export default function TicketDetailPage() {
 
         {/* ── Assign inline panel ── */}
         {showAssignPanel && (
-          <div className="mx-4 mb-0 px-4 py-3 bg-blue-50 border-x border-b border-blue-200 rounded-b flex items-center gap-3">
-            <span className="text-[11px] text-blue-800 font-medium">Assign to:</span>
-            <button
-              disabled={assignTicket.isPending}
-              onClick={() => assignTicket.mutate({ id, assigneeId: currentUser.id })}
-              className="px-3 py-1 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700 disabled:opacity-50"
+          <div className="mx-4 mb-0 px-4 py-3 bg-blue-50 border-x border-b border-blue-200 rounded-b flex items-center gap-3 flex-wrap">
+            <span className="text-[11px] text-blue-800 font-medium whitespace-nowrap">Assign to:</span>
+            <select
+              value={assigneeId}
+              onChange={(e) => setAssigneeId(e.target.value)}
+              className="flex-1 min-w-[160px] rounded border border-blue-300 bg-white px-2 py-1 text-[11px] text-slate-700 focus:outline-none focus:border-blue-500"
             >
-              {assignTicket.isPending ? "…" : "Assign to me"}
+              <option value="">— select agent —</option>
+              <option value={currentUser.id}>Me ({currentUser.name})</option>
+              {usersData
+                ?.filter((u) => u.id !== currentUser.id)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+            </select>
+            <button
+              disabled={assignTicket.isPending || !assigneeId}
+              onClick={() => assignTicket.mutate({ id, assigneeId })}
+              className="px-3 py-1 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700 disabled:opacity-40"
+            >
+              {assignTicket.isPending ? "…" : "Assign"}
             </button>
             <button
               disabled={assignTicket.isPending}
@@ -308,7 +329,7 @@ export default function TicketDetailPage() {
             >
               Unassign
             </button>
-            <button onClick={() => setShowAssignPanel(false)} className="ml-auto text-[11px] text-muted-foreground hover:text-foreground">✕ Cancel</button>
+            <button onClick={() => { setShowAssignPanel(false); setAssigneeId(""); }} className="ml-auto text-[11px] text-muted-foreground hover:text-foreground">✕ Cancel</button>
           </div>
         )}
 
