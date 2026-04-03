@@ -78,6 +78,8 @@ type TicketRow = {
   number: string;
   title: string;
   type: string;
+  priorityId: string | null;
+  statusId: string | null;
   assigneeId: string | null;
   slaBreached: boolean;
   tags: string[];
@@ -137,6 +139,8 @@ export default function TicketsPage() {
   };
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
+  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
+  const priorityMap = Object.fromEntries((priorityList ?? []).map((p) => [p.id, p]));
   const { data, isLoading, refetch } = trpc.tickets.list.useQuery({
     search: search || undefined,
     statusId: selectedStatusId ?? undefined,
@@ -729,15 +733,33 @@ export default function TicketsPage() {
 
                       {/* Priority */}
                       <td>
-                        <span className="text-xs text-muted-foreground">—</span>
+                        {ticket.priorityId ? (() => {
+                          const p = priorityMap[ticket.priorityId];
+                          const name = p?.name ?? "—";
+                          const color = p?.color ?? "#6b7280";
+                          return (
+                            <span className="status-badge text-[10px] font-semibold" style={{ background: color + "22", color }}>
+                              {name}
+                            </span>
+                          );
+                        })() : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
 
                       {/* Status */}
                       <td>
-                        <span className="status-badge bg-muted text-muted-foreground capitalize">
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                          Open
-                        </span>
+                        {(() => {
+                          const s = statusCounts?.find((sc) => sc.statusId === ticket.statusId);
+                          const name = s?.name ?? "Open";
+                          const color = s?.color ?? STATUS_COLORS[name.toLowerCase()] ?? "#6b7280";
+                          return (
+                            <span className="status-badge" style={{ background: color + "22", color }}>
+                              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                              {name}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* Assignee */}
@@ -745,9 +767,9 @@ export default function TicketsPage() {
                         {ticket.assigneeId ? (
                           <div className="flex items-center gap-1.5">
                             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[0.55rem] font-bold text-violet-700 dark:bg-violet-900 dark:text-violet-300 flex-shrink-0">
-                              A
+                              {ticket.assigneeId.slice(0, 2).toUpperCase()}
                             </div>
-                            <span className="text-xs text-muted-foreground truncate max-w-[4rem]">Agent</span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[4rem]">Assigned</span>
                           </div>
                         ) : (
                           <span className="flex items-center gap-1 text-[0.65rem] text-muted-foreground/60 italic">

@@ -103,6 +103,23 @@ export default function EventManagementPage() {
   const critCount = allEvents.filter((e) => e.severity === "critical" && e.state !== "resolved").length;
   const openCount = allEvents.filter((e) => e.state === "open" || e.state === "in_progress").length;
   const linkedCount = allEvents.filter((e) => e.linkedIncident).length;
+  const suppressedCount = allEvents.filter((e) => e.state === "suppressed").length;
+  const recentlyResolved = allEvents.filter((e) => {
+    if (e.state !== "resolved" || !e.resolvedAt) return false;
+    return Date.now() - new Date(e.resolvedAt).getTime() < 60 * 60 * 1000;
+  }).length;
+
+  // Build service health from live event data
+  const nodeHealthMap = new Map<string, "critical"|"degraded"|"warning"|"healthy">();
+  allEvents.filter((e) => e.state !== "resolved" && e.state !== "suppressed").forEach((e) => {
+    const node = e.node ?? "Unknown";
+    const cur = nodeHealthMap.get(node);
+    const sev = e.severity as Severity;
+    if (sev === "critical" || cur === "critical") nodeHealthMap.set(node, "critical");
+    else if (sev === "major" || cur === "degraded") nodeHealthMap.set(node, "degraded");
+    else if (sev === "minor" || sev === "warning" || cur === "warning") nodeHealthMap.set(node, "warning");
+    else if (!cur) nodeHealthMap.set(node, "healthy");
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -145,7 +162,20 @@ export default function EventManagementPage() {
           <span className="text-[11px] text-muted-foreground/70 ml-auto">Auto-refreshes every 60s</span>
         </div>
         <div className="p-3">
-          <p className="text-center text-[11px] text-muted-foreground/50 py-4">Service health topology not available — connect a monitoring source to populate this view</p>
+          {nodeHealthMap.size === 0 ? (
+            <p className="text-center text-[11px] text-muted-foreground/50 py-4">No active events — all systems appear healthy</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from(nodeHealthMap.entries()).map(([node, health]) => (
+                <div key={node} className={`flex items-center gap-2 px-2 py-1.5 rounded border text-[11px]
+                  ${health === "critical" ? "border-red-200 bg-red-50/40" : health === "degraded" ? "border-orange-200 bg-orange-50/40" : health === "warning" ? "border-yellow-200 bg-yellow-50/30" : "border-green-200 bg-green-50/30"}`}>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLOR[health] ?? "bg-gray-400"}`} />
+                  <span className="truncate font-medium text-foreground/80">{node}</span>
+                  <span className={`ml-auto text-[9px] capitalize font-semibold ${health === "critical" ? "text-red-700" : health === "degraded" ? "text-orange-700" : health === "warning" ? "text-yellow-700" : "text-green-700"}`}>{health}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -155,8 +185,8 @@ export default function EventManagementPage() {
           { label: "Critical Alerts",   value: critCount,    color: "text-red-700",    border: "border-red-200" },
           { label: "Active Events",     value: openCount,    color: "text-orange-700", border: "border-orange-200" },
           { label: "Linked Incidents",  value: linkedCount,  color: "text-blue-700",   border: "border-border" },
-          { label: "Suppressed",        value: "—",          color: "text-muted-foreground",  border: "border-border" },
-          { label: "Auto-Resolved (1h)", value: "—",         color: "text-green-700",  border: "border-green-200" },
+          { label: "Suppressed",        value: suppressedCount,          color: "text-muted-foreground",  border: "border-border" },
+          { label: "Auto-Resolved (1h)", value: recentlyResolved,         color: "text-green-700",  border: "border-green-200" },
         ].map((k) => (
           <div key={k.label} className={`bg-card border rounded px-3 py-2 ${k.border}`}>
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>

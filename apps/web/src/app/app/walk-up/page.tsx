@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Users, Clock, Calendar, CheckCircle2, Plus,
-  Star, MapPin,
+  Star, MapPin, X,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -92,6 +92,15 @@ export default function WalkUpPage() {
     onError: (e: any) => toast.error(e.message || "Failed to put on hold"),
   });
 
+  const [showBookAppt, setShowBookAppt] = useState(false);
+  const [apptForm, setApptForm] = useState({ scheduledAt: "", issueCategory: "", notes: "" });
+  // @ts-ignore
+  const createAppointment = trpc.walkup.appointments.create.useMutation({
+    onSuccess: () => { toast.success("Appointment booked successfully"); setShowBookAppt(false); setApptForm({ scheduledAt: "", issueCategory: "", notes: "" }); apptsQuery.refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to book appointment"),
+  });
+
+  const todayStr = new Date().toISOString().slice(0, 10);
   const allVisits: any[] = (Array.isArray(queueQuery.data) ? queueQuery.data : (queueQuery.data as any)?.items ?? []);
   const allAppointments: any[] = (Array.isArray(apptsQuery.data) ? apptsQuery.data : (apptsQuery.data as any)?.items ?? []);
   const analyticsData: any = analyticsQuery.data ?? null;
@@ -117,7 +126,7 @@ export default function WalkUpPage() {
             <Plus className="w-3 h-3" /> Check In Walk-Up
           </button>
           <button
-            onClick={() => setTab("appointments")}
+            onClick={() => setShowBookAppt(true)}
             className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Calendar className="w-3 h-3" /> Book Appointment
@@ -131,7 +140,7 @@ export default function WalkUpPage() {
           { label: "Avg Wait Time",    value: `${avgWait} min`,      color: avgWait > 20 ? "text-red-700" : "text-green-700", sub: "current est." },
           { label: "In Service",       value: inService.length,      color: "text-blue-700", sub: "with agent now" },
           { label: "Completed Today",  value: todayCompleted.length, color: "text-green-700", sub: "resolved" },
-          { label: "Appointments Today", value: allAppointments.filter((a: any) => (a.slot ?? "").startsWith("2026-03-24")).length, color: "text-purple-700", sub: "scheduled" },
+          { label: "Appointments Today", value: allAppointments.filter((a: any) => { const d = a.scheduledAt ?? a.slot ?? ""; return d.startsWith(todayStr); }).length, color: "text-purple-700", sub: "scheduled" },
         ].map(k => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -425,5 +434,68 @@ export default function WalkUpPage() {
         )}
       </div>
     </div>
+
+    {/* Book Appointment Modal */}
+    {showBookAppt && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold">Book IT Desk Appointment</h2>
+            <button onClick={() => setShowBookAppt(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Date &amp; Time *</label>
+              <input
+                type="datetime-local"
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={apptForm.scheduledAt}
+                onChange={(e) => setApptForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+                min={new Date().toISOString().slice(0, 16)}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Issue Category</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={apptForm.issueCategory}
+                onChange={(e) => setApptForm((f) => ({ ...f, issueCategory: e.target.value }))}
+              >
+                <option value="">-- Select --</option>
+                <option value="hardware">Hardware Issue</option>
+                <option value="software">Software / App Issue</option>
+                <option value="network">Network / Connectivity</option>
+                <option value="access">Access / Password</option>
+                <option value="device_setup">New Device Setup</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Notes</label>
+              <textarea
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background resize-none"
+                rows={2}
+                placeholder="Briefly describe your issue…"
+                value={apptForm.notes}
+                onChange={(e) => setApptForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowBookAppt(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!apptForm.scheduledAt) { toast.error("Please select a date and time"); return; }
+                createAppointment.mutate({ scheduledAt: new Date(apptForm.scheduledAt).toISOString(), issueCategory: apptForm.issueCategory || undefined, notes: apptForm.notes || undefined } as any);
+              }}
+              disabled={createAppointment.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createAppointment.isPending ? "Booking…" : "Book Appointment"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

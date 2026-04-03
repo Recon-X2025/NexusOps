@@ -48,6 +48,9 @@ export default function SecurityOpsPage() {
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vulnerabilities");
   const [showNewIncident, setShowNewIncident] = useState(false);
   const [incForm, setIncForm] = useState({ title: "", description: "", severity: "medium" as "critical"|"high"|"medium"|"low"|"informational", attackVector: "" });
+  const [investigatingId, setInvestigatingId] = useState<string | null>(null);
+  const [remediatingId, setRemediatingId] = useState<string | null>(null);
+  const [remediateNote, setRemediateNote] = useState("");
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -68,6 +71,11 @@ export default function SecurityOpsPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
+  const remediateVuln = trpc.security.remediateVulnerability.useMutation({
+    onSuccess: () => { toast.success("Vulnerability marked as remediated"); setRemediatingId(null); setRemediateNote(""); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to remediate"),
+  });
+
   if (!can("security", "read") && !can("vulnerabilities", "read") && !can("grc", "read")) {
     return <AccessDenied module="Security Operations" />;
   }
@@ -84,6 +92,7 @@ export default function SecurityOpsPage() {
     return days > 14;
   }).length;
   const openSIRs = incidentList.filter((s) => !["closed", "false_positive"].includes(s.status)).length;
+  const iocCount = incidentList.reduce((acc, inc) => acc + (inc.iocs?.length ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-3">
@@ -115,7 +124,7 @@ export default function SecurityOpsPage() {
           { label: "Critical Vulns Open",  value: critVulns,    color: "text-red-700",    border: "border-red-200 bg-red-50/30" },
           { label: "Overdue Remediation",  value: overdueVulns, color: "text-orange-700", border: "border-orange-200" },
           { label: "Active Sec Incidents", value: openSIRs,     color: "text-purple-700", border: "border-purple-200" },
-          { label: "IOCs Blocked",         value: "—",          color: "text-green-700",  border: "border-green-200" },
+          { label: "IOCs Blocked",         value: iocCount > 0 ? iocCount : "—", color: "text-green-700",  border: "border-green-200" },
         ].map((k) => (
           <div key={k.label} className={`bg-card border rounded px-3 py-2 ${k.border}`}>
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -161,18 +170,19 @@ export default function SecurityOpsPage() {
             </div>
           ) : (
             <table className="ent-table w-full">
-              <thead>
-                <tr>
-                  <th className="w-4" />
-                  <th>CVE</th>
-                  <th>Title</th>
-                  <th>Affected Assets</th>
-                  <th className="text-center">CVSS</th>
-                  <th>Severity</th>
-                  <th>Status</th>
-                  <th>Discovered</th>
-                </tr>
-              </thead>
+                  <thead>
+                    <tr>
+                      <th className="w-4" />
+                      <th>CVE</th>
+                      <th>Title</th>
+                      <th>Affected Assets</th>
+                      <th className="text-center">CVSS</th>
+                      <th>Severity</th>
+                      <th>Status</th>
+                      <th>Discovered</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
               <tbody>
                 {vulnList.map((v) => (
                   <tr key={v.id} className={v.status === "resolved" ? "opacity-60" : ""}>
@@ -215,6 +225,31 @@ export default function SecurityOpsPage() {
                     </td>
                     <td className="text-[11px] text-muted-foreground">
                       {v.discoveredAt ? formatRelativeTime(v.discoveredAt) : "—"}
+                    </td>
+                    <td>
+                      {v.status !== "resolved" && v.status !== "false_positive" && can("vulnerabilities", "write") && (
+                        remediatingId === v.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              className="border border-border rounded px-1.5 py-0.5 text-[10px] w-24"
+                              placeholder="Notes…"
+                              value={remediateNote}
+                              onChange={(e) => setRemediateNote(e.target.value)}
+                            />
+                            <button
+                              onClick={() => remediateVuln.mutate({ id: v.id, notes: remediateNote || undefined })}
+                              disabled={remediateVuln.isPending}
+                              className="text-[10px] px-2 py-0.5 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                            >✓</button>
+                            <button onClick={() => setRemediatingId(null)} className="text-[10px] text-muted-foreground hover:text-foreground">✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setRemediatingId(v.id); setRemediateNote(""); }}
+                            className="text-[10px] text-green-600 hover:underline font-medium"
+                          >Remediate</button>
+                        )
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -268,11 +303,46 @@ export default function SecurityOpsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button className="flex items-center gap-1 px-2 py-1 text-[11px] bg-primary text-primary-foreground rounded hover:bg-primary/90">
-                        Investigate <ChevronRight className="w-3 h-3" />
+                      <button
+                        onClick={() => setInvestigatingId(investigatingId === inc.id ? null : inc.id)}
+                        className="flex items-center gap-1 px-2 py-1 text-[11px] bg-primary text-primary-foreground rounded hover:bg-primary/90">
+                        {investigatingId === inc.id ? "Close" : "Investigate"} <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
+                  {investigatingId === inc.id && (
+                    <div className="mt-3 p-3 bg-muted/40 rounded border border-border text-[11px] space-y-2">
+                      <div className="font-semibold text-foreground text-[12px]">Incident Investigation Details</div>
+                      {inc.description && <p className="text-muted-foreground">{inc.description}</p>}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div><span className="text-muted-foreground/70">ID:</span> <span className="font-mono">{inc.id}</span></div>
+                        <div><span className="text-muted-foreground/70">Status:</span> <span className="capitalize">{inc.status.replace(/_/g, " ")}</span></div>
+                        <div><span className="text-muted-foreground/70">Severity:</span> <span className="capitalize">{inc.severity}</span></div>
+                        {inc.attackVector && <div><span className="text-muted-foreground/70">Attack Vector:</span> {inc.attackVector}</div>}
+                        {inc.affectedSystems && inc.affectedSystems.length > 0 && (
+                          <div className="col-span-2"><span className="text-muted-foreground/70">Affected Systems:</span> {inc.affectedSystems.join(", ")}</div>
+                        )}
+                        {inc.mitreTechniques && inc.mitreTechniques.length > 0 && (
+                          <div className="col-span-2"><span className="text-muted-foreground/70">MITRE ATT&CK:</span> {inc.mitreTechniques.join(", ")}</div>
+                        )}
+                        {inc.iocs && inc.iocs.length > 0 && (
+                          <div className="col-span-2"><span className="text-muted-foreground/70">IOCs:</span> {inc.iocs.join(", ")}</div>
+                        )}
+                      </div>
+                      {can("security", "write") && !["closed", "false_positive"].includes(inc.status) && (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => { toast.info("Use the tRPC API to transition incident status: security.transition"); }}
+                            className="text-[10px] px-2 py-1 border border-border rounded hover:bg-accent"
+                          >Mark Contained</button>
+                          <button
+                            onClick={() => { toast.info("Use the tRPC API to transition incident status: security.transition"); }}
+                            className="text-[10px] px-2 py-1 border border-border rounded hover:bg-accent"
+                          >Close Incident</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

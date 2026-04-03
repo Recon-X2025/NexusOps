@@ -115,12 +115,12 @@ export default function ReportsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-6 gap-3">
               {[
-                { label: "Open Incidents",     value: metrics?.openTickets ?? execQuery.data?.openIncidents ?? 12,  delta: -8, color: "text-blue-700",   icon: AlertTriangle },
-                { label: "Resolved MTD",        value: metrics?.resolvedToday ?? execQuery.data?.resolvedMtd ?? 94, delta: +12, color: "text-green-700", icon: CheckCircle2 },
-                { label: "SLA Compliance",      value: execQuery.data?.slaCompliance ?? "91%",  delta: +2, color: "text-green-700",  icon: Shield },
-                { label: "Avg Resolution Time", value: execQuery.data?.avgResolutionTime ?? "4.2h", delta: -0.8, color: "text-blue-700", icon: Clock },
-                { label: "CSAT Score",          value: execQuery.data?.csatScore ?? "4.4/5", delta: +0.1, color: "text-green-700", icon: Users },
-                { label: "Ticket Deflection",   value: execQuery.data?.ticketDeflection ?? "88%", delta: +5,  color: "text-purple-700", icon: Activity },
+                { label: "Open Incidents",     value: metrics?.openTickets ?? execQuery.data?.openIncidents ?? "—",  delta: -8, color: "text-blue-700",   icon: AlertTriangle },
+                { label: "Resolved MTD",        value: metrics?.resolvedToday ?? execQuery.data?.resolvedMtd ?? "—", delta: +12, color: "text-green-700", icon: CheckCircle2 },
+                { label: "SLA Compliance",      value: execQuery.data?.slaCompliance ?? (slaQuery.data ? `${Math.round((1 - (slaQuery.data as any[]).reduce((s: number, x: any) => s + (Number(x.breached ?? 0)), 0) / Math.max((slaQuery.data as any[]).reduce((s: number, x: any) => s + (Number(x.total ?? 0)), 0), 1)) * 100)}%` : "—"), delta: +2, color: "text-green-700",  icon: Shield },
+                { label: "Avg Resolution Time", value: execQuery.data?.avgResolutionTime ?? "—", delta: -0.8, color: "text-blue-700", icon: Clock },
+                { label: "CSAT Score",          value: execQuery.data?.csatScore ?? "—", delta: +0.1, color: "text-green-700", icon: Users },
+                { label: "Ticket Deflection",   value: execQuery.data?.ticketDeflection ?? "—", delta: +5,  color: "text-purple-700", icon: Activity },
               ].map((k) => {
                 const Icon = k.icon;
                 return (
@@ -316,25 +316,64 @@ export default function ReportsPage() {
         )}
 
         {tab === "quality" && (
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { title: "First Contact Resolution Rate", value: "68%", target: "75%", trend: "+4%", met: false },
-              { title: "Avg Time to Acknowledge (P1)", value: "8 min", target: "15 min", trend: "-2 min", met: true },
-              { title: "Reopened Ticket Rate",          value: "4.2%",target: "<5%",   trend: "-0.8%", met: true },
-              { title: "CSAT Score (all tickets)",      value: "4.4", target: "≥4.0",  trend: "+0.1", met: true },
-              { title: "Ticket Backlog Reduction (WoW)", value: "−12%", target: "−5%", trend: "+7%", met: true },
-              { title: "SLA Breach Rate",               value: "9%",  target: "<10%",  trend: "-1%", met: true },
-            ].map((metric) => (
-              <div key={metric.title} className={`border rounded p-3 ${metric.met ? "border-green-200 bg-green-50/30" : "border-yellow-200 bg-yellow-50/30"}`}>
-                <div className="text-[11px] font-semibold text-muted-foreground mb-1">{metric.title}</div>
-                <div className={`text-3xl font-bold ${metric.met ? "text-green-700" : "text-yellow-600"}`}>{metric.value}</div>
-                <div className="flex items-center gap-2 mt-1 text-[11px]">
-                  <span className="text-muted-foreground">Target: {metric.target}</span>
-                  <span className={`font-semibold ${metric.met ? "text-green-600" : "text-red-600"}`}>{metric.trend}</span>
-                  {metric.met ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />}
+          <div className="space-y-4">
+            {slaQuery.isLoading ? <SkeletonSection /> : (
+              <>
+                <div className="grid grid-cols-3 gap-4">
+                  {(() => {
+                    const slaData: any[] = slaQuery.data ?? [];
+                    const totalTickets = slaData.reduce((s: number, x: any) => s + Number(x.total ?? 0), 0);
+                    const totalBreached = slaData.reduce((s: number, x: any) => s + Number(x.breached ?? 0), 0);
+                    const slaBreachRate = totalTickets > 0 ? ((totalBreached / totalTickets) * 100).toFixed(1) : null;
+                    const slaCompliance = totalTickets > 0 ? (((totalTickets - totalBreached) / totalTickets) * 100).toFixed(1) : null;
+                    const openTickets = metrics?.openTickets ?? execQuery.data?.openIncidents ?? 0;
+                    const metrics2: Array<{ title: string; value: string; target: string; met: boolean; live: boolean }> = [
+                      { title: "SLA Breach Rate",        value: slaBreachRate ? `${slaBreachRate}%` : "—", target: "<10%", met: slaBreachRate ? Number(slaBreachRate) < 10 : true, live: true },
+                      { title: "SLA Compliance Rate",    value: slaCompliance ? `${slaCompliance}%` : "—", target: "≥90%", met: slaCompliance ? Number(slaCompliance) >= 90 : false, live: true },
+                      { title: "Open Incidents",         value: String(openTickets), target: "< Threshold", met: Number(openTickets) < 50, live: true },
+                      { title: "First Contact Resolution Rate", value: execQuery.data?.slaCompliance ? "—" : "—", target: "75%", met: false, live: false },
+                      { title: "CSAT Score",             value: execQuery.data?.csatScore ?? "—", target: "≥4.0", met: execQuery.data?.csatScore ? parseFloat(execQuery.data.csatScore as string) >= 4.0 : false, live: !!execQuery.data?.csatScore },
+                      { title: "Avg Resolution Time",    value: execQuery.data?.avgResolutionTime ?? "—", target: "< 8h", met: false, live: !!execQuery.data?.avgResolutionTime },
+                    ];
+                    return metrics2.map((metric) => (
+                      <div key={metric.title} className={`border rounded p-3 ${metric.met ? "border-green-200 bg-green-50/30" : "border-yellow-200 bg-yellow-50/30"}`}>
+                        <div className="flex items-center gap-1 mb-1">
+                          <div className="text-[11px] font-semibold text-muted-foreground">{metric.title}</div>
+                          {metric.live && <span className="text-[9px] px-1 py-0.5 bg-green-100 text-green-700 rounded font-medium">LIVE</span>}
+                        </div>
+                        <div className={`text-3xl font-bold ${metric.met ? "text-green-700" : metric.value === "—" ? "text-muted-foreground/40" : "text-yellow-600"}`}>{metric.value}</div>
+                        <div className="flex items-center gap-2 mt-1 text-[11px]">
+                          <span className="text-muted-foreground">Target: {metric.target}</span>
+                          {metric.met ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />}
+                        </div>
+                      </div>
+                    ));
+                  })()}
                 </div>
-              </div>
-            ))}
+                {slaQuery.data && (slaQuery.data as any[]).length > 0 && (
+                  <div className="border border-border rounded overflow-hidden">
+                    <div className="px-3 py-2 border-b border-border bg-muted/30 text-[11px] font-semibold text-muted-foreground uppercase">SLA by Priority (Live)</div>
+                    <table className="ent-table w-full">
+                      <thead><tr><th>Priority</th><th className="text-right">Total</th><th className="text-right">Breached</th><th className="text-right">Breach Rate</th></tr></thead>
+                      <tbody>
+                        {(slaQuery.data as any[]).map((row: any) => (
+                          <tr key={row.priorityId ?? row.priority}>
+                            <td className="font-medium">{row.priorityName ?? row.priority ?? row.priorityId ?? "Unknown"}</td>
+                            <td className="text-right font-mono text-[11px]">{row.total}</td>
+                            <td className="text-right font-mono text-[11px] text-red-600">{row.breached}</td>
+                            <td className="text-right font-mono text-[11px]">
+                              <span className={`${Number(row.breachRate ?? 0) > 0.1 ? "text-red-600" : "text-green-600"}`}>
+                                {row.breachRate != null ? `${(Number(row.breachRate) * 100).toFixed(1)}%` : "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

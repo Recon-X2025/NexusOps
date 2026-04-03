@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar } from "lucide-react";
+import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar, X } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
@@ -61,6 +61,18 @@ export default function FinancialPage() {
 
   const approveInvoiceMutation = trpc.financial.approveInvoice.useMutation({ onSuccess: () => (trpc as any).financial?.listInvoices?.invalidate?.(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const markPaidMutation       = trpc.financial.markPaid.useMutation({ onSuccess: () => (trpc as any).financial?.listInvoices?.invalidate?.(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+
+  const [showNewBudget, setShowNewBudget] = useState(false);
+  const [budgetForm, setBudgetForm] = useState({ category: "", department: "", budgeted: "" });
+  const createBudgetLine = trpc.financial.createBudgetLine.useMutation({
+    onSuccess: () => { toast.success("Budget line added"); setShowNewBudget(false); setBudgetForm({ category: "", department: "", budgeted: "" }); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to add budget line"),
+  });
+
+  const { data: arInvoicesData } = trpc.financial.listInvoices.useQuery(
+    { limit: 50, direction: "receivable" } as any,
+    { refetchOnWindowFocus: false },
+  );
 
   // India compliance — GST filing calendar (live)
   const currentMonth = new Date().getMonth() + 1;
@@ -124,6 +136,14 @@ export default function FinancialPage() {
           >
             <Download className="w-3 h-3" /> Export FY Report
           </button>
+          {can("budget", "write") && (
+            <button
+              onClick={() => setShowNewBudget(true)}
+              className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
+              <Plus className="w-3 h-3" /> Add Budget Line
+            </button>
+          )}
         </div>
       </div>
 
@@ -441,10 +461,50 @@ export default function FinancialPage() {
 
         {/* ACCOUNTS RECEIVABLE */}
         {tab === "ar" && (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground p-4">
-            <TrendingUp className="w-8 h-8 opacity-30" />
-            <p className="text-[13px]">Accounts Receivable module not yet active</p>
-            <p className="text-[11px] text-muted-foreground/60">Connect your billing / ERP system to track customer invoices and AR aging here.</p>
+          <div className="p-4">
+            {(() => {
+              const arInvoices: any[] = (arInvoicesData as any)?.items ?? [];
+              const totalAR = arInvoices.reduce((s: number, i: any) => s + Number(i.totalAmount ?? 0), 0);
+              const overdueAR = arInvoices.filter((i: any) => i.status === "overdue");
+              return arInvoices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+                  <TrendingUp className="w-8 h-8 opacity-30" />
+                  <p className="text-[13px]">No receivable invoices found</p>
+                  <p className="text-[11px] text-muted-foreground/60">Invoices with direction &apos;receivable&apos; will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="border border-border rounded px-3 py-2">
+                      <div className="text-xl font-bold text-foreground/80">₹{(totalAR / 100000).toFixed(1)}L</div>
+                      <div className="text-[10px] text-muted-foreground uppercase">Total AR Outstanding</div>
+                    </div>
+                    <div className="border border-border rounded px-3 py-2">
+                      <div className={`text-xl font-bold ${overdueAR.length > 0 ? "text-red-700" : "text-green-700"}`}>{overdueAR.length}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase">Overdue Invoices</div>
+                    </div>
+                    <div className="border border-border rounded px-3 py-2">
+                      <div className="text-xl font-bold text-blue-700">{arInvoices.filter((i: any) => i.status === "pending").length}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase">Pending Collection</div>
+                    </div>
+                  </div>
+                  <table className="ent-table w-full">
+                    <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {arInvoices.map((inv: any) => (
+                        <tr key={inv.id}>
+                          <td><span className="font-mono text-[11px]">{inv.invoiceNumber ?? inv.number ?? inv.id.slice(0,8)}</span></td>
+                          <td className="text-[12px]">{inv.vendorName ?? inv.customerName ?? "—"}</td>
+                          <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? 0).toLocaleString()}</td>
+                          <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
+                          <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -699,5 +759,43 @@ export default function FinancialPage() {
         )}
       </div>
     </div>
+
+    {showNewBudget && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold">Add Budget Line</h2>
+            <button onClick={() => setShowNewBudget(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Category *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Cloud Infrastructure" value={budgetForm.category} onChange={(e) => setBudgetForm((f) => ({ ...f, category: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Department</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Engineering" value={budgetForm.department} onChange={(e) => setBudgetForm((f) => ({ ...f, department: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Annual Budget (₹) *</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 5000000" value={budgetForm.budgeted} onChange={(e) => setBudgetForm((f) => ({ ...f, budgeted: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowNewBudget(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!budgetForm.category.trim() || !budgetForm.budgeted) { toast.error("Category and budget amount are required"); return; }
+                createBudgetLine.mutate({ category: budgetForm.category.trim(), department: budgetForm.department || undefined, fiscalYear: new Date().getFullYear(), budgeted: budgetForm.budgeted });
+              }}
+              disabled={createBudgetLine.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createBudgetLine.isPending ? "Adding…" : "Add Line"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

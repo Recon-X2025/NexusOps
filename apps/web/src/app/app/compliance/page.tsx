@@ -33,6 +33,7 @@ export default function CompliancePage() {
   const canView = can("grc", "read");
   const [showAddBaseline, setShowAddBaseline] = useState(false);
   const [baselineForm, setBaselineForm] = useState({ name: "", framework: "ISO 27001", scope: "", frequency: "quarterly" as "monthly"|"quarterly"|"annual" });
+  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
   // @ts-ignore
   const auditsQuery = trpc.grc.listAudits.useQuery({ limit: 50 }, { enabled: canView });
   const risksQuery = trpc.grc.listRisks.useQuery({ limit: 50 }, { enabled: canView });
@@ -44,8 +45,14 @@ export default function CompliancePage() {
 
   if (!canView) return <AccessDenied module="Compliance" />;
 
-  const avgScore: number | null = null;
-  const totalFailedBaselines = 0;
+  const completedAudits = auditsQuery.data?.filter((a: any) => a.status === "completed") ?? [];
+  const auditsWithScore = completedAudits.filter((a: any) => a.score != null && Number(a.score) > 0);
+  const avgScore: number | null = auditsWithScore.length > 0
+    ? Math.round(auditsWithScore.reduce((s: number, a: any) => s + Number(a.score), 0) / auditsWithScore.length)
+    : null;
+  const totalFailedBaselines = risksQuery.data
+    ? risksQuery.data.filter((r: any) => (r.severity === "critical" || r.severity === "high") && r.status !== "closed" && r.status !== "accepted").length
+    : 0;
 
   const openRisks = risksQuery.data
     ? risksQuery.data.filter((r: any) => r.status !== "closed" && r.status !== "accepted").length
@@ -85,12 +92,12 @@ export default function CompliancePage() {
       {/* Stats grid — mix of static baseline data and real risk/audit data */}
       <div className="grid grid-cols-4 gap-2">
         <div className="bg-card border border-border rounded px-3 py-2">
-          <div className={`text-xl font-bold text-muted-foreground/50`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
+          <div className={`text-xl font-bold ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/50"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg Compliance Score</div>
         </div>
         <div className="bg-card border border-border rounded px-3 py-2">
-          <div className="text-xl font-bold text-muted-foreground/50">{totalFailedBaselines > 0 ? totalFailedBaselines : "—"}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Failed Controls</div>
+          <div className={`text-xl font-bold ${totalFailedBaselines > 0 ? "text-red-700" : "text-green-700"}`}>{totalFailedBaselines}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">High/Critical Open Risks</div>
         </div>
         <div className="bg-card border border-border rounded px-3 py-2">
           {risksQuery.isLoading ? (
@@ -204,14 +211,53 @@ export default function CompliancePage() {
                       {a.endDate ? new Date(a.endDate).toLocaleDateString() : "—"}
                     </td>
                     <td>
-                      <button className="text-[11px] text-primary hover:underline">View</button>
+                      <button
+                        onClick={() => setSelectedAuditId(selectedAuditId === a.id ? null : a.id)}
+                        className="text-[11px] text-primary hover:underline"
+                      >{selectedAuditId === a.id ? "Close" : "View"}</button>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        )}
+          {selectedAuditId && (() => {
+            const a: any = auditsQuery.data?.find((x: any) => x.id === selectedAuditId);
+            if (!a) return null;
+            const findings = a.findings ?? [];
+            return (
+              <div className="border-t border-border px-4 py-3 bg-muted/20 text-[11px]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-foreground text-[12px]">Audit: {a.title}</span>
+                  <button onClick={() => setSelectedAuditId(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div><span className="text-muted-foreground/70">Framework:</span> <span className="font-medium">{a.framework ?? "—"}</span></div>
+                  <div><span className="text-muted-foreground/70">Status:</span> <span className="font-medium capitalize">{a.status?.replace("_", " ")}</span></div>
+                  <div><span className="text-muted-foreground/70">Score:</span> <span className={`font-bold ${a.score ? (Number(a.score) >= 80 ? "text-green-700" : "text-orange-700") : "text-muted-foreground"}`}>{a.score ? `${a.score}%` : "—"}</span></div>
+                  {a.scope && <div className="col-span-3"><span className="text-muted-foreground/70">Scope:</span> {a.scope}</div>}
+                  {a.description && <div className="col-span-3"><span className="text-muted-foreground/70">Description:</span> {a.description}</div>}
+                </div>
+                {findings.length > 0 ? (
+                  <div>
+                    <div className="font-semibold text-muted-foreground mb-1">Findings ({findings.length})</div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {findings.map((f: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 px-2 py-1 bg-card rounded border border-border">
+                          <span className={`status-badge capitalize text-[10px] ${FINDING_SEVERITY_COLOR[f.severity] ?? "bg-muted text-muted-foreground"}`}>{f.severity}</span>
+                          <span className="flex-1 truncate">{f.title ?? f.description ?? "Finding"}</span>
+                          <span className={`text-[10px] ${f.status === "closed" ? "text-green-600" : "text-orange-600"}`}>{f.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground/50">No findings recorded for this audit.</p>
+                )}
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Open Risks — live data */}

@@ -131,6 +131,18 @@ export default function SurveysPage() {
     { enabled: isRealSurveyId, refetchOnWindowFocus: false },
   );
 
+  // Dashboard: get results for first CSAT and first Pulse surveys
+  const csatSurveyId = (surveysData as any[] | undefined)?.find((s: any) => s.type === "csat" && s.status === "active")?.id ?? null;
+  const pulseSurveyId = (surveysData as any[] | undefined)?.find((s: any) => (s.type === "pulse" || s.type === "enps") && s.status === "active")?.id ?? null;
+  const { data: csatResults } = trpc.surveys.getResults.useQuery(
+    { id: csatSurveyId ?? "" },
+    { enabled: !!csatSurveyId, refetchOnWindowFocus: false },
+  );
+  const { data: pulseResults } = trpc.surveys.getResults.useQuery(
+    { id: pulseSurveyId ?? "" },
+    { enabled: !!pulseSurveyId, refetchOnWindowFocus: false },
+  );
+
   const createSurvey = trpc.surveys.create.useMutation({
     onSuccess: (survey) => {
       toast.success("Survey draft saved");
@@ -270,66 +282,86 @@ export default function SurveysPage() {
         {tab === "dashboard" && (
           <div className="p-4 grid grid-cols-2 gap-4">
             <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">CSAT — IT Service Desk</div>
+              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">CSAT — IT Service Desk {csatResults && <span className="ml-1 text-green-600 font-bold">LIVE</span>}</div>
               <div className="p-3">
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="text-4xl font-black text-green-700">{CSAT_RESULTS.overall}</div>
-                  <div>
-                    <div className="flex gap-0.5 mb-0.5">
-                      {[1,2,3,4,5].map(n => (
-                        <span key={n} className={`text-lg ${n <= Math.round(CSAT_RESULTS.overall) ? "text-yellow-400" : "text-slate-200"}`}>★</span>
-                      ))}
+                {(() => {
+                  const score = csatResults ? Number(csatResults.averageScore ?? 0) : 0;
+                  const responses = csatResults ? Number(csatResults.totalResponses ?? 0) : 0;
+                  const hasData = responses > 0;
+                  return (
+                    <div className="flex items-center gap-4 mb-3">
+                      <div className={`text-4xl font-black ${hasData ? "text-green-700" : "text-muted-foreground/30"}`}>{hasData ? score.toFixed(1) : "—"}</div>
+                      <div>
+                        <div className="flex gap-0.5 mb-0.5">
+                          {[1,2,3,4,5].map(n => (
+                            <span key={n} className={`text-lg ${hasData && n <= Math.round(score) ? "text-yellow-400" : "text-slate-200"}`}>★</span>
+                          ))}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">{hasData ? `${responses} responses` : (csatSurveyId ? "No responses yet" : "No active CSAT survey")}</div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-muted-foreground">{CSAT_RESULTS.responses} responses · {CSAT_RESULTS.trend}</div>
-                  </div>
-                </div>
-                {CSAT_RESULTS.distribution.map(d => (
-                  <div key={d.stars} className="flex items-center gap-2 mb-0.5 text-[11px]">
-                    <span className="text-yellow-500 w-3">{d.stars}★</span>
-                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-yellow-400 rounded-full" style={{width:`${d.pct}%`}} />
+                  );
+                })()}
+                {csatResults && csatResults.responses.length > 0 && (() => {
+                  const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+                  csatResults.responses.forEach((r: any) => { const s = Math.round(Number(r.score ?? 0)); if (s >= 1 && s <= 5) dist[s]++; });
+                  const total = Object.values(dist).reduce((a, b) => a + b, 0);
+                  return [5, 4, 3, 2, 1].map(stars => (
+                    <div key={stars} className="flex items-center gap-2 mb-0.5 text-[11px]">
+                      <span className="text-yellow-500 w-3">{stars}★</span>
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-yellow-400 rounded-full" style={{width:`${total > 0 ? (dist[stars]/total)*100 : 0}%`}} />
+                      </div>
+                      <span className="text-muted-foreground/70 w-8 text-right">{total > 0 ? Math.round((dist[stars]/total)*100) : 0}%</span>
                     </div>
-                    <span className="text-muted-foreground/70 w-6 text-right">{d.pct}%</span>
-                  </div>
-                ))}
+                  ));
+                })()}
+                {!csatSurveyId && (
+                  <p className="text-[11px] text-muted-foreground/50">Create and activate a CSAT survey to see results here.</p>
+                )}
               </div>
             </div>
             <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">Employee Pulse — Q1 2026</div>
+              <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">Employee Pulse {pulseResults && <span className="ml-1 text-green-600 font-bold">LIVE</span>}</div>
               <div className="p-3 space-y-2">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="text-[11px] text-muted-foreground">eNPS: </span>
-                    <span className={`text-lg font-black ${NPS_COLOR(PULSE_RESULTS.eNPS)}`}>{PULSE_RESULTS.eNPS}</span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground/70">{PULSE_RESULTS.responseRate}% response rate</span>
-                </div>
-                {PULSE_RESULTS.categories.slice(0, 5).map(c => (
-                  <div key={c.cat} className="flex items-center gap-2 text-[11px]">
-                    <span className="text-muted-foreground flex-1 truncate">{c.cat}</span>
-                    <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${c.score >= 4 ? "bg-green-400" : c.score >= 3.5 ? "bg-blue-400" : "bg-orange-400"}`} style={{width:`${(c.score/5)*100}%`}} />
+                {pulseResults ? (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="text-[11px] text-muted-foreground">Avg Score: </span>
+                        <span className={`text-lg font-black ${pulseResults.averageScore ? (Number(pulseResults.averageScore) >= 4 ? "text-green-700" : "text-orange-600") : "text-muted-foreground/30"}`}>
+                          {pulseResults.averageScore ?? "—"}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground/70">{pulseResults.totalResponses} responses</span>
                     </div>
-                    <span className={`font-bold w-6 text-right ${SCORE_COLOR(c.score)}`}>{c.score}</span>
-                    <span className={`text-[10px] ${c.score > c.prev ? "text-green-500" : c.score < c.prev ? "text-red-500" : "text-muted-foreground/70"}`}>
-                      {c.score > c.prev ? "↑" : c.score < c.prev ? "↓" : "–"}
-                    </span>
-                  </div>
-                ))}
+                    {pulseResults.responses.slice(0, 5).map((r: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px]">
+                        <span className="text-muted-foreground flex-1 truncate">{r.respondentId?.slice(0, 8) ?? `Response ${i+1}`}</span>
+                        <span className={`font-bold ${Number(r.score ?? 0) >= 4 ? "text-green-700" : "text-orange-600"}`}>{r.score ?? "—"}</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/50 py-2">{pulseSurveyId ? "No responses yet" : "Create and activate a Pulse/eNPS survey to see results here."}</p>
+                )}
               </div>
             </div>
             <div className="border border-border rounded overflow-hidden col-span-2">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">Recent Feedback (CSAT Comments)</div>
               <div className="divide-y divide-border">
-                {CSAT_RESULTS.recentComments.map((c, i) => (
+                {csatResults && csatResults.responses.filter((r: any) => r.answers && Object.keys(r.answers).length > 0).slice(0, 5).map((r: any, i: number) => (
                   <div key={i} className="flex items-start gap-3 px-4 py-2.5">
                     <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
-                      {[1,2,3,4,5].map(n => <span key={n} className={`text-[12px] ${n <= c.score ? "text-yellow-400" : "text-slate-200"}`}>★</span>)}
+                      {[1,2,3,4,5].map(n => <span key={n} className={`text-[12px] ${n <= Math.round(Number(r.score ?? 0)) ? "text-yellow-400" : "text-slate-200"}`}>★</span>)}
                     </div>
-                    <p className="text-[12px] text-foreground/80 flex-1">{c.comment}</p>
-                    <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">{c.submitted}</span>
+                    <p className="text-[12px] text-foreground/80 flex-1">{JSON.stringify(r.answers).slice(0, 120)}…</p>
+                    <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "—"}</span>
                   </div>
                 ))}
+                {(!csatResults || csatResults.responses.length === 0) && (
+                  <div className="px-4 py-6 text-center text-[11px] text-muted-foreground/50">No survey responses yet</div>
+                )}
               </div>
             </div>
           </div>

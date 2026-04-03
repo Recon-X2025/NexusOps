@@ -297,6 +297,10 @@ export default function CRMPage() {
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [dealForm, setDealForm] = useState({ title: "", value: "", probability: "30", expectedClose: "" });
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
+  const [showNewAccount, setShowNewAccount] = useState(false);
+  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise"|"mid_market"|"smb", website: "" });
+  const [showNewContact, setShowNewContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "" });
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [newQuoteDesc, setNewQuoteDesc] = useState("");
 
@@ -356,6 +360,17 @@ export default function CRMPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create deal"),
   });
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const createAccountMutation = trpc.crm.createAccount.useMutation({
+    onSuccess: () => { toast.success("Account created"); refetchAccounts(); setShowNewAccount(false); setAccountForm({ name: "", industry: "", tier: "smb", website: "" }); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create account"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const createContactMutation = trpc.crm.createContact.useMutation({
+    onSuccess: () => { toast.success("Contact created"); setShowNewContact(false); setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "" }); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create contact"),
+  });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const updateQuote = trpc.crm.updateQuote.useMutation({
     onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} updated`); refetchQuotes(); },
@@ -368,6 +383,15 @@ export default function CRMPage() {
   const DEALS_LIVE = ((dealsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ACCOUNTS_LIVE = ((accountsData as any[]) ?? []) as any[];
+
+  // Build live leaderboard from closed_won deals
+  const leaderboardMap = new Map<string, { ownerId: string; won: number; deals: number }>();
+  DEALS_LIVE.filter((d: any) => d.stage === "closed_won").forEach((d: any) => {
+    const key = d.ownerId ?? "unknown";
+    const existing = leaderboardMap.get(key) ?? { ownerId: key, won: 0, deals: 0 };
+    leaderboardMap.set(key, { ...existing, won: existing.won + Number(d.value ?? 0), deals: existing.deals + 1 });
+  });
+  const leaderboard = Array.from(leaderboardMap.values()).sort((a, b) => b.won - a.won).slice(0, 5);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CONTACTS_LIVE = ((contactsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -587,15 +611,12 @@ export default function CRMPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Sales Leaderboard (MTD)</div>
               <div className="p-3 space-y-2">
-                {[
-                  { rep: "Dana Kim",     won: 495000, deals: 1 },
-                  { rep: "Morgan Lee",   won: 380000, deals: 1 },
-                  { rep: "Taylor Patel", won: 68000,  deals: 1 },
-                  { rep: "Alex Rivera",  won: 0,      deals: 0 },
-                ].map((row, i) => (
-                  <div key={row.rep} className="flex items-center gap-3">
+                {leaderboard.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground/50 text-center py-2">No closed deals yet this period</p>
+                ) : leaderboard.map((row, i) => (
+                  <div key={row.ownerId} className="flex items-center gap-3">
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? "bg-yellow-400 text-white" : "bg-muted text-muted-foreground"}`}>{i+1}</span>
-                    <span className="text-[12px] text-foreground/80 flex-1">{row.rep}</span>
+                    <span className="text-[12px] text-foreground/80 flex-1 font-mono">{row.ownerId.slice(0,8)}…</span>
                     <span className="font-mono font-bold text-[12px] text-foreground">₹{(row.won/1000).toFixed(0)}K</span>
                     <span className="text-[11px] text-muted-foreground/70">{row.deals} deal{row.deals !== 1 ? "s" : ""}</span>
                   </div>
@@ -665,6 +686,15 @@ export default function CRMPage() {
 
         {/* ACCOUNTS */}
         {tab === "accounts" && (
+          <div>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{ACCOUNTS_LIVE.length} Accounts</span>
+              <PermissionGate module="accounts" action="write">
+                <button onClick={() => setShowNewAccount(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> Add Account
+                </button>
+              </PermissionGate>
+            </div>
           <table className="ent-table w-full">
             <thead>
               <tr>
@@ -708,10 +738,20 @@ export default function CRMPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* CONTACTS */}
         {tab === "contacts" && (
+          <div>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{((contactsData as any[]) ?? []).length} Contacts</span>
+              <PermissionGate module="accounts" action="write">
+                <button onClick={() => setShowNewContact(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> Add Contact
+                </button>
+              </PermissionGate>
+            </div>
           <table className="ent-table w-full">
             <thead>
               <tr>
@@ -754,6 +794,7 @@ export default function CRMPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* LEADS */}
@@ -1135,6 +1176,92 @@ export default function CRMPage() {
               >
                 {createQuoteMutation.isPending ? "Creating…" : "Create Quote"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Account Modal */}
+      {showNewAccount && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Add Account</h2>
+              <button onClick={() => setShowNewAccount(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company Name *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={accountForm.name} onChange={(e) => setAccountForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Industry</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Technology" value={accountForm.industry} onChange={(e) => setAccountForm(f => ({ ...f, industry: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Tier</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={accountForm.tier} onChange={(e) => setAccountForm(f => ({ ...f, tier: e.target.value as any }))}>
+                  <option value="smb">SMB</option>
+                  <option value="mid_market">Mid Market</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Website</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={accountForm.website} onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowNewAccount(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry || undefined, tier: accountForm.tier, website: accountForm.website || undefined }); }}
+                disabled={createAccountMutation.isPending}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{createAccountMutation.isPending ? "Creating…" : "Create Account"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Contact Modal */}
+      {showNewContact && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Add Contact</h2>
+              <button onClick={() => setShowNewContact(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
+                  <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.firstName} onChange={(e) => setContactForm(f => ({ ...f, firstName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Last Name *</label>
+                  <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.lastName} onChange={(e) => setContactForm(f => ({ ...f, lastName: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
+                <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.email} onChange={(e) => setContactForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone</label>
+                <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.phone} onChange={(e) => setContactForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. VP Engineering" value={contactForm.title} onChange={(e) => setContactForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowNewContact(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!contactForm.firstName.trim() || !contactForm.lastName.trim()) { toast.error("First and last name are required"); return; } createContactMutation.mutate({ firstName: contactForm.firstName.trim(), lastName: contactForm.lastName.trim(), email: contactForm.email || undefined, phone: contactForm.phone || undefined, title: contactForm.title || undefined }); }}
+                disabled={createContactMutation.isPending}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{createContactMutation.isPending ? "Creating…" : "Create Contact"}</button>
             </div>
           </div>
         </div>

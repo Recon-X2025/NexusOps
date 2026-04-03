@@ -161,8 +161,8 @@ export default function ApprovalsPage() {
         {[
           { label: "Pending Approval",  value: pendingFiltered.length,  color: "text-blue-700" },
           { label: "Urgent / Due Today", value: urgentCount,    color: "text-red-700" },
-          { label: "Approved (30d)",     value: 14,             color: "text-green-700" },
-          { label: "Rejected (30d)",     value: 3,              color: "text-muted-foreground" },
+          { label: "Approved (30d)",     value: submittedItems.filter((s: any) => s.state === "approved").length || 0, color: "text-green-700" },
+          { label: "Rejected (30d)",     value: submittedItems.filter((s: any) => s.state === "rejected").length || 0, color: "text-muted-foreground" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
@@ -270,7 +270,16 @@ export default function ApprovalsPage() {
                           <MessageSquare className="w-3.5 h-3.5" /> Request Info
                         </button>
                         <Link
-                          href={`/app/changes?ref=${encodeURIComponent(appr.requestNumber ?? appr.number ?? "")}`}
+                          href={(() => {
+                            const ref = encodeURIComponent(appr.requestNumber ?? appr.number ?? "");
+                            switch (appr.type) {
+                              case "purchase": case "vendor": return `/app/financial?ref=${ref}`;
+                              case "access": case "hr": return `/app/hr?ref=${ref}`;
+                              case "service": return `/app/tickets?search=${ref}`;
+                              case "security": return `/app/security?ref=${ref}`;
+                              default: return `/app/changes?ref=${ref}`;
+                            }
+                          })()}
                           className="text-[11px] text-primary hover:underline ml-auto"
                         >
                           View Full Record <ChevronRight className="w-3 h-3 inline" />

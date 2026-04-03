@@ -898,6 +898,20 @@ export const ticketsRouter = router({
       return { updatedCount: updated.length };
     }),
 
+  listPriorities: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    return db
+      .select({
+        id: ticketPriorities.id,
+        name: ticketPriorities.name,
+        color: ticketPriorities.color,
+        sortOrder: ticketPriorities.sortOrder,
+      })
+      .from(ticketPriorities)
+      .where(eq(ticketPriorities.orgId, org!.id))
+      .orderBy(asc(ticketPriorities.sortOrder));
+  }),
+
   statusCounts: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
 
