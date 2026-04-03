@@ -119,6 +119,7 @@ export default function FinancialPage() {
     .reduce((s, i) => s + Number(i.amount ?? 0), 0);
 
   return (
+    <>
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -837,5 +838,6 @@ export default function FinancialPage() {
         </div>
       </div>
     )}
+    </>
   );
 }

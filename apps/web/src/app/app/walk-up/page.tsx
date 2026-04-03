@@ -111,6 +111,7 @@ export default function WalkUpPage() {
   const avgWait = liveQueue.length > 0 ? Math.round(liveQueue.reduce((s: number, v: any) => s + (v.waitMinutes ?? 0), 0) / liveQueue.length) : 0;
 
   return (
+    <>
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -497,5 +498,6 @@ export default function WalkUpPage() {
         </div>
       </div>
     )}
+    </>
   );
 }

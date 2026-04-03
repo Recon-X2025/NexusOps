@@ -66,6 +66,20 @@ export default function SecurityOpsPage() {
     { refetchOnWindowFocus: false },
   );
 
+  // GRC data for Config Compliance tab
+  const { data: grcAudits, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery(
+    undefined,
+    { enabled: can("grc", "read"), refetchOnWindowFocus: false },
+  );
+  const { data: grcPolicies, isLoading: policiesLoading } = trpc.grc.listPolicies.useQuery(
+    { limit: 50 },
+    { enabled: can("grc", "read"), refetchOnWindowFocus: false },
+  );
+  const { data: grcRisks } = trpc.grc.listRisks.useQuery(
+    { limit: 50 },
+    { enabled: can("grc", "read"), refetchOnWindowFocus: false },
+  );
+
   const createIncident = trpc.security.createIncident.useMutation({
     onSuccess: (inc: any) => { toast.success(`Security incident ${inc?.id?.slice(0,8) ?? ""} created`); setShowNewIncident(false); setIncForm({ title: "", description: "", severity: "medium", attackVector: "" }); refetchIncidents(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
@@ -358,13 +372,189 @@ export default function SecurityOpsPage() {
           </div>
         )}
 
-        {/* — Compliance (live from GRC policies) — */}
+        {/* — Config Compliance (live from GRC) — */}
         {tab === "compliance" && (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
-            <CheckCircle2 className="w-8 h-8 opacity-30" />
-            <p className="text-[13px]">No compliance framework scans configured</p>
-            <p className="text-[11px] text-muted-foreground/60">Add compliance frameworks (CIS, NIST, PCI-DSS, ISO 27001) in the GRC module to track scores here.</p>
-          </div>
+          auditsLoading || policiesLoading ? (
+            <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-xs">Loading compliance data…</span>
+            </div>
+          ) : (
+            <div className="p-4 space-y-4">
+              {/* Overall posture KPIs */}
+              {(() => {
+                const auditList: any[] = (grcAudits as any[]) ?? [];
+                const policyList: any[] = (grcPolicies as any[]) ?? [];
+                const riskList: any[] = (grcRisks as any[]) ?? [];
+                const completedAudits = auditList.filter((a) => a.status === "completed" && a.score != null);
+                const avgScore = completedAudits.length > 0
+                  ? Math.round(completedAudits.reduce((s, a) => s + Number(a.score), 0) / completedAudits.length)
+                  : null;
+                const publishedPolicies = policyList.filter((p) => p.status === "published").length;
+                const openHighRisks = riskList.filter((r) => (r.severity === "critical" || r.severity === "high") && r.status !== "closed" && r.status !== "accepted").length;
+                const inProgressAudits = auditList.filter((a) => a.status === "in_progress").length;
+
+                return (
+                  <>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className={`border rounded px-3 py-2 ${avgScore !== null ? (avgScore >= 80 ? "border-green-200 bg-green-50/30" : avgScore >= 60 ? "border-yellow-200 bg-yellow-50/30" : "border-red-200 bg-red-50/30") : "border-border"}`}>
+                        <div className={`text-2xl font-black ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/40"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Overall Posture</div>
+                      </div>
+                      <div className="border border-border rounded px-3 py-2">
+                        <div className={`text-2xl font-black ${openHighRisks > 0 ? "text-red-700" : "text-green-700"}`}>{openHighRisks}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Open Critical/High Risks</div>
+                      </div>
+                      <div className="border border-border rounded px-3 py-2">
+                        <div className="text-2xl font-black text-blue-700">{publishedPolicies}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Published Policies</div>
+                      </div>
+                      <div className="border border-border rounded px-3 py-2">
+                        <div className={`text-2xl font-black ${inProgressAudits > 0 ? "text-orange-700" : "text-muted-foreground/40"}`}>{inProgressAudits}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Audits In Progress</div>
+                      </div>
+                    </div>
+
+                    {/* Framework Audit Scores */}
+                    <div className="border border-border rounded overflow-hidden">
+                      <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        Framework Audit Plans ({auditList.length})
+                      </div>
+                      {auditList.length === 0 ? (
+                        <div className="p-4 text-center text-[11px] text-muted-foreground/50">
+                          No audit plans found. Create them in the <a href="/app/compliance" className="text-primary hover:underline">GRC / Compliance module</a>.
+                        </div>
+                      ) : (
+                        <table className="ent-table w-full">
+                          <thead>
+                            <tr>
+                              <th>Audit Name</th>
+                              <th>Framework</th>
+                              <th>Scope</th>
+                              <th>Status</th>
+                              <th className="text-center">Score</th>
+                              <th>Findings</th>
+                              <th>Period</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {auditList.map((a: any) => {
+                              const findings = a.findings ?? [];
+                              const openFindings = findings.filter((f: any) => f.status !== "closed" && f.status !== "resolved").length;
+                              const score = a.score != null ? Number(a.score) : null;
+                              return (
+                                <tr key={a.id}>
+                                  <td className="font-medium text-foreground max-w-xs">
+                                    <span className="truncate block">{a.title ?? a.name}</span>
+                                  </td>
+                                  <td>
+                                    {a.framework ? (
+                                      <span className="status-badge text-purple-700 bg-purple-100 text-[10px]">{a.framework}</span>
+                                    ) : <span className="text-muted-foreground/50">—</span>}
+                                  </td>
+                                  <td className="text-[11px] text-muted-foreground max-w-[120px]">
+                                    <span className="truncate block">{a.scope ?? "—"}</span>
+                                  </td>
+                                  <td>
+                                    <span className={`status-badge capitalize text-[10px] ${
+                                      a.status === "completed" ? "text-green-700 bg-green-100" :
+                                      a.status === "in_progress" ? "text-blue-700 bg-blue-100" :
+                                      a.status === "cancelled" ? "text-red-700 bg-red-100" :
+                                      "text-slate-700 bg-slate-100"
+                                    }`}>{a.status?.replace("_", " ")}</span>
+                                  </td>
+                                  <td className="text-center">
+                                    {score !== null ? (
+                                      <span className={`font-bold text-[13px] ${score >= 80 ? "text-green-700" : score >= 60 ? "text-yellow-700" : "text-red-700"}`}>
+                                        {score}%
+                                      </span>
+                                    ) : <span className="text-muted-foreground/40">—</span>}
+                                  </td>
+                                  <td>
+                                    {findings.length > 0 ? (
+                                      <span className={`text-[11px] font-medium ${openFindings > 0 ? "text-orange-700" : "text-green-700"}`}>
+                                        {openFindings > 0 ? `${openFindings} open` : "All closed"} / {findings.length}
+                                      </span>
+                                    ) : <span className="text-[11px] text-muted-foreground/40">—</span>}
+                                  </td>
+                                  <td className="text-[11px] text-muted-foreground">
+                                    {a.startDate ? new Date(a.startDate).toLocaleDateString() : "—"}
+                                    {a.endDate ? ` → ${new Date(a.endDate).toLocaleDateString()}` : ""}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+
+                    {/* Published Policies */}
+                    <div className="border border-border rounded overflow-hidden">
+                      <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        Security Policies ({policyList.length})
+                      </div>
+                      {policyList.length === 0 ? (
+                        <div className="p-4 text-center text-[11px] text-muted-foreground/50">
+                          No policies found. Create them in the <a href="/app/grc" className="text-primary hover:underline">GRC module</a>.
+                        </div>
+                      ) : (
+                        <table className="ent-table w-full">
+                          <thead>
+                            <tr><th>Policy</th><th>Category</th><th>Status</th><th>Last Updated</th></tr>
+                          </thead>
+                          <tbody>
+                            {policyList.map((p: any) => (
+                              <tr key={p.id}>
+                                <td className="font-medium text-foreground">{p.title ?? p.name}</td>
+                                <td className="text-[11px] text-muted-foreground">{p.category ?? "—"}</td>
+                                <td>
+                                  <span className={`status-badge capitalize text-[10px] ${
+                                    p.status === "published" ? "text-green-700 bg-green-100" :
+                                    p.status === "draft" ? "text-slate-700 bg-slate-100" :
+                                    p.status === "review" ? "text-yellow-700 bg-yellow-100" :
+                                    "text-muted-foreground bg-muted"
+                                  }`}>{p.status}</span>
+                                </td>
+                                <td className="text-[11px] text-muted-foreground">
+                                  {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+
+                    {/* Open High/Critical Risks */}
+                    {riskList.filter((r: any) => (r.severity === "critical" || r.severity === "high") && r.status !== "closed" && r.status !== "accepted").length > 0 && (
+                      <div className="border border-red-200 rounded overflow-hidden">
+                        <div className="px-3 py-2 bg-red-50/40 border-b border-red-200 text-[11px] font-semibold text-red-700 uppercase tracking-wide">
+                          Open Critical / High Risks
+                        </div>
+                        <table className="ent-table w-full">
+                          <thead>
+                            <tr><th>Risk</th><th>Severity</th><th>Category</th><th>Status</th><th>Owner</th></tr>
+                          </thead>
+                          <tbody>
+                            {riskList.filter((r: any) => (r.severity === "critical" || r.severity === "high") && r.status !== "closed" && r.status !== "accepted").map((r: any) => (
+                              <tr key={r.id}>
+                                <td className="font-medium text-foreground max-w-xs"><span className="truncate block">{r.title}</span></td>
+                                <td><span className={`status-badge capitalize text-[10px] ${r.severity === "critical" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>{r.severity}</span></td>
+                                <td className="text-[11px] text-muted-foreground">{r.category ?? "—"}</td>
+                                <td><span className="status-badge capitalize text-[10px] text-blue-700 bg-blue-100">{r.status?.replace("_", " ")}</span></td>
+                                <td className="text-[11px] text-muted-foreground">{r.owner ?? "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )
         )}
       </div>
 

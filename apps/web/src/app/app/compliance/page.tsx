@@ -53,6 +53,9 @@ export default function CompliancePage() {
   const totalFailedBaselines = risksQuery.data
     ? risksQuery.data.filter((r: any) => (r.severity === "critical" || r.severity === "high") && r.status !== "closed" && r.status !== "accepted").length
     : 0;
+  const selectedAudit: any = selectedAuditId
+    ? (auditsQuery.data as any[] | undefined)?.find((x: any) => x.id === selectedAuditId) ?? null
+    : null;
 
   const openRisks = risksQuery.data
     ? risksQuery.data.filter((r: any) => r.status !== "closed" && r.status !== "accepted").length
@@ -166,6 +169,7 @@ export default function CompliancePage() {
             </p>
           </div>
         ) : (
+          <>
           <table className="ent-table w-full">
             <thead>
               <tr>
@@ -221,43 +225,39 @@ export default function CompliancePage() {
               })}
             </tbody>
           </table>
-          {selectedAuditId && (() => {
-            const a: any = auditsQuery.data?.find((x: any) => x.id === selectedAuditId);
-            if (!a) return null;
-            const findings = a.findings ?? [];
-            return (
-              <div className="border-t border-border px-4 py-3 bg-muted/20 text-[11px]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-foreground text-[12px]">Audit: {a.title}</span>
-                  <button onClick={() => setSelectedAuditId(null)} className="text-muted-foreground hover:text-foreground">✕</button>
-                </div>
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <div><span className="text-muted-foreground/70">Framework:</span> <span className="font-medium">{a.framework ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground/70">Status:</span> <span className="font-medium capitalize">{a.status?.replace("_", " ")}</span></div>
-                  <div><span className="text-muted-foreground/70">Score:</span> <span className={`font-bold ${a.score ? (Number(a.score) >= 80 ? "text-green-700" : "text-orange-700") : "text-muted-foreground"}`}>{a.score ? `${a.score}%` : "—"}</span></div>
-                  {a.scope && <div className="col-span-3"><span className="text-muted-foreground/70">Scope:</span> {a.scope}</div>}
-                  {a.description && <div className="col-span-3"><span className="text-muted-foreground/70">Description:</span> {a.description}</div>}
-                </div>
-                {findings.length > 0 ? (
-                  <div>
-                    <div className="font-semibold text-muted-foreground mb-1">Findings ({findings.length})</div>
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {findings.map((f: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 px-2 py-1 bg-card rounded border border-border">
-                          <span className={`status-badge capitalize text-[10px] ${FINDING_SEVERITY_COLOR[f.severity] ?? "bg-muted text-muted-foreground"}`}>{f.severity}</span>
-                          <span className="flex-1 truncate">{f.title ?? f.description ?? "Finding"}</span>
-                          <span className={`text-[10px] ${f.status === "closed" ? "text-green-600" : "text-orange-600"}`}>{f.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground/50">No findings recorded for this audit.</p>
-                )}
+          {selectedAudit && (
+            <div className="border-t border-border px-4 py-3 bg-muted/20 text-[11px]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-foreground text-[12px]">Audit: {selectedAudit.title}</span>
+                <button onClick={() => setSelectedAuditId(null)} className="text-muted-foreground hover:text-foreground">✕</button>
               </div>
-            );
-          })()}
-        </div>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div><span className="text-muted-foreground/70">Framework:</span> <span className="font-medium">{selectedAudit.framework ?? "—"}</span></div>
+                <div><span className="text-muted-foreground/70">Status:</span> <span className="font-medium capitalize">{selectedAudit.status?.replace("_", " ")}</span></div>
+                <div><span className="text-muted-foreground/70">Score:</span> <span className={`font-bold ${selectedAudit.score ? (Number(selectedAudit.score) >= 80 ? "text-green-700" : "text-orange-700") : "text-muted-foreground"}`}>{selectedAudit.score ? `${selectedAudit.score}%` : "—"}</span></div>
+                {selectedAudit.scope && <div className="col-span-3"><span className="text-muted-foreground/70">Scope:</span> {selectedAudit.scope}</div>}
+                {selectedAudit.description && <div className="col-span-3"><span className="text-muted-foreground/70">Description:</span> {selectedAudit.description}</div>}
+              </div>
+              {(selectedAudit.findings ?? []).length > 0 ? (
+                <div>
+                  <div className="font-semibold text-muted-foreground mb-1">Findings ({selectedAudit.findings.length})</div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {selectedAudit.findings.map((f: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 px-2 py-1 bg-card rounded border border-border">
+                        <span className={`status-badge capitalize text-[10px] ${FINDING_SEVERITY_COLOR[f.severity] ?? "bg-muted text-muted-foreground"}`}>{f.severity}</span>
+                        <span className="flex-1 truncate">{f.title ?? f.description ?? "Finding"}</span>
+                        <span className={`text-[10px] ${f.status === "closed" ? "text-green-600" : "text-orange-600"}`}>{f.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground/50">No findings recorded for this audit.</p>
+              )}
+            </div>
+          )}
+          </>
+        )}
       </div>
 
       {/* Open Risks — live data */}
