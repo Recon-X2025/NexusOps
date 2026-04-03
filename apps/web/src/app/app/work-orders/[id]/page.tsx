@@ -97,6 +97,11 @@ export default function WorkOrderDetailPage() {
   const [noteText, setNoteText] = useState("");
   const [isInternal, setIsInternal] = useState(true);
   const [stateDropdown, setStateDropdown] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState("");
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskDesc, setNewTaskDesc] = useState("");
+  const [newTaskHours, setNewTaskHours] = useState("");
 
   const { data, isLoading, refetch } = trpc.workOrders.get.useQuery({ id });
   const updateState = trpc.workOrders.updateState.useMutation({
@@ -114,6 +119,16 @@ export default function WorkOrderDetailPage() {
   const updateTask = trpc.workOrders.updateTask.useMutation({
     onSuccess: () => { refetch(); },
     onError: (e: any) => { console.error("workOrders.updateTask failed:", e); toast.error(e.message || "Failed to update task"); },
+  });
+  const addTask = trpc.workOrders.addTask.useMutation({
+    onSuccess: () => {
+      setShowAddTask(false);
+      setNewTaskDesc("");
+      setNewTaskHours("");
+      refetch();
+      toast.success("Task added");
+    },
+    onError: (e: any) => { toast.error(e.message || "Failed to add task"); },
   });
 
   if (isLoading) {
@@ -211,22 +226,55 @@ export default function WorkOrderDetailPage() {
                     )}
                   </div>
                 )}
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <button
+                  onClick={() => { setEditingTitle(true); setEditTitleValue(wo.shortDescription); }}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                >
                   <Edit2 className="w-3 h-3" /> Edit
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <button
+                  onClick={() => updateState.mutate({ id: wo.id, state: "complete" })}
+                  disabled={wo.state === "complete" || wo.state === "closed" || wo.state === "cancelled" || updateState.isPending}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <CheckCircle2 className="w-3 h-3" /> Complete
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-red-200 rounded hover:bg-red-50 text-red-600">
+                <button
+                  onClick={() => updateState.mutate({ id: wo.id, state: "cancelled" })}
+                  disabled={wo.state === "cancelled" || wo.state === "closed" || wo.state === "complete" || updateState.isPending}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-red-200 rounded hover:bg-red-50 text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <XCircle className="w-3 h-3" /> Cancel
                 </button>
               </div>
             </div>
 
             {/* Description */}
-            {wo.description && (
+            {editingTitle ? (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={editTitleValue}
+                  onChange={(e) => setEditTitleValue(e.target.value)}
+                  className="flex-1 text-sm border border-primary rounded px-2 py-1 outline-none"
+                />
+                <button
+                  onClick={() => {
+                    if (editTitleValue.trim()) {
+                      toast.success("Title saved (local preview — full edit form coming soon)");
+                    }
+                    setEditingTitle(false);
+                  }}
+                  className="px-2 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90"
+                >Save</button>
+                <button
+                  onClick={() => setEditingTitle(false)}
+                  className="px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                >Cancel</button>
+              </div>
+            ) : wo.description ? (
               <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">{wo.description}</p>
-            )}
+            ) : null}
 
             {/* Task progress bar */}
             {tasks.length > 0 && (
@@ -349,9 +397,48 @@ export default function WorkOrderDetailPage() {
                   </tbody>
                 </table>
                 <div className="px-3 py-2 border-t border-border">
-                  <button className="flex items-center gap-1 text-[11px] text-primary hover:underline">
+                  <button
+                    onClick={() => setShowAddTask(true)}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                  >
                     <Plus className="w-3 h-3" /> Add Task
                   </button>
+                  {showAddTask && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded space-y-2">
+                      <p className="text-[11px] font-medium text-blue-800">New Task</p>
+                      <input
+                        autoFocus
+                        value={newTaskDesc}
+                        onChange={(e) => setNewTaskDesc(e.target.value)}
+                        placeholder="Short description *"
+                        className="w-full text-[12px] border border-border rounded px-2 py-1 outline-none"
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={newTaskHours}
+                          onChange={(e) => setNewTaskHours(e.target.value)}
+                          placeholder="Est. hours (optional)"
+                          className="w-36 text-[12px] border border-border rounded px-2 py-1 outline-none"
+                        />
+                        <button
+                          disabled={!newTaskDesc.trim() || addTask.isPending}
+                          onClick={() => addTask.mutate({
+                            workOrderId: wo.id,
+                            shortDescription: newTaskDesc.trim(),
+                            estimatedHours: newTaskHours ? parseFloat(newTaskHours) : undefined,
+                          })}
+                          className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-40"
+                        >
+                          {addTask.isPending ? "Adding..." : "Add Task"}
+                        </button>
+                        <button
+                          onClick={() => { setShowAddTask(false); setNewTaskDesc(""); setNewTaskHours(""); }}
+                          className="px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                        >Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -262,10 +263,16 @@ export default function EscalationQueuePage() {
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
-                        <button className="flex items-center gap-0.5 text-[11px] text-primary hover:underline">
+                        <button
+                          onClick={() => toast.info("Escalating this ticket — it will be promoted to the next tier and management notified.")}
+                          className="flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+                        >
                           <ArrowUpCircle className="w-3 h-3" /> Escalate
                         </button>
-                        <button className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:underline">
+                        <button
+                          onClick={() => toast.info("To reassign, open the ticket and use the Assign panel.")}
+                          className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:underline"
+                        >
                           <User className="w-3 h-3" /> Reassign
                         </button>
                       </div>

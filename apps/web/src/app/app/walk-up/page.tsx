@@ -110,7 +110,10 @@ export default function WalkUpPage() {
           >
             <Plus className="w-3 h-3" /> Check In Walk-Up
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">
+          <button
+            onClick={() => toast.info("To book an appointment, use the Appointments tab below.")}
+            className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
+          >
             <Calendar className="w-3 h-3" /> Book Appointment
           </button>
         </div>
@@ -182,7 +185,10 @@ export default function WalkUpPage() {
                         >
                           Complete
                         </button>
-                        <button className="px-3 py-1 border border-border text-[11px] rounded text-muted-foreground hover:bg-muted/30">Create Incident</button>
+                        <button
+                          onClick={() => { window.location.href = "/app/tickets/new"; }}
+                          className="px-3 py-1 border border-border text-[11px] rounded text-muted-foreground hover:bg-muted/30"
+                        >Create Incident</button>
                       </div>
                     </div>
                   );
@@ -294,9 +300,9 @@ export default function WalkUpPage() {
                       <td><span className={`status-badge capitalize ${a.status === "confirmed" ? "text-blue-700 bg-blue-100" : a.status === "completed" ? "text-green-700 bg-green-100" : a.status === "cancelled" ? "text-muted-foreground/70 bg-muted/30" : "text-yellow-700 bg-yellow-100"}`}>{a.status}</span></td>
                       <td>
                         <div className="flex gap-1.5">
-                          {a.status === "booked" && <button className="text-[11px] text-primary hover:underline">Assign</button>}
-                          {a.status === "confirmed" && <button className="text-[11px] text-green-700 hover:underline">Start</button>}
-                          <button className="text-[11px] text-muted-foreground/70 hover:underline">View</button>
+                          {a.status === "booked" && <button onClick={() => toast.info("Assign this appointment to an agent via the scheduling system.")} className="text-[11px] text-primary hover:underline">Assign</button>}
+                          {a.status === "confirmed" && <button onClick={() => toast.info("Session started — check in the walk-up queue for live status.")} className="text-[11px] text-green-700 hover:underline">Start</button>}
+                          <button onClick={() => toast.info(`Appointment: ${a.employee} — ${a.description}`)} className="text-[11px] text-muted-foreground/70 hover:underline">View</button>
                         </div>
                       </td>
                     </tr>

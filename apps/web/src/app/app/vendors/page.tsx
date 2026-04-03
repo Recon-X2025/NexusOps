@@ -224,7 +224,7 @@ export default function VendorsPage() {
                           {(c.status ?? "active").replace(/_/g," ")}
                         </span>
                       </td>
-                      <td><button className="text-[11px] text-primary hover:underline">View</button></td>
+                      <td><button onClick={() => toast.info("Vendor detail view — full vendor profile page coming soon.")} className="text-[11px] text-primary hover:underline">View</button></td>
                     </tr>
                   );
                 })

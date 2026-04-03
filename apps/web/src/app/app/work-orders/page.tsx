@@ -103,6 +103,9 @@ export default function WorkOrdersPage() {
   const [woActionPanel, setWoActionPanel] = useState<"assign" | "state" | null>(null);
   const [woNewState, setWoNewState] = useState<string>("");
   const [woActionMsg, setWoActionMsg] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterType, setFilterType] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
 
   const { data, isLoading, refetch } = trpc.workOrders.list.useQuery({
     state: (activeTab !== "all" ? activeTab : undefined) as "open" | "closed" | "draft" | "work_in_progress" | "dispatched" | "pending_dispatch" | "on_hold" | "complete" | "cancelled" | undefined,
@@ -129,12 +132,17 @@ export default function WorkOrdersPage() {
   };
 
   const items = data?.items ?? [];
+  const filteredItems = items.filter((i: WOListItem) => {
+    if (filterType && i.type !== filterType) return false;
+    if (filterPriority && i.priority !== filterPriority) return false;
+    return true;
+  });
 
   const toggleAll = () => {
-    if (selected.size === items.length) {
+    if (selected.size === filteredItems.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(items.map((i: WOListItem) => i.id)));
+      setSelected(new Set(filteredItems.map((i: WOListItem) => i.id)));
     }
   };
 
@@ -200,10 +208,47 @@ export default function WorkOrdersPage() {
             className="text-[12px] text-foreground/80 placeholder:text-muted-foreground/70 outline-none flex-1"
           />
         </div>
-        <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded bg-card hover:bg-muted/30">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex items-center gap-1 px-2 py-1 text-[11px] border rounded bg-card hover:bg-muted/30 ${showFilters || filterType || filterPriority ? "border-primary text-primary" : "text-muted-foreground border-border"}`}
+        >
           <Filter className="w-3 h-3" /> Filters
+          {(filterType || filterPriority) && <span className="w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />}
         </button>
       </div>
+
+      {/* Filter panel */}
+      {showFilters && (
+        <div className="flex items-center gap-3 px-3 py-2 bg-muted/30 border border-border rounded text-[11px]">
+          <span className="text-muted-foreground font-medium">Filter by:</span>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="border border-border rounded px-2 py-1 bg-background text-foreground text-[11px]"
+          >
+            <option value="">All Types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <select
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value)}
+            className="border border-border rounded px-2 py-1 bg-background text-foreground text-[11px]"
+          >
+            <option value="">All Priorities</option>
+            {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </select>
+          {(filterType || filterPriority) && (
+            <button
+              onClick={() => { setFilterType(""); setFilterPriority(""); }}
+              className="text-muted-foreground hover:text-foreground underline"
+            >Clear</button>
+          )}
+        </div>
+      )}
 
       {/* State tabs */}
       <div className="flex items-center gap-0 border-b border-border bg-card rounded-t">
@@ -228,7 +273,7 @@ export default function WorkOrdersPage() {
           <div className="flex items-center justify-center h-40 text-[12px] text-muted-foreground/70">
             Loading work orders...
           </div>
-        ) : items.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-[12px] text-muted-foreground/70">
             No work orders found
           </div>
@@ -239,7 +284,7 @@ export default function WorkOrdersPage() {
                 <th className="w-8">
                   <input
                     type="checkbox"
-                    checked={selected.size === items.length && items.length > 0}
+                    checked={selected.size === filteredItems.length && filteredItems.length > 0}
                     onChange={toggleAll}
                     className="accent-primary"
                   />
@@ -269,7 +314,7 @@ export default function WorkOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((wo: WOListItem) => {
+              {filteredItems.map((wo: WOListItem) => {
                 const pCfg = PRIORITY_CONFIG[wo.priority as WOPriority];
                 const sCfg = STATE_CONFIG[wo.state as WOState];
                 const StateIcon = sCfg?.Icon ?? Circle;
@@ -364,7 +409,7 @@ export default function WorkOrdersPage() {
           <span>
             {selected.size > 0
               ? `${selected.size} record${selected.size > 1 ? "s" : ""} selected`
-              : `${items.length} record${items.length !== 1 ? "s" : ""}`}
+              : `${filteredItems.length} record${filteredItems.length !== 1 ? "s" : ""}${filterType || filterPriority ? " (filtered)" : ""}`}
           </span>
           {selected.size > 0 && (
             <div className="flex items-center gap-2">

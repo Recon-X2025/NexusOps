@@ -59,6 +59,7 @@ export default function EventManagementPage() {
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -173,7 +174,10 @@ export default function EventManagementPage() {
             className="text-[12px] outline-none flex-1 placeholder:text-muted-foreground/70"
           />
         </div>
-        <button className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded bg-card">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex items-center gap-1 px-2 py-1 text-[11px] border rounded bg-card ${showFilters ? "border-primary text-primary" : "border-border"}`}
+        >
           <Filter className="w-3 h-3" /> Filters
         </button>
       </div>

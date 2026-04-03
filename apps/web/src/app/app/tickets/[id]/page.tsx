@@ -279,7 +279,10 @@ export default function TicketDetailPage() {
                 >
                   <XCircle className="w-3 h-3" /> {updateTicket.isPending ? "…" : "Close"}
                 </button>
-                <button className="p-1.5 border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <button
+                  onClick={() => toast.info("More actions coming soon")}
+                  className="p-1.5 border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                >
                   <MoreHorizontal className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -565,7 +568,7 @@ export default function TicketDetailPage() {
                   <div key={section.label} className="border border-border rounded">
                     <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-muted-foreground">{section.label}</span>
-                      <button className="text-[11px] text-primary hover:underline">+ Link</button>
+                      <button onClick={() => toast.info("To link a related item, open the target record and use its Related Items panel.")} className="text-[11px] text-primary hover:underline">+ Link</button>
                     </div>
                     <div className="p-3 text-[12px] text-muted-foreground/70 italic">
                       No related {section.label.toLowerCase()}

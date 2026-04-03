@@ -405,7 +405,7 @@ export default function ProcurementPage() {
                           <td className="font-mono text-[10px] text-muted-foreground/70">{pr.budgetCode ?? "—"}</td>
                           <td>
                             {prState === "approved"
-                              ? <button className="text-[11px] text-primary hover:underline">+ Create PO</button>
+                              ? <button onClick={() => toast.info("Creating a Purchase Order from this PR — PO creation wizard coming soon.")} className="text-[11px] text-primary hover:underline">+ Create PO</button>
                               : "—"
                             }
                           </td>

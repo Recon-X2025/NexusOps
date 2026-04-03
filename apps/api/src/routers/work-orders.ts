@@ -229,6 +229,37 @@ export const workOrdersRouter = router({
       return task;
     }),
 
+  addTask: permissionProcedure("work_orders", "write")
+    .input(z.object({
+      workOrderId: z.string().uuid(),
+      shortDescription: z.string().min(1).max(500),
+      estimatedHours: z.coerce.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db } = ctx;
+      const { org } = ctx;
+
+      const existing = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(workOrderTasks)
+        .where(eq(workOrderTasks.workOrderId, input.workOrderId));
+      const seq = Number(existing[0]?.count ?? 0) + 1;
+
+      const [task] = await db
+        .insert(workOrderTasks)
+        .values({
+          workOrderId: input.workOrderId,
+          orgId: org!.id,
+          number: `T${String(seq).padStart(4, "0")}`,
+          shortDescription: input.shortDescription,
+          estimatedHours: input.estimatedHours,
+          order: seq,
+        })
+        .returning();
+
+      return task;
+    }),
+
   addNote: permissionProcedure("work_orders", "write")
     .input(z.object({
       workOrderId: z.string().uuid(),

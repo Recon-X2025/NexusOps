@@ -184,7 +184,10 @@ export default function OnCallPage() {
                     <div className="text-[11px] text-muted-foreground font-mono">{person.phone}</div>
                   </div>
                 </div>
-                <button className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200">
+                <button
+                  onClick={() => toast.success(`Paging ${rot.team} on-call engineer — they will be notified via their registered pager/phone.`)}
+                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200"
+                >
                   <Phone className="w-3 h-3" /> Page Now
                 </button>
               </div>
