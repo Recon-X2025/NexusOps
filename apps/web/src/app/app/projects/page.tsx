@@ -311,7 +311,6 @@ export default function ProjectsPage() {
               </div>
               <PermissionGate module="projects" action="write">
                 <button
-                <button
                   onClick={() => setShowNewProject(true)}
                   className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
                 >
