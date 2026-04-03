@@ -20,11 +20,14 @@ const TYPE_COLORS: Record<string, string> = {
   change:   "text-cyan-700 bg-cyan-100",
 };
 
-const PRIORITY_COLORS: Record<string, { bar: string; text: string }> = {
-  "1_critical": { bar: "bg-red-600",    text: "text-red-700" },
-  "2_high":     { bar: "bg-orange-500", text: "text-orange-700" },
-  "3_moderate": { bar: "bg-yellow-500", text: "text-yellow-600" },
-  "4_low":      { bar: "bg-green-500",  text: "text-green-700" },
+const URGENCY_COLORS: Record<string, { bar: string; text: string; badge: string }> = {
+  high:   { bar: "bg-red-600",    text: "text-red-700",    badge: "bg-red-100 text-red-700" },
+  medium: { bar: "bg-yellow-500", text: "text-yellow-600", badge: "bg-yellow-100 text-yellow-700" },
+  low:    { bar: "bg-green-500",  text: "text-green-700",  badge: "bg-green-100 text-green-700" },
+};
+
+const IMPACT_LABEL: Record<string, string> = {
+  high: "High Impact", medium: "Medium Impact", low: "Low Impact",
 };
 
 const ACTIVITY_ICON: Record<string, React.ElementType> = {
@@ -157,7 +160,9 @@ export default function TicketDetailPage() {
   }
 
   const { ticket, comments, activityLog } = data;
-  const pCfg = PRIORITY_COLORS[ticket.priority ?? "4_low"];
+  const urgency = (ticket.urgency ?? "medium") as "high" | "medium" | "low";
+  const impact  = (ticket.impact  ?? "medium") as "high" | "medium" | "low";
+  const uCfg = URGENCY_COLORS[urgency];
   const typeBadge = TYPE_COLORS[ticket.type ?? "incident"];
 
   const slaOverdueMs =
@@ -199,15 +204,18 @@ export default function TicketDetailPage() {
       {/* Record header */}
       <div className="bg-card border border-border rounded">
         <div className="flex items-start gap-3 px-4 py-3 border-b border-border">
-          <div className={`w-1.5 self-stretch rounded-full flex-shrink-0 ${pCfg?.bar ?? "bg-border"}`} />
+          <div className={`w-1.5 self-stretch rounded-full flex-shrink-0 ${uCfg?.bar ?? "bg-border"}`} />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center flex-wrap gap-1.5 mb-1">
                   <span className="text-[11px] font-mono text-muted-foreground">{ticket.number}</span>
                   <span className={`status-badge ${typeBadge} capitalize`}>{ticket.type}</span>
-                  <span className="status-badge text-muted-foreground bg-muted capitalize">
-                    {(ticket.priority ?? "4_low").replace(/_/g, " ").replace(/^\d /, "")}
+                  <span className={`status-badge capitalize ${uCfg?.badge ?? "bg-muted text-muted-foreground"}`}>
+                    {urgency} urgency
+                  </span>
+                  <span className="status-badge bg-muted text-muted-foreground capitalize">
+                    {IMPACT_LABEL[impact]}
                   </span>
                   {ticket.slaBreached && (
                     <span className="status-badge text-red-700 bg-red-100 font-semibold">
@@ -617,11 +625,14 @@ export default function TicketDetailPage() {
                   {ticket.type}
                 </span>
               </FieldRow>
-              <FieldRow label="Priority">
-                <span className={`text-[11px] font-semibold ${pCfg?.text ?? ""}`}>
-                  <span className={`inline-block w-2 h-2 rounded-full mr-1 ${pCfg?.bar}`} />
-                  {(ticket.priority ?? "4_low").replace(/_/g, " ").replace(/^(\d) /, (_: string, n: string) => `${n} – `)}
+              <FieldRow label="Urgency">
+                <span className={`text-[11px] font-semibold capitalize ${uCfg?.text ?? ""}`}>
+                  <span className={`inline-block w-2 h-2 rounded-full mr-1 ${uCfg?.bar}`} />
+                  {urgency}
                 </span>
+              </FieldRow>
+              <FieldRow label="Impact">
+                <span className="text-[11px] text-muted-foreground capitalize">{IMPACT_LABEL[impact]}</span>
               </FieldRow>
               <FieldRow label="Impact">
                 <span className="text-muted-foreground">—</span>

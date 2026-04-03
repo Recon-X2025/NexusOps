@@ -40,6 +40,8 @@ export const CreateTicketSchema = z.object({
   categoryId: z.string().uuid().optional(),
   priorityId: z.string().uuid().optional(),
   type: TicketTypeEnum.default("request"),
+  impact: z.enum(["high", "medium", "low"]).optional(),
+  urgency: z.enum(["high", "medium", "low"]).optional(),
   assigneeId: z.string().uuid().optional(),
   teamId: z.string().uuid().optional(),
   dueDate: z.coerce.date().optional(),

@@ -122,6 +122,17 @@ export default function NewTicketPage() {
       ? PRIORITY_MATRIX[form.impact]?.[form.urgency] ?? "—"
       : "—";
 
+  // Map form select values ("1_enterprise", "3_medium", etc.) to the DB enum values
+  const impactForApi: "high" | "medium" | "low" =
+    form.impact === "1_enterprise" || form.impact === "2_multiple" ? "high"
+    : form.impact === "4_individual" ? "low"
+    : "medium";
+
+  const urgencyForApi: "high" | "medium" | "low" =
+    form.urgency === "1_critical" || form.urgency === "2_high" ? "high"
+    : form.urgency === "4_low" ? "low"
+    : "medium";
+
   const utils = trpc.useUtils();
 
   const createTicket = trpc.tickets.create.useMutation({
@@ -155,6 +166,8 @@ export default function NewTicketPage() {
       tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       dueDate: form.dueDate ? new Date(form.dueDate) : undefined,
       idempotencyKey: idempotencyKeyRef.current,
+      impact: impactForApi,
+      urgency: urgencyForApi,
       customFields: {
         impact: form.impact,
         urgency: form.urgency,

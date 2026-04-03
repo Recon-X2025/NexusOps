@@ -496,15 +496,38 @@ export const ticketsRouter = router({
       });
     }
 
-    // Calculate SLA if priority set
+    // ── Resolve impact/urgency → priorityId ─────────────────────────────────
+    // Map the ITIL impact × urgency matrix to a numeric priority level (1=critical … 4=low),
+    // then look up the org's matching priority tier by sort_order so SLA targets apply.
+    const impactLevel  = input.impact  === "high" ? 1 : input.impact  === "low" ? 3 : 2;
+    const urgencyLevel = input.urgency === "high" ? 1 : input.urgency === "low" ? 3 : 2;
+    const priorityLevel = Math.min(Math.round((impactLevel + urgencyLevel) / 2), 4);
+
+    let resolvedPriorityId = input.priorityId ?? null;
+    if (!resolvedPriorityId && (input.impact || input.urgency)) {
+      // Fetch all org priorities ordered by sort_order ascending (lower = higher severity)
+      const orgPriorities = await db
+        .select()
+        .from(ticketPriorities)
+        .where(eq(ticketPriorities.orgId, org!.id))
+        .orderBy(asc(ticketPriorities.sortOrder));
+
+      if (orgPriorities.length > 0) {
+        // Clamp priorityLevel index to the number of tiers available
+        const idx = Math.min(priorityLevel - 1, orgPriorities.length - 1);
+        resolvedPriorityId = orgPriorities[idx]?.id ?? orgPriorities[orgPriorities.length - 1]!.id;
+      }
+    }
+
+    // Calculate SLA from the resolved priority
     let slaResponseDueAt: Date | undefined;
     let slaResolveDueAt: Date | undefined;
 
-    if (input.priorityId) {
+    if (resolvedPriorityId) {
       const [priority] = await db
         .select()
         .from(ticketPriorities)
-        .where(eq(ticketPriorities.id, input.priorityId));
+        .where(eq(ticketPriorities.id, resolvedPriorityId));
 
       if (priority) {
         const now = new Date();
@@ -581,9 +604,11 @@ export const ticketsRouter = router({
               title: input.title,
               description: input.description,
               categoryId: input.categoryId,
-              priorityId: input.priorityId,
+              priorityId: resolvedPriorityId,
               statusId: defaultStatus.id,
               type: input.type ?? "request",
+              impact: (input.impact ?? "medium") as "high" | "medium" | "low",
+              urgency: (input.urgency ?? "medium") as "high" | "medium" | "low",
               requesterId: user!.id,
               assigneeId: resolvedAssigneeId,
               teamId: resolvedTeamId,
