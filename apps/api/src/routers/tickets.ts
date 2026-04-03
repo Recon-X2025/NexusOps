@@ -325,6 +325,8 @@ export const ticketsRouter = router({
           type: tickets.type,
           requesterId: tickets.requesterId,
           assigneeId: tickets.assigneeId,
+          assigneeName: users.name,
+          assigneeEmail: users.email,
           teamId: tickets.teamId,
           dueDate: tickets.dueDate,
           slaBreached: tickets.slaBreached,
@@ -336,6 +338,7 @@ export const ticketsRouter = router({
           updatedAt: tickets.updatedAt,
         })
         .from(tickets)
+        .leftJoin(users, eq(tickets.assigneeId, users.id))
         .where(and(...conditions))
         .orderBy(
           ...(input.orderBy === "priority"

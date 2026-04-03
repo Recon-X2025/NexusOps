@@ -81,6 +81,8 @@ type TicketRow = {
   priorityId: string | null;
   statusId: string | null;
   assigneeId: string | null;
+  assigneeName: string | null;
+  assigneeEmail: string | null;
   slaBreached: boolean;
   tags: string[];
   createdAt: Date;
@@ -767,9 +769,11 @@ export default function TicketsPage() {
                         {ticket.assigneeId ? (
                           <div className="flex items-center gap-1.5">
                             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[0.55rem] font-bold text-violet-700 dark:bg-violet-900 dark:text-violet-300 flex-shrink-0">
-                              {ticket.assigneeId.slice(0, 2).toUpperCase()}
+                              {ticket.assigneeName ? ticket.assigneeName.charAt(0).toUpperCase() : ticket.assigneeId.slice(0, 2).toUpperCase()}
                             </div>
-                            <span className="text-xs text-muted-foreground truncate max-w-[4rem]">Assigned</span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[6rem]">
+                              {ticket.assigneeName ?? ticket.assigneeEmail ?? "Assigned"}
+                            </span>
                           </div>
                         ) : (
                           <span className="flex items-center gap-1 text-[0.65rem] text-muted-foreground/60 italic">

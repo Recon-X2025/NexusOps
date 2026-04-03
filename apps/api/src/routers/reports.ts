@@ -5,12 +5,17 @@ import {
   changeRequests,
   securityIncidents,
   budgetLines,
+  surveyResponses,
+  ticketPriorities,
+  users,
   eq,
   and,
   desc,
   count,
   sql,
   gte,
+  avg,
+  isNotNull,
 } from "@nexusops/db";
 
 export const reportsRouter = router({
@@ -59,6 +64,25 @@ export const reportsRouter = router({
     const actual = Number(budgetRows[0]?.actual ?? 0);
     const budgetVariance = budgeted > 0 ? Math.round(((actual - budgeted) / budgeted) * 100) : 0;
 
+    // Real avg resolution time from tickets resolved in last 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [{ avgMs }] = await db.select({
+      avgMs: sql<number>`AVG(EXTRACT(EPOCH FROM (${tickets.resolvedAt} - ${tickets.createdAt})) * 1000)`,
+    }).from(tickets)
+      .where(and(
+        eq(tickets.orgId, org!.id),
+        isNotNull(tickets.resolvedAt),
+        gte(tickets.resolvedAt, thirtyDaysAgo),
+      ));
+    const avgHours = avgMs ? (Number(avgMs) / 3600000).toFixed(1) : null;
+
+    // Real CSAT score from survey responses in last 30 days
+    const [{ avgCsat }] = await db.select({
+      avgCsat: avg(surveyResponses.score),
+    }).from(surveyResponses)
+      .where(gte(surveyResponses.submittedAt, thirtyDaysAgo));
+    const csatScore = avgCsat ? `${Number(avgCsat).toFixed(1)}/5` : null;
+
     return {
       openTickets: Number(openTickets),
       resolvedToday: Number(resolvedToday),
@@ -66,13 +90,12 @@ export const reportsRouter = router({
       securityIncidentsOpen: Number(secIncidents),
       pendingChanges: Number(pendingChanges),
       budgetVariancePct: budgetVariance,
-      // Extended fields consumed by reports page
       openIncidents: Number(openTickets),
       resolvedMtd: Number(resolvedToday),
       slaCompliance: slaBreached ? `${Math.max(0, Math.round((1 - Number(slaBreached) / Math.max(Number(openTickets), 1)) * 100))}%` : "100%",
-      avgResolutionTime: "4.2h",
-      csatScore: "4.4/5",
-      ticketDeflection: "88%",
+      avgResolutionTime: avgHours ? `${avgHours}h` : null,
+      csatScore: csatScore,
+      ticketDeflection: null,
       incidentTrend: [0, 0, 0, 0, 0, 0, 0] as number[],
       resolvedTrend: [0, 0, 0, 0, 0, 0, 0] as number[],
       byCategory: [] as Array<{ category: string; count: number }>,
@@ -84,15 +107,20 @@ export const reportsRouter = router({
 
     const priorityCounts = await db.select({
       priorityId: tickets.priorityId,
+      priorityName: ticketPriorities.name,
+      priorityColor: ticketPriorities.color,
       total: count(),
       breached: sql<number>`SUM(CASE WHEN ${tickets.slaBreached} THEN 1 ELSE 0 END)`,
     }).from(tickets)
+      .leftJoin(ticketPriorities, eq(tickets.priorityId, ticketPriorities.id))
       .where(eq(tickets.orgId, org!.id))
-      .groupBy(tickets.priorityId)
+      .groupBy(tickets.priorityId, ticketPriorities.name, ticketPriorities.color)
       .orderBy(desc(count()));
 
     return priorityCounts.map((row: any) => ({
       priorityId: row.priorityId,
+      priorityName: row.priorityName ?? "No Priority",
+      priorityColor: row.priorityColor,
       total: Number(row.total),
       breached: Number(row.breached),
       breachRate: row.total > 0 ? Math.round((Number(row.breached) / Number(row.total)) * 100) : 0,

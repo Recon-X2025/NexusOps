@@ -451,11 +451,51 @@ export default function FinancialPage() {
                 </div>
               ))}
             </div>
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-1">
-              <BarChart2 className="w-6 h-6 opacity-30" />
-              <p className="text-[12px]">Detailed AP aging report requires vendor payment integration.</p>
-              <p className="text-[11px] text-muted-foreground/60">The aging summary above reflects live invoice data from the Invoices tab.</p>
-            </div>
+            {(() => {
+              const payableInvoices = invoices.filter((i: any) => !i.direction || i.direction === "payable");
+              const overdue = payableInvoices.filter((i: any) => i.status === "overdue");
+              return payableInvoices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground gap-1">
+                  <BarChart2 className="w-6 h-6 opacity-30" />
+                  <p className="text-[12px]">No payable invoices found.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 mt-2">
+                  {overdue.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded text-red-700 text-[11px]">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <strong>{overdue.length} overdue invoice{overdue.length !== 1 ? "s" : ""}</strong>&nbsp;— total ₹{overdue.reduce((s: number, i: any) => s + Number(i.totalAmount ?? 0), 0).toLocaleString()}
+                    </div>
+                  )}
+                  <table className="ent-table w-full">
+                    <thead>
+                      <tr>
+                        <th>Invoice #</th><th>Vendor</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payableInvoices.map((inv: any) => (
+                        <tr key={inv.id} className={inv.status === "overdue" ? "bg-red-50/30" : ""}>
+                          <td><span className="font-mono text-[11px]">{inv.invoiceNumber ?? inv.id.slice(0,8)}</span></td>
+                          <td className="text-[12px]">{inv.vendorName ?? "—"}</td>
+                          <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? 0).toLocaleString()}</td>
+                          <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
+                          <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
+                          <td className="flex gap-2">
+                            {inv.status === "pending" && can("financial", "write") && (
+                              <button onClick={() => approveInvoiceMutation.mutate({ id: inv.id })} disabled={approveInvoiceMutation.isPending} className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">Approve</button>
+                            )}
+                            {(inv.status === "pending" || inv.status === "overdue") && can("financial", "write") && (
+                              <button onClick={() => markPaidMutation.mutate({ id: inv.id })} disabled={markPaidMutation.isPending} className="text-[10px] text-green-600 hover:underline disabled:opacity-50">Mark Paid</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 
