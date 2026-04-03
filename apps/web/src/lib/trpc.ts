@@ -32,24 +32,19 @@ function fetchWithTimeout(
   );
 }
 
-function resolveApiBase(): string {
-  // Build-time override (e.g. for custom domains / HTTPS setups)
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+function getTRPCUrl(): string {
+  // Server-side (SSR): call the API directly over the Docker internal network.
+  // API_INTERNAL_URL is set to http://api:3001 in the Docker Compose file.
+  if (typeof window === "undefined") {
+    return `${process.env.API_INTERNAL_URL ?? "http://localhost:3001"}/trpc`;
   }
-  // Client-side: derive from the browser's current hostname so the app
-  // works on any host (localhost in dev, a real IP/domain in production)
-  // without needing to bake the URL into the bundle at build time.
-  if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:3001`;
-  }
-  // SSR fallback — only used for server-side rendering, not visible to clients
-  return "http://localhost:3001";
+  // Browser: use the same-origin proxy route /api/trpc.
+  // This avoids all CORS and CSP issues — the browser talks to the Next.js
+  // server on the same port, which forwards to the API container internally.
+  return "/api/trpc";
 }
 
 export function getTRPCClient() {
-  const apiBase = resolveApiBase();
-
   return trpc.createClient({
     links: [
       loggerLink({
@@ -58,7 +53,7 @@ export function getTRPCClient() {
           (opts.direction === "down" && opts.result instanceof Error),
       }),
       httpBatchLink({
-        url: `${apiBase}/trpc`,
+        url: getTRPCUrl(),
         fetch: fetchWithTimeout,
         headers() {
           if (typeof window !== "undefined") {

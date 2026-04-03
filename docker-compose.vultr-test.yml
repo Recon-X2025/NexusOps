@@ -25,6 +25,9 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+      # Used server-side (SSR + /api/trpc proxy) to reach the API container
+      # over the Docker internal network — never exposed to the browser.
+      API_INTERNAL_URL: http://api:3001
     depends_on:
       api:
         condition: service_healthy

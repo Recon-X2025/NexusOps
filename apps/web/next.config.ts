@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+// All browser→API traffic goes through the same-origin /api/trpc proxy route,
+// so we no longer need to include the API port in the CSP connect-src.
+// 'self' covers all /api/* calls; wss:/ws: cover websocket upgrades if added later.
 
 const securityHeaders = [
   {
@@ -31,8 +33,8 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      `connect-src 'self' ${apiUrl} wss: ws:`,
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-eval needed for Next.js dev
+      "connect-src 'self' wss: ws:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
