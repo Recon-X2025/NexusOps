@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -30,7 +30,7 @@ const STATUS_TABS = [
 export default function KnowledgePage() {
   const { can } = useRBAC();
   const router = useRouter();
-  const visibleTabs = STATUS_TABS.filter((t) => can(t.module, t.action));
+  const visibleTabs = useMemo(() => STATUS_TABS.filter((t) => can(t.module, t.action)), [can]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState(visibleTabs[0]?.key ?? "all");
