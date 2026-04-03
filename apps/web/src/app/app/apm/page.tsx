@@ -185,7 +185,6 @@ export default function APMPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("projects", "read") && !can("reports", "read")) return <AccessDenied module="Application Portfolio Management" />;
 
   // @ts-ignore
   const appsQuery = trpc.apm.applications.list.useQuery({});
@@ -196,6 +195,8 @@ export default function APMPage() {
     onSuccess: () => { appsQuery.refetch(); toast.success("Application added"); },
     onError: (e: any) => { console.error("apm.applications.create failed:", e); toast.error(e.message || "Failed to add application"); },
   });
+
+  if (!can("projects", "read") && !can("reports", "read")) return <AccessDenied module="Application Portfolio Management" />;
 
   const APPS: Application[] = (appsQuery.data?.items ?? APPS_DEFAULT) as Application[];
 

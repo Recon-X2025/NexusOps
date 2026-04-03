@@ -65,14 +65,15 @@ const MODULES = [
 
 export default function ITServicesDashboard() {
   const { can } = useRBAC();
-  if (!can("incidents", "read") && !can("work_orders", "read") && !can("cmdb", "read")) {
-    return <AccessDenied module="IT Services" />;
-  }
 
   const { data: statusCounts, isLoading: loadingStatus } = trpc.tickets.statusCounts.useQuery();
   const { data: recentTicketsPage, isLoading: loadingTickets } = trpc.tickets.list.useQuery({ type: "incident", limit: 5 });
   const { data: workOrderMetrics, isLoading: loadingWO } = trpc.workOrders.metrics.useQuery();
   const { data: changesPage, isLoading: loadingChanges } = trpc.changes.list.useQuery({ limit: 200 });
+
+  if (!can("incidents", "read") && !can("work_orders", "read") && !can("cmdb", "read")) {
+    return <AccessDenied module="IT Services" />;
+  }
 
   const recentTickets = recentTicketsPage?.items ?? [];
   const changes = changesPage?.items ?? [];

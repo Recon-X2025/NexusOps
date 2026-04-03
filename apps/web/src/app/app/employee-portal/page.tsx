@@ -53,7 +53,6 @@ export default function EmployeePortalPage() {
     },
   });
 
-  if (!can("hr", "read")) return <AccessDenied module="Employee Portal" />;
 
   // Merge live employee data with fallback
   const liveEmployee = employeeQuery.data?.[0];
@@ -82,6 +81,8 @@ export default function EmployeePortalPage() {
     { employeeId: myEmployeeId! },
     { enabled: !!myEmployeeId },
   );
+
+  if (!can("hr", "read")) return <AccessDenied module="Employee Portal" />;
 
   const payslips = (payslipsQuery.data ?? []) as any[];
   const currentSlip = currentSlipQuery.data;

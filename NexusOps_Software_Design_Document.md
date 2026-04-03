@@ -1,7 +1,7 @@
 # NexusOps — Software Design Document (SDD)
 
-**Version:** 1.4  
-**Date:** March 29, 2026  
+**Version:** 1.5  
+**Date:** April 2, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -1747,3 +1747,4 @@ Two distinct retry layers exist:
 
 *This document was generated from a comprehensive analysis of the NexusOps monorepo source code, component architecture, middleware patterns, and infrastructure configuration as of March 26, 2026. It should be updated whenever significant architectural or design decisions are made.*
 | 1.4 | 2026-03-29 | Platform Engineering | **Observability stack design.** Expanded §5.7 (Logging Design): documented `initLogger()` setter pattern, canonical `logInfo`/`logWarn`/`logError` functions, request log field schema, correlation ID strategy, and stack trace policy. Added §5.8 (In-Memory Metrics Design): `MetricsState` shape, URL normalisation, incremental mean algorithm, and full public API (`recordRequest`, `recordError`, `recordRateLimit`, `getMetricsSnapshot`, `resetMetrics`). Added §5.9 (Health Signal Design): pure `evaluateHealth()` rule table, `healthMonitor.ts` module-level state, non-evaluation vs evaluation tick cost analysis, log routing table, and anti-spam invariant. Updated §16.4 (Observability Hooks) table with rate-limit counter, per-endpoint metrics, health status change signal, and internal endpoint reads. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test design validation.** 10,000-session stress test (March 27): unique-token-per-session design validated — 100% login success, 0 auth failures across 10,000 independent sessions. RBAC design gap identified: `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` and `walkup` reads (non-admin) returning FORBIDDEN — `permissionProcedure` resource/action bindings for these modules need expanding. Drizzle schema-import design flaw: `Symbol(drizzle:Columns)` error on `tickets.create`/`workOrders.create` for non-admin paths indicates a Drizzle ORM import reference not correctly exported from `@nexusops/db` in some code paths. Destructive chaos test Round 2 (April 2): auth.login bottleneck confirms §5.10 (bcrypt semaphore) design works correctly but `BCRYPT_CONCURRENCY=8` is undersized for >50 concurrent login attempts/s — ceiling should be raised or a Redis pre-check added. Bearer token design: §8 (Authentication) `createContext` middleware confirmed inconsistently applying Bearer extraction for query-type tRPC procedures. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |

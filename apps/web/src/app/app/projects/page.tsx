@@ -47,7 +47,6 @@ export default function ProjectsPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
 
   const { data, isLoading } = trpc.projects.list.useQuery(
     { limit: 50 },
@@ -61,6 +60,9 @@ export default function ProjectsPage() {
   const createProject = trpc.projects.create.useMutation({
     onSuccess: (p) => {
       setProjectMsg(`Project ${p.number} created`);
+
+  if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
+
       setShowNewProject(false);
       setProjectForm({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
       setTimeout(() => setProjectMsg(null), 4000);

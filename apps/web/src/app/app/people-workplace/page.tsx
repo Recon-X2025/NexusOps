@@ -48,12 +48,13 @@ const MODULES = [
 
 export default function PeopleWorkplaceDashboard() {
   const { can } = useRBAC();
-  if (!can("hr", "read") && !can("facilities", "read")) {
-    return <AccessDenied module="People & Workplace" />;
-  }
 
   const { data: hrCases, isLoading: loadingCases } = trpc.hr.cases.list.useQuery({});
   const { data: employees, isLoading: loadingEmp } = trpc.hr.employees.list.useQuery({});
+
+  if (!can("hr", "read") && !can("facilities", "read")) {
+    return <AccessDenied module="People & Workplace" />;
+  }
 
   const openCases = hrCases ? hrCases.length : 0;
   const onboardingEmployees = employees ? employees.filter((e) => e.status === "onboarding").length : 0;

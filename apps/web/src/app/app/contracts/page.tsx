@@ -657,10 +657,12 @@ function ContractsPageInner() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("contracts", "read")) return <AccessDenied module="Contract Management" />;
 
   // Live contracts from API, fallback to mock for demo
   const { data: contractsApiData } = trpc.contracts.list.useQuery({ limit: 100 });
+
+  if (!can("contracts", "read")) return <AccessDenied module="Contract Management" />;
+
   const allContracts: Contract[] = ((contractsApiData as any)?.items?.length
     ? (contractsApiData as any).items
     : CONTRACTS) as Contract[];

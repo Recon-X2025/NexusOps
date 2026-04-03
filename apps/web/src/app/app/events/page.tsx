@@ -64,10 +64,12 @@ export default function EventManagementPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("events", "read")) return <AccessDenied module="Event Management" />;
 
   // @ts-ignore
   const eventsQuery = trpc.events.list.useQuery({ limit: 50 });
+
+  if (!can("events", "read")) return <AccessDenied module="Event Management" />;
+
   // @ts-ignore
   const acknowledgeEvent = trpc.events.acknowledge?.useMutation?.({
     onSuccess: () => { eventsQuery.refetch(); toast.success("Event acknowledged"); },

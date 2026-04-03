@@ -43,9 +43,6 @@ const MODULES = [
 
 export default function SecurityComplianceDashboard() {
   const { can } = useRBAC();
-  if (!can("security", "read") && !can("grc", "read")) {
-    return <AccessDenied module="Security & Compliance" />;
-  }
 
   const { data: secStatusCounts, isLoading: loadingSec } = trpc.security.statusCounts.useQuery();
   const { data: openIncidentCount, isLoading: loadingSecCount } = trpc.security.openIncidentCount.useQuery();
@@ -53,6 +50,10 @@ export default function SecurityComplianceDashboard() {
   const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery({});
   const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery();
   const { data: pendingApprovals, isLoading: loadingApprovals } = trpc.approvals.myPending.useQuery();
+
+  if (!can("security", "read") && !can("grc", "read")) {
+    return <AccessDenied module="Security & Compliance" />;
+  }
 
   const criticalVulns = secStatusCounts ? (secStatusCounts["critical"] ?? 0) : 0;
   const highVulns = secStatusCounts ? (secStatusCounts["high"] ?? 0) : 0;

@@ -35,7 +35,6 @@ export default function KnowledgePage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState(visibleTabs[0]?.key ?? "all");
 
-  if (!can("knowledge", "read")) return <AccessDenied module="Knowledge Management" />;
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -69,6 +68,8 @@ export default function KnowledgePage() {
     },
     { refetchOnWindowFocus: false },
   );
+
+  if (!can("knowledge", "read")) return <AccessDenied module="Knowledge Management" />;
 
   type ArticleItem = NonNullable<typeof data>[number];
   const articles: ArticleItem[] = data ?? [];

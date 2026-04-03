@@ -56,7 +56,6 @@ function SkeletonCard() {
 
 export default function ApprovalsPage() {
   const { can } = useRBAC();
-  if (!can("approvals", "read")) return <AccessDenied module="Approvals" />;
 
   const canApprove = can("approvals", "approve");
   const [activeTab, setActiveTab] = useState<"pending" | "submitted" | "all">("pending");
@@ -76,6 +75,9 @@ export default function ApprovalsPage() {
   const decideMutation = trpc.approvals.decide.useMutation({
     onSuccess: () => {
       pendingQuery.refetch();
+
+  if (!can("approvals", "read")) return <AccessDenied module="Approvals" />;
+
       allQuery.refetch();
       toast.success("Decision recorded");
     },

@@ -50,7 +50,6 @@ export default function ReportsPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("reports", "read") && !can("analytics", "read")) return <AccessDenied module="Analytics & Reporting" />;
 
   const { data: metrics } = trpc.dashboard.getMetrics.useQuery(undefined, {
     staleTime: 5 * 60 * 1000,
@@ -64,6 +63,8 @@ export default function ReportsPage() {
   const workloadQuery = trpc.reports.workloadAnalysis.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   // @ts-ignore
   const trendQuery = trpc.reports.trendAnalysis.useQuery({ days: 30 }, { staleTime: 5 * 60 * 1000 });
+
+  if (!can("reports", "read") && !can("analytics", "read")) return <AccessDenied module="Analytics & Reporting" />;
 
   const incidentTrend: number[] = execQuery.data?.incidentTrend ?? [];
   const resolvedTrend: number[] = execQuery.data?.resolvedTrend ?? [];

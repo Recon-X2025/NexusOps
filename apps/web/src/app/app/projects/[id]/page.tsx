@@ -39,7 +39,6 @@ export default function ProjectDetailPage() {
   const id = params?.id as string;
   const { can } = useRBAC();
 
-  if (!can("projects", "read")) return <AccessDenied module="Projects" />;
 
   const { data: project, isLoading, refetch } = trpc.projects.get.useQuery(
     { id },
@@ -50,6 +49,8 @@ export default function ProjectDetailPage() {
     onSuccess: () => { toast.success("Task marked complete"); refetch(); },
     onError: (err: { message: string }) => toast.error(err?.message ?? "Something went wrong"),
   });
+
+  if (!can("projects", "read")) return <AccessDenied module="Projects" />;
 
   if (isLoading) {
     return (

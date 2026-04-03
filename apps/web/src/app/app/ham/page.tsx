@@ -41,7 +41,6 @@ export default function HAMPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("ham", "read")) return <AccessDenied module="Hardware Asset Management" />;
 
   // @ts-ignore
   const assetsQuery = trpc.assets.ham.list.useQuery({ limit: 50, search: search || undefined });
@@ -59,6 +58,9 @@ export default function HAMPage() {
   const createAsset = trpc.assets.create.useMutation({
     onSuccess: (a) => {
       setAssetMsg(`Asset ${a.assetTag} added`);
+
+  if (!can("ham", "read")) return <AccessDenied module="Hardware Asset Management" />;
+
       setShowAddAsset(false);
       setAssetForm({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "" });
       assetsQuery.refetch();

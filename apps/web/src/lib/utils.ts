@@ -16,7 +16,7 @@ export function downloadCSV(rows: Record<string, unknown>[], filename: string, c
     alert("No data to export.");
     return;
   }
-  const cols = columns ?? Object.keys(rows[0]);
+  const cols = columns ?? Object.keys(rows[0] ?? {});
   const escape = (v: unknown): string => {
     const s = v == null ? "" : String(v).replace(/"/g, '""');
     return /[,"\n\r]/.test(s) ? `"${s}"` : s;

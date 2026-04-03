@@ -41,7 +41,6 @@ export default function FinancialPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("financial", "read")) return <AccessDenied module="Financial Management" />;
 
   const { data: budgetData, isLoading: budgetLoading } = trpc.financial.listBudget.useQuery(
     { fiscalYear: new Date().getFullYear() },
@@ -72,6 +71,9 @@ export default function FinancialPage() {
     {},
     { refetchOnWindowFocus: false },
   );
+
+  if (!can("financial", "read")) return <AccessDenied module="Financial Management" />;
+
   const gstFilings: any[] = gstCalendarQuery.data ?? [];
   const tdsChallans: any[] = tdsChallansQuery.data ?? [];
 

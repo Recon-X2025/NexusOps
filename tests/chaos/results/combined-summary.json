@@ -1,0 +1,648 @@
+{
+  "elapsed_s": 306,
+  "playwright": {
+    "exit": 1,
+    "workers": [
+      {
+        "worker": 2,
+        "consoleErrors": [
+          "%c << query #2 %cauth.me%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n    bac",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "%c << query #3 %cnotifications.unreadCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weig",
+          "%c << query #4 %cdashboard.getMetrics%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: b",
+          "%c << query #5 %csecurity.openIncidentCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-wei",
+          "%c << query #6 %ctickets.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n  ",
+          "%c << query #7 %capprovals.myPending%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bo",
+          "%c << query #8 %cworkOrders.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; ",
+          "%c << query #9 %cdevops.listDeployments%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight:",
+          "%c << query #10 %cchanges.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n ",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "%c << query #12 %csearch.global%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n",
+          "%c << query #17 %cdevops.listDeployments%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight",
+          "%c << query #18 %cchanges.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n ",
+          "%c << query #13 %cnotifications.unreadCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-wei",
+          "%c << query #14 %ctickets.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n ",
+          "%c << query #15 %capprovals.myPending%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: b",
+          "%c << query #16 %cworkOrders.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold;",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "%c << query #19 %cauth.me%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n    ba",
+          "%c << query #20 %cdashboard.getMetrics%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: ",
+          "%c << query #21 %csecurity.openIncidentCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-we",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        ],
+        "failedNavs": [
+          "mid-load-reload iter=10: page.reload: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - waiti"
+        ],
+        "uiFreezes": [],
+        "failedActions": [
+          "spam-click[5]: locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('but"
+        ],
+        "requestsFailed": [
+          "GET http://139.84.154.78/app/legal-governance?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/people-workplace?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/finance-procurement?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/tickets/page-fc4018d577f52c2c.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/developer-ops/page-0755f78acb3d26e4.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/approvals/page-6cb52cd9bb933461.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78:3001/trpc/auth.me?batch=1&input=%7B%7D: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/it-services?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/changes/page-b0c4d43f6aae51b9.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/security-compliance?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/strategy-projects?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/3898-fa6ccb50c5f09c06.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/security-compliance/page-f0b390d19e5bc191.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/it-services/page-591cca9486eb73f7.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/work-orders/page-a550a96a87b5216b.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/customer-sales?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/signup?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fprojects: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fcrm: net::ERR_ABORTED",
+          "GET http://139.84.154.78/signup?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fdashboard: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fprojects: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fprojects: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fassets: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fdashboard: net::ERR_ABORTED"
+        ],
+        "xssAttempts": [],
+        "iterations": 20,
+        "ticketsCreated": 0,
+        "timings": [
+          {
+            "route": "/app/dashboard",
+            "ms": 607
+          },
+          {
+            "route": "/app/crm",
+            "ms": 174
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 133
+          },
+          {
+            "route": "/app/projects",
+            "ms": 174
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 149
+          },
+          {
+            "route": "/app/settings",
+            "ms": 134
+          },
+          {
+            "route": "/app/assets",
+            "ms": 148
+          },
+          {
+            "route": "/app/crm",
+            "ms": 141
+          },
+          {
+            "route": "/app/approvals",
+            "ms": 125
+          },
+          {
+            "route": "/app/settings",
+            "ms": 131
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 158
+          },
+          {
+            "route": "/app/crm",
+            "ms": 117
+          },
+          {
+            "route": "/app/projects",
+            "ms": 128
+          },
+          {
+            "route": "/app/crm",
+            "ms": 126
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 142
+          },
+          {
+            "route": "/app/settings",
+            "ms": 139
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 125
+          },
+          {
+            "route": "/app/projects",
+            "ms": 134
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 144
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 128
+          }
+        ]
+      },
+      {
+        "worker": 4,
+        "consoleErrors": [
+          "%c << query #2 %cauth.me%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n    bac",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "%c << query #2 %cnotifications.unreadCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weig",
+          "%c << query #3 %cdashboard.getMetrics%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: b",
+          "%c << query #4 %csecurity.openIncidentCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-wei",
+          "%c << query #5 %capprovals.myPending%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bo",
+          "%c << query #6 %capprovals.mySubmitted%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: ",
+          "%c << query #7 %capprovals.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "%c << query #14 %cauth.me%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n    ba",
+          "%c << query #15 %cnotifications.unreadCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-wei",
+          "%c << query #16 %cdashboard.getMetrics%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: ",
+          "%c << query #17 %csecurity.openIncidentCount%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-we",
+          "%c << query #18 %capprovals.myPending%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: b",
+          "%c << query #19 %capprovals.mySubmitted%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight:",
+          "%c << query #20 %capprovals.list%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; ",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT"
+        ],
+        "failedNavs": [],
+        "uiFreezes": [],
+        "failedActions": [
+          "spam-click[5]: locator.click: Element is not visible\nCall log:\n\u001b[2m  - waiting for locator('but",
+          "input-inject[1]: locator.fill: Timeout 2000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('in"
+        ],
+        "requestsFailed": [
+          "GET http://139.84.154.78/_next/static/chunks/app/app/strategy-projects/page-3be70fe55b144107.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78:3001/trpc/auth.me?batch=1&input=%7B%7D: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fapprovals: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Ftickets: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fdashboard: net::ERR_ABORTED",
+          "GET http://139.84.154.78/signup?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/forgot-password?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fprojects: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fprojects: net::ERR_ABORTED"
+        ],
+        "xssAttempts": [],
+        "iterations": 20,
+        "ticketsCreated": 0,
+        "timings": [
+          {
+            "route": "/app/approvals",
+            "ms": 338
+          },
+          {
+            "route": "/app/assets",
+            "ms": 147
+          },
+          {
+            "route": "/app/settings",
+            "ms": 130
+          },
+          {
+            "route": "/app/settings",
+            "ms": 134
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 162
+          },
+          {
+            "route": "/app/projects",
+            "ms": 129
+          },
+          {
+            "route": "/app/projects",
+            "ms": 151
+          },
+          {
+            "route": "/app/settings",
+            "ms": 159
+          },
+          {
+            "route": "/app/projects",
+            "ms": 122
+          },
+          {
+            "route": "/app/settings",
+            "ms": 129
+          },
+          {
+            "route": "/app/approvals",
+            "ms": 156
+          },
+          {
+            "route": "/app/settings",
+            "ms": 136
+          },
+          {
+            "route": "/app/assets",
+            "ms": 158
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 144
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 150
+          },
+          {
+            "route": "/app/crm",
+            "ms": 138
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 173
+          },
+          {
+            "route": "/app/assets",
+            "ms": 119
+          },
+          {
+            "route": "/app/projects",
+            "ms": 152
+          },
+          {
+            "route": "/app/approvals",
+            "ms": 128
+          }
+        ]
+      },
+      {
+        "worker": 7,
+        "consoleErrors": [
+          "%c << query #2 %cauth.me%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n    bac",
+          "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+          "%c << query #3 %csearch.global%c %O \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n   \n    background-color: #3fb0d8;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n ",
+          "%c << mutation #2 %cauth.logout%c %O \n    background-color: #904dfc;\n    color: white;\n    padding: 2px;\n   \n    background-color: #904dfc;\n    color: white;\n    padding: 2px;\n  ; font-weight: bold; \n",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTT",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+          "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        ],
+        "failedNavs": [
+          "mid-load-reload iter=11: page.reload: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - waiti",
+          "mid-load-reload iter=15: page.reload: net::ERR_ABORTED; maybe frame was detached?\nCall log:\n\u001b[2m  - waiti"
+        ],
+        "uiFreezes": [],
+        "failedActions": [],
+        "requestsFailed": [
+          "GET http://139.84.154.78/app/finance-procurement?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78:3001/trpc/auth.me?batch=1&input=%7B%7D: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/approvals/page-6cb52cd9bb933461.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/tickets/page-fc4018d577f52c2c.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/3898-fa6ccb50c5f09c06.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/work-orders/page-a550a96a87b5216b.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/people-workplace?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/security-compliance?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/changes/page-b0c4d43f6aae51b9.js: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/customer-sales?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/it-services?_rsc=goe3c: net::ERR_ABORTED",
+          "GET http://139.84.154.78/_next/static/chunks/app/app/developer-ops/page-0755f78acb3d26e4.js: net::ERR_ABORTED",
+          "POST http://139.84.154.78:3001/trpc/auth.logout?batch=1: net::ERR_ABORTED",
+          "GET http://139.84.154.78/signup?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/forgot-password?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fdashboard: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fassets: net::ERR_ABORTED",
+          "GET http://139.84.154.78/forgot-password?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/signup?_rsc=asqg6: net::ERR_ABORTED",
+          "GET http://139.84.154.78/app/projects: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Ftickets: net::ERR_ABORTED",
+          "GET http://139.84.154.78/login?redirect=%2Fapp%2Fassets: net::ERR_ABORTED"
+        ],
+        "xssAttempts": [],
+        "iterations": 20,
+        "ticketsCreated": 0,
+        "timings": [
+          {
+            "route": "/app/projects",
+            "ms": 391
+          },
+          {
+            "route": "/app/assets",
+            "ms": 81
+          },
+          {
+            "route": "/app/settings",
+            "ms": 150
+          },
+          {
+            "route": "/app/assets",
+            "ms": 136
+          },
+          {
+            "route": "/app/crm",
+            "ms": 139
+          },
+          {
+            "route": "/app/settings",
+            "ms": 163
+          },
+          {
+            "route": "/app/dashboard",
+            "ms": 147
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 139
+          },
+          {
+            "route": "/app/settings",
+            "ms": 186
+          },
+          {
+            "route": "/app/assets",
+            "ms": 140
+          },
+          {
+            "route": "/app/approvals",
+            "ms": 165
+          },
+          {
+            "route": "/app/approvals",
+            "ms": 146
+          },
+          {
+            "route": "/app/settings",
+            "ms": 115
+          },
+          {
+            "route": "/app/projects",
+            "ms": 133
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 169
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 142
+          },
+          {
+            "route": "/app/tickets",
+            "ms": 125
+          },
+          {
+            "route": "/app/crm",
+            "ms": 140
+          },
+          {
+            "route": "/app/settings",
+            "ms": 201
+          },
+          {
+            "route": "/app/approvals",
+            "ms": 158
+          }
+        ]
+      }
+    ]
+  },
+  "api": {
+    "total_requests": 62369,
+    "ok_200": 31134,
+    "client_errors_4xx": 29513,
+    "server_errors_5xx": 0,
+    "network_errors": 0,
+    "error_rate_pct": 0,
+    "latency": {
+      "p50": 247,
+      "p95": 1960,
+      "p99": 2719,
+      "max": 11135
+    },
+    "critical_findings": [],
+    "duplicate_tickets": [
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:15.285Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:21.894Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:29.042Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:36.581Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:43.060Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:50.076Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:13:55.981Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:02.172Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:07.840Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:12.062Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:18.046Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:22.561Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:27.602Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:31.940Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:35.183Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:41.143Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:45.993Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:50.522Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:14:55.600Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:00.143Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:06.014Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:11.079Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:16.768Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:22.325Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:28.589Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:33.356Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:38.001Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:42.127Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:47.414Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:52.863Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:15:57.256Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:02.288Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:08.698Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:13.524Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:19.028Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:23.414Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:29.107Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:33.979Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:39.532Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:44.330Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:50.976Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:16:56.663Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:01.283Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:06.147Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:10.675Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:16.034Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:20.608Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:25.952Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:30.693Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:35.441Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:40.230Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:45.325Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:49.986Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:17:55.616Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:18:01.819Z",
+      "DUPLICATE: title=\"DEDUP-1775146384150\" created 5 times at 2026-04-02T16:18:04.793Z"
+    ],
+    "anomalies": [],
+    "endpoints": {
+      "tickets.list": {
+        "count": 4867,
+        "errors": 4867,
+        "error_rate": "1.000",
+        "avg_latency": 152,
+        "p95_latency": 227
+      },
+      "tickets.create": {
+        "count": 24141,
+        "errors": 12426,
+        "error_rate": "0.515",
+        "avg_latency": 891,
+        "p95_latency": 2332
+      },
+      "GET:/internal/metrics": {
+        "count": 5142,
+        "errors": 0,
+        "error_rate": "0.000",
+        "avg_latency": 165,
+        "p95_latency": 256
+      },
+      "dashboard.getMetrics": {
+        "count": 11347,
+        "errors": 11347,
+        "error_rate": "1.000",
+        "avg_latency": 163,
+        "p95_latency": 248
+      },
+      "GET:/internal/health": {
+        "count": 5142,
+        "errors": 0,
+        "error_rate": "0.000",
+        "avg_latency": 151,
+        "p95_latency": 218
+      },
+      "GET:/health": {
+        "count": 5142,
+        "errors": 0,
+        "error_rate": "0.000",
+        "avg_latency": 143,
+        "p95_latency": 209
+      },
+      "tickets.update": {
+        "count": 4866,
+        "errors": 873,
+        "error_rate": "0.179",
+        "avg_latency": 973,
+        "p95_latency": 1498
+      }
+    },
+    "tickets_created": 3680
+  }
+}

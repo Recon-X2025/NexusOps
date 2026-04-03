@@ -43,14 +43,15 @@ const MODULES = [
 
 export default function FinanceProcurementDashboard() {
   const { can } = useRBAC();
-  if (!can("financial", "read") && !can("procurement", "read") && !can("contracts", "read")) {
-    return <AccessDenied module="Finance & Procurement" />;
-  }
 
   const { data: purchaseOrders, isLoading: loadingPOs } = trpc.procurement.purchaseRequests.list.useQuery({});
   const { data: contractsPage, isLoading: loadingContracts } = trpc.contracts.list.useQuery({});
   const { data: expiringContracts, isLoading: loadingExpiring } = trpc.contracts.expiringWithin.useQuery({ days: 30 });
   const { data: vendors, isLoading: loadingVendors } = trpc.vendors.list.useQuery();
+
+  if (!can("financial", "read") && !can("procurement", "read") && !can("contracts", "read")) {
+    return <AccessDenied module="Finance & Procurement" />;
+  }
 
   const contracts = contractsPage?.items ?? [];
 

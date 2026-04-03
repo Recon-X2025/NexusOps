@@ -30,9 +30,6 @@ export default function GRCPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("grc", "read") && !can("risk", "read") && !can("audit", "read") && !can("policy", "read")) {
-    return <AccessDenied module="Risk & Compliance" />;
-  }
 
   const { data: risksData, isLoading: risksLoading } = trpc.grc.listRisks.useQuery(
     { limit: 100 },
@@ -66,6 +63,10 @@ export default function GRCPage() {
   const EMPTY_RISK = { title: "", category: "operational" as const, likelihood: 3, impact: 3, treatment: "mitigate" as const, description: "", mitigationPlan: "" };
   const [showNewRisk, setShowNewRisk] = useState(false);
   const [riskForm, setRiskForm]       = useState(EMPTY_RISK);
+
+  if (!can("grc", "read") && !can("risk", "read") && !can("audit", "read") && !can("policy", "read")) {
+    return <AccessDenied module="Risk & Compliance" />;
+  }
 
   // DB stores pre-computed riskScore; fall back to likelihood × impact if missing
   const getRiskScore = (r: RiskItem) => r.riskScore ?? (r.likelihood ?? 0) * (r.impact ?? 0);

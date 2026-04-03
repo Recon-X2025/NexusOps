@@ -33,7 +33,6 @@ export default function SAMPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("sam", "read")) return <AccessDenied module="Software Asset Management" />;
 
   // @ts-ignore
   const licensesQuery = trpc.assets.licenses.list.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -42,6 +41,8 @@ export default function SAMPage() {
     onSuccess: () => { toast.success("License added to SAM registry"); setShowAddLicense(false); setLicForm({ productName: "", vendor: "", licenseType: "subscription", totalSeats: "", costPerSeat: "", expiresAt: "" }); licensesQuery.refetch(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
+
+  if (!can("sam", "read")) return <AccessDenied module="Software Asset Management" />;
 
   // @ts-ignore
   const assignLicense = trpc.assets.licenses.assign?.useMutation?.({

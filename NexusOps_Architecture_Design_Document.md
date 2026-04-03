@@ -1,7 +1,7 @@
 # NexusOps — Architecture Design Document
 
-**Version:** 1.4  
-**Date:** March 29, 2026  
+**Version:** 1.5  
+**Date:** April 2, 2026  
 **Organisation:** Coheron  
 **Status:** Living Document
 
@@ -1136,3 +1136,4 @@ That document takes precedence over any other document in cases of conflict. It 
 | 1.2 | 2026-03-28 | Platform Engineering | Added k6 load testing results to §15 (Observability). Confirmed system sustains 200 concurrent users at 340 req/s with p(95) 23ms and 0% error rate. Browser Core Web Vitals: FCP 450ms avg, LCP 450ms avg, CLS 0.001. See `NexusOps_Load_Test_Report_2026.md`. |
 | 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Expanded §14.5 (Input Validation) to document prototype pollution protection: `sanitizeInput()` Fastify `preHandler` strips `__proto__`/`constructor`/`prototype` keys recursively. Added `PRECONDITION_FAILED` and `CONFLICT` error codes to security error catalogue. Added §15.5 (k6 Security & Reliability Testing): documents all 6 test scenarios, their VU counts and durations, and the March 28 baseline (0 unhandled 500s, 100% bad-input rejection, p95 271ms). See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
 | 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added §15.6 (Active Health Signaling) documenting `healthMonitor.ts`: counter-based trigger (every `EVAL_EVERY` requests, default 50), status-change detection, and structured log emission (`SYSTEM_DEGRADED` / `SYSTEM_UNHEALTHY` / `SYSTEM_RECOVERED`) with zero-spam guarantee. Added `HEALTH_EVAL_EVERY` to §16.2 optional env vars. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test validation.** 10,000-session stress test: infrastructure layer fully solid (0 network errors, 0 timeouts, 100% login success, 0 concurrency conflicts at 397 req/s). Application-layer failures identified: Drizzle `Symbol(drizzle:Columns)` schema-import error on ticket/work-order creates for non-admin roles; RBAC permission gaps on `surveys`, `events`, `oncall`, `walkup` modules. Destructive chaos test Round 2: 62,369 requests with **0 HTTP 5xx and 0 server crashes** on Vultr production. Auth architecture bottleneck confirmed: `BCRYPT_CONCURRENCY=8` caps login throughput to ~8 logins/s; under 200 concurrent login workers queue depth reaches 4s avg. Updated §15.5 with chaos test baseline metrics. Active health monitor architecture validated — correctly self-diagnosed UNHEALTHY state and emitted structured logs without operator intervention. Bearer token auth path confirmed inconsistent on some query-type procedures. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |

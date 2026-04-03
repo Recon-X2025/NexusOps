@@ -89,9 +89,6 @@ type TicketRow = {
 
 export default function TicketsPage() {
   const { can } = useRBAC();
-  if (!can("incidents", "read") && !can("requests", "read")) {
-    return <AccessDenied module="Service Desk" />;
-  }
   const [view, setView] = useState<"overview" | "queue">("queue");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -141,6 +138,10 @@ export default function TicketsPage() {
     statusId: selectedStatusId ?? undefined,
     limit: 50,
   }, { staleTime: STALE_TIME.LIVE });
+
+  if (!can("incidents", "read") && !can("requests", "read")) {
+    return <AccessDenied module="Service Desk" />;
+  }
 
   const tickets: TicketRow[] = (data?.items as TicketRow[] | undefined) ?? [];
   const total = data?.items?.length ?? 0;

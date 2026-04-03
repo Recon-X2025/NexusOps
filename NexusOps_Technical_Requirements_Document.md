@@ -1,7 +1,7 @@
 # NexusOps — Technical Requirements Document (TRD)
 
-**Version:** 1.4  
-**Date:** March 29, 2026  
+**Version:** 1.5  
+**Date:** April 2, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -1346,6 +1346,10 @@ When deploying updated source files to a running server (emergency patch flow):
 | TG-10 | API `typedRoutes` in Next.js is `false` | **Low** | Open |
 | TG-11 | File attachment uploads show toast feedback but do not persist to S3/MinIO | **Low** | By design — requires MinIO/S3 configuration and a file upload API endpoint to be wired |
 | TG-12 | Virtual Agent NLP is rule-based (BOT_FLOWS) — no LLM fallback for unrecognised freetext beyond ticket creation | **Low** | By design — enterprise ITSM bots are typically rule-based; full NLP requires `ANTHROPIC_API_KEY` and a `/trpc/ai.chat` procedure |
+| TG-13 | Drizzle `Symbol(drizzle:Columns)` schema-import error on `tickets.create` and `workOrders.create` for non-admin roles — causes 5xx under stress | **High** | Open — investigate `@nexusops/db` export path for `ticketsTable` / `workOrdersTable` in non-admin code paths; confirmed in 10k stress test |
+| TG-14 | RBAC permission gaps: `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` schedule reads, `walkup` queue reads return FORBIDDEN for expected roles | **High** | Open — expand `permissionProcedure` resource/action bindings for these four modules in the RBAC matrix |
+| TG-15 | `auth.login` latency collapses under concentrated concurrent load: `BCRYPT_CONCURRENCY=8` caps throughput to ~8 logins/s; avg wait 4,098ms / p95 5,019ms under 200 concurrent workers | **Critical** | Open — add per-user Redis rate limit (5 attempts/min) upstream of bcrypt semaphore; consider raising `BCRYPT_CONCURRENCY` to 20–32 on production host |
+| TG-16 | Bearer token auth inconsistency: some `protectedProcedure` / `permissionProcedure` query-type routes returning 401/403 for valid Bearer tokens in `createContext` middleware | **Medium** | Open — audit all protected procedures to confirm both cookie and Bearer extraction paths are applied consistently |
 
 ---
 
@@ -1389,3 +1393,4 @@ When deploying updated source files to a running server (emergency patch flow):
 
 *This document was generated from a comprehensive analysis of the NexusOps monorepo source code, configuration files, Docker manifests, and test infrastructure as of March 26, 2026.*
 | 1.4 | 2026-03-29 | Platform Engineering | **Observability requirements.** Added NFR-OBS-06 (In-Memory Metrics Collection): O(1) counters, URL normalisation, `onResponse` synchronous update, validation via `/internal/metrics` and reset. Added NFR-OBS-07 (Health Status Evaluation): threshold table, mandatory response fields including `monitor`, always-200 contract. Added NFR-OBS-08 (Active Health Signaling): evaluation frequency, zero-spam invariant, log-level routing, required signal fields, `HEALTH_EVAL_EVERY` configurability. Updated header version. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test findings incorporated.** Added TG-13 (Drizzle schema-import error on `tickets.create`/`workOrders.create` for non-admin roles — **High**, Open). Added TG-14 (RBAC permission gaps on `surveys`, `events`, `oncall`, `walkup` — **High**, Open). Added TG-15 (auth.login latency collapse under concurrent load — **Critical**, Open; `BCRYPT_CONCURRENCY=8` insufficient; recommended fix: Redis per-user rate limit + raise concurrency ceiling). Added TG-16 (Bearer token inconsistency on query-type protected procedures — **Medium**, Open). Observability requirements validated: NFR-OBS-07 (active health monitor correctly transitioned to UNHEALTHY at `auth.login` avg 4,098ms during chaos test) and NFR-OBS-08 (exactly one `SYSTEM_UNHEALTHY` log emitted, zero spam). See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |

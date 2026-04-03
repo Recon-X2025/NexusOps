@@ -58,7 +58,6 @@ export default function VendorsPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("vendors", "read") && !can("contracts", "read")) return <AccessDenied module="Vendor Management" />;
 
   // @ts-ignore
   const vendorsQuery = trpc.vendors.list.useQuery({ limit: 50 });
@@ -69,6 +68,8 @@ export default function VendorsPage() {
     onSuccess: () => { vendorsQuery.refetch(); toast.success("Vendor created"); },
     onError: (e: any) => { console.error("vendors.create failed:", e); toast.error(e.message || "Failed to create vendor"); },
   });
+
+  if (!can("vendors", "read") && !can("contracts", "read")) return <AccessDenied module="Vendor Management" />;
 
   const vendors = vendorsQuery.data?.items ?? [];
   const contracts = contractsQuery.data?.items ?? [];

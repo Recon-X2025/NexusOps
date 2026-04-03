@@ -87,7 +87,6 @@ const BOT_FLOWS: Record<string, { reply: string; options?: string[]; articleRef?
 
 export default function VirtualAgentPage() {
   const { can } = useRBAC();
-  if (!can("virtual_agent", "read") && !can("catalog", "read")) return <AccessDenied module="Virtual Agent" />;
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [view, setView] = useState<"chat" | "analytics">("chat");
@@ -109,6 +108,8 @@ export default function VirtualAgentPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  if (!can("virtual_agent", "read") && !can("catalog", "read")) return <AccessDenied module="Virtual Agent" />;
 
   const addMessage = (text: string, role: "user" | "bot", extra?: Partial<Message>) => {
     const msg: Message = {

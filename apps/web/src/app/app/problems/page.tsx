@@ -62,7 +62,6 @@ export default function ProblemsPage() {
     if (!visibleTabs.find((t) => t.key === activeTab)) setActiveTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, activeTab]);
 
-  if (!can("problems", "read")) return <AccessDenied module="Problem Management" />;
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
@@ -81,6 +80,8 @@ export default function ProblemsPage() {
     onSuccess: (article: any) => toast.success(`Published to Knowledge Base as "${article?.title ?? "article"}"`),
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
+
+  if (!can("problems", "read")) return <AccessDenied module="Problem Management" />;
 
   type ProblemItem = NonNullable<typeof allData>[number];
   const allProblems: ProblemItem[] = allData ?? [];

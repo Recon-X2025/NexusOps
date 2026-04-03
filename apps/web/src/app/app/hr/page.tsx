@@ -59,9 +59,6 @@ export default function HRPage() {
     }
   }, [visibleTabs, tab]);
 
-  if (!can("hr", "read") && !can("onboarding", "read")) {
-    return <AccessDenied module="HR Service Delivery" />;
-  }
 
   const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery(
     {},
@@ -87,6 +84,10 @@ export default function HRPage() {
   const [ecrPanel, setEcrPanel]   = useState<string | null>(null);
   const [ecrAck, setEcrAck]       = useState("");
   const [showCaseForm, setShowCaseForm] = useState(false);
+
+  if (!can("hr", "read") && !can("onboarding", "read")) {
+    return <AccessDenied module="HR Service Delivery" />;
+  }
 
   const pendingTDS  = tdsChallans.filter((c: any) => c.status === "pending" || c.status === "overdue").length;
   const pendingECR  = epfoEcrs.filter((e: any) => e.status === "pending").length;

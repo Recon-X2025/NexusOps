@@ -52,12 +52,13 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function StrategyProjectsDashboard() {
   const { can } = useRBAC();
-  if (!can("projects", "read") && !can("demand", "read") && !can("analytics", "read")) {
-    return <AccessDenied module="Strategy & Projects" />;
-  }
 
   const { data: projects, isLoading: loadingProjects } = trpc.projects.list.useQuery({ limit: 50 });
   const { data: appsPage, isLoading: loadingApps } = trpc.apm.applications.list.useQuery({});
+
+  if (!can("projects", "read") && !can("demand", "read") && !can("analytics", "read")) {
+    return <AccessDenied module="Strategy & Projects" />;
+  }
 
   const apps = appsPage?.items ?? [];
 

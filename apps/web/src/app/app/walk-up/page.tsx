@@ -60,7 +60,6 @@ export default function WalkUpPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("incidents", "read")) return <AccessDenied module="Walk-Up Experience" />;
 
   // @ts-ignore
   const queueQuery = trpc.walkup.queue.list.useQuery({});
@@ -84,6 +83,8 @@ export default function WalkUpPage() {
     onSuccess: () => { queueQuery.refetch(); toast.success("Visit completed"); },
     onError: (e: any) => { console.error("walkup.complete failed:", e); toast.error(e.message || "Failed to complete visit"); },
   });
+
+  if (!can("incidents", "read")) return <AccessDenied module="Walk-Up Experience" />;
 
   const allVisits: any[] = (Array.isArray(queueQuery.data) ? queueQuery.data : (queueQuery.data as any)?.items ?? []);
   const allAppointments: any[] = (Array.isArray(apptsQuery.data) ? apptsQuery.data : (apptsQuery.data as any)?.items ?? []);

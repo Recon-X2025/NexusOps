@@ -47,7 +47,6 @@ export default function ChangeDetailPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-48 text-muted-foreground gap-2">
@@ -82,6 +81,8 @@ export default function ChangeDetailPage() {
     onSuccess: () => { setComment(""); toast.success("Comment added"); refetch(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
+
+  if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
 
   function handleComment() {
     if (!comment.trim()) return;

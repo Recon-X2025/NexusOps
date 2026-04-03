@@ -27,7 +27,6 @@ const RISK_COLOR: Record<string, string> = {
 
 export default function ReleasesPage() {
   const { can } = useRBAC();
-  if (!can("changes", "read")) return <AccessDenied module="Release Management" />;
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showNewRelease, setShowNewRelease] = useState(false);
@@ -39,6 +38,9 @@ export default function ReleasesPage() {
   const createRelease = trpc.changes.createRelease.useMutation({
     onSuccess: () => {
       void releasesQuery.refetch();
+
+  if (!can("changes", "read")) return <AccessDenied module="Release Management" />;
+
       setShowNewRelease(false);
       setNewReleaseName("");
       toast.success("Release created");

@@ -297,7 +297,6 @@ export default function CRMPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("accounts", "read")) return <AccessDenied module="CRM & Sales" />;
 
   // ── tRPC data ──────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -334,6 +333,8 @@ export default function CRMPage() {
     onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} updated`); refetchQuotes(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
+
+  if (!can("accounts", "read")) return <AccessDenied module="CRM & Sales" />;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const DEALS_LIVE = ((dealsData as any[]) ?? DEALS) as any[];

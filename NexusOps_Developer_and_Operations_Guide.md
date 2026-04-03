@@ -1,7 +1,7 @@
 # NexusOps — Developer & Operations Guide
 
-**Version:** 1.4  
-**Date:** March 29, 2026  
+**Version:** 1.5  
+**Date:** April 2, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -1836,3 +1836,4 @@ The following environment variables are required for all India compliance engine
 
 *This guide should be kept up to date as scripts, environment variables, and operational procedures evolve. When adding a new environment variable, add it to §4.4 and §18.5. When adding a new script, add it to §16. When a new known failure mode is discovered and resolved, add it to §15.*
 | 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added §12.4 (In-App Observability Stack) documenting `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health`, active health signals (`SYSTEM_DEGRADED`/`SYSTEM_UNHEALTHY`/`SYSTEM_RECOVERED`), and `HEALTH_EVAL_EVERY` tuning guide. Updated header version. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test results.** Updated §8.5 (Stress & Load Tests) with 10,000-session stress test outcome (March 27): 271,696 requests, 92.8% success, 397 req/s, 0 network errors, 0 timeouts, 100% login success — infrastructure layer passed clean. Application-layer failures: Drizzle `Symbol(drizzle:Columns)` schema error on `tickets.create`/`workOrders.create` for non-admin roles; RBAC permission gaps on `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` and `walkup` reads. Added §8.7 (Destructive Chaos Test) documenting Round 2 results (April 2, Vultr production): 62,369 requests, **0 HTTP 5xx, 0 crashes, 0 network errors**. Documents P0–P3 recommended fixes: P0 Redis-backed login rate limit upstream of bcrypt semaphore; P1 Playwright timeout increase to 120s; P2 Bearer token auth audit on all `protectedProcedure`/`permissionProcedure` usages; P3 async-fire-and-forget session invalidation on logout. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |

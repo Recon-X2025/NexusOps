@@ -1,7 +1,7 @@
 # NexusOps Platform — Complete Build Reference
 
-**Version:** 3.4  
-**Doc revision:** March 29, 2026 — v3.6 reflects: observability stack fully deployed. Structured logging via Fastify pino instance (`initLogger`/`logInfo`/`logWarn`/`logError`). In-memory metrics collector (`metrics.ts`): total/per-endpoint request+error counts, running-average latency, rate-limit pressure counter. Health evaluator (`health.ts`): pure function mapping `MetricsSnapshot` → `HEALTHY`/`DEGRADED`/`UNHEALTHY`. Active health monitor (`healthMonitor.ts`): counter-triggered (every `HEALTH_EVAL_EVERY` requests, default 50); emits exactly one structured log line per status transition (`SYSTEM_DEGRADED` → `logWarn`, `SYSTEM_UNHEALTHY` → `logError`, `SYSTEM_RECOVERED` → `logInfo`). Three new internal endpoints: `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health` (includes `monitor.last_changed_at` and `monitor.eval_every`). See `NexusOps_Active_Health_Signal_Report_2026.md`.
+**Version:** 3.7  
+**Doc revision:** April 2, 2026 — v3.7 reflects: 10,000-session stress test (March 27) and full destructive chaos test Round 2 (April 2) completed. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. Prior (v3.6): observability stack fully deployed. Structured logging via Fastify pino instance (`initLogger`/`logInfo`/`logWarn`/`logError`). In-memory metrics collector (`metrics.ts`): total/per-endpoint request+error counts, running-average latency, rate-limit pressure counter. Health evaluator (`health.ts`): pure function mapping `MetricsSnapshot` → `HEALTHY`/`DEGRADED`/`UNHEALTHY`. Active health monitor (`healthMonitor.ts`): counter-triggered (every `HEALTH_EVAL_EVERY` requests, default 50); emits exactly one structured log line per status transition (`SYSTEM_DEGRADED` → `logWarn`, `SYSTEM_UNHEALTHY` → `logError`, `SYSTEM_RECOVERED` → `logInfo`). Three new internal endpoints: `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health` (includes `monitor.last_changed_at` and `monitor.eval_every`). See `NexusOps_Active_Health_Signal_Report_2026.md`.
 
 **Tech Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Shadcn/UI · Lucide Icons · tRPC 11 · Fastify · PostgreSQL (Drizzle ORM)  
 **Repository root:** monorepo (`pnpm` + Turbo)  
@@ -2270,3 +2270,27 @@ All mock users in `apps/web/src/lib/rbac.ts` updated to explicitly carry `"reque
 | `apps/api/src/lib/healthMonitor.ts` created — active health signal emitter | ✅ |
 | `GET /internal/metrics`, `POST /internal/metrics/reset`, `GET /internal/health` routes added | ✅ |
 | `GET /internal/health` response extended with `monitor.last_changed_at` and `monitor.eval_every` | ✅ |
+
+### v3.7 Summary (April 2, 2026)
+
+| Fix / Addition | Status |
+|---|---|
+| 10,000-session stress test run — `node scripts/stress-test-10000.js` (March 27) | ✅ |
+| 271,696 requests at 397 req/s; 0 network errors, 0 timeouts, 0 auth failures | ✅ |
+| 100% login success — all 10,000 sessions authenticated independently | ✅ |
+| 0 concurrency / duplicate-key violations; 46,563 records created | ✅ |
+| `NexusOps_Stress_Test_Report.md` created | ✅ |
+| Drizzle `Symbol(drizzle:Columns)` schema-import error — `tickets.create` / `workOrders.create` for non-admin roles | ⚠ Open |
+| RBAC permission gaps — `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` reads, `walkup` reads | ⚠ Open |
+| Destructive chaos test Round 2 on Vultr production (April 2) | ✅ |
+| **0 HTTP 5xx errors, 0 server crashes, 0 network failures** across 62,369 requests | ✅ |
+| Bcrypt semaphore confirmed holding (0 active, 0 queued at test end) | ✅ |
+| In-flight guard held — never triggered 503 | ✅ |
+| Rate limiting stable — 0 rate_limited events under 200-worker storm | ✅ |
+| Active health monitor correctly self-diagnosed UNHEALTHY; `total_errors: 0` throughout | ✅ |
+| Idempotency within 5-second window validated — no within-window duplicate tickets | ✅ |
+| CRITICAL: `auth.login` avg 4,098ms / p95 5,019ms under concentrated concurrent load | ⚠ Open |
+| MAJOR: Bearer token auth inconsistency on query-type tRPC procedures | ⚠ Open |
+| MAJOR: `tickets.create` 27% slow-request rate (>1s) at 80 RPS sustained write load | ⚠ Open |
+| P0–P3 recommended fixes documented | ✅ |
+| `NexusOps_Destructive_Chaos_Test_Report_2026.md` created | ✅ |

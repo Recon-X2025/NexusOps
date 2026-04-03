@@ -1,0 +1,958 @@
+{
+  "config": {
+    "configFile": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/playwright.config.ts",
+    "rootDir": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/tests",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 20
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 20
+        },
+        "id": "chaos-chromium",
+        "name": "chaos-chromium",
+        "testDir": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "results/playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 20,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "frontend-chaos.spec.ts",
+      "file": "frontend-chaos.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Frontend Chaos — NexusOps",
+          "file": "frontend-chaos.spec.ts",
+          "line": 277,
+          "column": 6,
+          "specs": [
+            {
+              "title": "chaos worker 0",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 23754,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.919Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-06d3157fba206e933faf",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 1",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 22469,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.866Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-e9c5e5943cdd815b4d63",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 2",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "timedOut",
+                      "duration": 60242,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.860Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-2-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-2-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-68004b5e64c770ebc278",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 3",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 23852,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.687Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-44ee5da4b68551b93e4e",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 4",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 58297,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.884Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-75f626c1121c0ac94d2e",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 5",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "timedOut",
+                      "duration": 61202,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.950Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-5-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-5-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-b11b59b5d757226e025c",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 6",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 6,
+                      "status": "passed",
+                      "duration": 23413,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:05.011Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-9f692f68f85492b3b35c",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 7",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 7,
+                      "status": "passed",
+                      "duration": 59984,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.914Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-218ec4b20dc76d25d060",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 8",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 8,
+                      "status": "timedOut",
+                      "duration": 60149,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:05.011Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-8-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-8-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-c4fadff0fb679f1f0452",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 9",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 9,
+                      "status": "passed",
+                      "duration": 23747,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.983Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-492820722f77a1d49f06",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 10",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 10,
+                      "status": "timedOut",
+                      "duration": 60067,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.934Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-10-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-10-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-1164bbeea4efd7059f66",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 11",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 11,
+                      "status": "timedOut",
+                      "duration": 60165,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.778Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-11-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-11-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-d5bfae47ce899f82b619",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 12",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 12,
+                      "status": "passed",
+                      "duration": 22655,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:05.008Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-85907ef6bb2efb98e35a",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 13",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 13,
+                      "parallelIndex": 13,
+                      "status": "timedOut",
+                      "duration": 60240,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.874Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-13-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-13-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-29745f9c2c56d59392fb",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 14",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 14,
+                      "parallelIndex": 14,
+                      "status": "timedOut",
+                      "duration": 60182,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.918Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-14-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-14-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-c3bfc592ef460d43546a",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 15",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 15,
+                      "parallelIndex": 15,
+                      "status": "passed",
+                      "duration": 23672,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.999Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-35a099c66a528b097e45",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 16",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 16,
+                      "status": "timedOut",
+                      "duration": 60159,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.831Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-16-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-16-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-df47d08301866bda1dd8",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 17",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 17,
+                      "parallelIndex": 17,
+                      "status": "timedOut",
+                      "duration": 60283,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.863Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-17-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-17-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-ceba86852bfd304b9d5d",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 18",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 18,
+                      "parallelIndex": 18,
+                      "status": "passed",
+                      "duration": 23436,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.954Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-54da9f37649a6648f432",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            },
+            {
+              "title": "chaos worker 19",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chaos-chromium",
+                  "projectName": "chaos-chromium",
+                  "results": [
+                    {
+                      "workerIndex": 19,
+                      "parallelIndex": 19,
+                      "status": "timedOut",
+                      "duration": 60202,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-02T16:13:04.902Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-19-chaos-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/kathikiyer/Documents/NexusOps/tests/chaos/results/artifacts/frontend-chaos-Frontend-Chaos-—-NexusOps-chaos-worker-19-chaos-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "992b814959fae492a2a1-e25e900f2d2d6fcf30c9",
+              "file": "frontend-chaos.spec.ts",
+              "line": 280,
+              "column": 9
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-04-02T16:13:03.776Z",
+    "duration": 63022.711,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 10,
+    "flaky": 0
+  }
+}

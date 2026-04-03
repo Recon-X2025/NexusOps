@@ -86,7 +86,6 @@ export default function ProcurementPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("procurement", "read")) return <AccessDenied module="Procurement" />;
 
   // Correct tRPC paths: procurement.purchaseRequests.list / purchaseOrders.list / vendors.list
   const { data: prData, isLoading: prLoading, refetch: refetchPRs } = trpc.procurement.purchaseRequests.list.useQuery(
@@ -130,6 +129,9 @@ export default function ProcurementPage() {
 
   const sendPO   = trpc.procurement.purchaseOrders.send.useMutation({ onSuccess: () => refetchPOs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const receivePO = trpc.procurement.purchaseOrders.markReceived.useMutation({ onSuccess: () => refetchPOs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+
+  if (!can("procurement", "read")) return <AccessDenied module="Procurement" />;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const purchaseOrders = (poData ?? []) as any[];
 

@@ -43,7 +43,6 @@ function overdueLabel(dueAt: Date | string) {
 
 export default function EscalationQueuePage() {
   const { can } = useRBAC();
-  if (!can("escalations", "read")) return <AccessDenied module="Escalation Queue" />;
   const [filter, setFilter] = useState<"breached" | "approaching" | "all">("breached");
 
   const { data: allTickets, isLoading, refetch } = trpc.tickets.list.useQuery({
@@ -52,6 +51,8 @@ export default function EscalationQueuePage() {
   });
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery();
+
+  if (!can("escalations", "read")) return <AccessDenied module="Escalation Queue" />;
 
   const tickets: TicketListItem[] = allTickets?.items ?? [];
 

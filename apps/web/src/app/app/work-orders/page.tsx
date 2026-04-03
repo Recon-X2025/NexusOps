@@ -97,7 +97,6 @@ export default function WorkOrdersPage() {
     if (!visibleTabs.find((t) => t.key === activeTab)) setActiveTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, activeTab]);
 
-  if (!can("work_orders", "read")) return <AccessDenied module="Field Service Management" />;
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -116,6 +115,9 @@ export default function WorkOrdersPage() {
   const updateState = trpc.workOrders.updateState.useMutation({
     onSuccess: (result) => {
       setWoActionMsg(`Updated ${Array.isArray(result) ? result.length : 1} work order(s)`);
+
+  if (!can("work_orders", "read")) return <AccessDenied module="Field Service Management" />;
+
       setSelected(new Set()); setWoActionPanel(null); setWoNewState("");
       refetch(); setTimeout(() => setWoActionMsg(null), 3000);
     },

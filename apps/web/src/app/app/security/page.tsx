@@ -53,9 +53,6 @@ export default function SecurityOpsPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  if (!can("security", "read") && !can("vulnerabilities", "read") && !can("grc", "read")) {
-    return <AccessDenied module="Security Operations" />;
-  }
 
   const { data: vulns, isLoading: vulnsLoading } = trpc.security.listVulnerabilities.useQuery(
     { limit: 100 },
@@ -70,6 +67,10 @@ export default function SecurityOpsPage() {
     onSuccess: (inc: any) => { toast.success(`Security incident ${inc?.id?.slice(0,8) ?? ""} created`); setShowNewIncident(false); setIncForm({ title: "", description: "", severity: "medium", attackVector: "" }); refetchIncidents(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
+
+  if (!can("security", "read") && !can("vulnerabilities", "read") && !can("grc", "read")) {
+    return <AccessDenied module="Security Operations" />;
+  }
 
   type VulnItem = NonNullable<typeof vulns>[number];
   type IncidentItem = NonNullable<typeof incidents>["items"][number];

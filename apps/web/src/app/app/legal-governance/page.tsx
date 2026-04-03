@@ -39,14 +39,15 @@ const MODULES = [
 
 export default function LegalGovernanceDashboard() {
   const { can } = useRBAC();
-  if (!can("grc", "read") && !can("audit", "read")) {
-    return <AccessDenied module="Legal & Governance" />;
-  }
 
   const { data: matters, isLoading: loadingMatters } = trpc.legal.listMatters.useQuery({ limit: 5 });
   const { data: allMatters, isLoading: loadingAllMatters } = trpc.legal.listMatters.useQuery({ limit: 200 });
   const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery();
   const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery({});
+
+  if (!can("grc", "read") && !can("audit", "read")) {
+    return <AccessDenied module="Legal & Governance" />;
+  }
 
   const activeMatters = allMatters ? allMatters.filter((m) => m.status !== "closed" && m.status !== "resolved").length : 0;
   const openRisks = risks ? risks.filter((r) => r.status !== "closed" && r.status !== "accepted").length : 0;

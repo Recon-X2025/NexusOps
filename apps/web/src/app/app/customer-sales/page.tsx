@@ -56,14 +56,15 @@ const PIPELINE_STAGE_COLORS: Record<string, string> = {
 
 export default function CustomerSalesDashboard() {
   const { can } = useRBAC();
-  if (!can("csm", "read") && !can("accounts", "read") && !can("catalog", "read")) {
-    return <AccessDenied module="Customer & Sales" />;
-  }
 
   const { data: crmMetrics, isLoading: loadingCrm } = trpc.crm.dashboardMetrics.useQuery();
   const { data: deals, isLoading: loadingDeals } = trpc.crm.listDeals.useQuery({ limit: 100 });
   const { data: catalogRequests, isLoading: loadingCatalog } = trpc.catalog.listRequests.useQuery({});
   const { data: surveys, isLoading: loadingSurveys } = trpc.surveys.list.useQuery({});
+
+  if (!can("csm", "read") && !can("accounts", "read") && !can("catalog", "read")) {
+    return <AccessDenied module="Customer & Sales" />;
+  }
 
   const openCatalogRequests = catalogRequests
     ? catalogRequests.filter((r) => r.status !== "fulfilled" && r.status !== "rejected" && r.status !== "cancelled").length

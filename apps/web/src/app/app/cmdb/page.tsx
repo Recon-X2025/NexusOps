@@ -63,8 +63,9 @@ export default function CMDBPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  if (!can("cmdb", "read")) return <AccessDenied module="Configuration Management" />;
   const [selectedCI, setSelectedCI] = useState<string | null>(null);
+
+  if (!can("cmdb", "read")) return <AccessDenied module="Configuration Management" />;
 
   const ciList = (cisData ?? []) as any[];
   const topoNodes = ((topologyData as any)?.nodes ?? []) as any[];

@@ -39,14 +39,15 @@ const MODULES = [
 
 export default function DeveloperOpsDashboard() {
   const { can } = useRBAC();
-  if (!can("knowledge", "read")) {
-    return <AccessDenied module="Developer & Ops" />;
-  }
 
   const { data: deployments, isLoading: loadingDeploys } = trpc.devops.listDeployments.useQuery({ limit: 6 });
   const { data: pipelines, isLoading: loadingPipelines } = trpc.devops.listPipelines.useQuery({ limit: 5 });
   const { data: doraMetrics, isLoading: loadingDora } = trpc.devops.doraMetrics.useQuery();
   const { data: kbArticles, isLoading: loadingKB } = trpc.knowledge.list.useQuery({ limit: 200 });
+
+  if (!can("knowledge", "read")) {
+    return <AccessDenied module="Developer & Ops" />;
+  }
 
   const totalDeploymentsToday = deployments
     ? deployments.filter((d) => {

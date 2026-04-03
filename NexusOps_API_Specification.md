@@ -1,7 +1,7 @@
 # NexusOps — API Specification
 
-**Version:** 1.4  
-**Date:** March 29, 2026  
+**Version:** 1.5  
+**Date:** April 2, 2026  
 **Organisation:** Coheron  
 **Base URL:** `https://<host>/trpc`  
 **Protocol:** tRPC 11 over HTTP (JSON batch)  
@@ -3822,3 +3822,4 @@ Example signal log:
 | 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Added `PRECONDITION_FAILED (412)` to §5 error codes: returned by `tickets.create` when the organisation has no open ticket status configured. Added prototype pollution protection note to §5: `__proto__`, `constructor`, and `prototype` keys are stripped at Fastify `preHandler` before any procedure runs. Fixed `tickets.create` to not propagate `INTERNAL_SERVER_ERROR` for invalid enum inputs — Zod validation failures now correctly surface as `BAD_REQUEST (400)`. Fixed `tickets.update` input schema documentation: update fields must be nested under a `data:` key. k6 security test suite (26 adversarial cases) confirmed 100% correct rejection rate and 0 unhandled 500 errors. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
 
 | 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added Appendix E (Internal Observability Endpoints) documenting `GET /internal/metrics`, `POST /internal/metrics/reset`, and `GET /internal/health`. Documented `monitor` field added to health response (`last_changed_at`, `eval_every`). Documented active health signals: structured log lines emitted by `healthMonitor.ts` on HEALTHY/DEGRADED/UNHEALTHY transitions only — zero spam guarantee. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test findings.** 10,000-session stress test (March 27): 271,696 requests at 397 req/s, 92.8% success rate, 0 network errors, 0 timeouts, 0 auth failures. Identified RBAC gaps: `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` schedule reads, `walkup` reads (non-admin). Identified Drizzle `Symbol(drizzle:Columns)` schema-import error on `tickets.create` and `workOrders.create` for non-admin roles. Destructive chaos test Round 2 (April 2): 62,369 requests, **0 HTTP 5xx, 0 crashes, 0 network errors**. Confirmed auth hardening (bcrypt semaphore, in-flight guard, rate limiting) held under 200-worker storm. Identified CRITICAL: `auth.login` avg 4,098ms / p95 5,019ms under concentrated concurrent load (bcrypt semaphore saturation). Identified MAJOR: Bearer token auth returning 401/403 on query-type tRPC routes for some session configurations — `protectedProcedure` and `permissionProcedure` must consistently accept both cookie and Bearer via `createContext`. Active health monitor correctly transitioned to UNHEALTHY and emitted log signals during test. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |

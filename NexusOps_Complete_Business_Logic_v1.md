@@ -1,6 +1,6 @@
 # NexusOps — Complete Business Logic Specification
 ## All 9 Modules | India-Compliant | Enterprise-Ready
-### Version 1.2 | Date: 28 March 2026
+### Version 1.3 | Date: 2 April 2026
 
 ---
 
@@ -3166,3 +3166,15 @@ Password reset process:
 - **Platform-wide — in-memory metrics:** `metrics.ts` tracks `total_requests`, `total_errors`, per-endpoint counts and running-average latency. Updated incrementally in the `onResponse` hook — zero allocation on the hot path.
 - **Platform-wide — health evaluation:** `health.ts` provides a pure `evaluateHealth()` function. Thresholds: error rate > 1% → DEGRADED, > 5% → UNHEALTHY; endpoint avg latency > 1 s → DEGRADED, > 2 s → UNHEALTHY; rate-limited > 100 → DEGRADED.
 - **Platform-wide — active health signaling:** `healthMonitor.ts` emits exactly one structured log line per status transition. Transitions: `SYSTEM_DEGRADED` (logWarn), `SYSTEM_UNHEALTHY` (logError), `SYSTEM_RECOVERED` (logInfo). Evaluation frequency controlled by `HEALTH_EVAL_EVERY` (default 50 requests).
+
+---
+
+**v1.3 Stress & Chaos Test Addendum (April 2, 2026):**
+
+- **Module 1 (ITSM) — stress test findings:** 10,000-session stress test (March 27) revealed a Drizzle `Symbol(drizzle:Columns)` schema-import error on `tickets.create` for non-admin roles (itil_agent, admin in some paths). Ticket creation module worked correctly for admin-role sessions. `tickets.list` and read operations showed 100% success. `work-orders.create` has the identical issue.
+- **Module 1 (ITSM) — idempotency validated:** Under 200-worker concurrent chaos (April 2), `tickets.create` idempotency using the 5-second time-window partial unique index held correctly — no within-window duplicates produced. 3,680 tickets created across 5 minutes with 0 data corruption.
+- **Module 1 (ITSM) — write latency under load:** `tickets.create` averages 739ms and 27% of requests exceed 1 second at 80 RPS sustained write load. DB write + idempotency check + Redis cache write + activity log + notification dispatch are all in-path. No SLA breach occurred but optimisation is warranted.
+- **Platform-wide — RBAC gap findings:** `surveys.create` returns FORBIDDEN for `hr_manager` role; `events.list` returns FORBIDDEN for `security_analyst` role; `oncall` schedule reads and `walkup` queue reads return FORBIDDEN for all non-admin roles. The `permissionProcedure` resource/action bindings for these four modules need expanding in the RBAC matrix.
+- **Platform-wide — auth throughput constraint:** Under 200 concurrent login requests (chaos test), `BCRYPT_CONCURRENCY=8` caps login throughput to ~8 logins/s. Avg login wait reaches 4,098ms. No logins were lost or errored — the system queued safely — but UX is degraded. Recommended fix: add per-user Redis rate limit (5 attempts/min) upstream of the bcrypt semaphore, or raise `BCRYPT_CONCURRENCY` to 20–32.
+- **Platform-wide — observability confirmed:** Active health monitor correctly transitioned to UNHEALTHY during chaos run and emitted `SYSTEM_UNHEALTHY` log event. `total_errors: 0` and `error_rate: 0` confirmed despite UNHEALTHY status — system correctly distinguishes latency degradation from error production.
+- **Module 1 (ITSM) — Bearer token path:** Some Bearer-authenticated tRPC query procedures returning 401/403 under chaos conditions. `createContext` auth middleware needs auditing to confirm both cookie and Bearer token paths are consistently applied on all `protectedProcedure` and `permissionProcedure` routes.

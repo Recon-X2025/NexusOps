@@ -1,0 +1,83 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "SECURITY",
+      "title": "Sensitive endpoint accessible without authentication: /internal/metrics",
+      "endpoint": "http://139.84.154.78:3001/internal/metrics",
+      "payload": "GET (no auth)",
+      "observed": "HTTP 200 — {\"since\":\"2026-04-03T00:50:06.878Z\",\"timestamp\":\"2026-04-03T02:41:17.012Z\",\"tota",
+      "expected": "401 Unauthorized or 404 Not Found",
+      "hypothesis": "Internal observability endpoint lacks auth middleware; exposes metrics, health state, error rates to unauthenticated callers",
+      "reproSteps": "curl http://139.84.154.78:3001/internal/metrics"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SECURITY",
+      "title": "Sensitive endpoint accessible without authentication: /internal/health",
+      "endpoint": "http://139.84.154.78:3001/internal/health",
+      "payload": "GET (no auth)",
+      "observed": "HTTP 200 — {\"status\":\"HEALTHY\",\"reasons\":[],\"summary\":{\"error_rate\":0.0032,\"total_requests\"",
+      "expected": "401 Unauthorized or 404 Not Found",
+      "hypothesis": "Internal observability endpoint lacks auth middleware; exposes metrics, health state, error rates to unauthenticated callers",
+      "reproSteps": "curl http://139.84.154.78:3001/internal/health"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "SECURITY",
+      "title": "Non-admin user can access admin procedure: admin.users.list",
+      "endpoint": "/trpc/admin.users.list",
+      "payload": "victim session",
+      "observed": "HTTP 200",
+      "expected": "403 FORBIDDEN",
+      "hypothesis": "Admin guard missing on this procedure"
+    },
+    {
+      "severity": "HIGH",
+      "category": "SECURITY",
+      "title": "Stored XSS: script/event tags returned unsanitized in ticket response",
+      "endpoint": "/trpc/tickets.create",
+      "payload": "title: <script>alert('XSS')</script>",
+      "observed": "Response contains: <script>alert('XSS')</script>",
+      "expected": "HTML entities escaped in response",
+      "hypothesis": "No server-side HTML sanitization; if frontend renders as innerHTML, stored XSS executes"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "DATA_INTEGRITY",
+      "title": "FK violation causes 500: assigneeId=non-existent",
+      "endpoint": "/trpc/tickets.create",
+      "payload": "{\"title\":\"FK_ASSIGNEE\",\"assigneeId\":\"00000000-0000-0000-0000-000000000001\"}",
+      "observed": "HTTP 500 — FK constraint error",
+      "expected": "400 BAD_REQUEST",
+      "hypothesis": "FK constraint violation bubbles as unhandled 500 rather than user-facing validation error"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "DATA_INTEGRITY",
+      "title": "FK violation causes 500: teamId=non-existent",
+      "endpoint": "/trpc/tickets.create",
+      "payload": "{\"title\":\"FK_TEAM\",\"teamId\":\"00000000-0000-0000-0000-000000000001\"}",
+      "observed": "HTTP 500 — FK constraint error",
+      "expected": "400 BAD_REQUEST",
+      "hypothesis": "FK constraint violation bubbles as unhandled 500 rather than user-facing validation error"
+    },
+    {
+      "severity": "HIGH",
+      "category": "STABILITY",
+      "title": "System health degraded post-chaos: DEGRADED",
+      "endpoint": "/internal/health",
+      "payload": "GET",
+      "observed": "status=DEGRADED, reasons=[\"Latency elevated on /trpc/tickets.create: avg 1350.4ms — threshold 1000ms\"]",
+      "expected": "HEALTHY after test completes",
+      "hypothesis": "Active health monitor detects error spike or latency regression from chaos load"
+    }
+  ],
+  "summary": {
+    "critical": 1,
+    "high": 2,
+    "medium": 4,
+    "low": 0,
+    "total": 7
+  }
+}
