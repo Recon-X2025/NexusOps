@@ -33,7 +33,13 @@ const APP_PAGES = [
   '/app/finance',
   '/app/changes',
   '/app/contracts',
-  '/app/assets',
+  '/app/ham',
+  '/app/sam',
+  '/app/cmdb',
+  '/app/grc',
+  '/app/vendors',
+  '/app/on-call',
+  '/app/devops',
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -563,8 +569,9 @@ async function main() {
   console.log(`  Verdict : ${report.verdict}`);
   console.log(`${'═'.repeat(62)}\n`);
 
-  fs.writeFileSync('./results/playwright-chaos-round3.json', JSON.stringify(report, null, 2));
-  console.log('  Report saved: ./results/playwright-chaos-round3.json\n');
+  const outPath = new URL('./results/playwright-chaos-round3.json', import.meta.url).pathname;
+  fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
+  console.log(`  Report saved: ${outPath}\n`);
 }
 
 main().catch(e => { console.error('FATAL:', e); process.exit(1); });
