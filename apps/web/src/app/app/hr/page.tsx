@@ -86,7 +86,14 @@ export default function HRPage() {
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
 
+  const resolveHRCase = trpc.hr.cases.resolve.useMutation({
+    onSuccess: () => { toast.success("Case resolved"); utils.hr.cases.list.invalidate(); setResolvingCase(null); setResolveNote(""); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to resolve case"),
+  });
+
   const [caseForm, setCaseForm] = useState({ employeeId: "", caseType: "policy" as const, notes: "" });
+  const [resolvingCase, setResolvingCase] = useState<string | null>(null);
+  const [resolveNote, setResolveNote] = useState("");
   const tdsChallans: any[] = tdsChallansQuery.data ?? [];
   const epfoEcrs: any[]    = epfoEcrQuery.data ?? [];
 
@@ -112,6 +119,41 @@ export default function HRPage() {
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* Resolve Case Modal */}
+      {resolvingCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-semibold">Resolve Case</h3>
+              <button onClick={() => { setResolvingCase(null); setResolveNote(""); }} className="text-muted-foreground hover:text-foreground">
+                <CheckCircle2 className="w-4 h-4" />
+              </button>
+            </div>
+            <label className="text-[11px] text-muted-foreground">Resolution Note (optional)</label>
+            <textarea
+              rows={3}
+              className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none"
+              placeholder="Describe how this case was resolved…"
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+            />
+            <div className="flex gap-2 mt-3">
+              <button
+                disabled={resolveHRCase.isPending}
+                onClick={() => resolveHRCase.mutate({ id: resolvingCase, resolution: resolveNote || undefined })}
+                className="px-4 py-1.5 rounded bg-green-600 text-white text-[11px] font-medium hover:bg-green-700 disabled:opacity-50"
+              >
+                {resolveHRCase.isPending ? "Resolving…" : "Mark Resolved"}
+              </button>
+              <button onClick={() => { setResolvingCase(null); setResolveNote(""); }} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <UserCheck className="w-4 h-4 text-muted-foreground" />
@@ -179,19 +221,21 @@ export default function HRPage() {
                   <th>Assignee</th>
                   <th>Opened</th>
                   <th>SLA</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {hrCases.map((c) => {
                   // DB returns nested { hrCase: {...}, employee: {...} } from the inner join
-                  const caseStatus = c.hrCase?.statusId ? "in_progress" : "open";
+                  const isResolved = c.hrCase?.notes?.includes("[RESOLVED:") ?? false;
+                  const caseStatus = isResolved ? "resolved" : c.hrCase?.statusId ? "in_progress" : "open";
                   const casePriority = c.hrCase?.priority ?? "low";
                   return (
-                    <tr key={c.hrCase?.id ?? ""}>
+                    <tr key={c.hrCase?.id ?? ""} className={isResolved ? "opacity-60" : ""}>
                       <td className="p-0"><div className={`priority-bar ${casePriority === "high" ? "bg-orange-500" : casePriority === "medium" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
                       <td className="font-mono text-[11px] text-primary">{c.hrCase?.id?.slice(-8)?.toUpperCase() ?? "—"}</td>
                       <td><span className="status-badge text-muted-foreground bg-muted">{c.hrCase?.caseType ?? "—"}</span></td>
-                      <td className="max-w-xs"><span className="truncate block text-foreground">{c.hrCase?.notes ?? "—"}</span></td>
+                      <td className="max-w-xs"><span className="truncate block text-foreground">{c.hrCase?.notes?.replace(/\[RESOLVED:.*?\]\s*/g, "") || "—"}</span></td>
                       <td className="text-muted-foreground">{c.employee?.employeeId ?? "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{c.employee?.department ?? "—"}</td>
                       <td><span className={`status-badge capitalize ${CASE_STATE_COLOR[caseStatus] ?? "text-muted-foreground bg-muted"}`}>{caseStatus.replace(/_/g, " ")}</span></td>
@@ -201,6 +245,17 @@ export default function HRPage() {
                         {c.hrCase?.createdAt ? new Date(c.hrCase.createdAt).toISOString().split("T")[0] : "—"}
                       </td>
                       <td className="text-muted-foreground text-[11px]">—</td>
+                      <td>
+                        {!isResolved && c.hrCase?.id && (
+                          <button
+                            onClick={() => { setResolvingCase(c.hrCase!.id); setResolveNote(""); }}
+                            className="text-[11px] text-green-600 hover:underline font-medium"
+                          >
+                            Resolve
+                          </button>
+                        )}
+                        {isResolved && <span className="text-[10px] text-green-600 font-medium">✓ Resolved</span>}
+                      </td>
                     </tr>
                   );
                 })}

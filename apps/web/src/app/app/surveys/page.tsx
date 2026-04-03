@@ -124,6 +124,13 @@ export default function SurveysPage() {
     { refetchOnWindowFocus: false },
   );
 
+  // Live results for selected survey
+  const isRealSurveyId = /^[0-9a-f-]{36}$/.test(selectedResult);
+  const { data: liveResults } = trpc.surveys.getResults.useQuery(
+    { id: selectedResult },
+    { enabled: isRealSurveyId, refetchOnWindowFocus: false },
+  );
+
   const createSurvey = trpc.surveys.create.useMutation({
     onSuccess: (survey) => {
       toast.success("Survey draft saved");
@@ -513,12 +520,65 @@ export default function SurveysPage() {
             <div className="flex items-center gap-3 mb-4">
               <select value={selectedResult} onChange={e => setSelectedResult(e.target.value)}
                 className="border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary">
-                {surveys.filter((s: any) => (s.responses ?? 0) > 0).map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.title} ({s.responses} responses)</option>
+                {surveys.filter((s: any) => (s.responses ?? s.responseCount ?? 0) > 0).map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.title} ({s.responses ?? s.responseCount ?? 0} responses)</option>
                 ))}
+                {surveys.filter((s: any) => (s.responses ?? s.responseCount ?? 0) > 0).length === 0 && (
+                  <option value="">No surveys with responses yet</option>
+                )}
               </select>
             </div>
-            {selectedResult === "sv-001" && (
+
+            {isRealSurveyId && liveResults ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="border border-border rounded p-4 text-center">
+                    <div className={`text-4xl font-black ${liveResults.averageScore ? "text-green-700" : "text-muted-foreground"}`}>
+                      {liveResults.averageScore ?? "—"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground/70 mt-1">Average Score</div>
+                    {liveResults.averageScore && (
+                      <div className="flex justify-center gap-0.5 mt-1">
+                        {[1,2,3,4,5].map(n => (
+                          <span key={n} className={n <= Math.round(Number(liveResults.averageScore)) ? "text-yellow-400" : "text-slate-200"}>★</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="border border-border rounded p-4 text-center">
+                    <div className="text-4xl font-black text-blue-700">{liveResults.totalResponses}</div>
+                    <div className="text-[11px] text-muted-foreground/70 mt-1">Total Responses</div>
+                  </div>
+                  <div className="border border-border rounded p-4 text-center">
+                    <div className="text-4xl font-black text-purple-700 capitalize">{liveResults.survey?.status ?? "—"}</div>
+                    <div className="text-[11px] text-muted-foreground/70 mt-1">Survey Status</div>
+                  </div>
+                </div>
+                {liveResults.responses.length > 0 && (
+                  <div className="border border-border rounded overflow-hidden">
+                    <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">Recent Responses</div>
+                    <div className="divide-y divide-border">
+                      {liveResults.responses.slice(0, 10).map((r: any) => (
+                        <div key={r.id} className="flex items-start gap-3 px-4 py-2.5">
+                          {r.score != null && (
+                            <span className={`flex-shrink-0 text-[13px] ${r.score >= 4 ? "text-yellow-400" : r.score === 3 ? "text-yellow-200" : "text-slate-300"}`}>
+                              {"★".repeat(r.score)}{"☆".repeat(5 - r.score)}
+                            </span>
+                          )}
+                          <p className="text-[12px] text-foreground/80 flex-1">{r.responseData ? JSON.stringify(r.responseData).slice(0, 120) : "—"}</p>
+                          <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">
+                            {r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {liveResults.responses.length === 0 && (
+                  <div className="text-center py-6 text-muted-foreground text-[12px]">No individual responses recorded yet.</div>
+                )}
+              </div>
+            ) : !isRealSurveyId && selectedResult === "sv-001" ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="border border-border rounded p-4 text-center">
@@ -583,8 +643,7 @@ export default function SurveysPage() {
                   </div>
                 </div>
               </div>
-            )}
-            {selectedResult !== "sv-001" && (
+            ) : (
               <div className="text-center py-8 text-muted-foreground/70 text-[12px]">
                 <BarChart2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 Select a survey above to view its detailed results.

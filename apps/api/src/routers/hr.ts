@@ -224,6 +224,25 @@ export const hrRouter = router({
         return hrCase;
       }),
 
+    resolve: permissionProcedure("hr", "write")
+      .input(z.object({ id: z.string().uuid(), resolution: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [existing] = await db.select({ notes: hrCases.notes }).from(hrCases)
+          .where(and(eq(hrCases.id, input.id), eq(hrCases.orgId, org!.id)));
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+        const prev = existing.notes ?? "";
+        const ts = new Date().toISOString();
+        const resolveNote = input.resolution
+          ? `${prev ? prev + "\n\n" : ""}[RESOLVED: ${ts}] ${input.resolution}`
+          : `${prev ? prev + "\n\n" : ""}[RESOLVED: ${ts}]`;
+        const [updated] = await db.update(hrCases)
+          .set({ notes: resolveNote, updatedAt: new Date() })
+          .where(and(eq(hrCases.id, input.id), eq(hrCases.orgId, org!.id)))
+          .returning();
+        return updated;
+      }),
+
     triggerOnboarding: permissionProcedure("onboarding", "write")
       .input(z.object({ employeeId: z.string().uuid(), templateId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {

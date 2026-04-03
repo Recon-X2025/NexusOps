@@ -8,7 +8,7 @@ import {
   Plus, Search, Download, ChevronRight, MoreHorizontal,
   Target, DollarSign, BarChart2, Activity, Tag, Repeat,
   Clock, CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight,
-  FileText, Send, Filter, Globe, Briefcase, Award,
+  FileText, Send, Filter, Globe, Briefcase, Award, X,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
@@ -294,6 +294,9 @@ export default function CRMPage() {
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const [editingLead, setEditingLead] = useState<any | null>(null);
   const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", status: "new" as string });
+  const [showNewDeal, setShowNewDeal] = useState(false);
+  const [dealForm, setDealForm] = useState({ title: "", value: "", probability: "30", expectedClose: "" });
+  const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [newQuoteDesc, setNewQuoteDesc] = useState("");
 
@@ -339,8 +342,19 @@ export default function CRMPage() {
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const movePipeline = trpc.crm.movePipeline.useMutation({
-    onSuccess: () => { toast.success("Deal stage updated"); refetchDeals(); },
+    onSuccess: () => { toast.success("Deal stage updated"); refetchDeals(); setMovingDeal(null); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const createDeal = trpc.crm.createDeal.useMutation({
+    onSuccess: () => {
+      toast.success("Deal created");
+      refetchDeals();
+      setShowNewDeal(false);
+      setDealForm({ title: "", value: "", probability: "30", expectedClose: "" });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create deal"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const updateQuote = trpc.crm.updateQuote.useMutation({
@@ -373,6 +387,71 @@ export default function CRMPage() {
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* Add Deal Modal */}
+      {showNewDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">New Deal</h3>
+              <button onClick={() => setShowNewDeal(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Deal Title *</label>
+                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Value (₹)</label>
+                <input type="number" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.value} onChange={(e) => setDealForm(f => ({ ...f, value: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Probability (%)</label>
+                <input type="number" min="0" max="100" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Expected Close Date</label>
+                <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!dealForm.title || createDeal.isPending}
+                onClick={() => createDeal.mutate({ title: dealForm.title, value: dealForm.value || undefined, probability: Number(dealForm.probability) || 30, expectedClose: dealForm.expectedClose || undefined })}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {createDeal.isPending ? "Creating…" : "Create Deal"}
+              </button>
+              <button onClick={() => setShowNewDeal(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move Stage popover */}
+      {movingDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-xs p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-semibold">Move to Stage</h3>
+              <button onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {(["prospect","qualified","proposal","negotiation","verbal_commit","closed_won","closed_lost"] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
+                  disabled={movePipeline.isPending}
+                  className={`px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50 ${STAGE_CFG[s]?.color ?? ""}`}
+                >
+                  {STAGE_CFG[s]?.label ?? s.replace(/_/g, " ")}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-muted-foreground" />
@@ -387,8 +466,8 @@ export default function CRMPage() {
             <Download className="w-3 h-3" /> Export
           </button>
           <PermissionGate module="csm" action="write">
-            <button onClick={() => setTab("opportunities")} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-              <Plus className="w-3 h-3" /> New Opportunity
+            <button onClick={() => { setShowNewDeal(true); setTab("pipeline"); }} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <Plus className="w-3 h-3" /> New Deal
             </button>
           </PermissionGate>
         </div>
@@ -529,6 +608,14 @@ export default function CRMPage() {
         {/* PIPELINE */}
         {tab === "pipeline" && (
           <div>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{DEALS_LIVE.filter(d => !["closed_won","closed_lost"].includes(d.stage ?? "")).length} Active Deals</span>
+              <PermissionGate module="accounts" action="write">
+                <button onClick={() => setShowNewDeal(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> Add Deal
+                </button>
+              </PermissionGate>
+            </div>
             <div className="flex overflow-x-auto p-4 gap-3 min-h-96">
               {(["prospect","qualified","proposal","negotiation","verbal_commit","closed_won"] as DealStage[]).map((stage) => {
                 const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
@@ -541,7 +628,7 @@ export default function CRMPage() {
                       <span className="text-[11px] text-muted-foreground/70">₹{(stageVal/1000).toFixed(0)}K</span>
                     </div>
                     {stageDeals.map((deal) => (
-                      <div key={deal.id} className={`border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border`}>
+                      <div key={deal.id} className="border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-mono text-[10px] text-primary">{deal.number}</span>
                           <span className="text-[11px] text-muted-foreground/70">{deal.probability}%</span>
@@ -550,13 +637,19 @@ export default function CRMPage() {
                         <p className="text-[11px] text-muted-foreground truncate mb-1.5">{deal.name}</p>
                         <div className="flex items-center justify-between">
                           <span className="font-mono font-bold text-[12px] text-primary">₹{(deal.value/1000).toFixed(0)}K</span>
-                          <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate.slice(5)}</span>
+                          <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate?.slice(5) ?? "—"}</span>
                         </div>
                         <div className="mt-1.5 flex items-center gap-1">
                           <span className="w-4 h-4 rounded-full bg-primary text-white text-[8px] flex items-center justify-center font-bold">
                             {(deal.owner ?? "").split(" ").map((n:string)=>n[0]).join("").slice(0,2)}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/70 truncate">{deal.lastActivity}</span>
+                          <span className="text-[10px] text-muted-foreground/70 truncate flex-1">{deal.lastActivity}</span>
+                          <PermissionGate module="accounts" action="write">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setMovingDeal(deal.id); }}
+                              className="text-[9px] px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:bg-muted/50 flex-shrink-0"
+                            >Move</button>
+                          </PermissionGate>
                         </div>
                       </div>
                     ))}

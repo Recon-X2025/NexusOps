@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import {
   Scale, AlertTriangle, CheckCircle2, Clock, FileText, Plus,
-  ChevronRight, BarChart2, Shield, Layers, BookOpen, AlertCircle, Loader2,
+  ChevronRight, BarChart2, Shield, Layers, BookOpen, AlertCircle, Loader2, X,
 } from "lucide-react";
-import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -59,10 +59,30 @@ export default function GRCPage() {
   const audits: AuditItem[] = auditsData ?? [];
   const vendorRisks: VendorRiskItem[] = vendorRisksData ?? [];
 
-  const createRiskMutation = trpc.grc.createRisk.useMutation({ onSuccess: () => { (trpc as any).grc?.listRisks?.invalidate?.(); setShowNewRisk(false); setRiskForm(EMPTY_RISK); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const utils = trpc.useUtils();
+  const createRiskMutation = trpc.grc.createRisk.useMutation({
+    onSuccess: () => { utils.grc.listRisks.invalidate(); setShowNewRisk(false); setRiskForm(EMPTY_RISK); toast.success("Risk created"); },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+  const createPolicyMutation = trpc.grc.createPolicy.useMutation({
+    onSuccess: () => { utils.grc.listPolicies.invalidate(); setShowNewPolicy(false); setPolicyForm({ title: "", content: "", category: "" }); toast.success("Policy created"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to create policy"),
+  });
+  const publishPolicyMutation = trpc.grc.publishPolicy.useMutation({
+    onSuccess: () => { utils.grc.listPolicies.invalidate(); toast.success("Policy published"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to publish"),
+  });
+  const createAuditMutation = trpc.grc.createAudit.useMutation({
+    onSuccess: () => { utils.grc.listAudits.invalidate(); setShowNewAudit(false); setAuditForm({ title: "", scope: "", startDate: "", endDate: "" }); toast.success("Audit plan created"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to create audit"),
+  });
   const EMPTY_RISK = { title: "", category: "operational" as const, likelihood: 3, impact: 3, treatment: "mitigate" as const, description: "", mitigationPlan: "" };
   const [showNewRisk, setShowNewRisk] = useState(false);
   const [riskForm, setRiskForm]       = useState(EMPTY_RISK);
+  const [showNewPolicy, setShowNewPolicy] = useState(false);
+  const [policyForm, setPolicyForm] = useState({ title: "", content: "", category: "" });
+  const [showNewAudit, setShowNewAudit] = useState(false);
+  const [auditForm, setAuditForm] = useState({ title: "", scope: "", startDate: "", endDate: "" });
 
   if (!can("grc", "read") && !can("risk", "read") && !can("audit", "read") && !can("policy", "read")) {
     return <AccessDenied module="Risk & Compliance" />;
@@ -76,6 +96,75 @@ export default function GRCPage() {
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* New Policy Modal */}
+      {showNewPolicy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">Create Policy</h3>
+              <button onClick={() => setShowNewPolicy(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground">Policy Title *</label>
+                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={policyForm.title} onChange={(e) => setPolicyForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Category</label>
+                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. Security, HR, Finance" value={policyForm.category} onChange={(e) => setPolicyForm(f => ({ ...f, category: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Content / Description</label>
+                <textarea rows={3} className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none" value={policyForm.content} onChange={(e) => setPolicyForm(f => ({ ...f, content: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button disabled={!policyForm.title || createPolicyMutation.isPending} onClick={() => createPolicyMutation.mutate({ title: policyForm.title, content: policyForm.content || undefined, category: policyForm.category || undefined })} className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50">
+                {createPolicyMutation.isPending ? "Creating…" : "Create Policy"}
+              </button>
+              <button onClick={() => setShowNewPolicy(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Audit Modal */}
+      {showNewAudit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">Create Audit Plan</h3>
+              <button onClick={() => setShowNewAudit(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Audit Title *</label>
+                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.title} onChange={(e) => setAuditForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Scope</label>
+                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. IT Security, Financial Controls" value={auditForm.scope} onChange={(e) => setAuditForm(f => ({ ...f, scope: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Start Date</label>
+                <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.startDate} onChange={(e) => setAuditForm(f => ({ ...f, startDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">End Date</label>
+                <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.endDate} onChange={(e) => setAuditForm(f => ({ ...f, endDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button disabled={!auditForm.title || createAuditMutation.isPending} onClick={() => createAuditMutation.mutate({ title: auditForm.title, scope: auditForm.scope || undefined, startDate: auditForm.startDate || undefined, endDate: auditForm.endDate || undefined })} className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50">
+                {createAuditMutation.isPending ? "Creating…" : "Create Audit"}
+              </button>
+              <button onClick={() => setShowNewAudit(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Scale className="w-4 h-4 text-muted-foreground" />
@@ -234,12 +323,27 @@ export default function GRCPage() {
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-xs">Loading policies…</span>
             </div>
-          ) : policies.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
-              <FileText className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No policies found.</span>
-            </div>
           ) : (
+            <div>
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">{policies.length} Policies</span>
+                <PermissionGate module="policy" action="write">
+                  <button onClick={() => setShowNewPolicy(true)} className="flex items-center gap-1 px-2.5 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> New Policy
+                  </button>
+                </PermissionGate>
+              </div>
+            {policies.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
+                <FileText className="w-5 h-5 opacity-30" />
+                <span className="text-xs">No policies found.</span>
+                <PermissionGate module="policy" action="write">
+                  <button onClick={() => setShowNewPolicy(true)} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> Create first policy
+                  </button>
+                </PermissionGate>
+              </div>
+            ) : (
             <table className="ent-table w-full">
               <thead>
                 <tr>
@@ -253,6 +357,7 @@ export default function GRCPage() {
                   <th>Exceptions</th>
                   <th>Status</th>
                   <th>Compliance %</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -292,11 +397,25 @@ export default function GRCPage() {
                           <span className="text-[11px] text-muted-foreground">{pct}%</span>
                         </div>
                       </td>
+                      <td>
+                        {(pStatus === "draft" || !pStatus || pStatus === "review") && (
+                          <PermissionGate module="policy" action="write">
+                            <button
+                              onClick={() => publishPolicyMutation.mutate({ id: p.id })}
+                              disabled={publishPolicyMutation.isPending}
+                              className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                            >Publish</button>
+                          </PermissionGate>
+                        )}
+                        {pStatus === "published" && <span className="text-[10px] text-green-600">✓ Published</span>}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            )}
+            </div>
           )
         )}
 
@@ -306,12 +425,27 @@ export default function GRCPage() {
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-xs">Loading audits…</span>
             </div>
-          ) : audits.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
-              <BarChart2 className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No audits found.</span>
-            </div>
           ) : (
+            <div>
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase">{audits.length} Audit Plans</span>
+                <PermissionGate module="audit" action="write">
+                  <button onClick={() => setShowNewAudit(true)} className="flex items-center gap-1 px-2.5 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> New Audit
+                  </button>
+                </PermissionGate>
+              </div>
+            {audits.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
+                <BarChart2 className="w-5 h-5 opacity-30" />
+                <span className="text-xs">No audits found.</span>
+                <PermissionGate module="audit" action="write">
+                  <button onClick={() => setShowNewAudit(true)} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> Create first audit
+                  </button>
+                </PermissionGate>
+              </div>
+            ) : (
             <table className="ent-table w-full">
               <thead>
                 <tr>
@@ -358,6 +492,8 @@ export default function GRCPage() {
                 })}
               </tbody>
             </table>
+            )}
+            </div>
           )
         )}
 
