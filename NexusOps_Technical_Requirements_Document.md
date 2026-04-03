@@ -1,9 +1,21 @@
 # NexusOps — Technical Requirements Document (TRD)
 
-**Version:** 1.5  
-**Date:** April 2, 2026  
+**Version:** 1.6  
+**Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.6** | 2026-04-03 | **Requirements status updated post-clean-slate**: all transactional data wiped; platform ready for production use with real data. QA score: 70/100. Verified requirements: FR-AUTH (all), FR-RBAC (partial — TG-14 RBAC gaps in surveys/events/oncall/walkup), FR-TICKETS (90%), FR-CHANGES (90%), FR-HR (93%), FR-FINANCIAL (100%), FR-NOTIFICATIONS (100%). Unverified/failing: FR-WORKORDERS (60% — Drizzle schema error), FR-SURVEYS (71% — RBAC), FR-EVENTS (75% — RBAC), FR-ONCALL (67% — RBAC). **New NFRs verified**: idempotency (5s window, Redis + DB), concurrency (MAX_IN_FLIGHT=500, 0 overload under 200 workers), input sanitisation (100% rejection of malformed inputs). **Open NFRs**: p95 login latency under 200 VUs (4,098ms, target <800ms); reports timeout (8,010ms for hr_manager). |
+| 1.5 | 2026-04-02 | NFRs: bcrypt concurrency limit, burst rate limit, in-flight guard, active health monitoring. |
+| 1.4 | 2026-03-27 | Load requirements validated: 397 req/s sustained, p50 1,284ms, 0 network errors at 800 VUs. |
+| 1.3 | 2026-03-26 | Security requirements: session invalidation, internal endpoint auth, stack trace suppression. |
+| 1.0–1.2 | 2026-03 | Initial TRD: functional and non-functional requirements for all 9 business modules. |
 
 ---
 

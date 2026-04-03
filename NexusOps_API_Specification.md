@@ -1,11 +1,23 @@
 # NexusOps — API Specification
 
-**Version:** 1.5  
-**Date:** April 2, 2026  
+**Version:** 1.6  
+**Date:** April 3, 2026  
 **Organisation:** Coheron  
 **Base URL:** `https://<host>/trpc`  
 **Protocol:** tRPC 11 over HTTP (JSON batch)  
 **Authentication:** Bearer token in `Authorization` header
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.6** | 2026-04-03 | Added `tickets.toggleWatch`, `workOrders.update`, `walkup.queue.hold`, `crm.updateLead`, `contracts.completeObligation` mutations. Bearer token auth unified across all procedure types (TG-16 fix). Per-user login rate limit added to `auth.login`. Internal endpoint auth (`X-Internal-Token`) documented. `traceId` added to all error envelopes. Stack traces suppressed in production. |
+| 1.5 | 2026-04-02 | bcrypt semaphore, idempotency window, burst rate limit, metrics p95/p99/rps, concurrency guard (MAX_IN_FLIGHT), active health monitor. |
+| 1.4 | 2026-03-27 | Observability stack: structured logger, metrics collector, health evaluator, `/internal/metrics`, `/internal/health`. |
+| 1.3 | 2026-03-26 | RBAC fallback fix (TG-13/14), ilike export, same-origin proxy, session management. |
+| 1.0–1.2 | 2026-03 | Initial 35-router build, auth, multi-tenancy, all domain routers. |
 
 ---
 

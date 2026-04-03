@@ -1,9 +1,21 @@
 # NexusOps — Developer & Operations Guide
 
-**Version:** 1.5  
-**Date:** April 2, 2026  
+**Version:** 1.6  
+**Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.6** | 2026-04-03 | **Production reset procedure documented.** Clean slate operation: `TRUNCATE ... RESTART IDENTITY CASCADE` on 83 transactional tables; 24 config/reference tables preserved; `org_counters` reset. **Deploy procedure updated**: rsync + `docker compose build --no-cache` + `up -d --force-recreate`. SSH credentials: `root@139.84.154.78` password auth via sshpass. Disk usage: 78% (55/75 GB) — run `docker image prune -a` before next build. **New env vars**: `INTERNAL_API_TOKEN` (for `/internal/*`), `BCRYPT_CONCURRENCY` (raise to 20–32), `MAX_IN_FLIGHT` (default 500). **New mutations**: `tickets.toggleWatch`, `workOrders.update`, `walkup.queue.hold`, `crm.updateLead`, `contracts.completeObligation`. |
+| 1.5 | 2026-04-02 | Observability stack, bcrypt semaphore, idempotency, burst rate limit, concurrency guard, metrics p95/p99. |
+| 1.4 | 2026-03-27 | Stress test environment setup. Same-origin proxy (`/api/trpc/[...path]`). React error #310 fix pattern documented. |
+| 1.3 | 2026-03-26 | Docker Compose production setup, Vultr deployment, HTTPS/CSP config. |
+| 1.0–1.2 | 2026-03 | Initial dev guide, local setup, DB migrations, seeding. |
 
 ---
 

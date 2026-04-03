@@ -1,6 +1,18 @@
 # NexusOps — Complete Business Logic Specification
 ## All 9 Modules | India-Compliant | Enterprise-Ready
-### Version 1.3 | Date: 2 April 2026
+### Version 1.4 | Date: 3 April 2026
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.4** | 2026-04-03 | Production data clean slate: all transactional records wiped. Ticket/change/WO org_counters reset — sequences restart from 1. Priority matrix (Impact × Urgency) stored and displayed correctly in DB. Comment authorship resolved via LEFT JOIN on users table. Watch/Unwatch wired to `ticketWatchers` table. HR lifecycle events now read from live `hrCases` API (no fallback). CRM module: all deals/accounts/contacts/leads/activities/quotes read from live API only. Surveys CSAT/Pulse analytics zeroed — ready for real data. |
+| 1.3 | 2026-04-02 | Chaos test hardening: session invalidation post-password-change, internal endpoint auth, idempotency window for ticket creation. |
+| 1.2 | 2026-03-27 | Stress test results incorporated. RBAC permission matrix expanded. |
+| 1.1 | 2026-03-26 | Business logic complete for all 9 modules. India compliance (GST, TDS, EPFO, ROC). |
+| 1.0 | 2026-03 | Initial specification. |
 
 ---
 

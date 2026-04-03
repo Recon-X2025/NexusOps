@@ -1,9 +1,21 @@
 # NexusOps — Software Design Document (SDD)
 
-**Version:** 1.5  
-**Date:** April 2, 2026  
+**Version:** 1.6  
+**Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.6** | 2026-04-03 | **Frontend design complete**: all 50 pages wired — no dead button handlers remain. Same-origin proxy pattern (`/api/trpc/[...path]`) documented as standard for CSP/CORS elimination. Virtual Agent `BOT_FLOWS` no longer contains hardcoded ticket IDs — all fake IDs removed. `LEAVE_HISTORY`, `CSAT_RESULTS`, `PULSE_RESULTS`, `APPS_DEFAULT`, `CONTRACTS` fallbacks all replaced with `[]` / zero structs. RBAC context: `can()` must be called before early returns — Rules of Hooks compliance enforced across all 36 client components. Floating Virtual Agent FAB: `bottom-20 z-40` (prevents click interception). |
+| 1.5 | 2026-04-02 | bcrypt semaphore design (counting semaphore + FIFO queue + fail-fast). Idempotency: Redis snapshot layer over DB unique index. Concurrency guard: `_inflight` flag pattern (prevents double-decrement). Error formatter: `traceId` in all envelopes. |
+| 1.4 | 2026-03-27 | Observability components: logger, metrics, health evaluator, active monitor. Input sanitiser. |
+| 1.3 | 2026-03-26 | Session management: `invalidateSessionCache` on logout + password change. Role assignment UI design. |
+| 1.0–1.2 | 2026-03 | Initial SDD: App Router architecture, tRPC client/server design, Drizzle schema design, RBAC matrix, multi-tenancy. |
 
 ---
 

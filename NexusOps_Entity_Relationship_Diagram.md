@@ -1,10 +1,21 @@
 # NexusOps — Entity Relationship Diagram
 
-**Version:** 1.6  
-**Date:** April 2, 2026  
+**Version:** 1.7  
+**Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
-**Source:** `packages/db/src/schema/` (31 schema files, Drizzle ORM / PostgreSQL 16)
+**Source:** `packages/db/src/schema/` (32 schema files, 107 tables, Drizzle ORM / PostgreSQL 16)
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.7** | 2026-04-03 | Schema count updated: 32 schema files, 107 tables. `ticketWatchers` table confirmed in use via `tickets.toggleWatch` mutation (LEFT JOIN pattern). `org_counters` table documented as sequence-reset target (wiped on clean-slate operation). `sessions` table: all rows cleared on `changePassword` + Redis `invalidateSessionCache` called per session. Production state: all 83 transactional tables at 0 rows; 24 config/reference tables populated. |
+| 1.6 | 2026-04-02 | Added `ticket_comments` LEFT JOIN `users` for author resolution. Added bcrypt semaphore and idempotency index on `tickets`. |
+| 1.5 | 2026-03-27 | Schema aligned with stress test findings: `ticket_priorities`, `ticket_categories` confirmed stable. |
+| 1.0–1.4 | 2026-03 | Full 16-domain ERD: Auth, ITSM, Assets, Workflows, HR, Procurement, Change/Problem/Release, Security, GRC, Contracts, Projects, CRM, KB, Approvals, Notifications, Facilities. |
 
 ---
 

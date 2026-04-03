@@ -1,9 +1,21 @@
 # NexusOps — Architecture Design Document
 
-**Version:** 1.5  
-**Date:** April 2, 2026  
+**Version:** 1.6  
+**Date:** April 3, 2026  
 **Organisation:** Coheron  
 **Status:** Living Document
+
+---
+
+## Changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| **1.6** | 2026-04-03 | Production clean slate: all transactional data wiped, 24 config/reference tables preserved. All hardcoded demo data removed from 8 frontend pages. Same-origin proxy architecture confirmed in production. 5-container Docker Compose stack all healthy on Vultr `139.84.154.78`. Disk: 78% (55/75 GB). |
+| 1.5 | 2026-04-02 | Chaos test Round 2 complete — 0 HTTP 500s across 62,369 requests. bcrypt semaphore, idempotency, concurrency guard, burst rate limit deployed. Observability stack live. |
+| 1.4 | 2026-03-27 | Stress test (10K sessions, 271K requests, 92.8% success). Same-origin proxy resolves CSP/CORS. React error #310 fixed across all pages. |
+| 1.3 | 2026-03-26 | RBAC UI, session security hardening, API URL runtime derivation. |
+| 1.0–1.2 | 2026-03 | Initial architecture: Next.js 15 + Fastify 5 + tRPC 11 + PostgreSQL 16 + Redis 7. |
 
 ---
 
