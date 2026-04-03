@@ -55,6 +55,11 @@ function Breadcrumbs() {
   );
 }
 
+function getPrimaryRole(roles: string[]): string {
+  const order = ["admin", "itil", "operator_field", "hr_manager", "finance_manager", "report_viewer"];
+  return order.find((r) => roles.includes(r)) ?? roles[0] ?? "requester";
+}
+
 function RoleSwitcher() {
   const { currentUser, switchUser } = useRBAC();
   const [open, setOpen] = useState(false);
@@ -67,7 +72,7 @@ function RoleSwitcher() {
         title="Switch role for demo"
       >
         <Shield className="w-3 h-3" />
-        <span className="hidden md:inline font-mono">{currentUser.roles[0]}</span>
+        <span className="hidden md:inline font-mono">{getPrimaryRole(currentUser.roles)}</span>
         <ChevronDown className="w-2.5 h-2.5" />
       </button>
       {open && (
@@ -313,7 +318,7 @@ function UserMenu() {
         </div>
         <div className="hidden md:block text-left">
           <p className="text-xs font-medium text-[hsl(var(--header-fg))] leading-none">{currentUser.name}</p>
-          <p className="text-[0.6rem] text-[hsl(var(--header-fg))] opacity-50 leading-none mt-0.5 font-mono">{currentUser.roles[0]}</p>
+          <p className="text-[0.6rem] text-[hsl(var(--header-fg))] opacity-50 leading-none mt-0.5 font-mono">{getPrimaryRole(currentUser.roles)}</p>
         </div>
         <ChevronDown className={cn("h-3 w-3 text-white/40 transition-transform duration-150", open && "rotate-180")} />
       </button>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import {
   ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X,
   AlertTriangle, MessageSquare, Activity, Paperclip, User,
@@ -90,19 +91,35 @@ function relativeTime(d: string | Date) {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { currentUser, can } = useRBAC();
   const [activeTab, setActiveTab] = useState<"notes" | "activity" | "related">("notes");
   const [commentBody, setCommentBody] = useState("");
   const [isInternal, setIsInternal] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
+  // Action panel state
+  const [showAssignPanel, setShowAssignPanel] = useState(false);
+  const [showResolvePanel, setShowResolvePanel] = useState(false);
+  const [showClosePanel, setShowClosePanel] = useState(false);
+  const [resolveNote, setResolveNote] = useState("");
+  const [watching, setWatching] = useState(false);
+
   const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id });
+  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
   const addComment = trpc.tickets.addComment.useMutation({
     onSuccess: () => { setCommentBody(""); refetch(); },
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
   });
   const updateTicket = trpc.tickets.update.useMutation({
-    onSuccess: () => { setEditingField(null); refetch(); toast.success("Ticket updated successfully"); },
+    onSuccess: () => { setEditingField(null); setShowResolvePanel(false); setShowClosePanel(false); refetch(); toast.success("Ticket updated"); },
+    onError: (e) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  const assignTicket = trpc.tickets.assign.useMutation({
+    onSuccess: () => { setShowAssignPanel(false); refetch(); toast.success("Ticket assigned"); },
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
   });
 
@@ -235,17 +252,32 @@ export default function TicketDetailPage() {
 
               {/* Toolbar */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <button
+                  onClick={() => { setEditingField("title"); setEditValues((v) => ({ ...v, title: ticket.title })); }}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                >
                   <Edit2 className="w-3 h-3" /> Edit
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <button
+                  disabled={!can("incidents", "assign")}
+                  onClick={() => setShowAssignPanel((v) => !v)}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <User className="w-3 h-3" /> Assign
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-green-300 rounded hover:bg-green-50 text-green-700">
-                  <CheckCircle2 className="w-3 h-3" /> Resolve
+                <button
+                  disabled={!can("incidents", "write") || updateTicket.isPending}
+                  onClick={() => setShowResolvePanel((v) => !v)}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-green-300 rounded hover:bg-green-50 text-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <CheckCircle2 className="w-3 h-3" /> {updateTicket.isPending ? "…" : "Resolve"}
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-slate-300 rounded hover:bg-muted/30 text-muted-foreground">
-                  <XCircle className="w-3 h-3" /> Close
+                <button
+                  disabled={!can("incidents", "write") || updateTicket.isPending}
+                  onClick={() => setShowClosePanel((v) => !v)}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-slate-300 rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <XCircle className="w-3 h-3" /> {updateTicket.isPending ? "…" : "Close"}
                 </button>
                 <button className="p-1.5 border border-border rounded hover:bg-muted/30 text-muted-foreground">
                   <MoreHorizontal className="w-3.5 h-3.5" />
@@ -254,6 +286,72 @@ export default function TicketDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Assign inline panel ── */}
+        {showAssignPanel && (
+          <div className="mx-4 mb-0 px-4 py-3 bg-blue-50 border-x border-b border-blue-200 rounded-b flex items-center gap-3">
+            <span className="text-[11px] text-blue-800 font-medium">Assign to:</span>
+            <button
+              disabled={assignTicket.isPending}
+              onClick={() => assignTicket.mutate({ id, assigneeId: currentUser.id })}
+              className="px-3 py-1 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {assignTicket.isPending ? "…" : "Assign to me"}
+            </button>
+            <button
+              disabled={assignTicket.isPending}
+              onClick={() => assignTicket.mutate({ id, assigneeId: null })}
+              className="px-3 py-1 rounded border border-blue-300 text-blue-700 text-[11px] hover:bg-blue-100 disabled:opacity-50"
+            >
+              Unassign
+            </button>
+            <button onClick={() => setShowAssignPanel(false)} className="ml-auto text-[11px] text-muted-foreground hover:text-foreground">✕ Cancel</button>
+          </div>
+        )}
+
+        {/* ── Resolve inline panel ── */}
+        {showResolvePanel && (
+          <div className="mx-4 mb-0 px-4 py-3 bg-green-50 border-x border-b border-green-200 rounded-b flex items-center gap-3">
+            <span className="text-[11px] text-green-800 font-medium">Resolution note (optional):</span>
+            <input
+              className="flex-1 max-w-xs text-xs border border-green-300 rounded px-2 py-1 bg-white"
+              placeholder="Briefly describe how this was resolved…"
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+            />
+            <button
+              disabled={updateTicket.isPending}
+              onClick={() => {
+                const resolvedStatus = statusCounts?.find((st: { name: string; statusId: string }) => st.name.toLowerCase() === "resolved");
+                if (!resolvedStatus) { toast.error("No 'Resolved' status configured — check Admin → SLA Definitions"); return; }
+                updateTicket.mutate({ id, data: { statusId: resolvedStatus.statusId } });
+              }}
+              className="px-3 py-1 rounded bg-green-600 text-white text-[11px] font-medium hover:bg-green-700 disabled:opacity-50"
+            >
+              {updateTicket.isPending ? "…" : "✓ Mark Resolved"}
+            </button>
+            <button onClick={() => setShowResolvePanel(false)} className="text-[11px] text-muted-foreground hover:text-foreground">✕ Cancel</button>
+          </div>
+        )}
+
+        {/* ── Close inline panel ── */}
+        {showClosePanel && (
+          <div className="mx-4 mb-0 px-4 py-3 bg-slate-50 border-x border-b border-slate-200 rounded-b flex items-center gap-3">
+            <span className="text-[11px] text-slate-700 font-medium">Close this ticket?</span>
+            <button
+              disabled={updateTicket.isPending}
+              onClick={() => {
+                const closedStatus = statusCounts?.find((st: { name: string; statusId: string }) => ["closed", "done"].includes(st.name.toLowerCase()));
+                if (!closedStatus) { toast.error("No 'Closed' status configured — check Admin → SLA Definitions"); return; }
+                updateTicket.mutate({ id, data: { statusId: closedStatus.statusId } });
+              }}
+              className="px-3 py-1 rounded bg-slate-700 text-white text-[11px] font-medium hover:bg-slate-800 disabled:opacity-50"
+            >
+              {updateTicket.isPending ? "…" : "✕ Close Ticket"}
+            </button>
+            <button onClick={() => setShowClosePanel(false)} className="text-[11px] text-muted-foreground hover:text-foreground">Cancel</button>
+          </div>
+        )}
       </div>
 
       {/* Two-column layout */}
@@ -307,6 +405,9 @@ export default function TicketDetailPage() {
                     >
                       <Lock className="w-3 h-3" /> Work Note (Internal)
                     </button>
+                    <span className="ml-auto text-[10px] text-muted-foreground/60">
+                      Posting as <span className="font-medium text-foreground/70">{currentUser.name}</span>
+                    </span>
                   </div>
                   <textarea
                     value={commentBody}
@@ -345,7 +446,12 @@ export default function TicketDetailPage() {
 
                 {/* Comments */}
                 <div className="space-y-3">
-                  {comments.map((comment: any) => (
+                  {comments.map((comment: any) => {
+                    const authorInitials = comment.authorName
+                      ? comment.authorName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+                      : "?";
+                    const authorDisplay = comment.authorName ?? "Agent";
+                    return (
                     <div
                       key={comment.id}
                       className={`rounded border p-3 ${
@@ -357,9 +463,9 @@ export default function TicketDetailPage() {
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-semibold">
-                            SU
+                            {authorInitials}
                           </span>
-                          <span className="text-[12px] font-semibold text-foreground/80">System User</span>
+                          <span className="text-[12px] font-semibold text-foreground/80">{authorDisplay}</span>
                           {comment.isInternal && (
                             <span className="status-badge text-yellow-700 bg-yellow-100">
                               <Lock className="w-2.5 h-2.5 inline mr-0.5" /> Work Note
@@ -372,7 +478,8 @@ export default function TicketDetailPage() {
                       </div>
                       <p className="text-[12px] text-foreground/80 whitespace-pre-wrap">{comment.body}</p>
                     </div>
-                  ))}
+                    );
+                  })}
                   {comments.length === 0 && (
                     <p className="text-center text-[12px] text-muted-foreground/70 py-4">No comments yet</p>
                   )}
@@ -673,7 +780,15 @@ export default function TicketDetailPage() {
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Watchers
               </span>
-              <button className="text-[11px] text-primary hover:underline">+ Watch</button>
+              <button
+                onClick={() => {
+                  setWatching((w) => !w);
+                  toast.success(watching ? "Removed from watchers" : "You are now watching this ticket");
+                }}
+                className={`text-[11px] hover:underline ${watching ? "text-muted-foreground" : "text-primary"}`}
+              >
+                {watching ? "− Unwatch" : "+ Watch"}
+              </button>
             </div>
             <div className="px-3 py-3">
               <div className="flex -space-x-1">

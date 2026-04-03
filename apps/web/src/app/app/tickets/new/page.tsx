@@ -148,11 +148,6 @@ export default function NewTicketPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    console.log("PAYLOAD:", {
-      ...form,
-      dueDate: form.dueDate,
-      parsedDueDate: form.dueDate ? new Date(form.dueDate) : null,
-    });
     createTicket.mutate({
       type: form.type as any,
       title: form.title,
@@ -160,6 +155,11 @@ export default function NewTicketPage() {
       tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       dueDate: form.dueDate ? new Date(form.dueDate) : undefined,
       idempotencyKey: idempotencyKeyRef.current,
+      customFields: {
+        impact: form.impact,
+        urgency: form.urgency,
+        calculatedPriority,
+      },
     });
   };
 

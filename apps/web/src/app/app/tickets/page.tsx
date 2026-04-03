@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -93,6 +93,7 @@ export default function TicketsPage() {
     return <AccessDenied module="Service Desk" />;
   }
   const [view, setView] = useState<"overview" | "queue">("queue");
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedStatusId, setSelectedStatusId] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -100,6 +101,19 @@ export default function TicketsPage() {
   const [showAssignPanel, setShowAssignPanel] = useState(false);
   const [bulkAssigneeEmail, setBulkAssigneeEmail] = useState("");
   const [bulkActionMsg, setBulkActionMsg] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterType, setFilterType] = useState<string>("");
+  const [filterSla, setFilterSla] = useState<"" | "breached" | "ok">("");
+
+  // Debounce search input so the query only fires after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      // Clear status filter when user starts a new text search for better UX
+      if (searchInput) setSelectedStatusId(null);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const bulkUpdate = trpc.tickets.bulkUpdate.useMutation({
     onSuccess: (result) => {
@@ -131,6 +145,14 @@ export default function TicketsPage() {
   const tickets: TicketRow[] = (data?.items as TicketRow[] | undefined) ?? [];
   const total = data?.items?.length ?? 0;
 
+  // Client-side supplemental filters (type + SLA) layered on top of the server query
+  const filteredTickets = tickets.filter((t) => {
+    if (filterType && t.type !== filterType) return false;
+    if (filterSla === "breached" && !t.slaBreached) return false;
+    if (filterSla === "ok" && t.slaBreached) return false;
+    return true;
+  });
+
   const toggleRow = (id: string) => {
     setSelectedRows((prev) => {
       const next = new Set(prev);
@@ -140,10 +162,10 @@ export default function TicketsPage() {
   };
 
   const toggleAll = () => {
-    if (selectedRows.size === tickets.length) {
+    if (selectedRows.size === filteredTickets.length) {
       setSelectedRows(new Set());
     } else {
-      setSelectedRows(new Set(tickets.map((t) => t.id)));
+      setSelectedRows(new Set(filteredTickets.map((t) => t.id)));
     }
   };
 
@@ -250,9 +272,15 @@ export default function TicketsPage() {
           )}
           {view === "queue" && (
             <>
-              <button className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${showFilters ? "border-primary bg-primary/5 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+              >
                 <Filter className="h-3 w-3" />
                 Filters
+                {(filterType || filterSla) && (
+                  <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                )}
               </button>
               <button
                 onClick={() => downloadCSV(tickets.map((t) => {
@@ -475,12 +503,56 @@ export default function TicketsPage() {
           <input
             type="text"
             placeholder="Search…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-48 rounded border border-border bg-background py-1 pl-6 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
       </div>
+
+      {/* ── Filter panel ─────────────────────────────────────────── */}
+      {showFilters && (
+        <div className="flex items-center gap-4 border-b border-border px-3 py-2 bg-muted/20 flex-shrink-0">
+          <span className="text-[11px] font-medium text-muted-foreground">Filter by:</span>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted-foreground">Type:</span>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="text-xs border border-border rounded px-2 py-0.5 bg-background"
+            >
+              <option value="">All types</option>
+              <option value="incident">Incident</option>
+              <option value="request">Request</option>
+              <option value="problem">Problem</option>
+              <option value="change">Change</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted-foreground">SLA:</span>
+            <select
+              value={filterSla}
+              onChange={(e) => setFilterSla(e.target.value as "" | "breached" | "ok")}
+              className="text-xs border border-border rounded px-2 py-0.5 bg-background"
+            >
+              <option value="">All</option>
+              <option value="breached">Breached</option>
+              <option value="ok">On Track</option>
+            </select>
+          </div>
+          {(filterType || filterSla) && (
+            <button
+              onClick={() => { setFilterType(""); setFilterSla(""); }}
+              className="text-[11px] text-primary hover:underline ml-1"
+            >
+              Clear filters
+            </button>
+          )}
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            {filteredTickets.length} of {tickets.length} shown
+          </span>
+        </div>
+      )}
 
       {/* ─── Table ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto scrollbar-thin">
@@ -495,7 +567,7 @@ export default function TicketsPage() {
                 {/* Checkbox */}
                 <th className="w-8 px-3">
                   <button onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
-                    {selectedRows.size === tickets.length && tickets.length > 0
+                    {selectedRows.size === filteredTickets.length && filteredTickets.length > 0
                       ? <CheckSquare className="h-3.5 w-3.5 text-primary" />
                       : <Square className="h-3.5 w-3.5" />
                     }
@@ -576,7 +648,7 @@ export default function TicketsPage() {
                   </td>
                 </tr>
               ) : (
-                tickets.map((ticket) => {
+                filteredTickets.map((ticket) => {
                   const isSelected = selectedRows.has(ticket.id);
                   const typeMeta = TYPE_META[ticket.type] ?? { label: ticket.type, color: "#6b7280" };
 
@@ -717,8 +789,9 @@ export default function TicketsPage() {
       {/* ─── Status bar ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-t border-border px-3 py-1.5 bg-[#f7f8fa] dark:bg-card flex-shrink-0">
         <p className="text-[0.65rem] text-muted-foreground">
-          Showing {tickets.length} of {total} records
+          Showing {filteredTickets.length} of {total} records
           {selectedRows.size > 0 && ` · ${selectedRows.size} selected`}
+          {(filterType || filterSla) && ` · filtered`}
         </p>
         <p className="text-[0.65rem] text-muted-foreground">
           NexusOps ITSM · Coheron Platform

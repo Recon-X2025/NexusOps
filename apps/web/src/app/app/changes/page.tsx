@@ -47,6 +47,8 @@ const TABS = [
 
 export default function ChangesPage() {
   const { can } = useRBAC();
+  const hasAccess = can("changes", "read");
+
   const visibleTabs = TABS.filter((t) => can(t.module, t.action));
   const [activeTab, setActiveTab] = useState(visibleTabs[0]?.key ?? "all");
 
@@ -54,16 +56,17 @@ export default function ChangesPage() {
     if (!visibleTabs.find((t) => t.key === activeTab)) setActiveTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, activeTab]);
 
-  if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
+  // All hooks must be called unconditionally — the early access-denied return
+  // happens AFTER this block to avoid React error #310 (conditional hook count).
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
 
   const { data, isLoading, refetch } = trpc.changes.list.useQuery(
     { status: activeStatus, limit: 50 },
-    { refetchOnWindowFocus: false },
+    { refetchOnWindowFocus: false, enabled: hasAccess },
   );
   const { data: counts } = trpc.changes.statusCounts.useQuery(
     undefined,
-    { refetchOnWindowFocus: false },
+    { refetchOnWindowFocus: false, enabled: hasAccess },
   );
 
   const [actionRow, setActionRow] = useState<string | null>(null);
@@ -84,6 +87,9 @@ export default function ChangesPage() {
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
+
+  // Deferred access guard — all hooks already called above
+  if (!hasAccess) return <AccessDenied module="Change Management" />;
 
   type ChangeItem = NonNullable<typeof data>["items"][number];
   const items: ChangeItem[] = data?.items ?? [];
