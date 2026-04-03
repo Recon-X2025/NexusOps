@@ -593,8 +593,8 @@ export function AppHeader() {
         {/* Notifications */}
         <NotificationBell />
 
-        {/* RBAC Role switcher — demo / dev only */}
-        {isDemoMode && <RoleSwitcher />}
+        {/* RBAC Role switcher — dev builds only; hidden in production */}
+        {isDemoMode && process.env.NODE_ENV !== "production" && <RoleSwitcher />}
 
         {/* Admin console — admins only */}
         {showAdminLink && (
