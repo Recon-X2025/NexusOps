@@ -277,6 +277,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     onboarding: ["read", "write", "admin"],
     approvals:  ["read", "write", "approve", "admin"],
     reports:    ["read", "write"],
+    analytics:  ["read", "write"],
     catalog:    ["read"],
     knowledge:  ["read"],
   },

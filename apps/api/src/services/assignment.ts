@@ -17,7 +17,7 @@
 
 import { type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@nexusops/db";
-import { and, eq, inArray, isNull, sql, asc, count } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql, asc, count } from "@nexusops/db";
 import {
   assignmentRules,
   userAssignmentStats,

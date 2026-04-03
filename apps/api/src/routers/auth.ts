@@ -28,7 +28,7 @@ import {
 import bcrypt from "bcrypt";
 import { randomBytes, createHash } from "crypto";
 import { nanoid } from "nanoid";
-import { recordFailedLogin, clearLoginAttempts } from "../lib/login-rate-limit";
+import { checkLoginRateLimit, recordFailedLogin, clearLoginAttempts } from "../lib/login-rate-limit";
 import { hashSessionToken } from "../middleware/auth";
 
 /** Never return password hashes to clients. */
@@ -71,8 +71,6 @@ export async function createSession(
     ipAddress,
     userAgent,
   });
-
-  console.log("SESSION INSERTED HASH:", tokenHash);
 
   return tokenPlaintext; // Return plaintext; DB stores hash
 }
@@ -137,6 +135,11 @@ export const authRouter = router({
   login: publicProcedure.input(LoginSchema).mutation(async ({ ctx, input }) => {
     const { db } = ctx;
     const t0 = Date.now();
+
+    // ── Pre-bcrypt gate: reject before touching the DB or bcrypt ─────────────
+    // Limits ALL attempts (not just failures) so rapid-fire login storms cannot
+    // saturate the bcrypt semaphore even when the password is correct.
+    await checkLoginRateLimit(input.email);
 
     const [user] = await db
       .select()

@@ -277,6 +277,8 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
     (rawHeaders["authorization"] as string | undefined) ||
     (rawHeaders["Authorization"] as string | undefined) ||
     (rawHeaders["AUTHORIZATION"] as string | undefined) ||
+    // Accept proxied auth header (some reverse-proxy setups forward under this key)
+    (rawHeaders["x-forwarded-authorization"] as string | undefined) ||
     null;
 
   const cookieHeader = (rawHeaders["cookie"] as string | undefined) || null;
@@ -284,12 +286,12 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
   let sessionCookie: string | null = null;
   if (cookieHeader) {
     const match = cookieHeader.match(/nexusops_session=([^;]+)/);
-    sessionCookie = match ? match[1]! : null;
+    sessionCookie = match ? match[1]!.trim() : null;
   }
 
   const bearerToken =
-    authHeader && authHeader.startsWith("Bearer ")
-      ? authHeader.slice(7)
+    authHeader && authHeader.trimStart().startsWith("Bearer ")
+      ? authHeader.trimStart().slice(7).trim()
       : null;
 
   const token = bearerToken || sessionCookie || null;
