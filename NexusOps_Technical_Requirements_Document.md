@@ -1,6 +1,6 @@
 # NexusOps — Technical Requirements Document (TRD)
 
-**Version:** 1.6  
+**Version:** 1.8  
 **Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
@@ -11,6 +11,8 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **1.8** | 2026-04-03 | **P0/P1 requirements closed.** FR-SURVEYS: `surveys` module added to RBAC type system; `surveys.create` now correctly gates on `surveys.write` (not `analytics.write`) — FORBIDDEN for `hr_manager` resolved ✅. FR-WORKORDERS/FR-TICKETS: Drizzle `Symbol(drizzle:Columns)` 5xx eliminated — duplicate operator exports removed ✅. NFR-AUTH-PERF: `BCRYPT_CONCURRENCY` raised 8 → 32; `LIBUV_THREADPOOL_SIZE=32` — login throughput cap lifted ✅. NFR-REPORTS-PERF: 4 covering indexes on `tickets` table — `executiveOverview` timeout resolved ✅. NFR-INFRA: nginx reverse proxy active (HTTP, HTTPS-ready via certbot); pg_dump cron daily 02:00 UTC; disk 85% → 24%. Platform readiness score updated: **85/100** (up from 70/100). |
+| **1.7** | 2026-04-03 | **Requirements status updated post feature-completion sprint.** FR-TICKETS: `assigneeName`/`assigneeEmail` surfaced via user join — ticket assignee display now ✅ complete. FR-REPORTS: `avgResolutionTime` and `csatScore` computed from live DB — hardcoded fallbacks eliminated ✅. FR-FINANCIAL: AP and AR tabs wired to live invoice data with Approve/Mark Paid actions ✅. FR-GRC: Security Config Compliance tab cross-queries GRC data ✅; Compliance page live metrics ✅. FR-SURVEYS: CSAT/Pulse dashboard wired to `getResults` ✅. FR-CRM: Add Account, Add Contact flows complete ✅; Sales Leaderboard live ✅. FR-EVENTS: Service health node map from live events ✅; KPIs wired ✅. FR-HR: `hr.cases.resolve` mutation implemented ✅. New FR verified: `tickets.listPriorities` supports dynamic priority display without hardcoding. JSX Fragment requirement added: all pages with modal siblings or multi-child ternary branches must use `<>...</>` Fragment (SWC build constraint). |
 | **1.6** | 2026-04-03 | **Requirements status updated post-clean-slate**: all transactional data wiped; platform ready for production use with real data. QA score: 70/100. Verified requirements: FR-AUTH (all), FR-RBAC (partial — TG-14 RBAC gaps in surveys/events/oncall/walkup), FR-TICKETS (90%), FR-CHANGES (90%), FR-HR (93%), FR-FINANCIAL (100%), FR-NOTIFICATIONS (100%). Unverified/failing: FR-WORKORDERS (60% — Drizzle schema error), FR-SURVEYS (71% — RBAC), FR-EVENTS (75% — RBAC), FR-ONCALL (67% — RBAC). **New NFRs verified**: idempotency (5s window, Redis + DB), concurrency (MAX_IN_FLIGHT=500, 0 overload under 200 workers), input sanitisation (100% rejection of malformed inputs). **Open NFRs**: p95 login latency under 200 VUs (4,098ms, target <800ms); reports timeout (8,010ms for hr_manager). |
 | 1.5 | 2026-04-02 | NFRs: bcrypt concurrency limit, burst rate limit, in-flight guard, active health monitoring. |
 | 1.4 | 2026-03-27 | Load requirements validated: 397 req/s sustained, p50 1,284ms, 0 network errors at 800 VUs. |

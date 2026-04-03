@@ -228,4 +228,36 @@ None. All 4 Playwright chaos findings resolved. Platform is clean.
 
 ---
 
+## Follow-up: Feature Completions & Live-Data Wiring (Post-Report)
+
+After the chaos test and initial 3 fixes, a comprehensive audit surfaced missing CRUD flows, stub UI, and hardcoded data across the platform. All items were fixed and deployed in two subsequent commits (`f357ee7`, `9b774ab`).
+
+### API Changes
+
+| File | Change |
+|---|---|
+| `apps/api/src/routers/tickets.ts` | Added `listPriorities` endpoint; `list` query now `LEFT JOIN`s `users` table to return `assigneeName` / `assigneeEmail` |
+| `apps/api/src/routers/reports.ts` | `executiveOverview` now computes live `avgResolutionTime` (from ticket timestamps) and `csatScore` (from survey responses); removed hardcoded `ticketDeflection`; `slaDashboard` joins `ticketPriorities` for real priority names |
+
+### Frontend Changes
+
+| File | Change |
+|---|---|
+| `apps/web/src/app/app/tickets/page.tsx` | Assignee column shows real name/email from joined user data instead of UUID |
+| `apps/web/src/app/app/approvals/page.tsx` | KPIs computed from live submitted items; "View Full Record" smart-routes by approval type (`purchase` → financial, `access` → hr, `security` → security, `service` → tickets) |
+| `apps/web/src/app/app/security/page.tsx` | Investigate panel for incidents (inline detail toggle); Remediate action for vulnerabilities (with note); IOC Blocked KPI wired to live incident data; **Config Compliance tab fully wired to GRC module** — shows live audit plans, policies, and open risks |
+| `apps/web/src/app/app/walk-up/page.tsx` | Book Appointment replaced with functional modal (`createAppointment` mutation); "Appointments Today" KPI uses current date; React Fragment fix for modal placement |
+| `apps/web/src/app/app/financial/page.tsx` | AP tab replaced stub with live payable invoices table (Approve / Mark Paid actions); AR tab wired to live receivable invoices; React Fragment fix for budget modal |
+| `apps/web/src/app/app/compliance/page.tsx` | Average compliance score calculated from completed audits; failed controls from live high/critical risks; audit "View" toggles inline detail panel with findings; IIFE-in-JSX replaced with clean variable pattern; Fragment wrapper added |
+| `apps/web/src/app/app/reports/page.tsx` | All hardcoded KPI fallbacks removed; Quality tab fully wired to live SLA data (breach rate by priority, open incidents, CSAT score) |
+| `apps/web/src/app/app/events/page.tsx` | Service Health Overview replaced static placeholder with dynamic node health map from live events; Suppressed and Auto-Resolved KPIs wired |
+| `apps/web/src/app/app/crm/page.tsx` | Add Account and Add Contact modals implemented with full forms and mutations; Sales Leaderboard replaced static data with live aggregate from `closed_won` deals |
+| `apps/web/src/app/app/surveys/page.tsx` | Dashboard CSAT and Pulse cards fetch and display live aggregate results from `getResults` API |
+
+### Deployment
+
+All changes deployed to `http://139.84.154.78` — both `nexusops-api-1` and `nexusops-web-1` rebuilt and restarted healthy.
+
+---
+
 *NexusOps Post-Chaos Fix Report · April 3, 2026 · Coheron Platform Engineering*

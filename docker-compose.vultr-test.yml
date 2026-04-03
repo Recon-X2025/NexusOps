@@ -21,7 +21,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     restart: unless-stopped
     ports:
-      - "80:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
@@ -49,6 +49,12 @@ services:
     ports:
       - "3001:3001"
     env_file: .env.production
+    environment:
+      # Raise bcrypt concurrency so login throughput scales with the thread pool.
+      # At BCRYPT_CONCURRENCY=8 (default) we cap at ~8 logins/s; 32 matches
+      # a 4-core server running 8 threads each.
+      BCRYPT_CONCURRENCY: "32"
+      LIBUV_THREADPOOL_SIZE: "32"
     depends_on:
       postgres:
         condition: service_healthy

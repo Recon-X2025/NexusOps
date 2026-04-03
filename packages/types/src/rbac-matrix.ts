@@ -77,6 +77,7 @@ export type Module =
   | "analytics"
   | "flows"
   | "virtual_agent"
+  | "surveys"
   | "admin"
   | "users"
   | "roles"
@@ -109,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     sam:          ["read", "write"],
     ham:          ["read", "write"],
     flows:        ["read", "write", "admin"],
+    surveys:      ["read", "write", "admin"],
     reports:      ["read", "write", "admin"],
     analytics:    ["read", "write"],
     virtual_agent:["read", "admin"],
@@ -136,6 +138,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     sam:         ["read"],
     ham:         ["read"],
     facilities:  ["read"],
+    surveys:     ["read", "write"],
     reports:     ["read"],
   },
 
@@ -278,6 +281,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     approvals:  ["read", "write", "approve", "admin"],
     reports:    ["read", "write"],
     analytics:  ["read", "write"],
+    surveys:    ["read", "write", "admin"],
     catalog:    ["read"],
     knowledge:  ["read"],
   },
@@ -286,6 +290,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     hr:         ["read", "write", "assign", "close", "approve"],
     onboarding: ["read", "write"],
     approvals:  ["read", "approve"],
+    surveys:    ["read"],
     catalog:    ["read"],
     knowledge:  ["read"],
     reports:    ["read"],
@@ -370,6 +375,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     facilities:  ["read", "write"],
     hr:          ["read", "write"],
     procurement: ["read", "write"],
+    surveys:     ["read", "write"],
   },
 
   report_viewer: {

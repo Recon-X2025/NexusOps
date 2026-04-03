@@ -1,6 +1,6 @@
 # NexusOps — Software Design Document (SDD)
 
-**Version:** 1.6  
+**Version:** 1.8  
 **Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
@@ -11,6 +11,8 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **1.8** | 2026-04-03 | **RBAC design finalized + DB performance hardening.** `surveys` added as explicit `Module` type in `packages/types/src/rbac-matrix.ts`; surveys router permission binding corrected from `analytics` → `surveys`; `hr_manager`, `itil`, `itil_admin`, `requester` roles updated with `surveys` permissions. Duplicate Drizzle operator export pattern removed from `packages/db/src/index.ts` — single authoritative source now `packages/db/src/schema/index.ts` (eliminates `Symbol(drizzle:Columns)` dual-module instantiation bug). `BCRYPT_CONCURRENCY` design note updated: raised to 32 in production; `LIBUV_THREADPOOL_SIZE` must match. |
+| **1.7** | 2026-04-03 | **Frontend design patterns updated.** Prohibited patterns added: (1) IIFE-in-JSX `{(() => {...})()}` — rejected by SWC production compiler; extract to named variable before `return`. (2) Multi-root JSX in ternary branch or adjacent sibling without Fragment — must wrap with `<>...</>`. Security Config Compliance tab design: cross-module data read (GRC queries on a Security page) enabled via `trpc.grc.*` hooks with `enabled: can("grc", "read")` guard. Computed-before-return pattern: complex derived values (e.g. `selectedAudit`, leaderboard aggregation) computed as `const` outside JSX rather than inline IIFE. `reports` page Quality tab: SLA data rendered from `slaDashboard` query with priority name/color from joined data. |
 | **1.6** | 2026-04-03 | **Frontend design complete**: all 50 pages wired — no dead button handlers remain. Same-origin proxy pattern (`/api/trpc/[...path]`) documented as standard for CSP/CORS elimination. Virtual Agent `BOT_FLOWS` no longer contains hardcoded ticket IDs — all fake IDs removed. `LEAVE_HISTORY`, `CSAT_RESULTS`, `PULSE_RESULTS`, `APPS_DEFAULT`, `CONTRACTS` fallbacks all replaced with `[]` / zero structs. RBAC context: `can()` must be called before early returns — Rules of Hooks compliance enforced across all 36 client components. Floating Virtual Agent FAB: `bottom-20 z-40` (prevents click interception). |
 | 1.5 | 2026-04-02 | bcrypt semaphore design (counting semaphore + FIFO queue + fail-fast). Idempotency: Redis snapshot layer over DB unique index. Concurrency guard: `_inflight` flag pattern (prevents double-decrement). Error formatter: `traceId` in all envelopes. |
 | 1.4 | 2026-03-27 | Observability components: logger, metrics, health evaluator, active monitor. Input sanitiser. |

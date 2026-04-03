@@ -4,7 +4,7 @@ import { z } from "zod";
 import { surveys, surveyResponses, eq, and, desc, count, avg } from "@nexusops/db";
 
 export const surveysRouter = router({
-  list: permissionProcedure("analytics", "read")
+  list: permissionProcedure("surveys", "read")
     .input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -14,7 +14,7 @@ export const surveysRouter = router({
       return db.select().from(surveys).where(and(...conditions)).orderBy(desc(surveys.createdAt)).limit(input.limit);
     }),
 
-  get: permissionProcedure("analytics", "read")
+  get: permissionProcedure("surveys", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
     const { db, org } = ctx;
@@ -23,7 +23,7 @@ export const surveysRouter = router({
     return survey;
   }),
 
-  create: permissionProcedure("analytics", "write")
+  create: permissionProcedure("surveys", "write")
     .input(z.object({
       title: z.string().min(1),
       description: z.string().optional(),
@@ -43,7 +43,7 @@ export const surveysRouter = router({
       return survey;
     }),
 
-  activate: permissionProcedure("analytics", "write")
+  activate: permissionProcedure("surveys", "write")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
     const [survey] = await ctx.db.update(surveys).set({ status: "active", updatedAt: new Date() })
@@ -51,7 +51,7 @@ export const surveysRouter = router({
     return survey;
   }),
 
-  update: permissionProcedure("analytics", "write")
+  update: permissionProcedure("surveys", "write")
     .input(z.object({
       id: z.string().uuid(),
       title: z.string().min(1).optional(),
@@ -77,7 +77,7 @@ export const surveysRouter = router({
       return survey;
     }),
 
-  submit: permissionProcedure("analytics", "write")
+  submit: permissionProcedure("surveys", "write")
     .input(z.object({
       surveyId: z.string().uuid(),
       answers: z.record(z.union([z.string(), z.coerce.number(), z.array(z.string())])),
@@ -96,7 +96,7 @@ export const surveysRouter = router({
       return response;
     }),
 
-  getResults: permissionProcedure("analytics", "read")
+  getResults: permissionProcedure("surveys", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
     const { db, org } = ctx;

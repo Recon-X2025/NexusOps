@@ -32,7 +32,8 @@ export * from "./catalog";
 // India compliance schemas
 export * from "./india-compliance";
 
-// Re-export drizzle operators used in routers
+// Re-export drizzle operators used in routers.
+// Single authoritative source — do NOT also export from packages/db/src/index.ts.
 export {
   eq,
   and,
@@ -46,16 +47,20 @@ export {
   avg,
   min,
   max,
+  ne,
   inArray,
   notInArray,
   isNull,
   isNotNull,
+  exists,
+  notExists,
   like,
   ilike,
+  notLike,
+  notIlike,
   between,
   lt,
   lte,
   gt,
   gte,
-  ne,
 } from "drizzle-orm";

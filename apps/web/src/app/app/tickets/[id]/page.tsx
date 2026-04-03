@@ -564,7 +564,7 @@ export default function TicketDetailPage() {
                             {entry.action.replace(/_/g, " ")}
                           </span>
                           <span className="text-[11px] text-muted-foreground/70">
-                            by System User · {relativeTime(entry.createdAt)}
+                            by {entry.userName ?? "System"} · {relativeTime(entry.createdAt)}
                           </span>
                         </div>
                         {entry.changes && Object.keys(entry.changes).length > 0 && (
@@ -657,12 +657,6 @@ export default function TicketDetailPage() {
               </FieldRow>
               <FieldRow label="Impact">
                 <span className="text-[11px] text-muted-foreground capitalize">{IMPACT_LABEL[impact]}</span>
-              </FieldRow>
-              <FieldRow label="Impact">
-                <span className="text-muted-foreground">—</span>
-              </FieldRow>
-              <FieldRow label="Urgency">
-                <span className="text-muted-foreground">—</span>
               </FieldRow>
             </div>
           </div>
@@ -840,13 +834,11 @@ export default function TicketDetailPage() {
                 Watchers
               </span>
               <button
-                onClick={() => {
-                  setWatching((w) => !w);
-                  toast.success(watching ? "Removed from watchers" : "You are now watching this ticket");
-                }}
-                className={`text-[11px] hover:underline ${watching ? "text-muted-foreground" : "text-primary"}`}
+                onClick={() => toggleWatch.mutate({ ticketId: ticket.id })}
+                disabled={toggleWatch.isPending}
+                className={`text-[11px] hover:underline disabled:opacity-50 ${watching ? "text-muted-foreground" : "text-primary"}`}
               >
-                {watching ? "− Unwatch" : "+ Watch"}
+                {toggleWatch.isPending ? "…" : watching ? "− Unwatch" : "+ Watch"}
               </button>
             </div>
             <div className="px-3 py-3">

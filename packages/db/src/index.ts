@@ -1,31 +1,3 @@
 export * from "./schema";
 export * from "./client";
-export {
-  sql,
-  eq,
-  and,
-  or,
-  not,
-  gt,
-  gte,
-  lt,
-  lte,
-  like,
-  ilike,
-  notLike,
-  notIlike,
-  between,
-  inArray,
-  notInArray,
-  isNull,
-  isNotNull,
-  exists,
-  notExists,
-  desc,
-  asc,
-  count,
-  sum,
-  avg,
-  max,
-  min,
-} from "drizzle-orm";
+// Drizzle operators are re-exported via ./schema/index.ts — do NOT duplicate them here.

@@ -1,6 +1,6 @@
 # NexusOps — API Specification
 
-**Version:** 1.6  
+**Version:** 1.8  
 **Date:** April 3, 2026  
 **Organisation:** Coheron  
 **Base URL:** `https://<host>/trpc`  
@@ -13,6 +13,8 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **1.8** | 2026-04-03 | **P0/P1 fixes deployed.** (1) **TG-13**: eliminated duplicate Drizzle operator exports — resolves `Symbol(drizzle:Columns)` 5xx on ticket/work-order creates for non-admin roles. (2) **TG-14**: `surveys` added as explicit `Module` type; surveys router rebound from `analytics` to `surveys` permission module; `hr_manager`, `itil`, `itil_admin`, `requester` all granted `surveys` access. (3) **TG-15**: `BCRYPT_CONCURRENCY` raised 8 → 32, `LIBUV_THREADPOOL_SIZE=32` in docker-compose. (4) **INFRA-1**: 4 covering indexes on `tickets` table resolve `executiveOverview` p95 timeout. (5) nginx reverse proxy live on port 80; certbot installed for HTTPS. (6) Automated pg_dump cron (daily 02:00 UTC). (7) Disk: 85% → 24% freed. |
+| **1.7** | 2026-04-03 | **New procedures:** `tickets.listPriorities` (returns org ticket priorities with sort order); `tickets.list` now includes `assigneeName` + `assigneeEmail` via LEFT JOIN on `users`. `reports.executiveOverview` computes live `avgResolutionTime` (AVG of resolvedAt − createdAt for last 30 days) and `csatScore` (AVG of survey_responses.score last 30 days); `ticketDeflection` removed (was hardcoded). `reports.slaDashboard` LEFT JOINs `ticket_priorities` to return `priorityName` + `priorityColor`. `hr.cases.resolve` mutation added — appends timestamped `[RESOLVED: <ISO>]` note to case notes field. |
 | **1.6** | 2026-04-03 | Added `tickets.toggleWatch`, `workOrders.update`, `walkup.queue.hold`, `crm.updateLead`, `contracts.completeObligation` mutations. Bearer token auth unified across all procedure types (TG-16 fix). Per-user login rate limit added to `auth.login`. Internal endpoint auth (`X-Internal-Token`) documented. `traceId` added to all error envelopes. Stack traces suppressed in production. |
 | 1.5 | 2026-04-02 | bcrypt semaphore, idempotency window, burst rate limit, metrics p95/p99/rps, concurrency guard (MAX_IN_FLIGHT), active health monitor. |
 | 1.4 | 2026-03-27 | Observability stack: structured logger, metrics collector, health evaluator, `/internal/metrics`, `/internal/health`. |

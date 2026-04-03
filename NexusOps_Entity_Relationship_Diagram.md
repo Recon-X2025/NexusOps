@@ -1,6 +1,6 @@
 # NexusOps — Entity Relationship Diagram
 
-**Version:** 1.7  
+**Version:** 1.9  
 **Date:** April 3, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
@@ -12,6 +12,8 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **1.9** | 2026-04-03 | **DB performance indexes added.** 4 covering indexes applied on production: `tickets_org_sla_breached_idx` (partial, `sla_breached = true`), `tickets_org_created_idx` (`org_id, created_at DESC`), `tickets_org_resolved_idx` (partial, `resolved_at IS NOT NULL`), `tickets_org_status_covering_idx` (`org_id, status_id, created_at DESC`). Resolves `executiveOverview` 8,010ms timeout for `hr_manager` (INFRA-1). Drizzle operator exports consolidated — duplicate re-exports removed from `packages/db/src/index.ts`; single source now `schema/index.ts`. |
+| **1.8** | 2026-04-03 | **JOIN patterns expanded.** `tickets` LEFT JOINs `users` (on `assignee_id`) in `tickets.list` to surface `assignee_name` and `assignee_email` — no new table, new query pattern. `ticket_priorities` LEFT JOINs `tickets` in `reports.slaDashboard` to return `priority_name` and `priority_color` per breach group. `survey_responses.score` aggregated (AVG) in `reports.executiveOverview` to compute live CSAT score. `hr_cases.notes` field used as append-only resolution log by `hr.cases.resolve` mutation (no schema change). `grc.audit_plans`, `grc.policies`, `grc.risks` now all queried by the Security page Config Compliance tab (read-only cross-domain reference). |
 | **1.7** | 2026-04-03 | Schema count updated: 32 schema files, 107 tables. `ticketWatchers` table confirmed in use via `tickets.toggleWatch` mutation (LEFT JOIN pattern). `org_counters` table documented as sequence-reset target (wiped on clean-slate operation). `sessions` table: all rows cleared on `changePassword` + Redis `invalidateSessionCache` called per session. Production state: all 83 transactional tables at 0 rows; 24 config/reference tables populated. |
 | 1.6 | 2026-04-02 | Added `ticket_comments` LEFT JOIN `users` for author resolution. Added bcrypt semaphore and idempotency index on `tickets`. |
 | 1.5 | 2026-03-27 | Schema aligned with stress test findings: `ticket_priorities`, `ticket_categories` confirmed stable. |

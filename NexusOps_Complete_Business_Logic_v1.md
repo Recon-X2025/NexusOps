@@ -1,6 +1,6 @@
 # NexusOps — Complete Business Logic Specification
 ## All 9 Modules | India-Compliant | Enterprise-Ready
-### Version 1.4 | Date: 3 April 2026
+### Version 1.6 | Date: 3 April 2026
 
 ---
 
@@ -8,6 +8,8 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **1.6** | 2026-04-03 | **All P0/P1 business logic gaps closed.** RBAC: `surveys` module formalised as a separate permission domain; `hr_manager` explicitly authorised for survey create/update/admin; `requester` role can now submit surveys (pulse/CSAT) — aligns with self-service business requirement. ITSM performance: bcrypt concurrency raised 8 → 32 enabling ~32 simultaneous login operations (was ~8/s cap causing 4,098ms avg login latency under 200 workers). Reports: `executiveOverview` query latency resolved via covering indexes — SLA dashboard and workload analysis now sub-second for all roles. Infrastructure: daily DB backup operational; HTTP reverse proxy live. Platform readiness: **85/100**. |
+| **1.5** | 2026-04-03 | **Live data wiring complete across all modules.** ITSM: `tickets.list` now returns `assigneeName`/`assigneeEmail` via user join; `listPriorities` endpoint added. Reports: `executiveOverview` computes `avgResolutionTime` and `csatScore` from live DB (30-day window); SLA dashboard includes priority names/colors. HR: `hr.cases.resolve` mutation added — appends timestamped resolution note to case. Financial: AP/AR invoice tabs wired to live `listInvoices` with direction filter; `approveInvoice` and `markPaid` actions functional. GRC/Security: Security Config Compliance tab wired to live `grc.listAudits`, `grc.listPolicies`, `grc.listRisks`; Compliance page shows live average score + audit detail panel. CRM: Add Account and Add Contact flows functional; Sales Leaderboard aggregated from live `closed_won` deals. Surveys: CSAT and Pulse dashboard cards wired to `surveys.getResults`. All 12 wired pages deployed to production (Vultr). |
 | **1.4** | 2026-04-03 | Production data clean slate: all transactional records wiped. Ticket/change/WO org_counters reset — sequences restart from 1. Priority matrix (Impact × Urgency) stored and displayed correctly in DB. Comment authorship resolved via LEFT JOIN on users table. Watch/Unwatch wired to `ticketWatchers` table. HR lifecycle events now read from live `hrCases` API (no fallback). CRM module: all deals/accounts/contacts/leads/activities/quotes read from live API only. Surveys CSAT/Pulse analytics zeroed — ready for real data. |
 | 1.3 | 2026-04-02 | Chaos test hardening: session invalidation post-password-change, internal endpoint auth, idempotency window for ticket creation. |
 | 1.2 | 2026-03-27 | Stress test results incorporated. RBAC permission matrix expanded. |

@@ -101,7 +101,7 @@ function autoIdempotencyKey(orgId: string, userId: string, title: string): strin
  * Spec §6: incidents: open → in_progress → resolved → closed
  */
 const TICKET_LIFECYCLE: Record<string, string[]> = {
-  open:        ["in_progress", "closed"],
+  open:        ["in_progress", "resolved", "closed"],
   in_progress: ["resolved", "open", "closed"],
   resolved:    ["closed", "open"],
   closed:      ["open"],
@@ -443,8 +443,17 @@ export const ticketsRouter = router({
     const comments = rawComments;
 
     const activityLog = await db
-      .select()
+      .select({
+        id: ticketActivityLogs.id,
+        ticketId: ticketActivityLogs.ticketId,
+        userId: ticketActivityLogs.userId,
+        userName: users.name,
+        action: ticketActivityLogs.action,
+        changes: ticketActivityLogs.changes,
+        createdAt: ticketActivityLogs.createdAt,
+      })
       .from(ticketActivityLogs)
+      .leftJoin(users, eq(ticketActivityLogs.userId, users.id))
       .where(eq(ticketActivityLogs.ticketId, ticket.id))
       .orderBy(desc(ticketActivityLogs.createdAt))
       .limit(50);
