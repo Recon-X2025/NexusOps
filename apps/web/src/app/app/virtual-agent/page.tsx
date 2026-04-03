@@ -39,7 +39,7 @@ const BOT_FLOWS: Record<string, { reply: string; options?: string[]; articleRef?
     options: ["Windows / Active Directory", "Microsoft 365 / Email", "VPN Account", "Application-specific password"],
   },
   "Windows / Active Directory": {
-    reply: "✅ I've initiated a password reset for your Windows account.\n\nA temporary password has been sent to your registered mobile number ending in **••7842**.\n\nPlease log in and change it within **24 hours**.\n\n**Ticket created**: COHE-1098",
+    reply: "✅ I've initiated a password reset for your Windows account.\n\nA temporary password has been sent to your registered mobile number.\n\nPlease log in and change it within **24 hours**.\n\nA ticket has been created and you will receive a confirmation email shortly.",
     options: ["That worked, thanks!", "I didn't receive the SMS", "I need further help"],
   },
   "💻 Request new hardware": {
@@ -51,13 +51,12 @@ const BOT_FLOWS: Record<string, { reply: string; options?: string[]; articleRef?
     options: ["Pre-fill with standard specs", "I'll specify requirements", "Cancel"],
   },
   "Pre-fill with standard specs": {
-    reply: "✅ Service request submitted!\n\n**REQ0001251** — Laptop Request (Dell Latitude 5450, 16GB RAM, 512GB SSD)\n\n📋 Status: **Pending manager approval**\n⏱ Estimated delivery: **5–7 business days**\n\nI'll notify you when approved.",
+    reply: "✅ Service request submitted!\n\nYour laptop request has been created and is pending manager approval.\n\n📋 Status: **Pending manager approval**\n⏱ Estimated delivery: **5–7 business days**\n\nYou'll receive an email notification when it's approved.",
     options: ["View my request", "I need something else"],
   },
   "🌐 VPN / Remote access issue": {
-    reply: "I found a **Known Error** that may match your issue:\n\n**KB0001233**: VPN client v4.2.1 crashes on macOS Sequoia 15.4\n\n**Workaround**: Downgrade to v4.1.9 via the Self-Service Portal.\n\nDoes this match your issue?",
+    reply: "I found a **Known Error** that may match your issue:\n\nVPN client crashes on recent macOS versions.\n\n**Workaround**: Downgrade to the previous VPN client version via the Self-Service Portal.\n\nDoes this match your issue?",
     options: ["Yes, that fixed it!", "No, different issue", "Open an incident instead"],
-    articleRef: "KB0001233",
   },
   "Yes, that fixed it!": {
     reply: "Excellent! I'm glad that resolved it. 🎉\n\nI've marked this interaction as resolved. Was this support experience helpful?",
@@ -68,12 +67,12 @@ const BOT_FLOWS: Record<string, { reply: string; options?: string[]; articleRef?
     options: ["Can't connect at all", "Connects but can't access resources", "Keeps disconnecting", "Slow performance"],
   },
   "Can't connect at all": {
-    reply: "I've created an incident for your VPN connectivity issue.\n\n**COHE-1099** — VPN: Cannot connect\n**Priority**: P3 – Moderate\n**Assigned to**: Network Operations\n\nExpected response within **4 hours**. I'll send you updates by email.",
+    reply: "I've created an incident for your VPN connectivity issue.\n\n**Priority**: P3 – Moderate\n**Assigned to**: Network Operations\n\nExpected response within **4 hours**. You'll receive updates by email.",
     options: ["Track this ticket", "I need more help"],
   },
   "🎫 Check my open tickets": {
-    reply: "Here are your **3 open tickets**:\n\n1. **COHE-1089** — Laptop running slow (In Progress)\n2. **COHE-1076** — Printer not connecting to VLAN (Pending)\n3. **COHE-0999** — Software license request (Awaiting Approval)\n\nWould you like details on any of these?",
-    options: ["COHE-1089 details", "COHE-1076 details", "All caught up, thanks!"],
+    reply: "Let me pull up your open tickets from the system. Please check the **My Tickets** section in the navigation for a live view of all your open requests and incidents.",
+    options: ["Open My Tickets", "Raise a new request", "All caught up, thanks!"],
   },
   "🤝 Talk to a human agent": {
     reply: "I'll connect you with a live agent now.\n\n⏱ **Estimated wait**: 2 minutes\n👤 **Queue position**: 3rd\n📞 **Team**: IT Service Desk\n\nYour conversation history will be shared with the agent.",

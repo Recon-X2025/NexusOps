@@ -306,7 +306,7 @@ export default function HRPage() {
                       <td className="text-center font-semibold">{c.hrCase.tasks?.filter((t: any) => t.category === "it").length ?? "—"}</td>
                     </tr>
                   ))
-                : LIFECYCLE.map((l) => (
+                : [].map((l: any) => (
                     <tr key={l.id}>
                       <td className="font-mono text-[11px] text-primary">{l.id}</td>
                       <td><span className="status-badge text-blue-700 bg-blue-100">{l.type}</span></td>

@@ -671,7 +671,7 @@ function ContractsPageInner() {
 
   const allContracts: Contract[] = ((contractsApiData as any)?.items?.length
     ? (contractsApiData as any).items
-    : CONTRACTS) as Contract[];
+    : []) as Contract[];
 
   const expiringContracts = allContracts.filter(c => c.state === "expiring_soon" || (c.renewalDeadline && new Date(c.renewalDeadline) < new Date(Date.now() + 90 * 86400000)));
   const totalContractValue = allContracts.reduce((s, c) => s + (c.value ?? 0), 0);

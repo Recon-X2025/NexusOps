@@ -8,14 +8,7 @@ import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 
 type Step = { type: string; name: string; config: string; icon: React.ElementType; color: string };
 
-const SAMPLE_FLOW_STEPS: Step[] = [
-  { type: "trigger", name: "SLA Timer Breached", config: "Priority: P1 or P2, SLA: Response or Resolution", icon: Zap, color: "bg-orange-100 text-orange-700 border-orange-300" },
-  { type: "condition", name: "Check: Already Escalated?", config: "If escalation_level > 0 → Skip to Notify", icon: GitBranch, color: "bg-yellow-100 text-yellow-700 border-yellow-300" },
-  { type: "action", name: "Update Incident Priority", config: "Increment priority by 1 tier", icon: TicketIcon, color: "bg-blue-100 text-blue-700 border-blue-300" },
-  { type: "action", name: "Assign to Escalation Group", config: "Set assignment_group = escalation_group[priority]", icon: Users, color: "bg-blue-100 text-blue-700 border-blue-300" },
-  { type: "notification", name: "Page On-Call Engineer", config: "Via PagerDuty: escalation_policy[P1_Infra]", icon: Bell, color: "bg-purple-100 text-purple-700 border-purple-300" },
-  { type: "notification", name: "Notify IT Manager + CISO", config: "Email + SMS: incident summary + link", icon: Mail, color: "bg-purple-100 text-purple-700 border-purple-300" },
-];
+const SAMPLE_FLOW_STEPS: Step[] = [];
 
 const CATEGORY_COLOR: Record<string, string> = {
   Incident: "text-red-700 bg-red-100",
@@ -166,7 +159,12 @@ export default function FlowDesignerPage() {
           </div>
           <div className="p-6 overflow-x-auto">
             <div className="flex items-start gap-3 min-w-max">
-              {SAMPLE_FLOW_STEPS.map((step, i) => {
+              {SAMPLE_FLOW_STEPS.length === 0 ? (
+                <div className="flex flex-col items-center justify-center w-full py-12 text-center text-muted-foreground">
+                  <div className="text-[12px]">No workflow steps defined yet.</div>
+                  <div className="text-[11px] mt-1 opacity-70">Select a workflow from the list or create a new one to view its steps here.</div>
+                </div>
+              ) : SAMPLE_FLOW_STEPS.map((step, i) => {
                 const Icon = step.icon;
                 return (
                   <div key={i} className="flex items-center gap-3">
@@ -187,15 +185,6 @@ export default function FlowDesignerPage() {
                   </div>
                 );
               })}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center">
-                  <div className="w-8 h-px bg-border" />
-                  <ChevronRight className="w-3 h-3 text-muted-foreground/70 -ml-1" />
-                </div>
-                <button className="w-44 h-16 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center text-[11px] text-muted-foreground/70 hover:border-primary hover:text-primary transition-colors gap-1">
-                  <Plus className="w-3.5 h-3.5" /> Add Step
-                </button>
-              </div>
             </div>
           </div>
         </div>

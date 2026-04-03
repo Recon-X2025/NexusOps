@@ -200,7 +200,7 @@ export default function APMPage() {
 
   if (!can("projects", "read") && !can("reports", "read")) return <AccessDenied module="Application Portfolio Management" />;
 
-  const APPS: Application[] = (appsQuery.data?.items ?? APPS_DEFAULT) as Application[];
+  const APPS: Application[] = (appsQuery.data?.items ?? []) as Application[];
 
   const totalAnnualCost = APPS.reduce((s, a) => s + (a.annualCost ?? 0), 0);
   const retireCandidates = APPS.filter(a => ["retiring","harvesting","obsolete"].includes(a.lifecycle)).length;

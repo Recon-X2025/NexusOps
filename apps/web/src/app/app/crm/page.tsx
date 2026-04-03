@@ -351,17 +351,17 @@ export default function CRMPage() {
   if (!can("accounts", "read")) return <AccessDenied module="CRM & Sales" />;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const DEALS_LIVE = ((dealsData as any[]) ?? DEALS) as any[];
+  const DEALS_LIVE = ((dealsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ACCOUNTS_LIVE = ((accountsData as any[]) ?? ACCOUNTS) as any[];
+  const ACCOUNTS_LIVE = ((accountsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const CONTACTS_LIVE = ((contactsData as any[]) ?? CONTACTS) as any[];
+  const CONTACTS_LIVE = ((contactsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LEADS_LIVE = ((leadsData as any[]) ?? LEADS) as any[];
+  const LEADS_LIVE = ((leadsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ACTIVITIES_LIVE = ((activitiesData as any[]) ?? ACTIVITIES) as any[];
+  const ACTIVITIES_LIVE = ((activitiesData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const QUOTES_LIVE = ((quotesData as any[]) ?? QUOTES) as any[];
+  const QUOTES_LIVE = ((quotesData as any[]) ?? []) as any[];
 
   const activeDeals = DEALS_LIVE.filter((d: any) => !["closed_won","closed_lost"].includes(d.stage ?? ""));
   const wonDeals    = DEALS_LIVE.filter((d: any) => d.stage === "closed_won");

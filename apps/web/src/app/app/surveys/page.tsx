@@ -77,45 +77,19 @@ const SCORE_COLOR = (s?: number) => !s ? "text-muted-foreground/70" : s >= 4.5 ?
 const NPS_COLOR = (n?: number) => !n ? "text-muted-foreground/70" : n >= 50 ? "text-green-700" : n >= 20 ? "text-blue-700" : "text-red-700";
 
 const CSAT_RESULTS = {
-  overall: 4.3,
-  responses: 820,
-  trend: "+0.2 vs last month",
-  byCategory: [
-    { cat: "Speed of resolution",      score: 4.1 },
-    { cat: "Professionalism of agent", score: 4.6 },
-    { cat: "Quality of solution",      score: 4.2 },
-    { cat: "Ease of process",          score: 3.9 },
-    { cat: "Overall satisfaction",     score: 4.3 },
-  ],
-  distribution: [
-    { stars: 5, count: 360, pct: 44 },
-    { stars: 4, count: 246, pct: 30 },
-    { stars: 3, count: 123, pct: 15 },
-    { stars: 2, count: 57,  pct: 7 },
-    { stars: 1, count: 34,  pct: 4 },
-  ],
-  recentComments: [
-    { score: 5, comment: "Tom was incredibly helpful — resolved my Excel issue in under 10 minutes.", submitted: "Today 09:10" },
-    { score: 2, comment: "Waited 35 minutes at walk-up. Queue management needs improvement.", submitted: "Today 08:45" },
-    { score: 4, comment: "Good service. Would be nice to get a proactive update on status.", submitted: "Yesterday" },
-    { score: 5, comment: "First call resolution — exactly what I needed. Very professional.", submitted: "Yesterday" },
-  ],
+  overall: 0,
+  responses: 0,
+  trend: "No data yet",
+  byCategory: [] as { cat: string; score: number }[],
+  distribution: [] as { stars: number; count: number; pct: number }[],
+  recentComments: [] as { score: number; comment: string; submitted: string }[],
 };
 
 const PULSE_RESULTS = {
-  responses: 612,
-  responseRate: 64,
-  eNPS: 28,
-  categories: [
-    { cat: "Overall engagement",        score: 3.8, prev: 3.6 },
-    { cat: "Work-life balance",          score: 3.5, prev: 3.7 },
-    { cat: "Manager effectiveness",      score: 4.0, prev: 3.9 },
-    { cat: "Career development",         score: 3.2, prev: 3.1 },
-    { cat: "Company direction/clarity",  score: 3.9, prev: 3.6 },
-    { cat: "Recognition & reward",       score: 3.4, prev: 3.3 },
-    { cat: "Collaboration",              score: 4.1, prev: 4.0 },
-    { cat: "Tools & technology",         score: 4.3, prev: 3.8 },
-  ],
+  responses: 0,
+  responseRate: 0,
+  eNPS: 0,
+  categories: [] as { cat: string; score: number; prev: number }[],
 };
 
 const BUILDER_TEMPLATE = {
@@ -215,7 +189,7 @@ export default function SurveysPage() {
 
   if (!can("reports", "read")) return <AccessDenied module="Surveys" />;
 
-  const surveys = (surveysData ?? SURVEYS) as any[];
+  const surveys = (surveysData ?? []) as any[];
 
   const activeSurveys = surveys.filter((s: any) => s.status === "active").length;
   const totalResponses = surveys.reduce((s: number, sv: any) => s + (sv.responses ?? 0), 0);

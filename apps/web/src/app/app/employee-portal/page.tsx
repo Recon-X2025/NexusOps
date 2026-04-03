@@ -103,12 +103,7 @@ export default function EmployeePortalPage() {
 
   const LEAVE_HISTORY = (liveLeaveHistory && liveLeaveHistory.length > 0)
     ? liveLeaveHistory
-    : [
-        { id: "LV-001", type: "Annual Leave",  from: "2026-01-06", to: "2026-01-10", days: 5, status: "approved", approver: "Chris Wallace", notes: "New Year break" },
-        { id: "LV-002", type: "Annual Leave",  from: "2026-02-14", to: "2026-02-14", days: 1, status: "approved", approver: "Chris Wallace", notes: "Valentine's Day" },
-        { id: "LV-003", type: "Sick Leave",    from: "2026-02-20", to: "2026-02-21", days: 2, status: "approved", approver: "System (auto)", notes: "Self-certified" },
-        { id: "LV-004", type: "Annual Leave",  from: "2026-04-07", to: "2026-04-11", days: 5, status: "pending",  approver: "Chris Wallace (pending)", notes: "Easter break" },
-      ];
+    : [];
 
   const totalBenefitsCost = 0;
   const leaveAvailable = 0;
