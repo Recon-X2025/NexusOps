@@ -6,7 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   FolderOpen, ChevronLeft,
-  Circle, TrendingUp, Loader2, AlertTriangle, Send, Paperclip,
+  Circle, TrendingUp, Loader2, AlertTriangle, Send, Paperclip, Pencil, X,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -35,6 +35,8 @@ const PROJECT_STATUS_COLOR: Record<string, string> = {
 export default function ProjectDetailPage() {
   const [tab, setTab] = useState("overview");
   const [updateText, setUpdateText] = useState("");
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", status: "", health: "", phase: "", endDate: "" });
   const params = useParams();
   const id = params?.id as string;
   const { can } = useRBAC();
@@ -49,6 +51,23 @@ export default function ProjectDetailPage() {
     onSuccess: () => { toast.success("Task marked complete"); refetch(); },
     onError: (err: { message: string }) => toast.error(err?.message ?? "Something went wrong"),
   });
+
+  const updateProject = trpc.projects.update.useMutation({
+    onSuccess: () => { toast.success("Project updated"); setShowEdit(false); refetch(); },
+    onError: (err: { message: string }) => toast.error(err?.message ?? "Update failed"),
+  });
+
+  function openEditModal() {
+    if (!project) return;
+    setEditForm({
+      name: project.name ?? "",
+      status: project.status ?? "",
+      health: project.health ?? "green",
+      phase: project.phase ?? "",
+      endDate: project.endDate ? new Date(project.endDate).toISOString().slice(0, 10) : "",
+    });
+    setShowEdit(true);
+  }
 
   if (!can("projects", "read")) return <AccessDenied module="Projects" />;
 
@@ -91,6 +110,92 @@ export default function ProjectDetailPage() {
         <span className="text-muted-foreground font-medium">{project.number}</span>
       </div>
 
+      {/* Edit Project Modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold text-foreground">Edit Project — {project.number}</h3>
+              <button onClick={() => setShowEdit(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Project Name *</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Status</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                >
+                  <option value="planning">Planning</option>
+                  <option value="on_track">On Track</option>
+                  <option value="at_risk">At Risk</option>
+                  <option value="delayed">Delayed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Health</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.health}
+                  onChange={(e) => setEditForm((f) => ({ ...f, health: e.target.value }))}
+                >
+                  <option value="green">Green</option>
+                  <option value="amber">Amber</option>
+                  <option value="red">Red</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Phase</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  placeholder="e.g. Initiation, Planning, Execution…"
+                  value={editForm.phase}
+                  onChange={(e) => setEditForm((f) => ({ ...f, phase: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Target End Date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.endDate}
+                  onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!editForm.name || updateProject.isPending}
+                onClick={() => updateProject.mutate({
+                  id: project.id,
+                  status: editForm.status || undefined,
+                  health: editForm.health || undefined,
+                  phase: editForm.phase || undefined,
+                })}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {updateProject.isPending ? "Saving…" : "Save Changes"}
+              </button>
+              <button onClick={() => setShowEdit(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -112,12 +217,22 @@ export default function ProjectDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex-shrink-0 text-right">
-            <div className="text-[32px] font-black text-primary leading-none">{completionPct}%</div>
-            <div className="text-[11px] text-muted-foreground/70">Complete</div>
-            <div className="w-32 h-2 bg-border rounded-full overflow-hidden mt-2">
-              <div className="h-full bg-primary rounded-full" style={{ width: `${completionPct}%` }} />
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <div className="text-right">
+              <div className="text-[32px] font-black text-primary leading-none">{completionPct}%</div>
+              <div className="text-[11px] text-muted-foreground/70">Complete</div>
+              <div className="w-32 h-2 bg-border rounded-full overflow-hidden mt-2">
+                <div className="h-full bg-primary rounded-full" style={{ width: `${completionPct}%` }} />
+              </div>
             </div>
+            <PermissionGate module="projects" action="write">
+              <button
+                onClick={openEditModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/50 text-muted-foreground font-medium"
+              >
+                <Pencil className="w-3 h-3" /> Edit Project
+              </button>
+            </PermissionGate>
           </div>
         </div>
 

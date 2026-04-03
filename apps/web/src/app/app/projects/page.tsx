@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Briefcase, Plus, Calendar, AlertTriangle, Loader2,
+  Briefcase, Plus, Calendar, AlertTriangle, Loader2, Pencil, X,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -25,10 +26,13 @@ const HEALTH_COLOR: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
+  planning: "text-blue-700 bg-blue-100",
   on_track: "text-green-700 bg-green-100",
   at_risk:  "text-yellow-700 bg-yellow-100",
   delayed:  "text-red-700 bg-red-100",
   complete: "text-muted-foreground bg-muted",
+  completed: "text-muted-foreground bg-muted",
+  cancelled: "text-muted-foreground bg-muted",
 };
 
 const STORY_COLS: Array<{ key: string; label: string; color: string }> = [
@@ -39,6 +43,7 @@ const STORY_COLS: Array<{ key: string; label: string; color: string }> = [
 ];
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const { can } = useRBAC();
   const visibleTabs = PPM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "portfolio");
@@ -48,7 +53,7 @@ export default function ProjectsPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data, isLoading } = trpc.projects.list.useQuery(
+  const { data, isLoading, refetch } = trpc.projects.list.useQuery(
     { limit: 50 },
     { refetchOnWindowFocus: false },
   );
@@ -56,6 +61,33 @@ export default function ProjectsPage() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectForm, setProjectForm] = useState({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
   const [projectMsg, setProjectMsg] = useState<string | null>(null);
+
+  // Edit project state
+  type ProjectItem = NonNullable<typeof data>[number];
+  const [editProject, setEditProject] = useState<ProjectItem | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", status: "", health: "", phase: "", budgetTotal: "", endDate: "" });
+
+  function openEdit(e: React.MouseEvent, p: ProjectItem) {
+    e.stopPropagation();
+    setEditProject(p);
+    setEditForm({
+      name: p.name ?? "",
+      status: p.status ?? "",
+      health: p.health ?? "green",
+      phase: p.phase ?? "",
+      budgetTotal: p.budgetTotal ? String(p.budgetTotal) : "",
+      endDate: p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "",
+    });
+  }
+
+  const updateProject = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      toast.success("Project updated");
+      setEditProject(null);
+      refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Update failed"),
+  });
 
   const createProject = trpc.projects.create.useMutation({
     onSuccess: (p) => {
@@ -68,7 +100,6 @@ export default function ProjectsPage() {
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
 
-  type ProjectItem = NonNullable<typeof data>[number];
   const projectList: ProjectItem[] = data ?? [];
 
   if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
@@ -105,6 +136,108 @@ export default function ProjectsPage() {
           </PermissionGate>
         </div>
       </div>
+
+      {/* Edit Project Modal */}
+      {editProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold text-foreground">Edit Project — {editProject.number}</h3>
+              <button onClick={() => setEditProject(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Project Name *</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Status</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                >
+                  <option value="planning">Planning</option>
+                  <option value="on_track">On Track</option>
+                  <option value="at_risk">At Risk</option>
+                  <option value="delayed">Delayed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Health</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.health}
+                  onChange={(e) => setEditForm((f) => ({ ...f, health: e.target.value }))}
+                >
+                  <option value="green">Green</option>
+                  <option value="amber">Amber</option>
+                  <option value="red">Red</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Phase</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  placeholder="e.g. Initiation, Execution…"
+                  value={editForm.phase}
+                  onChange={(e) => setEditForm((f) => ({ ...f, phase: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Target End Date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.endDate}
+                  onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Budget Total (₹)</label>
+                <input
+                  type="number"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.budgetTotal}
+                  onChange={(e) => setEditForm((f) => ({ ...f, budgetTotal: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!editForm.name || updateProject.isPending}
+                onClick={() => updateProject.mutate({
+                  id: editProject.id,
+                  status: editForm.status || undefined,
+                  health: editForm.health || undefined,
+                  phase: editForm.phase || undefined,
+                  budgetSpent: undefined,
+                })}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {updateProject.isPending ? "Saving…" : "Save Changes"}
+              </button>
+              <button
+                onClick={() => router.push(`/app/projects/${editProject.id}`)}
+                className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent"
+              >
+                Open Full Detail
+              </button>
+              <button onClick={() => setEditProject(null)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {projectMsg && (
         <div className="px-3 py-2 bg-green-50 border border-green-200 rounded text-[12px] text-green-700 font-medium">{projectMsg}</div>
@@ -198,11 +331,16 @@ export default function ProjectsPage() {
                   <th>Budget</th>
                   <th>Spent</th>
                   <th>End Date</th>
+                  <th className="w-16" />
                 </tr>
               </thead>
               <tbody>
                 {projectList.map((p) => (
-                  <tr key={p.id} className={p.health === "red" ? "bg-red-50/30" : ""}>
+                  <tr
+                    key={p.id}
+                    className={`cursor-pointer hover:bg-muted/30 transition-colors ${p.health === "red" ? "bg-red-50/30" : ""}`}
+                    onClick={() => router.push(`/app/projects/${p.id}`)}
+                  >
                     <td className="p-0 relative">
                       <div className={`priority-bar ${HEALTH_COLOR[p.health] ?? "bg-muted"}`} />
                     </td>
@@ -231,6 +369,16 @@ export default function ProjectsPage() {
                     </td>
                     <td className={`text-[11px] ${p.status === "delayed" ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>
                       {p.endDate ? formatDate(p.endDate) : "—"}
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()} className="text-right pr-2">
+                      <PermissionGate module="projects" action="write">
+                        <button
+                          onClick={(e) => openEdit(e, p)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] border border-border rounded hover:bg-muted/50 text-muted-foreground"
+                        >
+                          <Pencil className="w-2.5 h-2.5" /> Edit
+                        </button>
+                      </PermissionGate>
                     </td>
                   </tr>
                 ))}
