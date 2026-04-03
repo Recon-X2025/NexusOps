@@ -185,9 +185,12 @@ export default function ChangesPage() {
             <span className="text-xs">Loading changes…</span>
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
             <RefreshCw className="w-5 h-5 opacity-30" />
             <span className="text-xs">No change requests found.</span>
+            <Link href="/app/changes/new" className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+              <Plus className="w-3 h-3" /> New Change Request
+            </Link>
           </div>
         ) : (
           <table className="ent-table w-full">

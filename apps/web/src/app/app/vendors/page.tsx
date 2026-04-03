@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Plus, Star, AlertTriangle } from "lucide-react";
+import { Building2, Plus, Star, AlertTriangle, X } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
@@ -55,6 +55,8 @@ export default function VendorsPage() {
   const router = useRouter();
   const visibleTabs = VENDOR_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vendors");
+  const [showAddVendor, setShowAddVendor] = useState(false);
+  const [vendorForm, setVendorForm] = useState({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -67,8 +69,13 @@ export default function VendorsPage() {
   const contractsQuery = trpc.contracts.list.useQuery({ limit: 50 });
   // @ts-ignore
   const createVendorMutation = trpc.vendors.create.useMutation({
-    onSuccess: () => { vendorsQuery.refetch(); toast.success("Vendor created"); },
-    onError: (e: any) => { console.error("vendors.create failed:", e); toast.error(e.message || "Failed to create vendor"); },
+    onSuccess: () => {
+      vendorsQuery.refetch();
+      toast.success("Vendor created");
+      setShowAddVendor(false);
+      setVendorForm({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });
+    },
+    onError: (e: any) => { toast.error(e.message || "Failed to create vendor"); },
   });
 
   if (!can("vendors", "read") && !can("contracts", "read")) return <AccessDenied module="Vendor Management" />;
@@ -80,6 +87,55 @@ export default function VendorsPage() {
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* Add Vendor Modal */}
+      {showAddVendor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">Add Vendor</h3>
+              <button onClick={() => setShowAddVendor(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Vendor Name *</label>
+                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.name} onChange={(e) => setVendorForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Contact Email</label>
+                <input type="email" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactEmail} onChange={(e) => setVendorForm(f => ({ ...f, contactEmail: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Contact Phone</label>
+                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactPhone} onChange={(e) => setVendorForm(f => ({ ...f, contactPhone: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Address</label>
+                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.address} onChange={(e) => setVendorForm(f => ({ ...f, address: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Payment Terms</label>
+                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. Net 30" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm(f => ({ ...f, paymentTerms: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Notes</label>
+                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.notes} onChange={(e) => setVendorForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!vendorForm.name || createVendorMutation.isPending}
+                onClick={() => createVendorMutation.mutate({ name: vendorForm.name, contactEmail: vendorForm.contactEmail || undefined, contactPhone: vendorForm.contactPhone || undefined, address: vendorForm.address || undefined, paymentTerms: vendorForm.paymentTerms || undefined, notes: vendorForm.notes || undefined } as any)}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {createVendorMutation.isPending ? "Creating…" : "Create Vendor"}
+              </button>
+              <button onClick={() => setShowAddVendor(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 className="w-4 h-4 text-muted-foreground" />
@@ -87,7 +143,7 @@ export default function VendorsPage() {
           <span className="text-[11px] text-muted-foreground/70">Vendor Register · Contracts · SLA · Performance</span>
         </div>
         <button
-          onClick={() => createVendorMutation.mutate({ name: "New Vendor", category: "Other", tier: "Managed" } as any)}
+          onClick={() => setShowAddVendor(true)}
           className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
         >
           <Plus className="w-3 h-3" /> Add Vendor

@@ -165,7 +165,13 @@ export default function OnCallPage() {
       ) : rotations.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-[12px]">
           <Users className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
-          No on-call rotations configured
+          <p>No on-call rotations configured</p>
+          <button
+            onClick={() => setShowNewRotation(true)}
+            className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+          >
+            <Plus className="w-3 h-3" /> New Rotation
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-2">

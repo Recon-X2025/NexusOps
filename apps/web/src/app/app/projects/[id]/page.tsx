@@ -6,7 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   FolderOpen, ChevronLeft,
-  Circle, TrendingUp, Loader2, AlertTriangle, Send, Paperclip, Pencil, X,
+  Loader2, AlertTriangle, Pencil, X, Plus, CheckCircle2, Flag,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -37,6 +37,15 @@ export default function ProjectDetailPage() {
   const [updateText, setUpdateText] = useState("");
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", status: "", health: "", phase: "", endDate: "" });
+
+  // Add Task state
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [taskForm, setTaskForm] = useState({ title: "", priority: "medium" as "low"|"medium"|"high"|"critical", dueDate: "", description: "" });
+
+  // Add Milestone state
+  const [showAddMilestone, setShowAddMilestone] = useState(false);
+  const [msForm, setMsForm] = useState({ title: "", dueDate: "" });
+
   const params = useParams();
   const id = params?.id as string;
   const { can } = useRBAC();
@@ -50,6 +59,31 @@ export default function ProjectDetailPage() {
   const completeTask = trpc.projects.updateTask.useMutation({
     onSuccess: () => { toast.success("Task marked complete"); refetch(); },
     onError: (err: { message: string }) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const createTask = trpc.projects.createTask.useMutation({
+    onSuccess: () => {
+      toast.success("Task created");
+      setShowAddTask(false);
+      setTaskForm({ title: "", priority: "medium", dueDate: "", description: "" });
+      refetch();
+    },
+    onError: (err: { message: string }) => toast.error(err?.message ?? "Failed to create task"),
+  });
+
+  const createMilestone = trpc.projects.createMilestone.useMutation({
+    onSuccess: () => {
+      toast.success("Milestone added");
+      setShowAddMilestone(false);
+      setMsForm({ title: "", dueDate: "" });
+      refetch();
+    },
+    onError: (err: { message: string }) => toast.error(err?.message ?? "Failed to add milestone"),
+  });
+
+  const updateMilestone = trpc.projects.updateMilestone.useMutation({
+    onSuccess: () => { toast.success("Milestone updated"); refetch(); },
+    onError: (err: { message: string }) => toast.error(err?.message ?? "Update failed"),
   });
 
   const updateProject = trpc.projects.update.useMutation({
@@ -110,7 +144,125 @@ export default function ProjectDetailPage() {
         <span className="text-muted-foreground font-medium">{project.number}</span>
       </div>
 
-      {/* Edit Project Modal */}
+      {/* Add Task Modal */}
+      {showAddTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">Add Task</h3>
+              <button onClick={() => setShowAddTask(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground">Title *</label>
+                <input
+                  autoFocus
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  placeholder="Task title"
+                  value={taskForm.title}
+                  onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Description</label>
+                <textarea
+                  rows={2}
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none"
+                  placeholder="Optional description"
+                  value={taskForm.description}
+                  onChange={(e) => setTaskForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Priority</label>
+                  <select
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    value={taskForm.priority}
+                    onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value as typeof f.priority }))}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Due Date</label>
+                  <input
+                    type="date"
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    value={taskForm.dueDate}
+                    onChange={(e) => setTaskForm((f) => ({ ...f, dueDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!taskForm.title || createTask.isPending}
+                onClick={() => createTask.mutate({
+                  projectId: id,
+                  title: taskForm.title,
+                  priority: taskForm.priority,
+                  description: taskForm.description || undefined,
+                })}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {createTask.isPending ? "Adding…" : "Add Task"}
+              </button>
+              <button onClick={() => setShowAddTask(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Milestone Modal */}
+      {showAddMilestone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">Add Milestone</h3>
+              <button onClick={() => setShowAddMilestone(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground">Title *</label>
+                <input
+                  autoFocus
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  placeholder="Milestone title"
+                  value={msForm.title}
+                  onChange={(e) => setMsForm((f) => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Due Date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={msForm.dueDate}
+                  onChange={(e) => setMsForm((f) => ({ ...f, dueDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!msForm.title || createMilestone.isPending}
+                onClick={() => createMilestone.mutate({ projectId: id, title: msForm.title, dueDate: msForm.dueDate || undefined })}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {createMilestone.isPending ? "Adding…" : "Add Milestone"}
+              </button>
+              <button onClick={() => setShowAddMilestone(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
@@ -268,9 +420,19 @@ export default function ProjectDetailPage() {
       <div className="bg-card border border-border rounded-b overflow-hidden">
         {tab === "overview" && (
           <div className="p-4">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-3">
-              Project Milestones ({completedMilestones}/{milestones.length} complete)
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase">
+                Project Milestones ({completedMilestones}/{milestones.length} complete)
+              </p>
+              <PermissionGate module="projects" action="write">
+                <button
+                  onClick={() => setShowAddMilestone(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-muted/50 text-muted-foreground font-medium"
+                >
+                  <Plus className="w-3 h-3" /> Add Milestone
+                </button>
+              </PermissionGate>
+            </div>
             {milestones.length === 0 ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground text-[12px]">
                 No milestones defined for this project.
@@ -308,6 +470,17 @@ export default function ProjectDetailPage() {
                               </span>
                             )}
                             <span className={`status-badge ${cfg.color}`}>{cfg.label}</span>
+                            {ms.status !== "completed" && (
+                              <PermissionGate module="projects" action="write">
+                                <button
+                                  onClick={() => updateMilestone.mutate({ id: ms.id, status: "completed" })}
+                                  disabled={updateMilestone.isPending}
+                                  className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                </button>
+                              </PermissionGate>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -320,9 +493,30 @@ export default function ProjectDetailPage() {
         )}
 
         {tab === "tasks" && (
-          tasks.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground text-[12px]">
-              No tasks defined for this project.
+          <div>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{tasks.length} Task{tasks.length !== 1 ? "s" : ""}</span>
+              <PermissionGate module="projects" action="write">
+                <button
+                  onClick={() => setShowAddTask(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90 font-medium"
+                >
+                  <Plus className="w-3 h-3" /> Add Task
+                </button>
+              </PermissionGate>
+            </div>
+          {tasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+              <Flag className="w-6 h-6 opacity-30" />
+              <span className="text-[12px]">No tasks yet.</span>
+              <PermissionGate module="projects" action="write">
+                <button
+                  onClick={() => setShowAddTask(true)}
+                  className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90"
+                >
+                  <Plus className="w-3 h-3" /> Add first task
+                </button>
+              </PermissionGate>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -369,7 +563,8 @@ export default function ProjectDetailPage() {
                 })}
               </tbody>
             </table>
-          )
+          )}
+          </div>
         )}
       </div>
     </div>

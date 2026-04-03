@@ -397,7 +397,11 @@ export default function DevOpsPage() {
                     <td>
                       {d.rollbackAvailable && d.status === "successful" && (
                         <PermissionGate module="changes" action="write">
-                          <button className="text-[11px] text-orange-600 hover:underline font-semibold">Rollback</button>
+                          <button
+                            onClick={() => rollbackDeployment.mutate({ appName: d.service ?? d.appName ?? "unknown", environment: d.environment ?? "production", version: `${d.version}-rollback`, pipelineRunId: d.pipelineRunId })}
+                            disabled={rollbackDeployment.isPending}
+                            className="text-[11px] text-orange-600 hover:underline font-semibold disabled:opacity-50"
+                          >Rollback</button>
                         </PermissionGate>
                       )}
                       {d.notes && <span className="text-[10px] text-muted-foreground/70 ml-1" title={d.notes}>ⓘ</span>}

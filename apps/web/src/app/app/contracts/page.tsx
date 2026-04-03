@@ -831,7 +831,7 @@ function ContractsPageInner() {
                           onClick={() => downloadCSV([{ Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state }], `contract_${c.id}`)}
                           className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
                         >
-                          <FileText className="w-3 h-3 inline mr-1" />Download PDF
+                          <FileText className="w-3 h-3 inline mr-1" />Export CSV
                         </button>
                         {c.state === "active" && c.renewalDeadline && (
                           <button
