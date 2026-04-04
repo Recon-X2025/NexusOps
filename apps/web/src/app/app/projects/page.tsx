@@ -35,13 +35,6 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: "text-muted-foreground bg-muted",
 };
 
-const STORY_COLS: Array<{ key: string; label: string; color: string }> = [
-  { key: "todo",       label: "To Do",       color: "bg-muted" },
-  { key: "in_progress",label: "In Progress", color: "bg-blue-50" },
-  { key: "review",     label: "Review",      color: "bg-yellow-50" },
-  { key: "done",       label: "Done",        color: "bg-green-50" },
-];
-
 export default function ProjectsPage() {
   const router = useRouter();
   const { can } = useRBAC();
@@ -103,8 +96,6 @@ export default function ProjectsPage() {
   const projectList: ProjectItem[] = data ?? [];
 
   if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
-
-  const taskList = [] as any[];
 
   const totalBudget = projectList.reduce((s, p) => s + Number(p.budgetTotal ?? 0), 0);
   const totalSpent  = projectList.reduce((s, p) => s + Number(p.budgetSpent ?? 0), 0);
@@ -452,41 +443,20 @@ export default function ProjectsPage() {
 
         {tab === "agile" && (
           <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-foreground/80">Agile Board</span>
-                <span className="text-[11px] text-muted-foreground">Task board across all projects</span>
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+              <Briefcase className="w-8 h-8 opacity-30" />
+              <div className="text-center">
+                <p className="text-[13px] font-semibold">Per-Project Agile Board</p>
+                <p className="text-[12px] text-muted-foreground/70 mt-1">
+                  Select a project from the <strong>All Projects</strong> tab to view and manage its task board.
+                </p>
               </div>
-              <PermissionGate module="projects" action="write">
-                <button
-                  onClick={() => setShowNewProject(true)}
-                  className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-                >
-                  <Plus className="w-3 h-3" /> Add Story
-                </button>
-              </PermissionGate>
-            </div>
-            <div className="grid grid-cols-4 gap-3">
-              {STORY_COLS.map((col) => {
-                const stories = taskList.filter((s: any) => s.status === col.key);
-                return (
-                  <div key={col.key} className={`rounded border border-border ${col.color} min-h-40`}>
-                    <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-foreground/80">{col.label}</span>
-                      <span className="text-[11px] text-muted-foreground bg-card border border-border rounded-full px-2">{stories.length}</span>
-                    </div>
-                    <div className="p-2 space-y-2">
-                      {stories.length === 0 ? (
-                        <div className="text-center text-[11px] text-muted-foreground/50 py-4">No items</div>
-                      ) : stories.map((s: any) => (
-                        <div key={s.id} className="bg-card rounded border border-border p-2 hover:shadow-sm transition-shadow cursor-pointer">
-                          <p className="text-[11px] text-foreground/80 leading-tight">{s.title}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              <button
+                onClick={() => setTab("projects")}
+                className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+              >
+                View Projects →
+              </button>
             </div>
           </div>
         )}

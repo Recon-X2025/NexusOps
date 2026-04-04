@@ -1,571 +1,354 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  FolderOpen, ChevronLeft,
-  Loader2, AlertTriangle, Pencil, X, Plus, CheckCircle2, Flag,
+  Briefcase, ChevronRight, Plus, Loader2, CheckCircle2,
+  Clock, AlertTriangle, X, Check, Edit2, Flag, Circle,
 } from "lucide-react";
-import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { useRBAC, PermissionGate } from "@/lib/rbac-context";
+import { formatDate } from "@/lib/utils";
 
-const STATE_CFG: Record<string, { label: string; color: string; dot: string }> = {
-  completed:   { label: "Complete",    color: "text-green-700 bg-green-100",     dot: "bg-green-500" },
-  in_progress: { label: "In Progress", color: "text-blue-700 bg-blue-100",       dot: "bg-blue-500"  },
-  upcoming:    { label: "Upcoming",    color: "text-muted-foreground bg-muted",   dot: "bg-border"    },
-  overdue:     { label: "Overdue",     color: "text-red-700 bg-red-100",          dot: "bg-red-500"   },
-  done:        { label: "Done",        color: "text-green-700 bg-green-100",      dot: "bg-green-500" },
-  backlog:     { label: "Backlog",     color: "text-muted-foreground bg-muted",   dot: "bg-border"    },
-  todo:        { label: "To Do",       color: "text-muted-foreground bg-muted",   dot: "bg-slate-400" },
-  in_review:   { label: "In Review",   color: "text-purple-700 bg-purple-100",    dot: "bg-purple-500"},
-  cancelled:   { label: "Cancelled",   color: "text-muted-foreground bg-muted",   dot: "bg-muted"     },
-};
-
-const PROJECT_STATUS_COLOR: Record<string, string> = {
-  on_track:  "text-green-700 bg-green-100",
-  at_risk:   "text-orange-700 bg-orange-100",
-  delayed:   "text-red-700 bg-red-100",
+const STATUS_COLOR: Record<string, string> = {
   planning:  "text-blue-700 bg-blue-100",
+  on_track:  "text-green-700 bg-green-100",
+  at_risk:   "text-yellow-700 bg-yellow-100",
+  delayed:   "text-red-700 bg-red-100",
+  complete:  "text-muted-foreground bg-muted",
   completed: "text-muted-foreground bg-muted",
   cancelled: "text-muted-foreground bg-muted",
 };
 
+const HEALTH_COLOR: Record<string, string> = {
+  green: "bg-green-500",
+  amber: "bg-yellow-500",
+  red:   "bg-red-600",
+};
+
+const PRIORITY_COLOR: Record<string, string> = {
+  critical: "text-red-700 bg-red-100",
+  high:     "text-orange-700 bg-orange-100",
+  medium:   "text-yellow-700 bg-yellow-100",
+  low:      "text-green-700 bg-green-100",
+};
+
+const BOARD_COLS = [
+  { key: "todo",        label: "To Do",       color: "bg-muted/40",    ring: "ring-muted" },
+  { key: "in_progress", label: "In Progress",  color: "bg-blue-50",     ring: "ring-blue-200" },
+  { key: "in_review",   label: "Review",       color: "bg-yellow-50",   ring: "ring-yellow-200" },
+  { key: "done",        label: "Done",         color: "bg-green-50",    ring: "ring-green-200" },
+];
+
+type Task = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  assigneeId?: string | null;
+  storyPoints?: number | null;
+  sprint?: string | null;
+};
+
 export default function ProjectDetailPage() {
-  const [tab, setTab] = useState("overview");
-  const [updateText, setUpdateText] = useState("");
-  const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", status: "", health: "", phase: "", endDate: "" });
-
-  // Add Task state
-  const [showAddTask, setShowAddTask] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: "", priority: "medium" as "low"|"medium"|"high"|"critical", dueDate: "", description: "" });
-
-  // Add Milestone state
-  const [showAddMilestone, setShowAddMilestone] = useState(false);
-  const [msForm, setMsForm] = useState({ title: "", dueDate: "" });
-
-  const params = useParams();
-  const id = params?.id as string;
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { can } = useRBAC();
 
+  const utils = trpc.useUtils();
 
-  const { data: project, isLoading, refetch } = trpc.projects.get.useQuery(
+  const { data: project, isLoading, isError, refetch } = trpc.projects.get.useQuery(
     { id },
-    { enabled: !!id },
+    { refetchOnWindowFocus: false },
   );
 
-  const completeTask = trpc.projects.updateTask.useMutation({
-    onSuccess: () => { toast.success("Task marked complete"); refetch(); },
-    onError: (err: { message: string }) => toast.error(err?.message ?? "Something went wrong"),
+  const boardQuery = trpc.projects.getAgileBoard.useQuery(
+    { projectId: id },
+    { refetchOnWindowFocus: false, enabled: !!id },
+  );
+
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    description: "",
+    priority: "medium" as "low" | "medium" | "high" | "critical",
+    sprint: "",
   });
+
+  const [movingTask, setMovingTask] = useState<string | null>(null);
 
   const createTask = trpc.projects.createTask.useMutation({
     onSuccess: () => {
       toast.success("Task created");
       setShowAddTask(false);
-      setTaskForm({ title: "", priority: "medium", dueDate: "", description: "" });
-      refetch();
+      setTaskForm({ title: "", description: "", priority: "medium", sprint: "" });
+      boardQuery.refetch();
     },
-    onError: (err: { message: string }) => toast.error(err?.message ?? "Failed to create task"),
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create task"),
   });
 
-  const createMilestone = trpc.projects.createMilestone.useMutation({
+  const updateTask = trpc.projects.updateTask.useMutation({
     onSuccess: () => {
-      toast.success("Milestone added");
-      setShowAddMilestone(false);
-      setMsForm({ title: "", dueDate: "" });
-      refetch();
+      boardQuery.refetch();
+      setMovingTask(null);
     },
-    onError: (err: { message: string }) => toast.error(err?.message ?? "Failed to add milestone"),
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update task"),
   });
-
-  const updateMilestone = trpc.projects.updateMilestone.useMutation({
-    onSuccess: () => { toast.success("Milestone updated"); refetch(); },
-    onError: (err: { message: string }) => toast.error(err?.message ?? "Update failed"),
-  });
-
-  const updateProject = trpc.projects.update.useMutation({
-    onSuccess: () => { toast.success("Project updated"); setShowEdit(false); refetch(); },
-    onError: (err: { message: string }) => toast.error(err?.message ?? "Update failed"),
-  });
-
-  function openEditModal() {
-    if (!project) return;
-    setEditForm({
-      name: project.name ?? "",
-      status: project.status ?? "",
-      health: project.health ?? "green",
-      phase: project.phase ?? "",
-      endDate: project.endDate ? new Date(project.endDate).toISOString().slice(0, 10) : "",
-    });
-    setShowEdit(true);
-  }
-
-  if (!can("projects", "read")) return <AccessDenied module="Projects" />;
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading project…
+      <div className="flex items-center justify-center h-60 gap-2 text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span className="text-xs">Loading project…</span>
       </div>
     );
   }
 
-  if (!project) {
+  if (isError || !project) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-2">
-        <AlertTriangle className="w-8 h-8 text-muted-foreground/50" />
-        <p className="text-[13px] text-muted-foreground">Project not found</p>
-        <Link href="/app/projects" className="text-[12px] text-primary hover:underline">← Back to Projects</Link>
+      <div className="flex flex-col items-center justify-center h-60 gap-2 text-muted-foreground">
+        <Briefcase className="w-8 h-8 opacity-30" />
+        <span className="text-sm">Project not found.</span>
+        <Link href="/app/projects" className="text-primary text-[12px] hover:underline">
+          ← Back to Projects
+        </Link>
       </div>
     );
   }
 
-  const milestones = project.milestones ?? [];
-  const tasks = project.tasks ?? [];
+  const statusCfg = STATUS_COLOR[project.status ?? "planning"];
+  const tasks = (project as any).tasks ?? [];
+  const milestones = (project as any).milestones ?? [];
 
-  const completedTasks = tasks.filter((t) => t.status === "done").length;
-  const completedMilestones = milestones.filter((m) => m.status === "completed").length;
-  const completionPct = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+  const board = boardQuery.data ?? {};
+  const allBoardTasks: Task[] = Object.values(board).flat() as Task[];
 
-  const budgetTotal = parseFloat(String(project.budgetTotal ?? "0"));
-  const budgetSpent = parseFloat(String(project.budgetSpent ?? "0"));
-  const budgetPct = budgetTotal > 0 ? Math.round((budgetSpent / budgetTotal) * 100) : 0;
+  const isTerminal = project.status === "complete" || project.status === "completed" || project.status === "cancelled";
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-        <Link href="/app/projects" className="hover:text-primary flex items-center gap-1">
-          <ChevronLeft className="w-3 h-3" /> Projects
-        </Link>
-        <span>/</span>
-        <span className="text-muted-foreground font-medium">{project.number}</span>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+        <Link href="/app/projects" className="hover:text-foreground">Projects</Link>
+        <ChevronRight className="w-3 h-3" />
+        <span className="text-foreground font-medium">{project.number}</span>
       </div>
 
-      {/* Add Task Modal */}
-      {showAddTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[13px] font-semibold">Add Task</h3>
-              <button onClick={() => setShowAddTask(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-[11px] text-muted-foreground">Title *</label>
-                <input
-                  autoFocus
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  placeholder="Task title"
-                  value={taskForm.title}
-                  onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground">Description</label>
-                <textarea
-                  rows={2}
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none"
-                  placeholder="Optional description"
-                  value={taskForm.description}
-                  onChange={(e) => setTaskForm((f) => ({ ...f, description: e.target.value }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-muted-foreground">Priority</label>
-                  <select
-                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                    value={taskForm.priority}
-                    onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value as typeof f.priority }))}
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] text-muted-foreground">Due Date</label>
-                  <input
-                    type="date"
-                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                    value={taskForm.dueDate}
-                    onChange={(e) => setTaskForm((f) => ({ ...f, dueDate: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                disabled={!taskForm.title || createTask.isPending}
-                onClick={() => createTask.mutate({
-                  projectId: id,
-                  title: taskForm.title,
-                  priority: taskForm.priority,
-                  description: taskForm.description || undefined,
-                })}
-                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
-              >
-                {createTask.isPending ? "Adding…" : "Add Task"}
-              </button>
-              <button onClick={() => setShowAddTask(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Milestone Modal */}
-      {showAddMilestone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[13px] font-semibold">Add Milestone</h3>
-              <button onClick={() => setShowAddMilestone(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-[11px] text-muted-foreground">Title *</label>
-                <input
-                  autoFocus
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  placeholder="Milestone title"
-                  value={msForm.title}
-                  onChange={(e) => setMsForm((f) => ({ ...f, title: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground">Due Date</label>
-                <input
-                  type="date"
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  value={msForm.dueDate}
-                  onChange={(e) => setMsForm((f) => ({ ...f, dueDate: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                disabled={!msForm.title || createMilestone.isPending}
-                onClick={() => createMilestone.mutate({ projectId: id, title: msForm.title, dueDate: msForm.dueDate || undefined })}
-                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
-              >
-                {createMilestone.isPending ? "Adding…" : "Add Milestone"}
-              </button>
-              <button onClick={() => setShowAddMilestone(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[13px] font-semibold text-foreground">Edit Project — {project.number}</h3>
-              <button onClick={() => setShowEdit(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-[11px] text-muted-foreground">Project Name *</label>
-                <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground">Status</label>
-                <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  value={editForm.status}
-                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
-                >
-                  <option value="planning">Planning</option>
-                  <option value="on_track">On Track</option>
-                  <option value="at_risk">At Risk</option>
-                  <option value="delayed">Delayed</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground">Health</label>
-                <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  value={editForm.health}
-                  onChange={(e) => setEditForm((f) => ({ ...f, health: e.target.value }))}
-                >
-                  <option value="green">Green</option>
-                  <option value="amber">Amber</option>
-                  <option value="red">Red</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground">Phase</label>
-                <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  placeholder="e.g. Initiation, Planning, Execution…"
-                  value={editForm.phase}
-                  onChange={(e) => setEditForm((f) => ({ ...f, phase: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-muted-foreground">Target End Date</label>
-                <input
-                  type="date"
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                  value={editForm.endDate}
-                  onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                disabled={!editForm.name || updateProject.isPending}
-                onClick={() => updateProject.mutate({
-                  id: project.id,
-                  status: editForm.status || undefined,
-                  health: editForm.health || undefined,
-                  phase: editForm.phase || undefined,
-                })}
-                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
-              >
-                {updateProject.isPending ? "Saving…" : "Save Changes"}
-              </button>
-              <button onClick={() => setShowEdit(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-card border border-border rounded p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <FolderOpen className="w-4 h-4 text-primary" />
-              <span className="font-mono text-[11px] text-primary">{project.number}</span>
-              <span className={`status-badge capitalize ${PROJECT_STATUS_COLOR[project.status] ?? "text-muted-foreground bg-muted"}`}>
-                {project.status?.replace(/_/g, " ")}
-              </span>
-            </div>
-            <h1 className="text-[15px] font-bold text-foreground mb-1">{project.name}</h1>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${HEALTH_COLOR[project.health ?? "green"]}`} />
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-foreground leading-snug">{project.name}</h1>
             {project.description && (
-              <p className="text-[12px] text-muted-foreground leading-relaxed mb-3">{project.description}</p>
+              <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-2">{project.description}</p>
             )}
-            <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
-              <span>Started: <strong className="text-foreground/80">{project.createdAt ? new Date(project.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</strong></span>
-              {project.endDate && (
-                <span>Target End: <strong className="text-foreground/80">{new Date(project.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong></span>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span className={`status-badge capitalize ${statusCfg}`}>{project.status?.replace(/_/g, " ") ?? "Planning"}</span>
+              {project.department && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">{project.department}</span>
+              )}
+              {project.startDate && (
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {formatDate(project.startDate)} → {project.endDate ? formatDate(project.endDate) : "Ongoing"}
+                </span>
               )}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            <div className="text-right">
-              <div className="text-[32px] font-black text-primary leading-none">{completionPct}%</div>
-              <div className="text-[11px] text-muted-foreground/70">Complete</div>
-              <div className="w-32 h-2 bg-border rounded-full overflow-hidden mt-2">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${completionPct}%` }} />
-              </div>
-            </div>
-            <PermissionGate module="projects" action="write">
-              <button
-                onClick={openEditModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/50 text-muted-foreground font-medium"
-              >
-                <Pencil className="w-3 h-3" /> Edit Project
-              </button>
-            </PermissionGate>
-          </div>
         </div>
-
-        <div className="mt-3 grid grid-cols-4 gap-3">
-          {[
-            { label: "Budget",         value: budgetTotal > 0 ? `₹${budgetTotal.toLocaleString("en-IN")}` : "—", sub: "Total approved" },
-            { label: "Spent",          value: budgetSpent > 0 ? `₹${budgetSpent.toLocaleString("en-IN")}` : "—", sub: `${budgetPct}% of budget` },
-            { label: "Tasks Complete", value: `${completedTasks}/${tasks.length}`, sub: "Tasks done" },
-            { label: "Milestones",     value: `${completedMilestones}/${milestones.length}`, sub: "Milestones done" },
-          ].map((k) => (
-            <div key={k.label} className="bg-muted/30 rounded p-2.5">
-              <div className="text-[15px] font-bold text-foreground">{k.value}</div>
-              <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
-              <div className="text-[10px] text-muted-foreground">{k.sub}</div>
-            </div>
-          ))}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <PermissionGate module="projects" action="write">
+            {!isTerminal && (
+              <button
+                onClick={() => setShowAddTask(v => !v)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+              >
+                <Plus className="w-3 h-3" /> Add Task
+              </button>
+            )}
+          </PermissionGate>
         </div>
       </div>
 
-      <div className="flex border-b border-border bg-card rounded-t">
+      {/* KPIs */}
+      <div className="grid grid-cols-4 gap-2">
         {[
-          { key: "overview",    label: "Overview & Milestones" },
-          { key: "tasks",       label: `Tasks (${tasks.length})` },
-        ].map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors
-              ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
-            {t.label}
-          </button>
+          { label: "Total Tasks",    value: allBoardTasks.length },
+          { label: "In Progress",    value: (board["in_progress"] ?? []).length },
+          { label: "Done",           value: (board["done"] ?? []).length },
+          { label: "Milestones",     value: milestones.length },
+        ].map((k) => (
+          <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
+            <div className="text-lg font-bold text-foreground">{k.value}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
+          </div>
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-b overflow-hidden">
-        {tab === "overview" && (
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase">
-                Project Milestones ({completedMilestones}/{milestones.length} complete)
-              </p>
-              <PermissionGate module="projects" action="write">
-                <button
-                  onClick={() => setShowAddMilestone(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-muted/50 text-muted-foreground font-medium"
-                >
-                  <Plus className="w-3 h-3" /> Add Milestone
-                </button>
-              </PermissionGate>
+      {/* Add Task Form */}
+      {showAddTask && (
+        <div className="bg-card border border-primary/30 rounded p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[12px] font-semibold text-foreground">New Task</h3>
+            <button onClick={() => setShowAddTask(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Task Title *</label>
+              <input
+                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                placeholder="What needs to be done?"
+                value={taskForm.title}
+                onChange={(e) => setTaskForm(f => ({ ...f, title: e.target.value }))}
+              />
             </div>
-            {milestones.length === 0 ? (
-              <div className="flex items-center justify-center py-8 text-muted-foreground text-[12px]">
-                No milestones defined for this project.
+            <div>
+              <label className="text-[11px] text-muted-foreground">Priority</label>
+              <select
+                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                value={taskForm.priority}
+                onChange={(e) => setTaskForm(f => ({ ...f, priority: e.target.value as any }))}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Description</label>
+              <input
+                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                placeholder="Optional description"
+                value={taskForm.description}
+                onChange={(e) => setTaskForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Sprint</label>
+              <input
+                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                placeholder="e.g. Sprint 3"
+                value={taskForm.sprint}
+                onChange={(e) => setTaskForm(f => ({ ...f, sprint: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              disabled={!taskForm.title || createTask.isPending}
+              onClick={() => createTask.mutate({
+                projectId: id,
+                title: taskForm.title,
+                description: taskForm.description || undefined,
+                priority: taskForm.priority,
+                sprint: taskForm.sprint || undefined,
+              })}
+              className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createTask.isPending ? "Creating…" : "Create Task"}
+            </button>
+            <button onClick={() => setShowAddTask(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Milestones */}
+      {milestones.length > 0 && (
+        <div className="bg-card border border-border rounded">
+          <div className="px-3 py-2 border-b border-border bg-muted/30">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Milestones
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {milestones.map((ms: any) => (
+              <div key={ms.id} className="flex items-center gap-3 px-3 py-2">
+                {ms.status === "completed" ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                ) : (
+                  <Circle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <span className={`text-[12px] font-medium ${ms.status === "completed" ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                    {ms.title}
+                  </span>
+                </div>
+                {ms.dueDate && (
+                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Flag className="w-3 h-3" /> {formatDate(ms.dueDate)}
+                  </span>
+                )}
+                <span className={`status-badge capitalize ${ms.status === "completed" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                  {ms.status ?? "pending"}
+                </span>
               </div>
-            ) : (
-              <div className="relative">
-                <div className="absolute left-4 top-3 bottom-3 w-px bg-border" />
-                <div className="space-y-2">
-                  {milestones.map((ms) => {
-                    const cfg = (STATE_CFG[ms.status] ?? STATE_CFG.upcoming)!;
-                    const isPast = !ms.completedAt && ms.dueDate && new Date(ms.dueDate) < new Date() && ms.status !== "completed";
-                    return (
-                      <div key={ms.id} className="flex gap-4 pl-10 relative">
-                        <div className={`absolute left-2 top-1.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${cfg.dot}`}>
-                          {ms.status === "completed" && <span className="text-white text-[8px]">✓</span>}
-                        </div>
-                        <div className="flex-1 flex items-center justify-between py-2 px-3 rounded border border-transparent hover:border-border hover:bg-muted/30 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className={`text-[12px] font-medium ${ms.status === "completed" ? "text-muted-foreground/70 line-through" : "text-foreground"}`}>
-                              {ms.title}
-                            </span>
-                            {isPast && (
-                              <span className="text-[10px] text-red-600 font-semibold">OVERDUE</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            {ms.dueDate && (
-                              <span className="text-[11px] text-muted-foreground/70">
-                                Due: {new Date(ms.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                              </span>
-                            )}
-                            {ms.completedAt && (
-                              <span className="text-[11px] text-green-600">
-                                Done: {new Date(ms.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                              </span>
-                            )}
-                            <span className={`status-badge ${cfg.color}`}>{cfg.label}</span>
-                            {ms.status !== "completed" && (
-                              <PermissionGate module="projects" action="write">
-                                <button
-                                  onClick={() => updateMilestone.mutate({ id: ms.id, status: "completed" })}
-                                  disabled={updateMilestone.isPending}
-                                  className="text-[11px] text-primary hover:underline disabled:opacity-50"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                </button>
-                              </PermissionGate>
-                            )}
-                          </div>
-                        </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Agile Board */}
+      <div className="bg-card border border-border rounded">
+        <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Task Board</span>
+          {boardQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+        </div>
+        <div className="p-3 grid grid-cols-4 gap-3">
+          {BOARD_COLS.map((col) => {
+            const colTasks: Task[] = (board[col.key] ?? []) as Task[];
+            return (
+              <div key={col.key} className={`rounded border border-border ${col.color} min-h-[140px]`}>
+                <div className="px-2.5 py-2 border-b border-border flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-foreground/80 uppercase tracking-wide">{col.label}</span>
+                  <span className="text-[10px] text-muted-foreground bg-card border border-border rounded-full px-1.5">{colTasks.length}</span>
+                </div>
+                <div className="p-2 space-y-2">
+                  {colTasks.length === 0 ? (
+                    <div className="text-center text-[10px] text-muted-foreground/50 py-6">No tasks</div>
+                  ) : colTasks.map((task) => (
+                    <div key={task.id} className="bg-card rounded border border-border p-2 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <p className="text-[11px] text-foreground/90 leading-tight flex-1">{task.title}</p>
+                        <span className={`text-[9px] px-1 py-0.5 rounded flex-shrink-0 capitalize font-medium ${PRIORITY_COLOR[task.priority] ?? "text-muted-foreground bg-muted"}`}>
+                          {task.priority}
+                        </span>
                       </div>
-                    );
-                  })}
+                      {task.sprint && (
+                        <div className="text-[9px] text-muted-foreground mb-1">{task.sprint}</div>
+                      )}
+                      {!isTerminal && (
+                        <div className="flex gap-1 flex-wrap mt-1.5">
+                          {BOARD_COLS.filter(c => c.key !== col.key).map(targetCol => (
+                            <button
+                              key={targetCol.key}
+                              disabled={movingTask === task.id}
+                              onClick={() => {
+                                setMovingTask(task.id);
+                                updateTask.mutate({ id: task.id, status: targetCol.key });
+                              }}
+                              className="text-[9px] px-1.5 py-0.5 rounded border border-border bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              → {targetCol.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {tab === "tasks" && (
-          <div>
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{tasks.length} Task{tasks.length !== 1 ? "s" : ""}</span>
-              <PermissionGate module="projects" action="write">
-                <button
-                  onClick={() => setShowAddTask(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90 font-medium"
-                >
-                  <Plus className="w-3 h-3" /> Add Task
-                </button>
-              </PermissionGate>
-            </div>
-          {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-              <Flag className="w-6 h-6 opacity-30" />
-              <span className="text-[12px]">No tasks yet.</span>
-              <PermissionGate module="projects" action="write">
-                <button
-                  onClick={() => setShowAddTask(true)}
-                  className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90"
-                >
-                  <Plus className="w-3 h-3" /> Add first task
-                </button>
-              </PermissionGate>
-            </div>
-          ) : (
-            <table className="ent-table w-full">
-              <thead>
-                <tr>
-                  <th className="w-4" />
-                  <th>Title</th>
-                  <th>Priority</th>
-                  <th>Due Date</th>
-                  <th>State</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map((t) => {
-                  const cfg = (STATE_CFG[t.status] ?? STATE_CFG.backlog)!;
-                  const isOverdue = t.status !== "done" && t.dueDate && new Date(t.dueDate) < new Date();
-                  return (
-                    <tr key={t.id} className={t.status === "done" ? "opacity-50" : isOverdue ? "bg-red-50/20" : ""}>
-                      <td className="p-0"><div className={`priority-bar ${cfg.dot}`} /></td>
-                      <td className={`text-foreground ${t.status === "done" ? "line-through" : ""}`}>{t.title}</td>
-                      <td>
-                        <span className={`status-badge capitalize text-[10px] ${t.priority === "critical" ? "text-red-700 bg-red-100" : t.priority === "high" ? "text-orange-700 bg-orange-100" : t.priority === "low" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
-                          {t.priority}
-                        </span>
-                      </td>
-                      <td className={`text-[11px] font-mono ${isOverdue ? "text-red-600 font-bold" : "text-muted-foreground"}`}>
-                        {t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
-                      </td>
-                      <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
-                      <td>
-                        {t.status !== "done" && (
-                          <PermissionGate module="projects" action="write">
-                            <button
-                              onClick={() => completeTask.mutate({ id: t.id, status: "done" })}
-                              disabled={completeTask.isPending}
-                              className="text-[11px] text-primary hover:underline disabled:opacity-50"
-                            >Complete</button>
-                          </PermissionGate>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

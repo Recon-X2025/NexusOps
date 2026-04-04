@@ -1,5 +1,6 @@
 import { router, publicProcedure, protectedProcedure, permissionProcedure } from "../lib/trpc";
-import { invalidateSessionCache } from "../middleware/auth";
+import { invalidateSessionCache, sessionCache } from "../middleware/auth";
+import { getRedis } from "../lib/redis";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { logInfo, logWarn } from "../lib/logger";
@@ -210,8 +211,13 @@ export const authRouter = router({
 
   logout: protectedProcedure.mutation(async ({ ctx }) => {
     if (ctx.sessionId) {
+      // DB delete must complete before responding (correctness)
       await ctx.db.delete(sessions).where(eq(sessions.id, ctx.sessionId));
-      await invalidateSessionCache(ctx.sessionId);
+      // In-memory cache: synchronous, instant
+      sessionCache.delete(ctx.sessionId);
+      // Redis flush: fire-and-forget — DB row already gone, any lingering cache
+      // entry will be stale and rejected at next auth check. Avoids ~1s latency spike.
+      getRedis().del(`session:${ctx.sessionId}`).catch(() => {});
     }
     return { success: true };
   }),

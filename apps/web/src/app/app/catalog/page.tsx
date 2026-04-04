@@ -96,11 +96,21 @@ export default function CatalogPage() {
   const { can } = useRBAC();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [view, setView] = useState<"catalog" | "requests">("catalog");
+  const [view, setView] = useState<"catalog" | "requests" | "manage">("catalog");
   const [requestedItem, setRequestedItem] = useState<string | null>(null);
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [itemForm, setItemForm] = useState({
+    name: "",
+    description: "",
+    category: "hardware",
+    price: "",
+    slaDays: "3",
+    approvalRequired: false,
+    fulfillmentGroup: "",
+  });
 
   const utils = trpc.useUtils();
-  const { data: catalogData } = trpc.catalog.listItems.useQuery(
+  const { data: catalogData, refetch: refetchCatalog } = trpc.catalog.listItems.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );
@@ -108,6 +118,17 @@ export default function CatalogPage() {
     { myRequests: true },
     { refetchOnWindowFocus: false },
   );
+
+  const createItem = trpc.catalog.createItem.useMutation({
+    onSuccess: () => {
+      import("sonner").then(({ toast }) => toast.success("Catalog item created"));
+      setShowAddItem(false);
+      setItemForm({ name: "", description: "", category: "hardware", price: "", slaDays: "3", approvalRequired: false, fulfillmentGroup: "" });
+      refetchCatalog();
+      utils.catalog.listItems.invalidate();
+    },
+    onError: (e: any) => import("sonner").then(({ toast }) => toast.error(e?.message ?? "Failed to create item")),
+  });
 
   const submitRequest = trpc.catalog.submitRequest.useMutation({
     onSuccess: (_, vars) => {
@@ -155,6 +176,14 @@ export default function CatalogPage() {
           >
             My Requests ({myRequests.length})
           </button>
+          {can("catalog", "write") && (
+            <button
+              onClick={() => setView("manage")}
+              className={`px-3 py-1 text-[11px] rounded border transition-colors ${view === "manage" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
+            >
+              Manage Items
+            </button>
+          )}
         </div>
       </div>
 
@@ -309,6 +338,162 @@ export default function CatalogPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Manage Items (admin) ─────────────────────────────────── */}
+      {view === "manage" && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-semibold text-foreground">Catalog Items</span>
+            <button
+              onClick={() => setShowAddItem(v => !v)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
+              <Plus className="w-3 h-3" /> {showAddItem ? "Cancel" : "Add Item"}
+            </button>
+          </div>
+
+          {showAddItem && (
+            <div className="bg-card border border-primary/30 rounded p-4">
+              <h3 className="text-[12px] font-semibold text-foreground mb-3">New Catalog Item</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="text-[11px] text-muted-foreground">Item Name *</label>
+                  <input
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    placeholder="e.g. Laptop — MacBook Pro 14""
+                    value={itemForm.name}
+                    onChange={(e) => setItemForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Category</label>
+                  <select
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    value={itemForm.category}
+                    onChange={(e) => setItemForm(f => ({ ...f, category: e.target.value }))}
+                  >
+                    {CATALOG_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[11px] text-muted-foreground">Description</label>
+                  <input
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    placeholder="Brief description of the item"
+                    value={itemForm.description}
+                    onChange={(e) => setItemForm(f => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Price (₹)</label>
+                  <input
+                    type="number"
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    placeholder="0"
+                    value={itemForm.price}
+                    onChange={(e) => setItemForm(f => ({ ...f, price: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">SLA Days</label>
+                  <input
+                    type="number"
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    value={itemForm.slaDays}
+                    onChange={(e) => setItemForm(f => ({ ...f, slaDays: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground">Fulfillment Group</label>
+                  <input
+                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                    placeholder="e.g. IT Hardware Team"
+                    value={itemForm.fulfillmentGroup}
+                    onChange={(e) => setItemForm(f => ({ ...f, fulfillmentGroup: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-3 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="approvalRequired"
+                    checked={itemForm.approvalRequired}
+                    onChange={(e) => setItemForm(f => ({ ...f, approvalRequired: e.target.checked }))}
+                    className="rounded border-border"
+                  />
+                  <label htmlFor="approvalRequired" className="text-[11px] text-muted-foreground cursor-pointer">
+                    Requires approval before fulfillment
+                  </label>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  disabled={!itemForm.name || createItem.isPending}
+                  onClick={() => createItem.mutate({
+                    name: itemForm.name,
+                    description: itemForm.description || undefined,
+                    category: itemForm.category,
+                    price: itemForm.price || undefined,
+                    slaDays: parseInt(itemForm.slaDays) || 3,
+                    approvalRequired: itemForm.approvalRequired,
+                    fulfillmentGroup: itemForm.fulfillmentGroup || undefined,
+                  })}
+                  className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {createItem.isPending ? "Creating…" : "Create Item"}
+                </button>
+                <button onClick={() => setShowAddItem(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-card border border-border rounded overflow-hidden">
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>SLA Days</th>
+                  <th>Fulfillment Group</th>
+                  <th>Approval</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {catalogItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-muted-foreground text-[12px]">
+                      No catalog items yet. Add items to populate the service catalog.
+                    </td>
+                  </tr>
+                ) : catalogItems.map((item: any) => (
+                  <tr key={item.id}>
+                    <td className="font-medium text-foreground">{item.name}</td>
+                    <td className="text-muted-foreground capitalize">{item.category ?? "—"}</td>
+                    <td className="text-muted-foreground font-mono text-[11px]">{item.price ? `₹${item.price}` : "—"}</td>
+                    <td className="text-muted-foreground text-center">{item.slaDays ?? 3}</td>
+                    <td className="text-muted-foreground text-[11px]">{item.fulfillmentGroup ?? "—"}</td>
+                    <td>
+                      {item.approvalRequired ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">Required</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">Auto</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`status-badge capitalize ${item.status === "active" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
+                        {item.status ?? "active"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

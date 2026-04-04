@@ -13,6 +13,7 @@ import {
   Clock,
   Calendar,
   ChevronRight,
+  ChevronLeft,
   Flame,
   Loader2,
 } from "lucide-react";
@@ -43,7 +44,99 @@ const TABS = [
   { key: "scheduled",      label: "Scheduled",   status: "scheduled",        module: "changes" as const, action: "read"    as const },
   { key: "implementation", label: "In Progress", status: "implementation",   module: "changes" as const, action: "write"   as const },
   { key: "complete",       label: "Complete",    status: "complete",         module: "changes" as const, action: "read"    as const },
+  { key: "calendar",       label: "Calendar",    status: undefined,          module: "changes" as const, action: "read"    as const },
 ];
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function ChangeCalendar({ items }: { items: Array<{ id: string; number: string; title: string; scheduledStart?: string | null; status: string; risk: string; type: string }> }) {
+  const today = new Date();
+  const [calYear, setCalYear] = React.useState(today.getFullYear());
+  const [calMonth, setCalMonth] = React.useState(today.getMonth());
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  const byDay: Record<number, typeof items> = {};
+  for (const item of items) {
+    if (!item.scheduledStart) continue;
+    const d = new Date(item.scheduledStart);
+    if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+      const day = d.getDate();
+      (byDay[day] ??= []).push(item);
+    }
+  }
+
+  function prevMonth() {
+    if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); }
+    else setCalMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); }
+    else setCalMonth(m => m + 1);
+  }
+
+  const cells: Array<{ day: number | null }> = [];
+  for (let i = 0; i < firstDay; i++) cells.push({ day: null });
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d });
+  while (cells.length % 7 !== 0) cells.push({ day: null });
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={prevMonth} className="p-1 rounded hover:bg-muted/30 text-muted-foreground">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="text-[13px] font-semibold text-foreground">{MONTH_NAMES[calMonth]} {calYear}</span>
+        <button onClick={nextMonth} className="p-1 rounded hover:bg-muted/30 text-muted-foreground">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-px bg-border rounded overflow-hidden">
+        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+          <div key={d} className="bg-muted/50 text-[10px] text-muted-foreground text-center py-1.5 font-semibold uppercase">{d}</div>
+        ))}
+        {cells.map((cell, i) => {
+          const isToday = cell.day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+          const dayItems = cell.day ? (byDay[cell.day] ?? []) : [];
+          return (
+            <div key={i} className={`bg-card min-h-[80px] p-1 ${!cell.day ? "opacity-40" : ""} ${isToday ? "ring-1 ring-inset ring-primary" : ""}`}>
+              {cell.day && (
+                <>
+                  <div className={`text-[11px] font-medium mb-1 w-5 h-5 flex items-center justify-center rounded-full ${isToday ? "bg-primary text-white" : "text-muted-foreground"}`}>
+                    {cell.day}
+                  </div>
+                  <div className="space-y-0.5">
+                    {dayItems.slice(0, 3).map(item => (
+                      <Link key={item.id} href={`/app/changes/${item.id}`}
+                        className={`block text-[9px] leading-tight px-1 py-0.5 rounded truncate font-medium ${
+                          item.type === "emergency" ? "bg-red-100 text-red-700" :
+                          item.risk === "high" || item.risk === "critical" ? "bg-orange-100 text-orange-700" :
+                          "bg-blue-100 text-blue-700"
+                        }`}
+                        title={item.title}
+                      >
+                        {item.number} · {item.title}
+                      </Link>
+                    ))}
+                    {dayItems.length > 3 && (
+                      <div className="text-[9px] text-muted-foreground pl-1">+{dayItems.length - 3} more</div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex items-center gap-4 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-100 border border-red-200" /> Emergency</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-orange-100 border border-orange-200" /> High Risk</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-100 border border-blue-200" /> Standard</span>
+      </div>
+    </div>
+  );
+}
 
 export default function ChangesPage() {
   const { can } = useRBAC();
@@ -114,7 +207,7 @@ export default function ChangesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => refetch()}
+            onClick={() => setActiveTab("calendar")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-accent"
           >
             <Calendar className="w-3 h-3" /> Change Calendar
@@ -177,9 +270,11 @@ export default function ChangesPage() {
         {actionMsg && <span className="ml-auto mr-3 text-[11px] text-green-700 font-medium">{actionMsg}</span>}
       </div>
 
-      {/* Table */}
+      {/* Table / Calendar */}
       <div className="bg-card border border-border rounded-b overflow-hidden">
-        {isLoading ? (
+        {activeTab === "calendar" ? (
+          <ChangeCalendar items={items} />
+        ) : isLoading ? (
           <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span className="text-xs">Loading changes…</span>
@@ -319,9 +414,11 @@ export default function ChangesPage() {
             </tbody>
           </table>
         )}
+        {activeTab !== "calendar" && (
         <div className="px-3 py-2 border-t border-border text-[11px] text-muted-foreground">
           {items.length} record{items.length !== 1 ? "s" : ""}
         </div>
+        )}
       </div>
 
       {/* Risk Assessment Panel */}

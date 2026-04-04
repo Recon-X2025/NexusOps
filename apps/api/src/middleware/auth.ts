@@ -50,7 +50,7 @@ interface SessionCacheEntry {
   expiresAt: number;
 }
 
-const sessionCache = new Map<string, SessionCacheEntry>();
+export const sessionCache = new Map<string, SessionCacheEntry>();
 
 // Evict expired entries every minute so memory stays bounded.
 setInterval(() => {

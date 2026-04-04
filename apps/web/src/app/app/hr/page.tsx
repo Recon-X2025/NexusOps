@@ -9,6 +9,7 @@ import { toast } from "sonner";
 const HR_TABS = [
   { key: "directory",  label: "Employee Directory",   module: "hr"         as const, action: "read"  as const },
   { key: "cases",       label: "HR Cases",            module: "hr"         as const, action: "read"  as const },
+  { key: "leave",       label: "Leave Management",    module: "hr"         as const, action: "read"  as const },
   { key: "onboarding",  label: "Onboarding",           module: "onboarding" as const, action: "read"  as const },
   { key: "offboarding", label: "Offboarding",          module: "hr"         as const, action: "write" as const },
   { key: "lifecycle",   label: "Lifecycle Events",     module: "hr"         as const, action: "write" as const },
@@ -70,6 +71,23 @@ export default function HRPage() {
     {},
     { refetchOnWindowFocus: false },
   );
+
+  // Leave management
+  const { data: leaveData, refetch: refetchLeave } = (trpc as any).hr.leave.list.useQuery({}, { refetchOnWindowFocus: false });
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({ type: "annual", startDate: "", endDate: "", reason: "" });
+  const createLeave = (trpc as any).hr.leave.create.useMutation({
+    onSuccess: () => { toast.success("Leave request submitted"); setShowLeaveForm(false); setLeaveForm({ type: "annual", startDate: "", endDate: "", reason: "" }); refetchLeave(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to submit leave request"),
+  });
+  const approveLeave = (trpc as any).hr.leave.approve.useMutation({
+    onSuccess: () => { toast.success("Leave approved"); refetchLeave(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to approve"),
+  });
+  const rejectLeave = (trpc as any).hr.leave.reject.useMutation({
+    onSuccess: () => { toast.success("Leave rejected"); refetchLeave(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to reject"),
+  });
 
   // India payroll compliance — TDS challans + EPFO ECR
   const tdsChallansQuery = (trpc as any).indiaCompliance.tdsChallans.list.useQuery({}, { refetchOnWindowFocus: false });
@@ -258,6 +276,147 @@ export default function HRPage() {
                 </tbody>
               </table>
             )}
+          </div>
+        )}
+
+        {tab === "leave" && (
+          <div className="flex flex-col gap-3 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-foreground">Leave Requests</span>
+              <button
+                onClick={() => setShowLeaveForm(v => !v)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+              >
+                <Plus className="w-3 h-3" /> {showLeaveForm ? "Cancel" : "Request Leave"}
+              </button>
+            </div>
+
+            {showLeaveForm && (
+              <div className="bg-card border border-primary/30 rounded p-4">
+                <h3 className="text-[12px] font-semibold text-foreground mb-3">New Leave Request</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-muted-foreground">Leave Type</label>
+                    <select
+                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      value={leaveForm.type}
+                      onChange={(e) => setLeaveForm(f => ({ ...f, type: e.target.value }))}
+                    >
+                      <option value="annual">Annual Leave</option>
+                      <option value="sick">Sick Leave</option>
+                      <option value="casual">Casual Leave</option>
+                      <option value="maternity">Maternity Leave</option>
+                      <option value="paternity">Paternity Leave</option>
+                      <option value="compensatory">Compensatory Off</option>
+                      <option value="unpaid">Unpaid Leave</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground">Start Date *</label>
+                    <input
+                      type="date"
+                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      value={leaveForm.startDate}
+                      onChange={(e) => setLeaveForm(f => ({ ...f, startDate: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-muted-foreground">End Date *</label>
+                    <input
+                      type="date"
+                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      value={leaveForm.endDate}
+                      onChange={(e) => setLeaveForm(f => ({ ...f, endDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="text-[11px] text-muted-foreground">Reason</label>
+                    <input
+                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      placeholder="Brief reason for leave"
+                      value={leaveForm.reason}
+                      onChange={(e) => setLeaveForm(f => ({ ...f, reason: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    disabled={!leaveForm.startDate || !leaveForm.endDate || createLeave.isPending}
+                    onClick={() => createLeave.mutate({ type: leaveForm.type, startDate: leaveForm.startDate, endDate: leaveForm.endDate, reason: leaveForm.reason || undefined })}
+                    className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {createLeave.isPending ? "Submitting…" : "Submit Request"}
+                  </button>
+                  <button onClick={() => setShowLeaveForm(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card border border-border rounded overflow-hidden">
+              <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Type</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Days</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    {can("hr", "approve" as any) && <th>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {!leaveData || (leaveData as any[]).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-10 text-center text-[12px] text-muted-foreground">
+                        No leave requests yet.
+                      </td>
+                    </tr>
+                  ) : (leaveData as any[]).map((req: any) => (
+                    <tr key={req.id}>
+                      <td className="text-foreground text-[11px]">{req.employeeId?.slice(0,8) ?? "—"}</td>
+                      <td>
+                        <span className="status-badge capitalize bg-blue-100 text-blue-700">{req.type?.replace(/_/g," ")}</span>
+                      </td>
+                      <td className="text-muted-foreground text-[11px]">{req.startDate ? new Date(req.startDate).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{req.endDate ? new Date(req.endDate).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—"}</td>
+                      <td className="text-center font-medium text-foreground">{req.days ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px] max-w-[180px] truncate">{req.reason ?? "—"}</td>
+                      <td>
+                        <span className={`status-badge capitalize ${
+                          req.status === "approved" ? "text-green-700 bg-green-100" :
+                          req.status === "rejected" ? "text-red-700 bg-red-100" :
+                          "text-yellow-700 bg-yellow-100"
+                        }`}>{req.status}</span>
+                      </td>
+                      {can("hr", "approve" as any) && (
+                        <td>
+                          {req.status === "pending" && (
+                            <div className="flex gap-1">
+                              <button
+                                disabled={approveLeave.isPending}
+                                onClick={() => approveLeave.mutate({ id: req.id })}
+                                className="px-2 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-medium hover:bg-green-200 disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                disabled={rejectLeave.isPending}
+                                onClick={() => rejectLeave.mutate({ id: req.id })}
+                                className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-medium hover:bg-red-200 disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
