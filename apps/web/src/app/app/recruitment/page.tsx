@@ -392,7 +392,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
                 <td className="px-4 py-3 capitalize">{r.level}</td>
                 <td className="px-4 py-3">{r.filled}/{r.openings}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${JOB_STATUS_STYLES[r.status] ?? "bg-slate-100"}`}>{r.status.replace("_"," ")}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${JOB_STATUS_STYLES[r.status ?? ""] ?? "bg-slate-100"}`}>{(r.status ?? "unknown").replace("_"," ")}</span>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground text-xs">{r.targetDate ? new Date(r.targetDate).toLocaleDateString() : "—"}</td>
                 <td className="px-4 py-3">
@@ -662,7 +662,7 @@ export default function RecruitmentPage() {
   const { data: analytics } = trpc.recruitment.analytics.useQuery({ days: 90 });
   const { data: jobs = [] } = trpc.recruitment.requisitions.list.useQuery({});
 
-  if (!hasPermission("recruitment", "read")) return <AccessDenied />;
+  if (!hasPermission("recruitment", "read")) return <AccessDenied module="recruitment" />;
 
   const handleViewPipeline = (jobId: string, jobTitle: string) => {
     setPipelineJobId(jobId);

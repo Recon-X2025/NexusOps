@@ -25,6 +25,8 @@ interface RBACContextValue {
   currentUser: SystemUser;
   switchUser: (userId: string) => void;
   can: (module: Module, action: RbacAction) => boolean;
+  /** Alias for `can` — several app pages use this name for permission checks. */
+  hasPermission: (module: Module, action: RbacAction) => boolean;
   canAccess: (module: Module) => boolean;
   isAdmin: () => boolean;
   hasRole: (role: SystemRole) => boolean;
@@ -153,7 +155,22 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
     : MOCK_USERS;
 
   return (
-    <RBACContext.Provider value={{ currentUser, switchUser, can, canAccess, isAdmin, hasRole, visibleModules, allUsers, isLoadingAuth, isAuthenticated, isDemoMode }}>
+    <RBACContext.Provider
+      value={{
+        currentUser,
+        switchUser,
+        can,
+        hasPermission: can,
+        canAccess,
+        isAdmin,
+        hasRole,
+        visibleModules,
+        allUsers,
+        isLoadingAuth,
+        isAuthenticated,
+        isDemoMode,
+      }}
+    >
       {children}
     </RBACContext.Provider>
   );

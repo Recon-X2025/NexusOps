@@ -639,7 +639,7 @@ function SecretarialContent() {
   const tabParam = searchParams?.get("tab");
   const [activeTab, setActiveTab] = useState(tabParam ?? "overview");
 
-  if (!hasPermission("secretarial", "read")) return <AccessDenied />;
+  if (!hasPermission("secretarial", "read")) return <AccessDenied module="secretarial" />;
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
