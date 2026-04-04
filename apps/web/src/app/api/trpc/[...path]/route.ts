@@ -30,6 +30,9 @@ async function proxy(
   if (auth) forwardHeaders["authorization"] = auth;
   const ct = req.headers.get("content-type");
   if (ct) forwardHeaders["content-type"] = ct;
+  // Forward cookies so session auth reaches the API
+  const cookie = req.headers.get("cookie");
+  if (cookie) forwardHeaders["cookie"] = cookie;
 
   const body =
     req.method !== "GET" && req.method !== "HEAD"
