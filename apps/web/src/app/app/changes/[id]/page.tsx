@@ -81,6 +81,7 @@ export default function ChangeDetailPage() {
     cancelled:      [],
   };
   const nextStates = TRANSITIONS[change.status ?? "draft"] ?? [];
+  const isTerminalChange = change.status === "complete" || change.status === "cancelled";
 
   if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
 
@@ -158,19 +159,23 @@ export default function ChangeDetailPage() {
 
           {/* Add comment */}
           <PermissionGate module="changes" action="write">
-            <div className="bg-card border border-border rounded p-4 flex flex-col gap-2">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add Comment</h2>
+            <div className={`bg-card border border-border rounded p-4 flex flex-col gap-2 ${isTerminalChange ? "opacity-60" : ""}`}>
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                Add Comment
+                {isTerminalChange && <span className="normal-case font-normal text-muted-foreground/60">(disabled — change is {change.status})</span>}
+              </h2>
               <textarea
                 rows={3}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a note or update…"
-                className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                disabled={isTerminalChange}
+                placeholder={isTerminalChange ? `This change is ${change.status} — comments are disabled.` : "Add a note or update…"}
+                className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:bg-muted/30 disabled:cursor-not-allowed"
               />
               <button
                 onClick={handleComment}
-                disabled={addComment.isPending || !comment.trim()}
-                className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
+                disabled={isTerminalChange || addComment.isPending || !comment.trim()}
+                className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
               >
                 {addComment.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
                 Comment

@@ -173,6 +173,12 @@ export default function TicketDetailPage() {
   const uCfg = URGENCY_COLORS[urgency];
   const typeBadge = TYPE_COLORS[ticket.type ?? "incident"];
 
+  // Terminal state — lock all write actions
+  const TERMINAL_STATUS_NAMES = ["closed", "resolved", "cancelled", "done"];
+  const currentStatusName = (statusCounts?.find((s: any) => s.statusId === ticket.statusId)?.name ?? "").toLowerCase();
+  const isTerminal = TERMINAL_STATUS_NAMES.some((t) => currentStatusName.includes(t)) || !!ticket.closedAt || !!ticket.resolvedAt;
+  const terminalLabel = ticket.closedAt ? "Closed" : ticket.resolvedAt ? "Resolved" : currentStatusName ? currentStatusName.charAt(0).toUpperCase() + currentStatusName.slice(1) : "Closed";
+
   const slaOverdueMs =
     ticket.slaResolveDueAt
       ? Date.now() - new Date(ticket.slaResolveDueAt).getTime()
@@ -191,8 +197,8 @@ export default function TicketDetailPage() {
         <span className="text-muted-foreground font-medium">{ticket.number}</span>
       </nav>
 
-      {/* SLA breach banner */}
-      {ticket.slaBreached && (
+      {/* SLA breach banner — hidden when ticket is already terminal */}
+      {ticket.slaBreached && !isTerminal && (
         <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded text-red-700 text-[12px]">
           <Flame className="w-4 h-4 flex-shrink-0" />
           <strong>SLA Breached</strong>
@@ -206,6 +212,18 @@ export default function TicketDetailPage() {
             className="ml-auto flex items-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-[11px] font-medium hover:bg-red-700 disabled:opacity-50">
             <ArrowUpCircle className="w-3 h-3" /> Escalate
           </button>
+        </div>
+      )}
+
+      {/* Terminal state banner */}
+      {isTerminal && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border rounded text-muted-foreground text-[12px]">
+          <Lock className="w-4 h-4 flex-shrink-0 text-muted-foreground/60" />
+          <span className="font-semibold text-foreground/70">{terminalLabel}</span>
+          <span className="text-muted-foreground/70">— This ticket is {terminalLabel.toLowerCase()}. All write actions are disabled.</span>
+          {(ticket.closedAt || ticket.resolvedAt) && (
+            <span className="ml-auto text-[11px] text-muted-foreground/60">{formatDt((ticket.closedAt ?? ticket.resolvedAt) as string)}</span>
+          )}
         </div>
       )}
 
@@ -260,14 +278,14 @@ export default function TicketDetailPage() {
                   </div>
                 ) : (
                   <h2
-                    className="text-sm font-semibold text-foreground cursor-pointer hover:text-primary group flex items-start gap-1"
-                    onClick={() => {
+                    className={`text-sm font-semibold text-foreground group flex items-start gap-1 ${!isTerminal ? "cursor-pointer hover:text-primary" : "cursor-default"}`}
+                    onClick={isTerminal ? undefined : () => {
                       setEditingField("title");
                       setEditValues((v) => ({ ...v, title: ticket.title }));
                     }}
                   >
                     {ticket.title}
-                    <Edit2 className="w-3 h-3 mt-0.5 opacity-0 group-hover:opacity-60 flex-shrink-0" />
+                    {!isTerminal && <Edit2 className="w-3 h-3 mt-0.5 opacity-0 group-hover:opacity-60 flex-shrink-0" />}
                   </h2>
                 )}
               </div>
@@ -275,27 +293,28 @@ export default function TicketDetailPage() {
               {/* Toolbar */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <button
-                  onClick={() => { setEditingField("title"); setEditValues((v) => ({ ...v, title: ticket.title })); }}
-                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+                  disabled={isTerminal}
+                  onClick={() => { if (!isTerminal) { setEditingField("title"); setEditValues((v) => ({ ...v, title: ticket.title })); } }}
+                  className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Edit2 className="w-3 h-3" /> Edit
                 </button>
                 <button
-                  disabled={!can("incidents", "assign")}
+                  disabled={isTerminal || !can("incidents", "assign")}
                   onClick={() => setShowAssignPanel((v) => !v)}
                   className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <User className="w-3 h-3" /> Assign
                 </button>
                 <button
-                  disabled={!can("incidents", "write") || updateTicket.isPending}
+                  disabled={isTerminal || !can("incidents", "write") || updateTicket.isPending}
                   onClick={() => setShowResolvePanel((v) => !v)}
                   className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-green-300 rounded hover:bg-green-50 text-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 className="w-3 h-3" /> {updateTicket.isPending ? "…" : "Resolve"}
                 </button>
                 <button
-                  disabled={!can("incidents", "write") || updateTicket.isPending}
+                  disabled={isTerminal || !can("incidents", "write") || updateTicket.isPending}
                   onClick={() => setShowClosePanel((v) => !v)}
                   className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-slate-300 rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -441,45 +460,50 @@ export default function TicketDetailPage() {
                 </div>
 
                 {/* Comment composer */}
-                <div className="border border-border rounded">
+                <div className={`border border-border rounded ${isTerminal ? "opacity-60" : ""}`}>
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
                     <button
+                      disabled={isTerminal}
                       onClick={() => setIsInternal(false)}
-                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${!isInternal ? "bg-blue-100 text-blue-700 font-medium" : "text-muted-foreground hover:bg-muted"}`}
+                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded disabled:cursor-not-allowed ${!isInternal ? "bg-blue-100 text-blue-700 font-medium" : "text-muted-foreground hover:bg-muted"}`}
                     >
                       <Globe className="w-3 h-3" /> Customer Reply
                     </button>
                     <button
+                      disabled={isTerminal}
                       onClick={() => setIsInternal(true)}
-                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded ${isInternal ? "bg-yellow-100 text-yellow-700 font-medium" : "text-muted-foreground hover:bg-muted"}`}
+                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded disabled:cursor-not-allowed ${isInternal ? "bg-yellow-100 text-yellow-700 font-medium" : "text-muted-foreground hover:bg-muted"}`}
                     >
                       <Lock className="w-3 h-3" /> Work Note (Internal)
                     </button>
                     <span className="ml-auto text-[10px] text-muted-foreground/60">
-                      Posting as <span className="font-medium text-foreground/70">{currentUser.name}</span>
+                      {isTerminal ? "Commenting disabled on closed tickets" : <>Posting as <span className="font-medium text-foreground/70">{currentUser.name}</span></>}
                     </span>
                   </div>
                   <textarea
                     value={commentBody}
                     onChange={(e) => setCommentBody(e.target.value)}
+                    disabled={isTerminal}
                     rows={3}
-                    placeholder={isInternal ? "Add internal work note (not visible to requester)..." : "Reply to requester..."}
-                    className="w-full px-3 py-2 text-[12px] text-foreground/80 resize-none outline-none"
+                    placeholder={isTerminal ? "This ticket is closed — comments are disabled." : isInternal ? "Add internal work note (not visible to requester)..." : "Reply to requester..."}
+                    className="w-full px-3 py-2 text-[12px] text-foreground/80 resize-none outline-none disabled:bg-muted/30 disabled:cursor-not-allowed"
                   />
                   <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
                     <div className="flex items-center gap-2">
-                      <label className="p-1 text-muted-foreground/70 hover:text-muted-foreground cursor-pointer" title="Attach file">
+                      <label className={`p-1 text-muted-foreground/70 ${!isTerminal ? "hover:text-muted-foreground cursor-pointer" : "cursor-not-allowed opacity-40"}`} title="Attach file">
                         <Paperclip className="w-3.5 h-3.5" />
-                        <input type="file" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) toast.info(`Attachment "${f.name}" noted — file uploads will be stored once cloud storage is configured.`); e.target.value = ""; }} />
+                        {!isTerminal && <input type="file" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) toast.info(`Attachment "${f.name}" noted — file uploads will be stored once cloud storage is configured.`); e.target.value = ""; }} />}
                       </label>
                       <span className="text-[11px] text-muted-foreground/70">
-                        {isInternal
+                        {isTerminal
+                          ? "Ticket is closed"
+                          : isInternal
                           ? "Internal note — not visible to requester"
                           : "This message will be sent to the requester"}
                       </span>
                     </div>
                     <button
-                      disabled={!commentBody.trim() || addComment.isPending}
+                      disabled={isTerminal || !commentBody.trim() || addComment.isPending}
                       onClick={() =>
                         addComment.mutate({
                           ticketId: ticket.id,
@@ -487,7 +511,7 @@ export default function TicketDetailPage() {
                           isInternal,
                         })
                       }
-                      className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-40"
+                      className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {addComment.isPending ? "Posting..." : "Post"}
                     </button>

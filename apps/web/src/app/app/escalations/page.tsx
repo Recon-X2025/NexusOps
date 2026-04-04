@@ -55,6 +55,12 @@ export default function EscalationQueuePage() {
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery();
 
+  const TERMINAL_STATUS_NAMES = ["closed", "resolved", "cancelled", "done"];
+  const isTicketTerminal = (t: TicketListItem) => {
+    const statusName = (statusCounts?.find((s) => s.statusId === (t as any).statusId)?.name ?? "").toLowerCase();
+    return TERMINAL_STATUS_NAMES.some((n) => statusName.includes(n)) || !!(t as any).closedAt || !!(t as any).resolvedAt;
+  };
+
   const bulkUpdate = trpc.tickets.bulkUpdate.useMutation({
     onSuccess: () => { refetch(); toast.success("Ticket escalated"); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to escalate"),
@@ -270,21 +276,31 @@ export default function EscalationQueuePage() {
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const criticalStatus = statusCounts?.find((s) => ["open","in_progress"].includes((s.name ?? "").toLowerCase()));
-                            bulkUpdate.mutate({ ids: [ticket.id], data: { tags: [...(ticket.tags ?? []), "escalated"] } });
-                          }}
-                          className="flex items-center gap-0.5 text-[11px] text-primary hover:underline"
-                        >
-                          <ArrowUpCircle className="w-3 h-3" /> Escalate
-                        </button>
-                        <button
-                          onClick={() => router.push(`/app/tickets/${ticket.id}`)}
-                          className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:underline"
-                        >
-                          <User className="w-3 h-3" /> Reassign
-                        </button>
+                        {(() => {
+                          const terminal = isTicketTerminal(ticket);
+                          return (
+                            <>
+                              <button
+                                disabled={terminal || bulkUpdate.isPending}
+                                onClick={() => {
+                                  bulkUpdate.mutate({ ids: [ticket.id], data: { tags: [...(ticket.tags ?? []), "escalated"] } });
+                                }}
+                                className={`flex items-center gap-0.5 text-[11px] ${terminal ? "text-muted-foreground/40 cursor-not-allowed" : "text-primary hover:underline"}`}
+                                title={terminal ? "Cannot escalate a closed ticket" : "Escalate"}
+                              >
+                                <ArrowUpCircle className="w-3 h-3" /> Escalate
+                              </button>
+                              <button
+                                disabled={terminal}
+                                onClick={() => !terminal && router.push(`/app/tickets/${ticket.id}`)}
+                                className={`flex items-center gap-0.5 text-[11px] ${terminal ? "text-muted-foreground/40 cursor-not-allowed" : "text-muted-foreground hover:underline"}`}
+                                title={terminal ? "Cannot reassign a closed ticket" : "Reassign"}
+                              >
+                                <User className="w-3 h-3" /> Reassign
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
