@@ -362,7 +362,7 @@ export default function CatalogPage() {
                   <label className="text-[11px] text-muted-foreground">Item Name *</label>
                   <input
                     className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
-                    placeholder="e.g. Laptop — MacBook Pro 14""
+                    placeholder="e.g. Laptop - MacBook Pro 14&quot;"
                     value={itemForm.name}
                     onChange={(e) => setItemForm(f => ({ ...f, name: e.target.value }))}
                   />
