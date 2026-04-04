@@ -89,6 +89,7 @@ export default function FacilitiesPage() {
   const availableRooms = ROOMS.filter((r: any) => r.status === "available").length;
 
   return (
+    <>
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -493,5 +494,6 @@ export default function FacilitiesPage() {
         </div>
       </div>
     )}
+    </>
   );
 }

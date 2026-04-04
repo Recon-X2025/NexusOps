@@ -181,10 +181,8 @@ export default function LegalPage() {
   const criticalItems = [...matters, ...investigations].filter((i: any) => i.priority === "critical").length;
 
   return (
+    <>
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Scale className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-sm font-semibold text-foreground">Legal Service Delivery</h1>
           <span className="text-[11px] text-muted-foreground/70">Matters · Requests · Investigations · Contract Review</span>
         </div>
@@ -671,5 +669,6 @@ export default function LegalPage() {
         </div>
       </div>
     )}
+    </>
   );
 }
