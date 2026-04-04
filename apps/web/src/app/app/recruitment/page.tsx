@@ -574,9 +574,9 @@ function InterviewsTab() {
             <tr key={iv.id} className="border-b border-border last:border-0 hover:bg-muted/30">
               <td className="px-4 py-3 font-medium">{iv.title}</td>
               <td className="px-4 py-3 capitalize text-muted-foreground text-xs">{iv.type?.replace("_"," ")}</td>
-              <td className="px-4 py-3 text-xs">{new Date(iv.scheduledAt).toLocaleString()}</td>
+              <td className="px-4 py-3 text-xs">{iv.scheduledAt ? new Date(iv.scheduledAt).toLocaleString() : "—"}</td>
               <td className="px-4 py-3 text-xs text-muted-foreground">{iv.durationMins}min</td>
-              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusStyle[iv.status]}`}>{iv.status.replace("_"," ")}</span></td>
+              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusStyle[iv.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(iv.status ?? "—").replace("_", " ")}</span></td>
               <td className="px-4 py-3">
                 {iv.overallRating ? <div className="flex gap-0.5">{Array.from({length:5},(_,i) => <Star key={i} className={`w-3 h-3 ${i < iv.overallRating ? "text-amber-400 fill-amber-400" : "text-muted-foreground"}`} />)}</div> : <span className="text-xs text-muted-foreground">—</span>}
               </td>
@@ -653,7 +653,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function RecruitmentPage() {
-  const { hasPermission } = useRBAC();
+  const { can } = useRBAC();
   const [tab, setTab] = useState<Tab>("dashboard");
   const [pipelineJobId, setPipelineJobId] = useState<string | null>(null);
   const [pipelineJobTitle, setPipelineJobTitle] = useState<string>("");
@@ -662,7 +662,7 @@ export default function RecruitmentPage() {
   const { data: analytics } = trpc.recruitment.analytics.useQuery({ days: 90 });
   const { data: jobs = [] } = trpc.recruitment.requisitions.list.useQuery({});
 
-  if (!hasPermission("recruitment", "read")) return <AccessDenied module="recruitment" />;
+  if (!can("recruitment", "read")) return <AccessDenied module="recruitment" />;
 
   const handleViewPipeline = (jobId: string, jobTitle: string) => {
     setPipelineJobId(jobId);

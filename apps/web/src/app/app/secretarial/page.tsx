@@ -181,7 +181,7 @@ function BoardTab() {
                 <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_"," ")}</td>
                 <td className="px-4 py-3 text-xs">{new Date(m.scheduledAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{m.duration}min</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status]}`}>{m.status}</span></td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status ?? "—").replace("_", " ")}</span></td>
                 <td className="px-4 py-3 text-xs">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
                 <td className="px-4 py-3">
                   {m.status === "scheduled" && (
@@ -251,7 +251,7 @@ function BoardTab() {
                 <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
                 <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
                 <td className="px-4 py-3 text-xs capitalize">{r.type}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status]}`}>{r.status}</span></td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(r.status ?? "—").replace("_", " ")}</span></td>
                 <td className="px-4 py-3 text-xs">{r.passedAt ? new Date(r.passedAt).toLocaleDateString() : "—"}</td>
                 <td className="px-4 py-3 text-xs text-green-600">{r.votesFor ?? 0}</td>
                 <td className="px-4 py-3 text-xs text-red-600">{r.votesAgainst ?? 0}</td>
@@ -359,8 +359,8 @@ function FilingsTab() {
                 <td className="px-3 py-3 text-xs">{f.authority}</td>
                 <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_"," ")}</td>
                 <td className="px-3 py-3 text-xs">{f.fy ?? "—"}</td>
-                <td className="px-3 py-3 text-xs">{new Date(f.dueDate).toLocaleDateString()}</td>
-                <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status]}`}>{f.status.replace("_"," ")}</span></td>
+                <td className="px-3 py-3 text-xs">{f.dueDate ? new Date(f.dueDate).toLocaleDateString() : "—"}</td>
+                <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(f.status ?? "—").replace("_", " ")}</span></td>
                 <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{f.srn ?? "—"}</td>
                 <td className="px-3 py-3">
                   {f.status !== "filed" && (
@@ -634,12 +634,12 @@ import { Award } from "lucide-react";
 // ── Main Content Component ─────────────────────────────────────────────────────
 
 function SecretarialContent() {
-  const { hasPermission } = useRBAC();
+  const { can } = useRBAC();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get("tab");
   const [activeTab, setActiveTab] = useState(tabParam ?? "overview");
 
-  if (!hasPermission("secretarial", "read")) return <AccessDenied module="secretarial" />;
+  if (!can("secretarial", "read")) return <AccessDenied module="secretarial" />;
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">

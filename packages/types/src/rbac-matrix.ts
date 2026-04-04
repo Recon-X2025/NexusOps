@@ -444,7 +444,7 @@ export function getVisibleModules(roles: SystemRole[]): Set<Module> {
       "knowledge", "catalog", "approvals", "events",
       "security", "vulnerabilities", "threat_intel",
       "grc", "risk", "audit", "policy", "secretarial",
-      "hr", "onboarding",
+      "hr", "onboarding", "recruitment", "workforce_analytics",
       "procurement", "inventory", "purchase_orders",
       "financial", "budget", "chargebacks",
       "projects", "resources", "demand",

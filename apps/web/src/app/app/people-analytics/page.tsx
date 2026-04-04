@@ -357,7 +357,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function PeopleAnalyticsPage() {
-  const { hasPermission } = useRBAC();
+  const { can } = useRBAC();
   const [tab, setTab]   = useState<Tab>("overview");
   const [period, setPeriod] = useState(180);
 
@@ -368,7 +368,7 @@ export default function PeopleAnalyticsPage() {
   const { data: leaveData } = trpc.workforce.leaveAnalytics.useQuery({ year: new Date().getFullYear() });
   const { data: grades }    = trpc.workforce.gradeDistribution.useQuery();
 
-  if (!hasPermission("workforce_analytics", "read")) return <AccessDenied module="workforce analytics" />;
+  if (!can("workforce_analytics", "read")) return <AccessDenied module="workforce analytics" />;
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
