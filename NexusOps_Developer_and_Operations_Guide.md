@@ -1,7 +1,7 @@
 # NexusOps — Developer & Operations Guide
 
-**Version:** 1.8  
-**Date:** April 3, 2026  
+**Version:** 2.0  
+**Date:** April 4, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
 
@@ -11,6 +11,10 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **2.0** | 2026-04-04 | **Phase 3 schema + deploy on Vultr.** **DDL:** `packages/db/drizzle/0004_recruitment_secretarial.sql` — idempotent; journal entry in `packages/db/drizzle/meta/_journal.json`. **Apply script:** `scripts/apply-phase3-schema.sh` (defaults: container `nexusops-postgres-1`, user/db `nexusops`; override via env). **Post-migration:** rebuild API (`apps/api`), copy `dist` into container or `docker compose build api`, restart `nexusops-api-1`; rebuild/restart web for new routes. **Verified:** `SELECT` against `job_requisitions` succeeds on production; new pages reachable after deploy. |
+
+| **1.9** | 2026-04-04 | **Exhaustive QA battery complete.** 261/261 Playwright tests pass across Suites 05-07. **Schema gap remediation:** 6 tables created in production via `psql` (see NexusOps_QA_Suite_Report_20260404.md for full DDL). `docker cp` workflow confirmed as standard for deploying compiled API dist into running containers without full image rebuild. **Correct production credentials documented:** all accounts use `demo1234!`. **Deployment checklist updated:** (1) after API code change — `npm run build` in `apps/api`, `docker cp dist/` to container, `docker restart nexusops-api-1`; (2) after DB schema change — `docker exec nexusops-postgres-1 psql` DDL or drizzle-kit push. |
+
 | **1.8** | 2026-04-03 | **Operations hardening complete.** nginx installed and active on `139.84.154.78:80` (reverse proxy → web:3000, api:3001); web container rebound to `127.0.0.1:3000:3000` (no direct port 80 exposure). `certbot` + `python3-certbot-nginx` installed — activate HTTPS with `certbot --nginx -d <domain> --agree-tos`. Automated backup cron: `/opt/nexus_backup.sh` runs daily at 02:00 UTC, writes gzipped pg_dump to `/opt/nexusops-backups/`, retains 7 days. Disk freed: 85% → 24% (`docker system prune -af --volumes` — 48 GB reclaimed). Deployment procedure updated: `docker compose ... build api` (no longer need `web` rebuild for RBAC/backend-only changes). `BCRYPT_CONCURRENCY=32` + `LIBUV_THREADPOOL_SIZE=32` added to docker-compose API environment block. |
 | **1.7** | 2026-04-03 | **Hot-patch procedure expanded.** Workflow for copying individual page files via `sshpass`+`scp` to `/opt/nexusops/apps/web/src/app/app/<module>/page.tsx` and rebuilding the web container is now the standard hot-patch method (git push not required for frontend-only fixes). Confirmed SWC production build rejects IIFE-in-JSX (`(() => {...})()`) and multi-root JSX without Fragment — both patterns documented as prohibited. New router files to hot-patch when modifying API: `apps/api/src/routers/tickets.ts`, `apps/api/src/routers/reports.ts`. Rebuilt both `nexusops-api-1` and `nexusops-web-1` containers successfully after 12-page wiring batch. Git commits: `f357ee7`, `9b774ab`. |
 | **1.6** | 2026-04-03 | **Production reset procedure documented.** Clean slate operation: `TRUNCATE ... RESTART IDENTITY CASCADE` on 83 transactional tables; 24 config/reference tables preserved; `org_counters` reset. **Deploy procedure updated**: rsync + `docker compose build --no-cache` + `up -d --force-recreate`. SSH credentials: `root@139.84.154.78` password auth via sshpass. Disk usage: 78% (55/75 GB) — run `docker image prune -a` before next build. **New env vars**: `INTERNAL_API_TOKEN` (for `/internal/*`), `BCRYPT_CONCURRENCY` (raise to 20–32), `MAX_IN_FLIGHT` (default 500). **New mutations**: `tickets.toggleWatch`, `workOrders.update`, `walkup.queue.hold`, `crm.updateLead`, `contracts.completeObligation`. |

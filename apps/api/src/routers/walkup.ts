@@ -162,16 +162,16 @@ export const walkupRouter = router({
     .input(z.object({ days: z.coerce.number().default(30) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+      const sinceIso = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString();
 
       const [{ total }] = await db.select({ total: count() }).from(walkupVisits)
-        .where(and(eq(walkupVisits.orgId, org!.id), sql`${walkupVisits.createdAt} >= ${since}`));
+        .where(and(eq(walkupVisits.orgId, org!.id), sql`${walkupVisits.createdAt} >= ${sinceIso}::timestamptz`));
 
       const [{ completed }] = await db.select({ completed: count() }).from(walkupVisits)
         .where(and(
           eq(walkupVisits.orgId, org!.id),
           eq(walkupVisits.status, "completed"),
-          sql`${walkupVisits.createdAt} >= ${since}`,
+          sql`${walkupVisits.createdAt} >= ${sinceIso}::timestamptz`,
         ));
 
       return {

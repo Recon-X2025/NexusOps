@@ -2,673 +2,691 @@
 
 export const dynamic = "force-dynamic";
 
-// India compliance wired via indiaCompliance.calendar + indiaCompliance.directors
-
-import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Briefcase, Download, Plus, AlertTriangle, CheckCircle2, Clock, FileText, Users, Building2, Scale, Calendar, BookOpen, Shield, RefreshCw, ExternalLink } from "lucide-react";
+import React, { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Briefcase, Download, Plus, AlertTriangle, CheckCircle2, Clock,
+  FileText, Users, Building2, Scale, Calendar, BookOpen, Shield,
+  RefreshCw, X, ChevronDown,
+} from "lucide-react";
 import { downloadCSV } from "@/lib/utils";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type FilingStatus = "filed" | "pending" | "overdue" | "not_due" | "in_progress";
-type MeetingStatus = "scheduled" | "completed" | "cancelled";
-type ResolutionType = "ordinary" | "special" | "board";
+// ── Shared style maps ─────────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<string, string> = {
-  filed:          "text-green-700 bg-green-100",
-  pending:        "text-orange-700 bg-orange-100",
-  overdue:        "text-red-700 bg-red-100",
-  due_soon:       "text-yellow-700 bg-yellow-100",
-  upcoming:       "text-blue-700 bg-blue-100",
-  not_due:        "text-muted-foreground bg-muted",
+  filed:          "text-green-700 bg-green-100 border-green-200",
+  pending:        "text-orange-700 bg-orange-100 border-orange-200",
+  overdue:        "text-red-700 bg-red-100 border-red-200",
+  upcoming:       "text-blue-700 bg-blue-100 border-blue-200",
+  in_progress:    "text-indigo-700 bg-indigo-100 border-indigo-200",
   not_applicable: "text-muted-foreground bg-muted",
-  in_progress:    "text-blue-700 bg-blue-100",
+  scheduled:      "text-blue-700 bg-blue-100 border-blue-200",
+  completed:      "text-green-700 bg-green-100 border-green-200",
+  cancelled:      "text-red-700 bg-red-100 border-red-200",
+  draft:          "text-slate-600 bg-slate-100",
+  passed:         "text-green-700 bg-green-100",
+  rejected:       "text-red-700 bg-red-100",
 };
-
-const STATUS_LABEL: Record<string, string> = {
-  filed: "Filed", pending: "Pending", overdue: "Overdue",
-  due_soon: "Due Soon", upcoming: "Upcoming",
-  not_applicable: "N/A", in_progress: "In Progress",
-};
-
-const DIN_KYC_COLOR: Record<string, string> = {
-  active:      "text-green-700 bg-green-100",
-  deactivated: "text-red-700 bg-red-100",
-};
-
-const MTG_TYPE_COLOR: Record<string, string> = {
-  board: "text-primary bg-primary/10",
-  audit: "text-purple-700 bg-purple-100",
-  agm:   "text-blue-700 bg-blue-100",
-  egm:   "text-orange-700 bg-orange-100",
-};
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: "overview",   label: "Overview",            module: "grc"       as const, action: "read"  as const },
-  { key: "board",      label: "Board & Directors",   module: "grc"       as const, action: "read"  as const },
-  { key: "filings",    label: "MCA / ROC Filings",   module: "grc"       as const, action: "read"  as const },
-  { key: "share",      label: "Share Capital",       module: "financial" as const, action: "read"  as const },
-  { key: "registers",  label: "Statutory Registers", module: "grc"       as const, action: "read"  as const },
-  { key: "calendar",   label: "Compliance Calendar", module: "grc"       as const, action: "read"  as const },
+  { key: "overview",   label: "Overview",           icon: Building2 },
+  { key: "board",      label: "Board & Directors",  icon: Users },
+  { key: "filings",    label: "MCA / ROC Filings",  icon: FileText },
+  { key: "share",      label: "Share Capital",      icon: Scale },
+  { key: "esop",       label: "ESOP",               icon: Award },
+  { key: "calendar",   label: "Compliance Calendar", icon: Calendar },
 ];
 
-function SecretarialContent() {
-  const { can } = useRBAC();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+// ── Overview Tab ───────────────────────────────────────────────────────────────
 
-  // ── Live data ─────────────────────────────────────────────────────────────
-  const calendarQuery = (trpc as any).indiaCompliance.calendar.list.useQuery({});
-  const directorsQuery = (trpc as any).indiaCompliance.directors.list.useQuery({ isActive: true });
-  const kycReminderMutation = (trpc as any).indiaCompliance.directors.triggerKYCReminders.useMutation({
-    onSuccess: () => toast.success("KYC reminders sent"),
-    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
-  });
-  const markFiledMutation   = (trpc as any).indiaCompliance.calendar.markFiled.useMutation({
-    onSuccess: () => { calendarQuery.refetch(); setFilingPanel(null); },
-    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
-  });
-  const markKycMutation     = (trpc as any).indiaCompliance.directors.markKYCComplete.useMutation({
-    onSuccess: () => directorsQuery.refetch(),
-    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
-  });
-  const createCalendarMutation = (trpc as any).indiaCompliance.calendar.create.useMutation({
-    onSuccess: () => { calendarQuery.refetch(); setShowCreateForm(false); setCreateForm(EMPTY_CREATE_FORM); },
-    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
-  });
+function OverviewTab() {
+  const { data: overview } = trpc.secretarial.overview.useQuery();
+  const { data: upcomingFilings = [] } = trpc.secretarial.filings.upcomingAlerts.useQuery();
 
-  const [filingPanel, setFilingPanel] = useState<string | null>(null); // item id being filed
-  const [filingSRN, setFilingSRN]     = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const EMPTY_CREATE_FORM = { eventName: "", mcaForm: "", complianceType: "annual" as const, dueDate: "", penaltyPerDayInr: 200, financialYear: "2025-26" };
-  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
-
-  const calendarItems: any[] = calendarQuery.data ?? [];
-  const directors: any[] = directorsQuery.data ?? [];
-
-  // KPI derivations
-  const overdueFilings  = calendarItems.filter((i: any) => i.status === "overdue").length;
-  const pendingFilings  = calendarItems.filter((i: any) => ["upcoming", "due_soon", "pending"].includes(i.status)).length;
-  const directorsCount  = directors.length;
-  const now = new Date();
-  const agmDue = new Date(new Date().getFullYear(), 8, 30); // Sep 30
-  const daysToAGM = Math.max(0, Math.ceil((agmDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-
-  const visibleTabs = TABS.filter((t) => can(t.module, t.action));
-
-  const tabParam = searchParams.get("tab");
-  const activeTab = (tabParam && visibleTabs.find(t => t.key === tabParam))
-    ? tabParam
-    : (visibleTabs[0]?.key ?? "overview");
-
-  if (!can("grc", "read")) return <AccessDenied module="Secretarial & Company Secretary" />;
+  const kpis = [
+    { label: "Upcoming Meetings",    value: overview?.upcomingMeetings ?? 0,   icon: Calendar,      color: "text-blue-600 bg-blue-50" },
+    { label: "Pending Resolutions",  value: overview?.pendingResolutions ?? 0, icon: FileText,      color: "text-amber-600 bg-amber-50" },
+    { label: "Overdue Filings",      value: overview?.overdueFilings ?? 0,     icon: AlertTriangle, color: "text-red-600 bg-red-50" },
+    { label: "Due in 30 Days",       value: overview?.upcomingFilings ?? 0,    icon: Clock,         color: "text-orange-600 bg-orange-50" },
+    { label: "Active Directors",     value: overview?.totalDirectors ?? 0,     icon: Users,         color: "text-green-600 bg-green-50" },
+    { label: "KYC Expiring Soon",    value: overview?.kycExpiring ?? 0,        icon: Shield,        color: "text-purple-600 bg-purple-50" },
+  ];
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Briefcase className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Secretarial — Company Secretary</h1>
-          <span className="text-[11px] text-muted-foreground/70">MCA Filings · Board Governance · Share Capital · Statutory Registers</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => downloadCSV([
-              ...(calendarQuery.data ?? []).map((i: any) => ({ Type: "Compliance", Item: i.title ?? i.activityType ?? "", Due_Date: i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "", Status: i.status ?? "", SRN: i.srnNumber ?? "" })),
-              ...(directorsQuery.data ?? []).map((d: any) => ({ Type: "Director", Item: d.name ?? "", DIN: d.din ?? "", KYC_Status: d.kycStatus ?? "", Appointment_Date: d.appointmentDate ? new Date(d.appointmentDate).toLocaleDateString("en-IN") : "" })),
-            ], "secretarial_audit_report")}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-          >
-            <Download className="w-3 h-3" /> Secretarial Audit Report
-          </button>
-          <PermissionGate module={"secretarial" as any} action="write">
-            <button
-              onClick={() => kycReminderMutation.mutate(undefined)}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-            >
-              <RefreshCw className={`w-3 h-3 ${kycReminderMutation.isPending ? "animate-spin" : ""}`} />
-              Check DIR-3 KYC
-            </button>
-          </PermissionGate>
-        </div>
-      </div>
-
-      {/* KPIs — live */}
-      <div className="grid grid-cols-5 gap-2">
-        {[
-          { label: "Overdue Filings",     value: calendarQuery.isLoading ? "…" : String(overdueFilings),  color: overdueFilings > 0 ? "text-red-600" : "text-green-700" },
-          { label: "Pending Filings",     value: calendarQuery.isLoading ? "…" : String(pendingFilings),  color: pendingFilings > 0 ? "text-orange-600" : "text-muted-foreground" },
-          { label: "Board Meetings (FY)", value: "—", color: "text-muted-foreground/50" },
-          { label: "Directors on Record", value: directorsQuery.isLoading ? "…" : String(directorsCount), color: directorsCount > 0 ? "text-foreground/80" : "text-muted-foreground/50" },
-          { label: "Days to AGM",         value: String(daysToAGM),                                       color: daysToAGM <= 30 ? "text-red-600" : daysToAGM <= 90 ? "text-orange-600" : "text-foreground/80" },
-        ].map(k => (
-          <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {kpis.map(k => (
+          <div key={k.label} className="bg-card border border-border rounded-xl p-4">
+            <div className={`p-2 rounded-xl w-fit mb-3 ${k.color}`}><k.icon className="w-4 h-4" /></div>
+            <p className="text-2xl font-bold">{k.value}</p>
+            <p className="text-xs text-muted-foreground leading-tight mt-0.5">{k.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Overdue alert */}
-      {overdueFilings > 0 && (
-        <div className="flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-800">
-          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-          <span><strong>{overdueFilings} filing(s) overdue.</strong> Penalties accruing — file immediately to stop further charges.</span>
+      {upcomingFilings.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold mb-3 flex items-center gap-2 text-orange-600">
+            <AlertTriangle className="w-4 h-4" /> Upcoming Compliance Deadlines (Next 30 Days)
+          </h3>
+          <div className="space-y-2">
+            {upcomingFilings.map(f => (
+              <div key={f.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">{f.title}</p>
+                  <p className="text-xs text-muted-foreground">{f.formNumber} · {f.authority}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-orange-700">{new Date(f.dueDate).toLocaleDateString()}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLOR[f.status]}`}>{f.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex border-b border-border bg-card rounded-t">
-        {visibleTabs.map(t => (
-          <button key={t.key} onClick={() => router.push(`/app/secretarial?tab=${t.key}`)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors
-              ${activeTab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
-            {t.label}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold mb-3">Quick Reference</h3>
+          <div className="space-y-2 text-sm">
+            {[
+              ["Annual General Meeting", "Within 6 months of FY end"],
+              ["Board Meeting", "Min 4 per year, max 120 days gap"],
+              ["Annual Return (MGT-7)", "Nov 29 (60 days from AGM)"],
+              ["Financial Statements (AOC-4)", "Oct 29 (30 days from AGM)"],
+              ["Director KYC (DIR-3 KYC)", "Sep 30 every year"],
+              ["DPT-3 (Deposits Return)", "Jun 30 every year"],
+            ].map(([item, note]) => (
+              <div key={item} className="flex justify-between p-2 hover:bg-muted/50 rounded-lg">
+                <span className="font-medium">{item}</span>
+                <span className="text-muted-foreground text-xs">{note}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold mb-3">Key Contacts & Authorities</h3>
+          <div className="space-y-3">
+            {[
+              { authority: "MCA (Ministry of Corporate Affairs)", portal: "mca.gov.in", desc: "ROC filings, annual return, DIN" },
+              { authority: "SEBI", portal: "sebi.gov.in", desc: "Capital markets, listed entity compliance" },
+              { authority: "BSE / NSE", portal: "nseindia.com", desc: "Listing compliance, XBRL" },
+              { authority: "Income Tax Dept", portal: "incometax.gov.in", desc: "TDS, ITR, Form 15CA/CB" },
+            ].map(a => (
+              <div key={a.authority} className="p-3 bg-muted/30 border border-border rounded-lg">
+                <p className="text-sm font-medium">{a.authority}</p>
+                <p className="text-xs text-muted-foreground">{a.desc} · <span className="text-primary">{a.portal}</span></p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Board & Directors Tab ──────────────────────────────────────────────────────
+
+function BoardTab() {
+  const { data: meetings = [], refetch: refetchMeetings } = trpc.secretarial.meetings.list.useQuery({});
+  const { data: directors = [], refetch: refetchDirectors } = trpc.secretarial.directors.list.useQuery({ activeOnly: true });
+  const { data: resolutions = [] } = trpc.secretarial.resolutions.list.useQuery({});
+  const updateKyc = trpc.secretarial.directors.updateKyc.useMutation({
+    onSuccess: () => { toast.success("KYC status updated"); refetchDirectors(); },
+    onError: e => toast.error(e.message),
+  });
+  const updateMtgStatus = trpc.secretarial.meetings.updateStatus.useMutation({
+    onSuccess: () => { toast.success("Meeting updated"); refetchMeetings(); },
+    onError: e => toast.error(e.message),
+  });
+  const passResolution = trpc.secretarial.resolutions.pass.useMutation({
+    onSuccess: () => { toast.success("Resolution passed"); },
+    onError: e => toast.error(e.message),
+  });
+  const [showNewMeeting, setShowNewMeeting] = useState(false);
+  const [mtgForm, setMtgForm] = useState({ type: "board" as const, title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" });
+  const createMeeting = trpc.secretarial.meetings.create.useMutation({
+    onSuccess: () => { toast.success("Meeting scheduled"); refetchMeetings(); setShowNewMeeting(false); },
+    onError: e => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Board Meetings */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold">Board Meetings</h3>
+          <PermissionGate module="secretarial" action="write">
+            <button onClick={() => setShowNewMeeting(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Schedule Meeting
+            </button>
+          </PermissionGate>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>{["Number","Title","Type","Date","Duration","Status","Quorum","Actions"].map(h => (
+              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
+            {meetings.map(m => (
+              <tr key={m.id} className="border-t border-border hover:bg-muted/30">
+                <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
+                <td className="px-4 py-3 font-medium">{m.title}</td>
+                <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs">{new Date(m.scheduledAt).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{m.duration}min</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status]}`}>{m.status}</span></td>
+                <td className="px-4 py-3 text-xs">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
+                <td className="px-4 py-3">
+                  {m.status === "scheduled" && (
+                    <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "completed", quorumMet: true })} className="text-xs text-green-600 hover:underline">Mark Done</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Directors */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold">Board of Directors</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>{["Name","DIN","Designation","Category","Pan","Appointed","KYC Status","Actions"].map(h => (
+              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {directors.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No directors found</td></tr>}
+            {directors.map(d => (
+              <tr key={d.id} className="border-t border-border hover:bg-muted/30">
+                <td className="px-4 py-3 font-medium">{d.name}</td>
+                <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
+                <td className="px-4 py-3 text-xs">{d.designation}</td>
+                <td className="px-4 py-3 text-xs capitalize">{d.category?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs font-mono">{d.pan ?? "—"}</td>
+                <td className="px-4 py-3 text-xs">{d.appointedAt ? new Date(d.appointedAt).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.kyc === "filed" ? "text-green-700 bg-green-100" : d.kyc === "expired" ? "text-red-700 bg-red-100" : "text-amber-700 bg-amber-100"}`}>
+                    {d.kyc ?? "pending"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <PermissionGate module="secretarial" action="write">
+                    <button onClick={() => updateKyc.mutate({ id: d.id, kyc: d.kyc === "filed" ? "pending" : "filed" })} className="text-xs text-primary hover:underline">
+                      {d.kyc === "filed" ? "Mark Pending" : "Mark Filed"}
+                    </button>
+                  </PermissionGate>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Resolutions */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-border">
+          <h3 className="font-semibold">Board Resolutions</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>{["Number","Title","Type","Status","Passed","For","Against","Abstain"].map(h => (
+              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {resolutions.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
+            {resolutions.map(r => (
+              <tr key={r.id} className="border-t border-border hover:bg-muted/30">
+                <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
+                <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
+                <td className="px-4 py-3 text-xs capitalize">{r.type}</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status]}`}>{r.status}</span></td>
+                <td className="px-4 py-3 text-xs">{r.passedAt ? new Date(r.passedAt).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3 text-xs text-green-600">{r.votesFor ?? 0}</td>
+                <td className="px-4 py-3 text-xs text-red-600">{r.votesAgainst ?? 0}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{r.abstentions ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* New Meeting Modal */}
+      {showNewMeeting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="font-bold text-lg">Schedule Board Meeting</h2>
+              <button onClick={() => setShowNewMeeting(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Meeting Type</label>
+                <select value={mtgForm.type} onChange={e => setMtgForm(p => ({ ...p, type: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                  {["board","audit_committee","nomination_committee","compensation_committee","agm","egm","creditors"].map(t => <option key={t} value={t}>{t.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Title *</label>
+                <input value={mtgForm.title} onChange={e => setMtgForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Q3 Board Meeting" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Date & Time *</label>
+                <input type="datetime-local" value={mtgForm.scheduledAt} onChange={e => setMtgForm(p => ({ ...p, scheduledAt: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Duration (min)</label>
+                  <input type="number" value={mtgForm.duration} onChange={e => setMtgForm(p => ({ ...p, duration: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Venue</label>
+                  <input value={mtgForm.venue} onChange={e => setMtgForm(p => ({ ...p, venue: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Board Room / Virtual" />
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setShowNewMeeting(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button
+                disabled={!mtgForm.title || !mtgForm.scheduledAt || createMeeting.isPending}
+                onClick={() => createMeeting.mutate({ ...mtgForm, scheduledAt: mtgForm.scheduledAt })}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+              >{createMeeting.isPending ? "Scheduling..." : "Schedule"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── MCA Filings Tab ────────────────────────────────────────────────────────────
+
+function FilingsTab() {
+  const { data: filings = [], refetch } = trpc.secretarial.filings.list.useQuery({});
+  const [statusFilter, setStatusFilter] = useState("");
+  const markFiled = trpc.secretarial.filings.markFiled.useMutation({
+    onSuccess: () => { toast.success("Filing marked as filed"); refetch(); },
+    onError: e => toast.error(e.message),
+  });
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ formNumber: "", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: "", fees: "", notes: "" });
+  const createFiling = trpc.secretarial.filings.create.useMutation({
+    onSuccess: () => { toast.success("Filing created"); refetch(); setShowCreate(false); },
+    onError: e => toast.error(e.message),
+  });
+
+  const filtered = statusFilter ? filings.filter(f => f.status === statusFilter) : filings;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-background">
+          <option value="">All Status</option>
+          {["upcoming","in_progress","filed","overdue","not_applicable"].map(s => <option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+        </select>
+        <PermissionGate module="secretarial" action="write">
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+            <Plus className="w-3.5 h-3.5" /> Add Filing
           </button>
+        </PermissionGate>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>{["Form","Title","Authority","Category","FY","Due Date","Status","SRN","Actions"].map(h => (
+              <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No filings found</td></tr>}
+            {filtered.map(f => (
+              <tr key={f.id} className="border-t border-border hover:bg-muted/30">
+                <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
+                <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
+                <td className="px-3 py-3 text-xs">{f.authority}</td>
+                <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_"," ")}</td>
+                <td className="px-3 py-3 text-xs">{f.fy ?? "—"}</td>
+                <td className="px-3 py-3 text-xs">{new Date(f.dueDate).toLocaleDateString()}</td>
+                <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status]}`}>{f.status.replace("_"," ")}</span></td>
+                <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{f.srn ?? "—"}</td>
+                <td className="px-3 py-3">
+                  {f.status !== "filed" && (
+                    <PermissionGate module="secretarial" action="write">
+                      <button onClick={() => markFiled.mutate({ id: f.id })} className="text-xs text-primary hover:underline font-medium">Mark Filed</button>
+                    </PermissionGate>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="font-bold text-lg">Add Compliance Filing</h2>
+              <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              <div><label className="block text-sm font-medium mb-1">Form Number *</label><input value={form.formNumber} onChange={e => setForm(p => ({...p, formNumber: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="MGT-7" /></div>
+              <div><label className="block text-sm font-medium mb-1">Authority</label><input value={form.authority} onChange={e => setForm(p => ({...p, authority: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Category</label><input value={form.category} onChange={e => setForm(p => ({...p, category: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Financial Year</label><input value={form.fy} onChange={e => setForm(p => ({...p, fy: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="2024-25" /></div>
+              <div><label className="block text-sm font-medium mb-1">Due Date *</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({...p, dueDate: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Filing Fees (₹)</label><input type="number" value={form.fees} onChange={e => setForm(p => ({...p, fees: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Notes</label><textarea rows={2} value={form.notes} onChange={e => setForm(p => ({...p, notes: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" /></div>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button disabled={!form.formNumber || !form.title || !form.dueDate || createFiling.isPending} onClick={() => createFiling.mutate({...form, fees: form.fees ? +form.fees : undefined, dueDate: form.dueDate, fy: form.fy || undefined})} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{createFiling.isPending ? "Creating..." : "Create Filing"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Share Capital Tab ──────────────────────────────────────────────────────────
+
+function ShareCapitalTab() {
+  const { data: shares = [], refetch } = trpc.secretarial.shares.list.useQuery({});
+  const { data: summary = [] } = trpc.secretarial.shares.summary.useQuery();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" });
+  const createShare = trpc.secretarial.shares.create.useMutation({
+    onSuccess: () => { toast.success("Shareholder added"); refetch(); setShowAdd(false); },
+    onError: e => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {summary.map(s => (
+          <div key={s.shareClass} className="bg-card border border-border rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground capitalize mb-1">{s.shareClass?.replace("_"," ")} Shares</p>
+            <p className="text-2xl font-bold">{Number(s.totalQty ?? 0).toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">{s.holders} holders</p>
+          </div>
         ))}
+        {summary.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No share capital records</p>}
       </div>
 
-      <div className="bg-card border border-border rounded-b overflow-hidden">
-
-        {/* OVERVIEW */}
-        {activeTab === "overview" && (
-          <div className="p-4 grid grid-cols-2 gap-4">
-            {/* Company particulars — static company master */}
-            <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase">Company Particulars</span>
-              </div>
-              <div className="p-4 space-y-2">
-                {[
-                  { label: "Company Name",     value: "NexusOps Technologies Private Limited" },
-                  { label: "CIN",              value: "U72900MH2021PTC362841" },
-                  { label: "ROC",              value: "RoC Mumbai" },
-                  { label: "Incorporation",    value: "01 April 2021" },
-                  { label: "Type",             value: "Private Limited — Company limited by shares" },
-                  { label: "FY",               value: "April to March" },
-                  { label: "AGM Due",          value: "30 September " + new Date().getFullYear() },
-                  { label: "Registered Office",value: "A-402, Bandra Kurla Complex, Mumbai — 400051" },
-                ].map(f => (
-                  <div key={f.label} className="flex justify-between text-[12px] border-b border-border/30 pb-1 last:border-0">
-                    <span className="text-muted-foreground/70">{f.label}</span>
-                    <span className="text-foreground/80 font-medium text-right max-w-[60%]">{f.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recent compliance items */}
-            <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase">Upcoming Compliance Deadlines</span>
-              </div>
-              {calendarQuery.isLoading ? (
-                <div className="p-4 animate-pulse space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex justify-between">
-                      <div className="h-3.5 bg-muted rounded w-32" />
-                      <div className="h-3.5 bg-muted rounded w-20" />
-                    </div>
-                  ))}
-                </div>
-              ) : calendarItems.length === 0 ? (
-                <div className="p-6 text-center text-[11px] text-muted-foreground/50">
-                  No compliance items — use the Compliance Calendar tab to add MCA deadlines
-                </div>
-              ) : (
-                <div className="divide-y divide-border/40">
-                  {calendarItems
-                    .filter((i: any) => i.status !== "filed" && i.status !== "not_applicable")
-                    .slice(0, 6)
-                    .map((item: any) => (
-                      <div key={item.id} className="flex items-center justify-between px-4 py-2">
-                        <div>
-                          <span className="text-[12px] font-medium text-foreground/80">{item.eventName}</span>
-                          {item.mcaForm && <span className="ml-2 text-[10px] font-mono text-primary">{item.mcaForm}</span>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground">{new Date(item.dueDate).toLocaleDateString("en-IN")}</span>
-                          <span className={`status-badge text-[10px] ${STATUS_COLOR[item.status] ?? "text-muted-foreground bg-muted"}`}>
-                            {STATUS_LABEL[item.status] ?? item.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* BOARD & DIRECTORS */}
-        {activeTab === "board" && (
-          <div>
-            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
-              <p className="text-[12px] font-semibold text-foreground/80">Directors Register</p>
-              <PermissionGate module={"secretarial" as any} action="write">
-                <button
-                  onClick={() => kycReminderMutation.mutate(undefined)}
-                  className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-card text-muted-foreground"
-                >
-                  <RefreshCw className="w-3 h-3" /> Trigger KYC Reminders
-                </button>
-              </PermissionGate>
-            </div>
-
-            {kycReminderMutation.data && (
-              <div className={`mx-4 mt-3 px-3 py-2 rounded text-[11px] ${kycReminderMutation.data.isUrgent ? "bg-red-50 border border-red-200 text-red-800" : "bg-blue-50 border border-blue-200 text-blue-800"}`}>
-                {kycReminderMutation.data.message}
-              </div>
-            )}
-
-            {directorsQuery.isLoading ? (
-              <div className="animate-pulse p-4 space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-muted rounded" />
-                ))}
-              </div>
-            ) : directors.length === 0 ? (
-              <div className="p-8 text-center">
-                <Users className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[12px] text-muted-foreground/50">No directors on record</p>
-                <p className="text-[11px] text-muted-foreground/40 mt-1">Add directors to populate the register and enable DIR-3 KYC tracking</p>
-              </div>
-            ) : (
-              <table className="ent-table w-full">
-                <thead>
-                  <tr>
-                    <th>DIN</th>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Nationality</th>
-                    <th>Appointed</th>
-                    <th>KYC Status</th>
-                    <th>KYC Last Done</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {directors.map((d: any) => (
-                    <tr key={d.id}>
-                      <td className="font-mono text-[11px] text-primary">{d.din}</td>
-                      <td className="font-semibold text-foreground/80">{d.fullName}</td>
-                      <td className="capitalize text-muted-foreground">{d.directorType?.replace(/_/g, " ")}</td>
-                      <td className="text-muted-foreground">{d.nationality}</td>
-                      <td className="font-mono text-[11px] text-muted-foreground">
-                        {d.dateOfAppointment ? new Date(d.dateOfAppointment).toLocaleDateString("en-IN") : "—"}
-                      </td>
-                      <td>
-                        <span className={`status-badge ${DIN_KYC_COLOR[d.dinKycStatus] ?? "text-muted-foreground bg-muted"}`}>
-                          {d.dinKycStatus === "active" ? "Active" : "Deactivated"}
-                        </span>
-                      </td>
-                      <td className="text-[11px] text-muted-foreground">
-                        {d.dinKycLastCompleted ? new Date(d.dinKycLastCompleted).toLocaleDateString("en-IN") : <span className="text-orange-600">Not filed</span>}
-                      </td>
-                      <td>
-                        {d.dinKycStatus !== "active" || !d.dinKycLastCompleted || new Date(d.dinKycLastCompleted).getFullYear() < new Date().getFullYear() ? (
-                          <PermissionGate module={"secretarial" as any} action="write">
-                            <button
-                              disabled={markKycMutation.isPending}
-                              onClick={() => markKycMutation.mutate({ directorId: d.id })}
-                              className="px-2 py-1 text-[11px] bg-green-100 text-green-700 rounded hover:bg-green-200 font-medium disabled:opacity-50"
-                            >
-                              {markKycMutation.isPending ? "…" : "Mark KYC Done"}
-                            </button>
-                          </PermissionGate>
-                        ) : (
-                          <span className="text-[11px] text-green-700 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> KYC current</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* MCA / ROC FILINGS */}
-        {activeTab === "filings" && (
-          <div>
-            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
-              <p className="text-[12px] font-semibold text-foreground/80">Statutory Filings — MCA / ROC</p>
-              <div className="flex items-center gap-2">
-                <a
-                  href="https://www.mca.gov.in/content/mca/global/en/mca/fo-llp-filing/company-efiling.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[11px] text-primary hover:underline"
-                >
-                  <ExternalLink className="w-3 h-3" /> MCA Portal
-                </a>
-              </div>
-            </div>
-
-            {calendarQuery.isLoading ? (
-              <div className="animate-pulse p-4 space-y-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-8 bg-muted rounded" />
-                ))}
-              </div>
-            ) : calendarItems.length === 0 ? (
-              <div className="p-8 text-center">
-                <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[12px] text-muted-foreground/50">No MCA filings tracked yet</p>
-                <p className="text-[11px] text-muted-foreground/40 mt-1">Add compliance calendar items via the Compliance Calendar tab or the API</p>
-              </div>
-            ) : (
-              <table className="ent-table w-full">
-                <thead>
-                  <tr>
-                    <th className="w-4" />
-                    <th>Event</th>
-                    <th>Form</th>
-                    <th>FY</th>
-                    <th>Type</th>
-                    <th>Due Date</th>
-                    <th>Filed Date</th>
-                    <th>SRN</th>
-                    <th>Penalty Accrued</th>
-                    <th>Status</th>
-                    <th className="w-28">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {calendarItems
-                    .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-                    .map((item: any) => (
-                      <React.Fragment key={item.id}>
-                        <tr key={item.id}>
-                          <td className="p-0">
-                            <div className={`priority-bar ${item.status === "filed" ? "bg-green-500" : item.status === "overdue" ? "bg-red-500" : item.status === "due_soon" ? "bg-yellow-500" : "bg-blue-400"}`} />
-                          </td>
-                          <td className="text-foreground/80 font-medium">{item.eventName}</td>
-                          <td className="font-mono text-[11px] text-primary">{item.mcaForm ?? "—"}</td>
-                          <td className="text-muted-foreground">{item.financialYear ?? "—"}</td>
-                          <td className="capitalize text-muted-foreground text-[11px]">{item.complianceType}</td>
-                          <td className="font-mono text-[11px]">{new Date(item.dueDate).toLocaleDateString("en-IN")}</td>
-                          <td className="font-mono text-[11px] text-muted-foreground">{item.filedDate ? new Date(item.filedDate).toLocaleDateString("en-IN") : "—"}</td>
-                          <td className="font-mono text-[11px] text-muted-foreground">{item.srn ?? "—"}</td>
-                          <td className={`font-mono text-[11px] ${Number(item.totalPenaltyInr) > 0 ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>
-                            {Number(item.totalPenaltyInr) > 0 ? `₹${Number(item.totalPenaltyInr).toLocaleString("en-IN")}` : "—"}
-                          </td>
-                          <td>
-                            <span className={`status-badge ${STATUS_COLOR[item.status] ?? "text-muted-foreground bg-muted"}`}>
-                              {STATUS_LABEL[item.status] ?? item.status}
-                            </span>
-                          </td>
-                          <td>
-                            {item.status !== "filed" && item.status !== "not_applicable" && (
-                              <PermissionGate module={"secretarial" as any} action="write">
-                                <button
-                                  onClick={() => { setFilingPanel(filingPanel === item.id ? null : item.id); setFilingSRN(""); }}
-                                  className="px-2 py-1 text-[11px] bg-green-100 text-green-700 rounded hover:bg-green-200 font-medium"
-                                >
-                                  {filingPanel === item.id ? "Cancel" : "Mark Filed"}
-                                </button>
-                              </PermissionGate>
-                            )}
-                            {item.status === "filed" && (
-                              <span className="text-[11px] text-green-700 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Filed</span>
-                            )}
-                          </td>
-                        </tr>
-                        {filingPanel === item.id && (
-                          <tr key={`${item.id}-panel`}>
-                            <td colSpan={11} className="bg-green-50/60 px-4 py-3 border-b border-green-200">
-                              <div className="flex items-end gap-3">
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">SRN / Challan No. (optional)</label>
-                                  <input
-                                    className="border border-border rounded px-2 py-1 text-[12px] w-48"
-                                    placeholder="e.g. A12345678"
-                                    value={filingSRN}
-                                    onChange={e => setFilingSRN(e.target.value)}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Filed Date</label>
-                                  <input
-                                    type="date"
-                                    defaultValue={new Date().toISOString().split("T")[0]}
-                                    id={`filed-date-${item.id}`}
-                                    className="border border-border rounded px-2 py-1 text-[12px]"
-                                  />
-                                </div>
-                                <button
-                                  disabled={markFiledMutation.isPending}
-                                  onClick={() => {
-                                    const dateInput = document.getElementById(`filed-date-${item.id}`) as HTMLInputElement;
-                                    markFiledMutation.mutate({ id: item.id, filedDate: new Date(dateInput?.value ?? new Date()), srn: filingSRN || undefined });
-                                  }}
-                                  className="px-3 py-1.5 bg-green-600 text-white text-[11px] rounded hover:bg-green-700 font-medium disabled:opacity-50"
-                                >
-                                  {markFiledMutation.isPending ? "Saving…" : "Confirm Filing"}
-                                </button>
-                                {markFiledMutation.isError && (
-                                  <span className="text-[11px] text-red-600">{(markFiledMutation.error as any)?.message}</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* SHARE CAPITAL */}
-        {activeTab === "share" && (
-          <div className="p-4 grid grid-cols-2 gap-4">
-            <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase">Capital Structure</span>
-              </div>
-              <div className="p-4 space-y-2">
-                {[
-                  { label: "Authorised Capital",   value: "₹5,00,00,000" },
-                  { label: "Paid-up Capital",       value: "₹2,50,00,000" },
-                  { label: "Face Value per Share",  value: "₹10" },
-                  { label: "Total Shares",          value: "25,00,000" },
-                  { label: "Class of Shares",       value: "Equity" },
-                  { label: "Folio Series",          value: "NXO/2021-" },
-                ].map(f => (
-                  <div key={f.label} className="flex justify-between text-[12px] border-b border-border/30 pb-1 last:border-0">
-                    <span className="text-muted-foreground/70">{f.label}</span>
-                    <span className="font-semibold text-foreground/80">{f.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border border-border rounded p-4">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-3">Note</p>
-              <p className="text-[12px] text-muted-foreground/70">Shareholder register (MGT-1), allotment details (PAS-3), and ESOP pool data are tracked in the Statutory Registers tab. Detailed cap table integration requires connecting a share register system.</p>
-            </div>
-          </div>
-        )}
-
-        {/* STATUTORY REGISTERS */}
-        {activeTab === "registers" && (
-          <div className="p-4">
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { title: "Register of Members (MGT-1)", desc: "Complete record of shareholders — name, folio, shares held, transfers", status: "Maintained offline" },
-                { title: "Register of Directors (MBP-1)", desc: "DIN, address, other directorships, shareholding in company", status: directors.length > 0 ? `${directors.length} director(s) on record` : "Maintained offline" },
-                { title: "Register of Charges (CHG-1)", desc: "Mortgages, hypothecations, floating charges — registered with ROC", status: "Maintained offline" },
-                { title: "Register of KMP (MBP-2)", desc: "Key Managerial Personnel — MD, CS, CFO disclosures", status: "Maintained offline" },
-                { title: "Register of Contracts (MBP-4)", desc: "Related party transactions — board approval, disclosure", status: "Maintained offline" },
-                { title: "Minutes Books", desc: "Board meeting minutes, AGM/EGM minutes, committee resolutions", status: "Maintained offline" },
-              ].map(r => (
-                <div key={r.title} className="border border-border rounded p-3">
-                  <p className="text-[12px] font-semibold text-foreground/80 mb-1">{r.title}</p>
-                  <p className="text-[11px] text-muted-foreground/70 mb-2">{r.desc}</p>
-                  <span className="text-[10px] font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded">{r.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* COMPLIANCE CALENDAR */}
-        {activeTab === "calendar" && (
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[12px] text-muted-foreground">MCA filing deadlines, GST returns, and statutory obligations for FY 2025-26.</p>
-              <PermissionGate module={"secretarial" as any} action="write">
-                <button
-                  onClick={() => setShowCreateForm(v => !v)}
-                  className="flex items-center gap-1 px-2 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90"
-                >
-                  <Plus className="w-3 h-3" /> {showCreateForm ? "Cancel" : "Add Item"}
-                </button>
-              </PermissionGate>
-            </div>
-
-            {showCreateForm && (
-              <div className="border border-border rounded bg-muted/20 p-4 space-y-3">
-                <p className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">New Compliance Item</p>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">Event Name *</label>
-                    <input className="w-full border border-border rounded px-2 py-1.5 text-[12px]" placeholder="e.g. GSTR-1 April 2026" value={createForm.eventName} onChange={e => setCreateForm(f => ({ ...f, eventName: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">MCA Form / Filing Ref</label>
-                    <input className="w-full border border-border rounded px-2 py-1.5 text-[12px]" placeholder="GSTR-1, MGT-7, AOC-4…" value={createForm.mcaForm} onChange={e => setCreateForm(f => ({ ...f, mcaForm: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">Due Date *</label>
-                    <input type="date" className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={createForm.dueDate} onChange={e => setCreateForm(f => ({ ...f, dueDate: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">Type</label>
-                    <select className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={createForm.complianceType} onChange={e => setCreateForm(f => ({ ...f, complianceType: e.target.value as any }))}>
-                      <option value="annual">Annual</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="event_based">Event Based</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">Financial Year</label>
-                    <input className="w-full border border-border rounded px-2 py-1.5 text-[12px]" placeholder="2025-26" value={createForm.financialYear} onChange={e => setCreateForm(f => ({ ...f, financialYear: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">Penalty per Day (₹)</label>
-                    <input type="number" className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={createForm.penaltyPerDayInr} onChange={e => setCreateForm(f => ({ ...f, penaltyPerDayInr: Number(e.target.value) }))} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={createCalendarMutation.isPending || !createForm.eventName || !createForm.dueDate}
-                    onClick={() => createCalendarMutation.mutate({ ...createForm, dueDate: new Date(createForm.dueDate) })}
-                    className="px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {createCalendarMutation.isPending ? "Saving…" : "Create Item"}
-                  </button>
-                  {createCalendarMutation.isError && <span className="text-[11px] text-red-600">{(createCalendarMutation.error as any)?.message}</span>}
-                </div>
-              </div>
-            )}
-
-            {calendarQuery.isLoading ? (
-              <div className="animate-pulse space-y-2">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="h-8 bg-muted rounded" />
-                ))}
-              </div>
-            ) : calendarItems.length === 0 ? (
-              <div className="py-8 text-center">
-                <Calendar className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[12px] text-muted-foreground/50">No compliance calendar items yet</p>
-                <p className="text-[11px] text-muted-foreground/40 mt-1">
-                  Use <code className="bg-muted px-1 rounded">POST /trpc/indiaCompliance.calendar.create</code> to seed annual/event-based filings
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {["overdue", "due_soon", "upcoming", "filed", "not_applicable"].map(statusGroup => {
-                  const items = calendarItems.filter((i: any) => i.status === statusGroup);
-                  if (items.length === 0) return null;
-                  return (
-                    <div key={statusGroup}>
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase px-1 py-1.5">
-                        {statusGroup === "due_soon" ? "Due Soon" : statusGroup.charAt(0).toUpperCase() + statusGroup.slice(1)} ({items.length})
-                      </p>
-                      <div className="border border-border rounded overflow-hidden">
-                        {items.map((item: any, idx: number) => (
-                          <React.Fragment key={item.id}>
-                          <div className={`flex items-center gap-3 px-4 py-2 text-[12px] ${idx < items.length - 1 ? "border-b border-border/40" : ""}`}>
-                            <span className={`status-badge text-[10px] ${STATUS_COLOR[item.status]}`}>{STATUS_LABEL[item.status] ?? item.status}</span>
-                            <span className="font-medium text-foreground/80 flex-1">{item.eventName}</span>
-                            {item.mcaForm && <span className="font-mono text-[11px] text-primary">{item.mcaForm}</span>}
-                            <span className="text-muted-foreground text-[11px]">{new Date(item.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                            {item.status === "overdue" && Number(item.totalPenaltyInr) > 0 && (
-                              <span className="text-red-600 text-[11px] font-semibold">₹{Number(item.totalPenaltyInr).toLocaleString("en-IN")} penalty</span>
-                            )}
-                            {item.srn && <span className="text-muted-foreground/60 text-[10px]">SRN: {item.srn}</span>}
-                            {item.status !== "filed" && item.status !== "not_applicable" && (
-                              <PermissionGate module={"secretarial" as any} action="write">
-                                <button
-                                  onClick={() => { setFilingPanel(filingPanel === item.id ? null : item.id); setFilingSRN(""); }}
-                                  className="px-2 py-0.5 text-[10px] bg-green-100 text-green-700 rounded hover:bg-green-200 font-medium ml-2"
-                                >
-                                  {filingPanel === item.id ? "Cancel" : "Mark Filed"}
-                                </button>
-                              </PermissionGate>
-                            )}
-                          </div>
-                          {filingPanel === item.id && (
-                            <div className="flex items-end gap-3 px-4 py-2 bg-green-50 border-b border-green-200">
-                              <div>
-                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">SRN / Reference No.</label>
-                                <input className="border border-border rounded px-2 py-1 text-[12px] w-44" placeholder="Optional" value={filingSRN} onChange={e => setFilingSRN(e.target.value)} />
-                              </div>
-                              <div>
-                                <label className="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Filed Date</label>
-                                <input type="date" id={`cal-filed-${item.id}`} defaultValue={new Date().toISOString().split("T")[0]} className="border border-border rounded px-2 py-1 text-[12px]" />
-                              </div>
-                              <button
-                                disabled={markFiledMutation.isPending}
-                                onClick={() => {
-                                  const d = document.getElementById(`cal-filed-${item.id}`) as HTMLInputElement;
-                                  markFiledMutation.mutate({ id: item.id, filedDate: new Date(d?.value ?? new Date()), srn: filingSRN || undefined });
-                                }}
-                                className="px-3 py-1.5 bg-green-600 text-white text-[11px] rounded hover:bg-green-700 font-medium disabled:opacity-50"
-                              >
-                                {markFiledMutation.isPending ? "Saving…" : "Confirm"}
-                              </button>
-                            </div>
-                          )}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold">Shareholder Register</h3>
+          <PermissionGate module="secretarial" action="write">
+            <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+              <Plus className="w-3.5 h-3.5" /> Add Shareholder
+            </button>
+          </PermissionGate>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>{["Folio","Holder Name","Type","Class","Nominal Value","Quantity","Paid Up","PAN"].map(h => (
+              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {shares.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
+            {shares.map(s => (
+              <tr key={s.id} className="border-t border-border hover:bg-muted/30">
+                <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
+                <td className="px-4 py-3 font-medium">{s.holderName}</td>
+                <td className="px-4 py-3 text-xs capitalize">{s.holderType}</td>
+                <td className="px-4 py-3 text-xs capitalize">{s.shareClass?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs">₹{s.nominalValue}</td>
+                <td className="px-4 py-3 font-medium">{s.quantity?.toLocaleString()}</td>
+                <td className="px-4 py-3 text-xs">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
+                <td className="px-4 py-3 font-mono text-xs">{s.pan ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="font-bold text-lg">Add Shareholder</h2>
+              <button onClick={() => setShowAdd(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Holder Name *</label><input value={form.holderName} onChange={e => setForm(p => ({...p, holderName: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Holder Type</label><select value={form.holderType} onChange={e => setForm(p => ({...p, holderType: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["individual","institution","promoter","trust"].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}</select></div>
+              <div><label className="block text-sm font-medium mb-1">Share Class</label><select value={form.shareClass} onChange={e => setForm(p => ({...p, shareClass: e.target.value as any}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["equity","preference","esop_pool","convertible"].map(t => <option key={t} value={t}>{t.replace("_"," ")}</option>)}</select></div>
+              <div><label className="block text-sm font-medium mb-1">Nominal Value (₹)</label><input type="number" value={form.nominalValue} onChange={e => setForm(p => ({...p, nominalValue: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Quantity *</label><input type="number" min={1} value={form.quantity} onChange={e => setForm(p => ({...p, quantity: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">PAN</label><input value={form.pan} onChange={e => setForm(p => ({...p, pan: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Address</label><input value={form.address} onChange={e => setForm(p => ({...p, address: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button disabled={!form.holderName || createShare.isPending} onClick={() => createShare.mutate(form)} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{createShare.isPending ? "Adding..." : "Add"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ESOP Tab ───────────────────────────────────────────────────────────────────
+
+function EsopTab() {
+  const { data: grants = [], refetch } = trpc.secretarial.esop.list.useQuery({});
+  const { data: summary = [] } = trpc.secretarial.esop.summary.useQuery();
+  const [showGrant, setShowGrant] = useState(false);
+  const [form, setForm] = useState({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" });
+  const grantEsop = trpc.secretarial.esop.grant.useMutation({
+    onSuccess: () => { toast.success("ESOP grant created"); refetch(); setShowGrant(false); },
+    onError: e => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {summary.map(s => (
+          <div key={s.event} className="bg-card border border-border rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground capitalize mb-1">{s.event}ed Options</p>
+            <p className="text-2xl font-bold">{Number(s.totalOptions ?? 0).toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">{s.count} grants</p>
+          </div>
+        ))}
+        {summary.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No ESOP data</p>}
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold">ESOP Grants Register</h3>
+          <PermissionGate module="secretarial" action="write">
+            <button onClick={() => setShowGrant(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+              <Plus className="w-3.5 h-3.5" /> New Grant
+            </button>
+          </PermissionGate>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>{["Grant #","Employee","Options","Exercise Price","Grant Date","Vesting Start","Vesting End","Event"].map(h => (
+              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {grants.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
+            {grants.map(g => (
+              <tr key={g.id} className="border-t border-border hover:bg-muted/30">
+                <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
+                <td className="px-4 py-3 font-medium">{g.employeeName}</td>
+                <td className="px-4 py-3 font-semibold">{g.options.toLocaleString()}</td>
+                <td className="px-4 py-3 text-xs">₹{(g.exercisePrice / 100).toLocaleString()}</td>
+                <td className="px-4 py-3 text-xs">{new Date(g.grantDate).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-xs">{g.vestingStart ? new Date(g.vestingStart).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3 text-xs">{g.vestingEnd ? new Date(g.vestingEnd).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3 text-xs capitalize font-medium text-indigo-600">{g.event}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showGrant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="font-bold text-lg">New ESOP Grant</h2>
+              <button onClick={() => setShowGrant(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Employee Name *</label><input value={form.employeeName} onChange={e => setForm(p => ({...p, employeeName: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Options *</label><input type="number" min={1} value={form.options} onChange={e => setForm(p => ({...p, options: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Exercise Price (paise) *</label><input type="number" min={0} value={form.exercisePrice} onChange={e => setForm(p => ({...p, exercisePrice: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="100000 = ₹1000" /></div>
+              <div><label className="block text-sm font-medium mb-1">Grant Date *</label><input type="date" value={form.grantDate} onChange={e => setForm(p => ({...p, grantDate: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Vesting Start</label><input type="date" value={form.vestingStart} onChange={e => setForm(p => ({...p, vestingStart: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Vesting End</label><input type="date" value={form.vestingEnd} onChange={e => setForm(p => ({...p, vestingEnd: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setShowGrant(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button disabled={!form.employeeName || !form.grantDate || grantEsop.isPending} onClick={() => grantEsop.mutate({ ...form, vestingStart: form.vestingStart || undefined, vestingEnd: form.vestingEnd || undefined })} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{grantEsop.isPending ? "Creating..." : "Create Grant"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Compliance Calendar Tab ────────────────────────────────────────────────────
+
+function CalendarTab() {
+  const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({});
+  const upcoming = filings.filter(f => ["upcoming","in_progress","overdue"].includes(f.status)).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-red-700">{filings.filter(f => f.status === "overdue").length}</p>
+          <p className="text-xs text-red-600">Overdue</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-amber-700">{filings.filter(f => f.status === "upcoming").length}</p>
+          <p className="text-xs text-amber-600">Upcoming</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-green-700">{filings.filter(f => f.status === "filed").length}</p>
+          <p className="text-xs text-green-600">Filed</p>
+        </div>
+      </div>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-border">
+          <h3 className="font-semibold">Upcoming Compliance Events</h3>
+        </div>
+        <div className="divide-y divide-border">
+          {upcoming.length === 0 && <p className="px-4 py-10 text-center text-muted-foreground">No upcoming compliance events</p>}
+          {upcoming.map(f => {
+            const daysLeft = Math.ceil((new Date(f.dueDate).getTime() - Date.now()) / 86400000);
+            return (
+              <div key={f.id} className="flex items-center justify-between p-4 hover:bg-muted/30">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold ${f.status === "overdue" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                    {daysLeft < 0 ? "OD" : daysLeft < 7 ? `${daysLeft}d` : new Date(f.dueDate).toLocaleDateString("en", {month:"short", day:"2-digit"})}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{f.title}</p>
+                    <p className="text-xs text-muted-foreground">{f.formNumber} · {f.authority} · {f.fy ?? ""}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status]}`}>{f.status}</span>
+                  <p className="text-xs text-muted-foreground mt-1">{new Date(f.dueDate).toLocaleDateString()}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Award Icon used above ─────────────────────────────────────────────────────
+
+import { Award } from "lucide-react";
+
+// ── Main Content Component ─────────────────────────────────────────────────────
+
+function SecretarialContent() {
+  const { hasPermission } = useRBAC();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get("tab");
+  const [activeTab, setActiveTab] = useState(tabParam ?? "overview");
+
+  if (!hasPermission("secretarial", "read")) return <AccessDenied />;
+
+  return (
+    <div className="p-6 max-w-screen-xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+          <Briefcase className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">Corporate Secretarial & Governance</h1>
+          <p className="text-sm text-muted-foreground">Board meetings, MCA filings, share capital, ESOP, and compliance calendar</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-border">
+        <nav className="flex gap-0 -mb-px">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === t.key
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              }`}
+            >
+              <t.icon className="w-4 h-4" />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {activeTab === "overview"  && <OverviewTab />}
+      {activeTab === "board"     && <BoardTab />}
+      {activeTab === "filings"   && <FilingsTab />}
+      {activeTab === "share"     && <ShareCapitalTab />}
+      {activeTab === "esop"      && <EsopTab />}
+      {activeTab === "calendar"  && <CalendarTab />}
     </div>
   );
 }
 
 export default function SecretarialPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div className="p-6 text-muted-foreground">Loading...</div>}>
       <SecretarialContent />
     </Suspense>
   );

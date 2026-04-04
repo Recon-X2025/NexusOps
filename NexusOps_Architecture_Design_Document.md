@@ -1,7 +1,7 @@
 # NexusOps — Architecture Design Document
 
-**Version:** 1.8  
-**Date:** April 3, 2026  
+**Version:** 2.0  
+**Date:** April 4, 2026  
 **Organisation:** Coheron  
 **Status:** Living Document
 
@@ -11,6 +11,10 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **2.0** | 2026-04-04 | **Phase 3 domain expansion — production-verified on Vultr.** Three new API surfaces: **Recruitment/ATS**, **Corporate Secretarial**, **Workforce analytics** — each with Drizzle schema (`recruitment.ts`, `secretarial.ts`), Fastify/tRPC routers, and UI routes (`/app/recruitment`, `/app/people-analytics`; Secretarial at `/app/secretarial`). PostgreSQL extended by migration `0004_recruitment_secretarial` (11 tables). Deploy path: run `apply-phase3-schema.sh` then rebuild/restart API + web. |
+
+| **1.9** | 2026-04-04 | **Exhaustive QA validation complete.** 261/261 Playwright tests pass across 3 new suites (05 page-data, 06 all-endpoints, 07 all-buttons). **Schema gaps closed:** 6 missing production tables created (csm_cases, assignment_rules, user_assignment_stats, salary_structures, payroll_runs, payslips); total tables now **121** (was 115). **Code bugs fixed:** `walkup.analytics` + `dashboard.getTimeSeries` Date serialization errors resolved. Auth: admin password hash corrected; Redis rate-limit keys cleared. Platform readiness: **95/100** (up from 85/100). |
+
 | **1.8** | 2026-04-03 | **Infrastructure hardening + P0 code fixes.** nginx reverse proxy installed (port 80); web container rebound to `127.0.0.1:3000`; certbot installed (HTTPS pending domain DNS). Automated pg_dump cron (daily 02:00 UTC, 7-day retention). Disk 85% → 24% (48 GB freed). Code fixes: duplicate Drizzle operator exports eliminated (TG-13); `surveys` module added to RBAC type system, `hr_manager`/`itil`/`requester` permissions updated (TG-14); `BCRYPT_CONCURRENCY` raised to 32 (TG-15); 4 covering indexes on `tickets` resolve `executiveOverview` timeout (INFRA-1). Platform readiness score: **85/100**. |
 | **1.7** | 2026-04-03 | **Feature completions deployed.** 10 frontend pages wired to live data: tickets (assignee name/email via user join), approvals (smart routing + live KPIs), security (Config Compliance tab wired to GRC — live audit plans/policies/risks; investigate panel; remediate action), walk-up (appointment modal), financial (AP + AR live invoice tables with Approve/Mark Paid), compliance (live score + failed controls + audit detail panel), reports (all hardcoded KPIs removed, Quality tab live), events (service health map), CRM (Add Account/Contact modals, live sales leaderboard), surveys (live CSAT/eNPS). JSX Fragment fixes for compliance/financial/walk-up (SWC production build compatibility). Commits `f357ee7`, `9b774ab`. |
 | **1.6** | 2026-04-03 | Production clean slate: all transactional data wiped, 24 config/reference tables preserved. All hardcoded demo data removed from 8 frontend pages. Same-origin proxy architecture confirmed in production. 5-container Docker Compose stack all healthy on Vultr `139.84.154.78`. Disk: 78% (55/75 GB). |

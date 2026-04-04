@@ -150,12 +150,12 @@ export const dashboardRouter = router({
       const cacheKey = `dashboard:timeseries:${org!.id}:${input.days}:${input.teamId ?? "all"}:${input.categoryId ?? "all"}`;
 
       return getCached(cacheKey, async () => {
-        const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+        const sinceIso = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString();
 
         const created = await db.execute(sql`
           SELECT DATE_TRUNC('day', created_at) as day, COUNT(*) as count
           FROM tickets
-          WHERE org_id = ${org!.id} AND created_at >= ${since}
+          WHERE org_id = ${org!.id} AND created_at >= ${sinceIso}::timestamptz
           GROUP BY day
           ORDER BY day
         `);
@@ -163,7 +163,7 @@ export const dashboardRouter = router({
         const resolved = await db.execute(sql`
           SELECT DATE_TRUNC('day', resolved_at) as day, COUNT(*) as count
           FROM tickets
-          WHERE org_id = ${org!.id} AND resolved_at IS NOT NULL AND resolved_at >= ${since}
+          WHERE org_id = ${org!.id} AND resolved_at IS NOT NULL AND resolved_at >= ${sinceIso}::timestamptz
           GROUP BY day
           ORDER BY day
         `);

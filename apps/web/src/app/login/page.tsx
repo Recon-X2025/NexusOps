@@ -36,9 +36,11 @@ export default function LoginPage() {
       // Store in both localStorage (for tRPC header) and cookie (for middleware)
       localStorage.setItem("nexusops_session", data.sessionId);
       document.cookie = `nexusops_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
-      // Invalidate only auth.me — other queries will refetch naturally when they mount on the dashboard.
-      await utils.auth.me.invalidate();
-      await new Promise((r) => setTimeout(r, 100)); // ensure storage settles
+      // Eagerly fetch auth.me with the new session token so the cache holds the
+      // correct user before navigation. This prevents stale data from a previous
+      // session (e.g. a demo account) from flashing on the dashboard while the
+      // background refetch catches up.
+      await utils.auth.me.fetch().catch(() => {});
       toast.success("Welcome back!");
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get("redirect") ?? "/app/dashboard";

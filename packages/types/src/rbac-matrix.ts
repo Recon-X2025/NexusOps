@@ -83,7 +83,9 @@ export type Module =
   | "roles"
   | "system_properties"
   | "audit_log"
-  | "facilities";
+  | "facilities"
+  | "recruitment"            // NEW Phase 3A: Recruitment / ATS
+  | "workforce_analytics";   // NEW Phase 3C: People & Workforce Analytics
 
 export type RbacAction = "read" | "write" | "delete" | "admin" | "approve" | "assign" | "close";
 
@@ -276,24 +278,28 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
 
   // ── HR ────────────────────────────────────────────────────────────────────
   hr_manager: {
-    hr:         ["read", "write", "delete", "admin", "assign", "close", "approve"],
-    onboarding: ["read", "write", "admin"],
-    approvals:  ["read", "write", "approve", "admin"],
-    reports:    ["read", "write"],
-    analytics:  ["read", "write"],
-    surveys:    ["read", "write", "admin"],
-    catalog:    ["read"],
-    knowledge:  ["read"],
+    hr:                   ["read", "write", "delete", "admin", "assign", "close", "approve"],
+    onboarding:           ["read", "write", "admin"],
+    recruitment:          ["read", "write", "delete", "admin", "assign", "close"],
+    workforce_analytics:  ["read", "write"],
+    approvals:            ["read", "write", "approve", "admin"],
+    reports:              ["read", "write"],
+    analytics:            ["read", "write"],
+    surveys:              ["read", "write", "admin"],
+    catalog:              ["read"],
+    knowledge:            ["read"],
   },
 
   hr_analyst: {
-    hr:         ["read", "write", "assign", "close", "approve"],
-    onboarding: ["read", "write"],
-    approvals:  ["read", "approve"],
-    surveys:    ["read"],
-    catalog:    ["read"],
-    knowledge:  ["read"],
-    reports:    ["read"],
+    hr:                   ["read", "write", "assign", "close", "approve"],
+    onboarding:           ["read", "write"],
+    recruitment:          ["read", "write", "assign"],
+    workforce_analytics:  ["read"],
+    approvals:            ["read", "approve"],
+    surveys:              ["read"],
+    catalog:              ["read"],
+    knowledge:            ["read"],
+    reports:              ["read"],
   },
 
   // ── Procurement ───────────────────────────────────────────────────────────

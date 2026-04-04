@@ -1,7 +1,7 @@
 # NexusOps — API Specification
 
-**Version:** 1.8  
-**Date:** April 3, 2026  
+**Version:** 2.0  
+**Date:** April 4, 2026  
 **Organisation:** Coheron  
 **Base URL:** `https://<host>/trpc`  
 **Protocol:** tRPC 11 over HTTP (JSON batch)  
@@ -13,6 +13,10 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **2.0** | 2026-04-04 | **Phase 3 — Recruitment (ATS), Corporate Secretarial, Workforce analytics — deployed and verified on Vultr (`139.84.154.78`).** New routers: `recruitment.*` (requisitions with draft→publish, candidates, applications — duplicate apply returns `CONFLICT`, interviews, offers, pipeline metrics), `secretarial.*` (meetings, agendas, resolutions, minutes, statutory filings, share capital, ESOP grants, directors; meeting `create` maps client `chairpersonId` → column `chairperson`), `workforce.*` (headcount, turnover, leave balance, performance snapshots). **Schema:** `packages/db/drizzle/0004_recruitment_secretarial.sql` (11 tables + enums); production apply: `scripts/apply-phase3-schema.sh`. **RBAC:** `recruitment`, `workforce_analytics` modules. **Procedure count:** ~**299** (was 253). **Prod check:** `job_requisitions` exists; `/app/recruitment` HTTP 307 when unauthenticated (expected). |
+
+| **1.9** | 2026-04-04 | **Exhaustive QA validation complete — 261/261 tests pass.** Suite 05 (67 tests): all 53 page routes verified — no crash tokens, real content renders. Suite 06 (147 tests): all 253 tRPC procedures verified via authenticated HTTP calls — no `404` or `500` responses remain. Suite 07 (47 tests): all buttons, tabs, forms, and nav links exercised — zero crashes. **API bugs fixed:** `walkup.analytics` and `dashboard.getTimeSeries` — raw JavaScript `Date` object in Drizzle `sql` template literal replaced with `.toISOString()` + `::timestamptz` cast. **New procedures now live:** `csm.cases.*` (6 procedures), `hr.payroll.listPayslips`, `workOrders.create/update`, `assignmentRules.list`. **Schema gaps closed:** 6 new production tables created (csm_cases, assignment_rules, user_assignment_stats, salary_structures, payroll_runs, payslips). |
+
 | **1.8** | 2026-04-03 | **P0/P1 fixes deployed.** (1) **TG-13**: eliminated duplicate Drizzle operator exports — resolves `Symbol(drizzle:Columns)` 5xx on ticket/work-order creates for non-admin roles. (2) **TG-14**: `surveys` added as explicit `Module` type; surveys router rebound from `analytics` to `surveys` permission module; `hr_manager`, `itil`, `itil_admin`, `requester` all granted `surveys` access. (3) **TG-15**: `BCRYPT_CONCURRENCY` raised 8 → 32, `LIBUV_THREADPOOL_SIZE=32` in docker-compose. (4) **INFRA-1**: 4 covering indexes on `tickets` table resolve `executiveOverview` p95 timeout. (5) nginx reverse proxy live on port 80; certbot installed for HTTPS. (6) Automated pg_dump cron (daily 02:00 UTC). (7) Disk: 85% → 24% freed. |
 | **1.7** | 2026-04-03 | **New procedures:** `tickets.listPriorities` (returns org ticket priorities with sort order); `tickets.list` now includes `assigneeName` + `assigneeEmail` via LEFT JOIN on `users`. `reports.executiveOverview` computes live `avgResolutionTime` (AVG of resolvedAt − createdAt for last 30 days) and `csatScore` (AVG of survey_responses.score last 30 days); `ticketDeflection` removed (was hardcoded). `reports.slaDashboard` LEFT JOINs `ticket_priorities` to return `priorityName` + `priorityColor`. `hr.cases.resolve` mutation added — appends timestamped `[RESOLVED: <ISO>]` note to case notes field. |
 | **1.6** | 2026-04-03 | Added `tickets.toggleWatch`, `workOrders.update`, `walkup.queue.hold`, `crm.updateLead`, `contracts.completeObligation` mutations. Bearer token auth unified across all procedure types (TG-16 fix). Per-user login rate limit added to `auth.login`. Internal endpoint auth (`X-Internal-Token`) documented. `traceId` added to all error envelopes. Stack traces suppressed in production. |

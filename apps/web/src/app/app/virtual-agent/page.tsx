@@ -123,37 +123,117 @@ export default function VirtualAgentPage() {
     setMessages((m) => [...m, msg]);
   };
 
+  // ── NLU Engine ─────────────────────────────────────────────────────────────
+
+  type Intent =
+    | "check_tickets" | "create_ticket" | "password_reset" | "vpn_issue"
+    | "hardware_request" | "software_request" | "access_request" | "onboarding"
+    | "offboarding" | "hr_query" | "payslip" | "leave_request" | "human_handoff"
+    | "greeting" | "thanks" | "catalog_browse" | "track_request" | "knowledge_search"
+    | "fallback";
+
+  function classifyIntent(text: string): { intent: Intent; entities: Record<string, string>; confidence: number } {
+    const t = text.toLowerCase().trim();
+    const entities: Record<string, string> = {};
+    const ticketMatch = t.match(/(?:tkt|ticket|inc|req|chg|prb|srd)[-\s]?\d{4,}/i);
+    if (ticketMatch) entities.ticketId = ticketMatch[0].toUpperCase().replace(/\s/g, "-");
+    const patterns: [Intent, RegExp, number][] = [
+      ["greeting",        /^(hi|hello|hey|good\s*(morning|afternoon|evening)|howdy)\b/i, 0.95],
+      ["thanks",          /\b(thank|thanks|cheers|appreciate|great|perfect|solved|that.*helped)\b/i, 0.9],
+      ["human_handoff",   /\b(human|agent|person|live|escalate|speak.*to.*someone|talk.*human|connect.*agent)\b/i, 0.95],
+      ["check_tickets",   /\b(check|view|show|list|my)\b.*\b(tickets?|incidents?|requests?|issues?)\b|\b(open|pending|raised)\b.*\bticket/i, 0.9],
+      ["track_request",   /\b(track|status|update|progress|where.*(is|are)|what.*happened)\b.*\b(ticket|request|incident|case)\b/i, 0.85],
+      ["password_reset",  /\b(password|passwd|pwd|credentials?|login|unlock|account.*locked|forgot.*pass|reset.*pass|expired.*password)\b/i, 0.95],
+      ["vpn_issue",       /\b(vpn|remote.*access|tunnel|cisco.*any|pulse.*secure|can.?t.*connect.*remote)\b/i, 0.9],
+      ["hardware_request",/\b(laptop|desktop|monitor|keyboard|mouse|headset|printer|webcam|hardware|equipment)\b.*\b(need|want|request|broken|not.*work)\b|\b(request|need|want)\b.*\b(laptop|desktop|monitor|keyboard)\b/i, 0.85],
+      ["software_request",/\b(software|license|app|install|adobe|office|jira|slack|teams|zoom)\b.*\b(need|want|request|access|install)\b|\b(request|need|want)\b.*\b(software|license|access)\b/i, 0.85],
+      ["access_request",  /\b(access|permission|role|group|ad.*group|shared.*drive|server|database|portal)\b.*\b(need|request|grant|add|remove|change)\b/i, 0.85],
+      ["onboarding",      /\b(onboard|new.*joiner|new.*hire|joining|first.*day|new.*employee)\b/i, 0.9],
+      ["offboarding",     /\b(offboard|resign|leaving|last.*day|exit|termination|deactivate.*account)\b/i, 0.9],
+      ["hr_query",        /\b(hr|human.*resource|policy|leave.*policy|attendance|contract|offer.*letter|appraisal|performance)\b/i, 0.8],
+      ["payslip",         /\b(payslip|pay.*slip|salary|ctc|take.*home|paycheck|payroll|form.*16|tax.*deduction)\b/i, 0.9],
+      ["leave_request",   /\b(leave|vacation|holiday|time.*off|sick.*day|casual.*leave|sick.*leave|annual.*leave)\b/i, 0.9],
+      ["catalog_browse",  /\b(catalog|service.*catalog|browse|order|request.*service|what.*can.*you|services.*available)\b/i, 0.8],
+      ["knowledge_search",/\b(how.*do|how.*to|article|knowledge|documentation|guide|tutorial|step|procedure|process)\b/i, 0.75],
+      ["create_ticket",   /\b(create|raise|open|log|submit|report)\b.*\b(ticket|incident|request|issue|problem)\b|\b(not.*working|broken|error|failed|issue|problem)\b/i, 0.7],
+    ];
+    for (const [intent, pattern, confidence] of patterns) {
+      if (pattern.test(t)) return { intent, entities, confidence };
+    }
+    return { intent: "fallback", entities, confidence: 0.3 };
+  }
+
+  function generateNLUResponse(userText: string): { text: string; options?: string[]; handoff?: boolean; articleRef?: string } {
+    const { intent, entities } = classifyIntent(userText);
+    const tickets = (myTicketsData as any)?.items ?? (myTicketsData as any) ?? [];
+    switch (intent) {
+      case "greeting":
+        return { text: "Hello! 👋 What can I help you with today?", options: ["🔐 Password reset", "🎫 My open tickets", "💻 Request hardware", "🌐 VPN issue", "📋 Browse service catalog", "🤝 Talk to an agent"] };
+      case "thanks":
+        return { text: "You're welcome! 😊 Is there anything else I can help with?", options: ["No, all good!", "Yes, one more thing", "🤝 Talk to an agent"] };
+      case "human_handoff":
+        return { text: "Connecting you to a live agent now.\n\n⏱ **Estimated wait**: 2-3 minutes\n👥 **Team**: IT Service Desk\n📋 Your conversation will be shared with the agent.", handoff: true, options: ["Yes, connect me", "Actually, let me try self-service first"] };
+      case "check_tickets": {
+        if (tickets.length === 0) return { text: "You have no open tickets right now. 🎉", options: ["Submit a new request", "Browse service catalog"] };
+        const list = tickets.slice(0, 5).map((t: any, i: number) => `${i+1}. **${t.number}** — ${t.title}\n   Status: ${t.status} | Priority: ${t.priority ?? "P3"}`).join("\n\n");
+        return { text: `You have **${tickets.length}** open ticket${tickets.length > 1 ? "s" : ""}:\n\n${list}`, options: ["View all in portal", "Raise a new ticket"] };
+      }
+      case "track_request": {
+        if (entities.ticketId) {
+          const found = tickets.find((t: any) => t.number?.toUpperCase() === entities.ticketId?.toUpperCase());
+          if (found) return { text: `Found **${found.number}**: ${found.title}\n\n📋 **Status**: ${found.status}\n⚡ **Priority**: ${found.priority ?? "P3"}`, options: ["That's all I need", "Escalate this", "🤝 Talk to an agent"] };
+        }
+        return { text: "Please provide the ticket number (e.g. TKT-1234) to track it.", options: ["View my tickets", "🤝 Talk to an agent"] };
+      }
+      case "password_reset":
+        return { text: "I can help reset your password!\n\nWhich account needs resetting?", options: ["Windows / Active Directory", "Microsoft 365 / Email", "VPN credentials", "Application-specific"] };
+      case "vpn_issue":
+        return { text: "**Known Issue**: Cisco AnyConnect may crash on macOS 14+.\n**Workaround**: Use web-based VPN at vpn.company.com\n\nDoes this match your issue?", options: ["Yes, that helps!", "No, different issue", "Open a VPN incident", "🤝 Talk to an agent"], articleRef: "KB-2341: VPN Connectivity Troubleshooting" };
+      case "hardware_request":
+        return { text: "I'll raise a hardware request!\n\nWhat do you need?", options: ["New laptop for me", "Replacement for broken device", "Equipment for new hire", "Peripheral (keyboard/mouse/headset)", "Open hardware request form"] };
+      case "software_request":
+        return { text: "What software do you need access to?", options: ["Adobe Creative Cloud", "Microsoft 365 / Office", "Jira / Confluence", "Slack / Teams", "Other software"] };
+      case "access_request":
+        return { text: "What type of access do you need?", options: ["AD Group / Distribution list", "Shared drive / SharePoint", "Application role", "Database access", "Server / SSH access"] };
+      case "leave_request":
+        return { text: "Leave requests go through the **Employee Portal**.\n\n📋 **CL**: 12 days/year | 🏖️ **AL**: Based on tenure | 🤒 **SL**: With/without medical cert", options: ["Open Employee Portal", "Check my leave balance", "Leave policy details", "🤝 Talk to HR"], articleRef: "KB-0891: Company Leave Policy" };
+      case "payslip":
+        return { text: "Payslips are in the **HR Portal**: My Profile → Payroll → Payslips.\n\nFor Form 16, contact Payroll team after April.", options: ["Open Employee Portal", "Payroll queries", "🤝 Talk to Payroll team"] };
+      case "hr_query":
+        return { text: "What HR query do you have?", options: ["Leave balance", "Payslip / Payroll", "Appraisal / Performance", "Policy document", "🤝 Talk to HR directly"] };
+      case "onboarding":
+        return { text: "New joiner setup! I can help with:\n\n✅ Hardware provisioning\n✅ Email and AD account setup\n✅ Software access based on role\n✅ VPN and remote access\n\nShall I create an onboarding ticket?", options: ["Create onboarding ticket", "What access is included?", "🤝 Talk to IT onboarding team"] };
+      case "catalog_browse":
+        return { text: "The **Service Catalog** has everything:\n\n📦 Hardware | 🔑 Software | 🌐 Network | 🏢 Facilities\n\nWhich category interests you?", options: ["Browse full catalog", "Hardware requests", "Software licenses", "Facilities"] };
+      case "knowledge_search":
+        return { text: "The Knowledge Base has guides for most issues. What are you trying to do?", options: ["Open Knowledge Base", "VPN setup guide", "Password reset guide", "Software installation guide", "🤝 Talk to an agent"], articleRef: "Knowledge Base — Search available 24/7" };
+      case "create_ticket":
+        return { text: `Creating a ticket:\n\n**Title**: ${userText.slice(0, 100)}\n**Priority**: P3 — Moderate\n\nShall I submit this?`, options: ["Yes, create ticket", "Add more details first", "Set priority P1 (Critical)", "Cancel"] };
+      default:
+        return { text: `I'm not sure about "${userText.slice(0, 60)}..." but I can:\n- Create a support ticket\n- Connect you with an agent\n- Search the Knowledge Base`, options: ["Create a ticket for this", "Search Knowledge Base", "🤝 Talk to a human agent"] };
+    }
+  }
+
   const handleOption = (opt: string) => {
     addMessage(opt, "user");
     setTimeout(() => {
-      if (opt === "🎫 Check my open tickets") {
-        const tickets = (myTicketsData as any)?.items ?? (myTicketsData as any) ?? [];
-        if (tickets.length === 0) {
-          addMessage("You have no open tickets. 🎉 Everything looks good!", "bot", { options: ["Submit a new request", "🤝 Talk to a human agent"] });
-        } else {
-          const list = tickets.slice(0, 5).map((t: any, i: number) => `${i+1}. **${t.number}** — ${t.title} (${t.status})`).join("\n");
-          addMessage(`Here are your open tickets:\n\n${list}`, "bot", { options: ["I need help with a ticket", "New request", "All caught up, thanks!"] });
-        }
-        return;
-      }
-      if (opt === "Yes, create ticket" || opt === "Create ticket now") {
+      if (opt === "Yes, create ticket" || opt === "Create ticket now" || opt === "Create onboarding ticket" || opt === "Open a VPN incident" || opt === "Raise a new ticket") {
         const lastUserMsg = [...messages].reverse().find(m => m.role === "user" && m.text !== opt)?.text ?? "Support request";
         if (can("incidents", "write")) {
           createTicketMutation.mutate({ title: lastUserMsg.slice(0, 200), description: lastUserMsg });
         } else {
-          addMessage("I'm sorry, you don't have permission to create tickets. Please contact your IT team directly.", "bot");
+          addMessage("You don't have permission to create tickets. Please contact your IT team directly.", "bot");
         }
         return;
       }
-      const flow = BOT_FLOWS[opt];
-      if (flow) {
-        addMessage(flow.reply, "bot", { options: flow.options, articleRef: flow.articleRef, handoff: flow.handoff });
-      } else {
-        addMessage(`I understand you need help with "${opt}". Let me create a ticket for you. Can you provide more details?`, "bot", {
-          options: ["Create ticket now", "Cancel"],
-        });
-      }
-    }, 600);
+      if (opt.includes("Open Employee Portal")) { router.push("/app/employee-portal"); addMessage("Opening Employee Portal...", "bot"); return; }
+      if (opt.includes("Browse full catalog") || opt === "📋 Browse service catalog") { router.push("/app/catalog"); addMessage("Opening Service Catalog...", "bot"); return; }
+      if (opt.includes("Open Knowledge Base") || opt === "Search Knowledge Base") { router.push("/app/knowledge"); addMessage("Opening Knowledge Base...", "bot"); return; }
+      if (opt === "View all in portal" || opt.includes("View my tickets")) { router.push("/app/tickets"); addMessage("Opening your tickets...", "bot"); return; }
+      if (opt === "No, all good!") { addMessage("Great! Have a wonderful day! 😊 Feel free to come back anytime.", "bot"); return; }
+      const response = generateNLUResponse(opt);
+      addMessage(response.text, "bot", { options: response.options, handoff: response.handoff, articleRef: response.articleRef });
+    }, 500);
   };
 
   const handleSend = () => {
@@ -162,10 +242,9 @@ export default function VirtualAgentPage() {
     setInput("");
     addMessage(text, "user");
     setTimeout(() => {
-      addMessage(`I've noted your request: "${text}"\n\nShall I create a support ticket for this?`, "bot", {
-        options: ["Yes, create ticket", "No, I'll handle it", "🤝 Talk to a human agent"],
-      });
-    }, 800);
+      const response = generateNLUResponse(text);
+      addMessage(response.text, "bot", { options: response.options, handoff: response.handoff, articleRef: response.articleRef });
+    }, 600);
   };
 
   const totalVolume = messages.filter(m => m.role === "user").length;

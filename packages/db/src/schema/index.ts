@@ -31,6 +31,9 @@ export * from "./oncall";
 export * from "./catalog";
 // India compliance schemas
 export * from "./india-compliance";
+// Phase 3 schemas
+export * from "./recruitment";
+export * from "./secretarial";
 
 // Re-export drizzle operators used in routers.
 // Single authoritative source — do NOT also export from packages/db/src/index.ts.

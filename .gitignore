@@ -54,3 +54,7 @@ minio-data
 
 # Stress-test output / temp
 stress-test-result-*.json
+
+# Playwright / local QA artifacts (large)
+test-results/
+tests/full-qa/results/

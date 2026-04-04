@@ -32,6 +32,9 @@ import { approvalsRouter } from "./approvals";
 import { reportsRouter } from "./reports";
 import { searchRouter } from "./search";
 import { aiRouter } from "./ai";
+import { recruitmentRouter } from "./recruitment";
+import { secretarialRouter } from "./secretarial";
+import { workforceRouter } from "./workforce";
 import { indiaComplianceRouter } from "./india-compliance";
 import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
@@ -76,6 +79,10 @@ export const appRouter = router({
   indiaCompliance: indiaComplianceRouter,
   assignmentRules: assignmentRulesRouter,
   inventory: inventoryRouter,
+  // Phase 3 True Modules
+  recruitment: recruitmentRouter,
+  secretarial: secretarialRouter,
+  workforce: workforceRouter,
 });
 
 export type AppRouter = typeof appRouter;

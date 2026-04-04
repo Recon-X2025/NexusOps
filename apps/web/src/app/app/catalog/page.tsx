@@ -23,6 +23,20 @@ import {
   ChevronRight,
   Plus,
   CheckCircle2,
+  Settings,
+  GripVertical,
+  Trash2,
+  Edit,
+  X,
+  Type,
+  AlignLeft,
+  Hash,
+  Mail,
+  Calendar,
+  List,
+  ToggleLeft,
+  Circle,
+  FileUp,
 } from "lucide-react";
 
 const CATALOG_CATEGORIES = [
@@ -92,13 +106,140 @@ const REQ_STATE_CONFIG: Record<string, { label: string; color: string }> = {
   cancelled:        { label: "Cancelled",         color: "text-red-700 bg-red-100" },
 };
 
+// ── Form Builder Modal ────────────────────────────────────────────────────────
+
+type FieldType = "text" | "textarea" | "number" | "email" | "date" | "dropdown" | "checkbox" | "radio" | "file" | "user_picker";
+
+const FIELD_TYPES: { type: FieldType; label: string; icon: React.ElementType }[] = [
+  { type: "text",        label: "Short Text",    icon: Type },
+  { type: "textarea",    label: "Long Text",     icon: AlignLeft },
+  { type: "number",      label: "Number",        icon: Hash },
+  { type: "email",       label: "Email",         icon: Mail },
+  { type: "date",        label: "Date",          icon: Calendar },
+  { type: "dropdown",    label: "Dropdown",      icon: List },
+  { type: "checkbox",    label: "Checkbox",      icon: ToggleLeft },
+  { type: "radio",       label: "Radio",         icon: Circle },
+  { type: "file",        label: "File Upload",   icon: FileUp },
+  { type: "user_picker", label: "User Picker",   icon: User },
+];
+
+interface FormField { id: string; label: string; type: FieldType; required: boolean; options?: string[]; helpText?: string; }
+
+function FormBuilderModal({ item, onClose, onSave, saving }: {
+  item: any;
+  onClose: () => void;
+  onSave: (fields: FormField[]) => void;
+  saving: boolean;
+}) {
+  const [fields, setFields] = useState<FormField[]>(item.formFields ?? []);
+  const [editingField, setEditingField] = useState<string | null>(null);
+
+  const addField = (type: FieldType) => {
+    const id = `field_${Date.now()}`;
+    setFields(f => [...f, { id, label: FIELD_TYPES.find(ft => ft.type === type)!.label, type, required: false }]);
+    setEditingField(id);
+  };
+
+  const updateField = (id: string, updates: Partial<FormField>) =>
+    setFields(f => f.map(field => field.id === id ? { ...field, ...updates } : field));
+
+  const removeField = (id: string) => setFields(f => f.filter(field => field.id !== id));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-lg">Form Builder</h2>
+            <p className="text-xs text-muted-foreground">Designing form for: <strong>{item.name}</strong></p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto flex gap-0">
+          {/* Field type palette */}
+          <div className="w-44 border-r border-border p-4 flex-shrink-0">
+            <p className="text-xs font-semibold text-muted-foreground mb-3">ADD FIELDS</p>
+            <div className="space-y-1">
+              {FIELD_TYPES.map(ft => (
+                <button
+                  key={ft.type}
+                  onClick={() => addField(ft.type)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-primary/10 hover:text-primary transition-colors text-left"
+                >
+                  <ft.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="text-xs">{ft.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Canvas */}
+          <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+            {fields.length === 0 && (
+              <div className="border-2 border-dashed border-border rounded-xl p-10 text-center text-muted-foreground">
+                <Settings className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Click field types on the left to add them to the form</p>
+              </div>
+            )}
+            {fields.map((f, idx) => (
+              <div key={f.id} className={`border rounded-xl p-4 transition-colors ${editingField === f.id ? "border-primary bg-primary/5" : "border-border bg-card"}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium capitalize">{f.type.replace("_"," ")}</span>
+                  <span className="flex-1 font-medium text-sm">{f.label}</span>
+                  {f.required && <span className="text-xs text-red-500">Required</span>}
+                  <button onClick={() => setEditingField(editingField === f.id ? null : f.id)} className="p-1 hover:bg-muted rounded"><Edit className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => removeField(f.id)} className="p-1 hover:bg-red-50 text-red-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+                {editingField === f.id && (
+                  <div className="space-y-3 mt-3 pl-7">
+                    <div>
+                      <label className="text-xs font-medium block mb-1">Label *</label>
+                      <input value={f.label} onChange={e => updateField(f.id, { label: e.target.value })} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-background" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1">Help Text</label>
+                      <input value={f.helpText ?? ""} onChange={e => updateField(f.id, { helpText: e.target.value })} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-background" placeholder="Hint for the user" />
+                    </div>
+                    {(f.type === "dropdown" || f.type === "radio") && (
+                      <div>
+                        <label className="text-xs font-medium block mb-1">Options (one per line)</label>
+                        <textarea rows={3} value={(f.options ?? []).join("\n")} onChange={e => updateField(f.id, { options: e.target.value.split("\n").filter(Boolean) })} className="w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-background resize-none" placeholder="Option 1&#10;Option 2&#10;Option 3" />
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={f.required} onChange={e => updateField(f.id, { required: e.target.checked })} className="rounded" />
+                      <span className="text-xs">Required field</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 border-t border-border flex-shrink-0 flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">{fields.length} field{fields.length !== 1 ? "s" : ""} configured</p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+            <button disabled={saving} onClick={() => onSave(fields)} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+              {saving ? "Saving..." : "Save Form Design"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CatalogPage() {
   const { can } = useRBAC();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [view, setView] = useState<"catalog" | "requests" | "manage">("catalog");
+  const [view, setView] = useState<"catalog" | "requests" | "manage" | "admin">("catalog");
   const [requestedItem, setRequestedItem] = useState<string | null>(null);
   const [showAddItem, setShowAddItem] = useState(false);
+  const [formBuilderItem, setFormBuilderItem] = useState<any | null>(null);
   const [itemForm, setItemForm] = useState({
     name: "",
     description: "",
@@ -119,6 +260,8 @@ export default function CatalogPage() {
     { refetchOnWindowFocus: false },
   );
 
+  const { data: catalogStats } = trpc.catalog.stats.useQuery();
+
   const createItem = trpc.catalog.createItem.useMutation({
     onSuccess: () => {
       import("sonner").then(({ toast }) => toast.success("Catalog item created"));
@@ -128,6 +271,15 @@ export default function CatalogPage() {
       utils.catalog.listItems.invalidate();
     },
     onError: (e: any) => import("sonner").then(({ toast }) => toast.error(e?.message ?? "Failed to create item")),
+  });
+
+  const updateItem = trpc.catalog.updateItem.useMutation({
+    onSuccess: () => {
+      import("sonner").then(({ toast }) => toast.success("Item form updated"));
+      setFormBuilderItem(null);
+      refetchCatalog();
+    },
+    onError: (e: any) => import("sonner").then(({ toast }) => toast.error(e?.message ?? "Failed to update")),
   });
 
   const submitRequest = trpc.catalog.submitRequest.useMutation({
@@ -182,6 +334,14 @@ export default function CatalogPage() {
               className={`px-3 py-1 text-[11px] rounded border transition-colors ${view === "manage" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
             >
               Manage Items
+            </button>
+          )}
+          {can("catalog", "admin") && (
+            <button
+              onClick={() => setView("admin")}
+              className={`px-3 py-1 text-[11px] rounded border transition-colors flex items-center gap-1 ${view === "admin" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
+            >
+              <Settings className="w-3 h-3" /> Admin
             </button>
           )}
         </div>
@@ -495,6 +655,67 @@ export default function CatalogPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* ── Admin / Stats View ─────────────────────────────────────────────────── */}
+      {view === "admin" && (
+        <div className="space-y-4">
+          {/* Stat Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Active Items",      value: catalogStats?.totalItems ?? 0,     color: "text-blue-600 bg-blue-50" },
+              { label: "Total Requests",    value: catalogStats?.totalRequests ?? 0,  color: "text-indigo-600 bg-indigo-50" },
+              { label: "Pending Approval",  value: catalogStats?.pendingApproval ?? 0, color: "text-amber-600 bg-amber-50" },
+              { label: "Completed",         value: catalogStats?.completed ?? 0,       color: "text-green-600 bg-green-50" },
+            ].map(s => (
+              <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${s.color}`}><ShoppingCart className="w-4 h-4" /></div>
+                <div><p className="text-xl font-bold">{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></div>
+              </div>
+            ))}
+          </div>
+
+          {/* Items with Form Builder */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Catalog Items — Form Builder</h3>
+              <p className="text-xs text-muted-foreground">Click "Design Form" to add custom fields to any catalog item</p>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>{["Name","Category","Fields","SLA","Approval","Status","Actions"].map(h => <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {catalogItems.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">No items. Switch to Manage Items to create some.</td></tr>}
+                {catalogItems.map((item: any) => (
+                  <tr key={item.id} className="border-t border-border hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{item.name}</td>
+                    <td className="px-4 py-3 text-xs capitalize text-muted-foreground">{item.category ?? "—"}</td>
+                    <td className="px-4 py-3"><span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{(item.formFields ?? []).length} fields</span></td>
+                    <td className="px-4 py-3 text-xs">{item.slaDays ?? 3}d</td>
+                    <td className="px-4 py-3 text-xs">{item.approvalRequired ? "✓ Required" : "Auto"}</td>
+                    <td className="px-4 py-3"><span className={`text-xs px-1.5 py-0.5 rounded capitalize ${item.status === "active" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>{item.status}</span></td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setFormBuilderItem(item)} className="flex items-center gap-1 text-xs text-primary hover:underline font-medium">
+                        <Settings className="w-3 h-3" /> Design Form
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Form Builder Modal ────────────────────────────────────────────────── */}
+      {formBuilderItem && (
+        <FormBuilderModal
+          item={formBuilderItem}
+          onClose={() => setFormBuilderItem(null)}
+          onSave={(fields) => updateItem.mutate({ id: formBuilderItem.id, formFields: fields })}
+          saving={updateItem.isPending}
+        />
       )}
     </div>
   );

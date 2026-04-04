@@ -16,6 +16,7 @@ type SignupForm = z.infer<typeof SignupSchema>;
 export default function SignupPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const utils = trpc.useUtils();
 
   const {
     register,
@@ -29,8 +30,10 @@ export default function SignupPage() {
   const password = watch("password", "");
 
   const signup = trpc.auth.signup.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       localStorage.setItem("nexusops_session", data.sessionId);
+      document.cookie = `nexusops_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      await utils.auth.me.fetch().catch(() => {});
       toast.success("Account created! Welcome to NexusOps.");
       router.push("/app/dashboard");
     },

@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { catalogItems, catalogRequests, eq, and, desc } from "@nexusops/db";
+import { catalogItems, catalogRequests, eq, and, desc, count } from "@nexusops/db";
 
 export const catalogRouter = router({
   listItems: permissionProcedure("catalog", "read")
@@ -73,5 +73,70 @@ export const catalogRouter = router({
         .set({ status: "completed", fulfillerId: user!.id, notes: input.notes, completedAt: new Date(), updatedAt: new Date() })
         .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id))).returning();
       return req;
+    }),
+
+  // ── Admin: update catalog item (form builder) ───────────────────────────────
+
+  updateItem: permissionProcedure("catalog", "admin")
+    .input(z.object({
+      id:              z.string().uuid(),
+      name:            z.string().optional(),
+      description:     z.string().optional(),
+      category:        z.string().optional(),
+      status:          z.enum(["active","inactive","retired"]).optional(),
+      price:           z.string().optional(),
+      approvalRequired: z.boolean().optional(),
+      fulfillmentGroup: z.string().optional(),
+      slaDays:         z.coerce.number().optional(),
+      sortOrder:       z.number().optional(),
+      formFields: z.array(z.object({
+        id:       z.string(),
+        label:    z.string(),
+        type:     z.enum(["text","textarea","number","email","date","dropdown","checkbox","radio","file","user_picker"]),
+        required: z.boolean().default(false),
+        options:  z.array(z.string()).optional(),    // for dropdown/radio
+        helpText: z.string().optional(),
+        defaultValue: z.string().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...rest } = input;
+      const [item] = await db.update(catalogItems)
+        .set({ ...rest, updatedAt: new Date() })
+        .where(and(eq(catalogItems.id, id), eq(catalogItems.orgId, org!.id)))
+        .returning();
+      return item;
+    }),
+
+  deleteItem: permissionProcedure("catalog", "delete")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await db.update(catalogItems)
+        .set({ status: "retired", updatedAt: new Date() })
+        .where(and(eq(catalogItems.id, input.id), eq(catalogItems.orgId, org!.id)));
+      return { ok: true };
+    }),
+
+  approveRequest: permissionProcedure("catalog", "admin")
+    .input(z.object({ id: z.string().uuid(), approve: z.boolean(), reason: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const status = input.approve ? "approved" : "rejected";
+      const [req] = await db.update(catalogRequests)
+        .set({ status, fulfillerId: user!.id, notes: input.reason, updatedAt: new Date() })
+        .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id))).returning();
+      return req;
+    }),
+
+  stats: permissionProcedure("catalog", "read")
+    .query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [totalItems]   = await db.select({ n: count() }).from(catalogItems).where(and(eq(catalogItems.orgId, org!.id), eq(catalogItems.status, "active")));
+      const [totalReqs]    = await db.select({ n: count() }).from(catalogRequests).where(eq(catalogRequests.orgId, org!.id));
+      const [pendingReqs]  = await db.select({ n: count() }).from(catalogRequests).where(and(eq(catalogRequests.orgId, org!.id), eq(catalogRequests.status, "pending_approval")));
+      const [completedReqs]= await db.select({ n: count() }).from(catalogRequests).where(and(eq(catalogRequests.orgId, org!.id), eq(catalogRequests.status, "completed")));
+      return { totalItems: totalItems.n, totalRequests: totalReqs.n, pendingApproval: pendingReqs.n, completed: completedReqs.n };
     }),
 });

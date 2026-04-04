@@ -1,0 +1,40 @@
+import { defineConfig, devices } from "@playwright/test";
+import * as path from "path";
+
+/**
+ * NexusOps Full-QA Playwright Config
+ * Target: http://139.84.154.78 (production)
+ * Auth: shared storageState from global setup (login once, reuse everywhere)
+ */
+export const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-state.json");
+
+export default defineConfig({
+  testDir: ".",
+  fullyParallel: true,
+  forbidOnly: false,
+  retries: 1,
+  workers: process.env.WORKERS ? parseInt(process.env.WORKERS) : 8,
+  timeout: 60_000,
+  globalSetup: require.resolve("./global-setup"),
+  reporter: [
+    ["list"],
+    ["json", { outputFile: "results/raw-results.json" }],
+    ["html", { open: "never", outputFolder: "results/html-report" }],
+  ],
+  use: {
+    baseURL: "http://139.84.154.78",
+    storageState: AUTH_STATE_FILE,   // reuse auth across all tests
+    trace: "retain-on-failure",
+    screenshot: "on",
+    video: "retain-on-failure",
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
+    ignoreHTTPSErrors: true,
+  },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
+});

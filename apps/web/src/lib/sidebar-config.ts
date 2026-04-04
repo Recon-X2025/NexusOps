@@ -138,7 +138,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     label: "People & Workplace",
     icon: "Users",
     defaultExpanded: false,
-    modules: ["hr", "onboarding"],
+    modules: ["hr", "onboarding", "recruitment", "workforce_analytics"],
     items: [
       { label: "Overview", href: "/app/people-workplace", icon: "LayoutDashboard", module: "hr" },
       {
@@ -151,6 +151,26 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Employee Portal", href: "/app/employee-portal" },
           { label: "Employee Center", href: "/app/employee-center" },
         ],
+      },
+      {
+        label: "Recruitment / ATS",
+        href: "/app/recruitment",
+        icon: "UserPlus",
+        module: "recruitment",
+        children: [
+          { label: "Dashboard", href: "/app/recruitment" },
+          { label: "Job Requisitions", href: "/app/recruitment?tab=requisitions" },
+          { label: "Candidate Pipeline", href: "/app/recruitment?tab=pipeline" },
+          { label: "Candidates", href: "/app/recruitment?tab=candidates" },
+          { label: "Interviews", href: "/app/recruitment?tab=interviews" },
+          { label: "Offers", href: "/app/recruitment?tab=offers" },
+        ],
+      },
+      {
+        label: "People & Workforce Analytics",
+        href: "/app/people-analytics",
+        icon: "BarChart3",
+        module: "workforce_analytics",
       },
       {
         label: "Facilities & Real Estate",
@@ -171,7 +191,17 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Overview", href: "/app/customer-sales", icon: "LayoutDashboard", module: "accounts" },
       { label: "Customer Service", href: "/app/csm", icon: "Headphones", module: "csm" },
       { label: "CRM & Sales", href: "/app/crm", icon: "TrendingUp", module: "accounts" },
-      { label: "Service Catalog", href: "/app/catalog", icon: "LayoutGrid", module: "catalog" },
+      {
+        label: "Service Catalog",
+        href: "/app/catalog",
+        icon: "LayoutGrid",
+        module: "catalog",
+        children: [
+          { label: "Browse Catalog", href: "/app/catalog" },
+          { label: "My Requests", href: "/app/catalog?tab=my-requests" },
+          { label: "Catalog Admin", href: "/app/catalog?tab=admin" },
+        ],
+      },
       { label: "Surveys", href: "/app/surveys", icon: "ClipboardList", module: "analytics" }, // was reports.read; surveys router uses analytics module
     ],
   },

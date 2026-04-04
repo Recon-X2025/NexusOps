@@ -1,10 +1,10 @@
 # NexusOps — Entity Relationship Diagram
 
-**Version:** 1.9  
-**Date:** April 3, 2026  
+**Version:** 2.1  
+**Date:** April 4, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
-**Source:** `packages/db/src/schema/` (32 schema files, 107 tables, Drizzle ORM / PostgreSQL 16)
+**Source:** `packages/db/src/schema/` (34 schema files, **132** tables in production after Phase 3 migration, Drizzle ORM / PostgreSQL 16)
 
 ---
 
@@ -12,6 +12,10 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **2.1** | 2026-04-04 | **Phase 3 — 11 new tables. Total: 132 tables (121 + 11).** **Recruitment:** `job_requisitions`, `candidates`, `candidate_applications` (UNIQUE `(candidate_id, job_id)`), `interviews`, `job_offers` — plus enums `job_status`, `job_type`, `job_level`, `candidate_stage`, `interview_type`, `interview_status`, `offer_status`, `candidate_source`. **Secretarial:** `board_meetings`, `board_resolutions`, `secretarial_filings`, `share_capital`, `esop_grants`, `company_directors` — plus enums `board_meeting_type`, `board_meeting_status`, `board_resolution_type`, `board_resolution_status`, `secretarial_filing_status`, `share_class`, `esop_event`. DDL: `0004_recruitment_secretarial.sql`; Drizzle: `recruitment.ts`, `secretarial.ts`. |
+
+| **2.0** | 2026-04-04 | **6 new production tables added. Total: 121 tables.** `csm_cases` (id, org_id, number SERIAL, title, description, priority, status, type, account_id, contact_id, requester_id, assignee_id, resolution, sla_due_at, closed_at, created_at, updated_at; indexes on org_id and (org_id, status)). `assignment_rules` (id, org_id, entity_type, match_value, team_id, algorithm, capacity_threshold, is_active, sort_order). `user_assignment_stats` (org_id, user_id, entity_type, last_assigned_at; PK composite). `salary_structures` (id, org_id, name, components JSONB, is_active, created_at, updated_at). `payroll_runs` (id, org_id, month, year, status, run_by, totals JSONB, created_at; UNIQUE org_id+month+year). `payslips` (id, org_id, employee_id, payroll_run_id, month, year, gross, deductions JSONB, net, pdf_url, created_at; UNIQUE employee_id+month+year). Column `salary_structure_id UUID REFERENCES salary_structures(id)` added to `employees`. Note: `csm_cases` has no Drizzle schema file pending `packages/db/src/schema/csm.ts`. |
+
 | **1.9** | 2026-04-03 | **DB performance indexes added.** 4 covering indexes applied on production: `tickets_org_sla_breached_idx` (partial, `sla_breached = true`), `tickets_org_created_idx` (`org_id, created_at DESC`), `tickets_org_resolved_idx` (partial, `resolved_at IS NOT NULL`), `tickets_org_status_covering_idx` (`org_id, status_id, created_at DESC`). Resolves `executiveOverview` 8,010ms timeout for `hr_manager` (INFRA-1). Drizzle operator exports consolidated — duplicate re-exports removed from `packages/db/src/index.ts`; single source now `schema/index.ts`. |
 | **1.8** | 2026-04-03 | **JOIN patterns expanded.** `tickets` LEFT JOINs `users` (on `assignee_id`) in `tickets.list` to surface `assignee_name` and `assignee_email` — no new table, new query pattern. `ticket_priorities` LEFT JOINs `tickets` in `reports.slaDashboard` to return `priority_name` and `priority_color` per breach group. `survey_responses.score` aggregated (AVG) in `reports.executiveOverview` to compute live CSAT score. `hr_cases.notes` field used as append-only resolution log by `hr.cases.resolve` mutation (no schema change). `grc.audit_plans`, `grc.policies`, `grc.risks` now all queried by the Security page Config Compliance tab (read-only cross-domain reference). |
 | **1.7** | 2026-04-03 | Schema count updated: 32 schema files, 107 tables. `ticketWatchers` table confirmed in use via `tickets.toggleWatch` mutation (LEFT JOIN pattern). `org_counters` table documented as sequence-reset target (wiped on clean-slate operation). `sessions` table: all rows cleared on `changePassword` + Redis `invalidateSessionCache` called per session. Production state: all 83 transactional tables at 0 rows; 24 config/reference tables populated. |
