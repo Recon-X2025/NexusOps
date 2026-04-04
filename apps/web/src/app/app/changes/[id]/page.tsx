@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import {
   ChevronRight, RefreshCw, GitBranch, Clock, User, Calendar, AlertTriangle,
   CheckCircle2, MessageSquare, FileText, Loader2, Edit2, XCircle, ChevronDown,
+  Check, X, ClipboardList, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,10 @@ export default function ChangeDetailPage() {
   const router = useRouter();
   const { can } = useRBAC();
   const [comment, setComment] = useState("");
+  const [editingImpl, setEditingImpl] = useState(false);
+  const [implDraft, setImplDraft] = useState("");
+  const [editingRollback, setEditingRollback] = useState(false);
+  const [rollbackDraft, setRollbackDraft] = useState("");
 
   const { data: change, isLoading, refetch } = trpc.changes.get.useQuery(
     { id },
@@ -144,18 +149,89 @@ export default function ChangeDetailPage() {
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h2>
             <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{change.description || "No description provided."}</p>
           </div>
-          {(change as any).implementationPlan && (
+          {/* Implementation Plan */}
+          <PermissionGate module="changes" action="write">
             <div className="bg-card border border-border rounded p-4">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Implementation Plan</h2>
-              <p className="text-sm text-foreground/80 whitespace-pre-line">{(change as any).implementationPlan}</p>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <ClipboardList className="h-3.5 w-3.5" /> Implementation Plan
+                </h2>
+                {!isTerminalChange && !editingImpl && (
+                  <button
+                    onClick={() => { setImplDraft((change as any).implementationPlan ?? ""); setEditingImpl(true); }}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                  >
+                    <Edit2 className="h-3 w-3" /> {(change as any).implementationPlan ? "Edit" : "Add Plan"}
+                  </button>
+                )}
+              </div>
+              {editingImpl ? (
+                <div className="flex flex-col gap-2">
+                  <textarea rows={5} value={implDraft} onChange={(e) => setImplDraft(e.target.value)}
+                    placeholder="Step-by-step implementation instructions…"
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={updateState.isPending}
+                      onClick={() => updateState.mutate({ id, implementationPlan: implDraft } as any, { onSuccess: () => { setEditingImpl(false); toast.success("Implementation plan saved"); refetch(); } })}
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      <Check className="h-3 w-3" /> Save
+                    </button>
+                    <button onClick={() => setEditingImpl(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-foreground/80 whitespace-pre-line">
+                  {(change as any).implementationPlan || <span className="text-muted-foreground/50 italic">No implementation plan documented yet.</span>}
+                </p>
+              )}
             </div>
-          )}
-          {(change as any).rollbackPlan && (
-            <div className="bg-card border border-border rounded p-4">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Rollback Plan</h2>
-              <p className="text-sm text-foreground/80 whitespace-pre-line">{(change as any).rollbackPlan}</p>
+          </PermissionGate>
+
+          {/* Rollback Plan */}
+          <PermissionGate module="changes" action="write">
+            <div className="bg-card border border-red-100 rounded p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 text-red-600">
+                  <RotateCcw className="h-3.5 w-3.5" /> Rollback Plan
+                </h2>
+                {!isTerminalChange && !editingRollback && (
+                  <button
+                    onClick={() => { setRollbackDraft((change as any).rollbackPlan ?? ""); setEditingRollback(true); }}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                  >
+                    <Edit2 className="h-3 w-3" /> {(change as any).rollbackPlan ? "Edit" : "Add Rollback Plan"}
+                  </button>
+                )}
+              </div>
+              {editingRollback ? (
+                <div className="flex flex-col gap-2">
+                  <textarea rows={4} value={rollbackDraft} onChange={(e) => setRollbackDraft(e.target.value)}
+                    placeholder="Steps to reverse this change if something goes wrong…"
+                    className="w-full rounded border border-red-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-400 resize-none" />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={updateState.isPending}
+                      onClick={() => updateState.mutate({ id, rollbackPlan: rollbackDraft } as any, { onSuccess: () => { setEditingRollback(false); toast.success("Rollback plan saved"); refetch(); } })}
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-700 disabled:opacity-50"
+                    >
+                      <Check className="h-3 w-3" /> Save Rollback Plan
+                    </button>
+                    <button onClick={() => setEditingRollback(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-foreground/80 whitespace-pre-line">
+                  {(change as any).rollbackPlan || <span className="text-muted-foreground/50 italic">No rollback plan documented.</span>}
+                </p>
+              )}
             </div>
-          )}
+          </PermissionGate>
 
           {/* Add comment */}
           <PermissionGate module="changes" action="write">

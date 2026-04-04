@@ -8,7 +8,7 @@ import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { toast } from "sonner";
 import {
   Bug, ChevronRight, AlertTriangle, Loader2, MessageSquare,
-  GitBranch, BookOpen,
+  GitBranch, BookOpen, Edit2, Check, X, Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,10 @@ export default function ProblemDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useRBAC();
   const [comment, setComment] = useState("");
+  const [editingRca, setEditingRca] = useState(false);
+  const [rcaDraft, setRcaDraft] = useState("");
+  const [editingWorkaround, setEditingWorkaround] = useState(false);
+  const [workaroundDraft, setWorkaroundDraft] = useState("");
 
   const addNote = trpc.changes.addProblemNote.useMutation({
     onSuccess: () => { setComment(""); toast.success("Update posted"); refetch(); },
@@ -126,22 +130,91 @@ export default function ProblemDetailPage() {
           </div>
 
           {/* RCA */}
-          {problem.rootCause && (
+          <PermissionGate module="problems" action="write">
             <div className="bg-card border border-border rounded p-4">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Root Cause Analysis</h2>
-              <p className="text-sm text-foreground/80 whitespace-pre-line">{problem.rootCause}</p>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <GitBranch className="h-3.5 w-3.5" /> Root Cause Analysis
+                </h2>
+                {!isClosed && !editingRca && (
+                  <button
+                    onClick={() => { setRcaDraft(problem.rootCause ?? ""); setEditingRca(true); }}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                  >
+                    <Edit2 className="h-3 w-3" /> {problem.rootCause ? "Edit" : "Add RCA"}
+                  </button>
+                )}
+              </div>
+              {editingRca ? (
+                <div className="flex flex-col gap-2">
+                  <textarea rows={4} value={rcaDraft} onChange={(e) => setRcaDraft(e.target.value)}
+                    placeholder="Describe the identified root cause…"
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={updateStatus.isPending}
+                      onClick={() => updateStatus.mutate({ id, rootCause: rcaDraft } as any, { onSuccess: () => { setEditingRca(false); toast.success("RCA saved"); refetch(); } })}
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      <Check className="h-3 w-3" /> Save RCA
+                    </button>
+                    <button onClick={() => setEditingRca(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-foreground/80 whitespace-pre-line">
+                  {problem.rootCause || <span className="text-muted-foreground/50 italic">No root cause documented yet. Click &quot;Add RCA&quot; to begin analysis.</span>}
+                </p>
+              )}
             </div>
-          )}
+          </PermissionGate>
 
-          {/* Workaround */}
-          {problem.workaround && (
-            <div className="bg-amber-50 border border-amber-200 rounded p-4">
-              <h2 className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <BookOpen className="h-3.5 w-3.5" /> Known Workaround
-              </h2>
-              <p className="text-sm text-amber-900 whitespace-pre-line">{problem.workaround}</p>
+          {/* KEDB — Known Error & Workaround */}
+          <PermissionGate module="problems" action="write">
+            <div className={cn("rounded p-4 border", problem.status === "known_error" || problem.workaround ? "bg-amber-50 border-amber-200" : "bg-card border-border")}>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className={cn("text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5", problem.status === "known_error" || problem.workaround ? "text-amber-700" : "text-muted-foreground")}>
+                  <Database className="h-3.5 w-3.5" /> Known Error Database (KEDB)
+                  {problem.status === "known_error" && (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-200 text-amber-800 text-[10px] font-bold">KEDB ENTRY</span>
+                  )}
+                </h2>
+                {!isClosed && !editingWorkaround && (
+                  <button
+                    onClick={() => { setWorkaroundDraft(problem.workaround ?? ""); setEditingWorkaround(true); }}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                  >
+                    <Edit2 className="h-3 w-3" /> {problem.workaround ? "Edit Workaround" : "Document Workaround"}
+                  </button>
+                )}
+              </div>
+              {editingWorkaround ? (
+                <div className="flex flex-col gap-2">
+                  <textarea rows={4} value={workaroundDraft} onChange={(e) => setWorkaroundDraft(e.target.value)}
+                    placeholder="Describe the workaround users can apply while the permanent fix is pending…"
+                    className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none" />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={updateStatus.isPending}
+                      onClick={() => updateStatus.mutate({ id, workaround: workaroundDraft } as any, { onSuccess: () => { setEditingWorkaround(false); toast.success("Workaround saved to KEDB"); refetch(); } })}
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-amber-600 text-white text-xs hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      <Check className="h-3 w-3" /> Save Workaround
+                    </button>
+                    <button onClick={() => setEditingWorkaround(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className={cn("text-sm whitespace-pre-line", problem.workaround ? "text-amber-900" : "text-muted-foreground/50 italic")}>
+                  {problem.workaround || "No workaround documented. When a workaround is available, document it here so affected users can continue working."}
+                </p>
+              )}
             </div>
-          )}
+          </PermissionGate>
 
           {/* Comment */}
           <PermissionGate module="problems" action="write">

@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 const HR_TABS = [
+  { key: "directory",  label: "Employee Directory",   module: "hr"         as const, action: "read"  as const },
   { key: "cases",       label: "HR Cases",            module: "hr"         as const, action: "read"  as const },
   { key: "onboarding",  label: "Onboarding",           module: "onboarding" as const, action: "read"  as const },
   { key: "offboarding", label: "Offboarding",          module: "hr"         as const, action: "write" as const },
@@ -64,8 +65,8 @@ export default function HRPage() {
     {},
     { refetchOnWindowFocus: false },
   );
-  // employees list wired — available for onboarding/headcount features
-  const { data: _employeesData } = trpc.hr.employees.list.useQuery(
+  // employees list — drives Employee Directory tab
+  const { data: employeesData } = trpc.hr.employees.list.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );
@@ -195,6 +196,71 @@ export default function HRPage() {
       </div>
 
       <div className="bg-card border border-border rounded-b overflow-hidden">
+        {tab === "directory" && (
+          <div>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">
+                {((employeesData as any[]) ?? []).length} Employees
+              </span>
+            </div>
+            {!employeesData || (employeesData as any[]).length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
+                <UserCheck className="w-5 h-5 opacity-30" />
+                <span className="text-xs">No employees found.</span>
+              </div>
+            ) : (
+              <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th className="w-4" />
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Title / Role</th>
+                    <th>Location</th>
+                    <th>Manager</th>
+                    <th>Status</th>
+                    <th>Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(employeesData as any[]).map((emp: any) => (
+                    <tr key={emp.id}>
+                      <td className="p-0">
+                        <div className={`priority-bar ${emp.status === "active" ? "bg-green-500" : emp.status === "on_leave" ? "bg-yellow-500" : "bg-red-400"}`} />
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold flex-shrink-0">
+                            {(emp.firstName?.[0] ?? emp.name?.[0] ?? "?").toUpperCase()}{(emp.lastName?.[0] ?? "").toUpperCase()}
+                          </span>
+                          <div>
+                            <div className="font-semibold text-foreground text-[12px]">{emp.firstName ?? ""} {emp.lastName ?? emp.name ?? ""}</div>
+                            <div className="text-[10px] text-muted-foreground/70 font-mono">{emp.employeeNumber ?? emp.id?.slice(0,8)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-muted-foreground">{emp.department ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{emp.jobTitle ?? emp.role ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{emp.location ?? emp.workLocation ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{emp.managerId ? `ID: ${emp.managerId.slice(0,8)}` : "—"}</td>
+                      <td>
+                        <span className={`status-badge capitalize ${
+                          emp.status === "active" ? "text-green-700 bg-green-100" :
+                          emp.status === "on_leave" ? "text-yellow-700 bg-yellow-100" :
+                          emp.status === "inactive" ? "text-muted-foreground bg-muted" : "text-muted-foreground bg-muted"
+                        }`}>{emp.status ?? "active"}</span>
+                      </td>
+                      <td className="text-[11px] text-muted-foreground/70">
+                        {emp.startDate ? new Date(emp.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
         {tab === "cases" && (
           casesLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">

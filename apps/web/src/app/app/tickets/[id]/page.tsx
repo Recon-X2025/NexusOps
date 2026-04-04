@@ -138,6 +138,17 @@ export default function TicketDetailPage() {
     staleTime: 5 * 60_000,
   });
 
+  // Related records — loaded lazily when tab is activated
+  const relatedEnabled = activeTab === "related";
+  const { data: relatedProblems } = trpc.changes.listProblems.useQuery(
+    { limit: 10 },
+    { enabled: relatedEnabled, staleTime: 60_000 }
+  );
+  const { data: relatedChanges } = trpc.changes.list.useQuery(
+    { limit: 10 },
+    { enabled: relatedEnabled, staleTime: 60_000 }
+  );
+
   // AI assistance — lazy queries enabled only when user explicitly requests
   const [aiEnabled, setAiEnabled] = useState(false);
   const { data: aiSummary, isFetching: summaryLoading } = trpc.ai.summarizeTicket.useQuery(
@@ -630,28 +641,81 @@ export default function TicketDetailPage() {
             {/* Related */}
             {activeTab === "related" && (
               <div className="p-4 space-y-3">
-                {[
-                  { label: "Related Incidents", items: [] },
-                  { label: "Linked Problem Records", items: [] },
-                  { label: "Change Requests", items: [] },
-                  { label: "Knowledge Articles", items: [] },
-                ].map((section) => (
-                  <div key={section.label} className="border border-border rounded">
-                    <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-muted-foreground">{section.label}</span>
-                      <button onClick={() => {
-                        if (section.label === "Related Incidents" || section.label === "Linked Problem Records" || section.label === "Change Requests") {
-                          router.push(`/app/tickets`);
-                        } else if (section.label === "Knowledge Articles") {
-                          router.push(`/app/knowledge`);
-                        }
-                      }} className="text-[11px] text-primary hover:underline">+ Link</button>
-                    </div>
-                    <div className="p-3 text-[12px] text-muted-foreground/70 italic">
-                      No related {section.label.toLowerCase()}
-                    </div>
+                {/* Linked Problems */}
+                <div className="border border-border rounded">
+                  <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Linked Problem Records</span>
+                    <Link href="/app/problems" className="text-[11px] text-primary hover:underline">View All →</Link>
                   </div>
-                ))}
+                  {!relatedProblems || (relatedProblems as any[]).length === 0 ? (
+                    <div className="p-3 text-[12px] text-muted-foreground/70 italic">No problem records found</div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {(relatedProblems as any[]).slice(0, 5).map((p: any) => (
+                        <Link key={p.id} href={`/app/problems/${p.id}`}
+                          className="flex items-center justify-between px-3 py-2 hover:bg-muted/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-primary">{p.number ?? p.id.slice(0,8)}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                p.status === "known_error" ? "bg-red-100 text-red-700" :
+                                p.status === "root_cause_analysis" ? "bg-orange-100 text-orange-700" :
+                                p.status === "resolved" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"
+                              }`}>{p.status?.replace(/_/g," ") ?? "new"}</span>
+                            </div>
+                            <p className="text-[12px] text-foreground/80 mt-0.5 truncate max-w-xs">{p.title}</p>
+                          </div>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium capitalize ${
+                            p.priority === "critical" || p.priority === "1_critical" ? "bg-red-100 text-red-700" :
+                            p.priority === "high" || p.priority === "2_high" ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground"
+                          }`}>{p.priority?.replace(/_/g," ") ?? "low"}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Linked Changes */}
+                <div className="border border-border rounded">
+                  <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Change Requests</span>
+                    <Link href="/app/changes" className="text-[11px] text-primary hover:underline">View All →</Link>
+                  </div>
+                  {!relatedChanges || (relatedChanges as any[]).length === 0 ? (
+                    <div className="p-3 text-[12px] text-muted-foreground/70 italic">No change requests found</div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {(relatedChanges as any[]).slice(0, 5).map((c: any) => (
+                        <Link key={c.id} href={`/app/changes/${c.id}`}
+                          className="flex items-center justify-between px-3 py-2 hover:bg-muted/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-primary">{(c as any).number ?? c.id.slice(0,8)}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                c.status === "approved" ? "bg-green-100 text-green-700" :
+                                c.status === "implementation" ? "bg-orange-100 text-orange-700" :
+                                c.status === "complete" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                              }`}>{c.status?.replace(/_/g," ") ?? "draft"}</span>
+                            </div>
+                            <p className="text-[12px] text-foreground/80 mt-0.5 truncate max-w-xs">{c.title}</p>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground/70 capitalize">{c.type ?? "normal"}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Knowledge Articles */}
+                <div className="border border-border rounded">
+                  <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Knowledge Articles</span>
+                    <Link href="/app/knowledge" className="text-[11px] text-primary hover:underline">Browse KB →</Link>
+                  </div>
+                  <div className="p-3 text-[12px] text-muted-foreground/70 italic">
+                    No articles linked. Visit the Knowledge Base to find relevant articles.
+                  </div>
+                </div>
               </div>
             )}
           </div>

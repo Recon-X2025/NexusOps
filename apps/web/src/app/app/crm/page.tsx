@@ -295,12 +295,17 @@ export default function CRMPage() {
   const [editingLead, setEditingLead] = useState<any | null>(null);
   const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", status: "new" as string });
   const [showNewDeal, setShowNewDeal] = useState(false);
-  const [dealForm, setDealForm] = useState({ title: "", value: "", probability: "30", expectedClose: "" });
+  const [dealForm, setDealForm] = useState({
+    title: "", value: "", probability: "30", expectedClose: "",
+    accountId: "", contactId: "", source: "", stage: "prospect" as string,
+  });
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [showNewAccount, setShowNewAccount] = useState(false);
   const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise"|"mid_market"|"smb", website: "" });
   const [showNewContact, setShowNewContact] = useState(false);
-  const [contactForm, setContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "" });
+  const [contactForm, setContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" });
+  const [showNewLead, setShowNewLead] = useState(false);
+  const [leadForm, setLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string });
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [newQuoteDesc, setNewQuoteDesc] = useState("");
 
@@ -376,6 +381,16 @@ export default function CRMPage() {
     onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} updated`); refetchQuotes(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const createLeadMutation = trpc.crm.createLead.useMutation({
+    onSuccess: () => {
+      toast.success("Lead created");
+      refetchLeads();
+      setShowNewLead(false);
+      setLeadForm({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create lead"),
+  });
 
   if (!can("accounts", "read")) return <AccessDenied module="CRM & Sales" />;
 
@@ -409,39 +424,91 @@ export default function CRMPage() {
   const closedCount = DEALS_LIVE.filter((d: any) => ["closed_won","closed_lost"].includes(d.stage ?? "")).length;
   const winRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : 0;
 
+  // Look up account name from loaded accounts (avoids needing a join in listDeals)
+  const accountNameMap = new Map<string, string>(ACCOUNTS_LIVE.map((a: any) => [a.id, a.name]));
+  const contactNameMap = new Map<string, string>(CONTACTS_LIVE.map((c: any) => [c.id, `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim()]));
+
+  const getDealAccountName = (deal: any) =>
+    deal.account ?? accountNameMap.get(deal.accountId) ?? "—";
+  const getDealContactName = (deal: any) =>
+    deal.contact ?? contactNameMap.get(deal.contactId) ?? "";
   return (
     <div className="flex flex-col gap-3">
 
       {/* Add Deal Modal */}
       {showNewDeal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[13px] font-semibold">New Deal</h3>
               <button onClick={() => setShowNewDeal(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="text-[11px] text-muted-foreground">Deal Title *</label>
-                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} />
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal Title *</label>
+                <input autoFocus className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. NexusOps Enterprise — Acme Corp" />
               </div>
               <div>
-                <label className="text-[11px] text-muted-foreground">Value (₹)</label>
-                <input type="number" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.value} onChange={(e) => setDealForm(f => ({ ...f, value: e.target.value }))} />
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company (Account)</label>
+                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.accountId} onChange={(e) => setDealForm(f => ({ ...f, accountId: e.target.value, contactId: "" }))}>
+                  <option value="">— Select account —</option>
+                  {ACCOUNTS_LIVE.map((a: any) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="text-[11px] text-muted-foreground">Probability (%)</label>
-                <input type="number" min="0" max="100" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Primary Contact</label>
+                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.contactId} onChange={(e) => setDealForm(f => ({ ...f, contactId: e.target.value }))}>
+                  <option value="">— Select contact —</option>
+                  {CONTACTS_LIVE
+                    .filter((c: any) => !dealForm.accountId || c.accountId === dealForm.accountId)
+                    .map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.firstName} {c.lastName} {c.title ? `(${c.title})` : ""}</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Value (₹)</label>
+                <input type="number" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.value} onChange={(e) => setDealForm(f => ({ ...f, value: e.target.value }))} placeholder="e.g. 5000000" />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Probability (%)</label>
+                <input type="number" min="0" max="100" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage</label>
+                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
+                  {(["prospect","qualified","proposal","negotiation","verbal_commit"] as const).map(s => (
+                    <option key={s} value={s}>{STAGE_CFG[s].label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close Date</label>
+                <input type="date" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
               </div>
               <div className="col-span-2">
-                <label className="text-[11px] text-muted-foreground">Expected Close Date</label>
-                <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source</label>
+                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.source} onChange={(e) => setDealForm(f => ({ ...f, source: e.target.value }))}>
+                  <option value="">— Select source —</option>
+                  {["Inbound / Website","Inbound / Trial","Direct / Outbound","Partner Referral","LinkedIn Outbound","Upsell / Existing Customer","Event / Conference","SDR / Cold Outreach","Webinar Attendee","Other"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
                 disabled={!dealForm.title || createDeal.isPending}
-                onClick={() => createDeal.mutate({ title: dealForm.title, value: dealForm.value || undefined, probability: Number(dealForm.probability) || 30, expectedClose: dealForm.expectedClose || undefined })}
+                onClick={() => createDeal.mutate({
+                  title: dealForm.title,
+                  value: dealForm.value || undefined,
+                  probability: Number(dealForm.probability) || 30,
+                  expectedClose: dealForm.expectedClose || undefined,
+                  accountId: dealForm.accountId || undefined,
+                  contactId: dealForm.contactId || undefined,
+                })}
                 className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
               >
                 {createDeal.isPending ? "Creating…" : "Create Deal"}
@@ -651,20 +718,23 @@ export default function CRMPage() {
                     {stageDeals.map((deal) => (
                       <div key={deal.id} className="border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-mono text-[10px] text-primary">{deal.number}</span>
+                          <span className="font-mono text-[10px] text-primary">{deal.number ?? "—"}</span>
                           <span className="text-[11px] text-muted-foreground/70">{deal.probability}%</span>
                         </div>
-                        <p className="text-[12px] font-semibold text-foreground mb-0.5">{deal.account}</p>
-                        <p className="text-[11px] text-muted-foreground truncate mb-1.5">{deal.name}</p>
+                        <p className="text-[12px] font-semibold text-foreground mb-0.5">{getDealAccountName(deal)}</p>
+                        <p className="text-[11px] text-muted-foreground truncate mb-0.5">{deal.title}</p>
+                        {getDealContactName(deal) && (
+                          <p className="text-[10px] text-muted-foreground/60 truncate mb-1">{getDealContactName(deal)}</p>
+                        )}
                         <div className="flex items-center justify-between">
                           <span className="font-mono font-bold text-[12px] text-primary">₹{(deal.value/1000).toFixed(0)}K</span>
-                          <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate?.slice(5) ?? "—"}</span>
+                          <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate?.slice(5) ?? deal.expectedClose?.toString()?.slice(5) ?? "—"}</span>
                         </div>
                         <div className="mt-1.5 flex items-center gap-1">
                           <span className="w-4 h-4 rounded-full bg-primary text-white text-[8px] flex items-center justify-center font-bold">
                             {(deal.owner ?? "").split(" ").map((n:string)=>n[0]).join("").slice(0,2)}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/70 truncate flex-1">{deal.lastActivity}</span>
+                          <span className="text-[10px] text-muted-foreground/70 truncate flex-1">{deal.lastActivity ?? deal.updatedAt ?? ""}</span>
                           <PermissionGate module="accounts" action="write">
                             <button
                               onClick={(e) => { e.stopPropagation(); setMovingDeal(deal.id); }}
@@ -799,6 +869,15 @@ export default function CRMPage() {
 
         {/* LEADS */}
         {tab === "leads" && (
+          <div>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{LEADS_LIVE.length} Leads</span>
+              <PermissionGate module="accounts" action="write">
+                <button onClick={() => setShowNewLead(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> Add Lead
+                </button>
+              </PermissionGate>
+            </div>
           <table className="ent-table w-full">
             <thead>
               <tr>
@@ -847,6 +926,7 @@ export default function CRMPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* ACTIVITIES */}
@@ -1243,6 +1323,13 @@ export default function CRMPage() {
                 </div>
               </div>
               <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.accountId} onChange={(e) => setContactForm(f => ({ ...f, accountId: e.target.value }))}>
+                  <option value="">— Select account —</option>
+                  {ACCOUNTS_LIVE.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
                 <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.email} onChange={(e) => setContactForm(f => ({ ...f, email: e.target.value }))} />
               </div>
@@ -1258,10 +1345,64 @@ export default function CRMPage() {
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewContact(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!contactForm.firstName.trim() || !contactForm.lastName.trim()) { toast.error("First and last name are required"); return; } createContactMutation.mutate({ firstName: contactForm.firstName.trim(), lastName: contactForm.lastName.trim(), email: contactForm.email || undefined, phone: contactForm.phone || undefined, title: contactForm.title || undefined }); }}
+                onClick={() => { if (!contactForm.firstName.trim() || !contactForm.lastName.trim()) { toast.error("First and last name are required"); return; } createContactMutation.mutate({ firstName: contactForm.firstName.trim(), lastName: contactForm.lastName.trim(), email: contactForm.email || undefined, phone: contactForm.phone || undefined, title: contactForm.title || undefined, accountId: contactForm.accountId || undefined }); }}
                 disabled={createContactMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createContactMutation.isPending ? "Creating…" : "Create Contact"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Lead Modal */}
+      {showNewLead && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">New Lead</h2>
+              <button onClick={() => setShowNewLead(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
+                <input autoFocus className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.firstName} onChange={(e) => setLeadForm(f => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Last Name *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.lastName} onChange={(e) => setLeadForm(f => ({ ...f, lastName: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="Company / Organisation" value={leadForm.company} onChange={(e) => setLeadForm(f => ({ ...f, company: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.title} onChange={(e) => setLeadForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone</label>
+                <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.phone} onChange={(e) => setLeadForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
+                <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.email} onChange={(e) => setLeadForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.source} onChange={(e) => setLeadForm(f => ({ ...f, source: e.target.value }))}>
+                  {["website","linkedin","partner_referral","event","cold_outreach","webinar","trial","other"].map(s => (
+                    <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowNewLead(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                disabled={!leadForm.firstName.trim() || !leadForm.lastName.trim() || !leadForm.company.trim() || createLeadMutation.isPending}
+                onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email || undefined, company: leadForm.company.trim(), source: leadForm.source })}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{createLeadMutation.isPending ? "Creating…" : "Create Lead"}</button>
             </div>
           </div>
         </div>
