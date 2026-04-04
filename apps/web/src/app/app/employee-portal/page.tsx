@@ -40,6 +40,7 @@ export default function EmployeePortalPage() {
 
   const employeeQuery = trpc.hr.employees.list.useQuery({});
   const leaveQuery = trpc.hr.leave.list.useQuery({});
+  const leaveBalanceQuery = trpc.hr.leave.balance.useQuery({});
 
   const createLeave = trpc.hr.leave.create.useMutation({
     onSuccess: () => {
@@ -106,7 +107,11 @@ export default function EmployeePortalPage() {
     : [];
 
   const totalBenefitsCost = 0;
-  const leaveAvailable = 0;
+  const leaveBalances = (leaveBalanceQuery.data ?? []) as any[];
+  const annualBalance = leaveBalances.find((b: any) => b.type === "vacation" || b.type === "annual") ?? leaveBalances[0];
+  const leaveAvailable = annualBalance
+    ? Math.max(0, Number(annualBalance.totalDays ?? 0) - Number(annualBalance.usedDays ?? 0) - Number(annualBalance.pendingDays ?? 0))
+    : 0;
 
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -428,7 +433,23 @@ export default function EmployeePortalPage() {
         {tab === "leave" && (
           <div className="p-4">
             <div className="grid grid-cols-5 gap-2 mb-4">
-              <div className="col-span-5 py-4 text-center text-[11px] text-muted-foreground/50">Leave balance data not available — connect an HR system to view leave entitlements</div>
+              {leaveBalanceQuery.isLoading ? (
+                <div className="col-span-5 py-3 text-center text-[11px] text-muted-foreground/50 animate-pulse">Loading leave balances…</div>
+              ) : leaveBalances.length === 0 ? (
+                <div className="col-span-5 py-4 text-center text-[11px] text-muted-foreground/50">No leave balance records yet — submit a leave request to initialize balances.</div>
+              ) : leaveBalances.map((b: any) => {
+                const total = Number(b.totalDays ?? 0);
+                const used = Number(b.usedDays ?? 0);
+                const pending = Number(b.pendingDays ?? 0);
+                const available = Math.max(0, total - used - pending);
+                return (
+                  <div key={b.id} className="bg-card border border-border rounded px-3 py-2">
+                    <div className="text-[14px] font-bold text-foreground">{available} <span className="text-[11px] font-normal text-muted-foreground">/ {total}</span></div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide capitalize">{(b.type ?? "").replace(/_/g, " ")} Days</div>
+                    {pending > 0 && <div className="text-[10px] text-yellow-600">{pending} pending</div>}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex items-center justify-between mb-3">

@@ -423,6 +423,22 @@ export const hrRouter = router({
 
         return updated;
       }),
+
+    balance: permissionProcedure("hr", "read")
+      .input(z.object({ employeeId: z.string().uuid().optional(), year: z.coerce.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const year = input.year ?? new Date().getFullYear();
+        let employeeId = input.employeeId;
+        if (!employeeId) {
+          const [emp] = await db.select().from(employees)
+            .where(and(eq(employees.userId, ctx.user!.id), eq(employees.orgId, org!.id)));
+          employeeId = emp?.id;
+        }
+        if (!employeeId) return [];
+        return db.select().from(leaveBalances)
+          .where(and(eq(leaveBalances.employeeId, employeeId), eq(leaveBalances.year, year)));
+      }),
   }),
 
   onboardingTemplates: router({

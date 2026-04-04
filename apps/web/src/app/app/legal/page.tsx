@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Scale, Plus, Search, Download, FileText, Users,
   CheckCircle2, Clock, ChevronRight, Send, Shield, Eye,
-  BookOpen, Lock, Globe, Building2, Briefcase, Tag,
+  BookOpen, Lock, Globe, Building2, Briefcase, Tag, X,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
@@ -152,6 +152,20 @@ export default function LegalPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
+  const [showNewMatter, setShowNewMatter] = useState(false);
+  const [matterForm, setMatterForm] = useState({ title: "", description: "", type: "commercial", estimatedCost: "" });
+  const createMatter = trpc.legal.createMatter.useMutation({
+    onSuccess: () => { toast.success("Matter created"); setShowNewMatter(false); setMatterForm({ title: "", description: "", type: "commercial", estimatedCost: "" }); refetchMatters(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create matter"),
+  });
+
+  const [showNewRequest, setShowNewRequest] = useState(false);
+  const [requestForm, setRequestForm] = useState({ title: "", description: "", type: "advisory", priority: "medium" });
+  const createRequest = trpc.legal.createRequest.useMutation({
+    onSuccess: () => { toast.success("Legal request submitted"); setShowNewRequest(false); setRequestForm({ title: "", description: "", type: "advisory", priority: "medium" }); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create request"),
+  });
+
   if (!can("contracts", "read") && !can("grc", "read")) return <AccessDenied module="Legal Service Delivery" />;
 
   const matters = (mattersData ?? []) as any[];
@@ -183,7 +197,15 @@ export default function LegalPage() {
           </button>
           <PermissionGate module="grc" action="write">
             <button
-              onClick={() => setTab("matters")}
+              onClick={() => setShowNewMatter(true)}
+              className="flex items-center gap-1 px-3 py-1 bg-purple-700 text-white text-[11px] rounded hover:bg-purple-800"
+            >
+              <Plus className="w-3 h-3" /> New Matter
+            </button>
+          </PermissionGate>
+          <PermissionGate module="grc" action="write">
+            <button
+              onClick={() => setShowNewRequest(true)}
               className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
             >
               <Plus className="w-3 h-3" /> New Legal Request
@@ -550,5 +572,104 @@ export default function LegalPage() {
         )}
       </div>
     </div>
+
+    {showNewMatter && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold">New Legal Matter</h2>
+            <button onClick={() => setShowNewMatter(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Matter Title *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Data Privacy Compliance Review" value={matterForm.title} onChange={(e) => setMatterForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+              <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={matterForm.type} onChange={(e) => setMatterForm((f) => ({ ...f, type: e.target.value }))}>
+                {["commercial","litigation","employment","ip","regulatory","ma","data_privacy","corporate"].map((t) => (
+                  <option key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+              <textarea className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background h-16 resize-none" placeholder="Brief description of the matter…" value={matterForm.description} onChange={(e) => setMatterForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Estimated Cost (₹)</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 500000" value={matterForm.estimatedCost} onChange={(e) => setMatterForm((f) => ({ ...f, estimatedCost: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowNewMatter(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!matterForm.title.trim()) { toast.error("Matter title is required"); return; }
+                createMatter.mutate({ title: matterForm.title.trim(), description: matterForm.description || undefined, type: matterForm.type as any, estimatedCost: matterForm.estimatedCost || undefined });
+              }}
+              disabled={createMatter.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-purple-700 text-white rounded hover:bg-purple-800 disabled:opacity-50"
+            >
+              {createMatter.isPending ? "Creating…" : "Create Matter"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showNewRequest && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold">New Legal Request</h2>
+            <button onClick={() => setShowNewRequest(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Request Title *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Contract Review — Vendor NDA" value={requestForm.title} onChange={(e) => setRequestForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={requestForm.type} onChange={(e) => setRequestForm((f) => ({ ...f, type: e.target.value }))}>
+                  {["advisory","contract_review","compliance","litigation_support","employment","ip"].map((t) => (
+                    <option key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Priority</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={requestForm.priority} onChange={(e) => setRequestForm((f) => ({ ...f, priority: e.target.value }))}>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+              <textarea className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background h-16 resize-none" placeholder="Describe the legal request…" value={requestForm.description} onChange={(e) => setRequestForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowNewRequest(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!requestForm.title.trim()) { toast.error("Request title is required"); return; }
+                createRequest.mutate({ title: requestForm.title.trim(), description: requestForm.description || undefined, type: requestForm.type, priority: requestForm.priority });
+              }}
+              disabled={createRequest.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createRequest.isPending ? "Submitting…" : "Submit Request"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

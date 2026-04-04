@@ -368,6 +368,28 @@ export const changesRouter = router({
       return article;
     }),
 
+  getRelease: permissionProcedure("changes", "read")
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [release] = await db.select().from(releases)
+        .where(and(eq(releases.id, input.id), eq(releases.orgId, org!.id)));
+      if (!release) throw new TRPCError({ code: "NOT_FOUND", message: "Release not found" });
+      return release;
+    }),
+
+  updateRelease: permissionProcedure("changes", "write")
+    .input(z.object({ id: z.string().uuid(), status: z.string().optional(), notes: z.string().optional(), actualDate: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      const [release] = await db.update(releases)
+        .set({ ...data, actualDate: data.actualDate ? new Date(data.actualDate) : undefined, updatedAt: new Date() } as any)
+        .where(and(eq(releases.id, id), eq(releases.orgId, org!.id)))
+        .returning();
+      return release;
+    }),
+
   // ── Releases ──────────────────────────────────────────────────────────────
   listReleases: permissionProcedure("changes", "read")
     .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))

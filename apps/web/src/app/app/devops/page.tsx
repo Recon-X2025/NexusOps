@@ -13,12 +13,13 @@ import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const DEVOPS_TABS = [
-  { key: "dashboard",   label: "Dashboard",       module: "changes"  as const, action: "read"  as const },
-  { key: "pipelines",   label: "CI/CD Pipelines", module: "changes"  as const, action: "read"  as const },
-  { key: "deployments", label: "Deployments",     module: "changes"  as const, action: "read"  as const },
-  { key: "changes",     label: "Change Velocity", module: "changes"  as const, action: "read"  as const },
-  { key: "agile",       label: "Agile Board",     module: "projects" as const, action: "read"  as const },
-  { key: "tools",       label: "Tool Integrations",module: "changes" as const, action: "admin" as const },
+  { key: "dashboard",    label: "Dashboard",       module: "changes"  as const, action: "read"  as const },
+  { key: "pipelines",    label: "CI/CD Pipelines", module: "changes"  as const, action: "read"  as const },
+  { key: "deployments",  label: "Deployments",     module: "changes"  as const, action: "read"  as const },
+  { key: "environments", label: "Environments",    module: "changes"  as const, action: "read"  as const },
+  { key: "changes",      label: "Change Velocity", module: "changes"  as const, action: "read"  as const },
+  { key: "agile",        label: "Agile Board",     module: "projects" as const, action: "read"  as const },
+  { key: "tools",        label: "Tool Integrations",module: "changes" as const, action: "admin" as const },
 ];
 
 type PipelineStatus = "running" | "passed" | "failed" | "cancelled" | "queued";
@@ -143,6 +144,11 @@ export default function DevOpsPage() {
 
   const rollbackDeployment = trpc.devops.createDeployment.useMutation({
     onSuccess: (dep: any) => { toast.success(`Rollback deployment initiated for ${dep?.appName ?? ""}`); refetchDeployments(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const createDeployment = trpc.devops.createDeployment.useMutation({
+    onSuccess: (dep: any) => { toast.success(`Deployment to ${dep?.environment ?? ""} initiated`); refetchDeployments(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
@@ -411,6 +417,73 @@ export default function DevOpsPage() {
               })}
             </tbody>
           </table>
+        )}
+
+        {/* ENVIRONMENTS */}
+        {tab === "environments" && (
+          <div className="p-4 space-y-4">
+            <div className="text-[11px] text-muted-foreground/70 mb-2">Live deployment status by environment</div>
+            <div className="grid grid-cols-2 gap-4">
+              {(["dev", "qa", "staging", "production"] as const).map((env) => {
+                const envDeploys = (deploymentsData ?? []).filter((d: any) => d.environment === env);
+                const latest = envDeploys[0] as any;
+                const successCount = envDeploys.filter((d: any) => d.status === "success").length;
+                const failedCount = envDeploys.filter((d: any) => d.status === "failed").length;
+                const envColor = env === "production" ? "border-red-300 bg-red-50/30" : env === "staging" ? "border-purple-200 bg-purple-50/30" : env === "qa" ? "border-blue-200 bg-blue-50/30" : "border-border bg-card";
+                const envBadgeColor = env === "production" ? "text-red-700 bg-red-100" : env === "staging" ? "text-purple-700 bg-purple-100" : env === "qa" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted";
+                return (
+                  <div key={env} className={`border rounded p-4 ${envColor}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Server className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-[13px] font-bold text-foreground capitalize">{env}</span>
+                        <span className={`status-badge text-[10px] uppercase ${envBadgeColor}`}>{env}</span>
+                      </div>
+                      {latest && (
+                        <span className={`status-badge text-[10px] capitalize ${latest.status === "success" ? "text-green-700 bg-green-100" : latest.status === "failed" ? "text-red-700 bg-red-100" : "text-blue-700 bg-blue-100"}`}>
+                          {latest.status}
+                        </span>
+                      )}
+                    </div>
+                    {latest ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Latest App</span>
+                          <span className="font-medium text-foreground">{latest.appName ?? "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Version</span>
+                          <span className="font-mono text-primary">{latest.version ?? "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Deployed</span>
+                          <span className="text-muted-foreground">{latest.startedAt ? new Date(latest.startedAt).toLocaleDateString("en-GB") : "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Success / Failed (30d)</span>
+                          <span>
+                            <span className="text-green-600 font-bold">{successCount}</span>
+                            <span className="text-muted-foreground/50"> / </span>
+                            <span className={`font-bold ${failedCount > 0 ? "text-red-600" : "text-muted-foreground"}`}>{failedCount}</span>
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground/50 py-2 text-center">No deployments yet</div>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => createDeployment.mutate({ appName: "nexusops-api", environment: env === "production" ? "production" : env as any, version: "latest" })}
+                        disabled={createDeployment.isPending}
+                        className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-[10px] rounded hover:bg-primary/20 disabled:opacity-50">
+                        <Play className="w-3 h-3" /> Deploy
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* CHANGE VELOCITY */}

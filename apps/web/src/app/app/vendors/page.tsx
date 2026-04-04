@@ -282,7 +282,7 @@ export default function VendorsPage() {
                           {(c.status ?? "active").replace(/_/g," ")}
                         </span>
                       </td>
-                      <td><button onClick={() => router.push(`/app/procurement?tab=vendors&id=${v.id ?? ""}`)} className="text-[11px] text-primary hover:underline">View</button></td>
+                      <td><button onClick={() => router.push(`/app/vendors/${v.id ?? ""}`)} className="text-[11px] text-primary hover:underline">View</button></td>
                     </tr>
                   );
                 })

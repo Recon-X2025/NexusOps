@@ -203,6 +203,7 @@ export default function ReleasesPage() {
                       <button onClick={() => router.push(`/app/changes?search=${encodeURIComponent((rel.changeRef as string) ?? rel.id ?? "")}`)} className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Pipeline</button>
                       <button onClick={() => router.push(`/app/changes/new?type=emergency&source=rollback&release=${rel.id ?? ""}`)} className="px-3 py-1 border border-red-300 text-red-600 text-[11px] rounded hover:bg-red-50">Rollback</button>
                       <button onClick={() => router.push(`/app/changes?search=${encodeURIComponent((rel.changeRef as string) ?? rel.id ?? "")}`)} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">View Logs</button>
+                      <button onClick={() => router.push(`/app/releases/${rel.id}`)} className="px-3 py-1 border border-border text-primary text-[11px] rounded hover:bg-primary/10">View Details</button>
                     </div>
                   </div>
                 )}

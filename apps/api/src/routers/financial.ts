@@ -52,6 +52,32 @@ export const financialRouter = router({
     }),
 
   // ── Invoices (AP/AR) ───────────────────────────────────────────────────────
+  createInvoice: permissionProcedure("financial", "write")
+    .input(z.object({
+      vendorId: z.string().uuid(),
+      invoiceNumber: z.string().min(1),
+      amount: z.string(),
+      dueDate: z.string().optional(),
+      invoiceDate: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [inv] = await db.insert(invoices).values({
+        orgId: org!.id,
+        vendorId: input.vendorId,
+        invoiceNumber: input.invoiceNumber,
+        invoiceType: "tax_invoice",
+        amount: input.amount,
+        taxableValue: input.amount,
+        status: "pending",
+        matchingStatus: "pending",
+        invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+        dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+      } as any).returning();
+      return inv;
+    }),
+
   listInvoices: permissionProcedure("financial", "read")
     .input(z.object({
       direction: z.enum(["payable", "receivable"]).optional(),

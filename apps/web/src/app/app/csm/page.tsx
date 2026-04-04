@@ -213,6 +213,7 @@ export default function CSMPage() {
                     <th>Product</th>
                     <th>Assignee</th>
                     <th>CSAT</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -246,6 +247,14 @@ export default function CSMPage() {
                             ))}
                           </div>
                         ) : <span className="text-slate-300 text-[11px]">—</span>}
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => router.push(`/app/csm/${c.id}`)}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
+                        >
+                          View <ChevronRight className="w-3 h-3" />
+                        </button>
                       </td>
                     </tr>
                   ))}

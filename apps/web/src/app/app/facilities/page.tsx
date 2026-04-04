@@ -36,6 +36,9 @@ export default function FacilitiesPage() {
 
   const utils = trpc.useUtils();
 
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [bookingForm, setBookingForm] = useState({ roomId: "", title: "", startTime: "", endTime: "", attendeeCount: "" });
+
   // @ts-ignore — facilities router is being created in a parallel task
   const buildingsQuery = trpc.facilities.buildings.list.useQuery({});
 
@@ -54,6 +57,8 @@ export default function FacilitiesPage() {
       // @ts-ignore
       utils.facilities.bookings.list.invalidate();
       toast.success("Room booked successfully");
+      setShowBookingForm(false);
+      setBookingForm({ roomId: "", title: "", startTime: "", endTime: "", attendeeCount: "" });
     },
     onError: (e: any) => { console.error("facilities.bookings.create failed:", e); toast.error(e.message || "Failed to book room"); },
   });
@@ -225,7 +230,7 @@ export default function FacilitiesPage() {
               <span className="text-[12px] font-semibold text-foreground/80">Today — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
               <PermissionGate module="facilities" action="write">
                 <button
-                  onClick={() => setTab("bookings")}
+                  onClick={() => setShowBookingForm(true)}
                   disabled={createBookingMutation.isPending}
                   className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
                   <Plus className="w-3 h-3" /> {createBookingMutation.isPending ? "Booking…" : "Book a Room"}
@@ -426,5 +431,67 @@ export default function FacilitiesPage() {
         )}
       </div>
     </div>
+
+    {showBookingForm && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" /> Book a Meeting Room
+            </h2>
+            <button onClick={() => setShowBookingForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Room ID *</label>
+              <input
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                placeholder="Paste room UUID or leave blank"
+                value={bookingForm.roomId}
+                onChange={(e) => setBookingForm((f) => ({ ...f, roomId: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground/60 mt-0.5">Enter the UUID of the room to book</p>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Meeting Title</label>
+              <input
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                placeholder="e.g. Sprint Planning"
+                value={bookingForm.title}
+                onChange={(e) => setBookingForm((f) => ({ ...f, title: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Start Time *</label>
+                <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={bookingForm.startTime} onChange={(e) => setBookingForm((f) => ({ ...f, startTime: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">End Time *</label>
+                <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={bookingForm.endTime} onChange={(e) => setBookingForm((f) => ({ ...f, endTime: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Attendee Count</label>
+              <input type="number" min="1" max="100" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 8" value={bookingForm.attendeeCount} onChange={(e) => setBookingForm((f) => ({ ...f, attendeeCount: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowBookingForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!bookingForm.roomId.trim() || !bookingForm.startTime || !bookingForm.endTime) { toast.error("Room ID, start and end time are required"); return; }
+                // @ts-ignore
+                createBookingMutation.mutate({ roomId: bookingForm.roomId.trim(), title: bookingForm.title || undefined, startTime: new Date(bookingForm.startTime).toISOString(), endTime: new Date(bookingForm.endTime).toISOString(), attendeeCount: bookingForm.attendeeCount ? Number(bookingForm.attendeeCount) : undefined });
+              }}
+              disabled={createBookingMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createBookingMutation.isPending ? "Booking…" : "Book Room"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

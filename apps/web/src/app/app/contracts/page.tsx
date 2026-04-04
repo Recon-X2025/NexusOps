@@ -833,6 +833,12 @@ function ContractsPageInner() {
                         >
                           <FileText className="w-3 h-3 inline mr-1" />Export CSV
                         </button>
+                        <button
+                          onClick={() => router.push(`/app/contracts/${c.id}`)}
+                          className="px-3 py-1 bg-primary/10 text-primary text-[11px] rounded hover:bg-primary/20 flex items-center gap-1"
+                        >
+                          <ArrowRight className="w-3 h-3" />View Details
+                        </button>
                         {c.state === "active" && c.renewalDeadline && (
                           <button
                             onClick={() => toast.success(`Renewal initiated for "${c.title}". Deadline: ${new Date(c.renewalDeadline!).toLocaleDateString("en-IN")}. New draft will appear in the Contract Wizard.`)}

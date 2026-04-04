@@ -69,6 +69,19 @@ export default function FinancialPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to add budget line"),
   });
 
+  const [showNewInvoice, setShowNewInvoice] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+  const createInvoiceMutation = trpc.financial.createInvoice.useMutation({
+    onSuccess: () => {
+      toast.success("Invoice created");
+      setShowNewInvoice(false);
+      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+      void (trpc as any).financial?.listInvoices?.invalidate?.();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
+  });
+  const { data: vendorListData } = trpc.vendors.list.useQuery({ limit: 100 }, { refetchOnWindowFocus: false });
+
   const { data: arInvoicesData } = trpc.financial.listInvoices.useQuery(
     { limit: 50, direction: "receivable" } as any,
     { refetchOnWindowFocus: false },
@@ -143,6 +156,14 @@ export default function FinancialPage() {
               className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
             >
               <Plus className="w-3 h-3" /> Add Budget Line
+            </button>
+          )}
+          {can("financial", "write") && (
+            <button
+              onClick={() => setShowNewInvoice(true)}
+              className="flex items-center gap-1 px-2 py-1 bg-green-700 text-white text-[11px] rounded hover:bg-green-800"
+            >
+              <Plus className="w-3 h-3" /> New Invoice
             </button>
           )}
         </div>
@@ -833,6 +854,57 @@ export default function FinancialPage() {
               className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createBudgetLine.isPending ? "Adding…" : "Add Line"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showNewInvoice && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold">Create Invoice</h2>
+            <button onClick={() => setShowNewInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Vendor *</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={invoiceForm.vendorId}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, vendorId: e.target.value }))}
+              >
+                <option value="">— select vendor —</option>
+                {((vendorListData as any)?.items ?? []).map((v: any) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Invoice Number *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. INV-2026-001" value={invoiceForm.invoiceNumber} onChange={(e) => setInvoiceForm((f) => ({ ...f, invoiceNumber: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Amount (₹) *</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 150000" value={invoiceForm.amount} onChange={(e) => setInvoiceForm((f) => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
+              <input type="date" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowNewInvoice(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!invoiceForm.vendorId || !invoiceForm.invoiceNumber.trim() || !invoiceForm.amount) { toast.error("Vendor, invoice number, and amount are required"); return; }
+                createInvoiceMutation.mutate({ vendorId: invoiceForm.vendorId, invoiceNumber: invoiceForm.invoiceNumber.trim(), amount: invoiceForm.amount, dueDate: invoiceForm.dueDate || undefined });
+              }}
+              disabled={createInvoiceMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-50"
+            >
+              {createInvoiceMutation.isPending ? "Creating…" : "Create Invoice"}
             </button>
           </div>
         </div>
