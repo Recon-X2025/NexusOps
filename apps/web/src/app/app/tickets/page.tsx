@@ -143,11 +143,16 @@ export default function TicketsPage() {
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
   const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
   const priorityMap = Object.fromEntries((priorityList ?? []).map((p) => [p.id, p]));
-  const { data, isLoading, refetch } = trpc.tickets.list.useQuery({
+  const { data, isLoading, isFetching, refetch } = trpc.tickets.list.useQuery({
     search: search || undefined,
     statusId: selectedStatusId ?? undefined,
     limit: 50,
-  }, { staleTime: STALE_TIME.LIVE });
+  }, {
+    staleTime: STALE_TIME.LIVE,
+    // Keep previous results visible while a search/filter refetch is in-flight
+    // so the table never flashes "0 of 0 records" during a query transition.
+    placeholderData: (prev: any) => prev,
+  });
 
   if (!can("incidents", "read") && !can("requests", "read")) {
     return <AccessDenied module="Service Desk" />;
@@ -566,7 +571,11 @@ export default function TicketsPage() {
       )}
 
       {/* ─── Table ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto scrollbar-thin">
+      <div className="flex-1 overflow-auto scrollbar-thin relative">
+        {/* Subtle overlay while a search/filter refetch runs (not initial load) */}
+        {isFetching && !isLoading && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/30 animate-pulse z-20" />
+        )}
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
