@@ -13,7 +13,7 @@ export const API_URL =
     : "http://139.84.154.78:3001";
 
 export const ADMIN_EMAIL    = "admin@coheron.com";
-export const ADMIN_PASSWORD = "Admin1234!";
+export const ADMIN_PASSWORD = "demo1234!";
 export const ORG_SLUG       = "coheron-demo";
 
 // ── All 35+ module routes ─────────────────────────────────────────────────────

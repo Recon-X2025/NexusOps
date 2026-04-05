@@ -34,7 +34,7 @@ export default async function globalSetup(_config: FullConfig) {
     const emailInput = page.locator('input[type="email"], input[name="email"]').first();
     const pwInput    = page.locator('input[type="password"]').first();
     await emailInput.fill("admin@coheron.com", { timeout: 10_000 });
-    await pwInput.fill("Admin1234!", { timeout: 5_000 });
+    await pwInput.fill("demo1234!", { timeout: 5_000 });
     await page.locator('button[type="submit"]').first().click({ timeout: 5_000 });
     await page.waitForURL(/\/app\//, { timeout: 30_000 });
 
