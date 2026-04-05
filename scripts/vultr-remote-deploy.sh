@@ -19,10 +19,17 @@ if [[ ! -f .env.production ]]; then
   exit 1
 fi
 
+# GitHub Actions can pass GHCR_TOKEN / GHCR_USERNAME for docker login; preserve if .env overwrites or omits them.
+_CI_GHCR_TOKEN="${GHCR_TOKEN:-}"
+_CI_GHCR_USER="${GHCR_USERNAME:-}"
+
 set -a
 # shellcheck disable=SC1091
 source .env.production
 set +a
+
+[[ -n "$_CI_GHCR_TOKEN" ]] && export GHCR_TOKEN="$_CI_GHCR_TOKEN"
+[[ -n "$_CI_GHCR_USER" ]] && export GHCR_USERNAME="$_CI_GHCR_USER"
 
 # Compose expects POSTGRES_PASSWORD; .env may only define DATABASE_URL.
 if [[ -z "${POSTGRES_PASSWORD:-}" && -n "${DATABASE_URL:-}" ]]; then

@@ -4,9 +4,8 @@
 #   VULTR_SSH_PRIVATE_KEY  — ed25519 key with access to root@VULTR_HOST
 #   VULTR_HOST             — e.g. 139.84.154.78
 #
-# Optional (if GHCR packages are private — server still needs docker login):
-#   Add GHCR_USERNAME + GHCR_TOKEN to /opt/nexusops/.env.production on the VPS,
-#   or run `docker login ghcr.io` once on the server.
+# GHCR: workflow passes github.token to the VPS for `docker login` (packages:read).
+# For laptop-only deploy without Actions, use .env.production on the VPS or DEPLOY_MODE=build.
 #
 name: Deploy Vultr
 
@@ -17,6 +16,10 @@ on:
         description: "Image tag to pull (latest, main, or 7-char commit SHA)"
         required: true
         default: "latest"
+
+permissions:
+  contents: read
+  packages: read
 
 jobs:
   deploy:
@@ -44,6 +47,8 @@ jobs:
         env:
           VULTR_HOST: ${{ secrets.VULTR_HOST }}
           NEXUSOPS_IMAGE_TAG: ${{ inputs.image_tag }}
+          GHCR_READ_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
         run: |
           export NEXUSOPS_IMAGE_REPO="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           bash scripts/push-to-vultr.sh

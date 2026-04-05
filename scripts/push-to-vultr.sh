@@ -72,9 +72,14 @@ rsync -az \
 ok "Files synced"
 
 info "Remote: scripts/vultr-remote-deploy.sh (${DEPLOY_MODE})…"
+# Optional: GHCR_READ_TOKEN + GHCR_USERNAME (e.g. github.token + github.actor from Actions) for private ghcr.io pulls on the VPS.
+GHCR_EXPORT=""
+if [[ -n "${GHCR_READ_TOKEN:-}" ]]; then
+  GHCR_EXPORT="GHCR_TOKEN=$(printf '%q' "$GHCR_READ_TOKEN") GHCR_USERNAME=$(printf '%q' "${GHCR_USERNAME:-oauth2}") "
+fi
 # shellcheck disable=SC2029
 ssh -S "$SOCK" -o BatchMode=yes "$SERVER" \
-  "DEPLOY_MODE=$(printf '%q' "$DEPLOY_MODE") \
+  "${GHCR_EXPORT}DEPLOY_MODE=$(printf '%q' "$DEPLOY_MODE") \
    NO_CACHE=$(printf '%q' "${NO_CACHE:-}") \
    NEXUSOPS_WEB_IMAGE=$(printf '%q' "$WEB_IMAGE") \
    NEXUSOPS_API_IMAGE=$(printf '%q' "$API_IMAGE") \
