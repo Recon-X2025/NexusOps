@@ -413,7 +413,7 @@ function SidebarNavContent({
       </nav>
 
       <div className="border-t border-sidebar-border px-3 py-2 text-[10px] text-muted-foreground flex items-center justify-between shrink-0">
-        <span>NexusOps Platform v2.0.1</span>
+        <span>NexusOps Platform {process.env.NEXT_PUBLIC_APP_VERSION ?? "v2.0.1"}</span>
         <span className="text-green-600 dark:text-green-400">● Online</span>
       </div>
     </>

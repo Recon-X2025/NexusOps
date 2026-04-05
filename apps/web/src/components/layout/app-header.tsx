@@ -15,17 +15,78 @@ import { MOCK_USERS, SYSTEM_ROLES_CATALOG } from "@/lib/rbac";
 import { trpc } from "@/lib/trpc";
 
 const BREADCRUMB_LABELS: Record<string, string> = {
+  // Platform
   app: "NexusOps",
   dashboard: "Dashboard",
-  tickets: "All Tickets",
-  assets: "Assets",
+  admin: "Administration",
+  profile: "My Profile",
+  notifications: "Notifications",
+  // IT Services
+  "it-services": "IT Services",
+  tickets: "Service Desk",
+  changes: "Changes",
+  problems: "Problems",
+  releases: "Releases",
+  "work-orders": "Work Orders",
+  parts: "Parts & Inventory",
+  "on-call": "On-Call",
+  events: "Event Management",
   cmdb: "CMDB",
-  workflows: "Workflows",
-  hr: "People Ops",
-  procurement: "Procurement",
-  reports: "Reports",
-  settings: "Settings",
+  ham: "Hardware Assets",
+  sam: "Software Assets",
+  assets: "Assets",
+  // Security & Compliance
+  "security-compliance": "Security & Compliance",
+  security: "Security Operations",
+  grc: "Risk & Compliance",
+  approvals: "Approvals",
+  flows: "Flow Designer",
+  compliance: "Configuration Compliance",
+  // People & Workplace
+  "people-workplace": "People & Workplace",
+  hr: "HR Service Delivery",
+  "employee-portal": "Employee Portal",
+  "employee-center": "Employee Service Center",
+  recruitment: "Recruitment",
+  "people-analytics": "People Analytics",
+  facilities: "Facilities",
+  "walk-up": "Walk-Up Experience",
+  // Customer & Sales
+  "customer-sales": "Customer & Sales",
+  csm: "Customer Service",
+  crm: "CRM & Sales",
+  catalog: "Service Catalog",
+  surveys: "Surveys",
+  // Finance & Procurement
+  "finance-procurement": "Finance & Procurement",
+  procurement: "Supply Chain",
+  financial: "Financial Management",
+  vendors: "Vendors",
+  contracts: "Contract Management",
+  // Legal & Governance
+  "legal-governance": "Legal & Governance",
+  legal: "Legal Service Delivery",
+  secretarial: "Secretarial & CS",
+  // Strategy & Projects
+  "strategy-projects": "Strategy & Projects",
+  projects: "Project Portfolio",
+  apm: "Application Portfolio",
+  reports: "Analytics & Reporting",
+  // Developer & Ops
+  "developer-ops": "Developer & Ops",
+  devops: "DevOps",
+  knowledge: "Knowledge Base",
+  "virtual-agent": "Virtual Agent",
+  // Shared segments
   new: "New",
+  edit: "Edit",
+  settings: "Settings",
+  workflows: "Workflows",
+  invite: "Invite",
+  "forgot-password": "Forgot Password",
+  "reset-password": "Reset Password",
+  signup: "Sign Up",
+  login: "Sign In",
 };
 
 function Breadcrumbs() {
@@ -76,36 +137,36 @@ function RoleSwitcher() {
         <ChevronDown className="w-2.5 h-2.5" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-700 flex items-center gap-2">
+        <div className="absolute right-0 top-full mt-1 w-72 bg-popover border border-border rounded-lg shadow-2xl z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-border flex items-center gap-2">
             <Shield className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-[11px] font-semibold text-slate-300">RBAC Role Switcher</span>
-            <span className="text-[10px] text-slate-500 ml-auto">Demo mode</span>
+            <span className="text-[11px] font-semibold text-muted-foreground">RBAC Role Switcher</span>
+            <span className="text-[10px] text-muted-foreground/60 ml-auto">Demo mode</span>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {MOCK_USERS.slice(0, 10).map((user) => (
               <button
                 key={user.id}
                 onClick={() => { switchUser(user.id); setOpen(false); }}
-                className={`w-full flex items-start gap-2.5 px-3 py-2 text-left hover:bg-slate-800 transition-colors ${currentUser.id === user.id ? "bg-purple-900/30 border-l-2 border-purple-500" : ""}`}
+                className={`w-full flex items-start gap-2.5 px-3 py-2 text-left hover:bg-muted/60 transition-colors ${currentUser.id === user.id ? "bg-purple-900/30 border-l-2 border-purple-500" : ""}`}
               >
                 <div className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0 mt-0.5">
                   {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[12px] text-slate-200 font-medium truncate">{user.name}</div>
+                  <div className="text-[12px] text-foreground font-medium truncate">{user.name}</div>
                   <div className="flex flex-wrap gap-0.5 mt-0.5">
                     {user.roles.slice(0, 2).map((r) => (
                       <span key={r} className="text-[9px] px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded font-mono">{r}</span>
                     ))}
-                    {user.roles.length > 2 && <span className="text-[9px] text-slate-500">+{user.roles.length - 2}</span>}
+                    {user.roles.length > 2 && <span className="text-[9px] text-muted-foreground/60">+{user.roles.length - 2}</span>}
                   </div>
                 </div>
                 {currentUser.id === user.id && <span className="ml-auto text-purple-400 text-[11px]">●</span>}
               </button>
             ))}
           </div>
-          <div className="px-3 py-2 border-t border-slate-700">
+          <div className="px-3 py-2 border-t border-border">
             <Link href="/app/admin?tab=rbac" onClick={() => setOpen(false)} className="text-[11px] text-primary hover:underline">
               Manage Roles & Permissions →
             </Link>
@@ -195,12 +256,12 @@ function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 w-80 bg-popover border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-700">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <div className="flex items-center gap-2">
-              <Bell className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-xs font-semibold text-slate-200">Notifications</span>
+              <Bell className="h-3.5 w-3.5 text-muted-foreground/80" />
+              <span className="text-xs font-semibold text-foreground">Notifications</span>
               {count > 0 && (
                 <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 rounded-full px-1.5 py-0.5 font-mono">
                   {count} new
@@ -219,9 +280,9 @@ function NotificationBell() {
           </div>
 
           {/* List */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-800">
+          <div className="max-h-80 overflow-y-auto divide-y divide-border">
             {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-slate-500">
+              <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/60">
                 <Bell className="h-7 w-7 mb-2 opacity-30" />
                 <p className="text-xs">No notifications yet</p>
               </div>
@@ -231,7 +292,7 @@ function NotificationBell() {
                   key={n.id}
                   onClick={() => handleNotifClick(n)}
                   className={cn(
-                    "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-800 transition-colors",
+                    "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/60 transition-colors",
                     !n.isRead && "bg-primary/5",
                   )}
                 >
@@ -239,16 +300,16 @@ function NotificationBell() {
                     {TYPE_ICON[n.type ?? "info"]}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={cn("text-xs leading-snug", !n.isRead ? "text-slate-100 font-medium" : "text-slate-300")}>
+                    <p className={cn("text-xs leading-snug", !n.isRead ? "text-foreground font-medium" : "text-muted-foreground")}>
                       {n.title}
                     </p>
                     {n.body && (
-                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{n.body}</p>
+                      <p className="text-[11px] text-muted-foreground/60 mt-0.5 line-clamp-2">{n.body}</p>
                     )}
-                    <p className="text-[10px] text-slate-600 mt-1">{timeAgo(n.createdAt)}</p>
+                    <p className="text-[10px] text-muted-foreground/50 mt-1">{timeAgo(n.createdAt)}</p>
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-1">
-                    {n.link && <ExternalLink className="h-3 w-3 text-slate-600" />}
+                    {n.link && <ExternalLink className="h-3 w-3 text-muted-foreground/50" />}
                     {!n.isRead && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
                   </div>
                 </button>
@@ -257,7 +318,7 @@ function NotificationBell() {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2 border-t border-slate-700">
+          <div className="px-4 py-2 border-t border-border">
             <Link
               href="/app/notifications"
               onClick={() => setOpen(false)}
@@ -324,15 +385,15 @@ function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 w-64 bg-popover border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
           {/* Identity header */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700 bg-slate-800/60">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/40">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-white flex-shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-100 truncate">{currentUser.name}</p>
-              <p className="text-[11px] text-slate-400 truncate">{currentUser.email}</p>
+              <p className="text-sm font-semibold text-foreground truncate">{currentUser.name}</p>
+              <p className="text-[11px] text-muted-foreground/80 truncate">{currentUser.email}</p>
               <div className="flex flex-wrap gap-1 mt-1">
                 {currentUser.roles.slice(0, 3).map((r) => (
                   <span key={r} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-mono">
@@ -340,7 +401,7 @@ function UserMenu() {
                   </span>
                 ))}
                 {currentUser.roles.length > 3 && (
-                  <span className="text-[9px] text-slate-500">+{currentUser.roles.length - 3}</span>
+                  <span className="text-[9px] text-muted-foreground/60">+{currentUser.roles.length - 3}</span>
                 )}
               </div>
             </div>
@@ -351,41 +412,41 @@ function UserMenu() {
             <Link
               href="/app/profile"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+              className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             >
-              <User className="h-3.5 w-3.5 text-slate-500" />
+              <User className="h-3.5 w-3.5 text-muted-foreground/60" />
               My Profile
             </Link>
             <Link
               href="/app/profile?tab=security"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+              className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             >
-              <KeyRound className="h-3.5 w-3.5 text-slate-500" />
+              <KeyRound className="h-3.5 w-3.5 text-muted-foreground/60" />
               Change Password
             </Link>
             <Link
               href="/app/profile?tab=notifications"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+              className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             >
-              <Bell className="h-3.5 w-3.5 text-slate-500" />
+              <Bell className="h-3.5 w-3.5 text-muted-foreground/60" />
               Notification Preferences
             </Link>
             {isAdmin() && (
               <Link
                 href="/app/admin"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
               >
-                <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground/60" />
                 Organisation Settings
               </Link>
             )}
           </div>
 
           {/* Sign out */}
-          <div className="border-t border-slate-700 py-1">
+          <div className="border-t border-border py-1">
             <button
               onClick={() => { setOpen(false); logout.mutate(); }}
               disabled={logout.isPending}
@@ -512,9 +573,9 @@ export function AppHeader() {
         </div>
 
         {showDropdown && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-80 overflow-auto">
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-2xl max-h-80 overflow-auto">
             {searchResults.isLoading ? (
-              <div className="px-4 py-3 text-xs text-slate-500">Searching…</div>
+              <div className="px-4 py-3 text-xs text-muted-foreground/60">Searching…</div>
             ) : (
               <div className="py-1">
                 {Object.entries(groupedResults).map(([type, items]) => {
@@ -522,7 +583,7 @@ export function AppHeader() {
                   const groupStart = firstItem ? flatResults.indexOf(firstItem) : 0;
                   return (
                     <div key={type}>
-                      <div className="text-[10px] text-slate-500 uppercase px-3 py-1 tracking-wider">
+                      <div className="text-[10px] text-muted-foreground/60 uppercase px-3 py-1 tracking-wider">
                         {type.replace(/_/g, " ")}
                       </div>
                       {items.map((item, idx) => {
@@ -541,9 +602,9 @@ export function AppHeader() {
                               focusedIndex === globalIdx ? "bg-primary/20" : "hover:bg-white/5",
                             )}
                           >
-                            <span className="font-medium text-slate-200">{item.title}</span>
+                            <span className="font-medium text-foreground">{item.title}</span>
                             {item.description && (
-                              <span className="text-slate-500 truncate">{item.description}</span>
+                              <span className="text-muted-foreground/60 truncate">{item.description}</span>
                             )}
                           </button>
                         );

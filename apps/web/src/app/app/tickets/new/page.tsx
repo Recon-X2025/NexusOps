@@ -392,7 +392,7 @@ export default function NewTicketPage() {
                     type="text"
                     value={form.contactNumber}
                     onChange={(e) => set("contactNumber", e.target.value)}
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+91 XXXXX XXXXX"
                     className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground/70"
                   />
                 </div>
