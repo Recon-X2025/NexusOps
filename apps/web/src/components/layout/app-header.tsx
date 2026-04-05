@@ -93,6 +93,9 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   holidays: "Holiday Calendar",
   okr: "OKRs & Goals",
   accounting: "Accounting",
+  esg: "ESG Reporting",
+  "onboarding-wizard": "Setup Wizard",
+  "custom-fields": "Custom Fields",
 };
 
 function Breadcrumbs() {

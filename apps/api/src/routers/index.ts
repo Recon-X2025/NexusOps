@@ -38,6 +38,7 @@ import { workforceRouter } from "./workforce";
 import { indiaComplianceRouter } from "./india-compliance";
 import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
+import { customFieldsRouter } from "./custom-fields";
 import { accountingRouter } from "./accounting";
 
 export const appRouter = router({
@@ -86,54 +87,8 @@ export const appRouter = router({
   workforce: workforceRouter,
   // Phase 3 — Accounting Foundation
   accounting: accountingRouter,
-});
-
-export type AppRouter = typeof appRouter;
-
-export const appRouter = router({
-  auth: authRouter,
-  admin: adminRouter,
-  tickets: ticketsRouter,
-  assets: assetsRouter,
-  workflows: workflowsRouter,
-  hr: hrRouter,
-  procurement: procurementRouter,
-  dashboard: dashboardRouter,
-  workOrders: workOrdersRouter,
-  // Phase 2 routers
-  changes: changesRouter,
-  security: securityRouter,
-  grc: grcRouter,
-  financial: financialRouter,
-  contracts: contractsRouter,
-  projects: projectsRouter,
-  crm: crmRouter,
-  legal: legalRouter,
-  devops: devopsRouter,
-  surveys: surveysRouter,
-  knowledge: knowledgeRouter,
-  notifications: notificationsRouter,
-  catalog: catalogRouter,
-  // Phase 3 routers
-  csm: csmRouter,
-  apm: apmRouter,
-  oncall: oncallRouter,
-  events: eventsRouter,
-  facilities: facilitiesRouter,
-  walkup: walkupRouter,
-  vendors: vendorsRouter,
-  approvals: approvalsRouter,
-  reports: reportsRouter,
-  search: searchRouter,
-  ai: aiRouter,
-  // India compliance routers
-  indiaCompliance: indiaComplianceRouter,
-  assignmentRules: assignmentRulesRouter,
-  inventory: inventoryRouter,
-  // Phase 3 True Modules
-  recruitment: recruitmentRouter,
-  secretarial: secretarialRouter,
-  workforce: workforceRouter,
+  // Phase 7 — Custom Fields
+  customFields: customFieldsRouter,
 });
 
 export type AppRouter = typeof appRouter;

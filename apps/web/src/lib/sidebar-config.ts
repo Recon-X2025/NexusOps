@@ -120,6 +120,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         module: "security",
       },
       { label: "Risk & Compliance", href: "/app/grc", icon: "Scale", module: "grc" },
+      { label: "ESG Reporting", href: "/app/esg", icon: "Leaf", module: "grc" },
       {
         label: "Approvals & Workflow",
         href: "/app/approvals",

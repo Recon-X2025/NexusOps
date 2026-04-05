@@ -219,7 +219,7 @@ export const accountingRouter = router({
       // Validate balanced entry
       const totalDebit  = input.lines.reduce((s, l) => s + l.debitAmount, 0);
       const totalCredit = input.lines.reduce((s, l) => s + l.creditAmount, 0);
-      if (Math.abs(totalDebit - totalCredit) > 0.01) {
+      if (Math.abs(totalDebit - totalCredit) > 0.001) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `Journal entry is not balanced: debit ${totalDebit} ≠ credit ${totalCredit}` });
       }
 
@@ -389,7 +389,7 @@ export const accountingRouter = router({
 
     const totalDebit  = accounts.filter(a => Number(a.currentBalance) > 0).reduce((s, a) => s + Number(a.currentBalance), 0);
     const totalCredit = accounts.filter(a => Number(a.currentBalance) < 0).reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
-    const isBalanced  = Math.abs(totalDebit - totalCredit) < 0.01;
+    const isBalanced  = Math.abs(totalDebit - totalCredit) < 0.001;
 
     return {
       lines: accounts.map(a => ({

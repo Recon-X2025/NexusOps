@@ -12,7 +12,7 @@
  *   WHATSAPP_WEBHOOK_SECRET   — Token to verify webhook subscriptions
  */
 
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const API_VERSION = "v19.0";
 const BASE_URL    = `https://graph.facebook.com/${API_VERSION}`;
@@ -170,7 +170,8 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
   const { webhookSecret } = getConfig();
   if (!webhookSecret) return false;
   const expected = `sha256=${createHmac("sha256", webhookSecret).update(rawBody).digest("hex")}`;
-  return expected === signature;
+  if (expected.length !== signature.length) return false;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
 // ── Notification templates for NexusOps modules ───────────────────────────

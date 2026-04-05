@@ -36,6 +36,8 @@ export * from "./recruitment";
 export * from "./secretarial";
 // Phase 3 — Accounting foundation
 export * from "./accounting";
+// Phase 7 — Custom Fields Framework
+export * from "./custom-fields";
 
 // Re-export drizzle operators used in routers.
 // Single authoritative source — do NOT also export from packages/db/src/index.ts.
