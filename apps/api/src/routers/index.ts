@@ -39,8 +39,10 @@ import { indiaComplianceRouter } from "./india-compliance";
 import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
 import { integrationsRouter } from "./integrations";
+import { macRouter } from "./mac";
 
 export const appRouter = router({
+  mac: macRouter,
   auth: authRouter,
   admin: adminRouter,
   tickets: ticketsRouter,
