@@ -70,7 +70,7 @@
     --status-medium:     36 91% 50%;    --status-medium-fg:    0 0% 100%;
     --status-low:       142 63% 40%;    --status-low-fg:       0 0% 100%;
     --status-info:      213 96% 40%;    --status-info-fg:      0 0% 100%;
-    --status-success:   142 63% 40%;    --status-success-fg:   0 0% 100%;
+    --status-success:   145 72% 36%;    --status-success-fg:   0 0% 100%;
     --status-warning:    36 91% 50%;    --status-warning-fg:   0 0% 100%;
     --status-neutral:   220 9%  52%;    --status-neutral-fg:   0 0% 100%;
   }
@@ -117,7 +117,7 @@
     --status-medium:     36 80% 48%;    --status-medium-fg:    0 0% 100%;
     --status-low:       142 55% 45%;    --status-low-fg:       0 0% 100%;
     --status-info:      213 80% 55%;    --status-info-fg:      0 0% 100%;
-    --status-success:   142 55% 45%;    --status-success-fg:   0 0% 100%;
+    --status-success:   145 60% 40%;    --status-success-fg:   0 0% 100%;
     --status-warning:    36 80% 48%;    --status-warning-fg:   0 0% 100%;
     --status-neutral:   220 9%  50%;    --status-neutral-fg:   0 0% 100%;
   }

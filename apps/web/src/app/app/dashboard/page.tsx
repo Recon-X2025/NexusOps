@@ -218,7 +218,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                 <Icon className="w-3.5 h-3.5" />
               </div>
               <div className="text-xs font-semibold leading-tight">{g.label}</div>
-              <div className="text-[10px] opacity-50">{g.modules} modules →</div>
+              <div className="text-xs opacity-50">{g.modules} modules →</div>
             </Link>
           );
         })}
@@ -261,7 +261,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                 <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Active Incidents</span>
-                <span className="text-[10px] text-muted-foreground/70">{incidents.length} open</span>
+                <span className="text-xs text-muted-foreground/70">{incidents.length} open</span>
               </div>
               <Link href="/app/tickets" className="text-xs text-primary hover:underline flex items-center gap-0.5">
                 All incidents <ChevronRight className="w-3 h-3" />
@@ -378,7 +378,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                           <span className="truncate block">{dep.appName}</span>
                         </td>
                         <td>
-                          <span className={`status-badge text-[10px] ${
+                          <span className={`status-badge text-xs ${
                             dep.environment === "production" ? "text-red-700 bg-red-50" :
                             dep.environment === "staging"    ? "text-yellow-700 bg-yellow-50" :
                             "text-blue-700 bg-blue-50"
@@ -416,16 +416,16 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                   <div key={c.id} className="flex items-center justify-between px-3 py-2">
                     <div>
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="font-mono text-[10px] text-primary">{c.number}</span>
-                        <span className={`status-badge text-[10px] ${c.risk === "critical" ? "text-red-700 bg-red-100" : c.risk === "high" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{c.risk ?? "—"}</span>
+                        <span className="font-mono text-xs text-primary">{c.number}</span>
+                        <span className={`status-badge text-xs ${c.risk === "critical" ? "text-red-700 bg-red-100" : c.risk === "high" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{c.risk ?? "—"}</span>
                       </div>
                       <p className="text-xs text-foreground/80 truncate max-w-[180px]">{c.title}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[10px] text-muted-foreground/70">
+                      <div className="text-xs text-muted-foreground/70">
                         {c.scheduledAt ? new Date(c.scheduledAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
                       </div>
-                      <span className={`status-badge text-[10px] capitalize ${
+                      <span className={`status-badge text-xs capitalize ${
                         c.status === "complete" || c.status === "completed" ? "text-green-700 bg-green-100" :
                         c.status === "awaiting_cab" ? "text-yellow-700 bg-yellow-100" :
                         "text-blue-700 bg-blue-100"
@@ -448,7 +448,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground/70" />
                 <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Pending Approvals</span>
-                <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{approvalList.length}</span>
+                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{approvalList.length}</span>
               </div>
               <Link href="/app/approvals" className="text-xs text-primary hover:underline">View all</Link>
             </div>
@@ -458,9 +458,9 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               ) : approvalList.slice(0, 4).map((ap) => (
                 <div key={ap.id} className="px-3 py-2.5">
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="font-mono text-[10px] text-primary">{ap.id.slice(0, 8)}</span>
+                    <span className="font-mono text-xs text-primary">{ap.id.slice(0, 8)}</span>
                     <span className="status-badge text-muted-foreground bg-muted capitalize">{ap.entityType ?? "Request"}</span>
-                    <span className="text-[10px] text-muted-foreground/70 ml-auto">
+                    <span className="text-xs text-muted-foreground/70 ml-auto">
                       {ap.dueAt ? new Date(ap.dueAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : ""}
                     </span>
                   </div>

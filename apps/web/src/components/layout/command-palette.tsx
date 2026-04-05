@@ -233,15 +233,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       {/* Footer */}
       <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/30">
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-[9px]">↑↓</kbd>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">↑↓</kbd>
           navigate
         </span>
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-[9px]">↵</kbd>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">↵</kbd>
           open
         </span>
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-[9px]">Esc</kbd>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">Esc</kbd>
           close
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground/50">NexusOps</span>
