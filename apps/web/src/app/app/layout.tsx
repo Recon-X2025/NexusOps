@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { RBACProvider } from "@/lib/rbac-context";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { VirtualAgentWidget } from "@/components/layout/virtual-agent-widget";
+import { ErrorBoundary } from "@nexusops/ui";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,7 +22,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin bg-background">
-              <div className="flex min-h-full min-w-0 flex-col p-4">{children}</div>
+              <div className="flex min-h-full min-w-0 flex-col p-4">
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
+              </div>
             </main>
           </div>
         </div>

@@ -87,6 +87,12 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "reset-password": "Reset Password",
   signup: "Sign Up",
   login: "Sign In",
+  // New Phase 2 pages
+  expenses: "Expense Management",
+  attendance: "Attendance Management",
+  holidays: "Holiday Calendar",
+  okr: "OKRs & Goals",
+  "onboarding-wizard": "Setup Wizard",
 };
 
 function Breadcrumbs() {

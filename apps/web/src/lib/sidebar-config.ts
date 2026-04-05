@@ -150,6 +150,11 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "HR Cases", href: "/app/hr" },
           { label: "Employee Portal", href: "/app/employee-portal" },
           { label: "Employee Center", href: "/app/employee-center" },
+          { label: "Leave Requests", href: "/app/hr?tab=leave" },
+          { label: "Attendance", href: "/app/attendance" },
+          { label: "Expense Claims", href: "/app/expenses" },
+          { label: "Holiday Calendar", href: "/app/holidays" },
+          { label: "OKRs & Goals", href: "/app/okr" },
         ],
       },
       {

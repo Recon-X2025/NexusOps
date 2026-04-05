@@ -880,4 +880,254 @@ export const hrRouter = router({
         };
       }),
   }),
+
+
+  // ── Public Holiday Calendar ─────────────────────────────────────────────
+  holidays: router({
+    list: permissionProcedure("hr", "read").input(z.object({ year: z.number().int().optional() })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { publicHolidays, gte, lte, and: dbAnd, eq: dbEq, asc: dbAsc } = await import("@nexusops/db");
+      const year = input.year ?? new Date().getFullYear();
+      const start = new Date(year, 0, 1);
+      const end = new Date(year, 11, 31, 23, 59, 59);
+      return db.select().from(publicHolidays)
+        .where(dbAnd(dbEq(publicHolidays.orgId, org!.id), gte(publicHolidays.date, start), lte(publicHolidays.date, end)))
+        .orderBy(dbAsc(publicHolidays.date));
+    }),
+
+    create: permissionProcedure("hr", "write").input(z.object({
+      name: z.string().min(1),
+      date: z.coerce.date(),
+      type: z.enum(["national", "restricted", "state", "company"]).default("national"),
+      stateCode: z.string().length(2).nullable().optional(),
+      year: z.number().int(),
+      isOptional: z.boolean().default(false),
+      notes: z.string().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { publicHolidays } = await import("@nexusops/db");
+      const [h] = await db.insert(publicHolidays).values({ ...input, orgId: org!.id }).returning();
+      return h!;
+    }),
+
+    delete: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { publicHolidays, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      await db.delete(publicHolidays).where(dbAnd(dbEq(publicHolidays.id, input.id), dbEq(publicHolidays.orgId, org!.id)));
+      return { success: true };
+    }),
+
+    seedIndiaHolidays: permissionProcedure("hr", "write").input(z.object({ year: z.number().int() })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { publicHolidays } = await import("@nexusops/db");
+      const year = input.year;
+      const national = [
+        { name: "New Year Day", date: new Date(year, 0, 1) },
+        { name: "Republic Day", date: new Date(year, 0, 26) },
+        { name: "Holi", date: new Date(year, 2, 14) },
+        { name: "Ambedkar Jayanti", date: new Date(year, 3, 14) },
+        { name: "Good Friday", date: new Date(year, 3, 18) },
+        { name: "Labour Day", date: new Date(year, 4, 1) },
+        { name: "Independence Day", date: new Date(year, 7, 15) },
+        { name: "Gandhi Jayanti", date: new Date(year, 9, 2) },
+        { name: "Diwali", date: new Date(year, 9, 20) },
+        { name: "Christmas Day", date: new Date(year, 11, 25) },
+        { name: "Eid ul-Fitr", date: new Date(year, 3, 10) },
+        { name: "Eid ul-Adha", date: new Date(year, 5, 17) },
+      ];
+      const rows = national.map(h => ({ ...h, orgId: org!.id, type: "national" as const, year, isOptional: false }));
+      await db.insert(publicHolidays).values(rows).onConflictDoNothing();
+      return { seeded: rows.length };
+    }),
+  }),
+
+  // ── Attendance ──────────────────────────────────────────────────────────
+  attendance: router({
+    list: permissionProcedure("hr", "read").input(z.object({
+      employeeId: z.string().uuid().optional(),
+      month: z.number().int().min(1).max(12).optional(),
+      year: z.number().int().optional(),
+    })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { attendanceRecords, employees: emps, gte, lte, and: dbAnd, eq: dbEq, desc: dbDesc } = await import("@nexusops/db");
+      const conds: any[] = [dbEq(attendanceRecords.orgId, org!.id)];
+      if (input.employeeId) conds.push(dbEq(attendanceRecords.employeeId, input.employeeId));
+      if (input.month && input.year) {
+        const start = new Date(input.year, input.month - 1, 1);
+        const end   = new Date(input.year, input.month, 0, 23, 59, 59);
+        conds.push(gte(attendanceRecords.date, start), lte(attendanceRecords.date, end));
+      }
+      return db.select({ record: attendanceRecords, employee: emps })
+        .from(attendanceRecords).leftJoin(emps, dbEq(attendanceRecords.employeeId, emps.id))
+        .where(dbAnd(...conds)).orderBy(dbDesc(attendanceRecords.date));
+    }),
+
+    clockIn: permissionProcedure("hr", "write").input(z.object({
+      employeeId: z.string().uuid(),
+      date: z.coerce.date().optional(),
+      shiftType: z.enum(["morning", "afternoon", "night", "flexible", "remote"]).default("flexible"),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const date = input.date ?? new Date();
+      const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const [rec] = await db.insert(attendanceRecords).values({ orgId: org!.id, employeeId: input.employeeId, date: dateStart, status: "present", shiftType: input.shiftType, checkIn: new Date() }).returning();
+      return rec!;
+    }),
+
+    clockOut: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const [rec] = await db.select().from(attendanceRecords).where(dbAnd(dbEq(attendanceRecords.id, input.id), dbEq(attendanceRecords.orgId, org!.id))).limit(1);
+      if (!rec) throw new TRPCError({ code: "NOT_FOUND" });
+      const checkOut = new Date();
+      const hoursWorked = rec.checkIn ? ((checkOut.getTime() - new Date(rec.checkIn).getTime()) / 3600000).toFixed(2) : "0";
+      const [updated] = await db.update(attendanceRecords).set({ checkOut, hoursWorked, updatedAt: new Date() }).where(dbEq(attendanceRecords.id, input.id)).returning();
+      return updated!;
+    }),
+
+    bulkMark: permissionProcedure("hr", "write").input(z.object({
+      records: z.array(z.object({
+        employeeId: z.string().uuid(),
+        date: z.coerce.date(),
+        status: z.enum(["present", "absent", "half_day", "late", "on_leave", "holiday", "weekend"]),
+        shiftType: z.enum(["morning", "afternoon", "night", "flexible", "remote"]).default("flexible"),
+      })),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { attendanceRecords } = await import("@nexusops/db");
+      const rows = input.records.map(r => ({ ...r, orgId: org!.id, date: new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate()) }));
+      await db.insert(attendanceRecords).values(rows).onConflictDoNothing();
+      return { count: rows.length };
+    }),
+  }),
+
+  // ── Expense Claims ──────────────────────────────────────────────────────
+  expenses: router({
+    list: permissionProcedure("hr", "read").input(z.object({
+      employeeId: z.string().uuid().optional(),
+      status: z.string().optional(),
+      limit: z.number().int().min(1).max(100).default(50),
+    })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { expenseClaims, employees: emps, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@nexusops/db");
+      const conds: any[] = [dbEq(expenseClaims.orgId, org!.id)];
+      if (input.employeeId) conds.push(dbEq(expenseClaims.employeeId, input.employeeId));
+      if (input.status) conds.push(dbEq(expenseClaims.status, input.status as any));
+      return db.select({ claim: expenseClaims, employee: emps })
+        .from(expenseClaims).leftJoin(emps, dbEq(expenseClaims.employeeId, emps.id))
+        .where(dbAnd(...conds)).orderBy(dbDesc(expenseClaims.createdAt)).limit(input.limit);
+    }),
+
+    create: permissionProcedure("hr", "write").input(z.object({
+      employeeId: z.string().uuid(),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.enum(["travel", "accommodation", "food", "fuel", "communication", "office_supplies", "client_entertainment", "training", "medical", "miscellaneous"]).default("miscellaneous"),
+      amount: z.number().positive(),
+      currency: z.string().default("INR"),
+      expenseDate: z.coerce.date(),
+      receiptUrl: z.string().url().optional(),
+      projectCode: z.string().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { expenseClaims, count: dbCount, eq: dbEq } = await import("@nexusops/db");
+      const [c] = await db.select({ n: dbCount() }).from(expenseClaims).where(dbEq(expenseClaims.orgId, org!.id));
+      const seq = (c?.n ?? 0) + 1;
+      const number = "EXP-" + new Date().getFullYear() + "-" + String(seq).padStart(4, "0");
+      const [claim] = await db.insert(expenseClaims).values({ ...input, orgId: org!.id, number, amount: String(input.amount), status: "draft" }).returning();
+      return claim!;
+    }),
+
+    submit: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const [c] = await db.update(expenseClaims).set({ status: "submitted", updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
+      return c!;
+    }),
+
+    approve: permissionProcedure("hr", "write").input(z.object({
+      id: z.string().uuid(),
+      approved: z.boolean(),
+      rejectionReason: z.string().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db, userId } = ctx;
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const status = input.approved ? "approved" as const : "rejected" as const;
+      const [c] = await db.update(expenseClaims).set({ status, approvedById: input.approved ? userId : null, approvedAt: input.approved ? new Date() : null, rejectionReason: input.rejectionReason, updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
+      return c!;
+    }),
+
+    markReimbursed: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const [c] = await db.update(expenseClaims).set({ status: "reimbursed", reimbursedAt: new Date(), updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
+      return c!;
+    }),
+  }),
+
+  // ── OKR / Goal Management ───────────────────────────────────────────────
+  okr: router({
+    listObjectives: permissionProcedure("hr", "read").input(z.object({
+      year: z.number().int().optional(),
+      cycle: z.enum(["q1", "q2", "q3", "q4", "annual"]).optional(),
+    })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { okrObjectives, okrKeyResults, users: usersT, eq: dbEq, and: dbAnd, desc: dbDesc, inArray: dbInArray } = await import("@nexusops/db");
+      const conds: any[] = [dbEq(okrObjectives.orgId, org!.id)];
+      if (input.year) conds.push(dbEq(okrObjectives.year, input.year));
+      if (input.cycle) conds.push(dbEq(okrObjectives.cycle, input.cycle));
+      const objectives = await db.select({ objective: okrObjectives, owner: usersT })
+        .from(okrObjectives).leftJoin(usersT, dbEq(okrObjectives.ownerId, usersT.id))
+        .where(dbAnd(...conds)).orderBy(dbDesc(okrObjectives.createdAt));
+      if (objectives.length === 0) return [];
+      const ids = objectives.map(o => o.objective.id);
+      const krs = await db.select().from(okrKeyResults).where(dbInArray(okrKeyResults.objectiveId, ids));
+      return objectives.map(o => ({ ...o, keyResults: krs.filter(k => k.objectiveId === o.objective.id) }));
+    }),
+
+    createObjective: permissionProcedure("hr", "write").input(z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      ownerId: z.string().uuid(),
+      cycle: z.enum(["q1", "q2", "q3", "q4", "annual"]).default("q1"),
+      year: z.number().int(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { okrObjectives } = await import("@nexusops/db");
+      const [obj] = await db.insert(okrObjectives).values({ ...input, orgId: org!.id, status: "active" }).returning();
+      return obj!;
+    }),
+
+    createKeyResult: permissionProcedure("hr", "write").input(z.object({
+      objectiveId: z.string().uuid(),
+      title: z.string().min(1),
+      targetValue: z.number().positive().default(100),
+      unit: z.string().default("%"),
+      dueDate: z.coerce.date().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { okrKeyResults } = await import("@nexusops/db");
+      const [kr] = await db.insert(okrKeyResults).values({ ...input, orgId: org!.id, targetValue: String(input.targetValue), status: "on_track" }).returning();
+      return kr!;
+    }),
+
+    updateKeyResult: permissionProcedure("hr", "write").input(z.object({
+      id: z.string().uuid(),
+      currentValue: z.number().min(0),
+      status: z.enum(["on_track", "at_risk", "behind", "completed"]).optional(),
+      notes: z.string().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { db } = ctx;
+      const { okrKeyResults, okrObjectives, eq: dbEq } = await import("@nexusops/db");
+      const [kr] = await db.update(okrKeyResults).set({ currentValue: String(input.currentValue), status: input.status, notes: input.notes, updatedAt: new Date() }).where(dbEq(okrKeyResults.id, input.id)).returning();
+      if (kr) {
+        const allKRs = await db.select().from(okrKeyResults).where(dbEq(okrKeyResults.objectiveId, kr.objectiveId));
+        const pcts = allKRs.map(k => (Number(k.currentValue) / Math.max(Number(k.targetValue), 1)) * 100);
+        const avg = pcts.length ? Math.round(pcts.reduce((s, p) => s + p, 0) / pcts.length) : 0;
+        await db.update(okrObjectives).set({ overallProgress: avg, updatedAt: new Date() }).where(dbEq(okrObjectives.id, kr.objectiveId));
+      }
+      return kr!;
+    }),
+  }),
 });
