@@ -192,7 +192,7 @@ function ExpensesContent() {
                 ? "No reports are pending your approval."
                 : "No expense reports found."
             }
-            primaryAction={tab === "my" ? { label: "New Report", onClick: () => setShowCreate(true) } : undefined}
+            action={tab === "my" ? { label: "New Report", onClick: () => setShowCreate(true) } : undefined}
           />
         ) : (
           <table className="w-full text-xs border-collapse">

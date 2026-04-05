@@ -28,10 +28,6 @@ export * from "./notifications";
 export * from "./walkup";
 export * from "./apm";
 export * from "./oncall";
-// Phase 3 schemas
-export * from "./catalog";
-export * from "./secretarial";
-export * from "./recruitment";
 // Phase 4 schemas
 export * from "./expenses";
 export * from "./performance";

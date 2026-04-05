@@ -52,6 +52,8 @@ function getPageContext(pathname: string) {
   }
   return null;
 }
+
+const BOT_RESPONSES: Record<string, Message> = {
   "Create a P2 incident": {
     id: "r1", role: "assistant",
     content: "I'll help you create a P2 incident. Can you provide:\n\n1. **Short description** of the issue\n2. **Affected system** or service\n3. **Impact** — how many users affected?\n\nOr I can open the incident form for you.",

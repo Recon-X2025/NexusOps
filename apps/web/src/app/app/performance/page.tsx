@@ -194,7 +194,7 @@ function PerformanceContent() {
                 icon={BarChart3}
                 title="No review cycles yet"
                 description="Create your first performance review cycle to kick off the performance management process."
-                primaryAction={{ label: "New Review Cycle", onClick: () => setShowCreateCycle(true) }}
+                action={{ label: "New Review Cycle", onClick: () => setShowCreateCycle(true) }}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -284,7 +284,7 @@ function PerformanceContent() {
                 icon={Target}
                 title="No goals set"
                 description="Add your first goal or OKR to track your progress and align with team objectives."
-                primaryAction={{ label: "Add Goal", onClick: () => setShowCreateGoal(true) }}
+                action={{ label: "Add Goal", onClick: () => setShowCreateGoal(true) }}
               />
             ) : (
               <div className="space-y-2">
