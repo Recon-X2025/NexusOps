@@ -167,15 +167,30 @@ export function createActivities(pool: Pool): WorkflowActivities {
         const field    = data["field"]  as string | undefined;
         const value    = data["value"];
 
-        if (ticketId && field) {
-          // Only allow simple identifier field names to prevent SQL injection
-          if (!/^\w+$/.test(field)) throw new Error(`Invalid field name: ${field}`);
+        // Restrict updates to a known set of safe, user-facing ticket columns
+        const ALLOWED_FIELDS: Record<string, string> = {
+          priority:     "priority",
+          status:       "status",
+          title:        "title",
+          description:  "description",
+          // eslint-disable-next-line camelcase
+          due_date:     "due_date",
+          // eslint-disable-next-line camelcase
+          assignee_id:  "assignee_id",
+          // eslint-disable-next-line camelcase
+          team_id:      "team_id",
+        };
+
+        const column = field ? ALLOWED_FIELDS[field] : undefined;
+        if (!column) throw new Error(`Field '${field ?? ""}' is not an allowed updatable ticket field`);
+
+        if (ticketId) {
           await pool.query(
-            `UPDATE tickets SET "${field}" = $1, updated_at = now() WHERE id = $2`,
+            `UPDATE tickets SET "${column}" = $1, updated_at = now() WHERE id = $2`,
             [value, ticketId],
           );
         }
-        await finishStep(pool, stepId, { updated: !!(ticketId && field) });
+        await finishStep(pool, stepId, { updated: !!ticketId, field: column });
       } catch (err) {
         await failStep(pool, stepId, String(err));
         throw err;
