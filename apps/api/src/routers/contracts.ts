@@ -159,6 +159,40 @@ export const contractsRouter = router({
       return updated;
     }),
 
+  /** Web UI uses `updateStatus` with `{ status }`; same rules as `transition`. Also supports `{ notes }`. */
+  updateStatus: permissionProcedure("contracts", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      status: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.status === undefined && input.notes === undefined) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Provide status or notes" });
+      }
+      const { db, org } = ctx;
+      const [contract] = await db.select().from(contracts)
+        .where(and(eq(contracts.id, input.id), eq(contracts.orgId, org!.id)));
+      if (!contract) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.status !== undefined) {
+        const allowed = CONTRACT_STATE_MACHINE[contract.status] ?? [];
+        if (!allowed.includes(input.status)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot transition from ${contract.status} to ${input.status}` });
+        }
+      }
+
+      const [updated] = await db.update(contracts)
+        .set({
+          ...(input.status !== undefined ? { status: input.status as any } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(contracts.id, input.id))
+        .returning();
+      return updated;
+    }),
+
   expiringWithin: permissionProcedure("contracts", "read")
     .input(z.object({ days: z.coerce.number().default(30) }))
     .query(async ({ ctx, input }) => {

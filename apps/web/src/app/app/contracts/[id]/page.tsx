@@ -223,7 +223,7 @@ export default function ContractDetailPage() {
                     <td>
                       {obl.status !== "completed" && (
                         <button
-                          onClick={() => completeObligation.mutate({ obligationId: obl.id })}
+                          onClick={() => completeObligation.mutate({ id: obl.id })}
                           disabled={completeObligation.isPending}
                           className="text-[11px] text-green-700 hover:underline disabled:opacity-50">
                           Mark Complete

@@ -85,6 +85,7 @@ export const contracts = pgTable(
     legalOwnerId: uuid("legal_owner_id").references(() => users.id, { onDelete: "set null" }),
     clauses: jsonb("clauses").$type<ContractStoredClause[]>().default([]),
     amendments: jsonb("amendments").$type<Array<{ date: string; description: string; changedBy: string }>>().default([]),
+    notes: text("notes"),
     executionDate: timestamp("execution_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

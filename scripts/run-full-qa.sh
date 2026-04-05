@@ -41,6 +41,13 @@ for i in $(seq 1 9); do
   echo ""
 done
 
+echo "--- tRPC web ↔ API procedure parity (not in layer glob) ---"
+pnpm --filter @nexusops/api exec vitest run --reporter=verbose src/__tests__/trpc-web-parity.test.ts || {
+  echo "❌ tRPC web/API parity FAILED"
+  FAILED=true
+}
+echo ""
+
 # Step 6: Run Layer 10 (E2E)
 echo "=========================================="
 echo "Running E2E Tests (Layer 10)"

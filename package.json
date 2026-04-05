@@ -31,6 +31,7 @@
     "stress:100": "SESSIONS=100 node scripts/stress-test-500.js",
     "stress:5000": "node scripts/stress-test-5000.js",
     "stress:5000:fast": "MAX_CONCURRENT=1000 node scripts/stress-test-5000.js",
+    "check:trpc-parity": "pnpm --filter @nexusops/api exec vitest run src/__tests__/trpc-web-parity.test.ts",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "db:push": "turbo run db:push --filter=./packages/db",
