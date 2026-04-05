@@ -192,3 +192,133 @@ Respond with JSON only:
     return null;
   }
 }
+
+export interface ClassifyTicketInput {
+  title: string;
+  description: string;
+}
+
+export interface ClassifyTicketOutput {
+  category: string;
+  priority: "low" | "medium" | "high" | "critical";
+  confidence: number;
+  reasoning: string;
+}
+
+/**
+ * Classifies a ticket's category and priority based on title and description.
+ * Returns { confidence: 0 } if AI is unavailable or times out.
+ */
+export async function classifyTicket(
+  input: ClassifyTicketInput,
+): Promise<ClassifyTicketOutput | { confidence: 0 }> {
+  try {
+    const client = getClient();
+
+    const prompt = `You are an ITSM ticket classifier. Given a ticket title and description, determine the most appropriate category and priority.
+
+Title: ${input.title}
+Description: ${input.description}
+
+Respond with valid JSON only:
+{
+  "category": "string (one of: hardware, software, access, network, facilities, security, hr, other)",
+  "priority": "string (one of: low, medium, high, critical)",
+  "confidence": number (0.0 to 1.0),
+  "reasoning": "brief explanation"
+}`;
+
+    const response = await withTimeout(
+      client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: MAX_TOKENS,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      TIMEOUT_MS,
+    );
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { confidence: 0 };
+
+    const parsed = JSON.parse(jsonMatch[0]) as ClassifyTicketOutput;
+    const validCategories = ["hardware", "software", "access", "network", "facilities", "security", "hr", "other"];
+    const validPriorities = ["low", "medium", "high", "critical"] as const;
+
+    return {
+      category: validCategories.includes(parsed.category) ? parsed.category : "other",
+      priority: validPriorities.includes(parsed.priority as typeof validPriorities[number])
+        ? (parsed.priority as typeof validPriorities[number])
+        : "medium",
+      confidence: typeof parsed.confidence === "number"
+        ? Math.max(0, Math.min(1, parsed.confidence))
+        : 0,
+      reasoning: String(parsed.reasoning ?? ""),
+    };
+  } catch (err) {
+    console.warn("[ai:classifyTicket] Failed:", (err as Error).message);
+    return { confidence: 0 };
+  }
+}
+
+export interface ParseSearchQueryInput {
+  query: string;
+}
+
+export interface ParseSearchQueryOutput {
+  filters: {
+    status?: string;
+    priority?: string;
+    assignee?: string;
+    category?: string;
+    dateRange?: string;
+  };
+  searchTerm?: string;
+  confidence: number;
+}
+
+/**
+ * Parses a natural language ITSM search query into structured filters.
+ * Returns { filters: {}, confidence: 0 } if AI is unavailable or times out.
+ */
+export async function parseSearchQuery(
+  input: ParseSearchQueryInput,
+): Promise<ParseSearchQueryOutput> {
+  try {
+    const client = getClient();
+
+    const prompt = `Parse this natural language ITSM search query into structured filters.
+Query: "${input.query}"
+
+Examples:
+- "critical tickets assigned to John" → {"priority": "critical", "assignee": "john"}
+- "open hardware tickets last week" → {"status": "open", "category": "hardware", "dateRange": "last_week"}
+
+Respond with JSON only: { "filters": {...}, "searchTerm": "...", "confidence": 0.0-1.0 }`;
+
+    const response = await withTimeout(
+      client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: MAX_TOKENS,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      TIMEOUT_MS,
+    );
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { filters: {}, confidence: 0 };
+
+    const parsed = JSON.parse(jsonMatch[0]) as ParseSearchQueryOutput;
+    return {
+      filters: typeof parsed.filters === "object" && parsed.filters !== null ? parsed.filters : {},
+      searchTerm: parsed.searchTerm ? String(parsed.searchTerm) : undefined,
+      confidence: typeof parsed.confidence === "number"
+        ? Math.max(0, Math.min(1, parsed.confidence))
+        : 0,
+    };
+  } catch (err) {
+    console.warn("[ai:parseSearchQuery] Failed:", (err as Error).message);
+    return { filters: {}, confidence: 0 };
+  }
+}

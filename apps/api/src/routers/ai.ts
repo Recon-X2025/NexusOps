@@ -7,7 +7,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { tickets, ticketComments, kbArticles, eq, and, desc } from "@nexusops/db";
-import { summarizeTicket, suggestResolution } from "../services/ai";
+import { summarizeTicket, suggestResolution, classifyTicket, parseSearchQuery } from "../services/ai";
 
 export const aiRouter = router({
   /**
@@ -92,5 +92,27 @@ export const aiRouter = router({
           content: a.content ?? "",
         })),
       });
+    }),
+
+  /**
+   * Classify a ticket's category and priority from its title and description.
+   * Returns { confidence: 0 } if AI is unavailable or times out — callers
+   * should treat low confidence as "no suggestion".
+   */
+  classifyTicket: permissionProcedure("incidents", "read")
+    .input(z.object({ title: z.string(), description: z.string() }))
+    .mutation(async ({ input }) => {
+      return classifyTicket({ title: input.title, description: input.description });
+    }),
+
+  /**
+   * Parse a natural language search query into structured ITSM filters.
+   * Returns { filters: {}, confidence: 0 } on AI failure — callers fall back to
+   * plain text search in that case.
+   */
+  parseSearchQuery: permissionProcedure("incidents", "read")
+    .input(z.object({ query: z.string() }))
+    .mutation(async ({ input }) => {
+      return parseSearchQuery({ query: input.query });
     }),
 });

@@ -418,6 +418,49 @@ export function AppHeader() {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  // NL search state
+  type NlFilter = { status?: string; priority?: string; assignee?: string; category?: string; dateRange?: string };
+  const [nlFilters, setNlFilters] = useState<NlFilter | null>(null);
+  const [nlSearchTerm, setNlSearchTerm] = useState<string | undefined>(undefined);
+  const [nlLoading, setNlLoading] = useState(false);
+
+  const parseSearchQuery = trpc.ai.parseSearchQuery.useMutation({
+    onSuccess: (result) => {
+      setNlLoading(false);
+      if (!result || result.confidence < 0.4) return;
+      setNlFilters(result.filters);
+      setNlSearchTerm(result.searchTerm);
+    },
+    onError: () => setNlLoading(false),
+  });
+
+  // Whether to show the AI Search affordance: query starts with "?" OR has 3+ words
+  const isNlQuery = searchQuery.startsWith("?") || searchQuery.trim().split(/\s+/).length >= 3;
+  const nlQueryText = searchQuery.startsWith("?") ? searchQuery.slice(1).trim() : searchQuery.trim();
+
+  function handleNlSearch() {
+    if (!nlQueryText) return;
+    setNlLoading(true);
+    setNlFilters(null);
+    parseSearchQuery.mutate({ query: nlQueryText });
+  }
+
+  function applyNlFilters() {
+    if (!nlFilters) return;
+    const params = new URLSearchParams();
+    if (nlSearchTerm) params.set("search", nlSearchTerm);
+    if (nlFilters.status) params.set("status", nlFilters.status);
+    if (nlFilters.priority) params.set("priority", nlFilters.priority);
+    if (nlFilters.assignee) params.set("assignee", nlFilters.assignee);
+    if (nlFilters.category) params.set("category", nlFilters.category);
+    if (nlFilters.dateRange) params.set("dateRange", nlFilters.dateRange);
+    router.push(`/app/tickets?${params.toString()}`);
+    setSearchOpen(false);
+    setSearchQuery("");
+    setNlFilters(null);
+    setNlSearchTerm(undefined);
+  }
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
     return () => clearTimeout(t);
@@ -426,7 +469,7 @@ export function AppHeader() {
   // @ts-ignore - search router created in parallel
   const searchResults = trpc.search.global.useQuery(
     { query: debouncedQuery, limit: 20 },
-    { enabled: isAuthenticated && debouncedQuery.length > 1 },
+    { enabled: isAuthenticated && debouncedQuery.length > 1 && !isNlQuery },
   );
 
   const results: Array<{ id: string; type: string; title: string; description?: string; href: string }> =
@@ -447,6 +490,8 @@ export function AppHeader() {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setSearchOpen(false);
         setFocusedIndex(-1);
+        setNlFilters(null);
+        setNlSearchTerm(undefined);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -463,15 +508,20 @@ export function AppHeader() {
     } else if (e.key === "Escape") {
       setSearchOpen(false);
       setFocusedIndex(-1);
-    } else if (e.key === "Enter" && focusedIndex >= 0 && flatResults[focusedIndex]) {
-      router.push(flatResults[focusedIndex].href);
-      setSearchOpen(false);
-      setSearchQuery("");
-      setFocusedIndex(-1);
+      setNlFilters(null);
+    } else if (e.key === "Enter") {
+      if (isNlQuery) {
+        handleNlSearch();
+      } else if (focusedIndex >= 0 && flatResults[focusedIndex]) {
+        router.push(flatResults[focusedIndex].href);
+        setSearchOpen(false);
+        setSearchQuery("");
+        setFocusedIndex(-1);
+      }
     }
   }
 
-  const showDropdown = searchOpen && debouncedQuery.length > 1 && results.length > 0;
+  const showDropdown = searchOpen && debouncedQuery.length > 1 && (results.length > 0 || isNlQuery || nlFilters !== null);
 
   return (
     <header
@@ -500,58 +550,120 @@ export function AppHeader() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => { if (results.length > 0) setSearchOpen(true); }}
+            onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); setNlFilters(null); }}
+            onFocus={() => { if (results.length > 0 || isNlQuery) setSearchOpen(true); }}
             onKeyDown={handleSearchKeyDown}
-            placeholder="Search records, users, CIs…"
+            placeholder="Search records… or ? for AI search"
             className="w-full rounded border border-white/10 bg-white/5 pl-8 pr-12 py-1.5 text-xs text-white/80 placeholder:text-white/40 hover:bg-white/10 focus:bg-white/10 focus:outline-none focus:border-white/20 transition-colors"
           />
-          <kbd className="absolute right-3 rounded border border-white/15 px-1.5 py-0.5 text-[0.6rem] font-mono text-white/30 pointer-events-none">
-            ⌘K
-          </kbd>
+          {isNlQuery ? (
+            <span className="absolute right-3 flex items-center gap-0.5 text-[0.6rem] font-mono text-violet-400/70 pointer-events-none">
+              ✦ AI
+            </span>
+          ) : (
+            <kbd className="absolute right-3 rounded border border-white/15 px-1.5 py-0.5 text-[0.6rem] font-mono text-white/30 pointer-events-none">
+              ⌘K
+            </kbd>
+          )}
         </div>
 
         {showDropdown && (
           <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-80 overflow-auto">
-            {searchResults.isLoading ? (
-              <div className="px-4 py-3 text-xs text-slate-500">Searching…</div>
-            ) : (
-              <div className="py-1">
-                {Object.entries(groupedResults).map(([type, items]) => {
-                  const firstItem = items[0];
-                  const groupStart = firstItem ? flatResults.indexOf(firstItem) : 0;
-                  return (
-                    <div key={type}>
-                      <div className="text-[10px] text-slate-500 uppercase px-3 py-1 tracking-wider">
-                        {type.replace(/_/g, " ")}
-                      </div>
-                      {items.map((item, idx) => {
-                        const globalIdx = groupStart + idx;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              router.push(item.href);
-                              setSearchOpen(false);
-                              setSearchQuery("");
-                              setFocusedIndex(-1);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-2 rounded text-xs flex flex-col gap-0.5 transition-colors",
-                              focusedIndex === globalIdx ? "bg-primary/20" : "hover:bg-white/5",
-                            )}
-                          >
-                            <span className="font-medium text-slate-200">{item.title}</span>
-                            {item.description && (
-                              <span className="text-slate-500 truncate">{item.description}</span>
-                            )}
-                          </button>
-                        );
-                      })}
+            {/* NL search panel */}
+            {isNlQuery && (
+              <div className="border-b border-slate-700">
+                {nlFilters ? (
+                  <div className="px-3 py-2.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[10px] text-violet-400 font-semibold uppercase tracking-wider">
+                      <span>✦</span> AI parsed filters
                     </div>
-                  );
-                })}
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(nlFilters).map(([k, v]) =>
+                        v ? (
+                          <span
+                            key={k}
+                            className="inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-300"
+                          >
+                            <span className="capitalize text-violet-500">{k}:</span> {v}
+                          </span>
+                        ) : null,
+                      )}
+                      {nlSearchTerm && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-700 px-2 py-0.5 text-[11px] text-slate-300">
+                          <span className="text-slate-500">keyword:</span> {nlSearchTerm}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={applyNlFilters}
+                      className="w-full rounded bg-violet-600 py-1.5 text-[11px] font-medium text-white hover:bg-violet-700 transition"
+                    >
+                      Search tickets with these filters →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-[11px] text-slate-400">
+                      {nlLoading ? "Parsing with AI…" : "Press Enter or click to search with AI"}
+                    </span>
+                    <button
+                      onClick={handleNlSearch}
+                      disabled={nlLoading}
+                      className="flex items-center gap-1 rounded bg-violet-600/80 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-violet-600 transition disabled:opacity-50"
+                    >
+                      {nlLoading ? (
+                        <span className="animate-pulse">…</span>
+                      ) : (
+                        <>✦ AI Search</>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* Standard results (only shown when not in NL mode) */}
+            {!isNlQuery && (
+              searchResults.isLoading ? (
+                <div className="px-4 py-3 text-xs text-slate-500">Searching…</div>
+              ) : (
+                <div className="py-1">
+                  {Object.entries(groupedResults).map(([type, items]) => {
+                    const firstItem = items[0];
+                    const groupStart = firstItem ? flatResults.indexOf(firstItem) : 0;
+                    return (
+                      <div key={type}>
+                        <div className="text-[10px] text-slate-500 uppercase px-3 py-1 tracking-wider">
+                          {type.replace(/_/g, " ")}
+                        </div>
+                        {items.map((item, idx) => {
+                          const globalIdx = groupStart + idx;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => {
+                                router.push(item.href);
+                                setSearchOpen(false);
+                                setSearchQuery("");
+                                setFocusedIndex(-1);
+                              }}
+                              className={cn(
+                                "w-full text-left px-3 py-2 rounded text-xs flex flex-col gap-0.5 transition-colors",
+                                focusedIndex === globalIdx ? "bg-primary/20" : "hover:bg-white/5",
+                              )}
+                            >
+                              <span className="font-medium text-slate-200">{item.title}</span>
+                              {item.description && (
+                                <span className="text-slate-500 truncate">{item.description}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
         )}
