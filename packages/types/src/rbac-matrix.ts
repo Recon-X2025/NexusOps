@@ -84,7 +84,7 @@ export type Module =
   | "system_properties"
   | "audit_log"
   | "facilities"
-  | "recruitment"            // NEW Phase 3A: Recruitment / ATS
+  | "recruitment"            // Phase 3: job requisitions, candidates, pipeline
   | "workforce_analytics";   // NEW Phase 3C: People & Workforce Analytics
 
 export type RbacAction = "read" | "write" | "delete" | "admin" | "approve" | "assign" | "close";

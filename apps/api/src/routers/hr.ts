@@ -16,6 +16,7 @@ import {
   asc,
   count,
   sql,
+  isNull,
 } from "@nexusops/db";
 import { CreateLeaveRequestSchema } from "@nexusops/types";
 
@@ -35,7 +36,35 @@ export const hrRouter = router({
         if (input.status) conditions.push(eq(employees.status, input.status as any));
         if (input.department) conditions.push(eq(employees.department, input.department));
 
-        return db.select().from(employees).where(and(...conditions));
+        const rows = await db
+          .select({ emp: employees, userName: users.name, userEmail: users.email })
+          .from(employees)
+          .innerJoin(users, eq(employees.userId, users.id))
+          .where(and(...conditions));
+
+        return rows.map(({ emp, userName, userEmail }) => ({
+          ...emp,
+          name: userName,
+          email: userEmail,
+          employeeNumber: emp.employeeId,
+          jobTitle: emp.title,
+        }));
+      }),
+
+    /** Org users who do not yet have an employee row (for linking a new employee record). */
+    listUsersWithoutEmployee: permissionProcedure("hr", "write")
+      .query(async ({ ctx }) => {
+        const { db, org } = ctx;
+        return db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          })
+          .from(users)
+          .leftJoin(employees, eq(users.id, employees.userId))
+          .where(and(eq(users.orgId, org!.id), isNull(employees.id)))
+          .orderBy(asc(users.name));
       }),
 
     get: permissionProcedure("hr", "read")
@@ -58,8 +87,40 @@ export const hrRouter = router({
       }),
 
     create: permissionProcedure("hr", "write")
+      .input(
+        z.object({
+          userId: z.string().uuid(),
+          department: z.string().optional(),
+          title: z.string().optional(),
+          managerId: z.string().uuid().nullable().optional(),
+          employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).default("full_time"),
+          location: z.string().optional(),
+          startDate: z.coerce.date().optional(),
+        }),
+      )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+
+        const [existing] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.userId, input.userId), eq(employees.orgId, org!.id)))
+          .limit(1);
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "This user already has an employee record in your organization.",
+          });
+        }
+
+        const [userInOrg] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
+          .limit(1);
+        if (!userInOrg) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "User is not in this organization." });
+        }
 
         const [countResult] = await db
           .select({ count: count() })

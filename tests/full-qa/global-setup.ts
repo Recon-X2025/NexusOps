@@ -8,7 +8,8 @@ import { chromium, type FullConfig } from "@playwright/test";
 import * as path from "path";
 import * as fs from "fs";
 
-const BASE_URL  = "http://139.84.154.78";
+const BASE_URL =
+  process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
 export const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-state.json");
 const MAX_AGE_MS = 55 * 60 * 1000; // 55 minutes
 

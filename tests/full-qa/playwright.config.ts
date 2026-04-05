@@ -1,9 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import * as path from "path";
 
+const QA_BASE = process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+
 /**
  * NexusOps Full-QA Playwright Config
- * Target: http://139.84.154.78 (production)
+ * Target: `NEXUS_QA_BASE_URL` or http://139.84.154.78 (production)
  * Auth: shared storageState from global setup (login once, reuse everywhere)
  */
 export const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-state.json");
@@ -22,7 +24,7 @@ export default defineConfig({
     ["html", { open: "never", outputFolder: "results/html-report" }],
   ],
   use: {
-    baseURL: "http://139.84.154.78",
+    baseURL: QA_BASE,
     storageState: AUTH_STATE_FILE,   // reuse auth across all tests
     trace: "retain-on-failure",
     screenshot: "on",

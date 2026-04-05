@@ -11,7 +11,7 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
-| **2.0** | 2026-04-04 | **Phase 3 domain expansion — production-verified on Vultr.** Three new API surfaces: **Recruitment/ATS**, **Corporate Secretarial**, **Workforce analytics** — each with Drizzle schema (`recruitment.ts`, `secretarial.ts`), Fastify/tRPC routers, and UI routes (`/app/recruitment`, `/app/people-analytics`; Secretarial at `/app/secretarial`). PostgreSQL extended by migration `0004_recruitment_secretarial` (11 tables). Deploy path: run `apply-phase3-schema.sh` then rebuild/restart API + web. |
+| **2.0** | 2026-04-04 | **Phase 3 domain expansion — production-verified on Vultr.** Three new API surfaces: **Recruitment** (requisitions and pipeline), **Corporate Secretarial**, **Workforce analytics** — each with Drizzle schema (`recruitment.ts`, `secretarial.ts`), Fastify/tRPC routers, and UI routes (`/app/recruitment`, `/app/people-analytics`; Secretarial at `/app/secretarial`). PostgreSQL extended by migration `0004_recruitment_secretarial` (11 tables). Deploy path: run `apply-phase3-schema.sh` then rebuild/restart API + web. |
 
 | **1.9** | 2026-04-04 | **Exhaustive QA validation complete.** 261/261 Playwright tests pass across 3 new suites (05 page-data, 06 all-endpoints, 07 all-buttons). **Schema gaps closed:** 6 missing production tables created (csm_cases, assignment_rules, user_assignment_stats, salary_structures, payroll_runs, payslips); total tables now **121** (was 115). **Code bugs fixed:** `walkup.analytics` + `dashboard.getTimeSeries` Date serialization errors resolved. Auth: admin password hash corrected; Redis rate-limit keys cleared. Platform readiness: **95/100** (up from 85/100). |
 

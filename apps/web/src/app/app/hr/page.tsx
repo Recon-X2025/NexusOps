@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw } from "lucide-react";
+import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -72,6 +72,60 @@ export default function HRPage() {
     { refetchOnWindowFocus: false },
   );
 
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null);
+  const [addEmpForm, setAddEmpForm] = useState({
+    userId: "",
+    department: "",
+    title: "",
+    location: "",
+    employmentType: "full_time" as "full_time" | "part_time" | "contractor" | "intern",
+    managerId: "",
+    startDate: "",
+  });
+  const [editEmpForm, setEditEmpForm] = useState({
+    department: "",
+    title: "",
+    location: "",
+    employmentType: "full_time" as "full_time" | "part_time" | "contractor" | "intern",
+    managerId: "",
+  });
+
+  const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, {
+    enabled: showAddEmployee && can("hr", "write"),
+    refetchOnWindowFocus: false,
+  });
+
+  const utils = trpc.useUtils();
+
+  const createEmployee = trpc.hr.employees.create.useMutation({
+    onSuccess: () => {
+      toast.success("Employee record created");
+      utils.hr.employees.list.invalidate();
+      utils.hr.employees.listUsersWithoutEmployee.invalidate();
+      setShowAddEmployee(false);
+      setAddEmpForm({
+        userId: "",
+        department: "",
+        title: "",
+        location: "",
+        employmentType: "full_time",
+        managerId: "",
+        startDate: "",
+      });
+    },
+    onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not create employee"),
+  });
+
+  const updateEmployee = trpc.hr.employees.update.useMutation({
+    onSuccess: () => {
+      toast.success("Employee updated");
+      utils.hr.employees.list.invalidate();
+      setEditingEmployee(null);
+    },
+    onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not update employee"),
+  });
+
   // Leave management
   const { data: leaveData, refetch: refetchLeave } = (trpc as any).hr.leave.list.useQuery({}, { refetchOnWindowFocus: false });
   const [showLeaveForm, setShowLeaveForm] = useState(false);
@@ -94,7 +148,6 @@ export default function HRPage() {
   const epfoEcrQuery     = (trpc as any).indiaCompliance.epfoEcr.list.useQuery({}, { refetchOnWindowFocus: false });
   const markTdsPaid      = (trpc as any).indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const markEcrSubmitted = (trpc as any).indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
-  const utils = trpc.useUtils();
   const createHRCase = trpc.hr.cases.create.useMutation({
     onSuccess: () => {
       toast.success("HR Case created successfully");
@@ -173,6 +226,227 @@ export default function HRPage() {
         </div>
       )}
 
+      {showAddEmployee && can("hr", "write") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-semibold">Add employee</h3>
+              <button type="button" onClick={() => setShowAddEmployee(false)} className="text-muted-foreground hover:text-foreground text-xs">
+                Close
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Links a platform user in your org to an HR employee record (required for directory, leave, and workforce analytics).
+            </p>
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-[11px] text-muted-foreground">User *</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.userId}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, userId: e.target.value }))}
+                >
+                  <option value="">Select user…</option>
+                  {(unlinkedUsersQuery.data ?? []).map((u: { id: string; name: string | null; email: string }) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name || u.email}
+                    </option>
+                  ))}
+                </select>
+                {unlinkedUsersQuery.isFetched && (unlinkedUsersQuery.data?.length ?? 0) === 0 && (
+                  <p className="text-[10px] text-amber-700 mt-1">No users left without an employee record. Invite or add users first, then return here.</p>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Department</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.department}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, department: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Title</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.title}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Location</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.location}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, location: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Employment type</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.employmentType}
+                  onChange={(e) =>
+                    setAddEmpForm((f) => ({
+                      ...f,
+                      employmentType: e.target.value as typeof f.employmentType,
+                    }))
+                  }
+                >
+                  <option value="full_time">Full time</option>
+                  <option value="part_time">Part time</option>
+                  <option value="contractor">Contractor</option>
+                  <option value="intern">Intern</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Manager</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.managerId}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, managerId: e.target.value }))}
+                >
+                  <option value="">None</option>
+                  {((employeesData as any[]) ?? []).map((e: any) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name ?? e.email ?? e.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Start date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.startDate}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, startDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                disabled={!addEmpForm.userId || createEmployee.isPending}
+                onClick={() =>
+                  createEmployee.mutate({
+                    userId: addEmpForm.userId,
+                    department: addEmpForm.department || undefined,
+                    title: addEmpForm.title || undefined,
+                    location: addEmpForm.location || undefined,
+                    employmentType: addEmpForm.employmentType,
+                    managerId: addEmpForm.managerId || undefined,
+                    startDate: addEmpForm.startDate ? new Date(`${addEmpForm.startDate}T12:00:00`) : undefined,
+                  })
+                }
+                className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                {createEmployee.isPending ? "Saving…" : "Create record"}
+              </button>
+              <button type="button" onClick={() => setShowAddEmployee(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingEmployee && can("hr", "write") && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-semibold">Edit employee</h3>
+              <button type="button" onClick={() => setEditingEmployee(null)} className="text-muted-foreground hover:text-foreground text-xs">
+                Close
+              </button>
+            </div>
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-[11px] text-muted-foreground">Department</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.department}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, department: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Title</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.title}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Location</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.location}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, location: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Employment type</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.employmentType}
+                  onChange={(e) =>
+                    setEditEmpForm((f) => ({
+                      ...f,
+                      employmentType: e.target.value as typeof f.employmentType,
+                    }))
+                  }
+                >
+                  <option value="full_time">Full time</option>
+                  <option value="part_time">Part time</option>
+                  <option value="contractor">Contractor</option>
+                  <option value="intern">Intern</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Manager</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.managerId}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, managerId: e.target.value }))}
+                >
+                  <option value="">None</option>
+                  {((employeesData as any[]) ?? [])
+                    .filter((e: any) => e.id !== editingEmployee.id)
+                    .map((e: any) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name ?? e.email ?? e.id.slice(0, 8)}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                disabled={updateEmployee.isPending}
+                onClick={() =>
+                  updateEmployee.mutate({
+                    id: editingEmployee.id as string,
+                    department: editEmpForm.department || undefined,
+                    title: editEmpForm.title || undefined,
+                    location: editEmpForm.location || undefined,
+                    employmentType: editEmpForm.employmentType,
+                    managerId: editEmpForm.managerId === "" ? null : editEmpForm.managerId,
+                  })
+                }
+                className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
+              >
+                {updateEmployee.isPending ? "Saving…" : "Save"}
+              </button>
+              <button type="button" onClick={() => setEditingEmployee(null)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <UserCheck className="w-4 h-4 text-muted-foreground" />
@@ -220,11 +494,29 @@ export default function HRPage() {
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">
                 {((employeesData as any[]) ?? []).length} Employees
               </span>
+              {can("hr", "write") && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddEmployee(true)}
+                  className="flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-[11px] rounded hover:opacity-90"
+                >
+                  <Plus className="w-3 h-3" /> Add employee
+                </button>
+              )}
             </div>
             {!employeesData || (employeesData as any[]).length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
                 <UserCheck className="w-5 h-5 opacity-30" />
                 <span className="text-xs">No employees found.</span>
+                {can("hr", "write") && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddEmployee(true)}
+                    className="mt-2 text-xs text-primary hover:underline"
+                  >
+                    Add employee record
+                  </button>
+                )}
               </div>
             ) : (
               <table className="ent-table w-full">
@@ -238,10 +530,14 @@ export default function HRPage() {
                     <th>Manager</th>
                     <th>Status</th>
                     <th>Joined</th>
+                    {can("hr", "write") && <th className="text-right w-24">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {(employeesData as any[]).map((emp: any) => (
+                  {(employeesData as any[]).map((emp: any) => {
+                    const mgr = ((employeesData as any[]) ?? []).find((e: any) => e.id === emp.managerId);
+                    const mgrLabel = mgr ? (mgr.name ?? mgr.email ?? "—") : emp.managerId ? `…${String(emp.managerId).slice(-8)}` : "—";
+                    return (
                     <tr key={emp.id}>
                       <td className="p-0">
                         <div className={`priority-bar ${emp.status === "active" ? "bg-green-500" : emp.status === "on_leave" ? "bg-yellow-500" : "bg-red-400"}`} />
@@ -252,15 +548,19 @@ export default function HRPage() {
                             {(emp.firstName?.[0] ?? emp.name?.[0] ?? "?").toUpperCase()}{(emp.lastName?.[0] ?? "").toUpperCase()}
                           </span>
                           <div>
-                            <div className="font-semibold text-foreground text-[12px]">{emp.firstName ?? ""} {emp.lastName ?? emp.name ?? ""}</div>
-                            <div className="text-[10px] text-muted-foreground/70 font-mono">{emp.employeeNumber ?? emp.id?.slice(0,8)}</div>
+                            <div className="font-semibold text-foreground text-[12px]">
+                              {emp.name ? emp.name : [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—"}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground/70 font-mono">
+                              {emp.employeeNumber ?? emp.employeeId ?? emp.id?.slice(0, 8)}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="text-muted-foreground">{emp.department ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px]">{emp.jobTitle ?? emp.role ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{emp.jobTitle ?? emp.title ?? emp.role ?? "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{emp.location ?? emp.workLocation ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px]">{emp.managerId ? `ID: ${emp.managerId.slice(0,8)}` : "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{mgrLabel}</td>
                       <td>
                         <span className={`status-badge capitalize ${
                           emp.status === "active" ? "text-green-700 bg-green-100" :
@@ -271,8 +571,29 @@ export default function HRPage() {
                       <td className="text-[11px] text-muted-foreground/70">
                         {emp.startDate ? new Date(emp.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                       </td>
+                      {can("hr", "write") && (
+                        <td className="text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEmployee(emp);
+                              setEditEmpForm({
+                                department: String(emp.department ?? ""),
+                                title: String(emp.jobTitle ?? emp.title ?? ""),
+                                location: String(emp.location ?? ""),
+                                employmentType: (emp.employmentType ?? "full_time") as typeof editEmpForm.employmentType,
+                                managerId: emp.managerId ? String(emp.managerId) : "",
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"
+                          >
+                            <Pencil className="w-3 h-3" /> Edit
+                          </button>
+                        </td>
+                      )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             )}

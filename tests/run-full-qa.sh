@@ -61,6 +61,24 @@ else
 fi
 SMOKE_STATUS=$( [ "$SMOKE_EXIT" -eq 0 ] && echo "PASS" || echo "FAIL($SMOKE_EXIT)" )
 
+# ── 2b. Suite A2: E2E build-plan (outcome-based create→read + UI flows) ─────
+log "2b. Running Suite A2: E2E build-plan (08-e2e-build-plan)..."
+E2E_PLAN_EXIT=0
+npx playwright test \
+  --config="$QA_DIR/playwright.config.ts" \
+  --workers=2 \
+  "$QA_DIR/08-e2e-build-plan.spec.ts" \
+  --reporter=json \
+  --output="$RESULTS_DIR/e2e-plan-artifacts" \
+  2>&1 | tee "$RESULTS_DIR/e2e-plan-output.txt" || E2E_PLAN_EXIT=$?
+
+if [ "$E2E_PLAN_EXIT" -eq 0 ]; then
+  ok "Suite A2 (E2E build-plan) PASSED"
+else
+  warn "Suite A2 had failures (exit $E2E_PLAN_EXIT) — continuing..."
+fi
+E2E_PLAN_STATUS=$( [ "$E2E_PLAN_EXIT" -eq 0 ] && echo "PASS" || echo "FAIL($E2E_PLAN_EXIT)" )
+
 # ── 3. Suite B: Auth + RBAC ──────────────────────────────────────────────────
 log "3. Running Suite B: Auth + RBAC + Session Security..."
 AUTH_EXIT=0
@@ -196,6 +214,7 @@ cat > "$REPORT_FILE" << REPORT_EOF
 | Suite | Scope | Result |
 |-------|-------|--------|
 | A — Smoke + CRUD | 53 routes × navigation + 14 CRUD mutations | $SMOKE_STATUS |
+| A2 — E2E build-plan | Outcome-based API chains + recruitment/HR/analytics UI | $E2E_PLAN_STATUS |
 | B — Auth + RBAC | Login validation, session security, API bypass | $AUTH_STATUS |
 | C — Form Validation | XSS, SQL injection, oversized input, modal lifecycle | $FORMS_STATUS |
 | D — Chaos v2 | 30 workers × 25 iterations × all 53 routes | $CHAOS_STATUS |
@@ -376,6 +395,7 @@ echo "════════════════════════�
 echo "  NexusOps Full-QA Complete"
 echo "════════════════════════════════════════════════════════════════"
 echo "  Suite A (Smoke+CRUD):      $SMOKE_STATUS"
+echo "  Suite A2 (E2E build-plan): $E2E_PLAN_STATUS"
 echo "  Suite B (Auth+RBAC):       $AUTH_STATUS"
 echo "  Suite C (Forms+Security):  $FORMS_STATUS"
 echo "  Suite D (Chaos v2):        $CHAOS_STATUS"

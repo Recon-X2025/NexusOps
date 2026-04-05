@@ -3,8 +3,14 @@
  */
 import { type Page, type BrowserContext, expect } from "@playwright/test";
 
-export const BASE_URL  = "http://139.84.154.78";
-export const API_URL   = "http://139.84.154.78:3001";
+export const BASE_URL =
+  typeof process !== "undefined" && process.env["NEXUS_QA_BASE_URL"]
+    ? process.env["NEXUS_QA_BASE_URL"]
+    : "http://139.84.154.78";
+export const API_URL =
+  typeof process !== "undefined" && process.env["NEXUS_QA_API_URL"]
+    ? process.env["NEXUS_QA_API_URL"]
+    : "http://139.84.154.78:3001";
 
 export const ADMIN_EMAIL    = "admin@coheron.com";
 export const ADMIN_PASSWORD = "Admin1234!";
@@ -57,6 +63,8 @@ export const ALL_ROUTES = [
   "/app/procurement",
   "/app/notifications",
   "/app/secretarial",
+  "/app/recruitment",
+  "/app/people-analytics",
   "/app/people-workplace",
   "/app/strategy-projects",
   "/app/developer-ops",
@@ -149,6 +157,22 @@ export async function apiCall(
     { method, input, proxyBase: PROXY_BASE, proc: procedure, encoded },
   );
   return result;
+}
+
+/** Unwrap tRPC batch JSON `{ result: { data: { json } } }[]` from `/api/trpc` responses. */
+export function extractTrpcJson(data: unknown): unknown {
+  if (data == null) return data;
+  if (!Array.isArray(data) || data.length === 0) return data;
+  const first = data[0] as Record<string, unknown>;
+  if (first["error"]) {
+    const err = first["error"] as Record<string, unknown>;
+    const msg = typeof err["message"] === "string" ? err["message"] : JSON.stringify(first["error"]);
+    throw new Error(`tRPC error: ${msg}`);
+  }
+  const result = first["result"] as Record<string, unknown> | undefined;
+  const inner = result?.["data"] as Record<string, unknown> | undefined;
+  if (inner && "json" in inner) return inner["json"];
+  return result?.["data"];
 }
 
 // ── Check page for crash ──────────────────────────────────────────────────────

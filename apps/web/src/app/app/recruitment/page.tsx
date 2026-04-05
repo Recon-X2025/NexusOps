@@ -680,14 +680,14 @@ export default function RecruitmentPage() {
               <UserPlus className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Recruitment & ATS</h1>
-              <p className="text-sm text-muted-foreground">End-to-end hiring: requisitions, pipeline, interviews, and offers</p>
+              <h1 className="text-2xl font-bold">Recruitment</h1>
+              <p className="text-sm text-muted-foreground">Job requisitions, candidate pipeline, interviews, and offers</p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <div className="h-2 w-2 rounded-full bg-green-400" />
-          <span>Live ATS</span>
+          <span>Live data</span>
         </div>
       </div>
 

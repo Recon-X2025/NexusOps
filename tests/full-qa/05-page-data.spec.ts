@@ -11,7 +11,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = "http://139.84.154.78";
+const BASE_URL = process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function loadPage(page: Page, path: string): Promise<string> {
@@ -40,7 +40,7 @@ function hasContent(page: Page) {
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
-test.describe("05 — Page Data Loading (all 53 routes)", () => {
+test.describe("05 — Page Data Loading (all hub/module routes)", () => {
   test.describe.configure({ mode: "parallel" });
 
   // Only verified routes (from Next.js app directory scan)
@@ -123,6 +123,8 @@ test.describe("05 — Page Data Loading (all 53 routes)", () => {
     { path: "/app/strategy-projects","label": "Strategy & Projects hub" },
     { path: "/app/escalations",      label: "Escalations" },
     { path: "/app/secretarial",      label: "Secretarial" },
+    { path: "/app/recruitment",      label: "Recruitment" },
+    { path: "/app/people-analytics", label: "People & Workforce Analytics" },
   ];
 
   for (const { path, label } of PAGES) {

@@ -1,6 +1,6 @@
 # NexusOps — Technical Requirements Document (TRD)
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Date:** April 4, 2026  
 **Status:** Active  
 **Author:** Platform Engineering Team  
@@ -11,8 +11,8 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
-| **2.0** | 2026-04-04 | **Phase 3 functional requirements delivered and verified on Vultr.** **FR-RECRUITMENT:** ATS tables + API + UI; draft/publish; duplicate application handling; interview and offer entities. **FR-SECRETARIAL:** board governance and statutory filing entities with CRUD procedures. **FR-WORKFORCE-ANALYTICS:** aggregated HR metrics endpoints + People Analytics UI. **NFR-DEPLOY:** idempotent migration `0004` + documented apply script. **Procedure surface:** ~299 tRPC procedures. |
-
+| **2.1** | 2026-04-04 | **FR-RECRUITMENT (clarified):** The product delivers **in-platform recruitment** (job requisitions, candidates, applications, interviews, offers, pipeline metrics)—**not** a third-party Applicant Tracking System (ATS) integration or full commercial ATS feature set. UI and docs MUST NOT label the module “ATS”. **NFR-QA:** Outcome-based E2E tests MUST assert create→read chains and UI-visible results (`tests/full-qa/08-e2e-build-plan.spec.ts`), not only HTTP 200 on procedure lists. |
+| **2.0** | 2026-04-04 | **Phase 3 functional requirements delivered and verified on Vultr.** **FR-RECRUITMENT:** recruitment schema + API + UI; draft/publish; duplicate application handling; interview and offer entities. **FR-SECRETARIAL:** board governance and statutory filing entities with CRUD procedures. **FR-WORKFORCE-ANALYTICS:** aggregated HR metrics endpoints + People Analytics UI. **NFR-DEPLOY:** idempotent migration `0004` + documented apply script. **Procedure surface:** ~299 tRPC procedures. |
 | **1.9** | 2026-04-04 | **All critical requirements now verified.** FR-CSM: csm_cases table created — CSM procedures functional. FR-WORKORDERS: assignment_rules + user_assignment_stats tables created — work order create/update fully functional. FR-HR-PAYROLL: salary_structures, payroll_runs, payslips tables created — payroll module fully functional. NFR-ANALYTICS: walkup.analytics and dashboard.getTimeSeries Date serialization bugs fixed. NFR-AUTH-STABILITY: rate-limit Redis keys cleared; correct password hash deployed for all accounts. **Exhaustive test coverage:** 53 pages (Suite 05), 253 API procedures (Suite 06), all UI interactions (Suite 07) — 261/261 pass. Platform readiness score: **95/100** (up from 85/100). |
 
 | **1.8** | 2026-04-03 | **P0/P1 requirements closed.** FR-SURVEYS: `surveys` module added to RBAC type system; `surveys.create` now correctly gates on `surveys.write` (not `analytics.write`) — FORBIDDEN for `hr_manager` resolved ✅. FR-WORKORDERS/FR-TICKETS: Drizzle `Symbol(drizzle:Columns)` 5xx eliminated — duplicate operator exports removed ✅. NFR-AUTH-PERF: `BCRYPT_CONCURRENCY` raised 8 → 32; `LIBUV_THREADPOOL_SIZE=32` — login throughput cap lifted ✅. NFR-REPORTS-PERF: 4 covering indexes on `tickets` table — `executiveOverview` timeout resolved ✅. NFR-INFRA: nginx reverse proxy active (HTTP, HTTPS-ready via certbot); pg_dump cron daily 02:00 UTC; disk 85% → 24%. Platform readiness score updated: **85/100** (up from 70/100). |
@@ -1199,6 +1199,8 @@ E2E test files:
 - `rbac.spec.ts` — permission boundary tests
 - `tickets.spec.ts` — ticket ITSM journeys
 - `layer10-journeys.spec.ts` — comprehensive cross-module journeys
+
+**Production / staging full-QA (`tests/full-qa/`):** In addition to page-load and procedure-enumeration suites, the platform MUST run **outcome-based** specs that prove business operations end-to-end—for example creating a job requisition via API and confirming it appears in `recruitment.requisitions.list`, and validating HR/workforce responses are structured arrays or KPI objects, not only that HTTP status is 200. The canonical file for these checks is `08-e2e-build-plan.spec.ts` (included from `tests/run-full-qa.sh`).
 
 ### 10.4 Test Commands
 

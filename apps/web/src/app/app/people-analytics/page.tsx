@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Users, UserPlus, UserMinus, Clock, BarChart2, TrendingDown,
   TrendingUp, Building2, MapPin, Calendar, Briefcase, Award,
@@ -372,6 +373,21 @@ export default function PeopleAnalyticsPage() {
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
+      <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        <p className="text-foreground font-medium">Read-only analytics</p>
+        <p className="mt-1">
+          Charts are built from employee records and leave data. Add or change people under{" "}
+          {can("hr", "read") ? (
+            <Link href="/app/hr" className="text-primary font-medium underline-offset-2 hover:underline">
+              HR → Employee Directory
+            </Link>
+          ) : (
+            <span className="text-foreground">HR → Employee Directory</span>
+          )}
+          {can("hr", "read") ? "" : " (you need HR access)."}
+        </p>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

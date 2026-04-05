@@ -322,6 +322,18 @@ test.describe("C — CRUD Mutations (API level)", () => {
     expect(result.status, `legal.createRequest returned ${result.status}`).toBe(200);
   });
 
+  test("create recruitment requisition via API", async ({ page }) => {
+    const result = await apiCall(page, "recruitment.requisitions.create", {
+      title: `QA-Smoke Req ${Date.now()}`,
+      department: "QA Smoke",
+      openings: 1,
+      type: "full_time",
+      level: "mid",
+      publishImmediately: false,
+    }, "POST");
+    expect(result.status, `recruitment.requisitions.create returned ${result.status}`).toBe(200);
+  });
+
   test("list all key endpoints return data", async ({ page }) => {
     const endpoints = [
       "tickets.list",
@@ -336,6 +348,11 @@ test.describe("C — CRUD Mutations (API level)", () => {
       "legal.listRequests",
       "financial.listInvoices",
       "hr.employees.list",
+      "recruitment.requisitions.list",
+      "recruitment.analytics",
+      "workforce.summary",
+      "workforce.headcount",
+      "secretarial.meetings.list",
       "devops.listDeployments",
       "projects.list",
     ];

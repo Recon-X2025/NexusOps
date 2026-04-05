@@ -153,7 +153,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         ],
       },
       {
-        label: "Recruitment / ATS",
+        label: "Recruitment",
         href: "/app/recruitment",
         icon: "UserPlus",
         module: "recruitment",
