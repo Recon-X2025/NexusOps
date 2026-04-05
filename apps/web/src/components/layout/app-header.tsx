@@ -92,7 +92,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   attendance: "Attendance Management",
   holidays: "Holiday Calendar",
   okr: "OKRs & Goals",
-  "onboarding-wizard": "Setup Wizard",
+  accounting: "Accounting",
 };
 
 function Breadcrumbs() {

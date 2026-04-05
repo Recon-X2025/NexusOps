@@ -226,6 +226,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         children: [
           { label: "Procurement", href: "/app/procurement" },
           { label: "Financial Management", href: "/app/financial" },
+          { label: "Accounting (COA / Journal / GSTR)", href: "/app/accounting" },
           { label: "Vendors", href: "/app/vendors" },
         ],
       },
