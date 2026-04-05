@@ -15,17 +15,72 @@ import { MOCK_USERS, SYSTEM_ROLES_CATALOG } from "@/lib/rbac";
 import { trpc } from "@/lib/trpc";
 
 const BREADCRUMB_LABELS: Record<string, string> = {
+  // Core
   app: "NexusOps",
   dashboard: "Dashboard",
-  tickets: "All Tickets",
-  assets: "Assets",
-  cmdb: "CMDB",
-  workflows: "Workflows",
-  hr: "People Ops",
-  procurement: "Procurement",
-  reports: "Reports",
-  settings: "Settings",
   new: "New",
+  settings: "Settings",
+  admin: "Administration",
+  profile: "My Profile",
+  notifications: "Notifications",
+  approvals: "Approvals",
+  flows: "Flow Designer",
+  workflows: "Workflows",
+  // IT Services
+  "it-services": "IT Services",
+  tickets: "Service Desk",
+  changes: "Change Management",
+  problems: "Problem Management",
+  releases: "Release Management",
+  "work-orders": "Work Orders",
+  "on-call": "On-Call",
+  events: "Event Management",
+  cmdb: "CMDB",
+  ham: "Hardware Assets",
+  sam: "Software Assets",
+  assets: "Assets",
+  // Security & Compliance
+  "security-compliance": "Security & Compliance",
+  security: "Security Operations",
+  grc: "GRC",
+  compliance: "Compliance",
+  // People & Workplace
+  "people-workplace": "People & Workplace",
+  hr: "HR Service Delivery",
+  "employee-portal": "Employee Portal",
+  "employee-center": "Employee Center",
+  recruitment: "Recruitment",
+  "people-analytics": "People Analytics",
+  facilities: "Facilities",
+  "walk-up": "Walk-Up",
+  // Customer & Sales
+  "customer-sales": "Customer & Sales",
+  csm: "Customer Service",
+  crm: "CRM & Sales",
+  catalog: "Service Catalog",
+  surveys: "Surveys",
+  escalations: "Escalations",
+  // Finance & Procurement
+  "finance-procurement": "Finance & Procurement",
+  procurement: "Procurement",
+  financial: "Financial Management",
+  vendors: "Vendors",
+  contracts: "Contracts",
+  // Legal & Governance
+  "legal-governance": "Legal & Governance",
+  legal: "Legal",
+  secretarial: "Secretarial & CS",
+  // Strategy & Projects
+  "strategy-projects": "Strategy & Projects",
+  projects: "Projects",
+  apm: "Application Portfolio",
+  reports: "Analytics & Reports",
+  // Developer & Ops
+  "developer-ops": "Developer & Ops",
+  devops: "DevOps",
+  knowledge: "Knowledge Base",
+  // Virtual / AI
+  "virtual-agent": "Virtual Agent",
 };
 
 function Breadcrumbs() {

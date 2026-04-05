@@ -63,6 +63,16 @@
     --s-pending: 36 91% 50%;
     --s-resolved: 142 63% 40%;
     --s-closed: 220 9% 52%;
+
+    /* Semantic status tokens (light mode) */
+    --status-critical:    0 84% 55%;    --status-critical-fg:  0 0% 100%;
+    --status-high:       24 95% 52%;    --status-high-fg:      0 0% 100%;
+    --status-medium:     36 91% 50%;    --status-medium-fg:    0 0% 100%;
+    --status-low:       142 63% 40%;    --status-low-fg:       0 0% 100%;
+    --status-info:      213 96% 40%;    --status-info-fg:      0 0% 100%;
+    --status-success:   142 63% 40%;    --status-success-fg:   0 0% 100%;
+    --status-warning:    36 91% 50%;    --status-warning-fg:   0 0% 100%;
+    --status-neutral:   220 9%  52%;    --status-neutral-fg:   0 0% 100%;
   }
 
   .dark {
@@ -100,6 +110,16 @@
     --sidebar-section: 220 9% 45%;
     --sidebar-primary-foreground: 220 28% 9%;
     --sidebar-ring: 213 96% 55%;
+
+    /* Semantic status tokens (dark mode) */
+    --status-critical:    0 70% 50%;    --status-critical-fg:  0 0% 100%;
+    --status-high:       24 85% 48%;    --status-high-fg:      0 0% 100%;
+    --status-medium:     36 80% 48%;    --status-medium-fg:    0 0% 100%;
+    --status-low:       142 55% 45%;    --status-low-fg:       0 0% 100%;
+    --status-info:      213 80% 55%;    --status-info-fg:      0 0% 100%;
+    --status-success:   142 55% 45%;    --status-success-fg:   0 0% 100%;
+    --status-warning:    36 80% 48%;    --status-warning-fg:   0 0% 100%;
+    --status-neutral:   220 9%  50%;    --status-neutral-fg:   0 0% 100%;
   }
 }
 
