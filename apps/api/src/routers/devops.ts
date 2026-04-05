@@ -85,13 +85,15 @@ export const devopsRouter = router({
 
     const totalDeploys = Number(deplCount?.cnt ?? 0);
     const failedDeploys = Number(failCount?.cnt ?? 0);
-    const changeFailureRate = totalDeploys > 0 ? ((failedDeploys / totalDeploys) * 100).toFixed(1) : "0";
+    const changeFailureRate = totalDeploys > 0 ? ((failedDeploys / totalDeploys) * 100).toFixed(1) : null;
+    const avgSec = Number(avgDuration?.avg ?? 0);
+    const leadTimeMinutes = totalDeploys > 0 && avgSec > 0 ? Math.round(avgSec / 60) : null;
 
     return {
-      deploymentFrequency: (totalDeploys / 30).toFixed(2), // per day
-      leadTimeMinutes: Math.round(Number(avgDuration?.avg ?? 0) / 60),
-      changeFailureRate: `${changeFailureRate}%`,
-      mttrMinutes: 45, // placeholder — would calculate from incident data
+      deploymentFrequency: totalDeploys > 0 ? (totalDeploys / 30).toFixed(2) : "0",
+      leadTimeMinutes,
+      changeFailureRate: changeFailureRate != null ? `${changeFailureRate}%` : null,
+      mttrMinutes: null,
       totalDeploys30d: totalDeploys,
     };
   }),

@@ -366,7 +366,8 @@ PYEOF
 ## Post-Run System Vitals
 
 $(
-  sshpass -p '{mP3g}w]WQwS+g%?' ssh -o StrictHostKeyChecking=no root@139.84.154.78 '
+  VULTR_SSH="${VULTR_SSH:-root@139.84.154.78}"
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$VULTR_SSH" '
     echo "### Container Status"
     echo ""
     docker ps --format "| {{.Names}} | {{.Status}} |"
@@ -379,7 +380,7 @@ $(
     echo ""
     echo "### Disk"
     df -h / | tail -1
-  ' 2>/dev/null || echo "Could not fetch server vitals"
+  ' 2>/dev/null || echo "Could not fetch server vitals (configure SSH key for \${VULTR_SSH})"
 )
 
 ---

@@ -58,6 +58,35 @@ export const LoginSchema = z.object({
   password: z.string().min(1, "Password required"),
 });
 
+/**
+ * Org payload on `auth.login` — DB may return `settings: null` (OrgSchema uses optional, not null).
+ */
+export const AuthLoginOrgSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(100),
+    slug: z.string().min(1).max(63).regex(/^[a-z0-9-]+$/),
+    plan: OrgPlanEnum,
+    settings: z.record(z.unknown()).nullable().optional(),
+    logoUrl: z.string().url().nullable().optional(),
+    primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+    createdAt: z.coerce.date(),
+    updatedAt: z.coerce.date(),
+  })
+  .passthrough();
+
+/**
+ * Successful `auth.login` mutation output (API / tRPC `result.data`, possibly under `.json`).
+ * Used by E2E and chaos suites to validate login responses against the shared contract.
+ */
+export const AuthLoginOutputSchema = z.object({
+  sessionId: z.string().min(1),
+  user: UserSchema.passthrough(),
+  org: AuthLoginOrgSchema,
+});
+
+export type AuthLoginOutput = z.infer<typeof AuthLoginOutputSchema>;
+
 /** Request a password reset email (input only; delivery is wired in API later). */
 export const ForgotPasswordSchema = z.object({
   email: z.string().email("Invalid email address"),

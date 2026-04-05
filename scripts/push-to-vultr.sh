@@ -1,34 +1,62 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# One-shot deploy to Vultr — run from your Mac.
-# Enter password ONCE. Everything else is automatic.
-# Usage: bash scripts/push-to-vultr.sh
+# NexusOps → Vultr — rsync + deploy (pull from GHCR by default).
+#
+# Env (laptop):
+#   VULTR_HOST              default 139.84.154.78
+#   VULTR_USER              default root
+#   DEPLOY_MODE             pull | build   (default: pull)
+#   NEXUSOPS_IMAGE_REPO     default ghcr.io/recon-x2025/nexusops  (lowercase)
+#   NEXUSOPS_IMAGE_TAG      default latest  (use short SHA from CI when pinning)
+#   NEXUSOPS_WEB_IMAGE      optional full override
+#   NEXUSOPS_API_IMAGE      optional full override
+#   NO_CACHE=1              only when DEPLOY_MODE=build — docker build --no-cache
+#
+# On the VPS, for private GHCR images set in .env.production:
+#   GHCR_USERNAME=your-github-username
+#   GHCR_TOKEN=ghp_…   (read:packages), or run `docker login ghcr.io` once as root.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-SERVER_IP="139.84.154.78"
-SERVER="root@${SERVER_IP}"
-LOCAL_DIR="/Users/kathikiyer/Documents/NexusOps"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SERVER_IP="${VULTR_HOST:-139.84.154.78}"
+SERVER="${VULTR_USER:-root}@${SERVER_IP}"
 SOCK="/tmp/nexusops-deploy-$$"
 
-GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
+DEPLOY_MODE="${DEPLOY_MODE:-pull}"
+IMG_REPO="${NEXUSOPS_IMAGE_REPO:-ghcr.io/recon-x2025/nexusops}"
+IMG_TAG="${NEXUSOPS_IMAGE_TAG:-latest}"
+WEB_IMAGE="${NEXUSOPS_WEB_IMAGE:-${IMG_REPO}/web:${IMG_TAG}}"
+API_IMAGE="${NEXUSOPS_API_IMAGE:-${IMG_REPO}/api:${IMG_TAG}}"
+
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; RED='\033[0;31m'; RESET='\033[0m'
 info() { echo -e "${CYAN}▶ $*${RESET}"; }
 ok()   { echo -e "${GREEN}✓ $*${RESET}"; }
+die()  { echo -e "${RED}✗ $*${RESET}" >&2; exit 1; }
+
+SSH_BASE=(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
 
 echo ""
-echo -e "${BOLD}NexusOps → Vultr Deploy${RESET}"
-echo -e "Server: ${SERVER_IP}"
+echo -e "${BOLD}NexusOps → Vultr${RESET}"
+echo -e "Server: ${SERVER}"
+echo -e "Mode:   ${DEPLOY_MODE}"
+if [[ "$DEPLOY_MODE" == "pull" ]]; then
+  echo -e "Images: ${WEB_IMAGE}"
+  echo -e "        ${API_IMAGE}"
+fi
+echo -e "Source: ${ROOT}"
 echo ""
 
-# ── Open one SSH connection, reuse for everything ─────────────────────────────
-info "Connecting to server (enter password once)..."
-ssh -M -S "$SOCK" -o ControlPersist=600 -o StrictHostKeyChecking=accept-new -f -N "$SERVER"
+info "Testing SSH (BatchMode)…"
+"${SSH_BASE[@]}" "$SERVER" "echo connected" >/dev/null || die "SSH failed — add a key for ${SERVER} or use ssh-agent."
+
+info "Opening SSH control socket…"
+ssh -M -S "$SOCK" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ControlPersist=600 -f -N "$SERVER"
 ok "Connected"
 
-# ── Sync project files ────────────────────────────────────────────────────────
-info "Syncing project files..."
-rsync -az --info=progress2 \
-  -e "ssh -S $SOCK" \
+info "Syncing project (excluding secrets & build artifacts)…"
+rsync -az \
+  -e "ssh -S $SOCK -o BatchMode=yes" \
   --exclude='node_modules' \
   --exclude='.git' \
   --exclude='.next' \
@@ -36,93 +64,29 @@ rsync -az --info=progress2 \
   --exclude='.turbo' \
   --exclude='*.pdf' \
   --exclude='.pnpm-store' \
-  "${LOCAL_DIR}/" "${SERVER}:/opt/nexusops/"
+  --exclude='.env.production' \
+  --exclude='.env.local' \
+  --exclude='test-results' \
+  --exclude='playwright-report' \
+  "${ROOT}/" "${SERVER}:/opt/nexusops/"
 ok "Files synced"
 
-# ── Build + start all services ────────────────────────────────────────────────
-info "Building Docker images and starting services (8-12 min)..."
-ssh -S "$SOCK" "$SERVER" bash << REMOTE
-set -e
-cd /opt/nexusops
-export SERVER_IP=${SERVER_IP}
+info "Remote: scripts/vultr-remote-deploy.sh (${DEPLOY_MODE})…"
+# shellcheck disable=SC2029
+ssh -S "$SOCK" -o BatchMode=yes "$SERVER" \
+  "DEPLOY_MODE=$(printf '%q' "$DEPLOY_MODE") \
+   NO_CACHE=$(printf '%q' "${NO_CACHE:-}") \
+   NEXUSOPS_WEB_IMAGE=$(printf '%q' "$WEB_IMAGE") \
+   NEXUSOPS_API_IMAGE=$(printf '%q' "$API_IMAGE") \
+   bash /opt/nexusops/scripts/vultr-remote-deploy.sh"
 
-# Generate secrets if not already done
-if [[ ! -f .env.production ]]; then
-  gen_secret()   { openssl rand -base64 48 | tr -d '/+=' | head -c 48; }
-  gen_password() { openssl rand -base64 32 | tr -d '/+=' | head -c 24; }
-  POSTGRES_PASS=\$(gen_password)
-  REDIS_PASS=\$(gen_password)
-  MEILI_KEY=\$(gen_secret)
-  JWT_SECRET=\$(gen_secret)
-  SESSION_SECRET=\$(gen_secret)
-  S3_ACCESS=\$(gen_password)
-  S3_SECRET=\$(gen_secret)
-  cat > .env.production << EOF
-NODE_ENV=production
-SERVER_IP=${SERVER_IP}
-DATABASE_URL=postgresql://nexusops:\${POSTGRES_PASS}@postgres:5432/nexusops
-POSTGRES_PASSWORD=\${POSTGRES_PASS}
-POSTGRES_USER=nexusops
-POSTGRES_DB=nexusops
-REDIS_URL=redis://:\${REDIS_PASS}@redis:6379
-REDIS_PASSWORD=\${REDIS_PASS}
-JWT_SECRET=\${JWT_SECRET}
-SESSION_SECRET=\${SESSION_SECRET}
-SESSION_TTL_HOURS=8
-RATE_LIMIT_MAX=200000
-RATE_LIMIT_ANON_MAX=200000
-DB_POOL_MAX=30
-MEILISEARCH_URL=http://meilisearch:7700
-MEILISEARCH_KEY=\${MEILI_KEY}
-S3_ENDPOINT=http://minio:9000
-S3_ACCESS_KEY=\${S3_ACCESS}
-S3_SECRET_KEY=\${S3_SECRET}
-S3_BUCKET=nexusops
-FLUSH_REDIS_SESSION_ON_START=true
-EOF
-  chmod 600 .env.production
-  echo "✓ Secrets generated"
-else
-  echo "✓ Secrets already exist"
-fi
-
-# Prune old images to free space
-docker image prune -f > /dev/null 2>&1 || true
-
-# Build
-echo "Building images..."
-docker compose -f docker-compose.vultr-test.yml build --no-cache
-
-# Start
-echo "Starting services..."
-docker compose -f docker-compose.vultr-test.yml up -d
-
-# Wait for API health
-echo "Waiting for API..."
-for i in \$(seq 1 40); do
-  if curl -sf http://localhost:3001/health > /dev/null 2>&1; then
-    echo "✓ API is healthy"
-    break
-  fi
-  sleep 3
-done
-
-# Seed DB
-echo "Seeding database..."
-docker compose -f docker-compose.vultr-test.yml exec -T api \
-  node -e "try{require('./dist/seed.js')}catch(e){}" 2>/dev/null || true
-
-echo "DONE"
-REMOTE
-
-# ── Close SSH multiplexer ─────────────────────────────────────────────────────
 ssh -S "$SOCK" -O exit "$SERVER" 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}${BOLD}║   NexusOps is live on Vultr!                ║${RESET}"
+echo -e "${GREEN}${BOLD}║   NexusOps deployed on Vultr                ║${RESET}"
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════╝${RESET}"
 echo ""
-echo -e "  ${BOLD}Web app:${RESET}     http://${SERVER_IP}"
-echo -e "  ${BOLD}API health:${RESET}  http://${SERVER_IP}:3001/health"
+echo -e "  ${BOLD}Web:${RESET}   http://${SERVER_IP}"
+echo -e "  ${BOLD}API:${RESET}   http://${SERVER_IP}:3001/health"
 echo ""

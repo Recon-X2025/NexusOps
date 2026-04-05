@@ -1,0 +1,18 @@
+# ── Override: GHCR image refs (use with `up --no-build` after `pull`) ────────
+#
+#   export NEXUSOPS_WEB_IMAGE=ghcr.io/<owner>/nexusops/web:latest
+#   export NEXUSOPS_API_IMAGE=ghcr.io/<owner>/nexusops/api:latest
+#   docker compose --env-file .env.production \
+#     -f docker-compose.vultr-test.yml -f docker-compose.vultr.images.yml pull web api
+#   docker compose --env-file .env.production \
+#     -f docker-compose.vultr-test.yml -f docker-compose.vultr.images.yml up -d --no-build
+#
+# The base file still declares `build:` for local dev; `--no-build` forces use of pulled layers.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  web:
+    image: ${NEXUSOPS_WEB_IMAGE:?Set NEXUSOPS_WEB_IMAGE e.g. ghcr.io/org/nexusops/web:latest}
+
+  api:
+    image: ${NEXUSOPS_API_IMAGE:?Set NEXUSOPS_API_IMAGE e.g. ghcr.io/org/nexusops/api:latest}

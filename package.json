@@ -24,6 +24,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:all-layers": "pnpm test:full-qa",
     "test:full-qa": "bash scripts/run-full-qa.sh",
+    "test:local-brutal": "bash scripts/run-local-brutal.sh",
     "test:qa-report": "bash scripts/run-full-qa.sh 2>&1 | tee qa-report-$(date +%Y%m%d-%H%M%S).txt",
     "stress:500": "node scripts/stress-test-500.js",
     "stress:500:ramp": "RAMP_MS=5000 node scripts/stress-test-500.js",
@@ -43,7 +44,10 @@
     "docker:test:down": "docker compose -f docker-compose.test.yml down"
   },
   "devDependencies": {
+    "@nexusops/db": "workspace:*",
+    "@nexusops/types": "workspace:*",
     "@playwright/test": "^1.58.2",
+    "bcryptjs": "^2.4.3",
     "@types/node": "^22.0.0",
     "dotenv-cli": "^11.0.0",
     "prettier": "^3.3.0",

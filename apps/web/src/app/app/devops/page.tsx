@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -23,7 +23,7 @@ const DEVOPS_TABS = [
 ];
 
 type PipelineStatus = "running" | "passed" | "failed" | "cancelled" | "queued";
-type DeployEnv = "dev" | "qa" | "staging" | "prod";
+type DeployEnv = "dev" | "qa" | "staging" | "uat" | "prod";
 
 interface Pipeline {
   id: string;
@@ -89,17 +89,97 @@ const PIPELINE_STATUS_CFG: Record<PipelineStatus, { color: string; bar: string; 
 };
 
 const DEPLOY_STATUS_CFG: Record<string, { color: string; bar: string }> = {
-  pending:    { color: "text-muted-foreground bg-muted",   bar: "bg-border" },
-  in_progress:{ color: "text-blue-700 bg-blue-100",     bar: "bg-blue-500" },
-  successful: { color: "text-green-700 bg-green-100",   bar: "bg-green-500" },
-  failed:     { color: "text-red-700 bg-red-100",       bar: "bg-red-600" },
-  rolled_back:{ color: "text-orange-700 bg-orange-100", bar: "bg-orange-400" },
+  pending:     { color: "text-muted-foreground bg-muted",   bar: "bg-border" },
+  in_progress: { color: "text-blue-700 bg-blue-100",     bar: "bg-blue-500" },
+  successful:  { color: "text-green-700 bg-green-100",   bar: "bg-green-500" },
+  success:     { color: "text-green-700 bg-green-100",   bar: "bg-green-500" },
+  failed:      { color: "text-red-700 bg-red-100",       bar: "bg-red-600" },
+  rolled_back: { color: "text-orange-700 bg-orange-100", bar: "bg-orange-400" },
 };
 
-const ENV_CFG: Record<DeployEnv, string> = {
+/** API rows use DB column names; UI was built for a demo shape — normalize here. */
+function mapPipelineRow(p: Record<string, unknown>) {
+  const raw = String(p.status ?? "");
+  const status: PipelineStatus =
+    raw === "success" ? "passed" : raw === "running" ? "running" : raw === "failed" ? "failed" : raw === "cancelled" ? "cancelled" : "queued";
+  const durSec = p.durationSeconds as number | null | undefined;
+  const duration = durSec != null ? `${durSec}s` : "—";
+  const stagesRaw = (p.stages as Array<{ name: string; status: string; durationSeconds?: number }>) ?? [];
+  const stages = stagesRaw.map((s) => ({
+    name: s.name,
+    status:
+      s.status === "success" ? "passed"
+      : s.status === "failed" ? "failed"
+      : s.status === "running" ? "running"
+      : s.status === "skipped" ? "skipped"
+      : "pending",
+    duration: s.durationSeconds != null ? `${s.durationSeconds}s` : "—",
+  }));
+  const sha = (p.commitSha as string) || "";
+  return {
+    ...p,
+    id: p.id as string,
+    number: String(p.id ?? "").slice(0, 8),
+    name: (p.pipelineName as string) || "Pipeline",
+    repo: "—",
+    branch: (p.branch as string) || "main",
+    triggeredBy: (p.trigger as string) || "manual",
+    tool: "github_actions" as const,
+    status,
+    started: p.startedAt ? new Date(p.startedAt as string).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : "—",
+    duration,
+    commit: sha.slice(0, 7) || "—",
+    commitMsg: sha ? `Commit ${sha.slice(0, 7)}` : "No commit recorded",
+    stages,
+  };
+}
+
+function mapDeploymentRow(d: Record<string, unknown>) {
+  const env = String(d.environment ?? "");
+  const uiEnv = (env === "production" ? "prod" : env) as DeployEnv;
+  const st = String(d.status ?? "");
+  const uiStatus =
+    st === "success" ? "successful"
+    : st === "rolled_back" ? "rolled_back"
+    : st === "in_progress" ? "in_progress"
+    : st === "failed" ? "failed"
+    : "pending";
+  return {
+    ...d,
+    id: d.id as string,
+    number: String(d.id ?? "").slice(0, 8),
+    service: (d.appName as string) || "—",
+    appName: d.appName as string,
+    version: String(d.version ?? "—"),
+    environment: uiEnv as DeployEnv,
+    status: uiStatus,
+    deployedBy: "—",
+    startTime: d.startedAt ? new Date(d.startedAt as string).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : "—",
+    endTime: d.completedAt ? new Date(d.completedAt as string).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : undefined,
+    pipeline: "—",
+    change: d.changeId ? String(d.changeId).slice(0, 8) : undefined,
+    rollbackAvailable: st === "success",
+    pipelineRunId: d.pipelineRunId as string | undefined,
+  };
+}
+
+function envBadgeClass(env: string): string {
+  const key = env === "production" ? "prod" : env;
+  return (ENV_CFG as Record<string, string>)[key] ?? "text-muted-foreground bg-muted";
+}
+
+function isToday(iso: string | Date | undefined): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  const n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+}
+
+const ENV_CFG: Record<DeployEnv | "uat", string> = {
   dev:     "text-muted-foreground bg-muted",
   qa:      "text-blue-600 bg-blue-100",
   staging: "text-purple-700 bg-purple-100",
+  uat:     "text-amber-700 bg-amber-100",
   prod:    "text-red-700 bg-red-100",
 };
 
@@ -154,16 +234,36 @@ export default function DevOpsPage() {
 
   if (!can("changes", "read") && !can("projects", "read")) return <AccessDenied module="DevOps" />;
 
-  const pipelines = (pipelinesData ?? []) as any[];
-  const deployments = (deploymentsData ?? []) as any[];
+  const rawPipelines = (pipelinesData ?? []) as Record<string, unknown>[];
+  const rawDeployments = (deploymentsData ?? []) as Record<string, unknown>[];
 
-  const runningPipelines = pipelines.filter((p: any) => p.status === "running").length;
-  const failedToday = pipelines.filter((p: any) => p.status === "failed").length;
-  const prodDeployments = deployments.filter((d: any) => (d.environment === "prod" || d.environment === "production") && (d.status === "successful" || d.status === "success")).length;
+  const pipelines = useMemo(() => rawPipelines.map(mapPipelineRow), [pipelinesData]);
+  const deployments = useMemo(() => rawDeployments.map(mapDeploymentRow), [deploymentsData]);
+
+  const runningPipelines = rawPipelines.filter((p) => p.status === "running").length;
+  const failedToday = rawPipelines.filter((p) => p.status === "failed" && isToday(p.startedAt as string)).length;
+  const prodDeployments = rawDeployments.filter((d) => d.environment === "production" && d.status === "success").length;
   const sprintVelocity = 0;
+
+  const dora = doraData as {
+    deploymentFrequency?: string;
+    leadTimeMinutes?: number | null;
+    changeFailureRate?: string | null;
+    mttrMinutes?: number | null;
+    totalDeploys30d?: number;
+  } | undefined;
+  const hasDoraDeploys = (dora?.totalDeploys30d ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">What this module is: </span>
+        Pipeline runs and deployments are <span className="text-foreground">stored in NexusOps</span> when you use{" "}
+        <span className="text-foreground">Trigger Pipeline</span> or <span className="text-foreground">Deploy</span>. There is{" "}
+        <span className="text-foreground">no live sync</span> to GitHub Actions, Jenkins, or GitLab yet (see Tool Integrations).{" "}
+        DORA numbers are computed from those records only — not from external CI.
+      </div>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-muted-foreground" />
@@ -192,9 +292,9 @@ export default function DevOpsPage() {
         {[
           { label: "Running Pipelines",    value: runningPipelines,      color: "text-blue-700" },
           { label: "Failed Today",         value: failedToday,           color: failedToday > 0 ? "text-red-700" : "text-green-700" },
-          { label: "Prod Deploys (MTD)",   value: prodDeployments,       color: "text-green-700" },
+          { label: "Prod Deploys (30d)",   value: prodDeployments,       color: "text-green-700" },
           { label: "Sprint Velocity",      value: `${sprintVelocity} pts`, color: "text-purple-700" },
-          { label: "DORA: Deploy Freq.",   value: (doraData as any)?.deploymentFrequency ?? "2.4/day", color: "text-indigo-700" },
+          { label: "DORA: Deploy Freq.",   value: hasDoraDeploys ? `${dora?.deploymentFrequency}/day` : "—", color: "text-indigo-700" },
         ].map(k => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -224,16 +324,36 @@ export default function DevOpsPage() {
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">DORA Metrics</div>
               <div className="p-3 space-y-2">
                 {[
-                  { metric: "Deployment Frequency",    value: (doraData as any)?.deploymentFrequency ?? "2.4 / day",   benchmark: "Elite",  color: "text-green-700" },
-                  { metric: "Lead Time for Changes",   value: (doraData as any)?.leadTimeForChanges ?? "3.2 hours",   benchmark: "Elite",  color: "text-green-700" },
-                  { metric: "Change Failure Rate",     value: (doraData as any)?.changeFailureRate ?? "4.1%",        benchmark: "High",   color: "text-blue-700" },
-                  { metric: "MTTR (Mean Time to Recovery)", value: (doraData as any)?.mttr ?? "42 min", benchmark: "Elite",  color: "text-green-700" },
-                ].map(d => (
+                  {
+                    metric: "Deployment Frequency",
+                    value: hasDoraDeploys ? `${dora?.deploymentFrequency} / day` : "—",
+                    benchmark: hasDoraDeploys ? "Measured" : "No data",
+                    color: "text-green-700",
+                  },
+                  {
+                    metric: "Lead Time for Changes",
+                    value: hasDoraDeploys && dora?.leadTimeMinutes != null && dora.leadTimeMinutes > 0 ? `${dora.leadTimeMinutes} min` : "—",
+                    benchmark: hasDoraDeploys && (dora?.leadTimeMinutes ?? 0) > 0 ? "Measured" : "No data",
+                    color: "text-green-700",
+                  },
+                  {
+                    metric: "Change Failure Rate",
+                    value: hasDoraDeploys && dora?.changeFailureRate ? dora.changeFailureRate : "—",
+                    benchmark: hasDoraDeploys ? "Measured" : "No data",
+                    color: "text-blue-700",
+                  },
+                  {
+                    metric: "MTTR (Mean Time to Recovery)",
+                    value: hasDoraDeploys && dora?.mttrMinutes != null ? `${dora.mttrMinutes} min` : "—",
+                    benchmark: hasDoraDeploys && dora?.mttrMinutes != null ? "Measured" : "No data",
+                    color: "text-green-700",
+                  },
+                ].map((d) => (
                   <div key={d.metric} className="flex items-center justify-between text-[12px]">
                     <span className="text-muted-foreground">{d.metric}</span>
                     <div className="flex items-center gap-2">
                       <span className={`font-bold ${d.color}`}>{d.value}</span>
-                      <span className={`status-badge text-[10px] ${d.benchmark === "Elite" ? "text-green-700 bg-green-100" : "text-blue-700 bg-blue-100"}`}>{d.benchmark}</span>
+                      <span className={`status-badge text-[10px] ${d.benchmark === "No data" ? "text-muted-foreground bg-muted" : "text-blue-700 bg-blue-100"}`}>{d.benchmark}</span>
                     </div>
                   </div>
                 ))}
@@ -242,7 +362,10 @@ export default function DevOpsPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase">Recent Pipeline Runs</div>
               <div className="divide-y divide-border">
-                {pipelines.slice(0,4).map((p: any) => {
+                {pipelines.length === 0 && (
+                  <div className="px-3 py-6 text-center text-[11px] text-muted-foreground">No pipeline runs yet.</div>
+                )}
+                {pipelines.slice(0, 4).map((p: any) => {
                   const cfg = PIPELINE_STATUS_CFG[p.status as PipelineStatus] ?? PIPELINE_STATUS_CFG.queued;
                   return (
                     <div key={p.id} className="flex items-center gap-3 px-3 py-2">
@@ -262,14 +385,19 @@ export default function DevOpsPage() {
               <table className="ent-table w-full">
                 <thead><tr><th className="w-4" /><th>Service</th><th>Version</th><th>Environment</th><th>Deployed By</th><th>Time</th><th>Change</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                  {deployments.slice(0,4).map((d: any) => {
+                  {deployments.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="text-center py-6 text-[11px] text-muted-foreground">No deployments yet.</td>
+                    </tr>
+                  )}
+                  {deployments.slice(0, 4).map((d: any) => {
                     const cfg = (DEPLOY_STATUS_CFG[d.status as string] ?? DEPLOY_STATUS_CFG.pending)!;
                     return (
                       <tr key={d.id}>
                         <td className="p-0"><div className={`priority-bar ${cfg.bar}`} /></td>
                         <td className="font-semibold text-foreground">{d.service}</td>
                         <td className="font-mono text-[11px] text-primary">{d.version}</td>
-                        <td><span className={`status-badge uppercase text-[10px] ${(ENV_CFG as any)[d.environment] ?? ""}`}>{d.environment}</span></td>
+                        <td><span className={`status-badge uppercase text-[10px] ${envBadgeClass(String(d.environment))}`}>{d.environment}</span></td>
                         <td className="text-muted-foreground">{d.deployedBy}</td>
                         <td className="text-[11px] text-muted-foreground/70">{d.startTime}</td>
                         <td className="font-mono text-[11px] text-primary">{d.change ?? "—"}</td>
@@ -293,6 +421,11 @@ export default function DevOpsPage() {
         {/* PIPELINES */}
         {tab === "pipelines" && (
           <div>
+            {pipelines.length === 0 && (
+              <div className="px-4 py-12 text-center text-[11px] text-muted-foreground">
+                No pipeline runs yet. Use <span className="font-medium text-foreground">Trigger Pipeline</span> to record a run in NexusOps (this does not call an external CI system).
+              </div>
+            )}
             {pipelines.map((p: any) => {
               const cfg = PIPELINE_STATUS_CFG[p.status as PipelineStatus] ?? PIPELINE_STATUS_CFG.queued;
               const isExpanded = expandedPipeline === p.id;
@@ -307,7 +440,7 @@ export default function DevOpsPage() {
                         <span className={`status-badge ${cfg.color}`}>{cfg.icon} {p.status}</span>
                         <span className="status-badge text-muted-foreground bg-muted text-[10px]">{TOOL_ICON[p.tool]} {p.tool.replace("_"," ")}</span>
                         {p.change && <span className="font-mono text-[11px] text-primary">{p.change}</span>}
-                        {p.environment && <span className={`status-badge uppercase text-[10px] ${(ENV_CFG as any)[p.environment] ?? ""}`}>{p.environment}</span>}
+                        {p.environment && <span className={`status-badge uppercase text-[10px] ${envBadgeClass(String(p.environment))}`}>{p.environment}</span>}
                       </div>
                       <p className="text-[13px] font-semibold text-foreground">{p.name}</p>
                       <p className="text-[11px] text-muted-foreground">
@@ -385,6 +518,14 @@ export default function DevOpsPage() {
               </tr>
             </thead>
             <tbody>
+              {deployments.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="text-center py-10 text-[11px] text-muted-foreground">
+                    No deployments recorded. Use <span className="font-medium text-foreground">Deploy</span> on the Environments tab or your automation calling{" "}
+                    <span className="font-mono text-[10px]">devops.createDeployment</span>.
+                  </td>
+                </tr>
+              )}
               {deployments.map((d: any) => {
                 const cfg = (DEPLOY_STATUS_CFG[d.status as string] ?? DEPLOY_STATUS_CFG.pending)!;
                 return (
@@ -393,7 +534,7 @@ export default function DevOpsPage() {
                     <td className="font-mono text-[11px] text-primary">{d.number}</td>
                     <td className="font-semibold text-foreground">{d.service}</td>
                     <td className="font-mono text-[11px] text-foreground/80">{d.version}</td>
-                    <td><span className={`status-badge uppercase text-[10px] font-bold ${(ENV_CFG as any)[d.environment] ?? ""}`}>{d.environment}</span></td>
+                    <td><span className={`status-badge uppercase text-[10px] font-bold ${envBadgeClass(String(d.environment))}`}>{d.environment}</span></td>
                     <td className="text-muted-foreground text-[11px]">{d.deployedBy}</td>
                     <td className="text-[11px] font-mono text-muted-foreground">{d.startTime}</td>
                     <td className="text-[11px] font-mono text-muted-foreground/70">{d.endTime ?? "—"}</td>
@@ -492,7 +633,7 @@ export default function DevOpsPage() {
             <div className="grid grid-cols-4 gap-2">
               {[
                 { label: "Total Deployments (30d)", value: String((doraData as any)?.totalDeploys30d ?? "—"), color: "text-foreground" },
-                { label: "Deployment Frequency",    value: String((doraData as any)?.deploymentFrequency ?? "—") + "/day", color: "text-green-700" },
+                { label: "Deployment Frequency",    value: hasDoraDeploys ? `${dora?.deploymentFrequency}/day` : "—", color: "text-green-700" },
                 { label: "Lead Time (avg)",          value: (doraData as any)?.leadTimeMinutes ? `${(doraData as any).leadTimeMinutes}m` : "—", color: "text-blue-700" },
                 { label: "Change Failure Rate",      value: String((doraData as any)?.changeFailureRate ?? "—"), color: "text-orange-700" },
               ].map(k => (
@@ -516,7 +657,7 @@ export default function DevOpsPage() {
                         <td className="p-0"><div className={`priority-bar ${cfg.bar}`} /></td>
                         <td className="font-semibold text-foreground">{d.appName ?? d.service ?? "—"}</td>
                         <td className="font-mono text-[11px] text-foreground/80">{d.version ?? "—"}</td>
-                        <td><span className={`status-badge uppercase text-[10px] font-bold ${(ENV_CFG as any)[d.environment] ?? ""}`}>{d.environment ?? "—"}</span></td>
+                        <td><span className={`status-badge uppercase text-[10px] font-bold ${envBadgeClass(String(d.environment ?? ""))}`}>{d.environment ?? "—"}</span></td>
                         <td><span className={`status-badge capitalize ${cfg.color}`}>{String(d.status ?? "").replace("_"," ")}</span></td>
                         <td className="text-[11px] font-mono text-muted-foreground">{d.startedAt ? new Date(d.startedAt).toLocaleDateString() : d.startTime ?? "—"}</td>
                       </tr>
