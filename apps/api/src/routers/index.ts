@@ -38,6 +38,7 @@ import { workforceRouter } from "./workforce";
 import { indiaComplianceRouter } from "./india-compliance";
 import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
+import { integrationsRouter } from "./integrations";
 
 export const appRouter = router({
   auth: authRouter,
@@ -83,6 +84,7 @@ export const appRouter = router({
   recruitment: recruitmentRouter,
   secretarial: secretarialRouter,
   workforce: workforceRouter,
+  integrations: integrationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -25,6 +25,10 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   procurement: "Procurement",
   reports: "Reports",
   settings: "Settings",
+  integrations: "Integrations",
+  webhooks: "Webhooks",
+  "api-keys": "API Keys",
+  runs: "Runs",
   new: "New",
 };
 

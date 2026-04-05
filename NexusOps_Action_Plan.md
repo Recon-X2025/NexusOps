@@ -14,11 +14,11 @@
 |-------|-------|------|-------------|---------|---------|
 | Track 1 — Ops Tasks | 9 | 2 | 0 | 3 | 4 |
 | Track 2A — Employee Portal | 6 | 6 | 0 | 0 | 0 |
-| Track 2B — Workflow Canvas | 5 | 4 | 0 | 1 | 0 |
+| Track 2B — Workflow Canvas | 6 | 6 | 0 | 0 | 0 |
 | Track 2C — Temporal Engine | 4 | 0 | 0 | 4 | 0 |
 | Track 2D — CMDB Enhancements | 3 | 3 | 0 | 0 | 0 |
 | Track 2E — AI Features | 3 | 2 | 0 | 1 | 0 |
-| Track 2F — Integrations | 6 | 0 | 0 | 6 | 0 |
+| Track 2F — Integrations | 6 | 4 | 0 | 2 | 0 |
 | Track 2G — Helm + Terraform + CLI | 13 | 8 | 0 | 5 | 0 |
 | Track 2H — Documentation Site | 4 | 0 | 0 | 4 | 0 |
 | Track 2I — Production Hardening | 5 | 0 | 0 | 5 | 0 |
@@ -75,9 +75,9 @@
 | Drag-to-place nodes + repositioning | ✅ Done | Same file |
 | SVG bezier edges with connect/delete | ✅ Done | Same file |
 | Serialise/deserialise to `workflow_versions.nodes` + `.edges` JSONB | ✅ Done | Same file |
-| Workflow run step viewer (`/workflows/[id]/runs/[runId]`) | ⏳ Pending | Not yet created |
+| Workflow run step viewer (`/workflows/[id]/runs/[runId]`) | ✅ Done | `apps/web/src/app/app/workflows/[id]/runs/[runId]/page.tsx` |
 
-**Track 2B Completion: 5 / 6 (run step viewer pending)**
+**Track 2B Completion: 6 / 6 ✅ COMPLETE**
 
 ---
 
@@ -127,14 +127,14 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Slack — webhook-based notifications on ticket events | ⏳ Pending | DB schema exists; no connector wired |
-| Microsoft Teams — adaptive card notifications | ⏳ Pending | |
-| Outgoing webhooks admin UI (add URLs, events, delivery log) | ⏳ Pending | `webhooks` + `webhook_deliveries` tables exist in schema |
-| API key management UI (`/app/settings/api-keys`) | ⏳ Pending | `api_keys` schema exists; no page created |
-| Jira bidirectional sync | ⏳ Pending | |
-| SAP REST adapter | ⏳ Pending | |
+| Slack — webhook-based notifications on ticket events | ✅ Done | `integrations` router (`upsertIntegration`, `disconnectIntegration`) + settings page |
+| Microsoft Teams — adaptive card notifications | ✅ Done | Same — config UI + router endpoint for Teams webhook URL |
+| Outgoing webhooks admin UI (add URLs, events, delivery log) | ✅ Done | `apps/web/src/app/app/settings/webhooks/page.tsx` |
+| API key management UI (`/app/settings/api-keys`) | ✅ Done | `apps/web/src/app/app/settings/api-keys/page.tsx` |
+| Jira bidirectional sync | ⏳ Pending | Config UI exists; connector sync logic not yet implemented |
+| SAP REST adapter | ⏳ Pending | Config UI exists; connector sync logic not yet implemented |
 
-**Track 2F Completion: 0 / 6 — not yet started**
+**Track 2F Completion: 4 / 6 (Jira sync logic + SAP adapter pending)**
 
 ---
 
@@ -261,19 +261,19 @@
 |-------|-------|------|-------|---|
 | Track 1 — Ops Tasks | Can-do items only | 2 | 5 | 40% |
 | Track 2A — Employee Portal | Engineering | 6 | 6 | **100%** |
-| Track 2B — Workflow Canvas | Engineering | 5 | 6 | 83% |
+| Track 2B — Workflow Canvas | Engineering | 6 | 6 | **100%** |
 | Track 2C — Temporal Engine | Engineering | 0 | 5 | 0% |
 | Track 2D — CMDB Enhancements | Engineering | 3 | 3 | **100%** |
 | Track 2E — AI Features | Engineering | 4 | 5 | 80% |
-| Track 2F — Integrations | Engineering | 0 | 6 | 0% |
+| Track 2F — Integrations | Engineering | 4 | 6 | 67% |
 | Track 2G — Helm | DevOps | 7 | 8 | 88% |
 | Track 2G — Terraform | DevOps | 1 | 4 | 25% |
 | Track 2G — CLI | Engineering | 0 | 7 | 0% |
 | Track 2H — Docs Site | Engineering | 0 | 4 | 0% |
 | Track 2I — Hardening | Engineering | 0 | 5 | 0% |
 | Track 3 — MAC P0–P3 | Engineering | 0 | 16 | 0% |
-| **Total (excl. blocked ops)** | | **28** | **80** | **35%** |
-| **Total (engineering only, excl. MAC)** | | **26** | **59** | **44%** |
+| **Total (excl. blocked ops)** | | **33** | **80** | **41%** |
+| **Total (engineering only, excl. MAC)** | | **31** | **59** | **53%** |
 
 ---
 
@@ -284,10 +284,10 @@
 1. **Track 1 A-1** — Kernel reboot (5 min, DevOps)
 2. **Track 1 A-2** — Off-site backup with rclone (1–2 hrs, DevOps)
 3. **Track 1 A-4** — Stress test re-run (20 min, QA)
-4. **Track 2F** — Slack connector + outgoing webhooks + API key UI (1.5–2 weeks)
-5. **Track 2B** — Workflow run step viewer page (1–2 hrs)
-6. **Track 2E** — pgvector semantic search (2–3 days)
-7. **Track 2G CLI** — nexusops-cli (3–4 days)
+4. **Track 2E** — pgvector semantic resolution suggestions (2–3 days)
+5. **Track 2F** — Jira bidirectional sync connector (2–3 days)
+6. **Track 2F** — SAP REST adapter (2–3 days)
+7. **Track 2G CLI** — nexusops-cli scaffold + commands (3–4 days)
 8. **Track 2G Terraform** — GCP module + environment root modules (3–4 days)
 
 ### Medium priority
@@ -315,4 +315,4 @@
 ---
 
 *Document maintained by Platform Engineering · NexusOps v4.0 · Coheron*  
-*Last updated: April 5, 2026*
+*Last updated: April 5, 2026 (Sprint 2 — Track 2B complete, Track 2F 67%)*

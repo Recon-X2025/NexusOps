@@ -43,6 +43,9 @@ import {
   Users,
   Wrench,
   X,
+  Globe,
+  KeyRound,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -95,6 +98,9 @@ const SIDEBAR_ICONS: Record<string, LucideIcon> = {
   BookOpen,
   Settings,
   SlidersHorizontal,
+  Globe,
+  KeyRound,
+  Plug,
 };
 
 function IconByName({ name, className }: { name: string; className?: string }) {

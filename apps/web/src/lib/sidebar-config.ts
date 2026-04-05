@@ -282,4 +282,16 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Knowledge Management", href: "/app/knowledge", icon: "BookOpen", module: "knowledge" },
     ],
   },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: "Settings",
+    defaultExpanded: false,
+    modules: ["settings"],
+    items: [
+      { label: "Integrations", href: "/app/settings/integrations", icon: "Plug", module: "settings" },
+      { label: "Webhooks",     href: "/app/settings/webhooks",     icon: "Globe", module: "settings" },
+      { label: "API Keys",     href: "/app/settings/api-keys",     icon: "KeyRound", module: "settings" },
+    ],
+  },
 ];
