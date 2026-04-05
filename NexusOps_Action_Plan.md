@@ -3,7 +3,7 @@
 **Document:** NexusOps_Action_Plan.md  
 **Date:** April 5, 2026  
 **Platform Version:** 4.0 (API 1.8 · ERD 1.9 · TRD 1.8)  
-**Roadmap Completion:** ~78% of full build plan  
+**Roadmap Completion:** ~53% engineering features (excl. MAC) · 41% all tracked items  
 **Operational Readiness:** 85 / 100
 
 ---
@@ -15,11 +15,11 @@
 | Track 1 — Ops Tasks | 9 | 2 | 0 | 3 | 4 |
 | Track 2A — Employee Portal | 6 | 6 | 0 | 0 | 0 |
 | Track 2B — Workflow Canvas | 6 | 6 | 0 | 0 | 0 |
-| Track 2C — Temporal Engine | 4 | 0 | 0 | 4 | 0 |
+| Track 2C — Temporal Engine | 5 | 0 | 0 | 5 | 0 |
 | Track 2D — CMDB Enhancements | 3 | 3 | 0 | 0 | 0 |
-| Track 2E — AI Features | 3 | 2 | 0 | 1 | 0 |
+| Track 2E — AI Features | 5 | 4 | 0 | 1 | 0 |
 | Track 2F — Integrations | 6 | 4 | 0 | 2 | 0 |
-| Track 2G — Helm + Terraform + CLI | 13 | 8 | 0 | 5 | 0 |
+| Track 2G — Helm + Terraform + CLI | 19 | 8 | 0 | 11 | 0 |
 | Track 2H — Documentation Site | 4 | 0 | 0 | 4 | 0 |
 | Track 2I — Production Hardening | 5 | 0 | 0 | 5 | 0 |
 | Track 3 — MAC P0–P3 | 16 | 0 | 0 | 16 | 0 |
@@ -315,4 +315,4 @@
 ---
 
 *Document maintained by Platform Engineering · NexusOps v4.0 · Coheron*  
-*Last updated: April 5, 2026 (Sprint 2 — Track 2B complete, Track 2F 67%)*
+*Last updated: April 5, 2026 (Sprint 2 — Track 2B ✅ complete, Track 2F 67%, item counts corrected)*
