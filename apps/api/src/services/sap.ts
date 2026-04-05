@@ -1,6 +1,6 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and } from "@nexusops/db";
-import { decryptIntegrationConfig } from "./jira";
+import { decryptIntegrationConfig } from "./encryption";
 
 interface SapConfig {
   baseUrl: string;
