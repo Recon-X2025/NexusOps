@@ -11,6 +11,8 @@ import {
   and,
   desc,
 } from "@nexusops/db";
+import { syncJiraToNexus } from "../services/jira";
+import { syncSapToNexus } from "../services/sap";
 
 // ─── Integrations (Slack, Teams, Jira, SAP …) ────────────────────────────────
 
@@ -273,5 +275,56 @@ export const integrationsRouter = router({
         .delete(apiKeys)
         .where(and(eq(apiKeys.id, input.id), eq(apiKeys.orgId, org!.id)));
       return { ok: true };
+    }),
+
+  // ── Sync triggers ──────────────────────────────────────────────────────
+  triggerJiraSync: permissionProcedure("settings", "write")
+    .input(z.object({ integrationId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      const [integration] = await db
+        .select({ id: integrations.id, provider: integrations.provider })
+        .from(integrations)
+        .where(and(eq(integrations.id, input.integrationId), eq(integrations.orgId, org!.id)));
+
+      if (!integration) throw new TRPCError({ code: "NOT_FOUND" });
+      if (integration.provider !== "jira") throw new TRPCError({ code: "BAD_REQUEST", message: "Integration is not a Jira integration" });
+
+      try {
+        const synced = await syncJiraToNexus(db, org!.id, input.integrationId);
+        return { ok: true, synced };
+      } catch (err) {
+        await db
+          .update(integrations)
+          .set({ lastError: (err as Error).message, updatedAt: new Date() })
+          .where(eq(integrations.id, input.integrationId));
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: (err as Error).message });
+      }
+    }),
+
+  triggerSapSync: permissionProcedure("settings", "write")
+    .input(z.object({ integrationId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      const [integration] = await db
+        .select({ id: integrations.id, provider: integrations.provider })
+        .from(integrations)
+        .where(and(eq(integrations.id, input.integrationId), eq(integrations.orgId, org!.id)));
+
+      if (!integration) throw new TRPCError({ code: "NOT_FOUND" });
+      if (integration.provider !== "sap") throw new TRPCError({ code: "BAD_REQUEST", message: "Integration is not a SAP integration" });
+
+      try {
+        const synced = await syncSapToNexus(db, org!.id, input.integrationId);
+        return { ok: true, synced };
+      } catch (err) {
+        await db
+          .update(integrations)
+          .set({ lastError: (err as Error).message, updatedAt: new Date() })
+          .where(eq(integrations.id, input.integrationId));
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: (err as Error).message });
+      }
     }),
 });

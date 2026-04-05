@@ -171,6 +171,9 @@ export const tickets = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     searchVector: text("search_vector"), // tsvector stored as text
+    embeddingVector: text("embedding_vector"), // pgvector: stored as JSON float[]
+    externalId: text("external_id"), // e.g. Jira issue key or SAP incident number
+    externalSource: text("external_source"), // 'jira' | 'sap' | etc.
     idempotencyKey: text("idempotency_key"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

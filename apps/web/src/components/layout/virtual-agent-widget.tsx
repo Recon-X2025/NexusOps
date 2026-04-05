@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { MessageCircle, X, Send, Minimize2, Maximize2, Bot, Zap, ChevronDown, RefreshCw } from "lucide-react";
 
 interface Message {
@@ -115,7 +116,7 @@ export function VirtualAgentWidget() {
     return text.split("\n").map((line, i) => {
       const boldLine = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
       return (
-        <span key={i} dangerouslySetInnerHTML={{ __html: boldLine + (i < text.split("\n").length - 1 ? "<br/>" : "") }} />
+        <span key={i} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(boldLine + (i < text.split("\n").length - 1 ? "<br/>" : "")) }} />
       );
     });
   };

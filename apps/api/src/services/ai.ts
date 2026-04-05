@@ -322,3 +322,87 @@ Respond with JSON only: { "filters": {...}, "searchTerm": "...", "confidence": 0
     return { filters: {}, confidence: 0 };
   }
 }
+
+export interface SemanticResolutionCandidate {
+  id: string;
+  title: string;
+  description: string;
+  resolution?: string;
+}
+
+export interface SemanticResolutionResult {
+  id: string;
+  score: number;
+  title: string;
+  description: string;
+  resolution?: string;
+}
+
+/**
+ * Uses Claude to score each candidate resolved ticket by relevance to the target ticket,
+ * returning the top 3 most relevant candidates with scores (0–1).
+ * Returns null if AI is unavailable, times out, or no candidates are provided.
+ */
+export async function semanticResolutionSuggestions(input: {
+  target: { title: string; description: string };
+  candidates: SemanticResolutionCandidate[];
+}): Promise<SemanticResolutionResult[] | null> {
+  if (input.candidates.length === 0) return null;
+
+  try {
+    const client = getClient();
+
+    const candidateList = input.candidates
+      .map((c, i) =>
+        `[${i}] id=${c.id}\nTitle: ${c.title}\nDescription: ${c.description.slice(0, 400)}\nResolution: ${c.resolution?.slice(0, 300) ?? "N/A"}`,
+      )
+      .join("\n\n");
+
+    const prompt = `You are an ITSM relevance expert. Score each candidate resolved ticket by how semantically similar and useful it is for resolving the target ticket. Use a 0.0–1.0 scale where 1.0 means nearly identical issue with a clear resolution.
+
+Target Ticket:
+Title: ${input.target.title}
+Description: ${input.target.description.slice(0, 600)}
+
+Candidate Resolved Tickets:
+${candidateList}
+
+Return JSON only — an array of objects, one per candidate, sorted descending by score:
+[{"id": "<id>", "score": <0.0-1.0>}, ...]`;
+
+    const response = await withTimeout(
+      client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: MAX_TOKENS,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      TIMEOUT_MS,
+    );
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{ id: string; score: number }>;
+    if (!Array.isArray(parsed)) return null;
+
+    const candidateMap = new Map(input.candidates.map((c) => [c.id, c]));
+
+    return parsed
+      .filter((r) => typeof r.id === "string" && typeof r.score === "number" && candidateMap.has(r.id))
+      .slice(0, 3)
+      .map((r) => {
+        const c = candidateMap.get(r.id)!;
+        return {
+          id: c.id,
+          score: Math.max(0, Math.min(1, r.score)),
+          title: c.title,
+          description: c.description,
+          resolution: c.resolution,
+        };
+      });
+  } catch (err) {
+    console.warn("[ai:semanticResolutionSuggestions] Failed:", (err as Error).message);
+    return null;
+  }
+}

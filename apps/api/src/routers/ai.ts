@@ -6,8 +6,8 @@
  */
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { tickets, ticketComments, kbArticles, eq, and, desc } from "@nexusops/db";
-import { summarizeTicket, suggestResolution, classifyTicket, parseSearchQuery } from "../services/ai";
+import { tickets, ticketComments, kbArticles, eq, and, ne, desc } from "@nexusops/db";
+import { summarizeTicket, suggestResolution, classifyTicket, parseSearchQuery, semanticResolutionSuggestions } from "../services/ai";
 
 export const aiRouter = router({
   /**
@@ -114,5 +114,48 @@ export const aiRouter = router({
     .input(z.object({ query: z.string() }))
     .mutation(async ({ input }) => {
       return parseSearchQuery({ query: input.query });
+    }),
+
+  /**
+   * Semantic resolution suggestions using Claude to rank resolved tickets by relevance.
+   * Returns null if AI is unavailable or no resolved candidates exist.
+   */
+  semanticSuggestResolution: permissionProcedure("incidents", "read")
+    .input(z.object({ ticketId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      const [ticket] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+
+      if (!ticket) return null;
+
+      const candidates = await db
+        .select({
+          id: tickets.id,
+          title: tickets.title,
+          description: tickets.description,
+          resolutionNotes: tickets.resolutionNotes,
+        })
+        .from(tickets)
+        .where(and(
+          eq(tickets.orgId, org!.id),
+          ne(tickets.id, ticket.id),
+          eq(tickets.type, ticket.type),
+        ))
+        .orderBy(desc(tickets.resolvedAt))
+        .limit(20);
+
+      return semanticResolutionSuggestions({
+        target: { title: ticket.title, description: ticket.description ?? "" },
+        candidates: candidates.map((c: { id: string; title: string; description: string | null; resolutionNotes: string | null }) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description ?? "",
+          resolution: c.resolutionNotes ?? undefined,
+        })),
+      });
     }),
 });
