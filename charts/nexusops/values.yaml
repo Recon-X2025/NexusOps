@@ -146,6 +146,21 @@ temporal:
   worker:
     replicaCount: 1
 
+# ── Worker (Temporal workflow runner) ─────────────────────────────────────────
+worker:
+  enabled: true
+  image:
+    repository: nexusops/worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 256m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
 # ── Environment variables injected into pods ──────────────────────────────────
 env:
   NODE_ENV: production
