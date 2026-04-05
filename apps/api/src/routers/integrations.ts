@@ -35,9 +35,10 @@ export const integrationsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
 
-      // Encrypt config JSON with AES-256-GCM using APP_SECRET
-      const secret = process.env["APP_SECRET"] ?? "changeme-32-byte-key-padded-here";
-      const key = crypto.createHash("sha256").update(secret).digest();
+      // Encrypt config JSON with AES-256-CBC using APP_SECRET
+      const appSecret = process.env["APP_SECRET"];
+      if (!appSecret) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "APP_SECRET is not configured" });
+      const key = crypto.createHash("sha256").update(appSecret).digest();
       const iv = crypto.randomBytes(16);
       const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
       const configJson = JSON.stringify(input.config);
