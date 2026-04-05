@@ -115,3 +115,107 @@ export async function resumeOrganization(id: string) {
 export async function revokeOrgSessions(id: string) {
   return trpcMutate("mac.revokeOrgSessions", { id });
 }
+
+// P1.1 — Legal acceptance
+export async function recordLegalAcceptance(data: {
+  orgId: string;
+  documentType: "terms_of_service" | "data_processing_agreement" | "privacy_policy";
+  version: string;
+  acceptedByEmail: string;
+  acceptedAt: string;
+}) {
+  return trpcMutate("mac.recordLegalAcceptance", data);
+}
+
+export async function getLegalAcceptance(orgId: string) {
+  return trpcQuery<Record<string, unknown>>("mac.getLegalAcceptance", { orgId });
+}
+
+// P1.2 — Billing
+export interface BillingInfo {
+  plan: string;
+  stripeCustomerId?: string;
+  trialEndsAt?: string;
+  subscriptionStatus?: string;
+}
+
+export async function getBillingInfo(orgId: string) {
+  return trpcQuery<BillingInfo>("mac.getBillingInfo", { orgId });
+}
+
+export async function updateBillingInfo(data: {
+  orgId: string;
+  plan?: string;
+  stripeCustomerId?: string;
+  trialEndsAt?: string;
+  subscriptionStatus?: string;
+}) {
+  return trpcMutate("mac.updateBillingInfo", data);
+}
+
+// P2.1 — Feature flags
+export async function getFeatureFlags(orgId: string) {
+  return trpcQuery<Record<string, boolean>>("mac.getFeatureFlags", { orgId });
+}
+
+export async function setFeatureFlag(orgId: string, flag: string, enabled: boolean) {
+  return trpcMutate("mac.setFeatureFlag", { orgId, flag, enabled });
+}
+
+export async function resetFeatureFlags(orgId: string) {
+  return trpcMutate("mac.resetFeatureFlags", { orgId });
+}
+
+// P2.2 — Org health
+export interface OrgHealth {
+  org: OrgRow;
+  userCount: number;
+  status: string;
+}
+
+export async function getOrgHealth(orgId: string) {
+  return trpcQuery<OrgHealth>("mac.getOrgHealth", { orgId });
+}
+
+// P2.3 — Impersonation
+export interface UserSearchResult {
+  id: string;
+  name: string | null;
+  email: string;
+  orgId: string | null;
+  role: string;
+  status: string;
+}
+
+export async function searchUsers(email: string) {
+  return trpcQuery<UserSearchResult[]>("mac.searchUsers", { email });
+}
+
+export async function startImpersonation(data: {
+  targetUserId: string;
+  reason: string;
+  durationMinutes: number;
+}) {
+  return trpcMutate<{ impersonationToken: string; expiresAt: string; redirectUrl: string }>("mac.startImpersonation", data);
+}
+
+// P3.1 — Analytics
+export interface AnalyticsOverview {
+  orgCount: number;
+  userCount: number;
+  orgsByPlan: { plan: string; count: number }[];
+  recentOrgs: OrgRow[];
+}
+
+export async function getAnalyticsOverview() {
+  return trpcQuery<AnalyticsOverview>("mac.analyticsOverview");
+}
+
+// P3 — Churn risk
+export interface OrgWithHealth extends OrgRow {
+  userCount: number;
+}
+
+export async function listOrgsWithHealth() {
+  return trpcQuery<OrgWithHealth[]>("mac.listOrgsWithHealth");
+}
