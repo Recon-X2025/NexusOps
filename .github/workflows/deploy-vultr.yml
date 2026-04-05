@@ -13,9 +13,17 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to pull (latest, main, or 7-char commit SHA)"
+        description: "Image tag to pull (latest, main, or 7-char commit SHA) — only used when deploy_mode is pull"
         required: true
         default: "latest"
+      deploy_mode:
+        description: "pull = GHCR images (run CI build on main first). build = compile on Vultr (slower, works without GHCR)."
+        required: true
+        type: choice
+        options:
+          - pull
+          - build
+        default: pull
 
 permissions:
   contents: read
@@ -47,6 +55,7 @@ jobs:
         env:
           VULTR_HOST: ${{ secrets.VULTR_HOST }}
           NEXUSOPS_IMAGE_TAG: ${{ inputs.image_tag }}
+          DEPLOY_MODE: ${{ inputs.deploy_mode }}
           GHCR_READ_TOKEN: ${{ github.token }}
           GHCR_USERNAME: ${{ github.actor }}
         run: |
