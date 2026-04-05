@@ -23,7 +23,8 @@ export function registerCommand(program: Command): void {
         try {
           const orgId = randomUUID();
           const adminId = randomUUID();
-          const passwordHash = await bcrypt.hash("Admin@1234", 12);
+          const defaultPassword = "Admin@1234";
+          const passwordHash = await bcrypt.hash(defaultPassword, 12);
 
           const client = await pool.connect();
           try {
@@ -120,7 +121,8 @@ export function registerCommand(program: Command): void {
 
           spinner.succeed(chalk.green("Database seeded successfully."));
           console.log(chalk.cyan(`  Organization : ${opts.orgName} (${orgId})`));
-          console.log(chalk.cyan(`  Admin user   : ${opts.adminEmail} (password: Admin@1234)`));
+          console.log(chalk.cyan(`  Admin user   : ${opts.adminEmail} (password: ${defaultPassword})`));
+          console.log(chalk.yellow("  ⚠️  Change the default password immediately after first login."));
           process.exit(0);
         } catch (err) {
           spinner.fail(chalk.red("Seeding failed."));

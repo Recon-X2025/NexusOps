@@ -21,7 +21,12 @@ if (envPath) {
 
 export const DATABASE_URL =
   process.env.DATABASE_URL ||
-  "postgresql://postgres:postgres@localhost:5432/nexusops";
+  (() => {
+    console.warn(
+      "\x1b[33m⚠️  DATABASE_URL not set — falling back to default local credentials. Do not use in production.\x1b[0m"
+    );
+    return "postgresql://postgres:postgres@localhost:5432/nexusops";
+  })();
 
 export const REDIS_URL = process.env.REDIS_URL || "";
 
