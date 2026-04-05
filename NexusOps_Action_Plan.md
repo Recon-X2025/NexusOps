@@ -3,7 +3,7 @@
 **Document:** NexusOps_Action_Plan.md  
 **Date:** April 5, 2026  
 **Platform Version:** 4.0 (API 1.8 · ERD 1.9 · TRD 1.8)  
-**Roadmap Completion:** ~53% engineering features (excl. MAC) · 41% all tracked items  
+**Roadmap Completion:** ~53% engineering features (excl. MAC) · 42% all tracked items  
 **Operational Readiness:** 85 / 100
 
 ---
@@ -13,7 +13,7 @@
 | Track | Items | Done | In Progress | Pending | Blocked |
 |-------|-------|------|-------------|---------|---------|
 | Track 1 — Ops Tasks | 9 | 2 | 0 | 3 | 4 |
-| Track 2A — Employee Portal | 6 | 6 | 0 | 0 | 0 |
+| Track 2A — Employee Portal | 7 | 7 | 0 | 0 | 0 |
 | Track 2B — Workflow Canvas | 6 | 6 | 0 | 0 | 0 |
 | Track 2C — Temporal Engine | 5 | 0 | 0 | 5 | 0 |
 | Track 2D — CMDB Enhancements | 3 | 3 | 0 | 0 | 0 |
@@ -60,7 +60,7 @@
 | Knowledge base — search, expand, feedback | ✅ Done | `apps/web/src/app/portal/knowledge/page.tsx` |
 | My assets — list, report issue modal | ✅ Done | `apps/web/src/app/portal/assets/page.tsx` |
 
-**Track 2A Completion: 6 / 6 ✅ COMPLETE**
+**Track 2A Completion: 7 / 7 ✅ COMPLETE**
 
 ---
 
@@ -260,7 +260,7 @@
 | Track | Scope | Done | Total | % |
 |-------|-------|------|-------|---|
 | Track 1 — Ops Tasks | Can-do items only | 2 | 5 | 40% |
-| Track 2A — Employee Portal | Engineering | 6 | 6 | **100%** |
+| Track 2A — Employee Portal | Engineering | 7 | 7 | **100%** |
 | Track 2B — Workflow Canvas | Engineering | 6 | 6 | **100%** |
 | Track 2C — Temporal Engine | Engineering | 0 | 5 | 0% |
 | Track 2D — CMDB Enhancements | Engineering | 3 | 3 | **100%** |
@@ -272,8 +272,8 @@
 | Track 2H — Docs Site | Engineering | 0 | 4 | 0% |
 | Track 2I — Hardening | Engineering | 0 | 5 | 0% |
 | Track 3 — MAC P0–P3 | Engineering | 0 | 16 | 0% |
-| **Total (excl. blocked ops)** | | **33** | **80** | **41%** |
-| **Total (engineering only, excl. MAC)** | | **31** | **59** | **53%** |
+| **Total (excl. blocked ops)** | | **34** | **81** | **42%** |
+| **Total (engineering only, excl. MAC)** | | **32** | **60** | **53%** |
 
 ---
 
@@ -315,4 +315,4 @@
 ---
 
 *Document maintained by Platform Engineering · NexusOps v4.0 · Coheron*  
-*Last updated: April 5, 2026 (Sprint 2 — Track 2B ✅ complete, Track 2F 67%, item counts corrected)*
+*Last updated: April 5, 2026 (Sprint 2 — Track 2B ✅ complete, Track 2F 67%, Track 2A corrected to 7/7)*
