@@ -1,0 +1,187 @@
+# Kubernetes (Helm)
+
+For production deployments requiring high availability, horizontal scaling, or cloud-native infrastructure, NexusOps provides an official Helm chart.
+
+## Prerequisites
+
+- Kubernetes 1.26 or later
+- Helm 3.x (`helm version`)
+- A PostgreSQL 15 database (RDS, Cloud SQL, or in-cluster)
+- A Redis 7 instance (ElastiCache, Memorystore, or in-cluster)
+- A container registry with pull access to the NexusOps images
+
+## Quick Start
+
+Add the NexusOps Helm repository:
+
+```bash
+helm repo add nexusops https://charts.nexusops.io
+helm repo update
+```
+
+Install NexusOps into the `nexusops` namespace:
+
+```bash
+helm install nexusops nexusops/nexusops \
+  --namespace nexusops \
+  --create-namespace \
+  --set global.appSecret="$(openssl rand -hex 32)" \
+  --set global.jwtSecret="$(openssl rand -hex 32)" \
+  --set postgresql.url="postgresql://user:pass@your-db-host:5432/nexusops" \
+  --set redis.url="redis://your-redis-host:6379" \
+  --set web.nextauth.url="https://nexusops.yourcompany.com" \
+  --set web.nextauth.secret="$(openssl rand -hex 32)"
+```
+
+## Customizing values.yaml
+
+For production, create a `values.yaml` file to manage all configuration:
+
+```yaml
+global:
+  appSecret: ""         # Set via --set or a Kubernetes Secret
+  jwtSecret: ""
+  imageRegistry: ghcr.io/recon-x2025
+  imageTag: "1.2.3"     # Pin to a specific release
+
+web:
+  replicaCount: 2
+  nextauth:
+    url: "https://nexusops.yourcompany.com"
+    secret: ""
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: nexusops.yourcompany.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: nexusops-tls
+        hosts:
+          - nexusops.yourcompany.com
+
+api:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  anthropic:
+    apiKey: ""          # Set via external secrets operator or --set
+
+postgresql:
+  # Use an external PostgreSQL (recommended for production)
+  external: true
+  url: "postgresql://nexusops:password@your-rds-endpoint:5432/nexusops"
+
+redis:
+  # Use an external Redis (recommended for production)
+  external: true
+  url: "redis://your-elasticache-endpoint:6379"
+
+smtp:
+  host: ""
+  port: 587
+  user: ""
+  password: ""
+  from: "noreply@yourcompany.com"
+```
+
+Install with your values file:
+
+```bash
+helm install nexusops nexusops/nexusops \
+  --namespace nexusops \
+  --create-namespace \
+  --values values.yaml \
+  --set global.appSecret="$APP_SECRET" \
+  --set global.jwtSecret="$JWT_SECRET" \
+  --set web.nextauth.secret="$NEXTAUTH_SECRET"
+```
+
+## Running Migrations
+
+After installing or upgrading, run the database migration job:
+
+```bash
+helm install nexusops nexusops/nexusops ... --set migrations.runOnInstall=true
+```
+
+Or manually trigger:
+
+```bash
+kubectl create job --from=cronjob/nexusops-migrations nexusops-migrate-manual \
+  -n nexusops
+kubectl logs -f job/nexusops-migrate-manual -n nexusops
+```
+
+## Upgrading the Chart
+
+```bash
+# Update the repo to get new chart versions
+helm repo update
+
+# Preview changes before applying
+helm diff upgrade nexusops nexusops/nexusops \
+  --namespace nexusops \
+  --values values.yaml
+
+# Apply the upgrade
+helm upgrade nexusops nexusops/nexusops \
+  --namespace nexusops \
+  --values values.yaml
+
+# Run migrations
+kubectl create job --from=cronjob/nexusops-migrations nexusops-migrate-$(date +%s) \
+  -n nexusops
+```
+
+## Key Helm Values Reference
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `global.imageTag` | `latest` | Docker image tag for all services. Pin to a version in production. |
+| `web.replicaCount` | `1` | Number of web frontend replicas |
+| `api.replicaCount` | `1` | Number of API server replicas |
+| `web.ingress.enabled` | `false` | Enable Ingress resource for the web frontend |
+| `web.ingress.className` | `""` | Ingress class (e.g., `nginx`, `traefik`) |
+| `postgresql.external` | `false` | Use an external PostgreSQL; disables the bundled subchart |
+| `postgresql.url` | `""` | Full PostgreSQL connection string (when `external: true`) |
+| `redis.external` | `false` | Use external Redis |
+| `redis.url` | `""` | Full Redis connection string (when `external: true`) |
+| `migrations.runOnInstall` | `false` | Automatically run migrations during `helm install/upgrade` |
+| `api.anthropic.apiKey` | `""` | Anthropic API key for AI features |
+| `smtp.host` | `""` | SMTP host for email notifications |
+
+## High Availability Notes
+
+- Set `web.replicaCount` and `api.replicaCount` to at least **2** for HA
+- Use a managed PostgreSQL service (AWS RDS Multi-AZ, GCP Cloud SQL with HA) rather than in-cluster PostgreSQL
+- Use a managed Redis service (AWS ElastiCache, GCP Memorystore) rather than in-cluster Redis
+- Configure a **PodDisruptionBudget** (`minAvailable: 1`) to prevent all replicas being evicted simultaneously
+- Use the chart's built-in **HorizontalPodAutoscaler** by setting `web.autoscaling.enabled: true`
+
+## Uninstalling
+
+```bash
+helm uninstall nexusops --namespace nexusops
+
+# Delete the namespace (and all PVCs — DESTRUCTIVE)
+kubectl delete namespace nexusops
+```
+
+> **Warning**: Deleting the namespace removes all persistent volume claims including your database data (if using in-cluster PostgreSQL). Back up your data before uninstalling.
