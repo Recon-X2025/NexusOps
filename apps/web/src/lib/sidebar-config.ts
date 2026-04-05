@@ -288,4 +288,14 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Knowledge Management", href: "/app/knowledge", icon: "BookOpen", module: "knowledge" },
     ],
   },
+  {
+    id: "setup",
+    label: "Setup & Onboarding",
+    icon: "Sparkles",
+    defaultExpanded: false,
+    modules: ["admin"],
+    items: [
+      { label: "Setup Wizard", href: "/app/onboarding-wizard", icon: "Zap", module: "admin" },
+    ],
+  },
 ];

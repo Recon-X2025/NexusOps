@@ -37,12 +37,15 @@ import {
   ShieldCheck,
   ShoppingCart,
   SlidersHorizontal,
+  Sparkles,
   Target,
   TrendingUp,
   UserCheck,
+  UserPlus,
   Users,
   Wrench,
   X,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -95,6 +98,9 @@ const SIDEBAR_ICONS: Record<string, LucideIcon> = {
   BookOpen,
   Settings,
   SlidersHorizontal,
+  Sparkles,
+  UserPlus,
+  Zap,
 };
 
 function IconByName({ name, className }: { name: string; className?: string }) {
