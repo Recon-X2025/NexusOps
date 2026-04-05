@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, Search, GitMerge, Server, Cpu, HardDrive, Wifi, Shield, Globe, Plus, RefreshCw, ChevronRight, Cloud, X } from "lucide-react";
+import Link from "next/link";
+import { Database, Search, GitMerge, Server, Cpu, Wifi, Shield, Globe, Plus, RefreshCw, Cloud, X, Upload, Zap } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { ServiceMap } from "./service-map";
+import { BulkImportModal } from "./bulk-import-modal";
 
 const CMDB_TABS = [
   { key: "cis",         label: "CI Browser",  module: "cmdb" as const, action: "read"  as const },
@@ -28,13 +31,6 @@ const CLASS_ICON: Record<string, React.ElementType> = {
   "Firewall":           Shield,
   "Load Balancer":      Globe,
   "Cloud Database":     Cloud,
-};
-
-const MAP_STATUS_COLOR: Record<string, string> = {
-  operational: "#22c55e",
-  degraded:    "#eab308",
-  critical:    "#ef4444",
-  maintenance: "#3b82f6",
 };
 
 export default function CMDBPage() {
@@ -64,11 +60,12 @@ export default function CMDBPage() {
   });
 
   const [selectedCI, setSelectedCI] = useState<string | null>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   if (!can("cmdb", "read")) return <AccessDenied module="Configuration Management" />;
 
   const ciList = (cisData ?? []) as any[];
-  const topoNodes = ((topologyData as any)?.nodes ?? []) as any[];
+  const topoHasNodes = (((topologyData as any)?.nodes ?? []) as any[]).length > 0;
 
   const displayCIs = ciList.filter((ci: any) =>
     !search || ci.name?.toLowerCase().includes(search.toLowerCase()) || ci.class?.toLowerCase().includes(search.toLowerCase())
@@ -89,11 +86,18 @@ export default function CMDBPage() {
             <RefreshCw className="w-3 h-3" /> Run Discovery
           </button>
           {can("cmdb", "write") && (
-            <button
-              onClick={() => setShowAddCI(true)}
-              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-              <Plus className="w-3 h-3" /> Add CI
-            </button>
+            <>
+              <button
+                onClick={() => setShowBulkImport(true)}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
+                <Upload className="w-3 h-3" /> Bulk Import
+              </button>
+              <button
+                onClick={() => setShowAddCI(true)}
+                className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <Plus className="w-3 h-3" /> Add CI
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -147,11 +151,12 @@ export default function CMDBPage() {
                   <th className="text-center">Relationships</th>
                   <th>CMDB Health</th>
                   <th>Last Discovered</th>
+                  <th className="text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {ciList.length === 0 ? (
-                  <tr><td colSpan={12} className="text-center py-6 text-[11px] text-muted-foreground/50">No configuration items discovered yet</td></tr>
+                  <tr><td colSpan={13} className="text-center py-6 text-[11px] text-muted-foreground/50">No configuration items discovered yet</td></tr>
                 ) : displayCIs.map((ci) => {
                   const Icon = CLASS_ICON[ci.class] ?? Database;
                   return (
@@ -188,6 +193,12 @@ export default function CMDBPage() {
                         </div>
                       </td>
                       <td className="text-muted-foreground/70 text-[11px]">{ci.lastDiscovered}</td>
+                      <td className="text-center" onClick={e => e.stopPropagation()}>
+                        <Link href={`/app/cmdb/impact/${ci.id}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded transition-colors">
+                          <Zap className="w-2.5 h-2.5" /> Impact
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })}
@@ -198,27 +209,19 @@ export default function CMDBPage() {
 
         {tab === "service_map" && (
           <div className="p-4">
-            <div className="text-[11px] text-muted-foreground mb-3">Service dependency map — NexusOps Platform (Production)</div>
-            {topoNodes.length === 0 ? (
+            <div className="text-[11px] text-muted-foreground mb-3">
+              Service dependency map — interactive force-directed graph · drag nodes · click to inspect
+            </div>
+            {!topoHasNodes ? (
               <div className="py-12 text-center bg-muted/30 border border-border rounded">
                 <GitMerge className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                 <p className="text-[12px] text-muted-foreground/50">No topology data available yet</p>
               </div>
             ) : (
-              <div className="relative bg-muted/30 border border-border rounded overflow-hidden" style={{ height: 380 }}>
-                {topoNodes.map((node: any) => (
-                  <div key={node.id} className="absolute" style={{ left: node.x ?? 0, top: node.y ?? 0 }}>
-                    <div className={`border-2 rounded-lg px-2 py-1 text-center min-w-16 cursor-pointer hover:shadow-md transition-shadow bg-card`}
-                      style={{ borderColor: MAP_STATUS_COLOR[node.status] ?? "#e2e8f0" }}>
-                      <div className="text-[10px] font-bold text-foreground/80">{node.name}</div>
-                      <div className="text-[9px] text-muted-foreground/70">{node.type}</div>
-                      <div className="flex justify-center mt-0.5">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: MAP_STATUS_COLOR[node.status] ?? "#e2e8f0" }} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ServiceMap
+                nodes={(topologyData as any)?.nodes ?? []}
+                edges={(topologyData as any)?.edges ?? []}
+              />
             )}
           </div>
         )}
@@ -293,6 +296,11 @@ export default function CMDBPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <BulkImportModal onClose={() => setShowBulkImport(false)} />
       )}
     </div>
   );
