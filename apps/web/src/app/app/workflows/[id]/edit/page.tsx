@@ -552,7 +552,7 @@ export default function EditWorkflowPage() {
           <input
             value={form.name}
             onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setNameError(""); }}
-            placeholder="Workflow name…"
+            placeholder="Workflow name..."
             className={cn(
               "rounded border bg-background px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary w-52",
               nameError ? "border-red-400" : "border-input",
