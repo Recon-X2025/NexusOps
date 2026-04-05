@@ -66,6 +66,9 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   financial: "Financial Management",
   vendors: "Vendors",
   contracts: "Contracts",
+  expenses: "Expense Management",
+  // People extras
+  performance: "Performance Management",
   // Legal & Governance
   "legal-governance": "Legal & Governance",
   legal: "Legal",
@@ -536,13 +539,20 @@ export function AppHeader() {
         borderColor: "hsl(var(--header-border))",
       }}
     >
-      {/* Left: Logo + Breadcrumb */}
+      {/* Left: Logo + Org name + Breadcrumb */}
       <div className="flex items-center gap-4">
         <Link href="/app/dashboard" className="flex items-center gap-2 flex-shrink-0">
           <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="text-sm font-bold text-[hsl(var(--header-fg))]">NexusOps</span>
+          <div className="flex flex-col leading-none">
+            <span className="text-sm font-bold text-[hsl(var(--header-fg))]">NexusOps</span>
+            {currentUser.orgName && (
+              <span className="text-[0.6rem] text-[hsl(var(--header-fg))] opacity-50 truncate max-w-[120px]">
+                {currentUser.orgName}
+              </span>
+            )}
+          </div>
         </Link>
         <div className="h-4 w-px bg-white/10 hidden md:block" />
         <Breadcrumbs />

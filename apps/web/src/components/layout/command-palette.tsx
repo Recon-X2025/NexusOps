@@ -23,11 +23,13 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Monitor,
+  Receipt,
   Scale,
   Search,
   Shield,
   ShoppingCart,
   SlidersHorizontal,
+  Target,
   TrendingUp,
   UserCheck,
   Users,
@@ -70,6 +72,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   // People & Workplace
   { id: "hr",          label: "HR Service Delivery",      group: "People & Workplace",  href: "/app/hr",                 icon: UserCheck,      keywords: ["hr", "human resources", "cases"] },
   { id: "recruitment", label: "Recruitment & ATS",        group: "People & Workplace",  href: "/app/recruitment",        icon: Users,          keywords: ["hiring", "ats", "candidates", "jobs"] },
+  { id: "performance", label: "Performance Management",   group: "People & Workplace",  href: "/app/performance",        icon: Target,         keywords: ["performance", "goals", "okr", "review", "360"] },
   { id: "people-analytics", label: "People Analytics",   group: "People & Workplace",  href: "/app/people-analytics",   icon: BarChart3,      keywords: ["workforce", "analytics", "headcount"] },
   { id: "facilities",  label: "Facilities & Real Estate", group: "People & Workplace",  href: "/app/facilities",         icon: Building2,      keywords: ["facilities", "rooms", "bookings"] },
   { id: "walk-up",     label: "Walk-Up Experience",       group: "People & Workplace",  href: "/app/walk-up",            icon: Footprints,     keywords: ["walk up", "kiosk"] },
@@ -84,6 +87,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   { id: "financial",   label: "Financial Management",     group: "Finance & Procurement", href: "/app/financial",        icon: ShoppingCart,   keywords: ["finance", "invoices", "ap", "ar"] },
   { id: "vendors",     label: "Vendor Management",        group: "Finance & Procurement", href: "/app/vendors",          icon: ShoppingCart,   keywords: ["vendors", "suppliers"] },
   { id: "contracts",   label: "Contract Management",      group: "Finance & Procurement", href: "/app/contracts",        icon: FileSignature,  keywords: ["contracts", "clm", "agreements"] },
+  { id: "expenses",    label: "Expense Management",       group: "Finance & Procurement", href: "/app/expenses",         icon: Receipt,        keywords: ["expenses", "claims", "reimbursement", "travel"] },
 
   // Legal & Governance
   { id: "legal",       label: "Legal Service Delivery",   group: "Legal & Governance",  href: "/app/legal",              icon: Gavel,          keywords: ["legal", "documents", "counsel"] },

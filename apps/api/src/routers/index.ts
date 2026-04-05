@@ -38,6 +38,8 @@ import { workforceRouter } from "./workforce";
 import { indiaComplianceRouter } from "./india-compliance";
 import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
+import { expensesRouter } from "./expenses";
+import { performanceRouter } from "./performance";
 
 export const appRouter = router({
   auth: authRouter,
@@ -83,6 +85,9 @@ export const appRouter = router({
   recruitment: recruitmentRouter,
   secretarial: secretarialRouter,
   workforce: workforceRouter,
+  // Phase 4 Modules
+  expenses: expensesRouter,
+  performance: performanceRouter,
 });
 
 export type AppRouter = typeof appRouter;

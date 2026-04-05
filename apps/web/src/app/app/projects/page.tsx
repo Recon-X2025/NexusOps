@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Briefcase, Plus, Calendar, AlertTriangle, Loader2, Pencil, X,
+  Briefcase, Plus, Calendar, AlertTriangle, Loader2, Pencil, X, ChevronDown, LayoutKanban,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -442,22 +442,182 @@ export default function ProjectsPage() {
         )}
 
         {tab === "agile" && (
-          <div className="p-4">
-            <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
-              <Briefcase className="w-8 h-8 opacity-30" />
-              <div className="text-center">
-                <p className="text-[13px] font-semibold">Per-Project Agile Board</p>
-                <p className="text-[12px] text-muted-foreground/70 mt-1">
-                  Select a project from the <strong>All Projects</strong> tab to view and manage its task board.
-                </p>
-              </div>
-              <button
-                onClick={() => setTab("projects")}
-                className="mt-1 flex items-center gap-1 px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-              >
-                View Projects →
-              </button>
-            </div>
+          <AgileKanban projects={(data ?? []) as any[]} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Agile Kanban Board ─────────────────────────────────────────────────────
+const BOARD_COLUMNS = [
+  { key: "backlog",     label: "Backlog",      color: "bg-muted border-border" },
+  { key: "todo",        label: "To Do",        color: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" },
+  { key: "in_progress", label: "In Progress",  color: "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800" },
+  { key: "in_review",   label: "In Review",    color: "bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800" },
+  { key: "done",        label: "Done",         color: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800" },
+];
+
+const PRIORITY_DOT: Record<string, string> = {
+  critical: "bg-red-500",
+  high:     "bg-orange-500",
+  medium:   "bg-yellow-500",
+  low:      "bg-slate-400",
+};
+
+function AgileKanban({ projects }: { projects: any[] }) {
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id ?? "");
+
+  const board = trpc.projects.getAgileBoard.useQuery(
+    { projectId: selectedProjectId },
+    { enabled: !!selectedProjectId },
+  );
+
+  const updateTask = trpc.projects.updateTask.useMutation({
+    onSuccess: () => board.refetch(),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createTask = trpc.projects.createTask.useMutation({
+    onSuccess: () => { toast.success("Task created"); board.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+
+  if (projects.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+        <LayoutKanban className="w-8 h-8 opacity-30" />
+        <p className="text-sm font-semibold">No Projects Yet</p>
+        <p className="text-xs text-center max-w-xs">Create a project from the All Projects tab, then come back here to manage tasks on the kanban board.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      {/* Project selector */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/30">
+        <span className="text-xs text-muted-foreground font-medium">Project:</span>
+        <select
+          value={selectedProjectId}
+          onChange={(e) => setSelectedProjectId(e.target.value)}
+          className="rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:border-primary"
+        >
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        {selectedProject && (
+          <span className="text-xs text-muted-foreground">
+            {selectedProject.status} · {selectedProject.health}
+          </span>
+        )}
+      </div>
+
+      {/* Board */}
+      <div className="flex-1 overflow-x-auto p-4">
+        {board.isLoading ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <div className="flex gap-3 min-w-max h-full items-start">
+            {BOARD_COLUMNS.map((col) => {
+              const tasks: any[] = (board.data as any)?.[col.key] ?? [];
+              return (
+                <div
+                  key={col.key}
+                  className={`flex flex-col gap-2 w-60 rounded-lg border p-2 ${col.color}`}
+                >
+                  {/* Column header */}
+                  <div className="flex items-center justify-between px-1 py-0.5">
+                    <span className="text-xs font-semibold text-foreground/80">{col.label}</span>
+                    <span className="rounded-full bg-background/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                      {tasks.length}
+                    </span>
+                  </div>
+
+                  {/* Task cards */}
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="rounded bg-card border border-border/60 p-2.5 shadow-sm hover:shadow transition-shadow group"
+                    >
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{task.title}</p>
+                        {task.priority && (
+                          <div className={`h-2 w-2 rounded-full mt-1 shrink-0 ${PRIORITY_DOT[task.priority] ?? "bg-slate-400"}`} title={task.priority} />
+                        )}
+                      </div>
+                      {task.assignee && (
+                        <p className="text-[10px] text-muted-foreground truncate">{task.assignee}</p>
+                      )}
+                      {/* Move buttons */}
+                      <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {BOARD_COLUMNS.filter((c) => c.key !== col.key).map((c) => (
+                          <button
+                            key={c.key}
+                            onClick={() => updateTask.mutate({ id: task.id, status: c.key })}
+                            disabled={updateTask.isPending}
+                            className="px-1.5 py-0.5 rounded text-[9px] bg-background border border-border hover:bg-muted disabled:opacity-50 truncate max-w-[56px]"
+                            title={`Move to ${c.label}`}
+                          >
+                            → {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add task */}
+                  {addingTo === col.key ? (
+                    <div className="rounded bg-card border border-border/60 p-2">
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Task title…"
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newTaskTitle.trim() && selectedProjectId) {
+                            createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key });
+                            setNewTaskTitle("");
+                            setAddingTo(null);
+                          }
+                          if (e.key === "Escape") { setAddingTo(null); setNewTaskTitle(""); }
+                        }}
+                        className="w-full bg-transparent text-xs focus:outline-none placeholder:text-muted-foreground/60"
+                      />
+                      <div className="flex gap-1 mt-1.5">
+                        <button
+                          onClick={() => {
+                            if (newTaskTitle.trim() && selectedProjectId) {
+                              createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key });
+                              setNewTaskTitle("");
+                              setAddingTo(null);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded bg-primary text-white text-[10px]"
+                        >
+                          Add
+                        </button>
+                        <button onClick={() => { setAddingTo(null); setNewTaskTitle(""); }} className="px-2 py-0.5 rounded border border-border text-[10px]">×</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingTo(col.key)}
+                      className="flex items-center gap-1 rounded px-2 py-1 text-[10px] text-muted-foreground/60 hover:bg-background/60 hover:text-muted-foreground transition-colors w-full text-left"
+                    >
+                      <Plus className="h-3 w-3" /> Add task
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

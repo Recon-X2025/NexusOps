@@ -26,6 +26,7 @@ export interface SystemUser {
   lastLogin?: string;
   mfaEnabled: boolean;
   orgId: string;
+  orgName?: string;
 }
 
 /** Mock session user — in production this comes from the auth token / session */

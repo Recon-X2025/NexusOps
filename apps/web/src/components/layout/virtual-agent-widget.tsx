@@ -36,6 +36,8 @@ const ROUTE_CONTEXT: Record<string, { label: string; suggestions: string[] }> = 
   "/app/crm":               { label: "CRM & Sales", suggestions: ["Add new deal", "Check pipeline value", "Log a call activity", "View accounts at risk"] },
   "/app/procurement":       { label: "Procurement", suggestions: ["Create purchase request", "Approve pending POs", "Check vendor list", "Track open orders"] },
   "/app/contracts":         { label: "Contracts", suggestions: ["Show expiring contracts", "Add new contract", "Check obligation due dates", "Find contract by counterparty"] },
+  "/app/expenses":          { label: "Expense Management", suggestions: ["Create expense report", "Submit pending report", "Check approval status", "View my expense history"] },
+  "/app/performance":       { label: "Performance Management", suggestions: ["Create review cycle", "Add a goal or OKR", "Check my review status", "View team goals progress"] },
   "/app/security":          { label: "Security Operations", suggestions: ["Show open security incidents", "Check vulnerability status", "Review high risk items", "Escalate security alert"] },
   "/app/grc":               { label: "GRC", suggestions: ["Check compliance status", "View risk register", "Schedule audit", "Review policy attestations"] },
   "/app/projects":          { label: "Project Portfolio", suggestions: ["Show at-risk projects", "Check resource allocation", "View project milestones", "Add project update"] },
