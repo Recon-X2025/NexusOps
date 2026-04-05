@@ -172,7 +172,7 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
 }
 
 export default function MyAssetsPage() {
-  const { currentUser } = useRBAC();
+  const { currentUser, isLoadingAuth } = useRBAC();
   const [reportAsset, setReportAsset] = useState<{
     id: string;
     name: string;
@@ -181,7 +181,7 @@ export default function MyAssetsPage() {
 
   const { data, isLoading, isError } = trpc.assets.list.useQuery(
     { ownerId: currentUser.id, limit: 100 },
-    { refetchOnWindowFocus: false, enabled: !!currentUser.id && currentUser.id !== "__loading__" },
+    { refetchOnWindowFocus: false, enabled: !isLoadingAuth && !!currentUser.id },
   );
 
   const assets = data?.items ?? [];
