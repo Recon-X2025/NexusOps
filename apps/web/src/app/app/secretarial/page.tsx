@@ -577,7 +577,7 @@ function EsopTab() {
 
 function CalendarTab() {
   const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({});
-  const upcoming = filings.filter(f => ["upcoming","in_progress","overdue"].includes(f.status)).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const upcoming = filings.filter(f => ["upcoming","in_progress","overdue"].includes(f.status)).sort((a: any, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   return (
     <div className="space-y-4">

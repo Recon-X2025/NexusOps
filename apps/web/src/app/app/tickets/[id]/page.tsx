@@ -364,8 +364,8 @@ export default function TicketDetailPage() {
               <option value="">— select agent —</option>
               <option value={currentUser.id}>Me ({currentUser.name})</option>
               {usersData
-                ?.filter((u) => u.id !== currentUser.id)
-                .map((u) => (
+                ?.filter((u: any) => u.id !== currentUser.id)
+                .map((u: any) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.role})
                   </option>

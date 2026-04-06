@@ -90,7 +90,7 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
     }
 
     const mediumPriorityId = priorityList?.find(
-      (p) => p.name.toLowerCase() === "medium",
+      (p: any) => p.name.toLowerCase() === "medium",
     )?.id;
 
     create.mutate({

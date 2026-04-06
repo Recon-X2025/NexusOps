@@ -232,7 +232,7 @@ export default function IntegrationsSettingsPage() {
   if (!can("settings", "read")) return <AccessDenied module="Settings" />;
 
   const statusMap = Object.fromEntries(
-    (list ?? []).map((i) => [i.provider, i.status as Status]),
+    (list ?? []).map((i: any) => [i.provider, i.status as Status]),
   );
 
   return (

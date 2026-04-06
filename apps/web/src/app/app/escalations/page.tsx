@@ -57,7 +57,7 @@ export default function EscalationQueuePage() {
 
   const TERMINAL_STATUS_NAMES = ["closed", "resolved", "cancelled", "done"];
   const isTicketTerminal = (t: TicketListItem) => {
-    const statusName = (statusCounts?.find((s) => s.statusId === (t as any).statusId)?.name ?? "").toLowerCase();
+    const statusName = (statusCounts?.find((s: any) => s.statusId === (t as any).statusId)?.name ?? "").toLowerCase();
     return TERMINAL_STATUS_NAMES.some((n) => statusName.includes(n)) || !!(t as any).closedAt || !!(t as any).resolvedAt;
   };
 

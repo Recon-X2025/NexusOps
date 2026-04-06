@@ -172,8 +172,8 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
   const canViewTickets = canAccess("incidents") || canAccess("requests");
   const canViewSecurity = canAccess("security");
 
-  const failedDeploys = deploymentList.filter((d) => d.status === "failed").length;
-  const slaBreachedIncidents = incidents.filter((i) => i.slaBreached).length;
+  const failedDeploys = deploymentList.filter((d: any) => d.status === "failed").length;
+  const slaBreachedIncidents = incidents.filter((i: any) => i.slaBreached).length;
 
   return (
     <div className="flex flex-col gap-3 min-h-full">
@@ -287,7 +287,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                       No active incidents
                     </td>
                   </tr>
-                ) : incidents.map((inc) => (
+                ) : incidents.map((inc: any) => (
                   <tr key={inc.id} className={inc.slaBreached ? "bg-red-50/40" : ""}>
                     <td className="p-0">
                       <div className={`priority-bar bg-red-500`} />
@@ -329,7 +329,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
             <div className="divide-y divide-border">
               {workOrderList.length === 0 ? (
                 <div className="py-8 text-center text-[12px] text-muted-foreground">No open work orders</div>
-              ) : workOrderList.map((wo) => (
+              ) : workOrderList.map((wo: any) => (
                 <div key={wo.id} className={`flex items-center justify-between px-3 py-2.5 ${wo.slaBreached ? "bg-red-50/30" : ""}`}>
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
@@ -372,7 +372,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                     </tr>
                   </thead>
                   <tbody>
-                    {deploymentList.map((dep) => (
+                    {deploymentList.map((dep: any) => (
                       <tr key={dep.id}>
                         <td className="font-medium text-foreground max-w-[100px]">
                           <span className="truncate block">{dep.appName}</span>
@@ -412,7 +412,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               <div className="divide-y divide-border">
                 {changeList.length === 0 ? (
                   <div className="py-8 text-center text-[12px] text-muted-foreground">No changes scheduled</div>
-                ) : changeList.map((c) => (
+                ) : changeList.map((c: any) => (
                   <div key={c.id} className="flex items-center justify-between px-3 py-2">
                     <div>
                       <div className="flex items-center gap-1.5 mb-0.5">
@@ -455,7 +455,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
             <div className="divide-y divide-border">
               {approvalList.length === 0 ? (
                 <div className="py-6 text-center text-[12px] text-muted-foreground">No pending approvals</div>
-              ) : approvalList.slice(0, 4).map((ap) => (
+              ) : approvalList.slice(0, 4).map((ap: any) => (
                 <div key={ap.id} className="px-3 py-2.5">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="font-mono text-[10px] text-primary">{ap.id.slice(0, 8)}</span>

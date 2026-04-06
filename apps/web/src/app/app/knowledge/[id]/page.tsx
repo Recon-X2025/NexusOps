@@ -28,7 +28,7 @@ export default function KnowledgeArticlePage() {
   const { data: article, isLoading, isError } = trpc.knowledge.get.useQuery(
     { id },
     {
-      onSuccess: (a) => {
+      onSuccess: (a: any) => {
         if (!editTitle) setEditTitle(a.title);
         if (!editContent) setEditContent(a.content ?? "");
         if (!editTags) setEditTags((a.tags as string[]).join(", "));

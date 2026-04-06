@@ -133,7 +133,7 @@ export default function TicketsPage() {
   });
 
   const handleBulkClose = () => {
-    const closedStatus = statusCounts?.find((s) =>
+    const closedStatus = statusCounts?.find((s: any) =>
       ["closed", "resolved", "done"].includes((s.name ?? "").toLowerCase())
     );
     if (!closedStatus) { toast.error("No closed status found. Create a 'Closed' status in Admin → SLA Definitions."); return; }
@@ -142,7 +142,7 @@ export default function TicketsPage() {
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
   const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
-  const priorityMap = Object.fromEntries((priorityList ?? []).map((p) => [p.id, p]));
+  const priorityMap = Object.fromEntries((priorityList ?? []).map((p: any) => [p.id, p]));
   const { data, isLoading, isFetching, refetch } = trpc.tickets.list.useQuery({
     search: search || undefined,
     statusId: selectedStatusId ?? undefined,
@@ -195,7 +195,7 @@ export default function TicketsPage() {
 
   const statusTabs = [
     { id: null, label: "All", count: total },
-    ...(statusCounts?.map((s) => ({ id: s.statusId, label: s.name, count: s.count, color: s.color })) ?? []),
+    ...(statusCounts?.map((s: any) => ({ id: s.statusId, label: s.name, count: s.count, color: s.color })) ?? []),
   ];
 
   return (
@@ -300,7 +300,7 @@ export default function TicketsPage() {
               </button>
               <button
                 onClick={() => downloadCSV(tickets.map((t) => {
-                  const statusName = statusCounts?.find((s) => s.statusId === t.statusId)?.name ?? t.statusId ?? "Unknown";
+                  const statusName = statusCounts?.find((s: any) => s.statusId === t.statusId)?.name ?? t.statusId ?? "Unknown";
                   return { Number: t.number, Title: t.title, Type: t.type, Status: statusName, SLA_Breached: t.slaBreached ? "Yes" : "No", Assignee: t.assigneeId ?? "Unassigned", Created: new Date(t.createdAt).toLocaleDateString("en-IN") };
                 }), "tickets_export")}
                 className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -337,7 +337,7 @@ export default function TicketsPage() {
             const openStatuses = (statusCounts ?? []).filter(s =>
               !["resolved","closed","done"].includes((s.name ?? "").toLowerCase())
             );
-            const totalOpen = openStatuses.reduce((sum, s) => sum + Number(s.count ?? 0), 0);
+            const totalOpen = openStatuses.reduce((sum: any, s) => sum + Number(s.count ?? 0), 0);
             const unassigned = allTickets.filter(t => !t.assigneeId).length;
             const breached = allTickets.filter(t => t.slaBreached).length;
             const slaCompliance = allTickets.length > 0
@@ -404,7 +404,7 @@ export default function TicketsPage() {
                       <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">By Status</span>
                     </div>
                     <div className="p-3 flex flex-col gap-2">
-                      {(statusCounts ?? []).map((s) => {
+                      {(statusCounts ?? []).map((s: any) => {
                         const maxCount = Math.max(...(statusCounts ?? []).map(sc => Number(sc.count ?? 0)), 1);
                         return (
                           <div key={s.statusId} className="flex items-center gap-2">
@@ -761,7 +761,7 @@ export default function TicketsPage() {
                       {/* Status */}
                       <td>
                         {(() => {
-                          const s = statusCounts?.find((sc) => sc.statusId === ticket.statusId);
+                          const s = statusCounts?.find((sc: any) => sc.statusId === ticket.statusId);
                           const name = s?.name ?? "Open";
                           const color = s?.color ?? STATUS_COLORS[name.toLowerCase()] ?? "#6b7280";
                           return (
@@ -830,7 +830,7 @@ export default function TicketsPage() {
                                 className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-muted/30"
                                 onClick={() => {
                                   setMenuOpenId(null);
-                                  const closedStatus = statusCounts?.find((s) => ["closed", "resolved"].includes((s.name ?? "").toLowerCase()));
+                                  const closedStatus = statusCounts?.find((s: any) => ["closed", "resolved"].includes((s.name ?? "").toLowerCase()));
                                   if (!closedStatus) { toast.error("No closed status found"); return; }
                                   bulkUpdate.mutate({ ids: [ticket.id], data: { statusId: closedStatus.statusId } });
                                 }}

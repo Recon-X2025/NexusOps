@@ -115,7 +115,7 @@ export default function NewRequestPage() {
     }
 
     const resolvedPriorityId = priorityList?.find(
-      (p) => p.name.toLowerCase() === priority.toLowerCase(),
+      (p: any) => p.name.toLowerCase() === priority.toLowerCase(),
     )?.id;
 
     create.mutate({

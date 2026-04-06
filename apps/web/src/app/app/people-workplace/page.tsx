@@ -57,8 +57,8 @@ export default function PeopleWorkplaceDashboard() {
   }
 
   const openCases = hrCases ? hrCases.length : 0;
-  const onboardingEmployees = employees ? employees.filter((e) => e.status === "onboarding").length : 0;
-  const offboardingEmployees = employees ? employees.filter((e) => e.status === "offboarding").length : 0;
+  const onboardingEmployees = employees ? employees.filter((e: any) => e.status === "onboarding").length : 0;
+  const offboardingEmployees = employees ? employees.filter((e: any) => e.status === "offboarding").length : 0;
   const totalEmployees = employees ? employees.length : 0;
 
   const alerts = [
@@ -72,7 +72,7 @@ export default function PeopleWorkplaceDashboard() {
       { k: "Onboarding", v: loadingEmp   ? "…" : String(onboardingEmployees) },
     ],
     [
-      { k: "Active", v: loadingEmp ? "…" : String(employees?.filter((e) => e.status === "active").length ?? 0) },
+      { k: "Active", v: loadingEmp ? "…" : String(employees?.filter((e: any) => e.status === "active").length ?? 0) },
       { k: "Total",  v: loadingEmp ? "…" : String(totalEmployees) },
     ],
     [
@@ -171,7 +171,7 @@ export default function PeopleWorkplaceDashboard() {
               <tbody>
                 {(hrCases ?? []).length === 0 ? (
                   <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No HR cases found</td></tr>
-                ) : (hrCases ?? []).slice(0, 5).map((row) => (
+                ) : (hrCases ?? []).slice(0, 5).map((row: any) => (
                   <tr key={row.hrCase.id}>
                     <td className="font-mono text-[11px] text-primary">{row.hrCase.id.slice(0, 8)}</td>
                     <td><span className="status-badge text-muted-foreground bg-muted capitalize">{row.hrCase.caseType?.replace(/_/g, " ") ?? "—"}</span></td>
@@ -205,7 +205,7 @@ export default function PeopleWorkplaceDashboard() {
             <div className="divide-y divide-border">
               {(employees ?? []).length === 0 ? (
                 <div className="text-center text-muted-foreground py-4 text-[12px]">No employee records found</div>
-              ) : (employees ?? []).slice(0, 5).map((e) => (
+              ) : (employees ?? []).slice(0, 5).map((e: any) => (
                 <div key={e.id} className="flex items-start gap-3 px-3 py-2.5">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">

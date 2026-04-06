@@ -140,7 +140,7 @@ export default function AdminConsolePage() {
 
   const allUsers = usersQuery.data ?? [];
 
-  const filteredUsers = allUsers.filter((u) =>
+  const filteredUsers = allUsers.filter((u: any) =>
     !searchUsers || u.name.toLowerCase().includes(searchUsers.toLowerCase()) || u.email.toLowerCase().includes(searchUsers.toLowerCase()),
   );
 
@@ -297,7 +297,7 @@ export default function AdminConsolePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => {
+                  {filteredUsers.map((user: any) => {
                     const userRoles = [user.role, user.matrixRole].filter(Boolean) as string[];
                     const isActive = user.status === "active";
                     return (
@@ -308,7 +308,7 @@ export default function AdminConsolePage() {
                       <td>
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
-                            {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                            {user.name.split(" ").map((n: any) => n[0]).join("").slice(0, 2)}
                           </span>
                           <span className="text-foreground font-medium">{user.name}</span>
                         </div>
@@ -396,7 +396,7 @@ export default function AdminConsolePage() {
                       </thead>
                       <tbody>
                         {catRoles.map((r) => {
-                          const assignedCount = allUsers.filter((u) => u.role === r.role || u.matrixRole === r.role).length;
+                          const assignedCount = allUsers.filter((u: any) => u.role === r.role || u.matrixRole === r.role).length;
                           const permCount = Object.values(
                             ROLE_PERMISSIONS[r.role as keyof typeof ROLE_PERMISSIONS] ?? {},
                           ).flat().length;

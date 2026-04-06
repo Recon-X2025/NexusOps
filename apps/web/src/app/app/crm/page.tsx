@@ -1029,7 +1029,7 @@ export default function CRMPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(q.lineItems ?? []).map((li) => (
+                          {(q.lineItems ?? []).map((li: any) => (
                             <tr key={li.line}>
                               <td className="text-center text-muted-foreground/70">{li.line}</td>
                               <td className="font-semibold text-foreground">{li.product}</td>

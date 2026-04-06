@@ -49,9 +49,9 @@ export default function LegalGovernanceDashboard() {
     return <AccessDenied module="Legal & Governance" />;
   }
 
-  const activeMatters = allMatters ? allMatters.filter((m) => m.status !== "closed" && m.status !== "resolved").length : 0;
-  const openRisks = risks ? risks.filter((r) => r.status !== "closed" && r.status !== "accepted").length : 0;
-  const scheduledAudits = audits ? audits.filter((a) => a.status === "planned" || a.status === "in_progress").length : 0;
+  const activeMatters = allMatters ? allMatters.filter((m: any) => m.status !== "closed" && m.status !== "resolved").length : 0;
+  const openRisks = risks ? risks.filter((r: any) => r.status !== "closed" && r.status !== "accepted").length : 0;
+  const scheduledAudits = audits ? audits.filter((a: any) => a.status === "planned" || a.status === "in_progress").length : 0;
 
   const alerts = [
     activeMatters > 0
@@ -164,7 +164,7 @@ export default function LegalGovernanceDashboard() {
               <tbody>
                 {(matters ?? []).length === 0 ? (
                   <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No legal matters found</td></tr>
-                ) : (matters ?? []).map((m) => (
+                ) : (matters ?? []).map((m: any) => (
                   <tr key={m.id}>
                     <td className="max-w-[160px]"><span className="truncate block text-foreground">{m.title}</span></td>
                     <td><span className="status-badge text-muted-foreground bg-muted capitalize">{m.type?.replace(/_/g, " ")}</span></td>
@@ -200,7 +200,7 @@ export default function LegalGovernanceDashboard() {
             <div className="divide-y divide-border">
               {(audits ?? []).length === 0 ? (
                 <div className="text-center text-muted-foreground py-4 text-[12px]">No audit plans found</div>
-              ) : (audits ?? []).slice(0, 5).map((a) => (
+              ) : (audits ?? []).slice(0, 5).map((a: any) => (
                 <div key={a.id} className={`flex items-start gap-3 px-3 py-2.5`}>
                   <div className="flex-shrink-0 text-center w-16">
                     <div className="text-[11px] font-bold text-foreground">

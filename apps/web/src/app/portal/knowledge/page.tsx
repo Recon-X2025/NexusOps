@@ -116,7 +116,7 @@ export default function PortalKnowledgePage() {
       {/* Article list */}
       {!isLoading && !isError && articles.length > 0 && (
         <div className="flex flex-col gap-2">
-          {articles.map((article) => {
+          {articles.map((article: any) => {
             const isExpanded = expandedId === article.id;
             return (
               <div

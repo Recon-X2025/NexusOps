@@ -227,7 +227,7 @@ function SecurityTab() {
         {sessionsQuery.isLoading ? (
           <div className="text-xs text-muted-foreground">Loading sessions…</div>
         ) : (
-          (sessionsQuery.data ?? []).map((s) => (
+          (sessionsQuery.data ?? []).map((s: any) => (
             <div key={s.id} className="flex items-center justify-between text-sm">
               <div>
                 <p className="font-medium text-foreground/90">{s.userAgent ?? "Unknown device"}</p>

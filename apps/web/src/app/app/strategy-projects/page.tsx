@@ -62,18 +62,18 @@ export default function StrategyProjectsDashboard() {
 
   const apps = appsPage?.items ?? [];
 
-  const activeProjects = projects ? projects.filter((p) => p.status !== "completed" && p.status !== "cancelled").length : 0;
-  const atRiskProjects = projects ? projects.filter((p) => p.status === "at_risk" || p.status === "delayed").length : 0;
+  const activeProjects = projects ? projects.filter((p: any) => p.status !== "completed" && p.status !== "cancelled").length : 0;
+  const atRiskProjects = projects ? projects.filter((p: any) => p.status === "at_risk" || p.status === "delayed").length : 0;
 
   const avgBudgetUsed = projects && projects.length > 0
     ? Math.round(
         projects
-          .filter((p) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0)
-          .reduce((sum, p) => {
+          .filter((p: any) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0)
+          .reduce((sum: any, p) => {
             const total = parseFloat(String(p.budgetTotal ?? "0"));
             const spent = parseFloat(String(p.budgetSpent ?? "0"));
             return sum + (total > 0 ? (spent / total) * 100 : 0);
-          }, 0) / Math.max(projects.filter((p) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0).length, 1)
+          }, 0) / Math.max(projects.filter((p: any) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0).length, 1)
       )
     : 0;
 
@@ -82,7 +82,7 @@ export default function StrategyProjectsDashboard() {
       ? { color: "bg-red-500",    text: `${atRiskProjects} project${atRiskProjects !== 1 ? "s" : ""} at risk or delayed` }
       : null,
     apps && apps.length > 0
-      ? { color: "bg-yellow-400", text: `${apps.filter((a) => a.lifecycle === "retire" || a.lifecycle === "decommission").length} applications flagged for retirement` }
+      ? { color: "bg-yellow-400", text: `${apps.filter((a: any) => a.lifecycle === "retire" || a.lifecycle === "decommission").length} applications flagged for retirement` }
       : null,
   ].filter(Boolean) as { color: string; text: string }[];
 
@@ -187,7 +187,7 @@ export default function StrategyProjectsDashboard() {
               <tbody>
                 {(projects ?? []).length === 0 ? (
                   <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No projects found</td></tr>
-                ) : (projects ?? []).slice(0, 6).map((p) => {
+                ) : (projects ?? []).slice(0, 6).map((p: any) => {
                   const budgetTotal = parseFloat(String(p.budgetTotal ?? "0"));
                   const budgetSpent = parseFloat(String(p.budgetSpent ?? "0"));
                   const budgetPct = budgetTotal > 0 ? Math.round((budgetSpent / budgetTotal) * 100) : 0;
@@ -235,7 +235,7 @@ export default function StrategyProjectsDashboard() {
               <tbody>
                 {(apps ?? []).length === 0 ? (
                   <tr><td colSpan={3} className="text-center text-muted-foreground py-4 text-[12px]">No applications found</td></tr>
-                ) : (apps ?? []).slice(0, 6).map((a) => (
+                ) : (apps ?? []).slice(0, 6).map((a: any) => (
                   <tr key={a.id}>
                     <td className="max-w-[160px]"><span className="truncate block text-foreground">{a.name}</span></td>
                     <td>

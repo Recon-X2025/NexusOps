@@ -382,7 +382,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
             {reqs.length === 0 && (
               <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">No job requisitions found</td></tr>
             )}
-            {reqs.map(r => (
+            {reqs.map((r: any) => (
               <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{r.number}</td>
                 <td className="px-4 py-3 font-medium">{r.title}</td>
