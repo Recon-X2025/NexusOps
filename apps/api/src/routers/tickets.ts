@@ -193,7 +193,9 @@ export const ticketsRouter = router({
         !isOffsetCursor;
 
       // Parse keyset cursor when present — absent on page 1, populated on subsequent pages
-      let parsedCursor: { createdAt: Date; id: string } | null = null;
+      // Keep createdAt/updatedAt as ISO strings — postgres.js 3.x does not accept Date objects
+      // in raw sql`` template parameters; the ::timestamptz cast handles the conversion.
+      let parsedCursor: { createdAt: string; id: string } | null = null;
       if (useKeyset && input.orderBy === "createdAt" && input.cursor) {
         try {
           const raw = JSON.parse(
@@ -206,7 +208,7 @@ export const ticketsRouter = router({
             typeof raw.createdAt === "string" &&
             typeof raw.id === "string"
           ) {
-            parsedCursor = { createdAt: new Date(raw.createdAt), id: raw.id };
+            parsedCursor = { createdAt: raw.createdAt, id: raw.id };
           }
         } catch {
           // malformed cursor — treat as first page (parsedCursor stays null)
@@ -216,10 +218,10 @@ export const ticketsRouter = router({
       // Keyset seek condition replaces OFFSET in the new path
       if (parsedCursor)
         conditions.push(
-          sql`(${tickets.createdAt} < ${parsedCursor.createdAt} OR (${tickets.createdAt} = ${parsedCursor.createdAt} AND ${tickets.id} < ${parsedCursor.id}))`,
+          sql`(${tickets.createdAt} < ${parsedCursor.createdAt}::timestamptz OR (${tickets.createdAt} = ${parsedCursor.createdAt}::timestamptz AND ${tickets.id} < ${parsedCursor.id}))`,
         );
 
-      let parsedUpdatedAtCursor: { updatedAt: Date; id: string } | null = null;
+      let parsedUpdatedAtCursor: { updatedAt: string; id: string } | null = null;
       if (useKeyset && input.orderBy === "updatedAt" && input.cursor) {
         try {
           const raw = JSON.parse(
@@ -232,7 +234,7 @@ export const ticketsRouter = router({
             typeof raw.updatedAt === "string" &&
             typeof raw.id === "string"
           ) {
-            parsedUpdatedAtCursor = { updatedAt: new Date(raw.updatedAt), id: raw.id };
+            parsedUpdatedAtCursor = { updatedAt: raw.updatedAt, id: raw.id };
           }
         } catch {
           // malformed cursor — treat as first page (parsedUpdatedAtCursor stays null)
@@ -241,12 +243,12 @@ export const ticketsRouter = router({
 
       if (parsedUpdatedAtCursor)
         conditions.push(
-          sql`(${tickets.updatedAt} < ${parsedUpdatedAtCursor.updatedAt} OR (${tickets.updatedAt} = ${parsedUpdatedAtCursor.updatedAt} AND ${tickets.id} < ${parsedUpdatedAtCursor.id}))`,
+          sql`(${tickets.updatedAt} < ${parsedUpdatedAtCursor.updatedAt}::timestamptz OR (${tickets.updatedAt} = ${parsedUpdatedAtCursor.updatedAt}::timestamptz AND ${tickets.id} < ${parsedUpdatedAtCursor.id}))`,
         );
 
       let parsedPriorityCursor: {
         sortOrder: number | null;
-        createdAt: Date;
+        createdAt: string;
         id: string;
       } | null = null;
       if (useKeyset && input.orderBy === "priority" && input.cursor) {
@@ -264,7 +266,7 @@ export const ticketsRouter = router({
           ) {
             parsedPriorityCursor = {
               sortOrder: raw.sortOrder as number | null,
-              createdAt: new Date(raw.createdAt),
+              createdAt: raw.createdAt,
               id: raw.id,
             };
           }
@@ -285,7 +287,7 @@ export const ticketsRouter = router({
               (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) < ${S}
               OR (
                 (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) = ${S}
-                AND (${tickets.createdAt} < ${C} OR (${tickets.createdAt} = ${C} AND ${tickets.id} < ${I}))
+                AND (${tickets.createdAt} < ${C}::timestamptz OR (${tickets.createdAt} = ${C}::timestamptz AND ${tickets.id} < ${I}))
               )
               OR (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) IS NULL
             )`,
@@ -296,7 +298,7 @@ export const ticketsRouter = router({
           conditions.push(
             sql`(
               (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) IS NULL
-              AND (${tickets.createdAt} < ${C} OR (${tickets.createdAt} = ${C} AND ${tickets.id} < ${I}))
+              AND (${tickets.createdAt} < ${C}::timestamptz OR (${tickets.createdAt} = ${C}::timestamptz AND ${tickets.id} < ${I}))
             )`,
           );
         }
