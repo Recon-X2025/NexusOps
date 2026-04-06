@@ -407,7 +407,7 @@ export default function ProcurementPage() {
                           <td className="font-mono text-[10px] text-muted-foreground/70">{pr.budgetCode ?? "—"}</td>
                           <td>
                             {prState === "approved"
-                              ? <button onClick={() => setTab("purchase-orders")} className="text-[11px] text-primary hover:underline">+ Create PO</button>
+                              ? <button onClick={(e) => { e.stopPropagation(); setExpandedPR(pr.id); setCreatingPO(pr.id); }} className="text-[11px] text-primary hover:underline">+ Create PO</button>
                               : "—"
                             }
                           </td>
@@ -472,7 +472,7 @@ export default function ProcurementPage() {
                                     <div className="flex items-end gap-2 mt-2">
                                       <select className="border border-border rounded px-2 py-1 text-[11px]" value={poVendorId} onChange={e => setPOVendorId(e.target.value)}>
                                         <option value="">Select Vendor *</option>
-                                        {((vendorsData as any)?.items ?? []).map((v: any) => (
+                                        {((vendorsData as any[]) ?? []).map((v: any) => (
                                           <option key={v.id} value={v.id}>{v.name}</option>
                                         ))}
                                       </select>
