@@ -1,5 +1,5 @@
 import { createTRPCReact } from "@trpc/react-query";
-import { httpBatchLink, loggerLink } from "@trpc/client";
+import { httpLink, loggerLink } from "@trpc/client";
 import type { AppRouter } from "@nexusops/api";
 
 export { type AppRouter };
@@ -61,7 +61,7 @@ export function getTRPCClient() {
           error: console.warn,
         },
       }),
-      httpBatchLink({
+      httpLink({
         url: getTRPCUrl(),
         fetch: fetchWithTimeout,
         headers() {
