@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import {
   ShoppingCart, Plus, Download, CheckCircle2,
   XCircle, Clock, AlertTriangle, Package,
@@ -391,8 +391,8 @@ export default function ProcurementPage() {
                     const sCfg = PR_STATE_CFG[prState] ?? PR_STATE_CFG.draft!;
                     const isExpanded = expandedPR === pr.id;
                     return (
-                      <>
-                        <tr key={pr.id} className={`cursor-pointer ${isExpanded ? "bg-blue-50/40" : ""}`}
+                      <Fragment key={pr.id}>
+                        <tr className={`cursor-pointer ${isExpanded ? "bg-blue-50/40" : ""}`}
                           onClick={() => setExpandedPR(isExpanded ? null : pr.id)}>
                           <td className="p-0"><div className={`priority-bar ${prPriority === "emergency" ? "bg-red-600" : prPriority === "urgent" ? "bg-orange-500" : "bg-green-500"}`} /></td>
                           <td className="font-mono text-[11px] text-primary">{pr.number ?? pr.id}</td>
@@ -489,7 +489,7 @@ export default function ProcurementPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>

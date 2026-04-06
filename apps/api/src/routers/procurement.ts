@@ -235,15 +235,17 @@ export const procurementRouter = router({
           })
           .returning();
 
-        await db.insert(poLineItems).values(
-          prItems.map((item: typeof purchaseRequestItems.$inferSelect) => ({
-            poId: po!.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            receivedQuantity: 0,
-          })),
-        );
+        if (prItems.length > 0) {
+          await db.insert(poLineItems).values(
+            prItems.map((item: typeof purchaseRequestItems.$inferSelect) => ({
+              poId: po!.id,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              receivedQuantity: 0,
+            })),
+          );
+        }
 
         await db
           .update(purchaseRequests)
