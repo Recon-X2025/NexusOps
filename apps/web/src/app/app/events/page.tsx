@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import {
   Activity, AlertTriangle, Zap, CheckCircle2, XCircle, RefreshCw,
@@ -269,9 +269,8 @@ export default function EventManagementPage() {
                 const sev = SEVERITY_CFG[evt.severity as Severity] ?? SEVERITY_CFG.info;
                 const st = STATE_CFG[evt.state as EventState] ?? STATE_CFG.open;
                 return (
-                  <>
+                  <Fragment key={evt.id}>
                     <tr
-                      key={evt.id}
                       className={`cursor-pointer ${expandedId === evt.id ? "bg-blue-50" : ""}`}
                       onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
                     >
@@ -354,7 +353,7 @@ export default function EventManagementPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

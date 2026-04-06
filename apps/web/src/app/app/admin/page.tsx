@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import Link from "next/link";
@@ -1012,8 +1012,8 @@ function AuditLogTab() {
             </thead>
             <tbody>
               {(data?.items ?? []).map((e: typeof data.items[number]) => (
-                <>
-                  <tr key={e.id} className="cursor-pointer hover:bg-muted/20" onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}>
+                <Fragment key={e.id}>
+                  <tr className="cursor-pointer hover:bg-muted/20" onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}>
                     <td className="font-mono text-[11px] text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</td>
                     <td className="text-foreground/80 font-medium">{e.userName ?? "—"}</td>
                     <td className="text-muted-foreground text-[11px] font-mono">{e.action}</td>
@@ -1031,7 +1031,7 @@ function AuditLogTab() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
@@ -307,8 +307,8 @@ function NotificationsTab() {
           </thead>
           <tbody>
             {EVENT_GROUPS.map(({ group, events }) => (
-              <>
-                <tr key={group}>
+              <Fragment key={group}>
+                <tr>
                   <td colSpan={3} className="pt-3 pb-1">
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{group}</span>
                   </td>
@@ -334,7 +334,7 @@ function NotificationsTab() {
                     ))}
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

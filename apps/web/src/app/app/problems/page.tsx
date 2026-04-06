@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
@@ -240,9 +240,8 @@ export default function ProblemsPage() {
                 const sCfg = STATE_CONFIG[prob.status];
                 const isKnownError = prob.status === "known_error";
                 return (
-                  <>
+                  <Fragment key={prob.id}>
                     <tr
-                      key={prob.id}
                       className="cursor-pointer"
                       onClick={() => setExpandedId(expandedId === prob.id ? null : prob.id)}
                     >
@@ -326,7 +325,7 @@ export default function ProblemsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

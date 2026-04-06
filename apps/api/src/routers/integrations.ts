@@ -64,6 +64,7 @@ export const integrationsRouter = router({
           })
           .where(eq(integrations.id, existing[0].id))
           .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Integration not found" });
         return updated;
       }
 
