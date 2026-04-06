@@ -25,7 +25,7 @@ const CRM_TABS = [
   { key: "analytics",  label: "Sales Analytics",  module: "analytics" as const, action: "read"  as const },
 ];
 
-type DealStage = "prospect" | "qualified" | "proposal" | "negotiation" | "verbal_commit" | "closed_won" | "closed_lost";
+type DealStage = "prospect" | "qualification" | "proposal" | "negotiation" | "verbal_commit" | "closed_won" | "closed_lost";
 type LeadStatus = "new" | "contacted" | "qualified" | "nurturing" | "converted" | "dead";
 type ActivityType = "call" | "email" | "meeting" | "demo" | "follow_up" | "task";
 
@@ -154,7 +154,7 @@ const DEALS: Deal[] = [
   { id: "deal-002", number: "OPP-2026-0087", name: "ITSM + SecOps Bundle — Globex Industries", account: "Globex Industries", contact: "Marcus Chen (VP IT)", owner: "Alex Rivera", stage: "proposal", value: 17845000, currency: "INR", probability: 55, closeDate: "2026-05-15", created: "2026-02-01", lastActivity: "Yesterday", source: "Partner Referral", products: ["NexusOps ITSM", "NexusOps SecOps", "1yr Support"] },
   { id: "deal-003", number: "OPP-2026-0086", name: "Procurement Module Add-on — Initech", account: "Initech LLC", contact: "Bill Lumbergh (CEO)", owner: "Taylor Patel", stage: "closed_won", value: 5644000, currency: "INR", probability: 100, closeDate: "2026-03-15", created: "2026-01-20", lastActivity: "2026-03-15", source: "Upsell / Existing Customer", products: ["Procurement Module", "6mo Support"] },
   { id: "deal-004", number: "OPP-2026-0085", name: "GRC & Compliance Platform — Umbrella Corp", account: "Umbrella Corporation", contact: "Albert Wesker (CISO)", owner: "Dana Kim", stage: "verbal_commit", value: 41085000, currency: "INR", probability: 90, closeDate: "2026-04-15", created: "2026-01-08", lastActivity: "Today", source: "Inbound / Website", products: ["NexusOps GRC", "NexusOps SecOps", "5yr Enterprise", "Implementation 200h"] },
-  { id: "deal-005", number: "OPP-2026-0084", name: "HR Service Delivery — Massive Dynamic", account: "Massive Dynamic", contact: "Nina Sharp (CHRO)", owner: "Morgan Lee", stage: "qualified", value: 11786000, currency: "INR", probability: 35, closeDate: "2026-06-30", created: "2026-03-01", lastActivity: "3 days ago", source: "LinkedIn Outbound", products: ["NexusOps HRSD", "2yr Support"] },
+  { id: "deal-005", number: "OPP-2026-0084", name: "HR Service Delivery — Massive Dynamic", account: "Massive Dynamic", contact: "Nina Sharp (CHRO)", owner: "Morgan Lee", stage: "qualification", value: 11786000, currency: "INR", probability: 35, closeDate: "2026-06-30", created: "2026-03-01", lastActivity: "3 days ago", source: "LinkedIn Outbound", products: ["NexusOps HRSD", "2yr Support"] },
   { id: "deal-006", number: "OPP-2026-0083", name: "NexusOps Full Stack — Soylent Corp", account: "Soylent Corp", contact: "Frank Grimes (CIO)", owner: "Alex Rivera", stage: "prospect", value: 68060000, currency: "INR", probability: 15, closeDate: "2026-09-30", created: "2026-03-20", lastActivity: "2 days ago", source: "Event / Conference", products: ["NexusOps Enterprise (Full Stack)"] },
   { id: "deal-007", number: "OPP-2026-0082", name: "CSM Platform — Vandelay Industries", account: "Vandelay Industries", contact: "Art Vandelay (CEO)", owner: "Taylor Patel", stage: "closed_lost", value: 14525000, currency: "INR", probability: 0, closeDate: "2026-03-20", created: "2026-01-25", lastActivity: "2026-03-20", source: "Inbound / Trial", products: ["NexusOps CSM"], notes: "Lost to Zendesk on price. Revisit in 18 months." },
 ];
@@ -234,7 +234,7 @@ const QUOTES: Quote[] = [
 
 const STAGE_CFG: Record<DealStage, { label: string; color: string; order: number; icon: string }> = {
   prospect:      { label: "Prospect",      color: "text-muted-foreground bg-muted",   order: 0, icon: "○" },
-  qualified:     { label: "Qualified",     color: "text-blue-700 bg-blue-100",     order: 1, icon: "◑" },
+  qualification: { label: "Qualification", color: "text-blue-700 bg-blue-100",     order: 1, icon: "◑" },
   proposal:      { label: "Proposal",      color: "text-indigo-700 bg-indigo-100", order: 2, icon: "◑" },
   negotiation:   { label: "Negotiation",   color: "text-purple-700 bg-purple-100", order: 3, icon: "◕" },
   verbal_commit: { label: "Verbal Commit", color: "text-orange-700 bg-orange-100", order: 4, icon: "◕" },
@@ -285,7 +285,7 @@ const SENIORITY_CFG: Record<string, string> = {
 
 const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-yellow-600" : "text-red-600";
 
-const PIPELINE_STAGES: DealStage[] = ["prospect","qualified","proposal","negotiation","verbal_commit"];
+const PIPELINE_STAGES: DealStage[] = ["prospect","qualification","proposal","negotiation","verbal_commit"];
 
 export default function CRMPage() {
   const { can } = useRBAC();
@@ -361,7 +361,7 @@ export default function CRMPage() {
       toast.success("Deal created");
       refetchDeals();
       setShowNewDeal(false);
-      setDealForm({ title: "", value: "", probability: "30", expectedClose: "" });
+      setDealForm({ title: "", value: "", probability: "30", expectedClose: "", accountId: "", contactId: "", source: "", stage: "prospect" });
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create deal"),
   });
@@ -373,7 +373,7 @@ export default function CRMPage() {
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const createContactMutation = trpc.crm.createContact.useMutation({
-    onSuccess: () => { toast.success("Contact created"); setShowNewContact(false); setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "" }); },
+    onSuccess: () => { toast.success("Contact created"); setShowNewContact(false); setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" }); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create contact"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -479,7 +479,7 @@ export default function CRMPage() {
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
-                  {(["prospect","qualified","proposal","negotiation","verbal_commit"] as const).map(s => (
+                  {(["prospect","qualification","proposal","negotiation","verbal_commit"] as const).map(s => (
                     <option key={s} value={s}>{STAGE_CFG[s].label}</option>
                   ))}
                 </select>
@@ -528,7 +528,7 @@ export default function CRMPage() {
               <button onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-1.5">
-              {(["prospect","qualified","proposal","negotiation","verbal_commit","closed_won","closed_lost"] as const).map(s => (
+              {(["prospect","qualification","proposal","negotiation","verbal_commit","closed_won","closed_lost"] as const).map(s => (
                 <button
                   key={s}
                   onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
@@ -657,7 +657,7 @@ export default function CRMPage() {
               </div>
               <div className="divide-y divide-border">
                 {ACTIVITIES_LIVE.filter((a: any) => !a.completed).slice(0, 4).map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type] ?? { color: "bg-muted", label: a.type ?? "Activity" };
+                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity" };
                   return (
                     <div key={a.id} className="flex items-center justify-between px-3 py-2 hover:bg-muted/30">
                       <div className="flex items-start gap-2">
@@ -705,7 +705,7 @@ export default function CRMPage() {
               </PermissionGate>
             </div>
             <div className="flex overflow-x-auto p-4 gap-3 min-h-96">
-              {(["prospect","qualified","proposal","negotiation","verbal_commit","closed_won"] as DealStage[]).map((stage) => {
+              {(["prospect","qualification","proposal","negotiation","verbal_commit","closed_won"] as DealStage[]).map((stage) => {
                 const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
                 const stageVal = stageDeals.reduce((s,d) => s+d.value, 0);
                 const cfg = STAGE_CFG[stage];
@@ -955,7 +955,7 @@ export default function CRMPage() {
               </thead>
               <tbody>
                 {ACTIVITIES_LIVE.map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type] ?? { color: "bg-muted", label: a.type ?? "Activity" };
+                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity" };
                   return (
                     <tr key={a.id} className={a.completed ? "opacity-60" : ""}>
                       <td className="p-0"><div className={`priority-bar ${a.completed ? "bg-green-500" : "bg-blue-400"}`} /></td>

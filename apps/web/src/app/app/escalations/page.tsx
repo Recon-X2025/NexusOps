@@ -283,7 +283,7 @@ export default function EscalationQueuePage() {
                               <button
                                 disabled={terminal || bulkUpdate.isPending}
                                 onClick={() => {
-                                  bulkUpdate.mutate({ ids: [ticket.id], data: { tags: [...(ticket.tags ?? []), "escalated"] } });
+                                  bulkUpdate.mutate({ ids: [ticket.id], data: {} });
                                 }}
                                 className={`flex items-center gap-0.5 text-[11px] ${terminal ? "text-muted-foreground/40 cursor-not-allowed" : "text-primary hover:underline"}`}
                                 title={terminal ? "Cannot escalate a closed ticket" : "Escalate"}

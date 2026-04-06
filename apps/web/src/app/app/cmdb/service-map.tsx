@@ -88,14 +88,14 @@ export function ServiceMap({ nodes, edges }: ServiceMapProps) {
         // Repulsion between every pair of nodes
         for (let i = 0; i < ns.length; i++) {
           for (let j = i + 1; j < ns.length; j++) {
-            const dx = ns[j].x - ns[i].x;
-            const dy = ns[j].y - ns[i].y;
+            const dx = ns[j]!.x - ns[i]!.x;
+            const dy = ns[j]!.y - ns[i]!.y;
             const d2 = dx * dx + dy * dy || 1;
             const d  = Math.sqrt(d2);
             const f  = (REPULSION * alpha) / d2;
             const fx = (dx / d) * f, fy = (dy / d) * f;
-            ns[i].vx -= fx; ns[i].vy -= fy;
-            ns[j].vx += fx; ns[j].vy += fy;
+            ns[i]!.vx -= fx; ns[i]!.vy -= fy;
+            ns[j]!.vx += fx; ns[j]!.vy += fy;
           }
         }
 

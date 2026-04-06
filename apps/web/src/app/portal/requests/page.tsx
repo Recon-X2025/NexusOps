@@ -54,7 +54,7 @@ function matchStatusStyle(name: string) {
       return style;
     }
   }
-  return STATUS_STYLE.open;
+  return STATUS_STYLE["open"]!;
 }
 
 export default function MyRequestsPage() {
@@ -86,16 +86,16 @@ export default function MyRequestsPage() {
     },
   });
 
-  const statusMap = new Map(
-    (statusData ?? []).map((s) => [s.statusId, { name: s.name, color: s.color }]),
+  const statusMap = new Map<string, { name: string; color: string | null }>(
+    (statusData ?? []).map((s: any) => [s.statusId, { name: s.name as string, color: s.color as string | null }]),
   );
 
-  const closedStatusId = (statusData ?? []).find((s) =>
+  const closedStatusId = (statusData ?? []).find((s: any) =>
     s.name.toLowerCase().includes("closed"),
   )?.statusId;
 
   const myTickets = (data?.items ?? []).filter(
-    (t) => t.requesterId === currentUser.id,
+    (t: any) => t.requesterId === currentUser.id,
   );
 
   function handleCancel(ticketId: string) {
@@ -169,11 +169,11 @@ export default function MyRequestsPage() {
 
       {!isLoading && !isError && myTickets.length > 0 && (
         <div className="flex flex-col gap-2">
-          {myTickets.map((ticket) => {
+          {myTickets.map((ticket: any) => {
             const status = statusMap.get(ticket.statusId);
-            const style = status
+            const style = (status
               ? matchStatusStyle(status.name)
-              : STATUS_STYLE.open;
+              : STATUS_STYLE["open"])!;
             const isOpen = isOpenStatus(ticket.statusId);
             const isExpanded = expandedId === ticket.id;
 
@@ -229,7 +229,7 @@ export default function MyRequestsPage() {
                   <div className="border-t border-gray-100 px-4 py-3">
                     {ticket.tags && ticket.tags.length > 0 && (
                       <div className="mb-2 flex flex-wrap gap-1">
-                        {ticket.tags.map((tag) => (
+                        {ticket.tags.map((tag: any) => (
                           <span
                             key={tag}
                             className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"

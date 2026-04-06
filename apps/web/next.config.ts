@@ -45,14 +45,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   transpilePackages: ["@nexusops/ui", "@nexusops/types"],
-  typedRoutes: false,
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.githubusercontent.com" },

@@ -50,7 +50,7 @@ export default function DeveloperOpsDashboard() {
   }
 
   const totalDeploymentsToday = deployments
-    ? deployments.filter((d) => {
+    ? deployments.filter((d: any) => {
         const today = new Date();
         const deployDate = new Date(d.startedAt);
         return deployDate.toDateString() === today.toDateString();
@@ -58,20 +58,20 @@ export default function DeveloperOpsDashboard() {
     : 0;
 
   const failedDeployments = deployments
-    ? deployments.filter((d) => d.status === "failed").length
+    ? deployments.filter((d: any) => d.status === "failed").length
     : 0;
 
-  const activeKBArticles = kbArticles ? kbArticles.filter((a) => a.status === "published").length : 0;
+  const activeKBArticles = kbArticles ? kbArticles.filter((a: any) => a.status === "published").length : 0;
 
   const successRate = doraMetrics
-    ? `${(100 - parseFloat(doraMetrics.changeFailureRate)).toFixed(1)}%`
+    ? `${(100 - parseFloat(doraMetrics.changeFailureRate ?? "0")).toFixed(1)}%`
     : "—";
 
   const alerts = [
     failedDeployments > 0
       ? { color: "bg-red-500", text: `${failedDeployments} deployment${failedDeployments !== 1 ? "s" : ""} failed recently` }
       : null,
-    doraMetrics && parseFloat(doraMetrics.changeFailureRate) > 15
+    doraMetrics && parseFloat(doraMetrics.changeFailureRate ?? "0") > 15
       ? { color: "bg-yellow-400", text: `Change failure rate at ${doraMetrics.changeFailureRate} — above 15% threshold` }
       : null,
     activeKBArticles > 0
@@ -178,7 +178,7 @@ export default function DeveloperOpsDashboard() {
               <tbody>
                 {(deployments ?? []).length === 0 ? (
                   <tr><td colSpan={5} className="text-center text-muted-foreground py-4 text-[12px]">No deployments found</td></tr>
-                ) : (deployments ?? []).map((d) => (
+                ) : (deployments ?? []).map((d: any) => (
                   <tr key={d.id}>
                     <td className="max-w-[110px]"><span className="truncate block font-medium text-foreground">{d.appName}</span></td>
                     <td>
@@ -225,7 +225,7 @@ export default function DeveloperOpsDashboard() {
               <tbody>
                 {(pipelines ?? []).length === 0 ? (
                   <tr><td colSpan={5} className="text-center text-muted-foreground py-4 text-[12px]">No pipeline runs found</td></tr>
-                ) : (pipelines ?? []).map((p) => (
+                ) : (pipelines ?? []).map((p: any) => (
                   <tr key={p.id}>
                     <td className="font-mono text-[11px] text-foreground max-w-[110px]"><span className="truncate block">{p.pipelineName}</span></td>
                     <td className="font-mono text-[10px] text-muted-foreground">{p.branch ?? "—"}</td>

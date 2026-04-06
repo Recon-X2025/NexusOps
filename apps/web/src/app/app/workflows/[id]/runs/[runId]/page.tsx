@@ -66,7 +66,7 @@ function StatusBadge({ status }: { status: StepStatus | RunStatus }) {
     waiting:   { label: "Waiting",   icon: <Pause        className="h-3.5 w-3.5" />, cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300" },
     cancelled: { label: "Cancelled", icon: <XCircle      className="h-3.5 w-3.5" />, cls: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
   };
-  const c = cfg[status] ?? cfg.pending;
+  const c = (cfg[status] ?? cfg["pending"])!;
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium", c.cls)}>
       {c.icon}{c.label}

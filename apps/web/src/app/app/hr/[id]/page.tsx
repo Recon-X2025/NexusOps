@@ -240,7 +240,7 @@ export default function HRCaseDetailPage() {
             ) : (
               <div className="space-y-3">
                 {notesLines.slice().reverse().map((line, i) => {
-                  const match = line.match(/^\[(.+?)\]\s*(.*)/s);
+                  const match = line.match(/^\[(.+?)\]\s*([\s\S]*)/);
                   const ts = match ? match[1] : "";
                   const text = match ? match[2] : line;
                   return (

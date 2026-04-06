@@ -46,7 +46,7 @@ const STATUS_META: Record<string, { label: string; icon: React.ElementType; pill
 };
 
 function AssetStatusBadge({ status }: { status: string }) {
-  const meta = STATUS_META[status] ?? STATUS_META.deployed;
+  const meta = (STATUS_META[status] ?? STATUS_META["deployed"])!;
   const Icon = meta.icon;
   return (
     <span className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>

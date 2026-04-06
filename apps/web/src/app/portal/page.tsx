@@ -61,12 +61,12 @@ export default function PortalHomePage() {
     { refetchOnWindowFocus: false },
   );
 
-  const statusMap = new Map(
-    (statusData ?? []).map((s) => [s.statusId, { name: s.name, color: s.color }]),
+  const statusMap = new Map<string, { name: string; color: string | null }>(
+    (statusData ?? []).map((s: any) => [s.statusId, { name: s.name as string, color: s.color as string | null }]),
   );
 
   const myTickets = (data?.items ?? []).filter(
-    (t) => t.requesterId === currentUser.id,
+    (t: any) => t.requesterId === currentUser.id,
   );
   const recentTickets = myTickets.slice(0, 3);
 
@@ -83,7 +83,7 @@ export default function PortalHomePage() {
         <div className="mt-3 flex items-center gap-4 text-xs text-blue-200">
           <span>
             <span className="font-semibold text-white">
-              {myTickets.filter((t) => {
+              {myTickets.filter((t: any) => {
                 const s = statusMap.get(t.statusId);
                 return !s?.name?.toLowerCase().includes("closed") && !s?.name?.toLowerCase().includes("resolved");
               }).length}
@@ -92,7 +92,7 @@ export default function PortalHomePage() {
           </span>
           <span>
             <span className="font-semibold text-white">
-              {myTickets.filter((t) => {
+              {myTickets.filter((t: any) => {
                 const s = statusMap.get(t.statusId);
                 return s?.name?.toLowerCase().includes("resolved");
               }).length}
@@ -163,15 +163,15 @@ export default function PortalHomePage() {
 
         {!isLoading && !isError && recentTickets.length > 0 && (
           <div className="flex flex-col gap-2">
-            {recentTickets.map((ticket) => {
+            {recentTickets.map((ticket: any) => {
               const status = statusMap.get(ticket.statusId);
               const statusName = status?.name?.toLowerCase() ?? "open";
               const meta =
-                STATUS_LABELS[statusName] ??
+                (STATUS_LABELS[statusName] ??
                 STATUS_LABELS[
                   Object.keys(STATUS_LABELS).find((k) => statusName.includes(k)) ?? "open"
                 ] ??
-                STATUS_LABELS.open;
+                STATUS_LABELS["open"])!;
               return (
                 <div
                   key={ticket.id}

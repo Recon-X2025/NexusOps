@@ -224,10 +224,10 @@ export default function APMPage() {
                   Category: a.category,
                   Lifecycle: a.lifecycle ?? "",
                   DeployModel: a.deployModel ?? "",
-                  TechDebt: a.techDebtLevel ?? "",
+                  TechDebt: a.techDebt ?? "",
                   AnnualCost: a.annualCost ?? 0,
                   EOL: a.eolDate ?? "",
-                  Owner: a.owner ?? "",
+                  Owner: a.businessOwner ?? "",
                 })),
                 "apm_portfolio_export",
               )}

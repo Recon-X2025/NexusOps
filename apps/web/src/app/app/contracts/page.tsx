@@ -689,7 +689,7 @@ function ContractsPageInner() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => downloadCSV(allContracts.map((c) => ({ Number: c.id, Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state, Renewal_Deadline: c.renewalDeadline ?? "" })), "contracts_export")}
+            onClick={() => downloadCSV(allContracts.map((c) => ({ Number: c.id, Title: c.title, Vendor: c.counterparty, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state, Renewal_Deadline: c.renewalDeadline ?? "" })), "contracts_export")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Download className="w-3 h-3" /> Export
@@ -828,7 +828,7 @@ function ContractsPageInner() {
                           </button>
                         </PermissionGate>
                         <button
-                          onClick={() => downloadCSV([{ Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state }], `contract_${c.id}`)}
+                          onClick={() => downloadCSV([{ Title: c.title, Vendor: c.counterparty, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state }], `contract_${c.id}`)}
                           className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
                         >
                           <FileText className="w-3 h-3 inline mr-1" />Export CSV

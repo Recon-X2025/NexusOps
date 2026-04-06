@@ -47,7 +47,7 @@ export default function FinanceProcurementDashboard() {
   const { data: purchaseOrders, isLoading: loadingPOs } = trpc.procurement.purchaseRequests.list.useQuery({});
   const { data: contractsPage, isLoading: loadingContracts } = trpc.contracts.list.useQuery({});
   const { data: expiringContracts, isLoading: loadingExpiring } = trpc.contracts.expiringWithin.useQuery({ days: 30 });
-  const { data: vendors, isLoading: loadingVendors } = trpc.vendors.list.useQuery();
+  const { data: vendors, isLoading: loadingVendors } = trpc.vendors.list.useQuery({});
 
   if (!can("financial", "read") && !can("procurement", "read") && !can("contracts", "read")) {
     return <AccessDenied module="Finance & Procurement" />;
@@ -55,20 +55,23 @@ export default function FinanceProcurementDashboard() {
 
   const contracts = contractsPage?.items ?? [];
 
+  const expiringArr: any[] = (expiringContracts as any) ?? [];
+  const vendorItems: any[] = (vendors as any)?.items ?? (vendors as any) ?? [];
+
   const pendingPOs = purchaseOrders
-    ? purchaseOrders.filter((p) => p.status === "pending_approval" || p.status === "draft" || p.status === "submitted").length
+    ? purchaseOrders.filter((p: any) => p.status === "pending_approval" || p.status === "draft" || p.status === "submitted").length
     : 0;
-  const activeContracts = contracts.filter((c) => c.status === "active" || c.status === "signed").length;
+  const activeContracts = contracts.filter((c: any) => c.status === "active" || c.status === "signed").length;
 
   const alerts = [
-    expiringContracts && expiringContracts.length > 0
-      ? { color: "bg-red-500", text: `${expiringContracts.length} contract${expiringContracts.length !== 1 ? "s" : ""} expiring within 30 days` }
+    expiringArr.length > 0
+      ? { color: "bg-red-500", text: `${expiringArr.length} contract${expiringArr.length !== 1 ? "s" : ""} expiring within 30 days` }
       : null,
     pendingPOs > 0
       ? { color: "bg-orange-500", text: `${pendingPOs} purchase order${pendingPOs !== 1 ? "s" : ""} awaiting approval` }
       : null,
-    vendors && vendors.length > 0
-      ? { color: "bg-blue-500", text: `${vendors.length} vendor${vendors.length !== 1 ? "s" : ""} in the system` }
+    vendorItems.length > 0
+      ? { color: "bg-blue-500", text: `${vendorItems.length} vendor${vendorItems.length !== 1 ? "s" : ""} in the system` }
       : null,
   ].filter(Boolean) as { color: string; text: string }[];
 
@@ -76,11 +79,11 @@ export default function FinanceProcurementDashboard() {
     [{ k: "Invoices", v: "—" }],
     [
       { k: "Open POs",  v: loadingPOs      ? "…" : String(pendingPOs) },
-      { k: "Vendors",   v: loadingVendors  ? "…" : String(vendors?.length ?? 0) },
+      { k: "Vendors",   v: loadingVendors  ? "…" : String(vendorItems.length) },
     ],
     [
       { k: "Active",    v: loadingContracts ? "…" : String(activeContracts) },
-      { k: "Expiring",  v: loadingExpiring  ? "…" : String(expiringContracts?.length ?? 0) },
+      { k: "Expiring",  v: loadingExpiring  ? "…" : String(expiringArr.length) },
     ],
   ];
 
@@ -116,9 +119,9 @@ export default function FinanceProcurementDashboard() {
 
       <div className="grid grid-cols-4 gap-2">
         <KPICard label="POs Pending Approval" value={pendingPOs} color="text-orange-700" icon={ShoppingCart} href="/app/procurement" isLoading={loadingPOs} />
-        <KPICard label="Contracts Expiring 30d" value={expiringContracts?.length ?? 0} color="text-red-700" icon={FileSignature} href="/app/contracts" isLoading={loadingExpiring} />
+        <KPICard label="Contracts Expiring 30d" value={expiringArr.length} color="text-red-700" icon={FileSignature} href="/app/contracts" isLoading={loadingExpiring} />
         <KPICard label="Active Contracts" value={activeContracts} color="text-blue-700" icon={Building2} href="/app/contracts" isLoading={loadingContracts} />
-        <KPICard label="Total Vendors" value={vendors?.length ?? 0} color="text-green-700" icon={Banknote} href="/app/procurement" isLoading={loadingVendors} />
+        <KPICard label="Total Vendors" value={vendorItems.length} color="text-green-700" icon={Banknote} href="/app/procurement" isLoading={loadingVendors} />
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -172,7 +175,7 @@ export default function FinanceProcurementDashboard() {
               <tbody>
                 {(purchaseOrders ?? []).length === 0 ? (
                   <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No purchase orders found</td></tr>
-                ) : (purchaseOrders ?? []).slice(0, 5).map((p) => (
+                ) : (purchaseOrders ?? []).slice(0, 5).map((p: any) => (
                   <tr key={p.id}>
                     <td className="font-mono text-[11px] text-primary">{p.number}</td>
                     <td className="max-w-[140px]"><span className="truncate block text-foreground">{p.title}</span></td>
@@ -206,9 +209,9 @@ export default function FinanceProcurementDashboard() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {(expiringContracts ?? []).length === 0 ? (
+              {expiringArr.length === 0 ? (
                 <div className="text-center text-muted-foreground py-4 text-[12px]">No contracts expiring within 30 days</div>
-              ) : (expiringContracts ?? []).slice(0, 5).map((c) => (
+              ) : expiringArr.slice(0, 5).map((c: any) => (
                 <div key={c.id} className="px-3 py-2.5">
                   <div className="flex items-center justify-between mb-0.5">
                     <div className="flex items-center gap-1.5">

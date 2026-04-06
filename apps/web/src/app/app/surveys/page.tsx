@@ -304,15 +304,15 @@ export default function SurveysPage() {
                 })()}
                 {csatResults && csatResults.responses.length > 0 && (() => {
                   const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-                  csatResults.responses.forEach((r: any) => { const s = Math.round(Number(r.score ?? 0)); if (s >= 1 && s <= 5) dist[s]++; });
+                  csatResults.responses.forEach((r: any) => { const s = Math.round(Number(r.score ?? 0)); if (s >= 1 && s <= 5) dist[s] = (dist[s] ?? 0) + 1; });
                   const total = Object.values(dist).reduce((a, b) => a + b, 0);
                   return [5, 4, 3, 2, 1].map(stars => (
                     <div key={stars} className="flex items-center gap-2 mb-0.5 text-[11px]">
                       <span className="text-yellow-500 w-3">{stars}★</span>
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-yellow-400 rounded-full" style={{width:`${total > 0 ? (dist[stars]/total)*100 : 0}%`}} />
+                        <div className="h-full bg-yellow-400 rounded-full" style={{width:`${total > 0 ? (((dist[stars] ?? 0)/total)*100) : 0}%`}} />
                       </div>
-                      <span className="text-muted-foreground/70 w-8 text-right">{total > 0 ? Math.round((dist[stars]/total)*100) : 0}%</span>
+                      <span className="text-muted-foreground/70 w-8 text-right">{total > 0 ? Math.round((((dist[stars] ?? 0)/total)*100)) : 0}%</span>
                     </div>
                   ));
                 })()}
