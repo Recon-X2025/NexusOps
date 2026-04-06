@@ -239,6 +239,8 @@ export default function NewTicketPage() {
         impact: form.impact,
         urgency: form.urgency,
         calculatedPriority,
+        category: form.category || undefined,
+        subcategory: form.subcategory || undefined,
       },
     });
   };
