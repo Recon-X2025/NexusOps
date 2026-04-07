@@ -54,7 +54,7 @@ function ProfileTab() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
             {currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
-          <button className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted border border-border shadow-sm hover:bg-accent transition">
+          <button onClick={() => toast.info("Avatar upload coming soon. Profile photos will be supported in the next release.", { duration: 4000 })} className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted border border-border shadow-sm hover:bg-accent transition">
             <Camera className="h-3 w-3 text-muted-foreground" />
           </button>
         </div>

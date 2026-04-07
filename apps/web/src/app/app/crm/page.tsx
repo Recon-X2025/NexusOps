@@ -653,7 +653,7 @@ export default function CRMPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
                 Today&apos;s Activities
-                <button className="text-primary hover:underline text-[11px]">+ New</button>
+                <button onClick={() => createActivity.mutate({ type: "call", subject: "Quick activity log", description: "" })} disabled={createActivity.isPending} className="text-primary hover:underline text-[11px] disabled:opacity-50">+ New</button>
               </div>
               <div className="divide-y divide-border">
                 {ACTIVITIES_LIVE.filter((a: any) => !a.completed).slice(0, 4).map((a: any) => {

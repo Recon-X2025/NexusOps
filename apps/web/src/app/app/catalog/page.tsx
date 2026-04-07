@@ -37,6 +37,7 @@ import {
   ToggleLeft,
   Circle,
   FileUp,
+  ChevronDown,
 } from "lucide-react";
 
 const CATALOG_CATEGORIES = [
@@ -238,6 +239,7 @@ export default function CatalogPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [view, setView] = useState<"catalog" | "requests" | "manage" | "admin">("catalog");
   const [requestedItem, setRequestedItem] = useState<string | null>(null);
+  const [expandedReqId, setExpandedReqId] = useState<string | null>(null);
   const [showAddItem, setShowAddItem] = useState(false);
   const [formBuilderItem, setFormBuilderItem] = useState<any | null>(null);
   const [itemForm, setItemForm] = useState({
@@ -479,8 +481,10 @@ export default function CatalogPage() {
             <tbody>
               {myRequests.map((req: any) => {
                 const sCfg = REQ_STATE_CONFIG[req.state as keyof typeof REQ_STATE_CONFIG];
+                const isExpanded = expandedReqId === req.id;
                 return (
-                  <tr key={req.id}>
+                  <>
+                  <tr key={req.id} className={isExpanded ? "bg-muted/20" : ""}>
                     <td className="text-primary font-medium">{req.id}</td>
                     <td className="text-foreground">{req.item}</td>
                     <td>
@@ -489,11 +493,27 @@ export default function CatalogPage() {
                     <td className="text-muted-foreground">{req.submittedOn}</td>
                     <td className="text-muted-foreground">{req.expectedBy}</td>
                     <td>
-                      <button className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
-                        View <ChevronRight className="w-3 h-3" />
+                      <button onClick={() => setExpandedReqId(isExpanded ? null : req.id)} className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                        {isExpanded ? "Close" : "View"} {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                       </button>
                     </td>
                   </tr>
+                  {isExpanded && (
+                    <tr key={`${req.id}-detail`} className="bg-muted/10">
+                      <td colSpan={6} className="px-4 py-3">
+                        <div className="grid grid-cols-3 gap-4 text-[11px]">
+                          <div><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Request ID</span><p className="font-mono font-semibold text-primary mt-0.5">{req.id}</p></div>
+                          <div><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Item</span><p className="text-foreground font-medium mt-0.5">{req.item}</p></div>
+                          <div><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Status</span><p className="mt-0.5"><span className={`status-badge ${sCfg?.color ?? ""}`}>{sCfg?.label ?? req.state}</span></p></div>
+                          <div><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Submitted</span><p className="text-foreground mt-0.5">{req.submittedOn}</p></div>
+                          <div><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Expected By</span><p className="text-foreground mt-0.5">{req.expectedBy}</p></div>
+                          {req.fulfilledBy && <div><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Fulfilled By</span><p className="text-foreground mt-0.5">{req.fulfilledBy}</p></div>}
+                          {req.notes && <div className="col-span-3"><span className="text-muted-foreground/70 uppercase tracking-wide text-[10px]">Notes</span><p className="text-foreground mt-0.5">{req.notes}</p></div>}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </>
                 );
               })}
             </tbody>

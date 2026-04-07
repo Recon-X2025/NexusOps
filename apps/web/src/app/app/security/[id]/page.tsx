@@ -304,7 +304,7 @@ export default function SecurityIncidentDetailPage() {
                       className="w-full px-3 py-2 text-[12px] outline-none resize-none"
                       placeholder="Add work note (visible to responders only)..." />
                     <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-t border-border">
-                      <button className="text-muted-foreground/70 hover:text-muted-foreground">
+                      <button onClick={() => toast.info("File attachment coming soon. You will be able to attach evidence files, screenshots and logs to security incidents.", { duration: 5000 })} className="text-muted-foreground/70 hover:text-muted-foreground">
                         <Paperclip className="w-3.5 h-3.5" />
                       </button>
                       <button

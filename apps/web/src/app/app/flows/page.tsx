@@ -31,6 +31,14 @@ export default function FlowDesignerPage() {
     onSuccess: () => { flowsQuery.refetch(); toast.success("Flow created"); },
     onError: (e: any) => { console.error("workflows.create failed:", e); toast.error(e.message || "Failed to create flow"); },
   });
+  const toggleFlowMutation = trpc.workflows.toggle.useMutation({
+    onSuccess: (data: any) => { flowsQuery.refetch(); toast.success(`Flow ${data?.isActive ? "activated" : "paused"}`); },
+    onError: (e: any) => toast.error(e.message || "Failed to toggle flow"),
+  });
+  const publishFlowMutation = trpc.workflows.publish.useMutation({
+    onSuccess: () => { flowsQuery.refetch(); toast.success("Flow activated and published"); },
+    onError: (e: any) => toast.error(e.message || "Failed to activate flow"),
+  });
 
   if (!canView) return <AccessDenied module="Flow Designer" />;
 
@@ -134,7 +142,12 @@ export default function FlowDesignerPage() {
                       <div className="flex gap-1">
                         <button onClick={() => { setSelectedFlow(f.id); setView("designer"); }} className="text-[11px] text-primary hover:underline">Edit</button>
                         <span className="text-slate-300">|</span>
-                        <button className="text-[11px] text-muted-foreground hover:text-foreground/80">
+                        <button
+                          title={f.status === "active" ? "Pause flow" : "Activate flow"}
+                          disabled={toggleFlowMutation.isPending}
+                          onClick={() => toggleFlowMutation.mutate({ id: f.id, isActive: f.status !== "active" })}
+                          className="text-[11px] text-muted-foreground hover:text-foreground/80 disabled:opacity-50"
+                        >
                           {f.status === "active" ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                         </button>
                       </div>
@@ -153,8 +166,12 @@ export default function FlowDesignerPage() {
             </span>
             <span className="text-[11px] text-muted-foreground/70">Click a step to configure</span>
             <div className="ml-auto flex gap-2">
-              <button className="px-3 py-1 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">Test Flow</button>
-              <button className="px-3 py-1 bg-primary text-white rounded text-[11px] hover:bg-primary/90">Activate</button>
+              <button onClick={() => toast.info("Test mode runs the flow against a sample payload without side effects. Full test runner coming in next release.", { duration: 5000 })} className="px-3 py-1 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">Test Flow</button>
+              <button
+                disabled={!selectedFlow || publishFlowMutation.isPending}
+                onClick={() => { if (selectedFlow) publishFlowMutation.mutate({ id: selectedFlow } as any); }}
+                className="px-3 py-1 bg-primary text-white rounded text-[11px] hover:bg-primary/90 disabled:opacity-60"
+              >{publishFlowMutation.isPending ? "Activating…" : "Activate"}</button>
             </div>
           </div>
           <div className="p-6 overflow-x-auto">

@@ -151,6 +151,23 @@ export const adminRouter = router({
       // notificationRules table not yet in schema - return empty
       return [];
     }),
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        event: z.string().min(1),
+        channel: z.enum(["email", "slack", "teams", "in_app"]),
+        recipients: z.string().min(1),
+        conditions: z.string().optional(),
+        active: z.boolean().default(true),
+      }))
+      .mutation(async ({ input }) => {
+        // notificationRules table not yet in schema — return stub with generated id
+        return {
+          id: `NR-${Date.now()}`,
+          ...input,
+          createdAt: new Date(),
+        };
+      }),
   }),
 
   scheduledJobs: router({
