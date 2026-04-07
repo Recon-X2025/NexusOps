@@ -12,6 +12,7 @@ import {
   count,
   sql,
 } from "@nexusops/db";
+import { getTemporalClient } from "../lib/temporal";
 
 const WorkflowNodeSchema = z.object({
   id: z.string(),
@@ -166,13 +167,81 @@ export const workflowsRouter = router({
 
       if (!workflow) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const [updated] = await db
+      // Fetch latest version so we can pass nodes/edges to Temporal
+      const [latestVersion] = await db
+        .select()
+        .from(workflowVersions)
+        .where(eq(workflowVersions.workflowId, workflow.id))
+        .orderBy(desc(workflowVersions.version))
+        .limit(1);
+
+      if (!latestVersion) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No workflow version found" });
+      }
+
+      // Activate the workflow
+      await db
         .update(workflows)
         .set({ isActive: true, updatedAt: new Date() })
-        .where(eq(workflows.id, input.id))
+        .where(eq(workflows.id, input.id));
+
+      // Create a workflow run record
+      const [run] = await db
+        .insert(workflowRuns)
+        .values({
+          workflowId: workflow.id,
+          workflowVersionId: latestVersion.id,
+          status: "running",
+          triggerData: { triggeredBy: "publish" },
+          startedAt: new Date(),
+        })
         .returning();
 
-      return updated;
+      const runId = run!.id;
+      let temporalWorkflowId: string | null = null;
+
+      // Try to start a Temporal workflow — fall back gracefully if unavailable
+      try {
+        const client = await getTemporalClient();
+        temporalWorkflowId = `nexus-${workflow.id}-${runId}`;
+        await client.workflow.start("nexusWorkflow", {
+          taskQueue: "nexusops-workflow",
+          workflowId: temporalWorkflowId,
+          args: [
+            {
+              workflowId: workflow.id,
+              versionId: latestVersion.id,
+              orgId: org!.id,
+              runId,
+              triggerData: { triggeredBy: "publish" },
+              nodes: latestVersion.nodes,
+              edges: latestVersion.edges,
+            },
+          ],
+        });
+
+        // Persist Temporal workflow ID back to the run row
+        await db
+          .update(workflowRuns)
+          .set({ temporalWorkflowId })
+          .where(eq(workflowRuns.id, runId));
+      } catch (temporalErr) {
+        // Temporal is unavailable — mark the run with a metadata note but do
+        // not fail the publish operation entirely.
+        console.warn("[publish] Temporal unavailable, running in degraded mode:", temporalErr);
+        await db
+          .update(workflowRuns)
+          .set({
+            triggerData: {
+              triggeredBy: "publish",
+              temporalUnavailable: true,
+              temporalError: String(temporalErr),
+            },
+          })
+          .where(eq(workflowRuns.id, runId));
+      }
+
+      return { runId, workflowId: workflow.id };
     }),
 
   toggle: permissionProcedure("flows", "write")

@@ -90,10 +90,10 @@ export default function ReportsPage() {
 
   if (!can("reports", "read") && !can("analytics", "read")) return <AccessDenied module="Analytics & Reporting" />;
 
-  const incidentTrend: number[] = execQuery.data?.incidentTrend ?? [];
-  const resolvedTrend: number[] = execQuery.data?.resolvedTrend ?? [];
-  const periodLabels: string[] = execQuery.data?.periodLabels ?? slaQuery.data?.periodLabels ?? [];
-  const slaTrend: number[] = slaQuery.data?.slaTrend ?? [];
+  const incidentTrend: number[] = (execQuery.data?.incidentTrend ?? []) as number[];
+  const resolvedTrend: number[] = (execQuery.data?.resolvedTrend ?? []) as number[];
+  const periodLabels: string[] = (execQuery.data?.periodLabels ?? slaQuery.data?.periodLabels ?? []) as string[];
+  const slaTrend: number[] = (slaQuery.data?.slaTrend ?? []) as number[];
   const slaPeriodLabels: string[] = slaQuery.data?.periodLabels ?? periodLabels;
   const byCategory: any[] = execQuery.data?.byCategory ?? [];
   const byAssignee: any[] = workloadQuery.data?.byAssignee ?? [];

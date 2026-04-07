@@ -57,7 +57,7 @@ export default function SecurityComplianceDashboard() {
 
   const criticalVulns = secStatusCounts ? (secStatusCounts["critical"] ?? 0) : 0;
   const highVulns = secStatusCounts ? (secStatusCounts["high"] ?? 0) : 0;
-  const openRisks = risks ? risks.filter((r) => r.status !== "closed" && r.status !== "accepted").length : 0;
+  const openRisks = risks ? risks.filter((r: any) => r.status !== "closed" && r.status !== "accepted").length : 0;
 
   const alerts = [
     criticalVulns > 0 ? { color: "bg-red-500", text: `${criticalVulns} critical vulnerabilit${criticalVulns !== 1 ? "ies" : "y"} require immediate remediation` } : null,
@@ -168,7 +168,7 @@ export default function SecurityComplianceDashboard() {
               <tbody>
                 {(vulns ?? []).length === 0 ? (
                   <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No vulnerabilities found</td></tr>
-                ) : (vulns ?? []).map((v) => (
+                ) : (vulns ?? []).map((v: any) => (
                   <tr key={v.id}>
                     <td className="font-mono text-[11px] text-primary">{v.cveId ?? v.id.slice(0, 8)}</td>
                     <td className="max-w-[180px]"><span className="truncate block text-foreground">{v.title}</span></td>
@@ -204,7 +204,7 @@ export default function SecurityComplianceDashboard() {
             <div className="divide-y divide-border">
               {(audits ?? []).length === 0 ? (
                 <div className="text-center text-muted-foreground py-4 text-[12px]">No audit plans found</div>
-              ) : (audits ?? []).slice(0, 5).map((a) => (
+              ) : (audits ?? []).slice(0, 5).map((a: any) => (
                 <div key={a.id} className="flex items-center justify-between px-3 py-2.5">
                   <div>
                     <div className="text-[12px] font-semibold text-foreground">{a.title}</div>

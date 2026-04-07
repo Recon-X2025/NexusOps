@@ -17,26 +17,6 @@ const HR_TABS = [
   { key: "documents",   label: "Employee Documents",   module: "hr"         as const, action: "read"  as const },
 ];
 
-const ONBOARDING = [
-  { id: "ONB-2026-031", employee: "Priya Sharma", role: "Senior Security Engineer", startDate: "2026-04-01", dept: "Security", progress: 68, totalTasks: 22, completedTasks: 15, buddy: "Alex Rivera", daysTilStart: 8, state: "active" },
-  { id: "ONB-2026-030", employee: "Marcus Webb", role: "SAP FICO Consultant", startDate: "2026-03-25", dept: "ERP", progress: 91, totalTasks: 18, completedTasks: 16, buddy: "Sam Okafor", daysTilStart: 1, state: "active" },
-  { id: "ONB-2026-029", employee: "Chen Li", role: "Data Engineer", startDate: "2026-03-18", dept: "Analytics", progress: 100, totalTasks: 20, completedTasks: 20, buddy: "Taylor Patel", daysTilStart: 0, state: "complete" },
-  { id: "ONB-2026-028", employee: "Sofia Morales", role: "Product Manager — ITSM", startDate: "2026-04-14", dept: "Product", progress: 22, totalTasks: 25, completedTasks: 5, buddy: "Morgan Lee", daysTilStart: 21, state: "preparation" },
-];
-
-const OFFBOARDING = [
-  { id: "OFB-2026-011", employee: "Chris Duncan", role: "Network Engineer", lastDay: "2026-03-31", reason: "Resignation", progress: 45, accessRevoked: false, equipmentReturned: false, kbDocumented: true, exitInterview: false },
-  { id: "OFB-2026-010", employee: "Nancy Hill", role: "HR Generalist", lastDay: "2026-03-28", reason: "Retirement", progress: 78, accessRevoked: false, equipmentReturned: true, kbDocumented: true, exitInterview: true },
-  { id: "OFB-2026-009", employee: "Devon Park", role: "Junior Developer", lastDay: "2026-03-20", reason: "Termination", progress: 100, accessRevoked: true, equipmentReturned: true, kbDocumented: false, exitInterview: false },
-];
-
-const LIFECYCLE = [
-  { id: "LCE-0291", type: "Promotion", employee: "Jordan Chen", from: "Senior Engineer", to: "Lead Engineer", effective: "2026-04-01", approvedBy: "CTO", state: "approved", hrActions: 4, itActions: 2 },
-  { id: "LCE-0290", type: "Department Transfer", employee: "Sam Okafor", from: "ERP", to: "Platform Engineering", effective: "2026-04-01", approvedBy: "VP Eng", state: "in_progress", hrActions: 3, itActions: 5 },
-  { id: "LCE-0289", type: "Leave of Absence", employee: "Riley Brown", from: "Active", to: "Parental Leave (12 wk)", effective: "2026-04-15", approvedBy: "HR Director", state: "approved", hrActions: 6, itActions: 1 },
-  { id: "LCE-0288", type: "Return from Leave", employee: "Alex Kim", from: "Medical Leave", to: "Active", effective: "2026-03-24", approvedBy: "HR", state: "complete", hrActions: 3, itActions: 3 },
-];
-
 const CASE_STATE_COLOR: Record<string, string> = {
   open:              "text-blue-700 bg-blue-100",
   in_progress:       "text-orange-700 bg-orange-100",

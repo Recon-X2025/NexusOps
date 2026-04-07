@@ -85,7 +85,8 @@ export type Module =
   | "audit_log"
   | "facilities"
   | "recruitment"            // Phase 3: job requisitions, candidates, pipeline
-  | "workforce_analytics";   // NEW Phase 3C: People & Workforce Analytics
+  | "workforce_analytics"   // NEW Phase 3C: People & Workforce Analytics
+  | "settings";             // Org-level settings: integrations, webhooks, API keys
 
 export type RbacAction = "read" | "write" | "delete" | "admin" | "approve" | "assign" | "close";
 
@@ -94,7 +95,9 @@ type PermissionMatrix = Partial<Record<Module, RbacAction[]>>;
 export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
   // ── Platform Admin ────────────────────────────────────────────────────────
   // Empty = hasPermission() short-circuits to true for any module/action
-  admin: {},
+  admin: {
+    settings: ["read", "write", "admin"],
+  },
 
   // ── ITSM ─────────────────────────────────────────────────────────────────
   itil_admin: {

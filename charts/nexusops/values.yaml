@@ -120,12 +120,46 @@ minio:
     enabled: true
     size: 50Gi
 
-# ── Secret configuration ───────────────────────────────────────────────────────
-secret:
-  # Create secret externally and reference here, or set values directly
-  authSecret: ""
-  encryptionKey: ""
+# ── Secrets ────────────────────────────────────────────────────────────────────
+secrets:
+  databaseUrl: "postgresql://nexusops:changeme@localhost:5432/nexusops"
+  redisUrl: "redis://:changeme@localhost:6379"
+  jwtSecret: "change-me-jwt-secret-32-chars-min"
+  nextauthSecret: "change-me-nextauth-secret"
   anthropicApiKey: ""
+  smtpHost: "smtp.example.com"
+  smtpPort: "587"
+  smtpUser: ""
+  smtpPassword: ""
+  smtpFrom: "no-reply@example.com"
+
+# ── Uploads PVC ────────────────────────────────────────────────────────────────
+uploads:
+  pvcSize: "5Gi"
+
+# ── Temporal Worker ────────────────────────────────────────────────────────────
+temporal:
+  enabled: true
+  address: "temporal:7233"
+  namespace: "default"
+  taskQueue: "nexusops-main"
+  worker:
+    replicaCount: 1
+
+# ── Worker (Temporal workflow runner) ─────────────────────────────────────────
+worker:
+  enabled: true
+  image:
+    repository: nexusops/worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 256m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
 
 # ── Environment variables injected into pods ──────────────────────────────────
 env:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
@@ -18,6 +18,8 @@ import {
   Shield,
   Layers,
   HelpCircle,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { generateUUID } from "@/lib/uuid";
@@ -110,6 +112,71 @@ export default function NewTicketPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // AI classification state
+  type AiSuggestion = {
+    category: string;
+    priority: "low" | "medium" | "high" | "critical";
+    confidence: number;
+    reasoning: string;
+  };
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+  const [aiDismissed, setAiDismissed] = useState(false);
+  const [aiAutoApplied, setAiAutoApplied] = useState(false);
+  const classifyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const classifyTicket = trpc.ai.classifyTicket.useMutation({
+    onSuccess: (result) => {
+      if (!result || result.confidence < 0.5) return;
+
+      const suggestion = result as AiSuggestion;
+
+      // Map AI category to the closest CATEGORIES entry
+      const categoryMap: Record<string, string> = {
+        hardware: "Client Endpoints",
+        software: "Application",
+        access: "Security",
+        network: "Network",
+        facilities: "Facilities",
+        security: "Security",
+        hr: "HR Systems",
+        other: "Other",
+      };
+      const mappedCategory = categoryMap[suggestion.category] ?? "";
+
+      if (suggestion.confidence >= 0.8) {
+        if (mappedCategory) {
+          setForm((f) => ({ ...f, category: f.category || mappedCategory }));
+        }
+        setAiSuggestion({ ...suggestion, category: mappedCategory || suggestion.category });
+        setAiAutoApplied(true);
+        setAiDismissed(false);
+      } else {
+        setAiSuggestion({ ...suggestion, category: mappedCategory || suggestion.category });
+        setAiAutoApplied(false);
+        setAiDismissed(false);
+      }
+    },
+  });
+
+  // Debounced classification trigger: fires 1s after the user stops typing.
+  const triggerClassify = useCallback(
+    (title: string, description: string) => {
+      if (classifyDebounceRef.current) clearTimeout(classifyDebounceRef.current);
+      if (title.trim().length < 5 || description.trim().length < 10) return;
+      classifyDebounceRef.current = setTimeout(() => {
+        setAiSuggestion(null);
+        setAiDismissed(false);
+        setAiAutoApplied(false);
+        classifyTicket.mutate({ title, description });
+      }, 1000);
+    },
+    [classifyTicket],
+  );
+
+  useEffect(() => {
+    return () => { if (classifyDebounceRef.current) clearTimeout(classifyDebounceRef.current); };
+  }, []);
+
   // Stable per-form-session idempotency key: generated once when the form
   // mounts and reused on every submit attempt.  This guarantees that even if
   // the user clicks "Submit" multiple times in quick succession (race between
@@ -172,12 +239,20 @@ export default function NewTicketPage() {
         impact: form.impact,
         urgency: form.urgency,
         calculatedPriority,
+        category: form.category || undefined,
+        subcategory: form.subcategory || undefined,
       },
     });
   };
 
   const set = (key: string, val: any) => {
     setForm((f) => ({ ...f, [key]: val }));
+    if ((key === "title" || key === "description") ) {
+      triggerClassify(
+        key === "title" ? val : form.title,
+        key === "description" ? val : form.description,
+      );
+    }
     if (errors[key]) setErrors((e) => { const n = { ...e }; delete n[key]; return n; });
   };
 
@@ -251,7 +326,54 @@ export default function NewTicketPage() {
                 Ticket Details
               </p>
 
-              {/* Short description */}
+              {/* AI classification banner */}
+              {aiSuggestion && !aiDismissed && (
+                <div
+                  className={`flex items-start gap-2 rounded border px-3 py-2 text-[12px] ${
+                    aiAutoApplied
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "border-yellow-300 bg-yellow-50 text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300"
+                  }`}
+                >
+                  {aiAutoApplied ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    {aiAutoApplied ? (
+                      <span>
+                        <span className="font-semibold">AI suggested</span>: {aiSuggestion.category} / {aiSuggestion.priority} — auto-applied
+                      </span>
+                    ) : (
+                      <span>
+                        <span className="font-semibold">AI suggests</span>: {aiSuggestion.category} / {aiSuggestion.priority}{" "}
+                        <span className="opacity-70">({Math.round(aiSuggestion.confidence * 100)}% confidence)</span>
+                      </span>
+                    )}
+                  </div>
+                  {!aiAutoApplied && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, category: aiSuggestion.category }));
+                        setAiAutoApplied(true);
+                      }}
+                      className="px-2 py-0.5 rounded border border-current text-[11px] font-medium hover:opacity-80 flex-shrink-0"
+                    >
+                      Accept
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAiDismissed(true)}
+                    className="rounded p-0.5 hover:opacity-80 flex-shrink-0"
+                    aria-label="Dismiss AI suggestion"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="field-label block mb-1">
                   Short Description <span className="text-red-500">*</span>
@@ -392,7 +514,7 @@ export default function NewTicketPage() {
                     type="text"
                     value={form.contactNumber}
                     onChange={(e) => set("contactNumber", e.target.value)}
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+91 XXXXX XXXXX"
                     className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground/70"
                   />
                 </div>

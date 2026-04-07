@@ -20,9 +20,10 @@ export async function setupTestDb() {
   _pgClient = postgres(connectionString, { max: 10 });
   _testDb = drizzle(_pgClient);
 
-  // Apply schema using drizzle-kit push
+  // Apply schema using drizzle-kit migrate (versioned migration files — more
+  // reliable than `db:push` which silently exits in strict mode when piped).
   const { execSync } = await import('child_process');
-  execSync('pnpm --filter @nexusops/db db:push', {
+  execSync('pnpm --filter @nexusops/db db:migrate', {
     env: { ...process.env, DATABASE_URL: connectionString },
     stdio: 'pipe',
   });

@@ -285,7 +285,7 @@ export default function GRCRiskDetailPage() {
                         {c.status.replace("_", " ")}
                       </span>
                     </td>
-                    <td><button className="text-[11px] text-primary hover:underline">View Control</button></td>
+                    <td><button onClick={() => toast.info(`Control "${c.title}" — Status: ${c.status}. Full control detail view coming in the next release.`, { duration: 5000 })} className="text-[11px] text-primary hover:underline">View Control</button></td>
                   </tr>
                 ))}
               </tbody>

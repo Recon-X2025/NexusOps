@@ -70,6 +70,7 @@ export const knowledgeRouter = router({
       const { id, ...data } = input;
       const [article] = await db.update(kbArticles).set({ ...data, updatedAt: new Date() } as any)
         .where(and(eq(kbArticles.id, id), eq(kbArticles.orgId, org!.id))).returning();
+      if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
       return article;
     }),
 
@@ -79,6 +80,7 @@ export const knowledgeRouter = router({
     const [article] = await ctx.db.update(kbArticles)
       .set({ status: "published", publishedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(kbArticles.id, input.id), eq(kbArticles.orgId, ctx.org!.id))).returning();
+    if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
     return article;
   }),
 

@@ -1,5 +1,5 @@
 import { createTRPCReact } from "@trpc/react-query";
-import { httpBatchLink, loggerLink } from "@trpc/client";
+import { httpLink, loggerLink } from "@trpc/client";
 import type { AppRouter } from "@nexusops/api";
 
 export { type AppRouter };
@@ -51,8 +51,17 @@ export function getTRPCClient() {
         enabled: (opts) =>
           process.env.NODE_ENV !== "production" &&
           (opts.direction === "down" && opts.result instanceof Error),
+        // Use console.warn instead of console.error so that Next.js 16
+        // Turbopack's devtools overlay (which intercepts console.error) does
+        // not treat expected tRPC failures (UNAUTHORIZED, NOT_FOUND, etc.) as
+        // visible error overlays. The warnings still appear in the browser
+        // console for debugging.
+        console: {
+          ...console,
+          error: console.warn,
+        },
       }),
-      httpBatchLink({
+      httpLink({
         url: getTRPCUrl(),
         fetch: fetchWithTimeout,
         headers() {

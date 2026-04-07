@@ -303,6 +303,8 @@ export const invoices = pgTable(
     invoiceDate: timestamp("invoice_date", { withTimezone: true }).notNull().defaultNow(),
     dueDate: timestamp("due_date", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
+    approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
+    paymentMethod: text("payment_method"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

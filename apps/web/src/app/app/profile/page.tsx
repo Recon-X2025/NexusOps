@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
@@ -54,7 +54,7 @@ function ProfileTab() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
             {currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
-          <button className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted border border-border shadow-sm hover:bg-accent transition">
+          <button onClick={() => toast.info("Avatar upload coming soon. Profile photos will be supported in the next release.", { duration: 4000 })} className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted border border-border shadow-sm hover:bg-accent transition">
             <Camera className="h-3 w-3 text-muted-foreground" />
           </button>
         </div>
@@ -227,7 +227,7 @@ function SecurityTab() {
         {sessionsQuery.isLoading ? (
           <div className="text-xs text-muted-foreground">Loading sessions…</div>
         ) : (
-          (sessionsQuery.data ?? []).map((s) => (
+          (sessionsQuery.data ?? []).map((s: any) => (
             <div key={s.id} className="flex items-center justify-between text-sm">
               <div>
                 <p className="font-medium text-foreground/90">{s.userAgent ?? "Unknown device"}</p>
@@ -307,8 +307,8 @@ function NotificationsTab() {
           </thead>
           <tbody>
             {EVENT_GROUPS.map(({ group, events }) => (
-              <>
-                <tr key={group}>
+              <Fragment key={group}>
+                <tr>
                   <td colSpan={3} className="pt-3 pb-1">
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{group}</span>
                   </td>
@@ -334,7 +334,7 @@ function NotificationsTab() {
                     ))}
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

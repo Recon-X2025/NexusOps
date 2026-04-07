@@ -89,6 +89,7 @@ function dbUserToSystemUser(
     lastLogin: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : undefined,
     mfaEnabled: false,
     orgId: user.orgId,
+    orgName: _org?.name ?? undefined,
   };
 }
 

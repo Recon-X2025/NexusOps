@@ -42,7 +42,7 @@ export default function OnCallPage() {
   const [newRotationType, setNewRotationType] = useState<"daily"|"weekly"|"custom">("weekly");
 
   // @ts-ignore
-  const schedulesQuery = trpc.oncall.schedules.list.useQuery(undefined, { enabled: canView });
+  const schedulesQuery = trpc.oncall.schedules.list.useQuery({}, { enabled: canView });
   // @ts-ignore
   const escalationsQuery = trpc.oncall.escalations.list.useQuery({ limit: 50 }, { enabled: canView });
   const incidentsQuery = { data: [], isLoading: false, error: null };

@@ -58,6 +58,17 @@ const config: Config = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Semantic status tokens — map to correct values in both light and dark mode
+        status: {
+          critical: { DEFAULT: "hsl(var(--status-critical))", fg: "hsl(var(--status-critical-fg))" },
+          high:     { DEFAULT: "hsl(var(--status-high))",     fg: "hsl(var(--status-high-fg))" },
+          medium:   { DEFAULT: "hsl(var(--status-medium))",   fg: "hsl(var(--status-medium-fg))" },
+          low:      { DEFAULT: "hsl(var(--status-low))",      fg: "hsl(var(--status-low-fg))" },
+          info:     { DEFAULT: "hsl(var(--status-info))",     fg: "hsl(var(--status-info-fg))" },
+          success:  { DEFAULT: "hsl(var(--status-success))",  fg: "hsl(var(--status-success-fg))" },
+          warning:  { DEFAULT: "hsl(var(--status-warning))",  fg: "hsl(var(--status-warning-fg))" },
+          neutral:  { DEFAULT: "hsl(var(--status-neutral))",  fg: "hsl(var(--status-neutral-fg))" },
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -67,22 +67,22 @@ export default function CustomerSalesDashboard() {
   }
 
   const openCatalogRequests = catalogRequests
-    ? catalogRequests.filter((r) => r.status !== "fulfilled" && r.status !== "rejected" && r.status !== "cancelled").length
+    ? catalogRequests.filter((r: any) => r.status !== "fulfilled" && r.status !== "rejected" && r.status !== "cancelled").length
     : 0;
-  const activeSurveys = surveys ? surveys.filter((s) => s.status === "active" || s.status === "published").length : 0;
+  const activeSurveys = surveys ? surveys.filter((s: any) => s.status === "active" || s.status === "published").length : 0;
 
   // Build pipeline summary from deals
   const pipelineByStage = deals
-    ? deals.reduce<Record<string, { count: number; value: number }>>((acc, d) => {
+    ? deals.reduce((acc: Record<string, { count: number; value: number }>, d: any) => {
         const stage = d.stage ?? "prospect";
         if (!acc[stage]) acc[stage] = { count: 0, value: 0 };
         acc[stage]!.count++;
         acc[stage]!.value += parseFloat(String(d.value ?? "0"));
         return acc;
       }, {})
-    : {};
+    : {} as Record<string, { count: number; value: number }>;
 
-  const pipelineRows = Object.entries(pipelineByStage)
+  const pipelineRows = (Object.entries(pipelineByStage) as [string, { count: number; value: number }][])
     .filter(([stage]) => stage !== "closed_lost")
     .map(([stage, data]) => ({
       stage: stage.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
@@ -95,7 +95,7 @@ export default function CustomerSalesDashboard() {
   const totalPipelineValue = pipelineRows.reduce((a, b) => a + b.value, 0);
 
   const alerts = [
-    deals && deals.filter((d) => d.stage !== "closed_won" && d.stage !== "closed_lost").length > 0
+    deals && deals.filter((d: any) => d.stage !== "closed_won" && d.stage !== "closed_lost").length > 0
       ? { color: "bg-blue-500", text: `${crmMetrics?.openPipeline.count ?? 0} open deals in the sales pipeline` }
       : null,
     openCatalogRequests > 0
@@ -210,7 +210,7 @@ export default function CustomerSalesDashboard() {
               <tbody>
                 {(deals ?? []).length === 0 ? (
                   <tr><td colSpan={3} className="text-center text-muted-foreground py-4 text-[12px]">No deals found</td></tr>
-                ) : (deals ?? []).slice(0, 5).map((d) => (
+                ) : (deals ?? []).slice(0, 5).map((d: any) => (
                   <tr key={d.id}>
                     <td className="max-w-[180px]"><span className="truncate block text-foreground">{d.title}</span></td>
                     <td>

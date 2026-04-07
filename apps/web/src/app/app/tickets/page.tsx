@@ -25,6 +25,7 @@ import {
   Tag,
   LayoutDashboard,
   List,
+  Kanban,
   AlertTriangle,
   CheckCircle2,
   Shield,
@@ -96,7 +97,7 @@ export default function TicketsPage() {
   const { can } = useRBAC();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<"overview" | "queue">("queue");
+  const [view, setView] = useState<"overview" | "queue" | "board">("queue");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedStatusId, setSelectedStatusId] = useState<string | null>(null);
@@ -133,7 +134,7 @@ export default function TicketsPage() {
   });
 
   const handleBulkClose = () => {
-    const closedStatus = statusCounts?.find((s) =>
+    const closedStatus = statusCounts?.find((s: any) =>
       ["closed", "resolved", "done"].includes((s.name ?? "").toLowerCase())
     );
     if (!closedStatus) { toast.error("No closed status found. Create a 'Closed' status in Admin → SLA Definitions."); return; }
@@ -142,7 +143,7 @@ export default function TicketsPage() {
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
   const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
-  const priorityMap = Object.fromEntries((priorityList ?? []).map((p) => [p.id, p]));
+  const priorityMap = Object.fromEntries((priorityList ?? []).map((p: any) => [p.id, p]));
   const { data, isLoading, isFetching, refetch } = trpc.tickets.list.useQuery({
     search: search || undefined,
     statusId: selectedStatusId ?? undefined,
@@ -195,7 +196,7 @@ export default function TicketsPage() {
 
   const statusTabs = [
     { id: null, label: "All", count: total },
-    ...(statusCounts?.map((s) => ({ id: s.statusId, label: s.name, count: s.count, color: s.color })) ?? []),
+    ...(statusCounts?.map((s: any) => ({ id: s.statusId, label: s.name, count: s.count, color: s.color })) ?? []),
   ];
 
   return (
@@ -230,6 +231,13 @@ export default function TicketsPage() {
             >
               <List className="h-3 w-3" />
               Queue
+            </button>
+            <button
+              onClick={() => setView("board")}
+              className={cn("flex items-center gap-1 px-2 py-1 text-xs transition-colors", view === "board" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
+            >
+              <Kanban className="h-3 w-3" />
+              Board
             </button>
           </div>
           <div className="h-4 w-px bg-border" />
@@ -300,7 +308,7 @@ export default function TicketsPage() {
               </button>
               <button
                 onClick={() => downloadCSV(tickets.map((t) => {
-                  const statusName = statusCounts?.find((s) => s.statusId === t.statusId)?.name ?? t.statusId ?? "Unknown";
+                  const statusName = statusCounts?.find((s: any) => s.statusId === t.statusId)?.name ?? t.statusId ?? "Unknown";
                   return { Number: t.number, Title: t.title, Type: t.type, Status: statusName, SLA_Breached: t.slaBreached ? "Yes" : "No", Assignee: t.assigneeId ?? "Unassigned", Created: new Date(t.createdAt).toLocaleDateString("en-IN") };
                 }), "tickets_export")}
                 className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -337,7 +345,7 @@ export default function TicketsPage() {
             const openStatuses = (statusCounts ?? []).filter(s =>
               !["resolved","closed","done"].includes((s.name ?? "").toLowerCase())
             );
-            const totalOpen = openStatuses.reduce((sum, s) => sum + Number(s.count ?? 0), 0);
+            const totalOpen = openStatuses.reduce((sum: any, s) => sum + Number(s.count ?? 0), 0);
             const unassigned = allTickets.filter(t => !t.assigneeId).length;
             const breached = allTickets.filter(t => t.slaBreached).length;
             const slaCompliance = allTickets.length > 0
@@ -404,7 +412,7 @@ export default function TicketsPage() {
                       <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">By Status</span>
                     </div>
                     <div className="p-3 flex flex-col gap-2">
-                      {(statusCounts ?? []).map((s) => {
+                      {(statusCounts ?? []).map((s: any) => {
                         const maxCount = Math.max(...(statusCounts ?? []).map(sc => Number(sc.count ?? 0)), 1);
                         return (
                           <div key={s.statusId} className="flex items-center gap-2">
@@ -761,7 +769,7 @@ export default function TicketsPage() {
                       {/* Status */}
                       <td>
                         {(() => {
-                          const s = statusCounts?.find((sc) => sc.statusId === ticket.statusId);
+                          const s = statusCounts?.find((sc: any) => sc.statusId === ticket.statusId);
                           const name = s?.name ?? "Open";
                           const color = s?.color ?? STATUS_COLORS[name.toLowerCase()] ?? "#6b7280";
                           return (
@@ -830,7 +838,7 @@ export default function TicketsPage() {
                                 className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-muted/30"
                                 onClick={() => {
                                   setMenuOpenId(null);
-                                  const closedStatus = statusCounts?.find((s) => ["closed", "resolved"].includes((s.name ?? "").toLowerCase()));
+                                  const closedStatus = statusCounts?.find((s: any) => ["closed", "resolved"].includes((s.name ?? "").toLowerCase()));
                                   if (!closedStatus) { toast.error("No closed status found"); return; }
                                   bulkUpdate.mutate({ ids: [ticket.id], data: { statusId: closedStatus.statusId } });
                                 }}
@@ -865,6 +873,121 @@ export default function TicketsPage() {
       </div>
 
       </>}
+
+      {/* ─── Board view (Kanban by status) ──────────────────────── */}
+      {view === "board" && (
+        <div className="flex-1 overflow-x-auto p-3">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="flex gap-3 min-h-[calc(100vh-16rem)]">
+              {(statusCounts ?? []).map((col) => {
+                const colTickets = filteredTickets.filter((t) => t.statusId === col.statusId);
+                const colColor = col.color ?? "#6b7280";
+                return (
+                  <div
+                    key={col.statusId ?? col.name}
+                    className="flex-shrink-0 w-64 flex flex-col rounded-lg border border-border bg-muted/30 overflow-hidden"
+                  >
+                    {/* Column header */}
+                    <div
+                      className="flex items-center justify-between px-3 py-2.5 border-b border-border"
+                      style={{ borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: colColor }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ background: colColor }}
+                        />
+                        <span className="text-xs font-semibold text-foreground">
+                          {col.name}
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                        {colTickets.length}
+                      </span>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin">
+                      {colTickets.length === 0 ? (
+                        <div className="flex items-center justify-center h-20 text-[11px] text-muted-foreground/50 border border-dashed border-border rounded-md">
+                          No tickets
+                        </div>
+                      ) : (
+                        colTickets.map((ticket) => {
+                          const typeMeta = TYPE_META[ticket.type] ?? { label: ticket.type ?? "Ticket", color: "#6b7280" };
+                          const priority = ticket.priorityId ? priorityMap[ticket.priorityId] : null;
+                          return (
+                            <Link
+                              key={ticket.id}
+                              href={`/app/tickets/${ticket.id}`}
+                              className="block rounded-lg border border-border bg-card p-3 hover:shadow-sm hover:border-primary/30 transition-all group"
+                            >
+                              {/* Ticket number + type */}
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {ticket.number}
+                                </span>
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                  style={{ background: typeMeta.color + "18", color: typeMeta.color }}
+                                >
+                                  {typeMeta.label}
+                                </span>
+                              </div>
+
+                              {/* Title */}
+                              <p className="text-xs font-medium text-foreground leading-snug line-clamp-2 mb-2">
+                                {ticket.slaBreached && (
+                                  <Flame className="inline h-3 w-3 text-red-500 mr-1" />
+                                )}
+                                {ticket.title}
+                              </p>
+
+                              {/* Footer */}
+                              <div className="flex items-center justify-between gap-1">
+                                {priority ? (
+                                  <span
+                                    className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                                    style={{ background: priority.color + "22", color: priority.color }}
+                                  >
+                                    {priority.name}
+                                  </span>
+                                ) : (
+                                  <span />
+                                )}
+                                {ticket.assigneeId ? (
+                                  <div className="flex items-center gap-1">
+                                    <div className="h-5 w-5 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center text-[9px] font-bold text-violet-700 dark:text-violet-300 flex-shrink-0">
+                                      {ticket.assigneeName ? ticket.assigneeName.charAt(0).toUpperCase() : "?"}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <User className="h-3.5 w-3.5 text-muted-foreground/40" />
+                                )}
+                              </div>
+                            </Link>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Fallback when no statuses loaded */}
+              {(!statusCounts || statusCounts.length === 0) && (
+                <div className="flex items-center justify-center w-full text-sm text-muted-foreground">
+                  No status columns configured. Set up ticket statuses in Administration.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

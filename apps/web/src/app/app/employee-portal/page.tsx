@@ -499,7 +499,7 @@ export default function EmployeePortalPage() {
                 <div className="flex gap-2 mt-1">
                   <button
                     disabled={!leaveForm.startDate || !leaveForm.endDate || createLeave.isPending}
-                    onClick={() => createLeave.mutate({ type: leaveForm.type as any, startDate: leaveForm.startDate, endDate: leaveForm.endDate, reason: leaveForm.reason || undefined })}
+                    onClick={() => createLeave.mutate({ type: leaveForm.type as any, startDate: new Date(leaveForm.startDate), endDate: new Date(leaveForm.endDate), reason: leaveForm.reason || undefined })}
                     className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
                   >
                     {createLeave.isPending ? "Submitting…" : "Submit Request"}

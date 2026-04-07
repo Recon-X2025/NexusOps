@@ -1,0 +1,137 @@
+# Workflows
+
+The Workflows module gives NexusOps administrators and power users a visual, no-code automation canvas. Build automations that respond to platform events, apply conditional logic, and take actions — without writing a single line of code.
+
+## Overview
+
+A **Workflow** consists of:
+
+- **One trigger node** — the event that starts the workflow
+- **Any number of logic nodes** — conditions, delays, loops
+- **Action nodes** — the work the workflow performs
+- **An optional terminal node** — marks the end of the flow
+
+Workflows are versioned. You can edit a draft without affecting the live version, then **Publish** when ready.
+
+## Creating a Workflow
+
+1. Navigate to **Workflows → New Workflow**.
+2. Enter a name and optional description.
+3. The canvas opens with an empty **Trigger** node.
+4. Click the trigger node to select an event type.
+5. Drag additional nodes from the **Node Palette** on the left.
+6. Connect nodes by dragging from an output handle to an input handle.
+7. Click **Save Draft** at any time.
+8. When the workflow is ready, click **Publish**.
+
+## Node Types
+
+### Trigger Nodes
+
+| Trigger | Description |
+|---------|-------------|
+| `TICKET_CREATED` | Fires when a new ticket is submitted |
+| `TICKET_UPDATED` | Fires when any ticket field changes |
+| `TICKET_STATUS_CHANGED` | Fires when a ticket moves to a specific status |
+| `TICKET_SLA_BREACHED` | Fires when a ticket breaches its SLA |
+| `ASSET_UPDATED` | Fires when an asset record is modified |
+| `SCHEDULE` | Fires on a cron schedule (e.g., every Monday at 9 AM) |
+| `WEBHOOK` | Fires when NexusOps receives an inbound webhook call |
+
+### Condition Nodes
+
+| Node | Description |
+|------|-------------|
+| `CONDITION` | Branches the flow based on a field value (e.g., `priority == "critical"`) |
+| `FILTER` | Stops execution if condition is not met |
+| `SWITCH` | Multi-branch condition (like a switch/case) |
+
+Conditions support operators: `equals`, `not equals`, `contains`, `greater than`, `less than`, `is empty`, `is not empty`.
+
+### Action Nodes
+
+| Node | Description |
+|------|-------------|
+| `ASSIGN` | Assign the ticket to a specific agent or team using round-robin, load-based, or manual selection |
+| `UPDATE_FIELD` | Set any ticket field to a specified value |
+| `NOTIFY` | Send a notification via email, Slack, Teams, or in-app |
+| `CREATE_TICKET` | Create a new ticket (useful for sub-tasks or related incidents) |
+| `ADD_COMMENT` | Post a comment on the ticket (can include dynamic variables) |
+| `APPLY_SLA` | Override the ticket's SLA policy |
+| `ADD_TAG` | Add a tag to the ticket |
+| `HTTP_REQUEST` | Make an outbound HTTP call to any external API |
+| `JIRA_CREATE_ISSUE` | Create a Jira issue linked to the ticket |
+| `SLACK_MESSAGE` | Send a custom Slack message (separate from the global integration) |
+
+### Control Flow Nodes
+
+| Node | Description |
+|------|-------------|
+| `DELAY` | Wait a specified duration before continuing |
+| `WAIT_FOR_EVENT` | Pause until a specific event occurs (e.g., wait until ticket is replied to) |
+| `PARALLEL` | Execute multiple branches simultaneously |
+| `MERGE` | Wait for all parallel branches to complete before continuing |
+
+## Dynamic Variables
+
+In text fields (notifications, comments, HTTP request bodies), use `{{variable}}` syntax to insert runtime values:
+
+| Variable | Value |
+|----------|-------|
+| `{{ticket.id}}` | Ticket ID |
+| `{{ticket.title}}` | Ticket title |
+| `{{ticket.priority}}` | Priority |
+| `{{ticket.status}}` | Current status |
+| `{{ticket.assignee.name}}` | Assigned agent's name |
+| `{{ticket.requester.email}}` | Requester email address |
+| `{{ticket.url}}` | Direct link to the ticket |
+| `{{organization.name}}` | Organization name |
+| `{{now}}` | Current timestamp (ISO 8601) |
+
+## Publishing and Versioning
+
+Every change to a workflow creates a new **draft version**. The published version continues running until you explicitly publish a new draft.
+
+| Action | Description |
+|--------|-------------|
+| **Save Draft** | Saves changes without affecting live executions |
+| **Publish** | Makes the current draft the live version |
+| **Unpublish** | Disables the workflow without deleting it |
+| **Rollback** | Reverts to a previous published version |
+
+Version history is accessible at **Workflows → [Workflow] → Version History**. Each version shows the author, timestamp, and change summary.
+
+## Workflow Run History
+
+Every workflow execution is logged. Access run history at **Workflows → [Workflow] → Run History**.
+
+Each run record shows:
+
+- **Run ID** and trigger event
+- **Start time** and duration
+- **Status**: `succeeded`, `failed`, `skipped` (filter condition not met)
+- **Step-by-step trace**: Expand to see each node's inputs, outputs, and execution time
+- **Error details**: For failed runs, the exact error message and node where the failure occurred
+
+Runs are retained for 30 days by default (configurable via `WORKFLOW_RUN_RETENTION_DAYS`).
+
+## Example: Auto-Escalate Critical Tickets
+
+Here is a simple workflow that assigns and notifies when a critical ticket is created:
+
+```
+[TRIGGER: TICKET_CREATED]
+        ↓
+[CONDITION: priority == "critical"]
+     ↓ YES          ↓ NO
+[ASSIGN: On-Call   [END]
+ Team]
+     ↓
+[NOTIFY: Slack
+ #incidents channel
+ "Critical ticket: {{ticket.title}}"]
+     ↓
+[ADD_COMMENT: "Auto-escalated to on-call team due to critical priority."]
+     ↓
+[END]
+```

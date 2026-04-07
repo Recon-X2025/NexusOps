@@ -38,8 +38,15 @@ import { workforceRouter } from "./workforce";
 import { indiaComplianceRouter } from "./india-compliance";
 import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
+import { integrationsRouter } from "./integrations";
+import { macRouter } from "./mac";
+import { expensesRouter } from "./expenses";
+import { performanceRouter } from "./performance";
+import { customFieldsRouter } from "./custom-fields";
+import { accountingRouter } from "./accounting";
 
 export const appRouter = router({
+  mac: macRouter,
   auth: authRouter,
   admin: adminRouter,
   tickets: ticketsRouter,
@@ -83,6 +90,14 @@ export const appRouter = router({
   recruitment: recruitmentRouter,
   secretarial: secretarialRouter,
   workforce: workforceRouter,
+  integrations: integrationsRouter,
+  // Phase 4 Modules
+  expenses: expensesRouter,
+  performance: performanceRouter,
+  // Phase 3 — Accounting Foundation
+  accounting: accountingRouter,
+  // Phase 7 — Custom Fields
+  customFields: customFieldsRouter,
 });
 
 export type AppRouter = typeof appRouter;

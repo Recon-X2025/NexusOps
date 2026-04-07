@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import DOMPurify from "dompurify";
+import { usePathname } from "next/navigation";
 import { MessageCircle, X, Send, Minimize2, Maximize2, Bot, Zap, ChevronDown, RefreshCw } from "lucide-react";
 
 interface Message {
@@ -21,6 +23,36 @@ const INITIAL_MESSAGES: Message[] = [
     suggestions: ["Create a P2 incident", "Check my open tickets", "Request software access", "Show SLA breaches"],
   },
 ];
+
+const ROUTE_CONTEXT: Record<string, { label: string; suggestions: string[] }> = {
+  "/app/tickets":           { label: "Service Desk", suggestions: ["Create a P2 incident", "Check my open tickets", "Show SLA breaches", "Assign ticket to team"] },
+  "/app/changes":           { label: "Change Management", suggestions: ["Create a change request", "Show upcoming changes", "Check CAB schedule", "Review pending changes"] },
+  "/app/problems":          { label: "Problem Management", suggestions: ["Open problem record", "Show known errors", "Link incidents to problem", "Review problem backlog"] },
+  "/app/cmdb":              { label: "CMDB", suggestions: ["Add new CI", "Search configuration items", "Show CI dependencies", "Audit recent changes"] },
+  "/app/ham":               { label: "Hardware Assets", suggestions: ["Check out an asset", "Register new hardware", "Show assets due for refresh", "View asset lifecycle"] },
+  "/app/sam":               { label: "Software Assets", suggestions: ["Show license utilization", "Find unused licenses", "Check software expiries", "Add software record"] },
+  "/app/approvals":         { label: "Approvals", suggestions: ["Show pending approvals", "Approve selected items", "Delegate my approvals", "View approval history"] },
+  "/app/hr":                { label: "HR Service Delivery", suggestions: ["Create HR case", "Check leave balance", "Start onboarding checklist", "View employee directory"] },
+  "/app/recruitment":       { label: "Recruitment", suggestions: ["Open job requisitions", "Review candidates", "Schedule interview", "Check pipeline status"] },
+  "/app/crm":               { label: "CRM & Sales", suggestions: ["Add new deal", "Check pipeline value", "Log a call activity", "View accounts at risk"] },
+  "/app/procurement":       { label: "Procurement", suggestions: ["Create purchase request", "Approve pending POs", "Check vendor list", "Track open orders"] },
+  "/app/contracts":         { label: "Contracts", suggestions: ["Show expiring contracts", "Add new contract", "Check obligation due dates", "Find contract by counterparty"] },
+  "/app/expenses":          { label: "Expense Management", suggestions: ["Create expense report", "Submit pending report", "Check approval status", "View my expense history"] },
+  "/app/performance":       { label: "Performance Management", suggestions: ["Create review cycle", "Add a goal or OKR", "Check my review status", "View team goals progress"] },
+  "/app/security":          { label: "Security Operations", suggestions: ["Show open security incidents", "Check vulnerability status", "Review high risk items", "Escalate security alert"] },
+  "/app/grc":               { label: "GRC", suggestions: ["Check compliance status", "View risk register", "Schedule audit", "Review policy attestations"] },
+  "/app/projects":          { label: "Project Portfolio", suggestions: ["Show at-risk projects", "Check resource allocation", "View project milestones", "Add project update"] },
+  "/app/knowledge":         { label: "Knowledge Base", suggestions: ["Search knowledge articles", "Create new article", "Show recently updated articles", "Find troubleshooting guides"] },
+  "/app/reports":           { label: "Analytics", suggestions: ["Generate ITSM report", "Show SLA compliance trend", "Export ticket metrics", "View executive dashboard"] },
+  "/app/catalog":           { label: "Service Catalog", suggestions: ["Browse available services", "Check my requests", "Request software access", "Order hardware"] },
+};
+
+function getPageContext(pathname: string) {
+  for (const [route, ctx] of Object.entries(ROUTE_CONTEXT)) {
+    if (pathname.startsWith(route)) return ctx;
+  }
+  return null;
+}
 
 const BOT_RESPONSES: Record<string, Message> = {
   "Create a P2 incident": {
@@ -60,12 +92,32 @@ const BOT_RESPONSES: Record<string, Message> = {
 };
 
 export function VirtualAgentWidget() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [minimised, setMinimised] = useState(false);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Inject a context hint message whenever the user navigates to a new module
+  const prevPathnameRef = useRef<string>("");
+  useEffect(() => {
+    if (!open) return;
+    const ctx = getPageContext(pathname);
+    if (!ctx || pathname === prevPathnameRef.current) return;
+    prevPathnameRef.current = pathname;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `ctx-${Date.now()}`,
+        role: "assistant",
+        content: `I can see you're in **${ctx.label}**. Here are some things I can help you with:`,
+        time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        suggestions: ctx.suggestions,
+      },
+    ]);
+  }, [pathname, open]);
 
   useEffect(() => {
     if (open && !minimised) {
@@ -115,7 +167,7 @@ export function VirtualAgentWidget() {
     return text.split("\n").map((line, i) => {
       const boldLine = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
       return (
-        <span key={i} dangerouslySetInnerHTML={{ __html: boldLine + (i < text.split("\n").length - 1 ? "<br/>" : "") }} />
+        <span key={i} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(boldLine + (i < text.split("\n").length - 1 ? "<br/>" : "")) }} />
       );
     });
   };

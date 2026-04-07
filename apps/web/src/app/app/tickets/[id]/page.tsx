@@ -144,10 +144,11 @@ export default function TicketDetailPage() {
     { limit: 10 },
     { enabled: relatedEnabled, staleTime: 60_000 }
   );
-  const { data: relatedChanges } = trpc.changes.list.useQuery(
+  const { data: relatedChangesData } = trpc.changes.list.useQuery(
     { limit: 10 },
     { enabled: relatedEnabled, staleTime: 60_000 }
   );
+  const relatedChanges = relatedChangesData?.items;
 
   // AI assistance — lazy queries enabled only when user explicitly requests
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -364,8 +365,8 @@ export default function TicketDetailPage() {
               <option value="">— select agent —</option>
               <option value={currentUser.id}>Me ({currentUser.name})</option>
               {usersData
-                ?.filter((u) => u.id !== currentUser.id)
-                .map((u) => (
+                ?.filter((u: any) => u.id !== currentUser.id)
+                .map((u: any) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.role})
                   </option>

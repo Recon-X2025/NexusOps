@@ -55,13 +55,15 @@ describe("Layer 9: Concurrency & Edge Cases", () => {
   // ── 9.2 Double-Submit Prevention ─────────────────────────────────────────
 
   describe("9.2 Double-Submit Behavior", () => {
-    it("two identical ticket creates within 1s → two separate tickets (no dedup)", async () => {
+    it("two identical ticket creates within 1s → deduplicated (same ticket returned)", async () => {
       const caller = await authedCaller(adminToken);
+      // The auto-idempotency 5-second window deduplicates same org/user/title
+      // requests within the same window. Both calls resolve to the same ticket.
       const [t1, t2] = await Promise.all([
         caller.tickets.create({ title: "Double submit test", type: "incident", priorityId: orgCtx.p2Id! }),
         caller.tickets.create({ title: "Double submit test", type: "incident", priorityId: orgCtx.p2Id! }),
       ]) as [{ id: string }, { id: string }];
-      expect(t1.id).not.toBe(t2.id);
+      expect(t1.id).toBe(t2.id);
     });
   });
 

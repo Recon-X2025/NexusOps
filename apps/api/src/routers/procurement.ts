@@ -122,16 +122,18 @@ export const procurementRouter = router({
         .returning();
 
       // Insert items
-      await db.insert(purchaseRequestItems).values(
-        input.items.map((item: { description: string; quantity: number; unitPrice: number; vendorId?: string; assetTypeId?: string }) => ({
-          prId: pr!.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice.toString(),
-          vendorId: item.vendorId,
-          assetTypeId: item.assetTypeId,
-        })),
-      );
+      if (input.items.length > 0) {
+        await db.insert(purchaseRequestItems).values(
+          input.items.map((item: { description: string; quantity: number; unitPrice: number; vendorId?: string; assetTypeId?: string }) => ({
+            prId: pr!.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice.toString(),
+            vendorId: item.vendorId,
+            assetTypeId: item.assetTypeId,
+          })),
+        );
+      }
 
       return { ...pr, approvalRequired: approvalLevel !== "auto", approvalLevel };
     }),
@@ -235,15 +237,17 @@ export const procurementRouter = router({
           })
           .returning();
 
-        await db.insert(poLineItems).values(
-          prItems.map((item: typeof purchaseRequestItems.$inferSelect) => ({
-            poId: po!.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            receivedQuantity: 0,
-          })),
-        );
+        if (prItems.length > 0) {
+          await db.insert(poLineItems).values(
+            prItems.map((item: typeof purchaseRequestItems.$inferSelect) => ({
+              poId: po!.id,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              receivedQuantity: 0,
+            })),
+          );
+        }
 
         await db
           .update(purchaseRequests)

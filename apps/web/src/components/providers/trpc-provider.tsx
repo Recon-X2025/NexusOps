@@ -43,7 +43,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
             // Only refetch on mount if data has gone stale (respects staleTime).
             // Prevents a duplicate API call on every client-side route change
             // when data was fetched less than staleTime ago.
-            refetchOnMount: "stale",
+            refetchOnMount: true,
             retry: (failureCount, error: unknown) => {
               const err = error as { data?: { code?: string } };
               if (

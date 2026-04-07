@@ -79,22 +79,22 @@ export default function ITServicesDashboard() {
   const changes = changesPage?.items ?? [];
 
   const totalOpenTickets = statusCounts
-    ? statusCounts.filter((s) => !["closed", "resolved", "cancelled"].includes(s.name.toLowerCase())).reduce((a, b) => a + b.count, 0)
+    ? statusCounts.filter((s: any) => !["closed", "resolved", "cancelled"].includes(s.name.toLowerCase())).reduce((a: any, b) => a + b.count, 0)
     : 0;
-  const totalTickets = statusCounts ? statusCounts.reduce((a, b) => a + b.count, 0) : 0;
+  const totalTickets = statusCounts ? statusCounts.reduce((a: any, b) => a + b.count, 0) : 0;
   const slaCompliance = totalTickets > 0
-    ? Math.round(((recentTickets.filter((t) => !t.slaBreached).length) / Math.max(recentTickets.length, 1)) * 100)
+    ? Math.round(((recentTickets.filter((t: any) => !t.slaBreached).length) / Math.max(recentTickets.length, 1)) * 100)
     : 0;
   const openIncidents = statusCounts
-    ? statusCounts.filter((s) => ["open", "new", "in progress", "in_progress", "assigned"].includes(s.name.toLowerCase())).reduce((a, b) => a + b.count, 0)
+    ? statusCounts.filter((s: any) => ["open", "new", "in progress", "in_progress", "assigned"].includes(s.name.toLowerCase())).reduce((a: any, b) => a + b.count, 0)
     : 0;
 
   const alerts = [
     workOrderMetrics && workOrderMetrics.breached > 0
       ? { color: "bg-red-500",    text: `${workOrderMetrics.breached} work order${workOrderMetrics.breached !== 1 ? "s" : ""} have breached SLA` }
       : null,
-    recentTickets.filter((t) => t.slaBreached).length > 0
-      ? { color: "bg-orange-500", text: `${recentTickets.filter((t) => t.slaBreached).length} incident${recentTickets.filter((t) => t.slaBreached).length !== 1 ? "s" : ""} have breached SLA` }
+    recentTickets.filter((t: any) => t.slaBreached).length > 0
+      ? { color: "bg-orange-500", text: `${recentTickets.filter((t: any) => t.slaBreached).length} incident${recentTickets.filter((t: any) => t.slaBreached).length !== 1 ? "s" : ""} have breached SLA` }
       : null,
     changes.length > 0
       ? { color: "bg-blue-500",   text: `${changes.length} change request${changes.length !== 1 ? "s" : ""} in the system` }
@@ -208,7 +208,7 @@ export default function ITServicesDashboard() {
             <tbody>
               {(recentTickets ?? []).length === 0 ? (
                 <tr><td colSpan={5} className="text-center text-muted-foreground py-4 text-[12px]">No incidents found</td></tr>
-              ) : (recentTickets ?? []).map((inc) => (
+              ) : (recentTickets ?? []).map((inc: any) => (
                 <tr key={inc.id}>
                   <td><Link href="/app/tickets" className="font-mono text-[11px] text-primary hover:underline">{inc.number}</Link></td>
                   <td className="max-w-xs"><span className="truncate block text-foreground">{inc.title}</span></td>

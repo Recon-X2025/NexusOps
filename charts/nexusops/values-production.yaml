@@ -1,0 +1,114 @@
+# Production values for NexusOps Helm chart
+# Deploy with: helm upgrade --install nexusops ./charts/nexusops -f values-production.yaml
+
+web:
+  replicaCount: 2
+  image:
+    repository: nexusops/web
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+api:
+  replicaCount: 3
+  image:
+    repository: nexusops/api
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: app.nexusops.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+    - host: api.nexusops.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: api
+  tls:
+    - secretName: nexusops-tls
+      hosts:
+        - app.nexusops.io
+        - api.nexusops.io
+
+# Use external managed DB in production
+postgresql:
+  enabled: false
+  auth:
+    username: nexusops
+    password: ""
+    database: nexusops
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+# Use external managed Redis in production
+redis:
+  enabled: false
+  auth:
+    enabled: true
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+
+secrets:
+  databaseUrl: ""        # Set via CI/CD: postgresql://user:pass@rds-endpoint:5432/nexusops
+  redisUrl: ""           # Set via CI/CD: redis://:pass@elasticache-endpoint:6379
+  jwtSecret: ""          # Set via CI/CD: 64-char random string
+  nextauthSecret: ""     # Set via CI/CD: 32-char random string
+  anthropicApiKey: ""    # Set via CI/CD
+  smtpHost: "email-smtp.us-east-1.amazonaws.com"
+  smtpPort: "587"
+  smtpUser: ""
+  smtpPassword: ""
+  smtpFrom: "no-reply@nexusops.io"
+
+uploads:
+  pvcSize: "50Gi"
+
+temporal:
+  enabled: true
+  address: "temporal.nexusops-temporal.svc.cluster.local:7233"
+  namespace: "nexusops-prod"
+  taskQueue: "nexusops-main"
+  worker:
+    replicaCount: 2
+
+env:
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: "1"

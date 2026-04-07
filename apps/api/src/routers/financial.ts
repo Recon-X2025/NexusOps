@@ -108,6 +108,7 @@ export const financialRouter = router({
         .set({ status: "approved", approvedById: user!.id, updatedAt: new Date() })
         .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)))
         .returning();
+      if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
       return inv;
     }),
 
@@ -119,6 +120,7 @@ export const financialRouter = router({
         .set({ status: "paid", paidAt: new Date(), paymentMethod: input.paymentMethod, updatedAt: new Date() })
         .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)))
         .returning();
+      if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
       return inv;
     }),
 

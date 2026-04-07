@@ -81,109 +81,6 @@ interface ContractObligation {
   status: "pending" | "on_track" | "at_risk" | "breached" | "completed";
 }
 
-const CONTRACTS: Contract[] = [
-  {
-    id: "con-001", number: "CTR-2026-0088", title: "Enterprise Software License Agreement — Microsoft EA",
-    counterparty: "Microsoft Corporation", counterpartyType: "vendor", type: "licensing",
-    owner: "Sam Okafor", legalOwner: "Legal Team",
-    state: "active", value: 69720000, currency: "INR",
-    startDate: "2026-01-01", endDate: "2028-12-31",
-    renewalDeadline: "2028-09-30", autoRenew: false,
-    paymentTerms: "Annual upfront — Net 30", governingLaw: "India",
-    signed: true, signedDate: "2025-12-15",
-    linkedVendor: "Microsoft Corporation",
-    riskLevel: "medium", noticePeriodDays: 90, created: "2025-11-01", nextReview: "2026-06-30",
-    amendments: 0,
-    obligations: [
-      { id: "obl-001", description: "Microsoft: Provide 99.9% uptime SLA for M365 services", party: "counterparty", recurring: "Monthly", status: "on_track" },
-      { id: "obl-002", description: "Nexus: Maintain licensed user count within agreement terms", party: "us", recurring: "Quarterly audit", status: "at_risk" },
-      { id: "obl-003", description: "Nexus: Complete mandatory security training for admin users", party: "us", dueDate: "2026-06-30", status: "pending" },
-    ],
-  },
-  {
-    id: "con-002", number: "CTR-2026-0087", title: "VMware vSphere Renewal — Broadcom / Carahsoft",
-    counterparty: "Broadcom Inc. (via Carahsoft)", counterpartyType: "vendor", type: "licensing",
-    owner: "Sam Okafor", legalOwner: "Legal Team",
-    state: "under_review", value: 8974000, currency: "INR",
-    startDate: "2026-04-01", endDate: "2027-03-31",
-    renewalDeadline: "2026-04-01", autoRenew: false,
-    paymentTerms: "Net 30", governingLaw: "India",
-    signed: false,
-    linkedPO: "PO-2026-0088", linkedVendor: "Broadcom / Carahsoft",
-    riskLevel: "high", noticePeriodDays: 30, created: "2026-03-01",
-    amendments: 0,
-    obligations: [
-      { id: "obl-004", description: "Broadcom: Honor prior-year pricing during transition period", party: "counterparty", status: "at_risk" },
-      { id: "obl-005", description: "Nexus: Pay within Net 30 of invoice date", party: "us", status: "pending" },
-    ],
-  },
-  {
-    id: "con-003", number: "CTR-2026-0086", title: "CrowdStrike Falcon Enterprise — EDR/EPP Annual",
-    counterparty: "CrowdStrike Inc.", counterpartyType: "vendor", type: "sla",
-    owner: "Dana Kim", legalOwner: "Legal Team",
-    state: "active", value: 6432500, currency: "INR",
-    startDate: "2026-01-01", endDate: "2026-12-31",
-    renewalDeadline: "2026-10-31", autoRenew: true,
-    paymentTerms: "Annual upfront", governingLaw: "India",
-    signed: true, signedDate: "2025-12-20",
-    linkedVendor: "CrowdStrike Inc.",
-    riskLevel: "low", noticePeriodDays: 60, created: "2025-11-15", nextReview: "2026-10-01",
-    amendments: 1,
-    obligations: [
-      { id: "obl-006", description: "CrowdStrike: Maintain < 1min detection-to-alert SLA", party: "counterparty", recurring: "Monthly SLA report", status: "on_track" },
-      { id: "obl-007", description: "Nexus: Deploy agent within 30 days of new endpoint provisioning", party: "us", recurring: "Per new device", status: "on_track" },
-    ],
-  },
-  {
-    id: "con-004", number: "CTR-2026-0085", title: "Co-Location & Power Agreement — Equinix DC1",
-    counterparty: "Equinix Inc.", counterpartyType: "vendor", type: "lease",
-    owner: "Jordan Chen", legalOwner: "Legal Team",
-    state: "active", value: 31540000, currency: "INR",
-    startDate: "2024-01-01", endDate: "2026-12-31",
-    renewalDeadline: "2026-09-30", autoRenew: false,
-    paymentTerms: "Monthly — Net 15", governingLaw: "India",
-    signed: true, signedDate: "2023-11-01",
-    linkedVendor: "Equinix",
-    riskLevel: "high", noticePeriodDays: 90, created: "2023-10-01", nextReview: "2026-07-01",
-    amendments: 2,
-    obligations: [
-      { id: "obl-008", description: "Equinix: Maintain PUE < 1.5 — Tier IV uptime guarantee 99.9999%", party: "counterparty", recurring: "Quarterly report", status: "on_track" },
-      { id: "obl-009", description: "Nexus: Pay monthly colocation fee within Net 15", party: "us", recurring: "Monthly", status: "on_track" },
-      { id: "obl-010", description: "Nexus: Notify 90 days before expiry if not renewing", party: "us", dueDate: "2026-09-30", status: "pending" },
-    ],
-  },
-  {
-    id: "con-005", number: "CTR-2026-0084", title: "NDA — Umbrella Corporation (Pre-Sales)",
-    counterparty: "Umbrella Corporation", counterpartyType: "customer", type: "nda",
-    owner: "Dana Kim", legalOwner: "Legal Team",
-    state: "active", value: 0, currency: "INR",
-    startDate: "2026-01-08", endDate: "2027-01-08",
-    autoRenew: false,
-    paymentTerms: undefined, governingLaw: "India",
-    signed: true, signedDate: "2026-01-08",
-    riskLevel: "low", noticePeriodDays: 30, created: "2026-01-05",
-    amendments: 0,
-    obligations: [
-      { id: "obl-011", description: "Both parties: Keep all shared information confidential for 2 years post-expiry", party: "both", status: "on_track" },
-    ],
-  },
-  {
-    id: "con-006", number: "CTR-2025-0112", title: "Cisco SmartNet Total Care — Network Infrastructure",
-    counterparty: "Cisco Systems Inc.", counterpartyType: "vendor", type: "sla",
-    owner: "Jordan Chen", legalOwner: "Legal Team",
-    state: "expiring_soon", value: 5146000, currency: "INR",
-    startDate: "2025-04-01", endDate: "2026-03-31",
-    renewalDeadline: "2026-03-01", autoRenew: false,
-    paymentTerms: "Annual upfront", governingLaw: "India",
-    signed: true, signedDate: "2025-03-20",
-    linkedVendor: "Cisco",
-    riskLevel: "critical", noticePeriodDays: 30, created: "2025-03-01",
-    amendments: 0,
-    obligations: [
-      { id: "obl-012", description: "Cisco: 4hr hardware replacement SLA for P1 devices", party: "counterparty", recurring: "Per incident", status: "on_track" },
-    ],
-  },
-];
 
 const STATE_CFG: Record<ContractState, { label: string; color: string; bar: string }> = {
   draft:              { label: "Draft",              color: "text-muted-foreground bg-muted",   bar: "bg-slate-400" },
@@ -689,7 +586,7 @@ function ContractsPageInner() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => downloadCSV(allContracts.map((c) => ({ Number: c.id, Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state, Renewal_Deadline: c.renewalDeadline ?? "" })), "contracts_export")}
+            onClick={() => downloadCSV(allContracts.map((c) => ({ Number: c.id, Title: c.title, Vendor: c.counterparty, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state, Renewal_Deadline: c.renewalDeadline ?? "" })), "contracts_export")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Download className="w-3 h-3" /> Export
@@ -828,7 +725,7 @@ function ContractsPageInner() {
                           </button>
                         </PermissionGate>
                         <button
-                          onClick={() => downloadCSV([{ Title: c.title, Vendor: c.vendor, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state }], `contract_${c.id}`)}
+                          onClick={() => downloadCSV([{ Title: c.title, Vendor: c.counterparty, Type: c.type, Value: c.value, Currency: c.currency, Start: c.startDate, End: c.endDate, Status: c.state }], `contract_${c.id}`)}
                           className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground"
                         >
                           <FileText className="w-3 h-3 inline mr-1" />Export CSV

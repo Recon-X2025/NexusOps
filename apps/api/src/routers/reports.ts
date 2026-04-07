@@ -65,7 +65,7 @@ function generatePeriods(since: Date, granularity: Granularity) {
   return periods;
 }
 
-const daysInput = z.object({ days: z.coerce.number().min(1).max(730).default(30) });
+const daysInput = z.object({ days: z.coerce.number().min(1).max(730).default(30) }).default({ days: 30 });
 
 export const reportsRouter = router({
   executiveOverview: permissionProcedure("reports", "read")

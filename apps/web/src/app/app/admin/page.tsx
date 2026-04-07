@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import Link from "next/link";
@@ -125,6 +125,34 @@ export default function AdminConsolePage() {
     triggerJobMutation.mutate({ jobId });
   }
 
+  // ── SLA form state ───────────────────────────────────────────────────────
+  const [showSlaForm, setShowSlaForm] = useState(false);
+  const [editSlaId, setEditSlaId] = useState<string | null>(null);
+  const [slaForm, setSlaForm] = useState({ name: "", priority: "P2", responseMinutes: 60, resolveMinutes: 480 });
+  // @ts-ignore
+  const slaUpsertMutation = trpc.admin.slaDefinitions.upsert.useMutation({
+    onSuccess: () => { slaQuery.refetch(); setShowSlaForm(false); setEditSlaId(null); setSlaForm({ name: "", priority: "P2", responseMinutes: 60, resolveMinutes: 480 }); toast.success(editSlaId ? "SLA updated" : "SLA created"); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  // ── System property inline edit state ───────────────────────────────────
+  const [editPropKey, setEditPropKey] = useState<string | null>(null);
+  const [editPropValue, setEditPropValue] = useState("");
+  // @ts-ignore
+  const propUpdateMutation = trpc.admin.systemProperties.update.useMutation({
+    onSuccess: () => { propsQuery.refetch(); setEditPropKey(null); toast.success("Property updated"); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  // ── Notification rule form state ─────────────────────────────────────────
+  const [showNrForm, setShowNrForm] = useState(false);
+  const [nrForm, setNrForm] = useState({ name: "", event: "ticket_created", channel: "email" as "email" | "slack" | "teams" | "in_app", recipients: "", conditions: "", active: true });
+  // @ts-ignore
+  const nrCreateMutation = trpc.admin.notificationRules.create.useMutation({
+    onSuccess: () => { nrQuery.refetch(); setShowNrForm(false); setNrForm({ name: "", event: "ticket_created", channel: "email", recipients: "", conditions: "", active: true }); toast.success("Notification rule created"); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
   const slaItems = slaQuery.data ?? [];
   const sysProps = propsQuery.data ?? [];
   const notifRules = nrQuery.data ?? [];
@@ -140,7 +168,7 @@ export default function AdminConsolePage() {
 
   const allUsers = usersQuery.data ?? [];
 
-  const filteredUsers = allUsers.filter((u) =>
+  const filteredUsers = allUsers.filter((u: any) =>
     !searchUsers || u.name.toLowerCase().includes(searchUsers.toLowerCase()) || u.email.toLowerCase().includes(searchUsers.toLowerCase()),
   );
 
@@ -277,7 +305,7 @@ export default function AdminConsolePage() {
                 >
                   <Plus className="w-3 h-3" /> New User
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
+                <button onClick={() => { const csv = ["Name,Email,Role,Matrix Role,Status", ...(allUsers as any[]).map((u: any) => `${u.name},${u.email},${u.role},${u.matrixRole ?? ""},${u.status ?? "active"}`)].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "nexusops-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
                   <Download className="w-3 h-3" /> Export
                 </button>
               </div>
@@ -297,7 +325,7 @@ export default function AdminConsolePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => {
+                  {filteredUsers.map((user: any) => {
                     const userRoles = [user.role, user.matrixRole].filter(Boolean) as string[];
                     const isActive = user.status === "active";
                     return (
@@ -308,7 +336,7 @@ export default function AdminConsolePage() {
                       <td>
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
-                            {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                            {user.name.split(" ").map((n: any) => n[0]).join("").slice(0, 2)}
                           </span>
                           <span className="text-foreground font-medium">{user.name}</span>
                         </div>
@@ -370,7 +398,7 @@ export default function AdminConsolePage() {
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[12px] font-semibold text-foreground/80">{SYSTEM_ROLES_CATALOG.length} system roles defined</span>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button onClick={() => toast.info("Custom role creation is coming in a future release. For now, assign one of the 23 built-in system roles to users via the Users tab → Edit Role.", { duration: 6000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> Create Custom Role
                 </button>
               </div>
@@ -396,7 +424,7 @@ export default function AdminConsolePage() {
                       </thead>
                       <tbody>
                         {catRoles.map((r) => {
-                          const assignedCount = allUsers.filter((u) => u.role === r.role || u.matrixRole === r.role).length;
+                          const assignedCount = allUsers.filter((u: any) => u.role === r.role || u.matrixRole === r.role).length;
                           const permCount = Object.values(
                             ROLE_PERMISSIONS[r.role as keyof typeof ROLE_PERMISSIONS] ?? {},
                           ).flat().length;
@@ -417,7 +445,7 @@ export default function AdminConsolePage() {
                                 <span className="text-[11px] text-muted-foreground">{r.role === "admin" ? "All (bypass)" : `${permCount} grants`}</span>
                               </td>
                               <td>
-                                <button className="text-[11px] text-primary hover:underline">Edit</button>
+                                <button onClick={(e) => { e.stopPropagation(); toast.info(`Role "${r.displayName}" has ${r.role === "admin" ? "all permissions (bypass)" : `${permCount} permission grants`}. System roles have fixed permissions defined in the RBAC matrix. To assign this role to a user, use the Users tab → Edit Role.`, { duration: 6000 }); }} className="text-[11px] text-primary hover:underline">Edit</button>
                               </td>
                             </tr>
                           );
@@ -490,7 +518,7 @@ export default function AdminConsolePage() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12px] font-semibold text-foreground/80">Groups &amp; Teams</span>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button onClick={() => toast.info("Group management is coming in a future release. Groups will allow you to configure assignment groups, escalation chains and approval groups.", { duration: 5000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> New Group
                 </button>
               </div>
@@ -507,10 +535,44 @@ export default function AdminConsolePage() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12px] font-semibold text-foreground/80">{slaItems.length} SLA definitions</span>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button onClick={() => { setEditSlaId(null); setSlaForm({ name: "", priority: "P2", responseMinutes: 60, resolveMinutes: 480 }); setShowSlaForm(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> New SLA
                 </button>
               </div>
+              {showSlaForm && (
+                <div className="mb-3 border border-primary/30 rounded bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-semibold text-foreground">{editSlaId ? "Edit SLA Definition" : "New SLA Definition"}</span>
+                    <button onClick={() => { setShowSlaForm(false); setEditSlaId(null); }} className="text-muted-foreground/60 hover:text-foreground text-[18px] leading-none">×</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">SLA Name *</label>
+                      <input value={slaForm.name} onChange={(e) => setSlaForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. P1 Incident Response" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Priority</label>
+                      <select value={slaForm.priority} onChange={(e) => setSlaForm((f) => ({ ...f, priority: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
+                        {["P1","P2","P3","P4"].map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Response Target (minutes)</label>
+                      <input type="number" min={1} value={slaForm.responseMinutes} onChange={(e) => setSlaForm((f) => ({ ...f, responseMinutes: Number(e.target.value) }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Resolution Target (minutes)</label>
+                      <input type="number" min={1} value={slaForm.resolveMinutes} onChange={(e) => setSlaForm((f) => ({ ...f, resolveMinutes: Number(e.target.value) }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button onClick={() => { setShowSlaForm(false); setEditSlaId(null); }} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
+                    <button disabled={!slaForm.name.trim() || slaUpsertMutation.isPending} onClick={() => slaUpsertMutation.mutate({ ...(editSlaId ? { id: editSlaId } : {}), name: slaForm.name.trim(), priority: slaForm.priority, responseMinutes: slaForm.responseMinutes, resolveMinutes: slaForm.resolveMinutes })} className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">
+                      {slaUpsertMutation.isPending ? "Saving…" : editSlaId ? "Update SLA" : "Create SLA"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {slaQuery.isLoading ? (
                 <div className="space-y-2 animate-pulse">
                   {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 bg-muted rounded" />)}
@@ -545,7 +607,7 @@ export default function AdminConsolePage() {
                       <td className="text-center">{s.businessHoursOnly ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <XCircle className="w-3.5 h-3.5 text-slate-300 inline" />}</td>
                       <td className="text-center">{s.pauseOnHold ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <XCircle className="w-3.5 h-3.5 text-slate-300 inline" />}</td>
                       <td><span className={`status-badge ${s.active ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{s.active ? "Active" : "Inactive"}</span></td>
-                      <td><button className="text-[11px] text-primary hover:underline">Edit</button></td>
+                      <td><button onClick={() => { setEditSlaId(s.id); setSlaForm({ name: s.name, priority: s.priority ?? "P2", responseMinutes: s.responseMinutes ?? 60, resolveMinutes: s.resolveMinutes ?? 480 }); setShowSlaForm(true); }} className="text-[11px] text-primary hover:underline">Edit</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -559,7 +621,7 @@ export default function AdminConsolePage() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12px] font-semibold text-foreground/80">Business Rules</span>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button onClick={() => toast.info("Business rules engine coming in a future release. Business rules let you automatically trigger field updates, notifications and escalations when record conditions are met.", { duration: 6000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> New Business Rule
                 </button>
               </div>
@@ -602,15 +664,25 @@ export default function AdminConsolePage() {
                           <tr key={p.key}>
                             <td><code className="text-[11px] text-primary font-mono">{p.key}</code></td>
                             <td>
-                              {p.sensitive && !showSensitive
-                                ? <span className="font-mono text-[11px] text-muted-foreground/70">••••••••</span>
-                                : <code className={`text-[11px] font-mono font-semibold ${p.type === "boolean" ? (p.value === "true" ? "text-green-700" : "text-red-600") : "text-foreground/80"}`}>{p.value}</code>
-                              }
-                              {p.sensitive && <Lock className="w-3 h-3 text-muted-foreground/70 inline ml-1" />}
+                              {editPropKey === p.key ? (
+                                <div className="flex items-center gap-1">
+                                  <input autoFocus value={editPropValue} onChange={(e) => setEditPropValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") propUpdateMutation.mutate({ key: p.key, value: editPropValue }); if (e.key === "Escape") setEditPropKey(null); }} className="px-1.5 py-0.5 text-[11px] border border-primary rounded font-mono w-40 outline-none" />
+                                  <button onClick={() => propUpdateMutation.mutate({ key: p.key, value: editPropValue })} disabled={propUpdateMutation.isPending} className="text-[10px] px-1.5 py-0.5 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">Save</button>
+                                  <button onClick={() => setEditPropKey(null)} className="text-[10px] px-1.5 py-0.5 border border-border rounded hover:bg-muted/30">✕</button>
+                                </div>
+                              ) : (
+                                <>
+                                  {p.sensitive && !showSensitive
+                                    ? <span className="font-mono text-[11px] text-muted-foreground/70">••••••••</span>
+                                    : <code className={`text-[11px] font-mono font-semibold ${p.type === "boolean" ? (p.value === "true" ? "text-green-700" : "text-red-600") : "text-foreground/80"}`}>{p.value}</code>
+                                  }
+                                  {p.sensitive && <Lock className="w-3 h-3 text-muted-foreground/70 inline ml-1" />}
+                                </>
+                              )}
                             </td>
                             <td><span className="status-badge text-muted-foreground bg-muted font-mono">{p.type}</span></td>
                             <td className="text-muted-foreground text-[11px]">{p.description}</td>
-                            <td><button className="text-[11px] text-primary hover:underline">Edit</button></td>
+                            <td><button onClick={() => { setEditPropKey(p.key); setEditPropValue(p.value); }} className="text-[11px] text-primary hover:underline">Edit</button></td>
                           </tr>
                         ))}
                       </tbody>
@@ -628,10 +700,54 @@ export default function AdminConsolePage() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12px] font-semibold text-foreground/80">{notifRules.length} notification rules</span>
-                <button className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                <button onClick={() => { setNrForm({ name: "", event: "ticket_created", channel: "email", recipients: "", conditions: "", active: true }); setShowNrForm(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> New Rule
                 </button>
               </div>
+              {showNrForm && (
+                <div className="mb-3 border border-primary/30 rounded bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-semibold text-foreground">New Notification Rule</span>
+                    <button onClick={() => setShowNrForm(false)} className="text-muted-foreground/60 hover:text-foreground text-[18px] leading-none">×</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Rule Name *</label>
+                      <input value={nrForm.name} onChange={(e) => setNrForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. Notify team on P1 ticket" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Trigger Event *</label>
+                      <select value={nrForm.event} onChange={(e) => setNrForm((f) => ({ ...f, event: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
+                        {["ticket_created","ticket_updated","ticket_assigned","ticket_escalated","sla_breached","change_approved","change_rejected","approval_requested","approval_decided","work_order_created","hr_case_opened"].map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Channel *</label>
+                      <select value={nrForm.channel} onChange={(e) => setNrForm((f) => ({ ...f, channel: e.target.value as any }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
+                        {["email","slack","teams","in_app"].map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Recipients * <span className="text-muted-foreground/60">(comma-separated emails, role names or team names)</span></label>
+                      <input value={nrForm.recipients} onChange={(e) => setNrForm((f) => ({ ...f, recipients: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. itil, john@example.com, support-team" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Conditions <span className="text-muted-foreground/60">(optional — leave blank to apply to all)</span></label>
+                      <input value={nrForm.conditions} onChange={(e) => setNrForm((f) => ({ ...f, conditions: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. priority=P1, category=Network" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="nr-active" checked={nrForm.active} onChange={(e) => setNrForm((f) => ({ ...f, active: e.target.checked }))} className="w-3.5 h-3.5" />
+                      <label htmlFor="nr-active" className="text-[11px] text-muted-foreground">Active</label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button onClick={() => setShowNrForm(false)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
+                    <button disabled={!nrForm.name.trim() || !nrForm.recipients.trim() || nrCreateMutation.isPending} onClick={() => nrCreateMutation.mutate({ name: nrForm.name.trim(), event: nrForm.event, channel: nrForm.channel, recipients: nrForm.recipients.trim(), conditions: nrForm.conditions.trim() || undefined, active: nrForm.active })} className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">
+                      {nrCreateMutation.isPending ? "Creating…" : "Create Rule"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {nrQuery.isLoading ? (
                 <div className="space-y-2 animate-pulse">
                   {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 bg-muted rounded" />)}
@@ -1012,8 +1128,8 @@ function AuditLogTab() {
             </thead>
             <tbody>
               {(data?.items ?? []).map((e: typeof data.items[number]) => (
-                <>
-                  <tr key={e.id} className="cursor-pointer hover:bg-muted/20" onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}>
+                <Fragment key={e.id}>
+                  <tr className="cursor-pointer hover:bg-muted/20" onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}>
                     <td className="font-mono text-[11px] text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</td>
                     <td className="text-foreground/80 font-medium">{e.userName ?? "—"}</td>
                     <td className="text-muted-foreground text-[11px] font-mono">{e.action}</td>
@@ -1031,7 +1147,7 @@ function AuditLogTab() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

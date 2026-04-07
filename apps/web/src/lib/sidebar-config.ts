@@ -120,6 +120,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         module: "security",
       },
       { label: "Risk & Compliance", href: "/app/grc", icon: "Scale", module: "grc" },
+      { label: "ESG Reporting", href: "/app/esg", icon: "Leaf", module: "grc" },
       {
         label: "Approvals & Workflow",
         href: "/app/approvals",
@@ -150,6 +151,11 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "HR Cases", href: "/app/hr" },
           { label: "Employee Portal", href: "/app/employee-portal" },
           { label: "Employee Center", href: "/app/employee-center" },
+          { label: "Leave Requests", href: "/app/hr?tab=leave" },
+          { label: "Attendance", href: "/app/attendance" },
+          { label: "Expense Claims", href: "/app/expenses" },
+          { label: "Holiday Calendar", href: "/app/holidays" },
+          { label: "OKRs & Goals", href: "/app/okr" },
         ],
       },
       {
@@ -171,6 +177,18 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/people-analytics",
         icon: "BarChart3",
         module: "workforce_analytics",
+      },
+      {
+        label: "Performance Management",
+        href: "/app/performance",
+        icon: "Target",
+        module: "hr",
+        children: [
+          { label: "Review Cycles",  href: "/app/performance?tab=cycles" },
+          { label: "My Reviews",     href: "/app/performance?tab=my-reviews" },
+          { label: "Goals & OKRs",   href: "/app/performance?tab=goals" },
+          { label: "Team Overview",  href: "/app/performance?tab=team" },
+        ],
       },
       {
         label: "Facilities & Real Estate",
@@ -221,6 +239,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         children: [
           { label: "Procurement", href: "/app/procurement" },
           { label: "Financial Management", href: "/app/financial" },
+          { label: "Accounting (COA / Journal / GSTR)", href: "/app/accounting" },
           { label: "Vendors", href: "/app/vendors" },
         ],
       },
@@ -229,6 +248,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/contracts",
         icon: "FileSignature",
         module: "contracts",
+      },
+      {
+        label: "Expense Management",
+        href: "/app/expenses",
+        icon: "Receipt",
+        module: "financial",
       },
     ],
   },
@@ -280,6 +305,28 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Overview", href: "/app/developer-ops", icon: "LayoutDashboard", module: "knowledge" },
       { label: "DevOps", href: "/app/devops", icon: "GitPullRequest", module: "cmdb" },
       { label: "Knowledge Management", href: "/app/knowledge", icon: "BookOpen", module: "knowledge" },
+    ],
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: "Settings",
+    defaultExpanded: false,
+    modules: ["settings"],
+    items: [
+      { label: "Integrations", href: "/app/settings/integrations", icon: "Plug", module: "settings" },
+      { label: "Webhooks",     href: "/app/settings/webhooks",     icon: "Globe", module: "settings" },
+      { label: "API Keys",     href: "/app/settings/api-keys",     icon: "KeyRound", module: "settings" },
+    ],
+  },
+  {
+    id: "setup",
+    label: "Setup & Onboarding",
+    icon: "Sparkles",
+    defaultExpanded: false,
+    modules: ["admin"],
+    items: [
+      { label: "Setup Wizard", href: "/app/onboarding-wizard", icon: "Zap", module: "admin" },
     ],
   },
 ];

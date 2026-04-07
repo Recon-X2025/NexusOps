@@ -86,7 +86,7 @@ export const crmRouter = router({
     }),
 
   movePipeline: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualified", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
+    .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const updates: Record<string, any> = { stage: input.stage, updatedAt: new Date() };

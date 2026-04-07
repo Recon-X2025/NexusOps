@@ -321,6 +321,11 @@ export const assetsRouter = router({
       }),
 
     assign: permissionProcedure("sam", "write")
+      .input(z.object({
+        licenseId: z.string().uuid(),
+        assetId: z.string().uuid().optional(),
+        userId: z.string().uuid().optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 

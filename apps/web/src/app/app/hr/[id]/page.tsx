@@ -73,7 +73,7 @@ export default function HRCaseDetailPage() {
   }
 
   const { hrCase, employee, tasks } = caseQuery.data;
-  const doneTasks = tasks.filter((t) => t.status === "done").length;
+  const doneTasks = tasks.filter((t: any) => t.status === "done").length;
   const pct = tasks.length ? Math.round((doneTasks / tasks.length) * 100) : 0;
 
   const notesLines = hrCase.notes
@@ -176,7 +176,7 @@ export default function HRCaseDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {tasks.map((t) => (
+                {tasks.map((t: any) => (
                   <tr key={t.id} className={t.status === "done" ? "opacity-50" : ""}>
                     <td className={`text-foreground ${t.status === "done" ? "line-through" : ""}`}>{t.title}</td>
                     <td className="font-mono text-[11px] text-muted-foreground">
@@ -239,8 +239,8 @@ export default function HRCaseDetailPage() {
               <p className="text-[11px] text-muted-foreground/70 text-center">No work notes yet.</p>
             ) : (
               <div className="space-y-3">
-                {notesLines.slice().reverse().map((line, i) => {
-                  const match = line.match(/^\[(.+?)\]\s*(.*)/s);
+                {notesLines.slice().reverse().map((line: any, i) => {
+                  const match = line.match(/^\[(.+?)\]\s*([\s\S]*)/);
                   const ts = match ? match[1] : "";
                   const text = match ? match[2] : line;
                   return (
