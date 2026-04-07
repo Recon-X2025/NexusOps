@@ -12,12 +12,14 @@ import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
 
 // ── Enums ─────────────────────────────────────────────────────────────────
+// Shared with HR `expense_claims` — single DB enum (superset of both modules).
 export const expenseStatusEnum = pgEnum("expense_status", [
   "draft",
   "submitted",
   "under_review",
   "approved",
   "rejected",
+  "reimbursed",
   "paid",
   "cancelled",
 ]);
@@ -25,14 +27,19 @@ export const expenseStatusEnum = pgEnum("expense_status", [
 export const expenseCategoryEnum = pgEnum("expense_category", [
   "travel",
   "accommodation",
+  "food",
   "meals",
+  "fuel",
   "transport",
+  "communication",
   "office_supplies",
   "software",
   "marketing",
+  "client_entertainment",
   "training",
   "entertainment",
   "medical",
+  "miscellaneous",
   "other",
 ]);
 

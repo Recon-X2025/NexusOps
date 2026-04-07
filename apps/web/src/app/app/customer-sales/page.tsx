@@ -66,8 +66,9 @@ export default function CustomerSalesDashboard() {
     return <AccessDenied module="Customer & Sales" />;
   }
 
+  const terminalCatalogStatuses = new Set(["completed", "rejected", "cancelled"]);
   const openCatalogRequests = catalogRequests
-    ? catalogRequests.filter((r: any) => r.status !== "fulfilled" && r.status !== "rejected" && r.status !== "cancelled").length
+    ? catalogRequests.filter((r: any) => !terminalCatalogStatuses.has(String(r.status ?? ""))).length
     : 0;
   const activeSurveys = surveys ? surveys.filter((s: any) => s.status === "active" || s.status === "published").length : 0;
 

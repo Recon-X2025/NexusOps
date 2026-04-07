@@ -2,6 +2,7 @@ import { router, publicProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { organizations, users, sessions, eq, desc, count, and, sql } from "@nexusops/db";
+import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import jwt from "jsonwebtoken";
 
 function getPlanFeatureDefaults(plan: string): Record<string, boolean> {
@@ -159,6 +160,8 @@ export const macRouter = router({
           plan: input.plan,
         })
         .returning();
+
+      await ensureDefaultTicketStatusesForOrg(db, org!.id);
 
       return { org, adminEmail: input.adminEmail };
     }),

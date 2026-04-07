@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Briefcase, Plus, Calendar, AlertTriangle, Loader2, Pencil, X, ChevronDown, LayoutKanban,
+  Briefcase, Plus, Calendar, AlertTriangle, Loader2, Pencil, X, ChevronDown, LayoutGrid,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -491,7 +491,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-        <LayoutKanban className="w-8 h-8 opacity-30" />
+        <LayoutGrid className="w-8 h-8 opacity-30" />
         <p className="text-sm font-semibold">No Projects Yet</p>
         <p className="text-xs text-center max-w-xs">Create a project from the All Projects tab, then come back here to manage tasks on the kanban board.</p>
       </div>

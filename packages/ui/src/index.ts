@@ -5,7 +5,6 @@ export * from "./components/card";
 export * from "./components/dialog";
 export * from "./components/confirm-dialog";
 export * from "./components/empty-state";
-export * from "./components/error-boundary";
 export * from "./components/file-upload";
 export * from "./components/kpi-card";
 export * from "./components/label";

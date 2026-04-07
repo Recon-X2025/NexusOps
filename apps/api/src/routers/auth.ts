@@ -19,6 +19,7 @@ import {
   asc,
   desc,
 } from "@nexusops/db";
+import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import {
   SignupSchema,
   LoginSchema,
@@ -111,6 +112,8 @@ export const authRouter = router({
       .insert(organizations)
       .values({ name: input.orgName, slug, plan: "free" })
       .returning();
+
+    await ensureDefaultTicketStatusesForOrg(db, org!.id);
 
     const passwordHash = await hashPassword(input.password);
     const [user] = await db

@@ -766,14 +766,20 @@ export default function CRMPage() {
                   <td>
                     <div className="flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
-                        {c.firstName[0]}{c.lastName[0]}
+                        {c.firstName?.[0] ?? "?"}{c.lastName?.[0] ?? ""}
                       </span>
                       <span className="font-semibold text-primary hover:underline cursor-pointer">{c.firstName} {c.lastName}</span>
                       {c.doNotContact && <span className="status-badge text-red-600 bg-red-50 text-[9px]">DNC</span>}
                     </div>
                   </td>
                   <td className="text-muted-foreground">{c.title}</td>
-                  <td><span className={`status-badge capitalize ${SENIORITY_CFG[c.seniority]}`}>{c.seniority.replace("_"," ")}</span></td>
+                  <td>
+                    <span
+                      className={`status-badge capitalize ${SENIORITY_CFG[c.seniority ?? ""] ?? "text-muted-foreground bg-muted"}`}
+                    >
+                      {c.seniority ? c.seniority.replace("_", " ") : "—"}
+                    </span>
+                  </td>
                   <td className="text-primary hover:underline cursor-pointer">{c.account}</td>
                   <td className="text-muted-foreground text-[11px] font-mono">{c.email}</td>
                   <td className="text-muted-foreground text-[11px]">{c.phone}</td>

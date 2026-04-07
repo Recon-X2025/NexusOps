@@ -77,7 +77,8 @@ export function FileUpload({
         fd.append("file", file);
         const res = await fetch(uploadEndpoint, { method: "POST", body: fd });
         if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`);
-        const data = await res.json();
+        const data = (await res.json()) as { url?: string };
+        if (typeof data.url !== "string") throw new Error("Invalid upload response");
         uploaded.push({ name: file.name, size: file.size, url: data.url, type: file.type });
       }
       onChange?.([...value, ...uploaded]);

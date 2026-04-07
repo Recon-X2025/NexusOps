@@ -6,6 +6,11 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./error-boundary": {
+      "types": "./src/components/error-boundary.tsx",
+      "import": "./src/components/error-boundary.tsx",
+      "default": "./src/components/error-boundary.tsx"
     }
   },
   "main": "./dist/index.mjs",

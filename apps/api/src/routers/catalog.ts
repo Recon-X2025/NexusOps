@@ -41,7 +41,8 @@ export const catalogRouter = router({
       return item;
     }),
 
-  submitRequest: permissionProcedure("catalog", "write")
+  /** Self-service: ordering an item should not require catalog write (manage items). */
+  submitRequest: permissionProcedure("catalog", "read")
     .input(z.object({ itemId: z.string().uuid(), formData: z.record(z.unknown()).default({}) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -62,7 +63,68 @@ export const catalogRouter = router({
       const conditions = [eq(catalogRequests.orgId, org!.id)];
       if (input.status) conditions.push(eq(catalogRequests.status, input.status as any));
       if (input.myRequests) conditions.push(eq(catalogRequests.requesterId, user!.id));
-      return db.select().from(catalogRequests).where(and(...conditions)).orderBy(desc(catalogRequests.createdAt));
+
+      const rows = (await db
+        .select({
+          id: catalogRequests.id,
+          orgId: catalogRequests.orgId,
+          itemId: catalogRequests.itemId,
+          requesterId: catalogRequests.requesterId,
+          formData: catalogRequests.formData,
+          status: catalogRequests.status,
+          fulfillerId: catalogRequests.fulfillerId,
+          approvalId: catalogRequests.approvalId,
+          notes: catalogRequests.notes,
+          completedAt: catalogRequests.completedAt,
+          createdAt: catalogRequests.createdAt,
+          updatedAt: catalogRequests.updatedAt,
+          itemName: catalogItems.name,
+          itemCategory: catalogItems.category,
+          itemSlaDays: catalogItems.slaDays,
+        })
+        .from(catalogRequests)
+        .leftJoin(catalogItems, eq(catalogRequests.itemId, catalogItems.id))
+        .where(and(...conditions))
+        .orderBy(desc(catalogRequests.createdAt))) as Array<{
+        id: string;
+        orgId: string;
+        itemId: string;
+        requesterId: string;
+        formData: unknown;
+        status: string;
+        fulfillerId: string | null;
+        approvalId: string | null;
+        notes: string | null;
+        completedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        itemName: string | null;
+        itemCategory: string | null;
+        itemSlaDays: number | null;
+      }>;
+
+      return rows.map((r) => ({
+        id: r.id,
+        orgId: r.orgId,
+        itemId: r.itemId,
+        requesterId: r.requesterId,
+        formData: r.formData,
+        status: r.status,
+        fulfillerId: r.fulfillerId,
+        approvalId: r.approvalId,
+        notes: r.notes,
+        completedAt: r.completedAt,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        item: r.itemName != null
+          ? {
+              id: r.itemId,
+              name: r.itemName,
+              category: r.itemCategory,
+              slaDays: r.itemSlaDays ?? 3,
+            }
+          : null,
+      }));
     }),
 
   fulfillRequest: permissionProcedure("catalog", "write")

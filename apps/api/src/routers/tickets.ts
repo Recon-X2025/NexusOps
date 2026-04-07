@@ -70,6 +70,7 @@ import {
   inArray,
   sql,
 } from "@nexusops/db";
+import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import {
   CreateTicketSchema,
   UpdateTicketSchema,
@@ -505,21 +506,28 @@ export const ticketsRouter = router({
       idempotency_key: idempotencyKey.slice(0, 8) + "…",
     });
 
-    // Get default open status
-    const [defaultStatus] = await db
+    // Default open status (bootstrap workflow if org was created without seed data)
+    let [defaultStatus] = await db
       .select()
       .from(ticketStatuses)
       .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, "open")))
       .limit(1);
 
     if (!defaultStatus) {
-      // The org's ticket workflow is not fully configured.  This is a
-      // server-side precondition, not a bug — return PRECONDITION_FAILED
-      // (HTTP 412) so it is clearly a 4xx and never surfaces as a 500 in
-      // monitoring or load-test reports.
+      logInfo("TICKET_WORKFLOW_BOOTSTRAP", { org_id: org!.id, request_id: ctx.requestId });
+      await ensureDefaultTicketStatusesForOrg(db, org!.id);
+      [defaultStatus] = await db
+        .select()
+        .from(ticketStatuses)
+        .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, "open")))
+        .limit(1);
+    }
+
+    if (!defaultStatus) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: "Ticket workflow not configured: no 'open' status found for this organisation. Contact your administrator.",
+        message:
+          "Ticket workflow not configured: no 'open' status found for this organisation after bootstrap. Contact your administrator.",
       });
     }
 

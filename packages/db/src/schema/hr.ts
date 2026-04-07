@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
+import { expenseCategoryEnum, expenseStatusEnum } from "./expenses";
 import { ticketStatuses } from "./tickets";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -437,29 +438,7 @@ export const attendanceRecords = pgTable(
   }),
 );
 
-// ── Expense Management ────────────────────────────────────────────────────
-export const expenseCategoryEnum = pgEnum("expense_category", [
-  "travel",
-  "accommodation",
-  "food",
-  "fuel",
-  "communication",
-  "office_supplies",
-  "client_entertainment",
-  "training",
-  "medical",
-  "miscellaneous",
-]);
-
-export const expenseStatusEnum = pgEnum("expense_status", [
-  "draft",
-  "submitted",
-  "under_review",
-  "approved",
-  "rejected",
-  "reimbursed",
-]);
-
+// ── Expense Management (enums: ./expenses) ────────────────────────────────
 export const expenseClaims = pgTable(
   "expense_claims",
   {

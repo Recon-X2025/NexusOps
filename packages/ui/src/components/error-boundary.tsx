@@ -1,17 +1,19 @@
-import * as React from "react";
+"use client";
+
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
-  children: React.ReactNode;
+  children: ReactNode;
   /** Custom fallback to render; receives `error` and `reset` */
-  fallback?: (error: Error, reset: () => void) => React.ReactNode;
+  fallback?: (error: Error, reset: () => void) => ReactNode;
 }
 
 interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { error: null };
@@ -21,7 +23,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     // Log to console; applications can hook into window.onerror or a real Sentry instance
     console.error("[ErrorBoundary]", error, info.componentStack);
   }
@@ -30,7 +32,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     this.setState({ error: null });
   };
 
-  render() {
+  override render() {
     if (this.state.error) {
       if (this.props.fallback) {
         return this.props.fallback(this.state.error, this.reset);

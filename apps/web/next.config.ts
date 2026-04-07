@@ -49,6 +49,9 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   transpilePackages: ["@nexusops/ui", "@nexusops/types"],
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/icon.svg" }];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.githubusercontent.com" },

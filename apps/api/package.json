@@ -11,6 +11,7 @@
   "main": "./dist/index.js",
   "types": "./dist/types.d.ts",
   "scripts": {
+    "predev": "pnpm --filter @nexusops/db exec tsup --no-dts",
     "dev": "tsx watch src/index.ts",
     "start:dev": "pnpm --filter @nexusops/db db:migrate && tsx src/index.ts",
     "build": "tsup",
