@@ -75,14 +75,14 @@ function KPICard({ label, value, delta, color, href, icon: Icon }: {
       <div className="flex items-start justify-between">
         <Icon className="w-4 h-4 text-muted-foreground/70" />
         {delta !== undefined && (
-          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${delta <= 0 ? "text-green-600" : "text-red-600"}`}>
+          <span className={`text-xs font-semibold flex items-center gap-0.5 ${delta <= 0 ? "text-green-600" : "text-red-600"}`}>
             {delta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
             {Math.abs(delta)}
           </span>
         )}
       </div>
       <div className={`text-2xl font-bold mt-1 ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">{label}</div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wide mt-0.5">{label}</div>
     </div>
   );
   return href ? <Link href={href}>{content}</Link> : content;
@@ -181,10 +181,10 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-sm font-semibold text-foreground">NexusOps Platform Home</h1>
-          <p className="text-[11px] text-muted-foreground/70 mt-0.5">Real-time operational health across all platform modules</p>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">Real-time operational health across all platform modules</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground/70">
+          <span className="text-xs text-muted-foreground/70">
             {isPending ? "Syncing metrics…" : isApiDown ? "Demo values (API offline)" : "Last updated: Just now"}
           </span>
           <button
@@ -199,7 +199,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
       </div>
 
       {isApiDown && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
           Could not reach the NexusOps API ({process.env.NEXT_PUBLIC_API_URL ?? (typeof window !== "undefined" ? `${window.location.hostname}:3001` : "localhost:3001")}). Start the API
           (<code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">pnpm --filter @nexusops/api dev</code>) and
           ensure Postgres/Redis match your <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">.env</code>.
@@ -217,8 +217,8 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               <div className="flex items-center justify-between">
                 <Icon className="w-3.5 h-3.5" />
               </div>
-              <div className="text-[11px] font-semibold leading-tight">{g.label}</div>
-              <div className="text-[9px] opacity-50">{g.modules} modules →</div>
+              <div className="text-xs font-semibold leading-tight">{g.label}</div>
+              <div className="text-xs opacity-50">{g.modules} modules →</div>
             </Link>
           );
         })}
@@ -260,10 +260,10 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
             <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Active Incidents</span>
-                <span className="text-[10px] text-muted-foreground/70">{incidents.length} open</span>
+                <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Active Incidents</span>
+                <span className="text-xs text-muted-foreground/70">{incidents.length} open</span>
               </div>
-              <Link href="/app/tickets" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+              <Link href="/app/tickets" className="text-xs text-primary hover:underline flex items-center gap-0.5">
                 All incidents <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
@@ -293,13 +293,13 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                       <div className={`priority-bar bg-red-500`} />
                     </td>
                     <td>
-                      <Link href={`/app/tickets/${inc.id}`} className="font-mono text-[11px] text-primary hover:underline">{inc.number}</Link>
+                      <Link href={`/app/tickets/${inc.id}`} className="font-mono text-xs text-primary hover:underline">{inc.number}</Link>
                     </td>
                     <td className="max-w-xs"><span className="truncate block text-foreground">{inc.title}</span></td>
                     <td><span className="status-badge text-muted-foreground bg-muted capitalize">{inc.priorityId ?? "—"}</span></td>
                     <td><span className="status-badge text-blue-700 bg-blue-100 capitalize">{(inc.statusId ?? "open").replace(/_/g, " ")}</span></td>
-                    <td className="text-muted-foreground text-[11px]">{inc.assigneeId ? inc.assigneeId.slice(0, 8) : "Unassigned"}</td>
-                    <td className="font-mono text-[11px] text-muted-foreground">
+                    <td className="text-muted-foreground text-xs">{inc.assigneeId ? inc.assigneeId.slice(0, 8) : "Unassigned"}</td>
+                    <td className="font-mono text-xs text-muted-foreground">
                       {inc.createdAt ? new Date(inc.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
                     </td>
                     <td>
@@ -320,9 +320,9 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
             <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
               <div className="flex items-center gap-2">
                 <Wrench className="w-3.5 h-3.5 text-muted-foreground/70" />
-                <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Active Work Orders</span>
+                <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Active Work Orders</span>
               </div>
-              <Link href="/app/work-orders" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+              <Link href="/app/work-orders" className="text-xs text-primary hover:underline flex items-center gap-0.5">
                 All WOs <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
@@ -333,14 +333,14 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                 <div key={wo.id} className={`flex items-center justify-between px-3 py-2.5 ${wo.slaBreached ? "bg-red-50/30" : ""}`}>
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-[11px] text-primary">{wo.number}</span>
+                      <span className="font-mono text-xs text-primary">{wo.number}</span>
                       <span className={`status-badge capitalize ${wo.priority === "critical" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>{wo.priority}</span>
                       <span className="status-badge text-blue-700 bg-blue-100 capitalize">{wo.state.replace(/_/g," ")}</span>
                       {wo.slaBreached && <span className="status-badge text-red-700 bg-red-100">⚠ SLA</span>}
                     </div>
                     <p className="text-[12px] text-foreground/80">{wo.shortDescription}</p>
                   </div>
-                  <span className="text-[11px] text-muted-foreground/70">{wo.assignedToId ? wo.assignedToId.slice(0, 8) : "Unassigned"}</span>
+                  <span className="text-xs text-muted-foreground/70">{wo.assignedToId ? wo.assignedToId.slice(0, 8) : "Unassigned"}</span>
                 </div>
               ))}
             </div>
@@ -353,9 +353,9 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
                 <div className="flex items-center gap-2">
                   <Layers className="w-3.5 h-3.5 text-muted-foreground/70" />
-                  <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Recent Deployments</span>
+                  <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Recent Deployments</span>
                 </div>
-                <Link href="/app/developer-ops" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                <Link href="/app/developer-ops" className="text-xs text-primary hover:underline flex items-center gap-0.5">
                   DevOps <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -378,19 +378,19 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                           <span className="truncate block">{dep.appName}</span>
                         </td>
                         <td>
-                          <span className={`status-badge text-[10px] ${
+                          <span className={`status-badge text-xs ${
                             dep.environment === "production" ? "text-red-700 bg-red-50" :
                             dep.environment === "staging"    ? "text-yellow-700 bg-yellow-50" :
                             "text-blue-700 bg-blue-50"
                           }`}>{dep.environment}</span>
                         </td>
-                        <td className="font-mono text-[11px] text-muted-foreground">{dep.version}</td>
+                        <td className="font-mono text-xs text-muted-foreground">{dep.version}</td>
                         <td>
-                          {dep.status === "success" && <span className="flex items-center gap-1 text-green-700 text-[11px]"><CheckCircle className="w-3 h-3" /> OK</span>}
-                          {dep.status === "failed"  && <span className="flex items-center gap-1 text-red-600 text-[11px]"><XCircle className="w-3 h-3" /> Failed</span>}
-                          {dep.status === "running" && <span className="flex items-center gap-1 text-blue-600 text-[11px]"><Loader2 className="w-3 h-3 animate-spin" /> Running</span>}
+                          {dep.status === "success" && <span className="flex items-center gap-1 text-green-700 text-xs"><CheckCircle className="w-3 h-3" /> OK</span>}
+                          {dep.status === "failed"  && <span className="flex items-center gap-1 text-red-600 text-xs"><XCircle className="w-3 h-3" /> Failed</span>}
+                          {dep.status === "running" && <span className="flex items-center gap-1 text-blue-600 text-xs"><Loader2 className="w-3 h-3 animate-spin" /> Running</span>}
                           {dep.status !== "success" && dep.status !== "failed" && dep.status !== "running" && (
-                            <span className="text-muted-foreground text-[11px] capitalize">{dep.status}</span>
+                            <span className="text-muted-foreground text-xs capitalize">{dep.status}</span>
                           )}
                         </td>
                       </tr>
@@ -405,9 +405,9 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
                 <div className="flex items-center gap-2">
                   <GitBranch className="w-3.5 h-3.5 text-muted-foreground/70" />
-                  <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Change Window</span>
+                  <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Change Window</span>
                 </div>
-                <Link href="/app/changes" className="text-[11px] text-primary hover:underline">All changes</Link>
+                <Link href="/app/changes" className="text-xs text-primary hover:underline">All changes</Link>
               </div>
               <div className="divide-y divide-border">
                 {changeList.length === 0 ? (
@@ -416,16 +416,16 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
                   <div key={c.id} className="flex items-center justify-between px-3 py-2">
                     <div>
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="font-mono text-[10px] text-primary">{c.number}</span>
-                        <span className={`status-badge text-[10px] ${c.risk === "critical" ? "text-red-700 bg-red-100" : c.risk === "high" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{c.risk ?? "—"}</span>
+                        <span className="font-mono text-xs text-primary">{c.number}</span>
+                        <span className={`status-badge text-xs ${c.risk === "critical" ? "text-red-700 bg-red-100" : c.risk === "high" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{c.risk ?? "—"}</span>
                       </div>
-                      <p className="text-[11px] text-foreground/80 truncate max-w-[180px]">{c.title}</p>
+                      <p className="text-xs text-foreground/80 truncate max-w-[180px]">{c.title}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[10px] text-muted-foreground/70">
+                      <div className="text-xs text-muted-foreground/70">
                         {c.scheduledAt ? new Date(c.scheduledAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
                       </div>
-                      <span className={`status-badge text-[10px] capitalize ${
+                      <span className={`status-badge text-xs capitalize ${
                         c.status === "complete" || c.status === "completed" ? "text-green-700 bg-green-100" :
                         c.status === "awaiting_cab" ? "text-yellow-700 bg-yellow-100" :
                         "text-blue-700 bg-blue-100"
@@ -447,10 +447,10 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
             <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground/70" />
-                <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Pending Approvals</span>
-                <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{approvalList.length}</span>
+                <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Pending Approvals</span>
+                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{approvalList.length}</span>
               </div>
-              <Link href="/app/approvals" className="text-[11px] text-primary hover:underline">View all</Link>
+              <Link href="/app/approvals" className="text-xs text-primary hover:underline">View all</Link>
             </div>
             <div className="divide-y divide-border">
               {approvalList.length === 0 ? (
@@ -458,16 +458,16 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
               ) : approvalList.slice(0, 4).map((ap: any) => (
                 <div key={ap.id} className="px-3 py-2.5">
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="font-mono text-[10px] text-primary">{ap.id.slice(0, 8)}</span>
+                    <span className="font-mono text-xs text-primary">{ap.id.slice(0, 8)}</span>
                     <span className="status-badge text-muted-foreground bg-muted capitalize">{ap.entityType ?? "Request"}</span>
-                    <span className="text-[10px] text-muted-foreground/70 ml-auto">
+                    <span className="text-xs text-muted-foreground/70 ml-auto">
                       {ap.dueAt ? new Date(ap.dueAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : ""}
                     </span>
                   </div>
-                  <p className="text-[11px] text-foreground/80 truncate">{ap.title ?? ap.entityId}</p>
+                  <p className="text-xs text-foreground/80 truncate">{ap.title ?? ap.entityId}</p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <button onClick={() => decideMutation.mutate({ requestId: ap.id, decision: "approved", comment: "Approved from dashboard" })} disabled={decideMutation.isPending} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-[11px] hover:bg-green-200 disabled:opacity-50">Approve</button>
-                    <button onClick={() => decideMutation.mutate({ requestId: ap.id, decision: "rejected", comment: "Rejected from dashboard" })} disabled={decideMutation.isPending} className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[11px] hover:bg-red-200 disabled:opacity-50">Reject</button>
+                    <button onClick={() => decideMutation.mutate({ requestId: ap.id, decision: "approved", comment: "Approved from dashboard" })} disabled={decideMutation.isPending} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 disabled:opacity-50">Approve</button>
+                    <button onClick={() => decideMutation.mutate({ requestId: ap.id, decision: "rejected", comment: "Rejected from dashboard" })} disabled={decideMutation.isPending} className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 disabled:opacity-50">Reject</button>
                   </div>
                 </div>
               ))}
@@ -477,7 +477,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
           {/* Module Areas */}
           <div className="bg-card border border-border rounded overflow-hidden">
             <div className="px-3 py-2 border-b border-border bg-muted/30">
-              <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Module Areas</span>
+              <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">Module Areas</span>
             </div>
             <div className="divide-y divide-border">
               {MODULE_GROUPS.map((g) => {

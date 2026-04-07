@@ -30,6 +30,9 @@ import {
   LayoutGrid,
   Menu,
   Monitor,
+  Pin,
+  PinOff,
+  Receipt,
   Scale,
   Search,
   Settings,
@@ -37,6 +40,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   SlidersHorizontal,
+  Star,
   Target,
   TrendingUp,
   UserCheck,
@@ -56,6 +60,8 @@ import { trpc } from "@/lib/trpc";
 import type { Module, SystemRole } from "@nexusops/types";
 
 const STORAGE_KEY = "nexusops_sidebar_state";
+const FAVORITES_KEY = "nexusops_sidebar_favorites";
+const MAX_FAVORITES = 8;
 
 const ALERT_BADGES: SidebarBadgeKey[] = [
   "incidents_open",
@@ -87,6 +93,7 @@ const SIDEBAR_ICONS: Record<string, LucideIcon> = {
   Banknote,
   ShoppingCart,
   FileSignature,
+  Receipt,
   Briefcase,
   Gavel,
   Target,
@@ -254,6 +261,9 @@ type SidebarNavContentProps = {
   badgeMap: Partial<Record<SidebarBadgeKey, number>>;
   searchActive: boolean;
   onNavigate: () => void;
+  pinnedHrefs: string[];
+  togglePin: (href: string) => void;
+  allItems: SidebarItem[];
 };
 
 function SidebarNavContent({
@@ -269,7 +279,17 @@ function SidebarNavContent({
   badgeMap,
   searchActive,
   onNavigate,
+  pinnedHrefs,
+  togglePin,
+  allItems,
 }: SidebarNavContentProps) {
+  // Build lookup: href → SidebarItem for pinned section
+  const itemByHref = useMemo(() => {
+    const map = new Map<string, SidebarItem>();
+    for (const item of allItems) map.set(item.href, item);
+    return map;
+  }, [allItems]);
+
   return (
     <>
       <div className="px-3 py-2 border-b border-sidebar-border shrink-0">
@@ -286,6 +306,65 @@ function SidebarNavContent({
       </div>
 
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-1 min-h-0">
+        {/* ── Favorites section ─────────────────────────── */}
+        {pinnedHrefs.length > 0 && !searchActive && (
+          <div className="mb-0.5">
+            <div className="flex w-full items-center gap-2 px-3 py-2">
+              <Star className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <span className="flex-1 truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Favorites
+              </span>
+              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                {pinnedHrefs.length}
+              </span>
+            </div>
+            <div className="space-y-0.5 pb-1">
+              {pinnedHrefs.map((href) => {
+                const item = itemByHref.get(href);
+                if (!item) return null;
+                const isActive = pathActive(pathname, href);
+                return (
+                  <div key={href} className="group/fav flex items-center gap-0 pr-2">
+                    <div
+                      className={`flex items-center gap-0 flex-1 ${
+                        isActive
+                          ? "border-l-2 border-primary bg-accent/10 font-medium text-accent-foreground"
+                          : "border-l-2 border-transparent"
+                      }`}
+                    >
+                      <Link
+                        href={href}
+                        onClick={onNavigate}
+                        className={`flex min-w-0 flex-1 items-center py-1.5 pl-8 pr-1 text-sm font-normal transition-colors hover:bg-muted/50 rounded-sm ${
+                          isActive ? "" : "text-sidebar-foreground/90"
+                        }`}
+                      >
+                        <IconByName
+                          name={item.icon}
+                          className={`mr-2 h-4 w-4 shrink-0 ${
+                            isActive ? "text-accent-foreground" : "text-muted-foreground"
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Unpin"
+                      onClick={() => togglePin(href)}
+                      className="shrink-0 rounded p-1 text-amber-500 opacity-0 group-hover/fav:opacity-100 hover:bg-muted/50 transition-opacity"
+                      title="Unpin"
+                    >
+                      <PinOff className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mx-3 mb-1 border-t border-sidebar-border" />
+          </div>
+        )}
+
         {filteredGroups.map((group) => {
           const GroupIcon = SIDEBAR_ICONS[group.icon];
           const visibleCount = group.items.length;
@@ -326,6 +405,7 @@ function SidebarNavContent({
                       const hasChildren = Boolean(item.children?.length);
                       const itemActive = itemOrChildActive(pathname, item);
                       const nestedOpen = hasChildren && (searchActive || expandedItems.has(itemKey));
+                      const isPinned = pinnedHrefs.includes(item.href);
 
                       const badgeKey = item.badge;
                       const rawCount = badgeKey !== undefined ? badgeMap[badgeKey] : undefined;
@@ -334,7 +414,7 @@ function SidebarNavContent({
                       return (
                         <div key={itemKey}>
                           <div
-                            className={`flex items-center gap-0 pr-2 ${
+                            className={`group/navitem flex items-center gap-0 pr-2 ${
                               itemActive
                                 ? "border-l-2 border-primary bg-accent/10 font-medium text-accent-foreground"
                                 : "border-l-2 border-transparent"
@@ -361,6 +441,24 @@ function SidebarNavContent({
                                 />
                               )}
                             </Link>
+
+                            {/* Pin button — visible on hover */}
+                            {!hasChildren && (pinnedHrefs.length < MAX_FAVORITES || isPinned) && (
+                              <button
+                                type="button"
+                                aria-label={isPinned ? "Unpin" : "Pin to favorites"}
+                                onClick={(e) => { e.stopPropagation(); togglePin(item.href); }}
+                                className={`shrink-0 rounded p-1 transition-all ${
+                                  isPinned
+                                    ? "text-amber-500 opacity-100"
+                                    : "text-muted-foreground opacity-0 group-hover/navitem:opacity-100"
+                                } hover:bg-muted/50`}
+                                title={isPinned ? "Unpin" : "Pin to favorites"}
+                              >
+                                {isPinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+                              </button>
+                            )}
+
                             {hasChildren ? (
                               <button
                                 type="button"
@@ -436,12 +534,19 @@ export function AppSidebar() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set());
   const [mobileOpen, setMobileOpen] = useState(false);
   const [persistReady, setPersistReady] = useState(false);
+  const [pinnedHrefs, setPinnedHrefs] = useState<string[]>([]);
 
   const badgeMap = useSidebarBadges();
 
   const roleFiltered = useMemo(
     () => filterItemsByRole(SIDEBAR_GROUPS, hasRole, canAccess),
     [hasRole, canAccess],
+  );
+
+  // Flat list of all accessible items for pinned-section lookup
+  const allItems = useMemo(
+    () => roleFiltered.flatMap((g) => g.items),
+    [roleFiltered],
   );
 
   const filteredGroups = useMemo(
@@ -459,6 +564,12 @@ export function AppSidebar() {
     } catch {
       /* keep default */
     }
+    try {
+      const rawFav = localStorage.getItem(FAVORITES_KEY);
+      if (rawFav) setPinnedHrefs(JSON.parse(rawFav) as string[]);
+    } catch {
+      /* keep default */
+    }
     setPersistReady(true);
   }, []);
 
@@ -470,6 +581,15 @@ export function AppSidebar() {
       /* ignore */
     }
   }, [expandedGroups, persistReady]);
+
+  useEffect(() => {
+    if (!persistReady) return;
+    try {
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(pinnedHrefs));
+    } catch {
+      /* ignore */
+    }
+  }, [pinnedHrefs, persistReady]);
 
   useEffect(() => {
     const gid = findActiveGroupId(pathname, roleFiltered);
@@ -510,6 +630,14 @@ export function AppSidebar() {
     });
   }, []);
 
+  const togglePin = useCallback((href: string) => {
+    setPinnedHrefs((prev) => {
+      if (prev.includes(href)) return prev.filter((h) => h !== href);
+      if (prev.length >= MAX_FAVORITES) return prev;
+      return [...prev, href];
+    });
+  }, []);
+
   const searchActive = search.trim() !== "";
 
   const navProps: SidebarNavContentProps = {
@@ -525,6 +653,9 @@ export function AppSidebar() {
     badgeMap,
     searchActive,
     onNavigate: () => setMobileOpen(false),
+    pinnedHrefs,
+    togglePin,
+    allItems,
   };
 
   const shellClass =

@@ -15,21 +15,81 @@ import { MOCK_USERS, SYSTEM_ROLES_CATALOG } from "@/lib/rbac";
 import { trpc } from "@/lib/trpc";
 
 const BREADCRUMB_LABELS: Record<string, string> = {
+  // Core
   app: "NexusOps",
   dashboard: "Dashboard",
-  tickets: "All Tickets",
-  assets: "Assets",
-  cmdb: "CMDB",
-  workflows: "Workflows",
-  hr: "People Ops",
-  procurement: "Procurement",
-  reports: "Reports",
+
+  new: "New",
   settings: "Settings",
+  admin: "Administration",
+  profile: "My Profile",
+  notifications: "Notifications",
+  approvals: "Approvals",
+  flows: "Flow Designer",
+  workflows: "Workflows",
+  // IT Services
+  "it-services": "IT Services",
+  tickets: "Service Desk",
+  changes: "Change Management",
+  problems: "Problem Management",
+  releases: "Release Management",
+  "work-orders": "Work Orders",
+  "on-call": "On-Call",
+  events: "Event Management",
+  cmdb: "CMDB",
+  ham: "Hardware Assets",
+  sam: "Software Assets",
+  assets: "Assets",
+  // Security & Compliance
+  "security-compliance": "Security & Compliance",
+  security: "Security Operations",
+  grc: "GRC",
+  compliance: "Compliance",
+  // People & Workplace
+  "people-workplace": "People & Workplace",
+  hr: "HR Service Delivery",
+  "employee-portal": "Employee Portal",
+  "employee-center": "Employee Center",
+  recruitment: "Recruitment",
+  "people-analytics": "People Analytics",
+  facilities: "Facilities",
+  "walk-up": "Walk-Up",
+  // Customer & Sales
+  "customer-sales": "Customer & Sales",
+  csm: "Customer Service",
+  crm: "CRM & Sales",
+  catalog: "Service Catalog",
+  surveys: "Surveys",
+  escalations: "Escalations",
+  // Finance & Procurement
+  "finance-procurement": "Finance & Procurement",
+  procurement: "Procurement",
+  financial: "Financial Management",
+  vendors: "Vendors",
+  contracts: "Contracts",
+  expenses: "Expense Management",
+  // People extras
+  performance: "Performance Management",
+  // Legal & Governance
+  "legal-governance": "Legal & Governance",
+  legal: "Legal",
+  secretarial: "Secretarial & CS",
+  // Strategy & Projects
+  "strategy-projects": "Strategy & Projects",
+  projects: "Projects",
+  apm: "Application Portfolio",
+  reports: "Analytics & Reports",
+  // Developer & Ops
+  "developer-ops": "Developer & Ops",
+  devops: "DevOps",
+  knowledge: "Knowledge Base",
+  // Settings
   integrations: "Integrations",
   webhooks: "Webhooks",
   "api-keys": "API Keys",
   runs: "Runs",
-  new: "New",
+  // Virtual / AI
+  "virtual-agent": "Virtual Agent",
 };
 
 function Breadcrumbs() {
@@ -535,13 +595,20 @@ export function AppHeader() {
         borderColor: "hsl(var(--header-border))",
       }}
     >
-      {/* Left: Logo + Breadcrumb */}
+      {/* Left: Logo + Org name + Breadcrumb */}
       <div className="flex items-center gap-4">
         <Link href="/app/dashboard" className="flex items-center gap-2 flex-shrink-0">
           <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="text-sm font-bold text-[hsl(var(--header-fg))]">NexusOps</span>
+          <div className="flex flex-col leading-none">
+            <span className="text-sm font-bold text-[hsl(var(--header-fg))]">NexusOps</span>
+            {currentUser.orgName && (
+              <span className="text-[0.6rem] text-[hsl(var(--header-fg))] opacity-50 truncate max-w-[120px]">
+                {currentUser.orgName}
+              </span>
+            )}
+          </div>
         </Link>
         <div className="h-4 w-px bg-white/10 hidden md:block" />
         <Breadcrumbs />

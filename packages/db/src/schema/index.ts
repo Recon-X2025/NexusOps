@@ -28,6 +28,9 @@ export * from "./notifications";
 export * from "./walkup";
 export * from "./apm";
 export * from "./oncall";
+// Phase 4 schemas
+export * from "./expenses";
+export * from "./performance";
 export * from "./catalog";
 // India compliance schemas
 export * from "./india-compliance";

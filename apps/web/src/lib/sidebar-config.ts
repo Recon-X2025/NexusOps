@@ -173,6 +173,18 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         module: "workforce_analytics",
       },
       {
+        label: "Performance Management",
+        href: "/app/performance",
+        icon: "Target",
+        module: "hr",
+        children: [
+          { label: "Review Cycles",  href: "/app/performance?tab=cycles" },
+          { label: "My Reviews",     href: "/app/performance?tab=my-reviews" },
+          { label: "Goals & OKRs",   href: "/app/performance?tab=goals" },
+          { label: "Team Overview",  href: "/app/performance?tab=team" },
+        ],
+      },
+      {
         label: "Facilities & Real Estate",
         href: "/app/facilities",
         icon: "Building2",
@@ -229,6 +241,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         href: "/app/contracts",
         icon: "FileSignature",
         module: "contracts",
+      },
+      {
+        label: "Expense Management",
+        href: "/app/expenses",
+        icon: "Receipt",
+        module: "financial",
       },
     ],
   },
