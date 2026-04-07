@@ -1130,4 +1130,38 @@ export const hrRouter = router({
       return kr!;
     }),
   }),
+
+  /** Flat alias for `hr.employees.list` — supports an optional `limit` used by OKR, Expenses, and Attendance pages. */
+  listEmployees: permissionProcedure("hr", "read")
+    .input(
+      z.object({
+        limit: z.number().int().positive().optional(),
+        department: z.string().optional(),
+        status: z.string().optional(),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(employees.orgId, org!.id)];
+      if (input.status) conditions.push(eq(employees.status, input.status as any));
+      if (input.department) conditions.push(eq(employees.department, input.department));
+
+      const query = db
+        .select({ emp: employees, userName: users.name, userEmail: users.email })
+        .from(employees)
+        .innerJoin(users, eq(employees.userId, users.id))
+        .where(and(...conditions))
+        .orderBy(asc(users.name));
+
+      const rows = input.limit ? await query.limit(input.limit) : await query;
+
+      return rows.map(({ emp, userName, userEmail }) => ({
+        ...emp,
+        name: userName,
+        email: userEmail,
+        employeeNumber: emp.employeeId,
+        jobTitle: emp.title,
+      }));
+    }),
 });
