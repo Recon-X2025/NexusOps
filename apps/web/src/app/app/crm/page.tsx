@@ -713,7 +713,7 @@ export default function CRMPage() {
                   <td><span className={`status-badge capitalize ${a.type === "customer" ? "text-green-700 bg-green-100" : a.type === "prospect" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.type}</span></td>
                   <td><span className={`status-badge capitalize ${TIER_CFG[a.tier]}`}>{a.tier.replace("_"," ")}</span></td>
                   <td className="text-muted-foreground">{a.country}</td>
-                  <td className="font-mono text-[11px] text-muted-foreground">{a.employees != null ? (a.employees as number).toLocaleString() : "—"}</td>
+                  <td className="font-mono text-[11px] text-muted-foreground">{a.employees != null ? a.employees.toLocaleString() : "—"}</td>
                   <td className="font-mono text-[11px] text-muted-foreground">₹{((a.annualRevenue ?? 0)/10000000).toFixed(0)}Cr</td>
                   <td className="text-center"><span className={`font-bold ${a.openOpps > 0 ? "text-primary" : "text-slate-300"}`}>{a.openOpps}</span></td>
                   <td className="font-mono text-[11px] font-bold text-foreground">{a.totalRevenue > 0 ? `₹${(a.totalRevenue/1000).toFixed(0)}K` : "—"}</td>

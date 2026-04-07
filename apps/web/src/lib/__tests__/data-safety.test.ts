@@ -24,7 +24,7 @@ function renderEmployeeCount(value: unknown): string {
  *   ₹{((a.annualRevenue ?? 0)/10000000).toFixed(0)}Cr
  */
 function renderAnnualRevenueCr(value: unknown): string {
-  return `₹${((value as number ?? 0) / 10_000_000).toFixed(0)}Cr`;
+  return `₹${((value ?? 0) as number / 10_000_000).toFixed(0)}Cr`;
 }
 
 /**
@@ -32,7 +32,7 @@ function renderAnnualRevenueCr(value: unknown): string {
  *   ₹{(d.value ?? 0).toLocaleString("en-IN")}
  */
 function renderDealValue(value: unknown): string {
-  return `₹${((value as number) ?? 0).toLocaleString("en-IN")}`;
+  return `₹${((value ?? 0) as number).toLocaleString("en-IN")}`;
 }
 
 /**
@@ -40,8 +40,8 @@ function renderDealValue(value: unknown): string {
  *   ₹{((d.value ?? 0)*((d.probability ?? 0)/100)).toLocaleString("en-IN")}
  */
 function renderWeightedDealValue(value: unknown, probability: unknown): string {
-  const v = (value as number) ?? 0;
-  const p = (probability as number) ?? 0;
+  const v = (value ?? 0) as number;
+  const p = (probability ?? 0) as number;
   return `₹${(v * (p / 100)).toLocaleString("en-IN")}`;
 }
 
@@ -50,7 +50,7 @@ function renderWeightedDealValue(value: unknown, probability: unknown): string {
  *   ₹{(q.total ?? 0).toLocaleString("en-IN")}
  */
 function renderQuoteTotal(value: unknown): string {
-  return `₹${((value as number) ?? 0).toLocaleString("en-IN")}`;
+  return `₹${((value ?? 0) as number).toLocaleString("en-IN")}`;
 }
 
 // ── Employee count rendering ───────────────────────────────────────────────
