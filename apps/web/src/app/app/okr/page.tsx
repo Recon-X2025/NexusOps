@@ -106,7 +106,7 @@ export default function OKRPage() {
                           <div className="flex-1 min-w-0">
                             <div className="text-[12px] text-foreground font-medium">{kr.title}</div>
                             <div className="flex items-center gap-3 mt-1">
-                              <span className="text-[11px] text-muted-foreground">{Number(kr.currentValue).toLocaleString()} / {Number(kr.targetValue).toLocaleString()} {kr.unit}</span>
+                              <span className="text-[11px] text-muted-foreground">{Number(kr.currentValue ?? 0).toLocaleString()} / {Number(kr.targetValue ?? 0).toLocaleString()} {kr.unit}</span>
                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_COLORS[kr.status] ?? ""}`}>{(kr.status ?? "").replace("_", " ")}</span>
                             </div>
                           </div>

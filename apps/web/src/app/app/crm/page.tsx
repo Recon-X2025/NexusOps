@@ -713,8 +713,8 @@ export default function CRMPage() {
                   <td><span className={`status-badge capitalize ${a.type === "customer" ? "text-green-700 bg-green-100" : a.type === "prospect" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.type}</span></td>
                   <td><span className={`status-badge capitalize ${TIER_CFG[a.tier]}`}>{a.tier.replace("_"," ")}</span></td>
                   <td className="text-muted-foreground">{a.country}</td>
-                  <td className="font-mono text-[11px] text-muted-foreground">{a.employees.toLocaleString()}</td>
-                  <td className="font-mono text-[11px] text-muted-foreground">₹{(a.annualRevenue/10000000).toFixed(0)}Cr</td>
+                  <td className="font-mono text-[11px] text-muted-foreground">{a.employees != null ? (a.employees as number).toLocaleString() : "—"}</td>
+                  <td className="font-mono text-[11px] text-muted-foreground">₹{((a.annualRevenue ?? 0)/10000000).toFixed(0)}Cr</td>
                   <td className="text-center"><span className={`font-bold ${a.openOpps > 0 ? "text-primary" : "text-slate-300"}`}>{a.openOpps}</span></td>
                   <td className="font-mono text-[11px] font-bold text-foreground">{a.totalRevenue > 0 ? `₹${(a.totalRevenue/1000).toFixed(0)}K` : "—"}</td>
                   <td>
@@ -930,7 +930,7 @@ export default function CRMPage() {
                       <p className="text-[11px] text-muted-foreground mt-0.5">Account: <strong>{q.account}</strong> · Owner: {q.owner} · Created: {q.created}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[18px] font-bold text-foreground">₹{q.total.toLocaleString("en-IN")}</div>
+                      <div className="text-[18px] font-bold text-foreground">₹{(q.total ?? 0).toLocaleString("en-IN")}</div>
                       <div className="text-[11px] text-muted-foreground/70">{q.currency} · {q.lineItems.length} line items</div>
                     </div>
                   </div>
@@ -956,27 +956,27 @@ export default function CRMPage() {
                               <td className="font-semibold text-foreground">{li.product}</td>
                               <td className="text-muted-foreground text-[11px]">{li.description}</td>
                               <td className="text-center font-mono">{li.qty}</td>
-                              <td className="font-mono text-[11px]">₹{li.unitPrice.toLocaleString("en-IN")}</td>
+                              <td className="font-mono text-[11px]">₹{(li.unitPrice ?? 0).toLocaleString("en-IN")}</td>
                               <td className="text-center text-[11px]">{li.discount > 0 ? `${li.discount}%` : "—"}</td>
-                              <td className="font-mono font-bold text-foreground">₹{li.total.toLocaleString("en-IN")}</td>
+                              <td className="font-mono font-bold text-foreground">₹{(li.total ?? 0).toLocaleString("en-IN")}</td>
                             </tr>
                           ))}
                           <tr className="bg-card">
                             <td colSpan={5} />
                             <td className="text-right text-[11px] text-muted-foreground font-semibold">Subtotal:</td>
-                            <td className="font-mono text-foreground/80">₹{q.subtotal.toLocaleString("en-IN")}</td>
+                            <td className="font-mono text-foreground/80">₹{(q.subtotal ?? 0).toLocaleString("en-IN")}</td>
                           </tr>
                           {q.discount > 0 && (
                             <tr className="bg-card">
                               <td colSpan={5} />
                               <td className="text-right text-[11px] text-green-600 font-semibold">Discount:</td>
-                              <td className="font-mono text-green-600">-₹{q.discount.toLocaleString("en-IN")}</td>
+                              <td className="font-mono text-green-600">-₹{(q.discount ?? 0).toLocaleString("en-IN")}</td>
                             </tr>
                           )}
                           <tr className="bg-card font-bold">
                             <td colSpan={5} />
                             <td className="text-right text-[12px] text-foreground font-bold">TOTAL:</td>
-                            <td className="font-mono text-[14px] font-black text-foreground">₹{q.total.toLocaleString("en-IN")}</td>
+                            <td className="font-mono text-[14px] font-black text-foreground">₹{(q.total ?? 0).toLocaleString("en-IN")}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1082,9 +1082,9 @@ export default function CRMPage() {
                         <td className="font-medium text-foreground">{d.account}</td>
                         <td className="text-muted-foreground">{d.owner}</td>
                         <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
-                        <td className="font-mono font-bold text-foreground">₹{d.value.toLocaleString("en-IN")}</td>
+                        <td className="font-mono font-bold text-foreground">₹{(d.value ?? 0).toLocaleString("en-IN")}</td>
                         <td className="font-mono text-muted-foreground">{d.probability}%</td>
-                        <td className="font-mono font-semibold text-primary">₹{(d.value*(d.probability/100)).toLocaleString("en-IN")}</td>
+                        <td className="font-mono font-semibold text-primary">₹{((d.value ?? 0)*((d.probability ?? 0)/100)).toLocaleString("en-IN")}</td>
                         <td className="text-muted-foreground text-[11px]">{d.closeDate}</td>
                         <td className="text-muted-foreground/70 text-[11px]">{d.source}</td>
                         <td className="text-muted-foreground/70 text-[11px]">{d.lastActivity}</td>
