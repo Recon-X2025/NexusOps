@@ -54,16 +54,22 @@ function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
-/** Create a session, store token hash in DB, return plaintext token to client. */
+/** Create a session, store token hash in DB, return plaintext token to client.
+ *  @param rememberMe  When true: 30-day persistent session; when false: 8-hour session-scoped token.
+ */
 export async function createSession(
   db: ReturnType<typeof import("@nexusops/db").getDb>,
   userId: string,
   ipAddress?: string | null,
   userAgent?: string | null,
+  rememberMe = true,
 ) {
   const tokenPlaintext = nanoid(32);
   const tokenHash = hashSessionToken(tokenPlaintext);
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  const ttlMs = rememberMe
+    ? 30 * 24 * 60 * 60 * 1000  // 30 days
+    :  8 * 60 * 60 * 1000;       // 8 hours (session-scoped)
+  const expiresAt = new Date(Date.now() + ttlMs);
 
   await db.insert(sessions).values({
     id: tokenHash,
@@ -73,7 +79,7 @@ export async function createSession(
     userAgent,
   });
 
-  return tokenPlaintext; // Return plaintext; DB stores hash
+  return { token: tokenPlaintext, expiresAt };
 }
 
 export const authRouter = router({
@@ -130,7 +136,7 @@ export const authRouter = router({
     }
 
     const sessionId = await createSession(db, user!.id, ctx.ipAddress, ctx.userAgent);
-    return { user: stripPasswordHash(user!), org, sessionId };
+    return { user: stripPasswordHash(user!), org, sessionId: sessionId.token };
   }),
 
   login: publicProcedure.input(LoginSchema).mutation(async ({ ctx, input }) => {
@@ -184,7 +190,7 @@ export const authRouter = router({
 
     await clearLoginAttempts(input.email);
 
-    const sessionId = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent);
+    const session = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent, input.rememberMe ?? false);
     const tSession = Date.now();
 
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
@@ -206,7 +212,7 @@ export const authRouter = router({
       total_ms:   tTotal - t0,
     });
 
-    return { user: stripPasswordHash(user), org, sessionId };
+    return { user: stripPasswordHash(user), org, sessionId: session.token, rememberMe: input.rememberMe ?? false };
   }),
 
   logout: protectedProcedure.mutation(async ({ ctx }) => {
@@ -445,8 +451,8 @@ export const authRouter = router({
 
       await db.update(invites).set({ acceptedAt: new Date() }).where(eq(invites.id, invite.id));
 
-      const sessionId = await createSession(db, user!.id, ctx.ipAddress, ctx.userAgent);
-      return { user: stripPasswordHash(user!), sessionId };
+      const session = await createSession(db, user!.id, ctx.ipAddress, ctx.userAgent);
+      return { user: stripPasswordHash(user!), sessionId: session.token };
     }),
 
   // ── User Management ─────────────────────────────────────────────────────

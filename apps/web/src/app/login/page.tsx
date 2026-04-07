@@ -16,6 +16,7 @@ type LoginForm = z.infer<typeof LoginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const apiBase = process.env.NEXT_PUBLIC_API_URL ??
     (typeof window !== "undefined"
       ? `${window.location.protocol}//${window.location.hostname}:3001`
@@ -33,9 +34,12 @@ export default function LoginPage() {
 
   const login = trpc.auth.login.useMutation({
     onSuccess: async (data) => {
-      // Store in both localStorage (for tRPC header) and cookie (for middleware)
+      // Store in both localStorage (for tRPC header) and cookie (for middleware).
+      // When "Remember Me" is unchecked the cookie has no max-age (session-scoped);
+      // when checked we persist for 30 days.
       localStorage.setItem("nexusops_session", data.sessionId);
-      document.cookie = `nexusops_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      const maxAge = rememberMe ? `; max-age=${60 * 60 * 24 * 30}` : "";
+      document.cookie = `nexusops_session=${data.sessionId}; path=/${maxAge}; SameSite=Lax`;
       // Eagerly fetch auth.me with the new session token so the cache holds the
       // correct user before navigation. This prevents stale data from a previous
       // session (e.g. a demo account) from flashing on the dashboard while the
@@ -51,7 +55,7 @@ export default function LoginPage() {
     },
   });
 
-  const onSubmit = (data: LoginForm) => login.mutate(data);
+  const onSubmit = (data: LoginForm) => login.mutate({ ...data, rememberMe });
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 px-4">
@@ -112,8 +116,13 @@ export default function LoginPage() {
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-slate-400">
-                <input type="checkbox" className="rounded border-slate-700 bg-slate-800" />
-                Remember me
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-700 bg-slate-800 accent-indigo-600"
+                />
+                Remember me (stay signed in for 30 days)
               </label>
               <Link href="/forgot-password" className="text-sm text-indigo-400 hover:text-indigo-300">
                 Forgot password?

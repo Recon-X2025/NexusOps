@@ -28,6 +28,7 @@ import {
   Headset,
   LayoutDashboard,
   LayoutGrid,
+  Leaf,
   Menu,
   Monitor,
   Pin,
@@ -41,15 +42,18 @@ import {
   ShoppingCart,
   SlidersHorizontal,
   Star,
+  Sparkles,
   Target,
   TrendingUp,
   UserCheck,
+  UserPlus,
   Users,
   Wrench,
   X,
   Globe,
   KeyRound,
   Plug,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -103,11 +107,15 @@ const SIDEBAR_ICONS: Record<string, LucideIcon> = {
   Code,
   GitPullRequest,
   BookOpen,
+  Leaf,
   Settings,
   SlidersHorizontal,
   Globe,
   KeyRound,
   Plug,
+  Sparkles,
+  UserPlus,
+  Zap,
 };
 
 function IconByName({ name, className }: { name: string; className?: string }) {
@@ -517,7 +525,7 @@ function SidebarNavContent({
       </nav>
 
       <div className="border-t border-sidebar-border px-3 py-2 text-[10px] text-muted-foreground flex items-center justify-between shrink-0">
-        <span>NexusOps Platform v2.0.1</span>
+        <span>NexusOps Platform {process.env.NEXT_PUBLIC_APP_VERSION ?? "v2.0.1"}</span>
         <span className="text-green-600 dark:text-green-400">● Online</span>
       </div>
     </>
