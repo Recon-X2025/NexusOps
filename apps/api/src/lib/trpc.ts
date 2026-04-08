@@ -19,6 +19,13 @@ import {
 export type Context = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any;
+  /**
+   * Optional MongoDB database when `MONGODB_URI` is set and init succeeded.
+   * OLTP remains PostgreSQL unless/until individual procedures are migrated.
+   */
+  mongoDb: import("mongodb").Db | null;
+  /** Declared mode: postgres | hybrid | mongo (see `DATABASE_PROVIDER`). */
+  databaseProvider: "postgres" | "hybrid" | "mongo";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   user: Record<string, any> | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

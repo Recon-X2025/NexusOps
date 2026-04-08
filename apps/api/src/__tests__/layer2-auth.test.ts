@@ -22,6 +22,8 @@ function publicCaller() {
   const db = testDb();
   const ctx: Context = {
     db,
+    mongoDb: null,
+    databaseProvider: "postgres",
     user: null,
     org: null,
     orgId: null,
@@ -179,6 +181,8 @@ describe("Layer 2: Authentication", () => {
       // FIX: 2026-03-25 — use appRouter.createCaller instead of standalone createCaller
       const caller = appRouter.createCaller({
         db,
+        mongoDb: null,
+        databaseProvider: "postgres",
         user: null,
         org: null,
         orgId: null,

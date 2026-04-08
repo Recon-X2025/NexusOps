@@ -1,6 +1,17 @@
 import type { FastifyRequest } from "fastify";
 import { createHash } from "crypto";
-import { getDb, sessions, users, organizations, eq, and, sql } from "@nexusops/db";
+import {
+  getDb,
+  getDatabaseOltpProvider,
+  getMongoDb,
+  isMongoReady,
+  sessions,
+  users,
+  organizations,
+  eq,
+  and,
+  sql,
+} from "@nexusops/db";
 import type { Context } from "../lib/trpc";
 import { getRedis } from "../lib/redis";
 
@@ -267,6 +278,8 @@ async function fetchSession(
  */
 export async function createContext(req: FastifyRequest): Promise<Context> {
   const db = getDb();
+  const databaseProvider = getDatabaseOltpProvider();
+  const mongoDb = isMongoReady() ? getMongoDb() : null;
   let user: Context["user"] = null;
   let org: Record<string, unknown> | null = null;
   let sessionId: string | null = null;
@@ -305,9 +318,16 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
 
   if (!token) {
     return {
-      db, user: null, org: null, orgId: null, sessionId: null,
+      db,
+      mongoDb,
+      databaseProvider,
+      user: null,
+      org: null,
+      orgId: null,
+      sessionId: null,
       requestId: (req.id as string) ?? null,
-      ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      ipAddress: req.ip ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
       idempotencyKey: headerIdempotencyKey,
     };
   }
@@ -335,9 +355,16 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
     }
 
     return {
-      db, user: user ?? null, org: org ?? null, orgId: (org?.id as string | undefined) ?? null, sessionId: null,
+      db,
+      mongoDb,
+      databaseProvider,
+      user: user ?? null,
+      org: org ?? null,
+      orgId: (org?.id as string | undefined) ?? null,
+      sessionId: null,
       requestId: (req.id as string) ?? null,
-      ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      ipAddress: req.ip ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
       idempotencyKey: headerIdempotencyKey,
     };
   }
@@ -350,9 +377,16 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
   const l1 = getL1(tokenHash);
   if (l1) {
     return {
-      db, user: l1.user, org: l1.org, orgId: (l1.org?.id as string | undefined) ?? null, sessionId,
+      db,
+      mongoDb,
+      databaseProvider,
+      user: l1.user,
+      org: l1.org,
+      orgId: (l1.org?.id as string | undefined) ?? null,
+      sessionId,
       requestId: (req.id as string) ?? null,
-      ipAddress: req.ip ?? null, userAgent: req.headers["user-agent"] ?? null,
+      ipAddress: req.ip ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
       idempotencyKey: headerIdempotencyKey,
     };
   }
@@ -377,6 +411,8 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
 
   return {
     db,
+    mongoDb,
+    databaseProvider,
     user:           user ?? null,
     org:            org  ?? null,
     orgId:          (org?.id as string | undefined) ?? null,

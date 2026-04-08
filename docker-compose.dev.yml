@@ -94,8 +94,26 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  # Optional document store for Mongo-backed features (not OLTP by default).
+  # docker compose -f docker-compose.dev.yml --profile mongo up -d
+  mongodb:
+    image: mongo:7
+    container_name: nexusops-mongodb
+    restart: unless-stopped
+    profiles: [mongo]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres-data:
   redis-data:
   meilisearch-data:
   minio-data:
+  mongo-data:

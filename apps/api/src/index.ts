@@ -69,6 +69,9 @@ function printStartupConfig(): void {
     `    Idle timeout     : ${dbIdle} s`,
     `    Connect timeout  : ${dbConn} s`,
     `    Max lifetime     : ${dbLife} s  (${Math.round(dbLife / 60)} min)`,
+    D,
+    "  Database mode",
+    `    DATABASE_PROVIDER : ${process.env["DATABASE_PROVIDER"] ?? process.env["DATABASE_OLTP_PROVIDER"] ?? "(unset → postgres)"}`,
     E,
     "",
   ].join("\n"));
@@ -165,6 +168,31 @@ async function bootstrap() {
   // structured log output shares the same transport (pino-pretty in dev,
   // raw NDJSON in production).
   initLogger(fastify.log);
+
+  {
+    const {
+      getDatabaseOltpProvider,
+      validateDatabaseEnvAtStartup,
+      providerRequiresMongo,
+      connectMongoOrThrow,
+    } = await import("@nexusops/db");
+    const dbProvider = getDatabaseOltpProvider();
+    try {
+      validateDatabaseEnvAtStartup(dbProvider);
+    } catch (err) {
+      fastify.log.fatal({ err }, "[database] Invalid environment for DATABASE_PROVIDER");
+      process.exit(1);
+    }
+    if (providerRequiresMongo(dbProvider)) {
+      try {
+        await connectMongoOrThrow();
+        fastify.log.info({ databaseProvider: dbProvider }, "[mongo] MongoDB connected");
+      } catch (err) {
+        fastify.log.fatal({ err }, "[mongo] MongoDB required for this DATABASE_PROVIDER but connection failed");
+        process.exit(1);
+      }
+    }
+  }
 
   // ── Plugins ──────────────────────────────────────────────────────────────
   // CORS_ORIGIN supports comma-separated list: "http://139.84.154.78,https://app.example.com"
@@ -529,14 +557,14 @@ async function bootstrap() {
     fastify.log.info(`Received ${signal}, shutting down...`);
     await fastify.close();
 
-    const { closeDb } = await import("@nexusops/db");
+    const { closeDb, closeMongo } = await import("@nexusops/db");
     const { closeRedis } = await import("./lib/redis.js");
     // Shutdown workflow service first (drain queues)
     try {
       const { getWorkflowService } = await import("./services/workflow.js");
       await getWorkflowService().shutdown();
     } catch { /* already shut down or never started */ }
-    await Promise.all([closeDb(), closeRedis()]);
+    await Promise.all([closeDb(), closeMongo(), closeRedis()]);
 
     process.exit(0);
   };

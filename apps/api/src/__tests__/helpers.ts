@@ -91,6 +91,8 @@ export function makeContext(
 ): Context {
   return {
     db: testDb(),
+    mongoDb: null,
+    databaseProvider: "postgres",
     user: {
       id: userId,
       orgId,
@@ -252,6 +254,8 @@ export async function loginAndGetToken(email: string, password: string): Promise
   const db = testDb();
   const caller = appRouter.createCaller({
     db,
+    mongoDb: null,
+    databaseProvider: "postgres",
     user: null,
     org: null,
     orgId: null,

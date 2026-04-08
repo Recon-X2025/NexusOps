@@ -123,12 +123,16 @@ describe("Layer 6: Data Integrity", () => {
       const db = testDb();
       const ctx = {
         db,
+        mongoDb: null,
+        databaseProvider: "postgres" as const,
         user: null,
         org: null,
         orgId: null,
         sessionId: null,
+        requestId: null,
         ipAddress: "127.0.0.1",
         userAgent: "vitest",
+        idempotencyKey: null,
       };
       const caller = appRouter.createCaller(ctx);
 
