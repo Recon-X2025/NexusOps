@@ -39,6 +39,11 @@ function stripPasswordHash<T extends { passwordHash?: string | null }>(row: T) {
   return safe;
 }
 
+/** Canonical form for lookups and storage (avoids duplicate accounts by casing). */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 function generateOrgSlug(orgName: string): string {
   return orgName
     .toLowerCase()
@@ -86,11 +91,12 @@ export async function createSession(
 export const authRouter = router({
   signup: publicProcedure.input(SignupSchema).mutation(async ({ ctx, input }) => {
     const { db } = ctx;
+    const email = normalizeEmail(input.email);
 
     const existing = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, input.email))
+      .where(eq(users.email, email))
       .limit(1);
 
     if (existing.length > 0) {
@@ -120,7 +126,7 @@ export const authRouter = router({
       .insert(users)
       .values({
         orgId: org!.id,
-        email: input.email,
+        email,
         name: input.name,
         passwordHash,
         role: "owner",
@@ -145,34 +151,35 @@ export const authRouter = router({
   login: publicProcedure.input(LoginSchema).mutation(async ({ ctx, input }) => {
     const { db } = ctx;
     const t0 = Date.now();
+    const email = normalizeEmail(input.email);
 
     // ── Pre-bcrypt gate: reject before touching the DB or bcrypt ─────────────
     // Limits ALL attempts (not just failures) so rapid-fire login storms cannot
     // saturate the bcrypt semaphore even when the password is correct.
-    await checkLoginRateLimit(input.email);
+    await checkLoginRateLimit(email);
 
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.email, input.email))
+      .where(eq(users.email, email))
       .limit(1);
 
     const tDbUser = Date.now();
 
     if (!user) {
-      await recordFailedLogin(input.email, ctx.ipAddress);
-      logWarn("AUTH_LOGIN_FAIL", { reason: "user_not_found", email: input.email, db_ms: tDbUser - t0 });
+      await recordFailedLogin(email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", { reason: "user_not_found", email, db_ms: tDbUser - t0 });
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
 
     if (user.status === "disabled") {
-      await recordFailedLogin(input.email, ctx.ipAddress);
+      await recordFailedLogin(email, ctx.ipAddress);
       logWarn("AUTH_LOGIN_FAIL", { reason: "account_disabled", user_id: user.id });
       throw new TRPCError({ code: "FORBIDDEN", message: "Account disabled" });
     }
 
     if (!user.passwordHash) {
-      await recordFailedLogin(input.email, ctx.ipAddress);
+      await recordFailedLogin(email, ctx.ipAddress);
       logWarn("AUTH_LOGIN_FAIL", { reason: "no_password_hash", user_id: user.id });
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
@@ -182,7 +189,7 @@ export const authRouter = router({
     const tBcryptEnd = Date.now();
 
     if (!passwordOk) {
-      await recordFailedLogin(input.email, ctx.ipAddress);
+      await recordFailedLogin(email, ctx.ipAddress);
       logWarn("AUTH_LOGIN_FAIL", {
         reason:    "wrong_password",
         user_id:   user.id,
@@ -191,7 +198,7 @@ export const authRouter = router({
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
     }
 
-    await clearLoginAttempts(input.email);
+    await clearLoginAttempts(email);
 
     const session = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent, input.rememberMe ?? false);
     const tSession = Date.now();
@@ -302,12 +309,13 @@ export const authRouter = router({
     .input(ForgotPasswordSchema)
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
+      const email = normalizeEmail(input.email);
 
       // Always return success to prevent email enumeration
       const [user] = await db
         .select({ id: users.id, email: users.email })
         .from(users)
-        .where(eq(users.email, input.email))
+        .where(eq(users.email, email))
         .limit(1);
 
       if (user) {
@@ -333,7 +341,7 @@ export const authRouter = router({
         });
 
         const resetUrl = `${process.env["AUTH_URL"] ?? "http://localhost:3000"}/reset-password/${rawToken}`;
-        console.info(`[PASSWORD RESET] URL for ${input.email}: ${resetUrl}`);
+        console.info(`[PASSWORD RESET] URL for ${email}: ${resetUrl}`);
         // TODO (Phase 2): send via notification service email
       }
 
@@ -397,12 +405,13 @@ export const authRouter = router({
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
+      const inviteEmail = normalizeEmail(input.email);
       const [invite] = await db
         .insert(invites)
         .values({
           orgId: org!.id,
           invitedByUserId: user!.id,
-          email: input.email,
+          email: inviteEmail,
           role: input.role,
           token,
           expiresAt,
@@ -410,7 +419,7 @@ export const authRouter = router({
         .returning();
 
       const inviteUrl = `${process.env["AUTH_URL"] ?? "http://localhost:3000"}/invite/${token}`;
-      console.info(`[INVITE] URL for ${input.email}: ${inviteUrl}`);
+      console.info(`[INVITE] URL for ${inviteEmail}: ${inviteUrl}`);
       // TODO (Phase 2): send via notification service email
 
       return { invite, inviteUrl };

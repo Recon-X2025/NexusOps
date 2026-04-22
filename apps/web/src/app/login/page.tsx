@@ -51,6 +51,17 @@ export default function LoginPage() {
       router.push(redirect);
     },
     onError: (err) => {
+      const code = err.data?.code;
+      if (code === "UNAUTHORIZED") {
+        toast.error(
+          "That email and password do not match any account on this server. If you have not registered yet, use Sign up free below.",
+        );
+        return;
+      }
+      if (code === "FORBIDDEN") {
+        toast.error("This account is disabled. Contact your workspace administrator.");
+        return;
+      }
       toast.error(err.message ?? "Login failed");
     },
   });
