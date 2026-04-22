@@ -1,636 +1,483 @@
+/**
+ * NexusOps Employee Payslip Self-Service Page
+ * ─────────────────────────────────────────────
+ * Place at: apps/web/src/app/app/employee-portal/payslips/page.tsx
+ *
+ * This page implements US-ESS-02 and US-ESS-03:
+ *  - View and download monthly payslips with full breakdown
+ *  - View tax summary, Old vs New regime comparison
+ *  - Download Form 16
+ */
+
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
-import { AccessDenied } from "@/lib/rbac-context";
-import { downloadCSV } from "@/lib/utils";
-import {
-  UserCircle, DollarSign, FileText, Calendar, Heart, Award,
-  CheckCircle2, AlertTriangle, Download, Plus, Send, Clock,
-  Briefcase, TrendingUp, Shield, BookOpen, Gift, CreditCard,
-  Building2, ChevronRight, Edit2, Eye, IndianRupee, Info,
-} from "lucide-react";
-import { useRBAC } from "@/lib/rbac-context";
 
-const PORTAL_TABS = [
-  { key: "dashboard",   label: "My Dashboard" },
-  { key: "payslips",    label: "Payslips" },
-  { key: "tax",         label: "Tax & Declarations" },
-  { key: "leave",       label: "Leave & Time Off" },
-  { key: "benefits",    label: "Benefits" },
-  { key: "performance", label: "Performance" },
-  { key: "profile",     label: "My Profile" },
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
-function fmt(n: number | undefined | null) {
-  if (n == null) return "—";
-  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
+function fmt(n: number | string): string {
+  const num = typeof n === "string" ? parseFloat(n) : n;
+  return isNaN(num) ? "0" : num.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
-export default function EmployeePortalPage() {
-  const router = useRouter();
-  const [tab, setTab] = useState("dashboard");
-  const [expandedPayslip, setExpandedPayslip] = useState<string | null>(null);
-  const [showLeaveForm, setShowLeaveForm] = useState(false);
-  const [leaveForm, setLeaveForm] = useState({ type: "vacation", startDate: "", endDate: "", reason: "" });
-  const [leaveMsg, setLeaveMsg] = useState<string | null>(null);
-  const { currentUser, can } = useRBAC();
+function FYOptions() {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const fyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
+  const options = [];
+  for (let i = 0; i < 5; i++) {
+    const start = fyStart - i;
+    options.push(`${start}-${start + 1}`);
+  }
+  return options;
+}
 
-  const employeeQuery = trpc.hr.employees.list.useQuery({});
-  const leaveQuery = trpc.hr.leave.list.useQuery({});
-  const leaveBalanceQuery = trpc.hr.leave.balance.useQuery({});
+// ─── PAYSLIP CARD ──────────────────────────────────────────────────────────────
 
-  const createLeave = trpc.hr.leave.create.useMutation({
-    onSuccess: () => {
-      setLeaveMsg("Leave request submitted successfully");
-      setShowLeaveForm(false);
-      setLeaveForm({ type: "vacation", startDate: "", endDate: "", reason: "" });
-      leaveQuery.refetch();
-      setTimeout(() => setLeaveMsg(null), 4000);
-    },
-    onError: (err) => {
-      setLeaveMsg(`Error: ${err.message}`);
-      setTimeout(() => setLeaveMsg(null), 5000);
-    },
-  });
-
-
-  // Merge live employee data with fallback
-  const liveEmployee = employeeQuery.data?.[0];
-  const myEmployeeId = (liveEmployee as any)?.id as string | undefined;
-
-  const EMPLOYEE = {
-    name: (liveEmployee as any)?.name ?? (liveEmployee as any)?.displayName ?? "—",
-    id: (liveEmployee as any)?.employeeId ?? "—",
-    title: (liveEmployee as any)?.title ?? "—",
-    department: (liveEmployee as any)?.department ?? "—",
-    startDate: (liveEmployee as any)?.startDate
-      ? new Date((liveEmployee as any).startDate).toISOString().split("T")[0]
-      : "—",
-    location: (liveEmployee as any)?.location ?? "—",
-    manager: "—",
-    workMode: "—",
-  };
-
-  // Payslips + current tax slip
-  const payslipsQuery = trpc.hr.payroll.listPayslips.useQuery(
-    { employeeId: myEmployeeId, limit: 12 },
-    { enabled: !!myEmployeeId },
-  );
-
-  const currentSlipQuery = trpc.hr.payroll.computeCurrentSlip.useQuery(
-    { employeeId: myEmployeeId! },
-    { enabled: !!myEmployeeId },
-  );
-
-  if (!can("hr", "read")) return <AccessDenied module="Employee Portal" />;
-
-  const payslips = (payslipsQuery.data ?? []) as any[];
-  const currentSlip = currentSlipQuery.data;
-
-  // Map live leave requests to display format; fall back to static history
-  const liveLeaveHistory = leaveQuery.data?.map((lv: any) => ({
-    id: lv.id,
-    type: lv.type ?? "Annual Leave",
-    from: lv.startDate ? new Date(lv.startDate).toISOString().split("T")[0] : "—",
-    to:   lv.endDate   ? new Date(lv.endDate).toISOString().split("T")[0]   : "—",
-    days: Number(lv.days ?? 0),
-    status: lv.status ?? "pending",
-    approver: lv.approvedById ? "Approved" : "Pending approval",
-    notes: lv.reason ?? "",
-  }));
-
-  const LEAVE_HISTORY = (liveLeaveHistory && liveLeaveHistory.length > 0)
-    ? liveLeaveHistory
-    : [];
-
-  const totalBenefitsCost = 0;
-  const leaveBalances = (leaveBalanceQuery.data ?? []) as any[];
-  const annualBalance = leaveBalances.find((b: any) => b.type === "vacation" || b.type === "annual") ?? leaveBalances[0];
-  const leaveAvailable = annualBalance
-    ? Math.max(0, Number(annualBalance.totalDays ?? 0) - Number(annualBalance.usedDays ?? 0) - Number(annualBalance.pendingDays ?? 0))
-    : 0;
-
-  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => void }) {
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary text-white font-bold text-[12px] flex items-center justify-center">
-            {EMPLOYEE.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold text-foreground">Employee Self-Service Portal</h1>
-            <p className="text-[11px] text-muted-foreground/70">{EMPLOYEE.name} · {EMPLOYEE.title} · {EMPLOYEE.id}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {employeeQuery.isLoading && (
-            <span className="text-[11px] text-muted-foreground/60 animate-pulse">Loading employee data…</span>
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      {/* Header row — always visible */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+      >
+        <div className="flex-1 text-left">
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {MONTHS[(payslip.month ?? 1) - 1]} {payslip.year}
+          </span>
+          {payslip.lopDays > 0 && (
+            <span className="ml-2 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              {payslip.lopDays} LOP
+            </span>
           )}
-          <span className="text-[11px] text-muted-foreground/70">{EMPLOYEE.department} · Reports to: {EMPLOYEE.manager}</span>
         </div>
+        <div className="flex items-center gap-8 text-sm">
+          <div className="text-right">
+            <div className="text-xs text-gray-500">Gross</div>
+            <div className="font-medium text-gray-700 dark:text-gray-300">
+              ₹{fmt(payslip.grossEarnings)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-gray-500">Deductions</div>
+            <div className="font-medium text-red-600 dark:text-red-400">
+              ₹{fmt(payslip.totalDeductions)}
+            </div>
+          </div>
+          <div className="text-right min-w-[100px]">
+            <div className="text-xs text-gray-500">Net pay</div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100">
+              ₹{fmt(payslip.netPay)}
+            </div>
+          </div>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-4 bg-gray-50/50 dark:bg-gray-800/30">
+          <div className="grid grid-cols-2 gap-8">
+            {/* Earnings */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Earnings
+              </h4>
+              <div className="space-y-2">
+                {[
+                  ["Basic", payslip.basicEarned],
+                  ["HRA", payslip.hraEarned],
+                  ["Special allowance", payslip.specialAllowance],
+                  ["LTA", payslip.lta],
+                  ...(Number(payslip.overtime) > 0 ? [["Overtime", payslip.overtime]] : []),
+                  ...(Number(payslip.arrears) > 0 ? [["Arrears", payslip.arrears]] : []),
+                  ...(Number(payslip.bonus) > 0 ? [["Bonus", payslip.bonus]] : []),
+                  ...(Number(payslip.otherEarnings) > 0 ? [["Other earnings", payslip.otherEarnings]] : []),
+                ].map(([label, value]) => (
+                  <div key={label as string} className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">{label}</span>
+                    <span className="text-gray-900 dark:text-gray-100 font-mono">₹{fmt(value as any)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-600">
+                  <span className="text-gray-900 dark:text-gray-100">Gross earnings</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-mono">₹{fmt(payslip.grossEarnings)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Deductions */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Deductions
+              </h4>
+              <div className="space-y-2">
+                {[
+                  ["Provident fund (PF)", payslip.employeePF],
+                  ...(Number(payslip.employeeESI) > 0 ? [["ESI", payslip.employeeESI]] : []),
+                  ["Professional tax", payslip.professionalTax],
+                  ...(Number(payslip.lwf) > 0 ? [["Labour welfare fund", payslip.lwf]] : []),
+                  ["Income tax (TDS)", payslip.tds],
+                  ...(Number(payslip.otherDeductions) > 0 ? [["Other deductions", payslip.otherDeductions]] : []),
+                ].map(([label, value]) => (
+                  <div key={label as string} className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">{label}</span>
+                    <span className="text-red-600 dark:text-red-400 font-mono">₹{fmt(value as any)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-600">
+                  <span className="text-gray-900 dark:text-gray-100">Total deductions</span>
+                  <span className="text-red-600 dark:text-red-400 font-mono">₹{fmt(payslip.totalDeductions)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Net pay + YTD */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm text-gray-500">Net pay</span>
+                <span className="ml-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  ₹{fmt(payslip.netPay)}
+                </span>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDownload(); }}
+                className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download PDF
+              </button>
+            </div>
+
+            {/* YTD row */}
+            <div className="grid grid-cols-4 gap-4 mt-4">
+              {[
+                { label: "YTD gross", value: payslip.ytdGross },
+                { label: "YTD PF", value: payslip.ytdPF },
+                { label: "YTD TDS", value: payslip.ytdTDS },
+                { label: "YTD net", value: payslip.ytdNetPay },
+              ].map((item) => (
+                <div key={item.label} className="rounded-md bg-gray-100 dark:bg-gray-700/50 px-3 py-2">
+                  <div className="text-xs text-gray-500">{item.label}</div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100 font-mono mt-0.5">
+                    ₹{fmt(item.value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tax info */}
+          {payslip.taxComputation && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span>
+                  Regime: <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {(payslip.taxComputation as any).regime}
+                  </span>
+                </span>
+                <span>
+                  Taxable income: <span className="font-medium text-gray-700 dark:text-gray-300">
+                    ₹{fmt((payslip.taxComputation as any).taxableIncome || 0)}
+                  </span>
+                </span>
+                <span>
+                  Annual tax: <span className="font-medium text-gray-700 dark:text-gray-300">
+                    ₹{fmt((payslip.taxComputation as any).totalTaxLiability || 0)}
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN PAGE ─────────────────────────────────────────────────────────────────
+
+export default function EmployeePayslipsPage() {
+  const fyOptions = FYOptions();
+  const [selectedFY, setSelectedFY] = useState(fyOptions[0]!);
+  const [activeTab, setActiveTab] = useState<"payslips" | "tax" | "form16">("payslips");
+
+  const payslipsQuery = trpc.payroll.payslips.myPayslips.useQuery({
+    year: parseInt(selectedFY.split("-")[0]!),
+  });
+
+  const taxPreview = trpc.payroll.taxPreview.useQuery(
+    {
+      employeeId: "", // Current user — will be populated from ctx.userId on server
+      financialYear: selectedFY,
+    },
+    { enabled: activeTab === "tax" }
+  );
+
+  const payslipsList = payslipsQuery.data ?? [];
+
+  // Calculate FY summary from payslips
+  const fySummary = {
+    totalGross: payslipsList.reduce((s, p) => s + Number(p.grossEarnings || 0), 0),
+    totalDeductions: payslipsList.reduce((s, p) => s + Number(p.totalDeductions || 0), 0),
+    totalNet: payslipsList.reduce((s, p) => s + Number(p.netPay || 0), 0),
+    totalTDS: payslipsList.reduce((s, p) => s + Number(p.tds || 0), 0),
+    totalPF: payslipsList.reduce((s, p) => s + Number(p.employeePF || 0), 0),
+    monthsProcessed: payslipsList.length,
+  };
+
+  return (
+    <div className="flex flex-col gap-6 p-6 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            My payslips
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            View earnings, deductions, and download payslips
+          </p>
+        </div>
+        <select
+          value={selectedFY}
+          onChange={(e) => setSelectedFY(e.target.value)}
+          className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+        >
+          {fyOptions.map((fy) => (
+            <option key={fy} value={fy}>FY {fy}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="flex border-b border-border bg-card rounded-t overflow-x-auto">
-        {PORTAL_TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 whitespace-nowrap transition-colors
-              ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
-            {t.label}
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+        {([
+          { key: "payslips", label: "Monthly payslips" },
+          { key: "tax", label: "Tax summary" },
+          { key: "form16", label: "Form 16" },
+        ] as const).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.key
+                ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.label}
           </button>
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-b overflow-hidden">
-        {/* DASHBOARD */}
-        {tab === "dashboard" && (
-          <div className="p-4 grid grid-cols-3 gap-4">
-            <div className="border border-border rounded p-4">
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase mb-3">Quick Overview</p>
-              {(employeeQuery.isLoading || currentSlipQuery.isLoading) ? (
-                <div className="animate-pulse space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex justify-between">
-                      <div className="h-3.5 bg-muted rounded w-24" />
-                      <div className="h-3.5 bg-muted rounded w-20" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {[
-                    { label: "CTC (Annual)",    value: currentSlip ? `₹${fmt(currentSlip.ctcAnnual)}` : "—", color: "text-foreground/80" },
-                    { label: "Monthly Gross",   value: currentSlip ? `₹${fmt(currentSlip.slip.grossEarnings)}` : "—", color: "text-foreground/80" },
-                    { label: "Monthly Net Pay", value: currentSlip ? `₹${fmt(currentSlip.slip.netPay)}` : "—", color: "text-green-700" },
-                    { label: "Tax Regime",      value: currentSlip ? (currentSlip.taxSummary.regime === "new" ? "New Regime" : "Old Regime") : "—", color: "text-foreground/80" },
-                    { label: "Leave Remaining", value: `${leaveAvailable} days`, color: leaveAvailable < 5 ? "text-orange-600" : "text-foreground/80" },
-                    { label: "Start Date",      value: EMPLOYEE.startDate, color: "text-muted-foreground" },
-                  ].map(f => (
-                    <div key={f.label} className="flex items-center justify-between text-[12px]">
-                      <span className="text-muted-foreground/70">{f.label}</span>
-                      <span className={`font-semibold ${f.color}`}>{f.value}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+      {/* FY Summary Cards */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: "Total earnings", value: fySummary.totalGross, color: "" },
+          { label: "Total TDS", value: fySummary.totalTDS, color: "text-amber-600" },
+          { label: "Total PF", value: fySummary.totalPF, color: "text-blue-600" },
+          { label: "Total net pay", value: fySummary.totalNet, color: "text-green-700" },
+        ].map((card) => (
+          <div key={card.label} className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+            <div className="text-xs text-gray-500 mb-1">{card.label}</div>
+            <div className={`text-lg font-semibold font-mono ${card.color || "text-gray-900 dark:text-gray-100"}`}>
+              ₹{fmt(card.value)}
             </div>
-            <div className="border border-border rounded p-4">
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase mb-3">Pending Actions</p>
-              <div className="py-4 text-center text-[11px] text-muted-foreground/50">No pending actions</div>
-            </div>
-            <div className="border border-border rounded p-4">
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase mb-3">Quick Actions</p>
-              <div className="space-y-1.5">
-                {[
-                  { label: "Request Time Off",      icon: Calendar, onClick: () => setTab("leave") },
-                  { label: "Download Latest Payslip",icon: Download,  onClick: () => setTab("payslips") },
-                  { label: "View Tax Declaration",   icon: FileText,  onClick: () => setTab("tax") },
-                  { label: "View Benefits",          icon: Heart,     onClick: () => setTab("benefits") },
-                  { label: "Performance Goals",      icon: TrendingUp,onClick: () => setTab("performance") },
-                  { label: "Update Profile",         icon: Edit2,     onClick: () => setTab("profile") },
-                ].map((a) => (
-                  <button key={a.label} onClick={a.onClick}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-foreground/80 hover:bg-muted/30 rounded text-left border border-border">
-                    <a.icon className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                    {a.label}
-                    <ChevronRight className="w-3 h-3 text-slate-300 ml-auto" />
-                  </button>
-                ))}
-              </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {fySummary.monthsProcessed} months
             </div>
           </div>
-        )}
-
-        {/* PAYSLIPS */}
-        {tab === "payslips" && (
-          <div>
-            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
-              <div>
-                <p className="text-[12px] font-semibold text-foreground/80">Payslips — {EMPLOYEE.name}</p>
-                {payslips.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground/70">
-                    YTD Gross: <strong className="text-foreground/80">₹{fmt(payslips.reduce((s: number, p: any) => s + Number(p.grossEarnings), 0))}</strong>
-                    {" · "}YTD Tax (TDS): <strong className="text-red-600">₹{fmt(payslips.reduce((s: number, p: any) => s + Number(p.tds), 0))}</strong>
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => downloadCSV(payslips.map((p: any) => ({ Month: p.month ?? p.payPeriod ?? "", Gross: p.grossPay ?? p.gross ?? "", Net: p.netPay ?? p.net ?? "", TDS: p.tds ?? "", PF_Employee: p.pfEmployee ?? "", ESI: p.esiEmployee ?? "" })), "payslips")}
-                className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-card text-muted-foreground"
-              >
-                <Download className="w-3 h-3" /> Download All
-              </button>
-            </div>
-
-            {payslipsQuery.isLoading ? (
-              <div className="animate-pulse p-4 space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-muted rounded" />
-                ))}
-              </div>
-            ) : payslips.length === 0 ? (
-              <div className="p-8 text-center">
-                <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[12px] text-muted-foreground/50">No payslips generated yet</p>
-                <p className="text-[11px] text-muted-foreground/40 mt-1">
-                  {currentSlip
-                    ? `Payroll not yet run — current month gross would be ₹${fmt(currentSlip.slip.grossEarnings)}`
-                    : "Payslips will appear here once payroll is processed"}
-                </p>
-              </div>
-            ) : (
-              <table className="ent-table w-full">
-                <thead>
-                  <tr>
-                    <th>Period</th>
-                    <th className="text-right">Gross</th>
-                    <th className="text-right">PF</th>
-                    <th className="text-right">PT</th>
-                    <th className="text-right">TDS</th>
-                    <th className="text-right">Net Pay</th>
-                    <th>Regime</th>
-                    <th className="text-center">Slip</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payslips.map((p: any) => {
-                    const key = `${p.year}-${p.month}`;
-                    const isExpanded = expandedPayslip === key;
-                    return [
-                      <tr key={key} onClick={() => setExpandedPayslip(isExpanded ? null : key)} className="cursor-pointer hover:bg-muted/20">
-                        <td className="font-semibold text-foreground/80">{MONTHS[(p.month - 1) % 12]} {p.year}</td>
-                        <td className="text-right">₹{fmt(Number(p.grossEarnings))}</td>
-                        <td className="text-right text-muted-foreground">₹{fmt(Number(p.pfEmployee))}</td>
-                        <td className="text-right text-muted-foreground">₹{fmt(Number(p.professionalTax))}</td>
-                        <td className="text-right text-red-600">₹{fmt(Number(p.tds))}</td>
-                        <td className="text-right font-semibold text-green-700">₹{fmt(Number(p.netPay))}</td>
-                        <td><span className="status-badge">{p.taxRegimeUsed === "new" ? "New" : "Old"}</span></td>
-                        <td className="text-center">
-                          {p.pdfUrl
-                            ? <a href={p.pdfUrl} className="text-primary text-[11px] underline" onClick={e => e.stopPropagation()}>PDF</a>
-                            : <span className="text-muted-foreground/40 text-[11px]">—</span>}
-                        </td>
-                      </tr>,
-                      isExpanded && (
-                        <tr key={`${key}-detail`} className="bg-muted/10">
-                          <td colSpan={8} className="p-4">
-                            <div className="grid grid-cols-2 gap-6 text-[12px]">
-                              <div>
-                                <p className="font-semibold text-[11px] text-muted-foreground uppercase mb-2">Earnings</p>
-                                {[
-                                  ["Basic", p.basic], ["HRA", p.hra], ["Special Allowance", p.specialAllowance],
-                                  ["LTA", p.lta], ["Medical Allowance", p.medicalAllowance],
-                                  ["Conveyance", p.conveyanceAllowance], ["Bonus", p.bonus],
-                                ].map(([label, val]) => (
-                                  <div key={String(label)} className="flex justify-between py-0.5 border-b border-border/40">
-                                    <span className="text-muted-foreground/70">{label}</span>
-                                    <span>₹{fmt(Number(val))}</span>
-                                  </div>
-                                ))}
-                                <div className="flex justify-between py-1 font-semibold">
-                                  <span>Gross Earnings</span>
-                                  <span>₹{fmt(Number(p.grossEarnings))}</span>
-                                </div>
-                              </div>
-                              <div>
-                                <p className="font-semibold text-[11px] text-muted-foreground uppercase mb-2">Deductions</p>
-                                {[
-                                  ["PF (Employee)", p.pfEmployee], ["PF (Employer)", p.pfEmployer],
-                                  ["Professional Tax", p.professionalTax], ["LWF", p.lwf], ["TDS", p.tds],
-                                ].map(([label, val]) => (
-                                  <div key={String(label)} className="flex justify-between py-0.5 border-b border-border/40">
-                                    <span className="text-muted-foreground/70">{label}</span>
-                                    <span className="text-red-600">₹{fmt(Number(val))}</span>
-                                  </div>
-                                ))}
-                                <div className="flex justify-between py-1 font-semibold text-green-700">
-                                  <span>Net Pay</span>
-                                  <span>₹{fmt(Number(p.netPay))}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ),
-                    ].filter(Boolean);
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* TAX & DECLARATIONS */}
-        {tab === "tax" && (
-          <div className="p-4">
-            {currentSlipQuery.isLoading ? (
-              <div className="animate-pulse space-y-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-8 bg-muted rounded" />
-                ))}
-              </div>
-            ) : !currentSlip ? (
-              <div className="p-8 text-center">
-                <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[12px] text-muted-foreground/50">Tax data not available</p>
-                <p className="text-[11px] text-muted-foreground/40 mt-1">
-                  {myEmployeeId
-                    ? "No salary structure assigned to this employee record"
-                    : "Employee record not found — contact HR to set up your profile"}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {/* Tax Summary Card */}
-                <div className="border border-border rounded overflow-hidden">
-                  <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase">FY 2025–26 Tax Summary</span>
-                    <span className={`status-badge text-[10px] ${currentSlip.taxSummary.regime === "new" ? "text-blue-700 bg-blue-100" : "text-purple-700 bg-purple-100"}`}>
-                      {currentSlip.taxSummary.regime === "new" ? "New Regime" : "Old Regime"}
-                    </span>
-                  </div>
-                  <div className="p-4 space-y-2">
-                    {[
-                      { label: "Projected Annual Gross",  value: `₹${fmt(currentSlip.taxSummary.projectedAnnualGross)}`, bold: false },
-                      { label: "Taxable Income",          value: `₹${fmt(currentSlip.taxSummary.taxableIncome)}`, bold: false },
-                      { label: "Total Tax Liability",     value: `₹${fmt(currentSlip.taxSummary.totalTaxLiability)}`, bold: true },
-                      { label: "Section 87A Rebate",      value: `₹${fmt(currentSlip.taxSummary.rebate87A)}`, bold: false },
-                      { label: "Surcharge",               value: `₹${fmt(currentSlip.taxSummary.surcharge)}`, bold: false },
-                      { label: "Health & Education Cess (4%)", value: `₹${fmt(currentSlip.taxSummary.cess)}`, bold: false },
-                      { label: "Effective Tax Rate",      value: `${(currentSlip.taxSummary.effectiveRate * 100).toFixed(2)}%`, bold: false },
-                      { label: "Monthly TDS",             value: `₹${fmt(currentSlip.taxSummary.monthlyTds)}`, bold: true },
-                    ].map(f => (
-                      <div key={f.label} className="flex justify-between text-[12px] py-0.5 border-b border-border/30 last:border-0">
-                        <span className="text-muted-foreground/70">{f.label}</span>
-                        <span className={f.bold ? "font-semibold text-foreground" : "text-foreground/80"}>{f.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Identity & Salary Breakdown */}
-                <div className="space-y-3">
-                  <div className="border border-border rounded overflow-hidden">
-                    <div className="px-3 py-2 bg-muted/30 border-b border-border">
-                      <span className="text-[11px] font-semibold text-muted-foreground uppercase">Salary Breakdown (Monthly)</span>
-                    </div>
-                    <div className="p-4 space-y-2">
-                      {[
-                        { label: "Basic",                value: currentSlip.slip.basic },
-                        { label: "HRA",                  value: currentSlip.slip.hra },
-                        { label: "Special Allowance",    value: currentSlip.slip.specialAllowance },
-                        { label: "LTA",                  value: currentSlip.slip.lta },
-                        { label: "Medical Allowance",    value: currentSlip.slip.medicalAllowance },
-                        { label: "Conveyance",           value: currentSlip.slip.conveyanceAllowance },
-                        { label: "Bonus",                value: currentSlip.slip.bonus },
-                      ].map(f => (
-                        <div key={f.label} className="flex justify-between text-[12px] py-0.5 border-b border-border/30 last:border-0">
-                          <span className="text-muted-foreground/70">{f.label}</span>
-                          <span className="text-foreground/80">₹{fmt(f.value)}</span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between text-[12px] font-semibold pt-1">
-                        <span>Gross Earnings</span>
-                        <span>₹{fmt(currentSlip.slip.grossEarnings)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-border rounded overflow-hidden">
-                    <div className="px-3 py-2 bg-muted/30 border-b border-border">
-                      <span className="text-[11px] font-semibold text-muted-foreground uppercase">Statutory Identity</span>
-                    </div>
-                    <div className="p-4 space-y-2">
-                      {[
-                        { label: "PAN",        value: currentSlip.employeeInfo.pan ?? "Not on file" },
-                        { label: "UAN (EPFO)", value: currentSlip.employeeInfo.uan ?? "Not on file" },
-                        { label: "Tax State",  value: currentSlip.employeeInfo.state ?? "Not set" },
-                      ].map(f => (
-                        <div key={f.label} className="flex justify-between text-[12px]">
-                          <span className="text-muted-foreground/70">{f.label}</span>
-                          <span className={`font-mono ${f.value === "Not on file" || f.value === "Not set" ? "text-orange-600" : "text-foreground/80"}`}>{f.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="border border-amber-200 bg-amber-50 rounded p-3">
-                    <p className="text-[11px] text-amber-800 flex items-start gap-2">
-                      <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                      Tax figures are based on the current salary structure. To declare 80C/80D investments or submit rent receipts for HRA, contact HR or submit via the Investment Declaration form.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === "leave" && (
-          <div className="p-4">
-            <div className="grid grid-cols-5 gap-2 mb-4">
-              {leaveBalanceQuery.isLoading ? (
-                <div className="col-span-5 py-3 text-center text-[11px] text-muted-foreground/50 animate-pulse">Loading leave balances…</div>
-              ) : leaveBalances.length === 0 ? (
-                <div className="col-span-5 py-4 text-center text-[11px] text-muted-foreground/50">No leave balance records yet — submit a leave request to initialize balances.</div>
-              ) : leaveBalances.map((b: any) => {
-                const total = Number(b.totalDays ?? 0);
-                const used = Number(b.usedDays ?? 0);
-                const pending = Number(b.pendingDays ?? 0);
-                const available = Math.max(0, total - used - pending);
-                return (
-                  <div key={b.id} className="bg-card border border-border rounded px-3 py-2">
-                    <div className="text-[14px] font-bold text-foreground">{available} <span className="text-[11px] font-normal text-muted-foreground">/ {total}</span></div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide capitalize">{(b.type ?? "").replace(/_/g, " ")} Days</div>
-                    {pending > 0 && <div className="text-[10px] text-yellow-600">{pending} pending</div>}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[12px] font-semibold text-foreground/80">Leave History</span>
-              <button
-                onClick={() => setShowLeaveForm((v) => !v)}
-                className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
-              >
-                <Plus className="w-3 h-3" /> {showLeaveForm ? "Cancel" : "Request Leave"}
-              </button>
-            </div>
-
-            {leaveMsg && (
-              <div className={`mb-2 px-3 py-2 rounded text-[11px] font-medium ${leaveMsg.startsWith("Error") ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
-                {leaveMsg}
-              </div>
-            )}
-
-            {showLeaveForm && (
-              <div className="mb-4 bg-muted/30 border border-border rounded p-3 flex flex-col gap-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">Leave Type</label>
-                    <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={leaveForm.type} onChange={(e) => setLeaveForm((f) => ({ ...f, type: e.target.value }))}>
-                      <option value="vacation">Annual / Earned Leave</option>
-                      <option value="sick">Sick Leave</option>
-                      <option value="parental">Parental Leave</option>
-                      <option value="bereavement">Bereavement Leave</option>
-                      <option value="unpaid">Leave Without Pay</option>
-                      <option value="other">Other / Casual</option>
-                    </select>
-                  </div>
-                  <div />
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">Start Date *</label>
-                    <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={leaveForm.startDate} onChange={(e) => setLeaveForm((f) => ({ ...f, startDate: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground">End Date *</label>
-                    <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={leaveForm.endDate} onChange={(e) => setLeaveForm((f) => ({ ...f, endDate: e.target.value }))} />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-[11px] text-muted-foreground">Reason</label>
-                    <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Reason for leave (optional)" value={leaveForm.reason} onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    disabled={!leaveForm.startDate || !leaveForm.endDate || createLeave.isPending}
-                    onClick={() => createLeave.mutate({ type: leaveForm.type as any, startDate: new Date(leaveForm.startDate), endDate: new Date(leaveForm.endDate), reason: leaveForm.reason || undefined })}
-                    className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {createLeave.isPending ? "Submitting…" : "Submit Request"}
-                  </button>
-                  <button onClick={() => setShowLeaveForm(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
-                </div>
-              </div>
-            )}
-
-            {leaveQuery.isLoading ? (
-              <div className="animate-pulse space-y-2 py-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex gap-3 px-4 py-2">
-                    <div className="h-4 bg-muted rounded w-24" />
-                    <div className="h-4 bg-muted rounded w-20" />
-                    <div className="h-4 bg-muted rounded w-20" />
-                    <div className="h-4 bg-muted rounded w-16" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <table className="ent-table w-full">
-                <thead><tr><th className="w-4" /><th>Type</th><th>From</th><th>To</th><th className="text-center">Days</th><th>Approver</th><th>Status</th><th>Notes</th></tr></thead>
-                <tbody>
-                  {LEAVE_HISTORY.map((lv: any) => (
-                    <tr key={lv.id}>
-                      <td className="p-0"><div className={`priority-bar ${lv.status === "approved" ? "bg-green-500" : lv.status === "pending" ? "bg-yellow-500" : "bg-red-500"}`} /></td>
-                      <td className="text-foreground/80">{lv.type}</td>
-                      <td className="font-mono text-[11px] text-muted-foreground">{lv.from}</td>
-                      <td className="font-mono text-[11px] text-muted-foreground">{lv.to}</td>
-                      <td className="text-center font-bold text-foreground">{lv.days}</td>
-                      <td className="text-muted-foreground">{lv.approver}</td>
-                      <td><span className={`status-badge capitalize ${lv.status === "approved" ? "text-green-700 bg-green-100" : lv.status === "pending" ? "text-yellow-700 bg-yellow-100" : "text-red-700 bg-red-100"}`}>{lv.status}</span></td>
-                      <td className="text-[11px] text-muted-foreground/70">{lv.notes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* BENEFITS */}
-        {tab === "benefits" && (
-          <div className="p-8 text-center">
-            <Heart className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-[12px] text-muted-foreground/50">No benefits data available</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-1">Connect a benefits management system to view your enrolled benefits</p>
-          </div>
-        )}
-
-        {/* PERFORMANCE */}
-        {tab === "performance" && (
-          <div className="p-8 text-center">
-            <TrendingUp className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-[12px] text-muted-foreground/50">No performance goals set yet</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-1">Goals will appear here once your manager sets up your review cycle</p>
-          </div>
-        )}
-
-        {/* PROFILE */}
-        {tab === "profile" && (
-          <div className="p-4 grid grid-cols-2 gap-4">
-            <div className="border border-border rounded overflow-hidden">
-              <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase">Personal Information</span>
-                <button onClick={() => router.push("/app/hr?tab=cases&new=true&type=policy")} className="text-[11px] text-primary hover:underline flex items-center gap-1"><Edit2 className="w-3 h-3" />Edit</button>
-              </div>
-              {employeeQuery.isLoading ? (
-                <div className="p-4 animate-pulse space-y-2">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="flex justify-between">
-                      <div className="h-3.5 bg-muted rounded w-28" />
-                      <div className="h-3.5 bg-muted rounded w-32" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-4 space-y-2">
-                  {[
-                    { label: "Full Name",        value: EMPLOYEE.name },
-                    { label: "Employee ID",      value: EMPLOYEE.id },
-                    { label: "Job Title",        value: EMPLOYEE.title },
-                    { label: "Department",       value: EMPLOYEE.department },
-                    { label: "Reporting Manager",value: EMPLOYEE.manager },
-                    { label: "Start Date",       value: EMPLOYEE.startDate },
-                    { label: "Work Location",    value: EMPLOYEE.location },
-                    { label: "Work Mode",        value: EMPLOYEE.workMode },
-                  ].map(f => (
-                    <div key={f.label} className="flex justify-between text-[12px]">
-                      <span className="text-muted-foreground/70">{f.label}</span>
-                      <span className="text-foreground/80 font-medium">{f.value}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="space-y-3">
-              <div className="border border-border rounded overflow-hidden">
-                <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase">Payroll & Banking</span>
-                  <button onClick={() => router.push("/app/hr?tab=cases&new=true&type=payroll")} className="text-[11px] text-primary hover:underline flex items-center gap-1"><Edit2 className="w-3 h-3" />Update</button>
-                </div>
-                <div className="p-4 space-y-2">
-                  {[
-                    { label: "Annual CTC",     value: currentSlip ? `₹${fmt(currentSlip.ctcAnnual)}` : "—" },
-                    { label: "Pay Frequency",  value: "Monthly" },
-                    { label: "Bank",           value: (liveEmployee as any)?.bankName ?? "—" },
-                    { label: "Account",        value: (liveEmployee as any)?.bankAccountNumber ? `••••${String((liveEmployee as any).bankAccountNumber).slice(-4)}` : "—" },
-                    { label: "PAN",            value: (liveEmployee as any)?.pan ?? "—" },
-                    { label: "UAN",            value: (liveEmployee as any)?.uan ?? "—" },
-                    { label: "Tax Regime",     value: currentSlip?.taxSummary.regime === "new" ? "New (Default)" : "Old (Declared)" },
-                    { label: "IFSC",           value: (liveEmployee as any)?.bankIfsc ?? "—" },
-                  ].map(f => (
-                    <div key={f.label} className="flex justify-between text-[12px]">
-                      <span className="text-muted-foreground/70">{f.label}</span>
-                      <span className="text-foreground/80 font-medium font-mono">{f.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="border border-border rounded p-3 bg-amber-50 border-amber-200">
-                <p className="text-[11px] text-amber-800 flex items-center gap-2">
-                  <Shield className="w-3.5 h-3.5" />
-                  To update sensitive payroll details (bank account, tax), contact HR directly. Verification required.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        ))}
       </div>
+
+      {/* Tab Content */}
+      {activeTab === "payslips" && (
+        <div className="space-y-2">
+          {payslipsList.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-12 text-center text-sm text-gray-500">
+              No payslips found for FY {selectedFY}
+            </div>
+          ) : (
+            payslipsList.map((ps) => (
+              <PayslipCard
+                key={ps.id}
+                payslip={ps}
+                onDownload={() => {
+                  // TODO: Call payslip PDF endpoint
+                  window.open(`/api/payroll/payslip-pdf/${ps.id}`, "_blank");
+                }}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === "tax" && (
+        <div className="space-y-4">
+          {taxPreview.isLoading ? (
+            <div className="text-sm text-gray-500">Loading tax computation...</div>
+          ) : taxPreview.data ? (
+            <>
+              {/* Regime comparison */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Old regime */}
+                <div className={`rounded-lg border p-5 ${
+                  taxPreview.data.recommendation === "OLD"
+                    ? "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/10"
+                    : "border-gray-200 dark:border-gray-700"
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Old regime</h3>
+                    {taxPreview.data.recommendation === "OLD" && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200">
+                        Saves ₹{fmt(taxPreview.data.savings)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Gross salary</span>
+                      <span className="font-mono">₹{fmt(taxPreview.data.oldRegime.grossSalary)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Standard deduction</span>
+                      <span className="font-mono text-green-600">-₹{fmt(taxPreview.data.oldRegime.standardDeduction)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">HRA exemption</span>
+                      <span className="font-mono text-green-600">-₹{fmt(taxPreview.data.oldRegime.hraExemption)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Chapter VI-A</span>
+                      <span className="font-mono text-green-600">-₹{fmt(taxPreview.data.oldRegime.chapter6ADeductions)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Sec 24(b)</span>
+                      <span className="font-mono text-green-600">-₹{fmt(taxPreview.data.oldRegime.section24bDeduction)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-600">
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Taxable income</span>
+                      <span className="font-mono font-medium">₹{fmt(taxPreview.data.oldRegime.taxableIncome)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Total tax</span>
+                      <span className="font-mono font-semibold text-red-600">₹{fmt(taxPreview.data.oldRegime.totalTaxLiability)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Monthly TDS</span>
+                      <span className="font-mono">₹{fmt(taxPreview.data.oldRegime.monthlyTDS)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* New regime */}
+                <div className={`rounded-lg border p-5 ${
+                  taxPreview.data.recommendation === "NEW"
+                    ? "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/10"
+                    : "border-gray-200 dark:border-gray-700"
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">New regime</h3>
+                    {taxPreview.data.recommendation === "NEW" && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200">
+                        Saves ₹{fmt(taxPreview.data.savings)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Gross salary</span>
+                      <span className="font-mono">₹{fmt(taxPreview.data.newRegime.grossSalary)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Standard deduction</span>
+                      <span className="font-mono text-green-600">-₹{fmt(taxPreview.data.newRegime.standardDeduction)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-400">
+                      <span>No Chapter VI-A in new regime</span>
+                      <span>—</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-600">
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Taxable income</span>
+                      <span className="font-mono font-medium">₹{fmt(taxPreview.data.newRegime.taxableIncome)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Total tax</span>
+                      <span className="font-mono font-semibold text-red-600">₹{fmt(taxPreview.data.newRegime.totalTaxLiability)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Monthly TDS</span>
+                      <span className="font-mono">₹{fmt(taxPreview.data.newRegime.monthlyTDS)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current selection */}
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm">
+                <span className="text-blue-700 dark:text-blue-300">
+                  Your selected regime: <span className="font-medium">{taxPreview.data.currentRegime}</span>
+                  {taxPreview.data.regimeLocked
+                    ? " (locked for this FY — irrevocable)"
+                    : " — you can still change this before your first payroll run"
+                  }
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-gray-500">
+              Submit your TDS declaration to see the tax comparison.
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "form16" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-6 text-center">
+            <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+              Form 16 — FY {selectedFY}
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Annual tax certificate (Part A from TRACES + Part B from employer)
+            </p>
+            {fySummary.monthsProcessed >= 12 ? (
+              <button
+                onClick={() => window.open(`/api/payroll/form16?fy=${selectedFY}`, "_blank")}
+                className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Download Form 16
+              </button>
+            ) : (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Form 16 will be available after the financial year ends ({12 - fySummary.monthsProcessed} months remaining)
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
