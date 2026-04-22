@@ -122,6 +122,9 @@ importers:
       meilisearch:
         specifier: ^0.44.0
         version: 0.44.1
+      mongodb:
+        specifier: ^6.12.0
+        version: 6.21.0
       nanoid:
         specifier: ^5.0.0
         version: 5.1.7
