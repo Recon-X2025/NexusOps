@@ -132,31 +132,51 @@ export const accountingRouter = router({
     /** Seed standard India COA (idempotent). */
     seed: permissionProcedure("financial", "write").mutation(async ({ ctx }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts } = await import("@nexusops/db");
-      // Build id map for parent resolution
-      const existing = await db.select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
-        .from(chartOfAccounts).where((await import("@nexusops/db")).eq(chartOfAccounts.orgId, org!.id));
-      const codeToId = new Map<string, string>(existing.map(r => [r.code, r.id]));
+      const { chartOfAccounts, eq: dbEq } = await import("@nexusops/db");
+      try {
+        // Build id map for parent resolution
+        const existing = await db
+          .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
+          .from(chartOfAccounts)
+          .where(dbEq(chartOfAccounts.orgId, org!.id));
+        const codeToId = new Map<string, string>(existing.map((r) => [r.code, r.id]));
 
-      let seeded = 0;
-      for (const acct of INDIA_COA_SEED) {
-        if (codeToId.has(acct.code)) continue;
-        const parentId = acct.parentCode ? (codeToId.get(acct.parentCode) ?? undefined) : undefined;
-        const [inserted] = await db.insert(chartOfAccounts).values({
-          orgId: org!.id,
-          code: acct.code,
-          name: acct.name,
-          type: acct.type as any,
-          subType: acct.subType as any,
-          parentId,
-          isSystem: acct.isSystem,
-          openingBalance: "0",
-          currentBalance: "0",
-        }).returning();
-        if (inserted) codeToId.set(acct.code, inserted.id);
-        seeded++;
+        let seeded = 0;
+        for (const acct of INDIA_COA_SEED) {
+          if (codeToId.has(acct.code)) continue;
+          const parentId = acct.parentCode ? (codeToId.get(acct.parentCode) ?? undefined) : undefined;
+          const [inserted] = await db
+            .insert(chartOfAccounts)
+            .values({
+              orgId: org!.id,
+              code: acct.code,
+              name: acct.name,
+              type: acct.type as any,
+              subType: acct.subType as any,
+              parentId,
+              isSystem: acct.isSystem,
+              openingBalance: "0",
+              currentBalance: "0",
+            })
+            .returning();
+          if (inserted) codeToId.set(acct.code, inserted.id);
+          seeded++;
+        }
+        return { seeded, total: INDIA_COA_SEED.length };
+      } catch (e: unknown) {
+        const err = e as { code?: string; cause?: { code?: string }; message?: string };
+        const code = err?.cause?.code ?? err?.code;
+        const msg = err?.message ?? String(e);
+        if (code === "42P01" || msg.includes("chart_of_accounts")) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Accounting tables are missing. From the repo root run: pnpm --filter @nexusops/db db:migrate " +
+              "(or `pnpm db:migrate`). Ensure DATABASE_URL points at your Postgres instance.",
+          });
+        }
+        throw e;
       }
-      return { seeded, total: INDIA_COA_SEED.length };
     }),
   }),
 
