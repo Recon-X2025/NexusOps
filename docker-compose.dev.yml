@@ -76,7 +76,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - DB=postgresql
+      # temporalio/auto-setup accepts postgres12 (not "postgresql")
+      - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=nexusops
       - POSTGRES_PWD=nexusops
