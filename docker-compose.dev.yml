@@ -7,8 +7,9 @@ services:
       POSTGRES_USER: nexusops
       POSTGRES_PASSWORD: nexusops
       POSTGRES_DB: nexusops
+    # Host 5434 avoids clashing with a local Postgres on 5432 (migrations would hit the wrong DB).
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

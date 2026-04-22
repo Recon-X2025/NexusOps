@@ -15,7 +15,7 @@
 const { execSync } = require("child_process");
 
 const BASE = (process.env.BASE_URL ?? "http://localhost:3001") + "/trpc";
-const DB_URL = process.env.DATABASE_URL ?? "postgresql://nexusops:nexusops@localhost:5432/nexusops";
+const DB_URL = process.env.DATABASE_URL ?? "postgresql://nexusops:nexusops@localhost:5434/nexusops";
 const EMAIL = process.env.LOAD_TEST_EMAIL ?? "admin@coheron.com";
 const PASSWORD = process.env.LOAD_TEST_PASSWORD ?? "demo1234!";
 

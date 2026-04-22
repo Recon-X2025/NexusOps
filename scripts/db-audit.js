@@ -17,7 +17,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const DB = process.env.DATABASE_URL ?? "postgresql://nexusops:nexusops@localhost:5432/nexusops";
+const DB = process.env.DATABASE_URL ?? "postgresql://nexusops:nexusops@localhost:5434/nexusops";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
