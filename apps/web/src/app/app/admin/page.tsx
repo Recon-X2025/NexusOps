@@ -617,21 +617,7 @@ export default function AdminConsolePage() {
           )}
 
           {/* BUSINESS RULES */}
-          {tab === "biz_rules" && (
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[12px] font-semibold text-foreground/80">Business Rules</span>
-                <button onClick={() => toast.info("Business rules engine coming in a future release. Business rules let you automatically trigger field updates, notifications and escalations when record conditions are met.", { duration: 6000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                  <Plus className="w-3 h-3" /> New Business Rule
-                </button>
-              </div>
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-                <Workflow className="w-8 h-8 opacity-30" />
-                <p className="text-[13px]">No business rules configured</p>
-                <p className="text-[11px] text-muted-foreground/60">Create automation rules to trigger actions on record changes.</p>
-              </div>
-            </div>
-          )}
+          {tab === "biz_rules" && <BusinessRulesTab />}
 
           {/* SYSTEM PROPERTIES */}
           {tab === "sys_props" && (
@@ -1159,6 +1145,293 @@ function AuditLogTab() {
             </div>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ── Business Rules Tab (ticket automation DSL v1) ────────────────────────────
+const BR_COND_PLACEHOLDER = `[
+  { "op": "field_changed", "field": "statusId" },
+  { "op": "status_category_is", "category": "resolved" }
+]`;
+
+const BR_ACT_PLACEHOLDER = `[
+  {
+    "type": "notify_assignee",
+    "title": "Resolved: {{ticket.number}}",
+    "body": "{{ticket.title}} — please verify and close if appropriate."
+  }
+]`;
+
+function BusinessRulesTab() {
+  const utils = trpc.useUtils();
+  const listQuery = trpc.admin.businessRules.list.useQuery();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState(100);
+  const [enabled, setEnabled] = useState(true);
+  const [evCreated, setEvCreated] = useState(false);
+  const [evUpdated, setEvUpdated] = useState(true);
+  const [conditionsJson, setConditionsJson] = useState(BR_COND_PLACEHOLDER);
+  const [actionsJson, setActionsJson] = useState(BR_ACT_PLACEHOLDER);
+
+  const createMutation = trpc.admin.businessRules.create.useMutation({
+    onSuccess: () => {
+      utils.admin.businessRules.list.invalidate();
+      closeForm();
+      toast.success("Business rule created");
+    },
+    onError: (e) => toast.error(e.message ?? "Create failed"),
+  });
+
+  const updateMutation = trpc.admin.businessRules.update.useMutation({
+    onSuccess: () => {
+      utils.admin.businessRules.list.invalidate();
+      closeForm();
+      toast.success("Business rule updated");
+    },
+    onError: (e) => toast.error(e.message ?? "Update failed"),
+  });
+
+  const deleteMutation = trpc.admin.businessRules.delete.useMutation({
+    onSuccess: () => {
+      utils.admin.businessRules.list.invalidate();
+      toast.success("Rule deleted");
+    },
+    onError: (e) => toast.error(e.message ?? "Delete failed"),
+  });
+
+  const toggleMutation = trpc.admin.businessRules.toggle.useMutation({
+    onSuccess: () => utils.admin.businessRules.list.invalidate(),
+    onError: (e) => toast.error(e.message ?? "Toggle failed"),
+  });
+
+  function resetFields() {
+    setEditId(null);
+    setName("");
+    setDescription("");
+    setPriority(100);
+    setEnabled(true);
+    setEvCreated(false);
+    setEvUpdated(true);
+    setConditionsJson(BR_COND_PLACEHOLDER);
+    setActionsJson(BR_ACT_PLACEHOLDER);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    resetFields();
+  }
+
+  function openCreate() {
+    resetFields();
+    setShowForm(true);
+  }
+
+  function openEdit(row: {
+    id: string;
+    name: string;
+    description: string | null;
+    priority: number;
+    enabled: boolean;
+    events: unknown;
+    conditions: unknown;
+    actions: unknown;
+  }) {
+    setEditId(row.id);
+    setName(row.name);
+    setDescription(row.description ?? "");
+    setPriority(row.priority);
+    setEnabled(row.enabled);
+    const ev = (row.events as string[]) ?? [];
+    setEvCreated(ev.includes("created"));
+    setEvUpdated(ev.includes("updated"));
+    setConditionsJson(JSON.stringify(row.conditions ?? [], null, 2));
+    setActionsJson(JSON.stringify(row.actions ?? [], null, 2));
+    setShowForm(true);
+  }
+
+  function submitForm() {
+    const events: ("created" | "updated")[] = [];
+    if (evCreated) events.push("created");
+    if (evUpdated) events.push("updated");
+    if (events.length === 0) {
+      toast.error("Select at least one event (Created and/or Updated).");
+      return;
+    }
+    let conditions: unknown[];
+    let actions: unknown[];
+    try {
+      conditions = JSON.parse(conditionsJson) as unknown[];
+      actions = JSON.parse(actionsJson) as unknown[];
+    } catch {
+      toast.error("Conditions and actions must be valid JSON arrays.");
+      return;
+    }
+
+    const payload = {
+      name: name.trim(),
+      description: description.trim() || null,
+      entityType: "ticket" as const,
+      events,
+      conditions,
+      actions,
+      priority,
+      enabled,
+    };
+
+    if (editId) {
+      updateMutation.mutate({ id: editId, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  }
+
+  const rows = listQuery.data ?? [];
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[12px] font-semibold text-foreground/80">Business Rules</span>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+        >
+          <Plus className="w-3 h-3" /> New Business Rule
+        </button>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground mb-3 max-w-3xl">
+        Rules run in <span className="font-medium">priority</span> order (lower first) when tickets are{" "}
+        <span className="font-medium">created</span> or <span className="font-medium">updated</span>. Conditions use a
+        small JSON DSL; actions can send in-app notifications using{" "}
+        <code className="text-[10px] bg-muted px-1 rounded">{"{{ticket.number}}"}</code> templates.
+      </p>
+
+      {showForm && (
+        <div className="mb-4 rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+          <div className="text-[11px] font-semibold text-foreground">{editId ? "Edit rule" : "New rule"}</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="text-[10px] text-muted-foreground">
+              Name
+              <input value={name} onChange={(e) => setName(e.target.value)} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]" placeholder="e.g. Notify assignee on resolve" />
+            </label>
+            <label className="text-[10px] text-muted-foreground">
+              Priority (lower runs first)
+              <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]" />
+            </label>
+          </div>
+          <label className="text-[10px] text-muted-foreground block">
+            Description
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]" />
+          </label>
+          <div className="flex flex-wrap gap-4 text-[11px]">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={evCreated} onChange={(e) => setEvCreated(e.target.checked)} />
+              On ticket created
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={evUpdated} onChange={(e) => setEvUpdated(e.target.checked)} />
+              On ticket updated
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+              Enabled
+            </label>
+          </div>
+          <label className="text-[10px] text-muted-foreground block">
+            Conditions (JSON array)
+            <textarea value={conditionsJson} onChange={(e) => setConditionsJson(e.target.value)} rows={5} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px]" spellCheck={false} />
+          </label>
+          <label className="text-[10px] text-muted-foreground block">
+            Actions (JSON array)
+            <textarea value={actionsJson} onChange={(e) => setActionsJson(e.target.value)} rows={6} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px]" spellCheck={false} />
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={submitForm}
+              disabled={createMutation.isPending || updateMutation.isPending}
+              className="px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {editId ? "Save changes" : "Create rule"}
+            </button>
+            <button type="button" onClick={closeForm} className="px-3 py-1.5 border border-border text-[11px] rounded hover:bg-muted/40">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {listQuery.isLoading ? (
+        <div className="space-y-2 animate-pulse py-8">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-10 bg-muted rounded" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2 border border-dashed border-border rounded-lg">
+          <Workflow className="w-8 h-8 opacity-30" />
+          <p className="text-[13px]">No business rules yet</p>
+          <p className="text-[11px] text-muted-foreground/70 text-center max-w-md">
+            Add a rule to notify assignees when tickets reach a status, or combine <code className="text-[10px]">field_changed</code> with{" "}
+            <code className="text-[10px]">status_category_is</code> for precise control.
+          </p>
+          <button type="button" onClick={openCreate} className="mt-2 text-[11px] text-primary hover:underline">
+            Create your first rule
+          </button>
+        </div>
+      ) : (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="ent-table w-full">
+            <thead>
+              <tr>
+                <th>Priority</th>
+                <th>Name</th>
+                <th>Events</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="font-mono text-[11px]">{r.priority}</td>
+                  <td className="font-medium text-[12px]">{r.name}</td>
+                  <td className="text-[11px] text-muted-foreground">{Array.isArray(r.events) ? r.events.join(", ") : "—"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => toggleMutation.mutate({ id: r.id, enabled: !r.enabled })}
+                      className={`text-[10px] px-2 py-0.5 rounded ${r.enabled ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}`}
+                    >
+                      {r.enabled ? "On" : "Off"}
+                    </button>
+                  </td>
+                  <td className="text-right space-x-2">
+                    <button type="button" onClick={() => openEdit(r)} className="text-[11px] text-primary hover:underline">
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Delete rule “${r.name}”?`)) deleteMutation.mutate({ id: r.id });
+                      }}
+                      className="text-[11px] text-red-600 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

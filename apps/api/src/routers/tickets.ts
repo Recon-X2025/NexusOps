@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { sendNotification } from "../services/notifications";
+import { runTicketBusinessRules } from "../services/business-rules-engine";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { getNextSeq } from "../lib/auto-number";
 import { resolveAssignment } from "../services/assignment";
@@ -716,6 +717,13 @@ export const ticketsRouter = router({
       }).catch(() => {});
     }
 
+    void runTicketBusinessRules(db, {
+      orgId: org!.id,
+      event: "created",
+      ticket: ticket as unknown as Record<string, unknown>,
+      changes: {},
+    });
+
     // Schedule durable SLA breach detection jobs
     if (slaResponseDueAt || slaResolveDueAt) {
       try {
@@ -820,6 +828,13 @@ export const ticketsRouter = router({
           ticketId: input.id,
           userId: user!.id,
           action: "updated",
+          changes: changes as Record<string, { from: unknown; to: unknown }>,
+        });
+        const merged = { ...existing, ...updated } as Record<string, unknown>;
+        void runTicketBusinessRules(db, {
+          orgId: org!.id,
+          event: "updated",
+          ticket: merged,
           changes: changes as Record<string, { from: unknown; to: unknown }>,
         });
       }

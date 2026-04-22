@@ -41,6 +41,8 @@ export * from "./secretarial";
 export * from "./accounting";
 // Phase 7 — Custom Fields Framework
 export * from "./custom-fields";
+// Business rules engine (admin automation)
+export * from "./business-rules";
 
 // Re-export drizzle operators used in routers.
 // Single authoritative source — do NOT also export from packages/db/src/index.ts.

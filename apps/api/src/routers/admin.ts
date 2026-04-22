@@ -1,6 +1,8 @@
 import { router, adminProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { auditLogs, users, eq, and, desc, gte, lte, count } from "@nexusops/db";
+import { TRPCError } from "@trpc/server";
+import { auditLogs, users, businessRules, eq, and, desc, asc, gte, lte, count } from "@nexusops/db";
+import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 
 export const adminRouter = router({
   auditLog: router({
@@ -167,6 +169,78 @@ export const adminRouter = router({
           ...input,
           createdAt: new Date(),
         };
+      }),
+  }),
+
+  businessRules: router({
+    list: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(businessRules)
+        .where(eq(businessRules.orgId, org!.id))
+        .orderBy(asc(businessRules.priority), desc(businessRules.updatedAt));
+    }),
+
+    create: adminProcedure.input(BusinessRuleCreateSchema).mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [row] = await db
+        .insert(businessRules)
+        .values({
+          orgId: org!.id,
+          createdBy: user!.id,
+          name: input.name,
+          description: input.description ?? null,
+          entityType: input.entityType,
+          events: input.events,
+          conditions: input.conditions as unknown[],
+          actions: input.actions as unknown[],
+          priority: input.priority,
+          enabled: input.enabled,
+        })
+        .returning();
+      return row;
+    }),
+
+    update: adminProcedure
+      .input(z.object({ id: z.string().uuid() }).merge(BusinessRuleCreateSchema.partial()))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...patch } = input;
+        const keys = Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== undefined);
+        if (keys.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No fields to update" });
+        }
+        const [row] = await db
+          .update(businessRules)
+          .set({ ...patch, updatedAt: new Date() } as typeof businessRules.$inferInsert)
+          .where(and(eq(businessRules.id, id), eq(businessRules.orgId, org!.id)))
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        return row;
+      }),
+
+    delete: adminProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .delete(businessRules)
+        .where(and(eq(businessRules.id, input.id), eq(businessRules.orgId, org!.id)))
+        .returning({ id: businessRules.id });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+      return { ok: true };
+    }),
+
+    toggle: adminProcedure
+      .input(z.object({ id: z.string().uuid(), enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .update(businessRules)
+          .set({ enabled: input.enabled, updatedAt: new Date() })
+          .where(and(eq(businessRules.id, input.id), eq(businessRules.orgId, org!.id)))
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        return row;
       }),
   }),
 
