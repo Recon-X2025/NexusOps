@@ -102,12 +102,13 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const realUser = meData
-    ? dbUserToSystemUser(
-        meData.user as { id: string; name: string; email: string; role: string; matrixRole?: string | null; orgId: string; status: string; lastLoginAt?: Date | string | null },
-        meData.org as { name?: string | null } | null,
-      )
-    : null;
+  const realUser =
+    meData?.user != null
+      ? dbUserToSystemUser(
+          meData.user as { id: string; name: string; email: string; role: string; matrixRole?: string | null; orgId: string; status: string; lastLoginAt?: Date | string | null },
+          meData.org as { name?: string | null } | null,
+        )
+      : null;
 
   // SECURITY: Never fall back to a mock user for real sessions.
   // Use the deny-all LOADING_USER while auth.me resolves to prevent

@@ -93,6 +93,12 @@ function parseData(body: string): unknown {
   try { return JSON.parse(body)?.result?.data; } catch { return null; }
 }
 
+/** auth.me returns 200 + null when unauthenticated; only a payload with user counts as an authenticated session. */
+function isAuthMeAuthenticated(body: string): boolean {
+  const d = parseData(body) as { user?: unknown } | null;
+  return d != null && typeof d === "object" && d.user != null;
+}
+
 // ─── Auth state ───────────────────────────────────────────────────────────────
 let ADMIN_SESSION  = "";
 let VICTIM_SESSION = "";
@@ -225,7 +231,7 @@ async function phase3_auth_bypass(): Promise<void> {
   let tamperBypasses = 0;
   for (const tok of badTokens) {
     const r = await qry("auth.me", {}, tok);
-    if (r.status === 200) {
+    if (r.status === 200 && isAuthMeAuthenticated(r.body)) {
       tamperBypasses++;
       find({ severity:"CRITICAL", category:"AUTH",
         title:"Authentication bypass with tampered token",
@@ -931,7 +937,7 @@ async function phase10_escalation(): Promise<void> {
     emit(`  Logout: HTTP ${loR.status}`);
     const replayR = await qry("auth.me", {}, tmpSess);
     emit(`  Post-logout me: HTTP ${replayR.status}`);
-    if (replayR.status === 200) {
+    if (replayR.status === 200 && isAuthMeAuthenticated(replayR.body)) {
       find({ severity:"CRITICAL", category:"AUTH",
         title:"Session replay: token accepted after logout",
         endpoint:"/trpc/auth.me", payload:"Bearer from logged-out session",
