@@ -18,6 +18,7 @@ import {
   applications,
 } from "./schema";
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 
 const DEMO_ORG_SLUG = "coheron-demo";
 const NOW = new Date();
@@ -189,16 +190,14 @@ async function seed() {
     { orgId: orgId, name: "Server", icon: "server", fieldsSchema: [] },
     { orgId: orgId, name: "Network", icon: "wifi", fieldsSchema: [] },
   ]).onConflictDoNothing();
-  const assetTypeData = await db.select().from(assetTypes).where(
-    (await import("drizzle-orm")).eq(assetTypes.orgId, orgId)
-  );
+  const assetTypeData = await db.select().from(assetTypes).where(eq(assetTypes.orgId, orgId));
 
   await db.insert(assets).values([
-    { orgId: orgId, assetTag: "AST-0001", name: "MacBook Pro 16 - Alex Chen", assetTypeId: assetTypeData[0]!.id, status: "deployed", ownerId: admin.id, purchaseCost: "2499.00" },
-    { orgId: orgId, assetTag: "AST-0002", name: "MacBook Pro 14 - Jordan Smith", assetTypeId: assetTypeData[0]!.id, status: "deployed", ownerId: agent1.id, purchaseCost: "1999.00" },
-    { orgId: orgId, assetTag: "AST-0003", name: "Dell PowerEdge R750 - prod-db-01", assetTypeId: assetTypeData[1]!.id, status: "deployed", purchaseCost: "12500.00" },
-    { orgId: orgId, assetTag: "AST-0004", name: "Cisco Catalyst 9300 - core-sw-01", assetTypeId: assetTypeData[2]!.id, status: "deployed", purchaseCost: "8000.00" },
-    { orgId: orgId, assetTag: "AST-0005", name: "Lenovo ThinkPad X1 - Casey Brown", assetTypeId: assetTypeData[0]!.id, status: "deployed", purchaseCost: "1599.00" },
+    { orgId: orgId, assetTag: "AST-0001", name: "MacBook Pro 16 - Alex Chen", typeId: assetTypeData[0]!.id, status: "deployed", ownerId: admin.id, purchaseCost: "2499.00" },
+    { orgId: orgId, assetTag: "AST-0002", name: "MacBook Pro 14 - Jordan Smith", typeId: assetTypeData[0]!.id, status: "deployed", ownerId: agent1.id, purchaseCost: "1999.00" },
+    { orgId: orgId, assetTag: "AST-0003", name: "Dell PowerEdge R750 - prod-db-01", typeId: assetTypeData[1]!.id, status: "deployed", purchaseCost: "12500.00" },
+    { orgId: orgId, assetTag: "AST-0004", name: "Cisco Catalyst 9300 - core-sw-01", typeId: assetTypeData[2]!.id, status: "deployed", purchaseCost: "8000.00" },
+    { orgId: orgId, assetTag: "AST-0005", name: "Lenovo ThinkPad X1 - Casey Brown", typeId: assetTypeData[0]!.id, status: "deployed", purchaseCost: "1599.00" },
   ]);
   console.log(`✅ Assets created: 5`);
 
