@@ -94,4 +94,18 @@ describe("tRPC web ↔ API procedure parity", () => {
       `Web calls undefined tRPC procedures (add to API or fix web):\n${missing.join("\n")}`,
     ).toEqual([]);
   });
+
+  it("apps/web must not use (trpc as any) — use typed trpc and trpc.useUtils() for invalidation", () => {
+    const webSrc = join(__dirname, "../../../web/src");
+    const files = collectSourceFiles(webSrc);
+    const offenders: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      if (text.includes("(trpc as any)")) offenders.push(file);
+    }
+    expect(
+      offenders,
+      `Remove (trpc as any) and use the AppRouter-typed client (parity + refactors):\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
 });

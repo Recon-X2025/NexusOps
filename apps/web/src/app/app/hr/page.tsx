@@ -107,27 +107,27 @@ export default function HRPage() {
   });
 
   // Leave management
-  const { data: leaveData, refetch: refetchLeave } = (trpc as any).hr.leave.list.useQuery({}, { refetchOnWindowFocus: false });
+  const { data: leaveData, refetch: refetchLeave } = trpc.hr.leave.list.useQuery({}, { refetchOnWindowFocus: false });
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ type: "annual", startDate: "", endDate: "", reason: "" });
-  const createLeave = (trpc as any).hr.leave.create.useMutation({
+  const createLeave = trpc.hr.leave.create.useMutation({
     onSuccess: () => { toast.success("Leave request submitted"); setShowLeaveForm(false); setLeaveForm({ type: "annual", startDate: "", endDate: "", reason: "" }); refetchLeave(); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to submit leave request"),
   });
-  const approveLeave = (trpc as any).hr.leave.approve.useMutation({
+  const approveLeave = trpc.hr.leave.approve.useMutation({
     onSuccess: () => { toast.success("Leave approved"); refetchLeave(); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to approve"),
   });
-  const rejectLeave = (trpc as any).hr.leave.reject.useMutation({
+  const rejectLeave = trpc.hr.leave.reject.useMutation({
     onSuccess: () => { toast.success("Leave rejected"); refetchLeave(); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to reject"),
   });
 
   // India payroll compliance — TDS challans + EPFO ECR
-  const tdsChallansQuery = (trpc as any).indiaCompliance.tdsChallans.list.useQuery({}, { refetchOnWindowFocus: false });
-  const epfoEcrQuery     = (trpc as any).indiaCompliance.epfoEcr.list.useQuery({}, { refetchOnWindowFocus: false });
-  const markTdsPaid      = (trpc as any).indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
-  const markEcrSubmitted = (trpc as any).indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, { refetchOnWindowFocus: false });
+  const epfoEcrQuery     = trpc.indiaCompliance.epfoEcr.list.useQuery({}, { refetchOnWindowFocus: false });
+  const markTdsPaid      = trpc.indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const markEcrSubmitted = trpc.indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const createHRCase = trpc.hr.cases.create.useMutation({
     onSuccess: () => {
       toast.success("HR Case created successfully");

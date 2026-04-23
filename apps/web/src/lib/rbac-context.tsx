@@ -96,14 +96,14 @@ function dbUserToSystemUser(
 export function RBACProvider({ children }: { children: React.ReactNode }) {
   const [overrideUser, setOverrideUser] = useState<SystemUser | null>(null);
 
-  const { data: meData, isLoading: isLoadingAuth } = trpc.auth.me.useQuery(undefined, {
+  const { data: meData, isLoading: isLoadingAuth, isError: isMeError } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
 
   const realUser =
-    meData?.user != null
+    !isMeError && meData?.user != null
       ? dbUserToSystemUser(
           meData.user as { id: string; name: string; email: string; role: string; matrixRole?: string | null; orgId: string; status: string; lastLoginAt?: Date | string | null },
           meData.org as { name?: string | null } | null,

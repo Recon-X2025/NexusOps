@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { TRPCProvider } from "@/components/providers/trpc-provider";
+import { StaleSessionCleanup } from "@/components/providers/stale-session-cleanup";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <TRPCProvider>
+            <StaleSessionCleanup />
             {children}
             <Toaster
               position="bottom-right"

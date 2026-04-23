@@ -62,11 +62,8 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    # No container healthcheck: official MinIO images are often minimal (no curl/wget/mc).
+    # Clients should retry S3 operations; optional: add a tiny curl sidecar for compose `--wait`.
 
   temporal:
     image: temporalio/auto-setup:latest

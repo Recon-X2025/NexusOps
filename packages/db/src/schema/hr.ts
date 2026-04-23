@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import { expenseCategoryEnum, expenseStatusEnum } from "./expenses";
 import { ticketStatuses } from "./tickets";
@@ -263,6 +263,20 @@ export const leaveBalances = pgTable(
 );
 
 // ── Payroll Runs ───────────────────────────────────────────────────────────
+
+export type PayrollWorkflowMeta = {
+  errors: Array<{ employeeId?: string; message: string }>;
+  /** Set when period is locked / aggregates computed from `payroll-cycle`. */
+  payrollEmployeeCount?: number;
+  approvals: Array<{
+    id: string;
+    step: string;
+    status: string;
+    decidedAt?: string;
+    comments?: string | null;
+  }>;
+};
+
 export const payrollRuns = pgTable(
   "payroll_runs",
   {
@@ -273,6 +287,13 @@ export const payrollRuns = pgTable(
     month: integer("month").notNull(),
     year: integer("year").notNull(),
     status: payrollRunStatusEnum("status").notNull().default("draft"),
+    /** 12-step UI lifecycle (DRAFT, PERIOD_LOCKED, …, COMPLETED). */
+    pipelineStatus: text("pipeline_status").notNull().default("DRAFT"),
+    runNumber: integer("run_number").notNull().default(1),
+    workflowMetadata: jsonb("workflow_metadata")
+      .$type<PayrollWorkflowMeta>()
+      .notNull()
+      .default(sql`'{"errors":[],"approvals":[]}'::jsonb`),
     totalGross: decimal("total_gross", { precision: 14, scale: 2 }).notNull().default("0"),
     totalDeductions: decimal("total_deductions", { precision: 14, scale: 2 }).notNull().default("0"),
     totalNet: decimal("total_net", { precision: 14, scale: 2 }).notNull().default("0"),

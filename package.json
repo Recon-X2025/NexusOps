@@ -31,7 +31,8 @@
     "stress:100": "SESSIONS=100 node scripts/stress-test-500.js",
     "stress:5000": "node scripts/stress-test-5000.js",
     "stress:5000:fast": "MAX_CONCURRENT=1000 node scripts/stress-test-5000.js",
-    "check:trpc-parity": "pnpm --filter @nexusops/api exec vitest run src/__tests__/trpc-web-parity.test.ts",
+    "check:trpc-parity": "VITEST_SKIP_GLOBAL_MIGRATE=1 pnpm --filter @nexusops/api exec vitest run src/__tests__/trpc-web-parity.test.ts",
+    "test:local-ready": "bash scripts/local-test-ready.sh",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "db:push": "turbo run db:push --filter=./packages/db",
@@ -42,7 +43,8 @@
     "docker:down": "docker compose -f docker-compose.dev.yml down",
     "docker:logs": "docker compose -f docker-compose.dev.yml logs -f",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
-    "docker:test:down": "docker compose -f docker-compose.test.yml down"
+    "docker:test:down": "docker compose -f docker-compose.test.yml down",
+    "docker:test:reset": "docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d --wait"
   },
   "devDependencies": {
     "@nexusops/db": "workspace:*",

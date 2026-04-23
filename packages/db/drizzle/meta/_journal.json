@@ -50,6 +50,20 @@
       "when": 1775491200000,
       "tag": "0008_business_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775577600000,
+      "tag": "0009_payroll_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775664000000,
+      "tag": "0010_invoice_flow",
+      "breakpoints": true
     }
   ]
 }

@@ -319,7 +319,6 @@ export default function EmployeePayslipsPage() {
                 key={ps.id}
                 payslip={ps}
                 onDownload={() => {
-                  // TODO: Call payslip PDF endpoint
                   window.open(`/api/payroll/payslip-pdf/${ps.id}`, "_blank");
                 }}
               />

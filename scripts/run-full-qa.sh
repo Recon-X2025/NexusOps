@@ -5,22 +5,22 @@ echo "=========================================="
 echo "NexusOps Full QA Suite — 10 Layer Execution"
 echo "=========================================="
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
 # Step 1: Start test infrastructure
 echo "🐳 Starting test infrastructure..."
 docker compose -f docker-compose.test.yml up -d --wait
 echo "✅ Postgres, Redis, Meilisearch running"
 
-# Step 2: Load test env
-export $(cat .env.test | grep -v '^#' | xargs)
-
-# Step 3: Apply schema
-echo "📋 Applying database schema..."
-pnpm --filter @nexusops/db db:push
-echo "✅ Schema applied"
+# Step 2–3: Apply versioned migrations (source of truth; avoids db:push / strict-mode quirks)
+echo "📋 Applying database migrations..."
+pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate
+echo "✅ Migrations applied"
 
 # Step 4: Seed data (for E2E)
 echo "🌱 Seeding demo data..."
-pnpm --filter @nexusops/db db:seed || echo "⚠️  db:seed not found — skipping"
+pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:seed || echo "⚠️  db:seed failed — continuing"
 echo "✅ Seed step complete"
 
 # Step 5: Run Layer 1-9 (API tests)
@@ -34,7 +34,7 @@ FAILED=false
 
 for i in $(seq 1 9); do
   echo "--- Layer $i ---"
-  pnpm --filter @nexusops/api exec vitest run --reporter=verbose "src/__tests__/layer${i}*" || {
+  pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/api exec vitest run --reporter=verbose "src/__tests__/layer${i}*" || {
     echo "❌ Layer $i FAILED"
     FAILED=true
   }
@@ -42,7 +42,7 @@ for i in $(seq 1 9); do
 done
 
 echo "--- tRPC web ↔ API procedure parity (not in layer glob) ---"
-pnpm --filter @nexusops/api exec vitest run --reporter=verbose src/__tests__/trpc-web-parity.test.ts || {
+pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/api exec vitest run --reporter=verbose src/__tests__/trpc-web-parity.test.ts || {
   echo "❌ tRPC web/API parity FAILED"
   FAILED=true
 }
@@ -54,7 +54,7 @@ echo "Running E2E Tests (Layer 10)"
 echo "=========================================="
 echo ""
 
-pnpm exec playwright test --reporter=list || {
+pnpm exec dotenv -e .env.test -- pnpm exec playwright test --reporter=list || {
   echo "❌ Layer 10 (E2E) FAILED"
   FAILED=true
 }

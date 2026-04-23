@@ -36,6 +36,7 @@ const INV_STATUS: Record<string, string> = {
 export default function FinancialPage() {
   const { can } = useRBAC();
   const router = useRouter();
+  const utils = trpc.useUtils();
   const visibleTabs = FIN_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "budget");
 
@@ -49,7 +50,7 @@ export default function FinancialPage() {
     { refetchOnWindowFocus: false },
   );
   const { data: invoicesData, isLoading: invoicesLoading } = trpc.financial.listInvoices.useQuery(
-    { limit: 50 },
+    { limit: 50, direction: "payable" },
     { refetchOnWindowFocus: false },
   );
 
@@ -59,8 +60,14 @@ export default function FinancialPage() {
   );
   const { data: apAgingData } = trpc.financial.apAging.useQuery(undefined, { refetchOnWindowFocus: false });
 
-  const approveInvoiceMutation = trpc.financial.approveInvoice.useMutation({ onSuccess: () => (trpc as any).financial?.listInvoices?.invalidate?.(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
-  const markPaidMutation       = trpc.financial.markPaid.useMutation({ onSuccess: () => (trpc as any).financial?.listInvoices?.invalidate?.(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const approveInvoiceMutation = trpc.financial.approveInvoice.useMutation({
+    onSuccess: () => void utils.financial.listInvoices.invalidate(),
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+  const markPaidMutation = trpc.financial.markPaid.useMutation({
+    onSuccess: () => void utils.financial.listInvoices.invalidate(),
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
 
   const [showNewBudget, setShowNewBudget] = useState(false);
   const [budgetForm, setBudgetForm] = useState({ category: "", department: "", budgeted: "" });
@@ -76,25 +83,25 @@ export default function FinancialPage() {
       toast.success("Invoice created");
       setShowNewInvoice(false);
       setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
-      void (trpc as any).financial?.listInvoices?.invalidate?.();
+      void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
   });
   const { data: vendorListData } = trpc.vendors.list.useQuery({ limit: 100 }, { refetchOnWindowFocus: false });
 
   const { data: arInvoicesData } = trpc.financial.listInvoices.useQuery(
-    { limit: 50, direction: "receivable" } as any,
+    { limit: 50, direction: "receivable" },
     { refetchOnWindowFocus: false },
   );
 
   // India compliance — GST filing calendar (live)
   const currentMonth = new Date().getMonth() + 1;
   const currentYear  = new Date().getFullYear();
-  const gstCalendarQuery = (trpc as any).financial.gstFilingCalendar.useQuery(
+  const gstCalendarQuery = trpc.financial.gstFilingCalendar.useQuery(
     { month: currentMonth, year: currentYear },
     { refetchOnWindowFocus: false },
   );
-  const tdsChallansQuery = (trpc as any).indiaCompliance.tdsChallans.list.useQuery(
+  const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery(
     {},
     { refetchOnWindowFocus: false },
   );

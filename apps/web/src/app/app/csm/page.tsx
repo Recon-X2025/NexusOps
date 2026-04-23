@@ -39,17 +39,14 @@ export default function CSMPage() {
   const visibleTabs = CSM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "cases");
 
-  // @ts-ignore — csm router is being created in a parallel task
   const casesQuery = trpc.csm.cases.list.useQuery({ limit: 50 });
 
-  // @ts-ignore — csm router is being created in a parallel task
   const accountsQuery = trpc.csm.accounts.list.useQuery({});
 
   const [showNewCase, setShowNewCase] = useState(false);
   const [caseForm, setCaseForm] = useState({ title: "", description: "", priority: "medium" });
   const [caseMsg, setCaseMsg] = useState<string | null>(null);
 
-  // @ts-ignore
   const createCase = trpc.csm.cases.create.useMutation({
     onSuccess: () => {
       setCaseMsg("Case created successfully");
@@ -65,13 +62,13 @@ export default function CSMPage() {
   });
 
   // Portal users — customer contacts via India compliance router
-  const portalUsersQuery = (trpc as any).indiaCompliance.portalUsers.list.useQuery({});
+  const portalUsersQuery = trpc.indiaCompliance.portalUsers.list.useQuery({});
   const [suspendReason, setSuspendReason] = useState<Record<string, string>>({});
-  const suspendPortalUser = (trpc as any).indiaCompliance.portalUsers.suspend.useMutation({
+  const suspendPortalUser = trpc.indiaCompliance.portalUsers.suspend.useMutation({
     onSuccess: () => portalUsersQuery.refetch(),
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
-  const unlockPortalUser = (trpc as any).indiaCompliance.portalUsers.unlock.useMutation({
+  const unlockPortalUser = trpc.indiaCompliance.portalUsers.unlock.useMutation({
     onSuccess: () => portalUsersQuery.refetch(),
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });

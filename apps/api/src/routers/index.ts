@@ -40,10 +40,10 @@ import { inventoryRouter } from "./inventory";
 import { assignmentRulesRouter } from "./assignment-rules";
 import { integrationsRouter } from "./integrations";
 import { macRouter } from "./mac";
-import { expensesRouter } from "./expenses";
 import { performanceRouter } from "./performance";
 import { customFieldsRouter } from "./custom-fields";
 import { accountingRouter } from "./accounting";
+import { payrollRouter } from "./payroll";
 
 export const appRouter = router({
   mac: macRouter,
@@ -92,12 +92,12 @@ export const appRouter = router({
   workforce: workforceRouter,
   integrations: integrationsRouter,
   // Phase 4 Modules
-  expenses: expensesRouter,
   performance: performanceRouter,
   // Phase 3 — Accounting Foundation
   accounting: accountingRouter,
   // Phase 7 — Custom Fields
   customFields: customFieldsRouter,
+  payroll: payrollRouter,
 });
 
 export type AppRouter = typeof appRouter;

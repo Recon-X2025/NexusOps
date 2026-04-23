@@ -58,6 +58,18 @@ nexusops/
 | Self-Hosted Deploy | ✅ | Docker Compose + Helm + CLI |
 | Coheron-Managed | ✅ | Terraform IaC for AWS/GCP/Azure |
 
+## API surfaces (for developers)
+
+| Topic | Detail |
+|--------|--------|
+| **Employee expense claims** | The web **Expenses** app uses **`hr.expenses.*`** (`expense_claims`). A separate **`expensesRouter`** in `apps/api/src/routers/expenses.ts` targets **`expense_reports`** / line items for finance-style reporting; it is **not** mounted on `appRouter` until a consumer is wired — avoids two top-level `expenses` trees. |
+| **India compliance + CSM** | Portal users and TDS/ECR live under **`indiaCompliance.*`**. Use the typed `trpc` client; CI includes parity checks and a test that forbids `(trpc as any)` in `apps/web`. |
+| **`mac` router** | Mounted for **managed endpoint / automation** flows (not the main Next.js sidebar). |
+| **`customFields` router** | Phase 7 **definitions + values** API; CMDB/tickets send `customFields` payloads without a dedicated admin UI path yet. |
+| **Payslip PDF** | Browser: `/api/payroll/payslip-pdf/<payslipId>` (Next proxy) → API `GET /payroll/payslip-pdf/<id>`. Only the payslip’s employee may download. |
+| **Payroll run pipeline** | `payroll.runs.lockPeriod` (draft → period locked + run totals), `advanceComputationStep` (gross → TDS), `computePayslips` (persist `payslips` rows), then HR / Finance / CFO approvals. |
+| **AP / AR invoices** | `invoices.invoice_flow` is `payable` or `receivable`. `financial.listInvoices` filters by optional `direction`. AP UI uses `direction: "payable"`; receivable rows appear when created (customer AR UIs TBD). |
+
 ## Quick Start (Development)
 
 ### Prerequisites
@@ -71,19 +83,42 @@ git clone https://github.com/coheron/nexusops
 cd nexusops
 pnpm install
 
-# Start infrastructure
+# Start infrastructure (Postgres on host port 5434, Redis, Meilisearch, MinIO, Temporal, MailHog)
 make docker-up
+# Wait until Postgres is healthy (first run may take a minute)
 
-# Copy env and configure
+# Environment
 cp .env.example .env
+# Set strong secrets (required for auth sessions and field encryption):
+#   AUTH_SECRET=$(openssl rand -hex 32)
+#   ENCRYPTION_KEY=$(openssl rand -hex 32)
+# Defaults in .env.example already point at localhost:5434 and local services.
 
-# Push schema and seed
-make db-push
-make db-seed
+# Database — apply versioned SQL migrations (recommended after clone or pull)
+pnpm db:migrate
+# Optional: load demo orgs, users, tickets, etc.
+pnpm db:seed
+# For rapid schema experiments only (can diverge from migrations): make db-push
 
-# Start development servers
+# Optional: confirm every tRPC path used by the web app exists on the API
+pnpm check:trpc-parity
+
+# Start API + web (+ other dev tasks via Turbo)
 make dev
 ```
+
+### Local QA / automated tests (Docker)
+
+Isolated stack: **`docker-compose.test.yml`** (Postgres **5433**, Redis **6380**, Meilisearch **7701**) plus **`.env.test`** — does not touch dev data on **5434**.
+
+| Goal | Command |
+|------|---------|
+| **One-shot readiness** (compose `--wait` + migrations + smoke tests) | `pnpm test:local-ready` or `make local-test-ready` |
+| **Start / stop test stack** | `pnpm docker:test:up` · `pnpm docker:test:down` · clean volumes: `pnpm docker:test:reset` |
+| **API layer tests** | `pnpm test:layer1` … `pnpm test:layer9` |
+| **Full 10-layer QA** (API + Playwright) | `pnpm test:full-qa` |
+
+**Vitest** applies **`pnpm db:migrate`** once before workers (`apps/api/src/__tests__/global-setup.ts`) whenever **`.env.test`** defines `DATABASE_URL`, so schema-based tests see migrated tables. **`pnpm check:trpc-parity`** skips that migrate step (no DB required).
 
 Open:
 - **Web app**: http://localhost:3000
@@ -93,7 +128,19 @@ Open:
 - **MailHog**: http://localhost:8025
 - **MinIO Console**: http://localhost:9001
 
-Default credentials: `admin@coheron.com` / see seed script
+Default credentials (after `pnpm db:seed`): **`admin@coheron.com`** / **`demo1234!`**
+
+### Troubleshooting (local)
+
+| Symptom | What to check |
+|--------|----------------|
+| `ECONNREFUSED` on Postgres | `docker compose -f docker-compose.dev.yml ps` — Postgres should be **healthy** on `localhost:5434`. |
+| API exits on startup | `DATABASE_URL` must match Docker (`postgresql://nexusops:nexusops@localhost:5434/nexusops`). |
+| Login fails after fresh `.env` | Regenerate `AUTH_SECRET` and restart API; existing cookies were signed with the old secret. |
+| `No procedure found on path …` | Run `pnpm check:trpc-parity` and align web calls with `apps/api/src/routers`. |
+| Layer tests fail on missing tables | Run `pnpm docker:test:up` then `pnpm test:local-ready` or `pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate`. |
+| Temporal / BullMQ warnings | Optional for basic UI; ensure `TEMPORAL_ADDRESS` and `REDIS_URL` match compose if you use workflows. See **`docs/TEMPORAL_LOCAL_RUNBOOK.md`**. |
+| Security / SoD reviews | **`docs/SECURITY_SENSITIVE_MUTATIONS.md`** — API write procedure inventory. |
 
 ## Self-Hosted Production Deployment
 

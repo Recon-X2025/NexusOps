@@ -72,6 +72,7 @@ import {
   sql,
 } from "@nexusops/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
+import { assertTicketTransition } from "../lib/ticket-lifecycle";
 import {
   CreateTicketSchema,
   UpdateTicketSchema,
@@ -96,28 +97,6 @@ function autoIdempotencyKey(orgId: string, userId: string, title: string): strin
     .update(`${orgId}:${userId}:${title.toLowerCase().trim().slice(0, 200)}:${window5s}`)
     .digest("hex")
     .slice(0, 32);
-}
-
-/**
- * Valid incident/ticket status lifecycle transitions.
- * Spec §6: incidents: open → in_progress → resolved → closed
- */
-const TICKET_LIFECYCLE: Record<string, string[]> = {
-  open:        ["in_progress", "resolved", "closed"],
-  in_progress: ["resolved", "open", "closed"],
-  resolved:    ["closed", "open"],
-  closed:      ["open"],
-};
-
-function assertTicketTransition(fromCategory: string, toCategory: string) {
-  const allowed = TICKET_LIFECYCLE[fromCategory];
-  if (!allowed) return; // unknown category — allow freely (custom statuses)
-  if (!allowed.includes(toCategory)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid status transition: ${fromCategory} → ${toCategory}. Allowed: ${allowed.join(", ")}`,
-    });
-  }
 }
 
 export const ticketsRouter = router({

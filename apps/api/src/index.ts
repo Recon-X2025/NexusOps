@@ -441,6 +441,9 @@ async function bootstrap() {
     },
   });
 
+  const { registerPayrollPayslipPdfRoute } = await import("./http/payroll-payslip-pdf.js");
+  registerPayrollPayslipPdfRoute(fastify);
+
   // ── Health Checks ─────────────────────────────────────────────────────────
   fastify.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
 

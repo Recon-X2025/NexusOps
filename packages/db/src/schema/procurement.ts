@@ -275,6 +275,8 @@ export const invoices = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     invoiceNumber: text("invoice_number").notNull(),
+    /** `payable` = vendor AP (default); `receivable` = customer AR when populated. */
+    invoiceFlow: text("invoice_flow").notNull().default("payable"),
     invoiceType: invoiceTypeEnum("invoice_type").notNull().default("tax_invoice"),
     vendorId: uuid("vendor_id")
       .notNull()
@@ -311,6 +313,7 @@ export const invoices = pgTable(
   (t) => ({
     orgInvoiceNumberIdx: uniqueIndex("invoices_org_invoice_number_idx").on(t.orgId, t.invoiceNumber),
     orgIdx: index("invoices_org_idx").on(t.orgId),
+    orgFlowIdx: index("invoices_org_flow_idx").on(t.orgId, t.invoiceFlow),
     poIdx: index("invoices_po_idx").on(t.poId),
     statusIdx: index("invoices_status_idx").on(t.status),
   }),

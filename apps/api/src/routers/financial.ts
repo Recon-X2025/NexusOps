@@ -66,6 +66,7 @@ export const financialRouter = router({
       const [inv] = await db.insert(invoices).values({
         orgId: org!.id,
         vendorId: input.vendorId,
+        invoiceFlow: "payable",
         invoiceNumber: input.invoiceNumber,
         invoiceType: "tax_invoice",
         amount: input.amount,
@@ -88,9 +89,14 @@ export const financialRouter = router({
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(invoices.orgId, org!.id)];
+      if (input.direction) {
+        conditions.push(eq(invoices.invoiceFlow, input.direction));
+      }
       if (input.status) conditions.push(eq(invoices.status, input.status as any));
 
-      const rows = await db.select().from(invoices)
+      const rows = await db
+        .select()
+        .from(invoices)
         .where(and(...conditions))
         .orderBy(desc(invoices.createdAt))
         .limit(input.limit + 1)

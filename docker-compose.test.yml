@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres-test:
     image: postgres:16-alpine
@@ -27,7 +26,7 @@ services:
       retries: 10
 
   meilisearch-test:
-    image: getmeili/meilisearch:v1.6
+    image: getmeili/meilisearch:v1.10
     environment:
       MEILI_MASTER_KEY: test_master_key
       MEILI_ENV: development
@@ -35,3 +34,8 @@ services:
       - "7701:7700"
     tmpfs:
       - /meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
