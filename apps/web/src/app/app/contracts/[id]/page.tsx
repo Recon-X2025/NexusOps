@@ -32,10 +32,10 @@ const TERMINAL_STATES = ["expired", "terminated"];
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
-  const { data: contract, isLoading } = trpc.contracts.get.useQuery({ id });
+  const { data: contract, isLoading } = trpc.contracts.get.useQuery({ id }, mergeTrpcQueryOpts("contracts.get", undefined));
 
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");

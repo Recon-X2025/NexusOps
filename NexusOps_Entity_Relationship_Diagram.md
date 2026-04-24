@@ -2395,7 +2395,7 @@ All 82 PostgreSQL enum types defined across the schema:
 | Enum | Values |
 |------|--------|
 | `ticket_type` | `incident`, `request`, `problem`, `change` |
-| `ticket_status_category` | `open`, `in_progress`, `resolved`, `closed` |
+| `ticket_status_category` | `open`, `in_progress`, `pending`, `resolved`, `closed` |
 | `ticket_relation_type` | `blocks`, `blocked_by`, `duplicate`, `related` |
 
 ### Assets & CMDB

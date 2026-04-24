@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import { toast } from "sonner";
 import {
   BookOpen,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 export default function PortalKnowledgePage() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export default function PortalKnowledgePage() {
 
   const { data, isLoading, isError } = trpc.knowledge.list.useQuery(
     { search: search || undefined, status: "published", limit: 50 },
-    { refetchOnWindowFocus: false },
+    mergeTrpcQueryOpts("knowledge.list", { refetchOnWindowFocus: false }),
   );
 
   const feedbackMutation = trpc.knowledge.recordFeedback.useMutation({

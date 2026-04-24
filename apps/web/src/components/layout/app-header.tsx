@@ -140,7 +140,7 @@ function getPrimaryRole(roles: string[]): string {
 }
 
 function RoleSwitcher() {
-  const { currentUser, switchUser } = useRBAC();
+  const { currentUser, switchUser, mergeTrpcQueryOpts } = useRBAC();
   const [open, setOpen] = useState(false);
 
   return (
@@ -207,17 +207,14 @@ function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const utils = trpc.useUtils();
-  const { isAuthenticated } = useRBAC();
+  const { isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: count = 0 } = trpc.notifications.unreadCount.useQuery(undefined, {
+  const { data: count = 0 } = trpc.notifications.unreadCount.useQuery(undefined, mergeTrpcQueryOpts("notifications.unreadCount", {
     enabled: isAuthenticated,
     refetchInterval: isAuthenticated ? 30_000 : false,
-  });
+  }));
 
-  const { data: notifData } = trpc.notifications.list.useQuery(
-    { unreadOnly: false, limit: 20 },
-    { enabled: isAuthenticated && open },
-  );
+  const { data: notifData } = trpc.notifications.list.useQuery({ unreadOnly: false, limit: 20 }, mergeTrpcQueryOpts("notifications.list", { enabled: isAuthenticated && open },));
   const items = notifData?.items ?? [];
 
   const markRead = trpc.notifications.markRead.useMutation({
@@ -352,7 +349,7 @@ function NotificationBell() {
 }
 
 function UserMenu() {
-  const { currentUser, isAdmin } = useRBAC();
+  const { currentUser, isAdmin, mergeTrpcQueryOpts } = useRBAC();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -484,7 +481,7 @@ export function AppHeader() {
   const { resolvedTheme, setTheme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
   useEffect(() => setThemeMounted(true), []);
-  const { currentUser, can, isAdmin, isDemoMode, isAuthenticated } = useRBAC();
+  const { currentUser, can, isAdmin, isDemoMode, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
 
   const canCreateTicket = can("incidents", "write") || can("requests", "write");
@@ -546,10 +543,7 @@ export function AppHeader() {
   }, [searchQuery]);
 
   // @ts-ignore - search router created in parallel
-  const searchResults = trpc.search.global.useQuery(
-    { query: debouncedQuery, limit: 20 },
-    { enabled: isAuthenticated && debouncedQuery.length > 1 && !isNlQuery },
-  );
+  const searchResults = trpc.search.global.useQuery({ query: debouncedQuery, limit: 20 }, mergeTrpcQueryOpts("search.global", { enabled: isAuthenticated && debouncedQuery.length > 1 && !isNlQuery },));
 
   const results: Array<{ id: string; type: string; title: string; description?: string; href: string }> =
     searchResults.data ?? [];

@@ -27,7 +27,7 @@ const RISK_COLOR: Record<string, string> = {
 };
 
 export default function ReleasesPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function ReleasesPage() {
   const [newReleaseType, setNewReleaseType] = useState("Minor");
   const [newReleaseEnv, setNewReleaseEnv] = useState("Production");
 
-  const releasesQuery = trpc.changes.listReleases.useQuery({ limit: 50 });
+  const releasesQuery = trpc.changes.listReleases.useQuery({ limit: 50 }, mergeTrpcQueryOpts("changes.listReleases", undefined));
   const createRelease = trpc.changes.createRelease.useMutation({
     onSuccess: () => {
       void releasesQuery.refetch();

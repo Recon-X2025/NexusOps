@@ -94,7 +94,7 @@ function relativeTime(d: string | Date) {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { currentUser, can } = useRBAC();
+  const { currentUser, can, mergeTrpcQueryOpts } = useRBAC();
   const [activeTab, setActiveTab] = useState<"notes" | "activity" | "related">("notes");
   const [commentBody, setCommentBody] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -110,10 +110,10 @@ export default function TicketDetailPage() {
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [watching, setWatching] = useState(false);
 
-  const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id });
-  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, {
+  const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id }, mergeTrpcQueryOpts("tickets.get", undefined));
+  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", {
     refetchOnWindowFocus: false,
-  });
+  }));
 
   const toggleWatch = trpc.tickets.toggleWatch.useMutation({
     onSuccess: (res) => { setWatching(res.watching); toast.success(res.watching ? "Added to watchlist" : "Removed from watchlist"); },
@@ -133,33 +133,51 @@ export default function TicketDetailPage() {
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  const { data: usersData } = trpc.auth.listUsers.useQuery(undefined, {
+  const [relationTargetId, setRelationTargetId] = useState("");
+  const [relationType, setRelationType] = useState<"blocks" | "blocked_by" | "duplicate" | "related">("related");
+  const addRelation = trpc.tickets.addRelation.useMutation({
+    onSuccess: () => { setRelationTargetId(""); refetch(); toast.success("Ticket linked"); },
+    onError: (e) => toast.error(e?.message ?? "Could not add link"),
+  });
+  const removeRelation = trpc.tickets.removeRelation.useMutation({
+    onSuccess: () => { refetch(); toast.success("Link removed"); },
+    onError: (e) => toast.error(e?.message ?? "Could not remove link"),
+  });
+  const linkKnowledgeArticle = trpc.tickets.linkKnowledgeArticle.useMutation({
+    onSuccess: () => { refetch(); toast.success("Article linked to ticket"); },
+    onError: (e) => toast.error(e?.message ?? "Could not link article"),
+  });
+  const unlinkKnowledgeArticle = trpc.tickets.unlinkKnowledgeArticle.useMutation({
+    onSuccess: () => { refetch(); toast.success("Article unlinked"); },
+    onError: (e) => toast.error(e?.message ?? "Could not unlink article"),
+  });
+
+  const { data: usersData } = trpc.auth.listUsers.useQuery(undefined, mergeTrpcQueryOpts("auth.listUsers", {
     enabled: showAssignPanel,
     staleTime: 5 * 60_000,
-  });
+  }));
+
+  const { data: ciOptions } = trpc.assets.cmdb.list.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.list", {
+    enabled: can("cmdb", "read"),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  }));
+  const { data: knownErrorOptions } = trpc.changes.listKnownErrors.useQuery(undefined, mergeTrpcQueryOpts("changes.listKnownErrors", {
+    enabled: can("problems", "read"),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  }));
 
   // Related records — loaded lazily when tab is activated
   const relatedEnabled = activeTab === "related";
-  const { data: relatedProblems } = trpc.changes.listProblems.useQuery(
-    { limit: 10 },
-    { enabled: relatedEnabled, staleTime: 60_000 }
-  );
-  const { data: relatedChangesData } = trpc.changes.list.useQuery(
-    { limit: 10 },
-    { enabled: relatedEnabled, staleTime: 60_000 }
-  );
+  const { data: relatedProblems } = trpc.changes.listProblems.useQuery({ limit: 10 }, mergeTrpcQueryOpts("changes.listProblems", { enabled: relatedEnabled, staleTime: 60_000 }));
+  const { data: relatedChangesData } = trpc.changes.list.useQuery({ limit: 10 }, mergeTrpcQueryOpts("changes.list", { enabled: relatedEnabled, staleTime: 60_000 }));
   const relatedChanges = relatedChangesData?.items;
 
   // AI assistance — lazy queries enabled only when user explicitly requests
   const [aiEnabled, setAiEnabled] = useState(false);
-  const { data: aiSummary, isFetching: summaryLoading } = trpc.ai.summarizeTicket.useQuery(
-    { ticketId: id },
-    { enabled: aiEnabled, retry: false, staleTime: 5 * 60_000 }
-  );
-  const { data: aiSuggestion, isFetching: suggestionLoading } = trpc.ai.suggestResolution.useQuery(
-    { ticketId: id },
-    { enabled: aiEnabled, retry: false, staleTime: 5 * 60_000 }
-  );
+  const { data: aiSummary, isFetching: summaryLoading } = trpc.ai.summarizeTicket.useQuery({ ticketId: id }, mergeTrpcQueryOpts("ai.summarizeTicket", { enabled: aiEnabled, retry: false, staleTime: 5 * 60_000 }));
+  const { data: aiSuggestion, isFetching: suggestionLoading } = trpc.ai.suggestResolution.useQuery({ ticketId: id }, mergeTrpcQueryOpts("ai.suggestResolution", { enabled: aiEnabled, retry: false, staleTime: 5 * 60_000 }));
 
   if (isLoading) {
     return (
@@ -177,7 +195,34 @@ export default function TicketDetailPage() {
     );
   }
 
-  const { ticket, comments: rawComments, activityLog: rawActivityLog } = data;
+  const {
+    ticket,
+    comments: rawComments,
+    activityLog: rawActivityLog,
+    relations: rawRelations,
+    suggestedKbArticles: rawSuggestedKb,
+    linkedKbArticles: rawLinkedKb,
+  } = data as typeof data & {
+    relations?: Array<{
+      id: string;
+      type: string;
+      direction: "outgoing" | "incoming";
+      relatedTicketId: string;
+      relatedNumber: string;
+      relatedTitle: string;
+    }>;
+    suggestedKbArticles?: Array<{ id: string; title: string; viewCount: number; helpfulCount: number }>;
+    linkedKbArticles?: Array<{ id: string; title: string; viewCount: number; helpfulCount: number }>;
+  };
+  const suggestedKbArticles = rawSuggestedKb ?? [];
+  const linkedKbArticles = rawLinkedKb ?? [];
+  const configurationItem = (data as any).configurationItem as
+    | { id: string; name: string; ciType: string; status: string }
+    | null
+    | undefined;
+  const knownErrorLinked = (data as any).knownError as { id: string; title: string } | null | undefined;
+  const ciDownstreamCount = Number((data as any).ciDownstreamCount ?? 0);
+  const relations = rawRelations ?? [];
   const comments: any[] = rawComments ?? [];
   const activityLog: any[] = rawActivityLog ?? [];
   const urgency = (ticket.urgency ?? "medium") as "high" | "medium" | "low";
@@ -443,6 +488,8 @@ export default function TicketDetailPage() {
             {(["notes", "activity", "related"] as const).map((tab) => (
               <button
                 key={tab}
+                type="button"
+                data-testid={`ticket-tab-${tab}`}
                 onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors capitalize
                   ${activeTab === tab
@@ -463,6 +510,87 @@ export default function TicketDetailPage() {
             {/* Notes tab */}
             {activeTab === "notes" && (
               <div className="p-4 space-y-4">
+                {(can("knowledge", "read") || linkedKbArticles.length > 0) && (
+                  <div className="border border-border rounded" data-testid="ticket-knowledge-panel">
+                    <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        Knowledge
+                      </span>
+                      <Link href="/app/knowledge" className="text-[11px] text-primary hover:underline">
+                        Browse KB →
+                      </Link>
+                    </div>
+                    <div className="p-3 space-y-3 text-[12px]">
+                      {linkedKbArticles.length > 0 && (
+                        <div>
+                          <div className="text-[10px] uppercase text-muted-foreground mb-1">Linked</div>
+                          <ul className="space-y-1.5">
+                            {linkedKbArticles.map((a) => (
+                              <li key={a.id} className="flex items-center justify-between gap-2">
+                                <Link
+                                  href={`/app/knowledge/${a.id}`}
+                                  className="text-primary hover:underline truncate min-w-0"
+                                >
+                                  {a.title}
+                                </Link>
+                                {!isTerminal && can("incidents", "write") && (
+                                  <button
+                                    type="button"
+                                    className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
+                                    disabled={unlinkKnowledgeArticle.isPending}
+                                    onClick={() =>
+                                      unlinkKnowledgeArticle.mutate({ ticketId: ticket.id, articleId: a.id })
+                                    }
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {can("knowledge", "read") && suggestedKbArticles.length > 0 && (
+                        <div>
+                          <div className="text-[10px] uppercase text-muted-foreground mb-1">Suggested</div>
+                          <ul className="space-y-1.5">
+                            {suggestedKbArticles.map((a) => (
+                              <li key={a.id} className="flex items-center justify-between gap-2">
+                                <Link
+                                  href={`/app/knowledge/${a.id}`}
+                                  className="text-foreground/80 hover:underline truncate min-w-0"
+                                >
+                                  {a.title}
+                                </Link>
+                                {!isTerminal && can("incidents", "write") && (
+                                  <button
+                                    type="button"
+                                    className="shrink-0 text-[10px] font-medium text-primary hover:underline"
+                                    disabled={linkKnowledgeArticle.isPending}
+                                    onClick={() =>
+                                      linkKnowledgeArticle.mutate({ ticketId: ticket.id, articleId: a.id })
+                                    }
+                                  >
+                                    Link
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {linkedKbArticles.length === 0 &&
+                        (!can("knowledge", "read") || suggestedKbArticles.length === 0) && (
+                          <p className="text-[11px] text-muted-foreground/70 italic">
+                            {can("knowledge", "read")
+                              ? "No KB matches this ticket title yet. Publish articles or link them from the knowledge base."
+                              : "No articles linked to this ticket."}
+                          </p>
+                        )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Description */}
                 <div className="p-3 bg-muted/30 border border-border rounded">
                   <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Description</div>
@@ -641,7 +769,92 @@ export default function TicketDetailPage() {
 
             {/* Related */}
             {activeTab === "related" && (
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3" data-testid="ticket-related-panel">
+                {/* Linked tickets (ticket_relations) */}
+                <div className="border border-border rounded" data-testid="ticket-linked-tickets">
+                  <div className="px-3 py-2 bg-muted/30 border-b border-border">
+                    <span className="text-[11px] font-semibold text-muted-foreground">Linked tickets</span>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {relations.length === 0 ? (
+                      <p className="text-[12px] text-muted-foreground/70 italic" data-testid="ticket-linked-empty">
+                        No ticket-to-ticket links yet.
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-border rounded border border-border" data-testid="ticket-linked-list">
+                        {relations.map((r) => (
+                          <li key={r.id} data-testid="ticket-linked-row" className="flex items-center justify-between gap-2 px-2 py-1.5 text-[12px]">
+                            <div className="min-w-0">
+                              <Link href={`/app/tickets/${r.relatedTicketId}`} className="font-mono text-primary hover:underline">
+                                {r.relatedNumber || r.relatedTicketId.slice(0, 8)}
+                              </Link>
+                              <span className="text-muted-foreground/70 mx-1">·</span>
+                              <span className="text-muted-foreground capitalize">{r.type.replace(/_/g, " ")}</span>
+                              <span className="text-[10px] text-muted-foreground/60 ml-1">({r.direction})</span>
+                              {r.relatedTitle ? (
+                                <p className="truncate text-foreground/80 text-[11px] mt-0.5">{r.relatedTitle}</p>
+                              ) : null}
+                            </div>
+                            {can("incidents", "write") && !isTerminal ? (
+                              <button
+                                type="button"
+                                data-testid="ticket-relation-remove"
+                                className="text-[11px] text-red-600 hover:underline flex-shrink-0"
+                                onClick={() => removeRelation.mutate({ relationId: r.id, ticketId: id })}
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {can("incidents", "write") && !isTerminal ? (
+                      <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-border mt-2">
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[10px] text-muted-foreground">Target ticket ID</label>
+                          <input
+                            data-testid="ticket-relation-target-id"
+                            value={relationTargetId}
+                            onChange={(e) => setRelationTargetId(e.target.value.trim())}
+                            placeholder="UUID of other ticket"
+                            className="text-[12px] border border-border rounded px-2 py-1 w-64 font-mono"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[10px] text-muted-foreground">Relation</label>
+                          <select
+                            data-testid="ticket-relation-type"
+                            value={relationType}
+                            onChange={(e) => setRelationType(e.target.value as typeof relationType)}
+                            className="text-[12px] border border-border rounded px-2 py-1"
+                          >
+                            <option value="related">Related</option>
+                            <option value="blocks">Blocks</option>
+                            <option value="blocked_by">Blocked by</option>
+                            <option value="duplicate">Duplicate</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          data-testid="ticket-relation-add"
+                          disabled={addRelation.isPending || relationTargetId.length < 32}
+                          onClick={() =>
+                            addRelation.mutate({
+                              ticketId: id,
+                              targetTicketId: relationTargetId,
+                              type: relationType,
+                            })
+                          }
+                          className="text-[12px] px-3 py-1.5 rounded bg-primary text-primary-foreground disabled:opacity-50"
+                        >
+                          Add link
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
                 {/* Linked Problems */}
                 <div className="border border-border rounded">
                   <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
@@ -707,16 +920,6 @@ export default function TicketDetailPage() {
                   )}
                 </div>
 
-                {/* Knowledge Articles */}
-                <div className="border border-border rounded">
-                  <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-muted-foreground">Knowledge Articles</span>
-                    <Link href="/app/knowledge" className="text-[11px] text-primary hover:underline">Browse KB →</Link>
-                  </div>
-                  <div className="p-3 text-[12px] text-muted-foreground/70 italic">
-                    No articles linked. Visit the Knowledge Base to find relevant articles.
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -738,6 +941,41 @@ export default function TicketDetailPage() {
                   {ticket.type}
                 </span>
               </FieldRow>
+              <FieldRow label="Status">
+                {!isTerminal && can("incidents", "write") && statusCounts && statusCounts.length > 0 ? (
+                  <select
+                    data-testid="ticket-status-select"
+                    disabled={updateTicket.isPending}
+                    className="w-full rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
+                    value={ticket.statusId ?? ""}
+                    onChange={(e) =>
+                      updateTicket.mutate({
+                        id,
+                        data: { statusId: e.target.value },
+                      })
+                    }
+                  >
+                    {(statusCounts as { statusId: string; name: string }[]).map((st) => (
+                      <option key={st.statusId} value={st.statusId}>
+                        {st.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">
+                    {(statusCounts as { statusId: string; name: string }[] | undefined)?.find(
+                      (s) => s.statusId === ticket.statusId,
+                    )?.name ?? "—"}
+                  </span>
+                )}
+              </FieldRow>
+              {(ticket as any).isMajorIncident && (
+                <FieldRow label="Major">
+                  <span className="text-[10px] font-semibold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                    Major incident
+                  </span>
+                </FieldRow>
+              )}
               <FieldRow label="Urgency">
                 <span className={`text-[11px] font-semibold capitalize ${uCfg?.text ?? ""}`}>
                   <span className={`inline-block w-2 h-2 rounded-full mr-1 ${uCfg?.bar}`} />
@@ -859,8 +1097,122 @@ export default function TicketDetailPage() {
                   "—"
                 )}
               </FieldRow>
+              <FieldRow label="Intake">
+                {!isTerminal && can("incidents", "write") ? (
+                  <select
+                    disabled={updateTicket.isPending}
+                    className="rounded border border-border bg-background px-1.5 py-0.5 text-[11px] capitalize"
+                    value={(ticket as any).intakeChannel ?? "portal"}
+                    onChange={(e) =>
+                      updateTicket.mutate({
+                        id: ticket.id,
+                        data: { intakeChannel: e.target.value as "portal" | "email" | "api" | "chat" },
+                      })
+                    }
+                  >
+                    {(["portal", "email", "api", "chat"] as const).map((ch) => (
+                      <option key={ch} value={ch}>
+                        {ch}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="capitalize text-muted-foreground">{(ticket as any).intakeChannel ?? "portal"}</span>
+                )}
+              </FieldRow>
             </div>
           </div>
+
+          {(can("cmdb", "read") || can("problems", "read") || can("incidents", "write")) && (
+            <div className="bg-card border border-border rounded">
+              <div className="px-3 py-2 border-b border-border bg-muted/30">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Service linkage
+                </span>
+                <p className="text-[9px] text-muted-foreground/80 mt-0.5">CMDB, known errors, major flag (Phases B/C)</p>
+              </div>
+              <div className="px-3 py-2 space-y-2 text-[11px]">
+                {can("cmdb", "read") && (
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Configuration item</label>
+                    <select
+                      disabled={isTerminal || !can("incidents", "write") || updateTicket.isPending}
+                      className="mt-0.5 w-full rounded border border-border bg-background px-1.5 py-1 text-[11px]"
+                      value={(ticket as any).configurationItemId ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        updateTicket.mutate({
+                          id: ticket.id,
+                          data: { configurationItemId: v ? v : null },
+                        });
+                      }}
+                    >
+                      <option value="">— None —</option>
+                      {(ciOptions as any[] | undefined)?.map((ci: any) => (
+                        <option key={ci.id} value={ci.id}>
+                          {ci.name} ({ci.ciType})
+                        </option>
+                      ))}
+                    </select>
+                    {configurationItem && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Linked: <span className="font-medium text-foreground">{configurationItem.name}</span>
+                        {ciDownstreamCount > 0 ? ` · ${ciDownstreamCount} downstream CI(s)` : null}{" "}
+                        <Link href="/app/cmdb" className="text-primary hover:underline">
+                          CMDB
+                        </Link>
+                      </p>
+                    )}
+                  </div>
+                )}
+                {can("problems", "read") && (
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Known error</label>
+                    <select
+                      disabled={isTerminal || !can("incidents", "write") || updateTicket.isPending}
+                      className="mt-0.5 w-full rounded border border-border bg-background px-1.5 py-1 text-[11px]"
+                      value={(ticket as any).knownErrorId ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        updateTicket.mutate({
+                          id: ticket.id,
+                          data: { knownErrorId: v ? v : null },
+                        });
+                      }}
+                    >
+                      <option value="">— None —</option>
+                      {(knownErrorOptions as any[] | undefined)?.map((ke: any) => (
+                        <option key={ke.id} value={ke.id}>
+                          {ke.title}
+                        </option>
+                      ))}
+                    </select>
+                    {knownErrorLinked && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground truncate" title={knownErrorLinked.title}>
+                        {knownErrorLinked.title}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {can("incidents", "write") && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={isTerminal || updateTicket.isPending}
+                      checked={!!(ticket as any).isMajorIncident}
+                      onChange={(e) =>
+                        updateTicket.mutate({
+                          id: ticket.id,
+                          data: { isMajorIncident: e.target.checked },
+                        })
+                      }
+                    />
+                    <span>Major incident (C1)</span>
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* AI Insights */}
           <div className="bg-card border border-border rounded">

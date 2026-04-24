@@ -37,16 +37,18 @@ export default function NotificationsPage() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const router = useRouter();
   const utils = trpc.useUtils();
+  const { mergeTrpcQueryOpts } = useRBAC();
 
   const { data: notifData, isLoading } = trpc.notifications.list.useQuery(
     { unreadOnly, limit: 50 },
-    { refetchInterval: 60_000 },
+    mergeTrpcQueryOpts("notifications.list", { refetchInterval: 60_000 }),
   );
   const items = notifData?.items ?? [];
 
-  const { data: count = 0 } = trpc.notifications.unreadCount.useQuery(undefined, {
-    refetchInterval: 30_000,
-  });
+  const { data: count = 0 } = trpc.notifications.unreadCount.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("notifications.unreadCount", { refetchInterval: 30_000 }),
+  );
 
   const markRead = trpc.notifications.markRead.useMutation({
     onSuccess: () => {

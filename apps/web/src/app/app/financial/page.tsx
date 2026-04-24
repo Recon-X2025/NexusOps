@@ -34,7 +34,7 @@ const INV_STATUS: Record<string, string> = {
 };
 
 export default function FinancialPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const utils = trpc.useUtils();
   const visibleTabs = FIN_TABS.filter((t) => can(t.module, t.action));
@@ -45,20 +45,11 @@ export default function FinancialPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data: budgetData, isLoading: budgetLoading } = trpc.financial.listBudget.useQuery(
-    { fiscalYear: new Date().getFullYear() },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: invoicesData, isLoading: invoicesLoading } = trpc.financial.listInvoices.useQuery(
-    { limit: 50, direction: "payable" },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: budgetData, isLoading: budgetLoading } = trpc.financial.listBudget.useQuery({ fiscalYear: new Date().getFullYear() }, mergeTrpcQueryOpts("financial.listBudget", { refetchOnWindowFocus: false },));
+  const { data: invoicesData, isLoading: invoicesLoading } = trpc.financial.listInvoices.useQuery({ limit: 50, direction: "payable" }, mergeTrpcQueryOpts("financial.listInvoices", { refetchOnWindowFocus: false },));
 
-  const { data: chargebacksData, isLoading: chargebacksLoading } = trpc.financial.listChargebacks.useQuery(
-    { periodYear: new Date().getFullYear() },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: apAgingData } = trpc.financial.apAging.useQuery(undefined, { refetchOnWindowFocus: false });
+  const { data: chargebacksData, isLoading: chargebacksLoading } = trpc.financial.listChargebacks.useQuery({ periodYear: new Date().getFullYear() }, mergeTrpcQueryOpts("financial.listChargebacks", { refetchOnWindowFocus: false },));
+  const { data: apAgingData } = trpc.financial.apAging.useQuery(undefined, mergeTrpcQueryOpts("financial.apAging", { refetchOnWindowFocus: false }));
 
   const approveInvoiceMutation = trpc.financial.approveInvoice.useMutation({
     onSuccess: () => void utils.financial.listInvoices.invalidate(),
@@ -87,24 +78,15 @@ export default function FinancialPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
   });
-  const { data: vendorListData } = trpc.vendors.list.useQuery({ limit: 100 }, { refetchOnWindowFocus: false });
+  const { data: vendorListData } = trpc.vendors.list.useQuery({ limit: 100 }, mergeTrpcQueryOpts("vendors.list", { refetchOnWindowFocus: false }));
 
-  const { data: arInvoicesData } = trpc.financial.listInvoices.useQuery(
-    { limit: 50, direction: "receivable" },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: arInvoicesData } = trpc.financial.listInvoices.useQuery({ limit: 50, direction: "receivable" }, mergeTrpcQueryOpts("financial.listInvoices", { refetchOnWindowFocus: false },));
 
   // India compliance — GST filing calendar (live)
   const currentMonth = new Date().getMonth() + 1;
   const currentYear  = new Date().getFullYear();
-  const gstCalendarQuery = trpc.financial.gstFilingCalendar.useQuery(
-    { month: currentMonth, year: currentYear },
-    { refetchOnWindowFocus: false },
-  );
-  const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery(
-    {},
-    { refetchOnWindowFocus: false },
-  );
+  const gstCalendarQuery = trpc.financial.gstFilingCalendar.useQuery({ month: currentMonth, year: currentYear }, mergeTrpcQueryOpts("financial.gstFilingCalendar", { refetchOnWindowFocus: false },));
+  const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.tdsChallans.list", { refetchOnWindowFocus: false },));
 
   if (!can("financial", "read")) return <AccessDenied module="Financial Management" />;
 

@@ -32,6 +32,18 @@ function fetchWithTimeout(
   );
 }
 
+function hasNexusopsSessionCookie(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split(";").some((c) => c.trim().startsWith("nexusops_session="));
+}
+
+/** Public routes where a stale Bearer in localStorage must not override the session cookie (API uses Bearer first). */
+function isPublicAuthShellPath(): boolean {
+  if (typeof window === "undefined") return false;
+  const p = window.location.pathname;
+  return p === "/login" || p === "/signup" || p === "/forgot-password";
+}
+
 function getTRPCUrl(): string {
   // Server-side (SSR): call the API directly over the Docker internal network.
   // API_INTERNAL_URL is set to http://api:3001 in the Docker Compose file.
@@ -66,10 +78,15 @@ export function getTRPCClient() {
         fetch: fetchWithTimeout,
         headers() {
           if (typeof window !== "undefined") {
+            // On the login shell, omit Bearer when a session cookie exists so the API
+            // uses the cookie token (see apps/api createContext: bearer || cookie).
+            // Otherwise a stale localStorage token wins and protected queries 401
+            // while DevTools still shows the user on /login.
+            if (isPublicAuthShellPath() && hasNexusopsSessionCookie()) {
+              return {};
+            }
             const session = localStorage.getItem("nexusops_session");
-            return session
-              ? { authorization: `Bearer ${session}` }
-              : {};
+            return session ? { authorization: `Bearer ${session}` } : {};
           }
           return {};
         },

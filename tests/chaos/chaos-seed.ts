@@ -109,8 +109,9 @@ export async function seedChaosOrganization(config: ChaosConfig): Promise<void> 
       .values([
         { orgId, name: "Open", color: "#6366f1", category: "open", sortOrder: 0 },
         { orgId, name: "In Progress", color: "#f59e0b", category: "in_progress", sortOrder: 1 },
-        { orgId, name: "Resolved", color: "#10b981", category: "resolved", sortOrder: 2 },
-        { orgId, name: "Closed", color: "#6b7280", category: "closed", sortOrder: 3 },
+        { orgId, name: "Pending", color: "#94a3b8", category: "pending", sortOrder: 2 },
+        { orgId, name: "Resolved", color: "#10b981", category: "resolved", sortOrder: 3 },
+        { orgId, name: "Closed", color: "#6b7280", category: "closed", sortOrder: 4 },
       ])
       .returning();
     openStatusId = statuses.find((s) => s.category === "open")!.id;

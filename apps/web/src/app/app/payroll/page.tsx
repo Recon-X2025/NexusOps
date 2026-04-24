@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import { format } from "date-fns";
 
 // ─── STATUS STEP MAP ───────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ const MONTHS = [
 // ─── MAIN PAGE COMPONENT ──────────────────────────────────────────────────────
 
 export default function PayrollPage() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
@@ -76,10 +78,10 @@ export default function PayrollPage() {
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
-  const runsQuery = trpc.payroll.runs.list.useQuery({});
+  const runsQuery = trpc.payroll.runs.list.useQuery({}, mergeTrpcQueryOpts("payroll.runs.list", {}));
   const selectedRun = trpc.payroll.runs.get.useQuery(
     { id: selectedRunId! },
-    { enabled: !!selectedRunId }
+    mergeTrpcQueryOpts("payroll.runs.get", { enabled: !!selectedRunId }),
   );
 
   // ── Mutations ──────────────────────────────────────────────────────────────

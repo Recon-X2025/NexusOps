@@ -55,7 +55,7 @@ const TABS = [
 ];
 
 export default function EventManagementPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "all");
@@ -69,7 +69,7 @@ export default function EventManagementPage() {
 
 
   // @ts-ignore
-  const eventsQuery = trpc.events.list.useQuery({ limit: 50 });
+  const eventsQuery = trpc.events.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("events.list", undefined));
 
   // All mutations declared BEFORE the access-denied guard — Rules of Hooks compliance
   // @ts-ignore

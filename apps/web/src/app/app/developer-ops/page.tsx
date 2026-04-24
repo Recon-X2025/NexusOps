@@ -38,14 +38,19 @@ const MODULES = [
 ];
 
 export default function DeveloperOpsDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: deployments, isLoading: loadingDeploys } = trpc.devops.listDeployments.useQuery({ limit: 6 });
-  const { data: pipelines, isLoading: loadingPipelines } = trpc.devops.listPipelines.useQuery({ limit: 5 });
-  const { data: doraMetrics, isLoading: loadingDora } = trpc.devops.doraMetrics.useQuery();
-  const { data: kbArticles, isLoading: loadingKB } = trpc.knowledge.list.useQuery({ limit: 200 });
+  const canProjects = isAuthenticated && can("projects", "read");
+  const canKnowledge = isAuthenticated && can("knowledge", "read");
 
-  if (!can("knowledge", "read")) {
+  const { data: deployments, isLoading: loadingDeploys } = trpc.devops.listDeployments.useQuery({ limit: 6 }, mergeTrpcQueryOpts("devops.listDeployments", { enabled: canProjects },));
+  const { data: pipelines, isLoading: loadingPipelines } = trpc.devops.listPipelines.useQuery({ limit: 5 }, mergeTrpcQueryOpts("devops.listPipelines", { enabled: canProjects },));
+  const { data: doraMetrics, isLoading: loadingDora } = trpc.devops.doraMetrics.useQuery(undefined, mergeTrpcQueryOpts("devops.doraMetrics", {
+    enabled: canProjects,
+  }));
+  const { data: kbArticles, isLoading: loadingKB } = trpc.knowledge.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("knowledge.list", { enabled: canKnowledge },));
+
+  if (!can("knowledge", "read") && !can("projects", "read")) {
     return <AccessDenied module="Developer & Ops" />;
   }
 

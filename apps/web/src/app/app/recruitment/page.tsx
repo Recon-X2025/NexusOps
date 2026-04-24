@@ -343,7 +343,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const { data: reqs = [], refetch } = trpc.recruitment.requisitions.list.useQuery({ search, status: statusFilter || undefined });
+  const { data: reqs = [], refetch } = trpc.recruitment.requisitions.list.useQuery({ search, status: statusFilter || undefined }, mergeTrpcQueryOpts("recruitment.requisitions.list", undefined));
   const updateReq = trpc.recruitment.requisitions.update.useMutation({
     onSuccess: () => { toast.success("Requisition updated"); refetch(); },
     onError: (e) => toast.error(e.message),
@@ -436,7 +436,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
 // ── Pipeline (Kanban) Tab ─────────────────────────────────────────────────────────
 
 function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
-  const { data: pipeline, refetch } = trpc.recruitment.applications.pipeline.useQuery({ jobId });
+  const { data: pipeline, refetch } = trpc.recruitment.applications.pipeline.useQuery({ jobId }, mergeTrpcQueryOpts("recruitment.applications.pipeline", undefined));
   const moveStage = trpc.recruitment.applications.moveStage.useMutation({
     onSuccess: () => { toast.success("Stage updated"); refetch(); },
     onError: e => toast.error(e.message),
@@ -490,7 +490,7 @@ function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
 
 function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void }) {
   const [search, setSearch] = useState("");
-  const { data: candidates = [], refetch } = trpc.recruitment.candidates.list.useQuery({ search });
+  const { data: candidates = [], refetch } = trpc.recruitment.candidates.list.useQuery({ search }, mergeTrpcQueryOpts("recruitment.candidates.list", undefined));
 
   return (
     <div className="space-y-4">
@@ -546,7 +546,7 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
 // ── Interviews Tab ───────────────────────────────────────────────────────────────
 
 function InterviewsTab() {
-  const { data: interviews = [] } = trpc.recruitment.interviews.list.useQuery({ upcoming: false });
+  const { data: interviews = [] } = trpc.recruitment.interviews.list.useQuery({ upcoming: false }, mergeTrpcQueryOpts("recruitment.interviews.list", undefined));
 
   const statusStyle: Record<string, string> = {
     scheduled:  "bg-blue-100 text-blue-700",
@@ -594,7 +594,7 @@ function InterviewsTab() {
 // ── Offers Tab ───────────────────────────────────────────────────────────────────
 
 function OffersTab() {
-  const { data: offers = [] } = trpc.recruitment.offers.list.useQuery({});
+  const { data: offers = [] } = trpc.recruitment.offers.list.useQuery({}, mergeTrpcQueryOpts("recruitment.offers.list", undefined));
   const updateStatus = trpc.recruitment.offers.updateStatus.useMutation({
     onSuccess: () => toast.success("Offer status updated"),
     onError: e => toast.error(e.message),
@@ -653,14 +653,14 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function RecruitmentPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [tab, setTab] = useState<Tab>("dashboard");
   const [pipelineJobId, setPipelineJobId] = useState<string | null>(null);
   const [pipelineJobTitle, setPipelineJobTitle] = useState<string>("");
   const [showAddCandidate, setShowAddCandidate] = useState(false);
 
-  const { data: analytics } = trpc.recruitment.analytics.useQuery({ days: 90 });
-  const { data: jobs = [] } = trpc.recruitment.requisitions.list.useQuery({});
+  const { data: analytics } = trpc.recruitment.analytics.useQuery({ days: 90 }, mergeTrpcQueryOpts("recruitment.analytics", undefined));
+  const { data: jobs = [] } = trpc.recruitment.requisitions.list.useQuery({}, mergeTrpcQueryOpts("recruitment.requisitions.list", undefined));
 
   if (!can("recruitment", "read")) return <AccessDenied module="recruitment" />;
 

@@ -61,6 +61,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         module: "incidents",
       },
       {
+        label: "Major incidents",
+        href: "/app/it-services/major-incidents",
+        icon: "Flame",
+        module: "incidents",
+      },
+      {
         label: "Change & Problem",
         href: "/app/changes",
         icon: "GitBranch",
@@ -315,6 +321,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["settings"],
     items: [
       { label: "Integrations", href: "/app/settings/integrations", icon: "Plug", module: "settings" },
+      { label: "Omnichannel", href: "/app/settings/omnichannel", icon: "MessagesSquare", module: "settings" },
       { label: "Webhooks",     href: "/app/settings/webhooks",     icon: "Globe", module: "settings" },
       { label: "API Keys",     href: "/app/settings/api-keys",     icon: "KeyRound", module: "settings" },
     ],

@@ -3,7 +3,7 @@
  * All helpers operate against the test DB (DATABASE_URL points to _test DB in setup.ts).
  */
 import { createHash } from 'crypto';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import { nanoid } from 'nanoid';
 import { getDb } from '@nexusops/db';
 import {
@@ -139,7 +139,7 @@ export async function seedUser(
   const db = testDb();
   const email = opts.email ?? `user-${nanoid(6)}@qa.nexusops.io`;
   const password = opts.password ?? 'TestPass123!';
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12);
 
   const [user] = await db
     .insert(users)
@@ -213,10 +213,11 @@ export async function seedFullOrg() {
   ]);
 
   await db.insert(ticketStatuses).values([
-    { orgId, name: 'Open', category: 'open', color: '#6366f1', isDefault: true, sortOrder: 1 },
+    { orgId, name: 'Open', category: 'open', color: '#6366f1', sortOrder: 1 },
     { orgId, name: 'In Progress', category: 'in_progress', color: '#f97316', sortOrder: 2 },
-    { orgId, name: 'Resolved', category: 'resolved', color: '#22c55e', sortOrder: 3 },
-    { orgId, name: 'Closed', category: 'closed', color: '#6b7280', sortOrder: 4 },
+    { orgId, name: 'Pending', category: 'pending', color: '#94a3b8', sortOrder: 3 },
+    { orgId, name: 'Resolved', category: 'resolved', color: '#22c55e', sortOrder: 4 },
+    { orgId, name: 'Closed', category: 'closed', color: '#6b7280', sortOrder: 5 },
   ]);
 
   await db.insert(ticketCategories).values([
@@ -227,9 +228,18 @@ export async function seedFullOrg() {
 
   const [p1] = await db.select().from(ticketPriorities).where(and(eq(ticketPriorities.orgId, orgId), eq(ticketPriorities.sortOrder, 1)));
   const [p2] = await db.select().from(ticketPriorities).where(and(eq(ticketPriorities.orgId, orgId), eq(ticketPriorities.sortOrder, 2)));
-  const [statusOpen] = await db.select().from(ticketStatuses).where(and(eq(ticketStatuses.orgId, orgId), eq(ticketStatuses.sortOrder, 1)));
-  const [statusInProgress] = await db.select().from(ticketStatuses).where(and(eq(ticketStatuses.orgId, orgId), eq(ticketStatuses.sortOrder, 2)));
-  const [statusResolved] = await db.select().from(ticketStatuses).where(and(eq(ticketStatuses.orgId, orgId), eq(ticketStatuses.sortOrder, 3)));
+  const [statusOpen] = await db
+    .select()
+    .from(ticketStatuses)
+    .where(and(eq(ticketStatuses.orgId, orgId), eq(ticketStatuses.category, "open")));
+  const [statusInProgress] = await db
+    .select()
+    .from(ticketStatuses)
+    .where(and(eq(ticketStatuses.orgId, orgId), eq(ticketStatuses.category, "in_progress")));
+  const [statusResolved] = await db
+    .select()
+    .from(ticketStatuses)
+    .where(and(eq(ticketStatuses.orgId, orgId), eq(ticketStatuses.category, "resolved")));
 
   return {
     orgId,
@@ -275,7 +285,30 @@ export async function cleanupOrg(orgId: string) {
   // Delete in FK-dependency order to avoid constraint violations
   await db.execute(sql`DELETE FROM ticket_comments WHERE ticket_id IN (SELECT id FROM tickets WHERE org_id = ${orgId})`);
   await db.execute(sql`DELETE FROM ticket_activity_logs WHERE ticket_id IN (SELECT id FROM tickets WHERE org_id = ${orgId})`);
+  await db.execute(sql`DELETE FROM ticket_relations WHERE source_id IN (SELECT id FROM tickets WHERE org_id = ${orgId}) OR target_id IN (SELECT id FROM tickets WHERE org_id = ${orgId})`);
   await db.execute(sql`DELETE FROM tickets WHERE org_id = ${orgId}`);
+  // Recruitment (no ON DELETE CASCADE on org in base migrations)
+  await db.execute(sql`DELETE FROM interviews WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM job_offers WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM candidate_applications WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM job_requisitions WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM candidates WHERE org_id = ${orgId}`);
+  // Performance + CSM + custom fields (Layer 8 smoke)
+  await db.execute(sql`DELETE FROM performance_reviews WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM goals WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM review_cycles WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM csm_cases WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM custom_field_values WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM custom_field_definitions WHERE org_id = ${orgId}`);
+  // Secretarial (board resolutions reference meetings)
+  await db.execute(sql`DELETE FROM board_resolutions WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM board_meetings WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM secretarial_filings WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM share_capital WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM esop_grants WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM company_directors WHERE org_id = ${orgId}`);
+  // Work orders (activity logs reference users — delete WOs before org/users)
+  await db.execute(sql`DELETE FROM work_orders WHERE org_id = ${orgId}`);
   await db.delete(organizations).where(eq(organizations.id, orgId));
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   Monitor, TicketIcon, AlertTriangle, CheckCircle2, Wrench, Activity,
   HardDrive, GitBranch, ChevronRight, TrendingDown, TrendingUp,
-  Server, Cpu, Package, Radio, Loader2,
+  Server, Cpu, Package, Radio, Loader2, BarChart3,
 } from "lucide-react";
 import { useRBAC } from "@/lib/rbac-context";
 import { AccessDenied } from "@/lib/rbac-context";
@@ -64,12 +64,20 @@ const MODULES = [
 ];
 
 export default function ITServicesDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: statusCounts, isLoading: loadingStatus } = trpc.tickets.statusCounts.useQuery();
-  const { data: recentTicketsPage, isLoading: loadingTickets } = trpc.tickets.list.useQuery({ type: "incident", limit: 5 });
-  const { data: workOrderMetrics, isLoading: loadingWO } = trpc.workOrders.metrics.useQuery();
-  const { data: changesPage, isLoading: loadingChanges } = trpc.changes.list.useQuery({ limit: 200 });
+  const canIncidents = isAuthenticated && can("incidents", "read");
+  const canChanges = isAuthenticated && can("changes", "read");
+  const canWorkOrders = isAuthenticated && can("work_orders", "read");
+
+  const { data: statusCounts, isLoading: loadingStatus } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", {
+    enabled: canIncidents,
+  }));
+  const { data: recentTicketsPage, isLoading: loadingTickets } = trpc.tickets.list.useQuery({ type: "incident", limit: 5 }, mergeTrpcQueryOpts("tickets.list", { enabled: canIncidents },));
+  const { data: workOrderMetrics, isLoading: loadingWO } = trpc.workOrders.metrics.useQuery(undefined, mergeTrpcQueryOpts("workOrders.metrics", {
+    enabled: canWorkOrders,
+  }));
+  const { data: changesPage, isLoading: loadingChanges } = trpc.changes.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("changes.list", { enabled: canChanges },));
 
   if (!can("incidents", "read") && !can("work_orders", "read") && !can("cmdb", "read")) {
     return <AccessDenied module="IT Services" />;
@@ -136,7 +144,18 @@ export default function ITServicesDashboard() {
             <h1 className="text-sm font-semibold text-foreground leading-tight">IT Services Dashboard</h1>
           </div>
         </div>
-        <span className="text-[10px] text-muted-foreground/60">8 modules · live data</span>
+        <div className="flex items-center gap-3">
+          {can("reports", "read") && (
+            <Link
+              href="/app/it-services/analytics"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              ITSM analytics
+            </Link>
+          )}
+          <span className="text-[10px] text-muted-foreground/60">8 modules · live data</span>
+        </div>
       </div>
 
       {alerts.length > 0 && (

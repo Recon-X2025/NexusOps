@@ -22,7 +22,7 @@ const RISK_SCORE_COLOR = (s: number) =>
   s >= 15 ? "text-red-700 font-bold" : s >= 10 ? "text-orange-600 font-semibold" : s >= 5 ? "text-yellow-600" : "text-green-700";
 
 export default function GRCPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = GRC_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "risk");
 
@@ -31,23 +31,11 @@ export default function GRCPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data: risksData, isLoading: risksLoading } = trpc.grc.listRisks.useQuery(
-    { limit: 100 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: policiesData, isLoading: policiesLoading } = trpc.grc.listPolicies.useQuery(
-    { limit: 100 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: auditsData, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: risksData, isLoading: risksLoading } = trpc.grc.listRisks.useQuery({ limit: 100 }, mergeTrpcQueryOpts("grc.listRisks", { refetchOnWindowFocus: false },));
+  const { data: policiesData, isLoading: policiesLoading } = trpc.grc.listPolicies.useQuery({ limit: 100 }, mergeTrpcQueryOpts("grc.listPolicies", { refetchOnWindowFocus: false },));
+  const { data: auditsData, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery(undefined, mergeTrpcQueryOpts("grc.listAudits", { refetchOnWindowFocus: false },));
 
-  const { data: vendorRisksData, isLoading: vendorRisksLoading } = trpc.grc.listVendorRisks.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: vendorRisksData, isLoading: vendorRisksLoading } = trpc.grc.listVendorRisks.useQuery(undefined, mergeTrpcQueryOpts("grc.listVendorRisks", { refetchOnWindowFocus: false },));
 
   type RiskItem = NonNullable<typeof risksData>[number];
   type PolicyItem = NonNullable<typeof policiesData>[number];

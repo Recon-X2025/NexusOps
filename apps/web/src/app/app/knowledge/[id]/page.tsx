@@ -16,7 +16,7 @@ export default function KnowledgeArticlePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
   const isEditMode = searchParams.get("edit") === "1";
   const [editing, setEditing] = useState(isEditMode);
@@ -25,16 +25,13 @@ export default function KnowledgeArticlePage() {
   const [editTags, setEditTags] = useState("");
 
   const utils = trpc.useUtils();
-  const { data: article, isLoading, isError } = trpc.knowledge.get.useQuery(
-    { id },
-    {
+  const { data: article, isLoading, isError } = trpc.knowledge.get.useQuery({ id }, mergeTrpcQueryOpts("knowledge.get", {
       onSuccess: (a: any) => {
         if (!editTitle) setEditTitle(a.title);
         if (!editContent) setEditContent(a.content ?? "");
         if (!editTags) setEditTags((a.tags as string[]).join(", "));
       },
-    } as any,
-  );
+    } as any,));
 
   const updateMutation = trpc.knowledge.update.useMutation({
     onSuccess: () => {

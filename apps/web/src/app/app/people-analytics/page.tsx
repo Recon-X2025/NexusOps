@@ -214,7 +214,7 @@ function AttritionTab({ attrition, headcount }: { attrition: any; headcount: any
 
 function LeaveTab({ leaveData }: { leaveData: any }) {
   const [year, setYear] = useState(new Date().getFullYear());
-  const { data: leave } = trpc.workforce.leaveAnalytics.useQuery({ year });
+  const { data: leave } = trpc.workforce.leaveAnalytics.useQuery({ year }, mergeTrpcQueryOpts("workforce.leaveAnalytics", undefined));
 
   const ld = leave ?? leaveData;
   return (
@@ -358,16 +358,16 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function PeopleAnalyticsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [tab, setTab]   = useState<Tab>("overview");
   const [period, setPeriod] = useState(180);
 
-  const { data: summary }   = trpc.workforce.summary.useQuery();
-  const { data: headcount } = trpc.workforce.headcount.useQuery({ days: period });
-  const { data: tenure }    = trpc.workforce.tenure.useQuery();
-  const { data: attrition } = trpc.workforce.attrition.useQuery({ months: 12 });
-  const { data: leaveData } = trpc.workforce.leaveAnalytics.useQuery({ year: new Date().getFullYear() });
-  const { data: grades }    = trpc.workforce.gradeDistribution.useQuery();
+  const { data: summary }   = trpc.workforce.summary.useQuery(undefined, mergeTrpcQueryOpts("workforce.summary", undefined));
+  const { data: headcount } = trpc.workforce.headcount.useQuery({ days: period }, mergeTrpcQueryOpts("workforce.headcount", undefined));
+  const { data: tenure }    = trpc.workforce.tenure.useQuery(undefined, mergeTrpcQueryOpts("workforce.tenure", undefined));
+  const { data: attrition } = trpc.workforce.attrition.useQuery({ months: 12 }, mergeTrpcQueryOpts("workforce.attrition", undefined));
+  const { data: leaveData } = trpc.workforce.leaveAnalytics.useQuery({ year: new Date().getFullYear() }, mergeTrpcQueryOpts("workforce.leaveAnalytics", undefined));
+  const { data: grades }    = trpc.workforce.gradeDistribution.useQuery(undefined, mergeTrpcQueryOpts("workforce.gradeDistribution", undefined));
 
   if (!can("workforce_analytics", "read")) return <AccessDenied module="workforce analytics" />;
 

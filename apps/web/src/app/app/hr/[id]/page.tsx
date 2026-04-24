@@ -17,9 +17,9 @@ export default function HRCaseDetailPage() {
   const id = params?.id ?? "";
   const [tab, setTab] = useState("tasks");
   const [noteText, setNoteText] = useState("");
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
-  const caseQuery = trpc.hr.cases.get.useQuery({ id }, { enabled: !!id });
+  const caseQuery = trpc.hr.cases.get.useQuery({ id }, mergeTrpcQueryOpts("hr.cases.get", { enabled: !!id }));
 
   const completeTask = trpc.hr.cases.completeTask.useMutation({
     onSuccess: () => { toast.success("Task marked complete"); caseQuery.refetch(); },

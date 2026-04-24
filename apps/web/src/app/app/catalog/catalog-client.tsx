@@ -284,7 +284,7 @@ function FormBuilderModal({ item, onClose, onSave, saving }: {
 }
 
 export default function CatalogPageClient() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -323,16 +323,10 @@ export default function CatalogPageClient() {
   });
 
   const utils = trpc.useUtils();
-  const { data: catalogData, isLoading: catalogListLoading, refetch: refetchCatalog } = trpc.catalog.listItems.useQuery(
-    {},
-    { refetchOnWindowFocus: false },
-  );
-  const { data: requestsData, isLoading: requestsLoading, refetch: refetchRequests } = trpc.catalog.listRequests.useQuery(
-    { myRequests: true },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: catalogData, isLoading: catalogListLoading, refetch: refetchCatalog } = trpc.catalog.listItems.useQuery({}, mergeTrpcQueryOpts("catalog.listItems", { refetchOnWindowFocus: false },));
+  const { data: requestsData, isLoading: requestsLoading, refetch: refetchRequests } = trpc.catalog.listRequests.useQuery({ myRequests: true }, mergeTrpcQueryOpts("catalog.listRequests", { refetchOnWindowFocus: false },));
 
-  const { data: catalogStats } = trpc.catalog.stats.useQuery();
+  const { data: catalogStats } = trpc.catalog.stats.useQuery(undefined, mergeTrpcQueryOpts("catalog.stats", undefined));
 
   const createItem = trpc.catalog.createItem.useMutation({
     onSuccess: () => {
@@ -362,6 +356,39 @@ export default function CatalogPageClient() {
       import("sonner").then(({ toast }) => toast.success("Service request submitted successfully"));
     },
     onError: (e: any) => import("sonner").then(({ toast }) => toast.error(e?.message ?? "Failed to submit request")),
+  });
+
+  const adminQueueEnabled = view === "admin" && (can("catalog", "admin") || can("catalog", "write"));
+  const { data: queueRequests, isLoading: queueLoading, refetch: refetchQueue } = trpc.catalog.listRequests.useQuery({}, mergeTrpcQueryOpts("catalog.listRequests", { enabled: adminQueueEnabled, refetchOnWindowFocus: false },));
+
+  const approveRequestMut = trpc.catalog.approveRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Request updated");
+      refetchQueue();
+      utils.catalog.stats.invalidate();
+      utils.catalog.listRequests.invalidate();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update request"),
+  });
+
+  const startFulfilmentMut = trpc.catalog.startFulfilment.useMutation({
+    onSuccess: () => {
+      toast.success("Fulfilment ticket created");
+      refetchQueue();
+      utils.catalog.stats.invalidate();
+      utils.catalog.listRequests.invalidate();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not start fulfilment"),
+  });
+
+  const fulfillRequestMut = trpc.catalog.fulfillRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Request marked complete");
+      refetchQueue();
+      utils.catalog.stats.invalidate();
+      utils.catalog.listRequests.invalidate();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not complete request"),
   });
 
   if (!can("catalog", "read")) return <AccessDenied module="Service Catalog" />;
@@ -767,6 +794,21 @@ export default function CatalogPageClient() {
                                     </pre>
                                   </div>
                                 )}
+                                {req.fulfillmentTicketId && (
+                                  <div className="sm:col-span-3">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                                      Fulfilment ticket
+                                    </span>
+                                    <p className="mt-0.5">
+                                      <Link
+                                        href={`/app/tickets/${req.fulfillmentTicketId}`}
+                                        className="text-[11px] font-mono text-primary hover:underline"
+                                      >
+                                        Open in service desk
+                                      </Link>
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -955,6 +997,115 @@ export default function CatalogPageClient() {
               </div>
             ))}
           </div>
+
+          {adminQueueEnabled && (
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-border flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Service request queue</h3>
+                {queueLoading && <span className="text-[10px] text-muted-foreground animate-pulse">Loading…</span>}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      {["Item", "Status", "Submitted", "Ticket", "Actions"].map((h) => (
+                        <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {((queueRequests ?? []) as any[]).length === 0 && !queueLoading ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-[12px]">
+                          No catalog requests yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      ((queueRequests ?? []) as any[]).map((r: any) => {
+                        const st = REQ_STATE_CONFIG[String(r.status ?? "")];
+                        const canAct = can("catalog", "write");
+                        return (
+                          <tr key={r.id} className="border-t border-border hover:bg-muted/20">
+                            <td className="px-4 py-2">
+                              <div className="font-medium text-foreground">{r.item?.name ?? "—"}</div>
+                              <div className="text-[10px] font-mono text-muted-foreground">{String(r.id).slice(0, 8)}…</div>
+                            </td>
+                            <td className="px-4 py-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${st?.color ?? "bg-muted text-muted-foreground"}`}>
+                                {st?.label ?? r.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground">{formatCatalogDate(r.createdAt)}</td>
+                            <td className="px-4 py-2">
+                              {r.fulfillmentTicketId ? (
+                                <Link
+                                  href={`/app/tickets/${r.fulfillmentTicketId}`}
+                                  className="text-xs text-primary hover:underline font-mono"
+                                >
+                                  Open
+                                </Link>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2">
+                              <div className="flex flex-wrap gap-1">
+                                {r.status === "pending_approval" && can("catalog", "admin") && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={approveRequestMut.isPending}
+                                      onClick={() => approveRequestMut.mutate({ id: r.id, approve: true })}
+                                      className="rounded bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={approveRequestMut.isPending}
+                                      onClick={() => {
+                                        const reason = typeof window !== "undefined" ? window.prompt("Reject reason (optional)") : null;
+                                        approveRequestMut.mutate({ id: r.id, approve: false, reason: reason ?? undefined });
+                                      }}
+                                      className="rounded border border-border px-2 py-0.5 text-[10px] font-medium hover:bg-muted disabled:opacity-50"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
+                                {["submitted", "approved"].includes(String(r.status)) && !r.fulfillmentTicketId && canAct && (
+                                  <button
+                                    type="button"
+                                    disabled={startFulfilmentMut.isPending}
+                                    onClick={() => startFulfilmentMut.mutate({ id: r.id })}
+                                    className="rounded bg-indigo-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                                  >
+                                    Start fulfilment
+                                  </button>
+                                )}
+                                {["fulfilling", "approved"].includes(String(r.status)) && canAct && (
+                                  <button
+                                    type="button"
+                                    disabled={fulfillRequestMut.isPending}
+                                    onClick={() => fulfillRequestMut.mutate({ id: r.id })}
+                                    className="rounded bg-slate-700 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                                  >
+                                    Mark complete
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Items with Form Builder */}
           <div className="bg-card border border-border rounded-xl overflow-hidden">

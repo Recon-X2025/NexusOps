@@ -44,11 +44,11 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
-  const { data: vendor, isLoading } = trpc.vendors.get.useQuery({ id });
-  const { data: perf } = trpc.vendors.performance.useQuery({ vendorId: id }, { enabled: !!id });
+  const { data: vendor, isLoading } = trpc.vendors.get.useQuery({ id }, mergeTrpcQueryOpts("vendors.get", undefined));
+  const { data: perf } = trpc.vendors.performance.useQuery({ vendorId: id }, mergeTrpcQueryOpts("vendors.performance", { enabled: !!id }));
 
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });

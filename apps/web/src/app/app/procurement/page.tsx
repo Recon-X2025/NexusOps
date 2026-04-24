@@ -77,7 +77,7 @@ const INV_STATUS_CFG: Record<string, { label: string; color: string; bar: string
 
 
 export default function ProcurementPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = PROC_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
@@ -90,18 +90,9 @@ export default function ProcurementPage() {
 
 
   // Correct tRPC paths: procurement.purchaseRequests.list / purchaseOrders.list / vendors.list
-  const { data: prData, isLoading: prLoading, refetch: refetchPRs } = trpc.procurement.purchaseRequests.list.useQuery(
-    {},
-    { refetchOnWindowFocus: false },
-  );
-  const { data: poData, isLoading: poLoading, refetch: refetchPOs } = trpc.procurement.purchaseOrders.list.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
-  const { data: vendorsData } = trpc.procurement.vendors.list.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: prData, isLoading: prLoading, refetch: refetchPRs } = trpc.procurement.purchaseRequests.list.useQuery({}, mergeTrpcQueryOpts("procurement.purchaseRequests.list", { refetchOnWindowFocus: false },));
+  const { data: poData, isLoading: poLoading, refetch: refetchPOs } = trpc.procurement.purchaseOrders.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.purchaseOrders.list", { refetchOnWindowFocus: false },));
+  const { data: vendorsData } = trpc.procurement.vendors.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.vendors.list", { refetchOnWindowFocus: false },));
 
   const approvePR  = trpc.procurement.purchaseRequests.approve.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const rejectPR   = trpc.procurement.purchaseRequests.reject.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });

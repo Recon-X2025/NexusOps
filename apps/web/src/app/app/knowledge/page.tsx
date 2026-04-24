@@ -28,7 +28,7 @@ const STATUS_TABS = [
 ];
 
 export default function KnowledgePage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = useMemo(() => STATUS_TABS.filter((t) => can(t.module, t.action)), [can]);
   const [search, setSearch] = useState("");
@@ -60,14 +60,11 @@ export default function KnowledgePage() {
     onError: (err) => toast.error(err?.message ?? "Something went wrong"),
   });
 
-  const { data, isLoading } = trpc.knowledge.list.useQuery(
-    {
+  const { data, isLoading } = trpc.knowledge.list.useQuery({
       search: debouncedSearch || undefined,
       status: activeStatus !== "all" ? activeStatus : undefined,
       limit: 50,
-    },
-    { refetchOnWindowFocus: false },
-  );
+    }, mergeTrpcQueryOpts("knowledge.list", { refetchOnWindowFocus: false },));
 
   if (!can("knowledge", "read")) return <AccessDenied module="Knowledge Management" />;
 

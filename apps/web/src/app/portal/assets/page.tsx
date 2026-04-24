@@ -67,9 +67,9 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
   const [title, setTitle] = useState(`Issue with ${assetName}`);
   const [description, setDescription] = useState("");
 
-  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, {
+  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, mergeTrpcQueryOpts("tickets.listPriorities", {
     refetchOnWindowFocus: false,
-  });
+  }));
 
   const utils = trpc.useUtils();
 
@@ -172,17 +172,14 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
 }
 
 export default function MyAssetsPage() {
-  const { currentUser, isLoadingAuth } = useRBAC();
+  const { currentUser, isLoadingAuth, mergeTrpcQueryOpts } = useRBAC();
   const [reportAsset, setReportAsset] = useState<{
     id: string;
     name: string;
     assetTag: string;
   } | null>(null);
 
-  const { data, isLoading, isError } = trpc.assets.list.useQuery(
-    { ownerId: currentUser.id, limit: 100 },
-    { refetchOnWindowFocus: false, enabled: !isLoadingAuth && !!currentUser.id },
-  );
+  const { data, isLoading, isError } = trpc.assets.list.useQuery({ ownerId: currentUser.id, limit: 100 }, mergeTrpcQueryOpts("assets.list", { refetchOnWindowFocus: false, enabled: !isLoadingAuth && !!currentUser.id },));
 
   const assets = data?.items ?? [];
 

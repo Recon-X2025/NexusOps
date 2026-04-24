@@ -534,7 +534,7 @@ function ContractCreationWizard() {
 }
 
 function ContractsPageInner() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const searchParams = useSearchParams();
   const visibleTabs = CONTRACT_TABS.filter((t) => can(t.module, t.action));
@@ -557,7 +557,7 @@ function ContractsPageInner() {
 
 
   // Live contracts from API, fallback to mock for demo
-  const { data: contractsApiData } = trpc.contracts.list.useQuery({ limit: 100 });
+  const { data: contractsApiData } = trpc.contracts.list.useQuery({ limit: 100 }, mergeTrpcQueryOpts("contracts.list", undefined));
 
   const utils = trpc.useUtils();
   const completeObligation = trpc.contracts.completeObligation.useMutation({

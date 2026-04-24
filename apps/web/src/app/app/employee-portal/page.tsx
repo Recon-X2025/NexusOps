@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -214,20 +215,24 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
 // ─── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
 export default function EmployeePayslipsPage() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const fyOptions = FYOptions();
   const [selectedFY, setSelectedFY] = useState(fyOptions[0]!);
   const [activeTab, setActiveTab] = useState<"payslips" | "tax" | "form16">("payslips");
 
-  const payslipsQuery = trpc.payroll.payslips.myPayslips.useQuery({
-    year: parseInt(selectedFY.split("-")[0]!),
-  });
+  const payslipsQuery = trpc.payroll.payslips.myPayslips.useQuery(
+    {
+      year: parseInt(selectedFY.split("-")[0]!),
+    },
+    mergeTrpcQueryOpts("payroll.payslips.myPayslips", {}),
+  );
 
   const taxPreview = trpc.payroll.taxPreview.useQuery(
     {
       employeeId: "", // Current user — will be populated from ctx.userId on server
       financialYear: selectedFY,
     },
-    { enabled: activeTab === "tax" }
+    mergeTrpcQueryOpts("payroll.taxPreview", { enabled: activeTab === "tax" }),
   );
 
   const payslipsList = payslipsQuery.data ?? [];

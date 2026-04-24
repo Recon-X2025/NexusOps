@@ -177,7 +177,7 @@ function SkeletonRows({ count = 4 }: { count?: number }) {
 }
 
 export default function APMPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = APM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "portfolio");
@@ -189,9 +189,9 @@ export default function APMPage() {
 
 
   // @ts-ignore
-  const appsQuery = trpc.apm.applications.list.useQuery({});
+  const appsQuery = trpc.apm.applications.list.useQuery({}, mergeTrpcQueryOpts("apm.applications.list", undefined));
   // @ts-ignore
-  const summaryQuery = trpc.apm.portfolio.summary.useQuery();
+  const summaryQuery = trpc.apm.portfolio.summary.useQuery(undefined, mergeTrpcQueryOpts("apm.portfolio.summary", undefined));
   // @ts-ignore
   const createAppMutation = trpc.apm.applications.create.useMutation({
     onSuccess: () => { appsQuery.refetch(); toast.success("Application added"); },

@@ -23,10 +23,10 @@ const CATEGORY_COLOR: Record<string, string> = {
 export default function FlowDesignerPage() {
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "designer">("list");
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
   const canView = can("approvals", "read");
-  const flowsQuery = trpc.workflows.list.useQuery(undefined, { enabled: canView });
+  const flowsQuery = trpc.workflows.list.useQuery(undefined, mergeTrpcQueryOpts("workflows.list", { enabled: canView }));
   const createFlowMutation = trpc.workflows.create.useMutation({
     onSuccess: () => { flowsQuery.refetch(); toast.success("Flow created"); },
     onError: (e: any) => { console.error("workflows.create failed:", e); toast.error(e.message || "Failed to create flow"); },

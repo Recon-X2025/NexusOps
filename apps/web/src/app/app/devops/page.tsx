@@ -192,7 +192,7 @@ const ITEM_TYPE_CFG: Record<string, string> = {
 };
 
 export default function DevOpsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = DEVOPS_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
@@ -204,18 +204,9 @@ export default function DevOpsPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: pipelinesData, refetch: refetchPipelines } = trpc.devops.listPipelines.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: deploymentsData, refetch: refetchDeployments } = trpc.devops.listDeployments.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: doraData } = trpc.devops.doraMetrics.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: pipelinesData, refetch: refetchPipelines } = trpc.devops.listPipelines.useQuery({ limit: 50 }, mergeTrpcQueryOpts("devops.listPipelines", { refetchOnWindowFocus: false },));
+  const { data: deploymentsData, refetch: refetchDeployments } = trpc.devops.listDeployments.useQuery({ limit: 50 }, mergeTrpcQueryOpts("devops.listDeployments", { refetchOnWindowFocus: false },));
+  const { data: doraData } = trpc.devops.doraMetrics.useQuery(undefined, mergeTrpcQueryOpts("devops.doraMetrics", { refetchOnWindowFocus: false },));
 
   const createPipelineRun = trpc.devops.createPipelineRun.useMutation({
     onSuccess: (run: any) => { toast.success(`Pipeline "${run?.pipelineName ?? triggerForm.pipelineName}" triggered successfully`); setShowTrigger(false); setTriggerForm({ pipelineName: "", branch: "main", trigger: "manual" }); refetchPipelines(); },

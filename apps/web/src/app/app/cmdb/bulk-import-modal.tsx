@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Upload, X, CheckCircle, AlertCircle, Loader2, FileText } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import { toast } from "sonner";
 
 const REQUIRED_COLS = ["name"] as const;
@@ -100,6 +101,7 @@ interface BulkImportModalProps {
 }
 
 export function BulkImportModal({ onClose }: BulkImportModalProps) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -107,7 +109,10 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: typesData } = trpc.assets.listTypes.useQuery(undefined, { refetchOnWindowFocus: false });
+  const { data: typesData } = trpc.assets.listTypes.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("assets.listTypes", { refetchOnWindowFocus: false }),
+  );
   const types: AssetType[] = (typesData ?? []).map((t: any) => ({ id: t.id, name: t.name }));
 
   const createAsset = trpc.assets.create.useMutation();

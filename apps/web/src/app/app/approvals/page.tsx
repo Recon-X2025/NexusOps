@@ -55,7 +55,7 @@ function SkeletonCard() {
 }
 
 export default function ApprovalsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
   const canApprove = can("approvals", "approve");
   const [activeTab, setActiveTab] = useState<"pending" | "submitted" | "all">("pending");
@@ -66,11 +66,11 @@ export default function ApprovalsPage() {
   const [infoComment, setInfoComment] = useState("");
 
   // @ts-ignore
-  const pendingQuery = trpc.approvals.myPending.useQuery();
+  const pendingQuery = trpc.approvals.myPending.useQuery(undefined, mergeTrpcQueryOpts("approvals.myPending", undefined));
   // @ts-ignore
-  const submittedQuery = trpc.approvals.mySubmitted.useQuery();
+  const submittedQuery = trpc.approvals.mySubmitted.useQuery(undefined, mergeTrpcQueryOpts("approvals.mySubmitted", undefined));
   // @ts-ignore
-  const allQuery = trpc.approvals.list.useQuery({});
+  const allQuery = trpc.approvals.list.useQuery({}, mergeTrpcQueryOpts("approvals.list", undefined));
   // @ts-ignore
   const decideMutation = trpc.approvals.decide.useMutation({
     onSuccess: () => {

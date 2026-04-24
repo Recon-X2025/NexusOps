@@ -209,7 +209,7 @@ const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-
 const PIPELINE_STAGES: DealStage[] = ["prospect","qualification","proposal","negotiation","verbal_commit"];
 
 export default function CRMPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = CRM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
@@ -237,17 +237,17 @@ export default function CRMPage() {
 
   // ── tRPC data ──────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: dealsData, refetch: refetchDeals } = trpc.crm.listDeals.useQuery({ limit: 200 });
+  const { data: dealsData, refetch: refetchDeals } = trpc.crm.listDeals.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listDeals", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.listAccounts.useQuery({ limit: 200 });
+  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.listAccounts.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listAccounts", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: contactsData } = trpc.crm.listContacts.useQuery({ limit: 200 });
+  const { data: contactsData } = trpc.crm.listContacts.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listContacts", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: leadsData, refetch: refetchLeads } = trpc.crm.listLeads.useQuery({ limit: 200 });
+  const { data: leadsData, refetch: refetchLeads } = trpc.crm.listLeads.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listLeads", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.listActivities.useQuery({ limit: 200 });
+  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.listActivities.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listActivities", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: quotesData, refetch: refetchQuotes } = trpc.crm.listQuotes.useQuery({});
+  const { data: quotesData, refetch: refetchQuotes } = trpc.crm.listQuotes.useQuery({}, mergeTrpcQueryOpts("crm.listQuotes", undefined));
 
   // Mutations
   // eslint-disable-next-line react-hooks/rules-of-hooks

@@ -53,7 +53,7 @@ function SkeletonQueueItem() {
 }
 
 export default function WalkUpPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = WALKUP_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "queue");
@@ -64,11 +64,11 @@ export default function WalkUpPage() {
 
 
   // @ts-ignore
-  const queueQuery = trpc.walkup.queue.list.useQuery({});
+  const queueQuery = trpc.walkup.queue.list.useQuery({}, mergeTrpcQueryOpts("walkup.queue.list", undefined));
   // @ts-ignore
-  const apptsQuery = trpc.walkup.appointments.list.useQuery({});
+  const apptsQuery = trpc.walkup.appointments.list.useQuery({}, mergeTrpcQueryOpts("walkup.appointments.list", undefined));
   // @ts-ignore
-  const analyticsQuery = trpc.walkup.analytics.useQuery({});
+  const analyticsQuery = trpc.walkup.analytics.useQuery({}, mergeTrpcQueryOpts("walkup.analytics", undefined));
 
   // @ts-ignore
   const joinQueueMutation = trpc.walkup.queue.joinQueue.useMutation({

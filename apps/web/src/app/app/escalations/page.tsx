@@ -44,16 +44,16 @@ function overdueLabel(dueAt: Date | string) {
 }
 
 export default function EscalationQueuePage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const [filter, setFilter] = useState<"breached" | "approaching" | "all">("breached");
 
   const { data: allTickets, isLoading, refetch } = trpc.tickets.list.useQuery({
     slaBreached: filter === "breached" ? true : undefined,
     limit: 100,
-  });
+  }, mergeTrpcQueryOpts("tickets.list", undefined));
 
-  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery();
+  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", undefined));
 
   const TERMINAL_STATUS_NAMES = ["closed", "resolved", "cancelled", "done"];
   const isTicketTerminal = (t: TicketListItem) => {

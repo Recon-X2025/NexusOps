@@ -114,12 +114,13 @@ function OidcSessionHandler() {
 }
 
 function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module, a: RbacAction) => boolean; canAccess: (m: Module) => boolean; isAuthenticated: boolean }) {
-  const { data: metrics, isPending, isError, error, refetch } = trpc.dashboard.getMetrics.useQuery(undefined, {
+  const { mergeTrpcQueryOpts } = useRBAC();
+  const { data: metrics, isPending, isError, error, refetch } = trpc.dashboard.getMetrics.useQuery(undefined, mergeTrpcQueryOpts("dashboard.getMetrics", {
     enabled: isAuthenticated && can("reports", "read"),
     staleTime: STALE_TIME.LIVE,
     retry: 2,
     retryDelay: 1500,
-  });
+  }));
 
   const decideMutation = trpc.approvals.decide.useMutation({
     onSuccess: () => { toast.success("Action completed"); refetch(); },
@@ -138,34 +139,19 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
     errorCode !== "NOT_FOUND" &&
     process.env.NODE_ENV !== "production";
 
-  const { data: incidentsPage } = trpc.tickets.list.useQuery(
-    { type: "incident", limit: 5 },
-    { enabled: isAuthenticated && canAccess("incidents") },
-  );
+  const { data: incidentsPage } = trpc.tickets.list.useQuery({ type: "incident", limit: 5 }, mergeTrpcQueryOpts("tickets.list", { enabled: isAuthenticated && canAccess("incidents") }));
   const incidents = incidentsPage?.items ?? [];
 
-  const { data: pendingApprovals } = trpc.approvals.myPending.useQuery(
-    undefined,
-    { enabled: isAuthenticated && canAccess("approvals") },
-  );
+  const { data: pendingApprovals } = trpc.approvals.myPending.useQuery(undefined, mergeTrpcQueryOpts("approvals.myPending", { enabled: isAuthenticated && canAccess("approvals") }));
   const approvalList = pendingApprovals ?? [];
 
-  const { data: workOrdersPage } = trpc.workOrders.list.useQuery(
-    { limit: 4 },
-    { enabled: isAuthenticated && canAccess("work_orders") },
-  );
+  const { data: workOrdersPage } = trpc.workOrders.list.useQuery({ limit: 4 }, mergeTrpcQueryOpts("workOrders.list", { enabled: isAuthenticated && canAccess("work_orders") }));
   const workOrderList = workOrdersPage?.items ?? [];
 
-  const { data: deploymentsData } = trpc.devops.listDeployments.useQuery(
-    { limit: 5 },
-    { enabled: isAuthenticated && canAccess("projects") },
-  );
+  const { data: deploymentsData } = trpc.devops.listDeployments.useQuery({ limit: 5 }, mergeTrpcQueryOpts("devops.listDeployments", { enabled: isAuthenticated && canAccess("projects") }));
   const deploymentList = deploymentsData ?? [];
 
-  const { data: changesPage } = trpc.changes.list.useQuery(
-    { limit: 3 },
-    { enabled: isAuthenticated && canAccess("changes") },
-  );
+  const { data: changesPage } = trpc.changes.list.useQuery({ limit: 3 }, mergeTrpcQueryOpts("changes.list", { enabled: isAuthenticated && canAccess("changes") }));
   const changeList = changesPage?.items ?? [];
 
   const visibleModuleGroups = MODULE_GROUPS.filter((g) => canAccess(g.requiredModule));

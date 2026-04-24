@@ -50,24 +50,25 @@ const STATUS_LABELS: Record<string, { label: string; dot: string }> = {
 };
 
 export default function PortalHomePage() {
-  const { currentUser } = useRBAC();
+  const { currentUser, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: statusData } = trpc.tickets.statusCounts.useQuery(undefined, {
+  const { data: statusData } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", {
     refetchOnWindowFocus: false,
-  });
+  }));
 
-  const { data, isLoading, isError } = trpc.tickets.list.useQuery(
-    { type: "request", limit: 50, orderBy: "createdAt", order: "desc" },
-    { refetchOnWindowFocus: false },
-  );
+  const { data, isLoading, isError } = trpc.tickets.list.useQuery({
+      type: "request",
+      ticketScope: "mine",
+      limit: 50,
+      orderBy: "createdAt",
+      order: "desc",
+    }, mergeTrpcQueryOpts("tickets.list", { refetchOnWindowFocus: false },));
 
   const statusMap = new Map<string, { name: string; color: string | null }>(
     (statusData ?? []).map((s: any) => [s.statusId, { name: s.name as string, color: s.color as string | null }]),
   );
 
-  const myTickets = (data?.items ?? []).filter(
-    (t: any) => t.requesterId === currentUser.id,
-  );
+  const myTickets = data?.items ?? [];
   const recentTickets = myTickets.slice(0, 3);
 
   const firstName = currentUser.name.split(" ")[0] ?? currentUser.name;

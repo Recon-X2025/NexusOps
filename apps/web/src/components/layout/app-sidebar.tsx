@@ -30,7 +30,9 @@ import {
   LayoutGrid,
   Leaf,
   Menu,
+  MessagesSquare,
   Monitor,
+  Flame,
   Pin,
   PinOff,
   Receipt,
@@ -74,6 +76,8 @@ const ALERT_BADGES: SidebarBadgeKey[] = [
 ];
 
 const SIDEBAR_ICONS: Record<string, LucideIcon> = {
+  Flame,
+  MessagesSquare,
   Monitor,
   Headset,
   GitBranch,
@@ -206,21 +210,21 @@ function filterItemsByRole(
 }
 
 function useSidebarBadges(): Partial<Record<SidebarBadgeKey, number>> {
-  const { can, isAuthenticated } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
   const canMetrics = isAuthenticated && can("reports", "read");
   const canSecurity = isAuthenticated && can("security", "read");
 
-  const metricsQ = trpc.dashboard.getMetrics.useQuery(undefined, {
+  const metricsQ = trpc.dashboard.getMetrics.useQuery(undefined, mergeTrpcQueryOpts("dashboard.getMetrics", {
     enabled: canMetrics,
     refetchInterval: 60_000,
     retry: false,
-  });
+  }));
 
-  const securityQ = trpc.security.openIncidentCount.useQuery(undefined, {
+  const securityQ = trpc.security.openIncidentCount.useQuery(undefined, mergeTrpcQueryOpts("security.openIncidentCount", {
     enabled: canSecurity,
     refetchInterval: 60_000,
     retry: false,
-  });
+  }));
 
   return useMemo(() => {
     const out: Partial<Record<SidebarBadgeKey, number>> = {};
@@ -536,7 +540,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
-  const { hasRole, canAccess } = useRBAC();
+  const { hasRole, canAccess, mergeTrpcQueryOpts } = useRBAC();
   const [search, setSearch] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(defaultExpandedSet);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set());

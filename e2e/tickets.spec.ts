@@ -93,4 +93,67 @@ test.describe("Ticket Lifecycle", () => {
     const hasList = await page.locator("table, [data-testid='ticket-list'], [data-testid='empty-state']").count();
     expect(hasList).toBeGreaterThanOrEqual(0); // Non-crash assertion
   });
+
+  test("ticket detail — Related tab: link two tickets", async ({ page }) => {
+    const suffix = Date.now();
+    const createTicket = async (title: string) => {
+      await page.goto("/app/tickets/new");
+      await page.waitForLoadState("networkidle");
+      await page.fill('[data-testid="ticket-title"]', title);
+      await page.fill('[data-testid="ticket-description"]', "Playwright relation E2E");
+      const categorySelect = page.locator("select").filter({ hasText: /category|select/i }).first();
+      if (await categorySelect.isVisible()) {
+        await categorySelect.selectOption({ index: 1 });
+      }
+      await page.click('[data-testid="ticket-submit"]');
+      await expect(page).toHaveURL(/app\/tickets\/([a-f0-9-]{36})/, { timeout: 15_000 });
+      const m = page.url().match(/app\/tickets\/([a-f0-9-]{36})/);
+      expect(m?.[1]).toBeTruthy();
+      return m![1]!;
+    };
+
+    const idA = await createTicket(`E2E Relation A ${suffix}`);
+    const idB = await createTicket(`E2E Relation B ${suffix}`);
+
+    await page.goto(`/app/tickets/${idA}`);
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("ticket-tab-related").click();
+    await expect(page.getByTestId("ticket-related-panel")).toBeVisible();
+
+    await page.getByTestId("ticket-relation-target-id").fill(idB);
+    await page.getByTestId("ticket-relation-add").click();
+
+    await expect(page.getByTestId("ticket-linked-list")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("ticket-linked-list")).toContainText(idB.slice(0, 8));
+
+    await page.getByTestId("ticket-relation-remove").first().click();
+    await expect(page.getByTestId("ticket-linked-empty")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("pending status — SLA pause appears on activity log", async ({ page }) => {
+    await page.goto("/app/tickets/new");
+    await page.waitForLoadState("networkidle");
+
+    const uniqueTitle = `E2E Pending SLA ${Date.now()}`;
+    await page.fill('[data-testid="ticket-title"]', uniqueTitle);
+    await page.fill('[data-testid="ticket-description"]', "Playwright pending + SLA pause audit");
+
+    const categorySelect = page.locator("select").filter({ hasText: /category|select/i }).first();
+    if (await categorySelect.isVisible()) {
+      await categorySelect.selectOption({ index: 1 });
+    }
+    await page.click('[data-testid="ticket-submit"]');
+    await expect(page).toHaveURL(/app\/tickets\/[a-f0-9-]{36}/, { timeout: 15_000 });
+
+    const statusSelect = page.getByTestId("ticket-status-select");
+    await statusSelect.waitFor({ state: "visible", timeout: 10_000 });
+    const pendingOption = statusSelect.locator("option").filter({ hasText: /pending/i }).first();
+    const pendingValue = await pendingOption.getAttribute("value");
+    test.skip(!pendingValue, "No Pending status row in this org (see migration 0013 + seed).");
+
+    await statusSelect.selectOption(pendingValue);
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("ticket-tab-activity").click();
+    await expect(page.getByText("slaPausedAt", { exact: false })).toBeVisible({ timeout: 15_000 });
+  });
 });

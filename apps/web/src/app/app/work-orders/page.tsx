@@ -89,7 +89,7 @@ function ageLabel(d: Date | string) {
 }
 
 export default function WorkOrdersPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = useMemo(() => STATE_TABS.filter((t) => can(t.module, t.action)), [can]);
   const [activeTab, setActiveTab] = useState(visibleTabs[0]?.key ?? "all");
 
@@ -111,9 +111,9 @@ export default function WorkOrdersPage() {
     state: (activeTab !== "all" ? activeTab : undefined) as "open" | "closed" | "draft" | "work_in_progress" | "dispatched" | "pending_dispatch" | "on_hold" | "complete" | "cancelled" | undefined,
     search: search || undefined,
     limit: 100,
-  });
+  }, mergeTrpcQueryOpts("workOrders.list", undefined));
 
-  const { data: metrics } = trpc.workOrders.metrics.useQuery();
+  const { data: metrics } = trpc.workOrders.metrics.useQuery(undefined, mergeTrpcQueryOpts("workOrders.metrics", undefined));
 
   const updateState = trpc.workOrders.updateState.useMutation({
     onSuccess: (result) => {

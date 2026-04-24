@@ -31,20 +31,17 @@ const STATUS_COLOR: Record<string, string> = {
 export default function EmployeeCenterPage() {
   const [search, setSearch] = useState("");
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView = can("requests", "read") || can("catalog", "read");
 
   // Live catalog requests (my requests)
-  const catalogRequestsQuery = trpc.catalog.listRequests.useQuery(
-    { myRequests: true },
-    { enabled: canView },
-  );
+  const catalogRequestsQuery = trpc.catalog.listRequests.useQuery({ myRequests: true }, mergeTrpcQueryOpts("catalog.listRequests", { enabled: canView },));
 
-  // Live open tickets count
-  const ticketsQuery = trpc.tickets.list.useQuery({}, { enabled: canView });
+  // Live open tickets count (requester-scoped — same as portal)
+  const ticketsQuery = trpc.tickets.list.useQuery({ ticketScope: "mine", limit: 50, orderBy: "updatedAt", order: "desc" }, mergeTrpcQueryOpts("tickets.list", { enabled: canView },));
 
   // Live knowledge base articles
-  const kbQuery = trpc.knowledge.list.useQuery({ limit: 4 }, { enabled: canView });
+  const kbQuery = trpc.knowledge.list.useQuery({ limit: 4 }, mergeTrpcQueryOpts("knowledge.list", { enabled: canView }));
 
   if (!canView) return <AccessDenied module="Employee Center" />;
 
@@ -62,7 +59,9 @@ export default function EmployeeCenterPage() {
 
   const myRequests = liveRequests;
 
-  const openTicketsCount = ticketsQuery.data?.items?.length ?? 0;
+  const openTicketsCount = (ticketsQuery.data?.items ?? []).filter(
+    (t: { closedAt?: string | null; resolvedAt?: string | null }) => !t.closedAt && !t.resolvedAt,
+  ).length;
 
   return (
     <div className="flex flex-col gap-4">

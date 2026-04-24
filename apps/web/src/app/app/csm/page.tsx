@@ -34,14 +34,14 @@ const CASE_STATE: Record<string, string> = {
 };
 
 export default function CSMPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = CSM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "cases");
 
-  const casesQuery = trpc.csm.cases.list.useQuery({ limit: 50 });
+  const casesQuery = trpc.csm.cases.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("csm.cases.list", undefined));
 
-  const accountsQuery = trpc.csm.accounts.list.useQuery({});
+  const accountsQuery = trpc.csm.accounts.list.useQuery({}, mergeTrpcQueryOpts("csm.accounts.list", undefined));
 
   const [showNewCase, setShowNewCase] = useState(false);
   const [caseForm, setCaseForm] = useState({ title: "", description: "", priority: "medium" });
@@ -62,7 +62,7 @@ export default function CSMPage() {
   });
 
   // Portal users — customer contacts via India compliance router
-  const portalUsersQuery = trpc.indiaCompliance.portalUsers.list.useQuery({});
+  const portalUsersQuery = trpc.indiaCompliance.portalUsers.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.portalUsers.list", undefined));
   const [suspendReason, setSuspendReason] = useState<Record<string, string>>({});
   const suspendPortalUser = trpc.indiaCompliance.portalUsers.suspend.useMutation({
     onSuccess: () => portalUsersQuery.refetch(),

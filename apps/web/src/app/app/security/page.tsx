@@ -43,7 +43,7 @@ const VULN_STATE_COLOR: Record<string, string> = {
 };
 
 export default function SecurityOpsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = SEC_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vulnerabilities");
   const [showNewIncident, setShowNewIncident] = useState(false);
@@ -57,28 +57,13 @@ export default function SecurityOpsPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data: vulns, isLoading: vulnsLoading } = trpc.security.listVulnerabilities.useQuery(
-    { limit: 100 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: incidents, isLoading: incidentsLoading, refetch: refetchIncidents } = trpc.security.listIncidents.useQuery(
-    { limit: 100 },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: vulns, isLoading: vulnsLoading } = trpc.security.listVulnerabilities.useQuery({ limit: 100 }, mergeTrpcQueryOpts("security.listVulnerabilities", { refetchOnWindowFocus: false },));
+  const { data: incidents, isLoading: incidentsLoading, refetch: refetchIncidents } = trpc.security.listIncidents.useQuery({ limit: 100 }, mergeTrpcQueryOpts("security.listIncidents", { refetchOnWindowFocus: false },));
 
   // GRC data for Config Compliance tab
-  const { data: grcAudits, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery(
-    undefined,
-    { enabled: can("grc", "read"), refetchOnWindowFocus: false },
-  );
-  const { data: grcPolicies, isLoading: policiesLoading } = trpc.grc.listPolicies.useQuery(
-    { limit: 50 },
-    { enabled: can("grc", "read"), refetchOnWindowFocus: false },
-  );
-  const { data: grcRisks } = trpc.grc.listRisks.useQuery(
-    { limit: 50 },
-    { enabled: can("grc", "read"), refetchOnWindowFocus: false },
-  );
+  const { data: grcAudits, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery(undefined, mergeTrpcQueryOpts("grc.listAudits", { enabled: can("grc", "read"), refetchOnWindowFocus: false },));
+  const { data: grcPolicies, isLoading: policiesLoading } = trpc.grc.listPolicies.useQuery({ limit: 50 }, mergeTrpcQueryOpts("grc.listPolicies", { enabled: can("grc", "read"), refetchOnWindowFocus: false },));
+  const { data: grcRisks } = trpc.grc.listRisks.useQuery({ limit: 50 }, mergeTrpcQueryOpts("grc.listRisks", { enabled: can("grc", "read"), refetchOnWindowFocus: false },));
 
   const createIncident = trpc.security.createIncident.useMutation({
     onSuccess: (inc: any) => { toast.success(`Security incident ${inc?.id?.slice(0,8) ?? ""} created`); setShowNewIncident(false); setIncForm({ title: "", description: "", severity: "medium", attackVector: "" }); refetchIncidents(); },

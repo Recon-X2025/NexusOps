@@ -1,8 +1,8 @@
-{
-  "index": "Home",
+export default {
+  index: "Home",
   "getting-started": "Getting Started",
   "admin-guide": "Admin Guide",
-  "modules": "Modules",
+  modules: "Modules",
   "api-reference": "API Reference",
-  "self-hosted": "Self-Hosted"
-}
+  "self-hosted": "Self-Hosted",
+};

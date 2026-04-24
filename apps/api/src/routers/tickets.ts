@@ -60,6 +60,13 @@ import {
   ticketStatuses,
   ticketPriorities,
   ticketCategories,
+  ticketRelations,
+  ticketHandoffs,
+  kbArticles,
+  ciItems,
+  ciRelationships,
+  knownErrors,
+  organizations,
   users,
   eq,
   and,
@@ -69,10 +76,17 @@ import {
   count,
   isNull,
   inArray,
+  notInArray,
+  ilike,
   sql,
 } from "@nexusops/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import { assertTicketTransition } from "../lib/ticket-lifecycle";
+import { resolveSlaPolicyMinutes } from "../services/ticket-sla-policy";
+import {
+  adjustSlaDeadlineForBusinessCalendar,
+  parseOrgSlaCalendarSettings,
+} from "../lib/sla-business-calendar";
 import {
   CreateTicketSchema,
   UpdateTicketSchema,
@@ -91,12 +105,60 @@ function generateTicketNumber(orgSlug: string, seq: number): string {
  * window for the same org/user/title will share a key and deduplicate.
  * Requests more than 5 s apart get different keys and are accepted normally.
  */
+function readLinkedKbArticleIds(customFields: unknown): string[] {
+  if (!customFields || typeof customFields !== "object" || Array.isArray(customFields)) return [];
+  const raw = (customFields as Record<string, unknown>)["linkedKbArticleIds"];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x): x is string => typeof x === "string");
+}
+
+function kbSearchTermsFromTicketTitle(title: string): string[] {
+  return title
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length >= 3)
+    .slice(0, 5)
+    .map((w) => w.replace(/%/g, "").replace(/_/g, ""))
+    .filter((w) => w.length > 0);
+}
+
 function autoIdempotencyKey(orgId: string, userId: string, title: string): string {
   const window5s = Math.floor(Date.now() / 5_000);
   return createHash("sha256")
     .update(`${orgId}:${userId}:${title.toLowerCase().trim().slice(0, 200)}:${window5s}`)
     .digest("hex")
     .slice(0, 32);
+}
+
+async function syncTicketSlaJobs(args: {
+  ticketId: string;
+  orgId: string;
+  ticketNumber: string;
+  assigneeId: string | null | undefined;
+  slaResponseDueAt: Date | null | undefined;
+  slaResolveDueAt: Date | null | undefined;
+  statusCategory: string | null | undefined;
+}): Promise<void> {
+  try {
+    const { getWorkflowService } = await import("../services/workflow.js");
+    const { slaQueue } = getWorkflowService();
+    const { scheduleSlaBreach, cancelSlaJobs } = await import("../workflows/ticketLifecycleWorkflow.js");
+    await cancelSlaJobs(slaQueue, args.ticketId);
+    // Pause SLA clocks when status category is pending (requires DB enum + status row — see docs/ITSM_STAGING_RUNBOOK.md).
+    if (args.statusCategory === "pending") return;
+    if (args.slaResponseDueAt || args.slaResolveDueAt) {
+      await scheduleSlaBreach(slaQueue, {
+        ticketId: args.ticketId,
+        orgId: args.orgId,
+        ticketNumber: args.ticketNumber,
+        assigneeId: args.assigneeId ?? undefined,
+        slaResponseDueAt: args.slaResponseDueAt ?? undefined,
+        slaResolveDueAt: args.slaResolveDueAt ?? undefined,
+      });
+    }
+  } catch (err) {
+    console.warn("[tickets] SLA job sync skipped:", err);
+  }
 }
 
 export const ticketsRouter = router({
@@ -130,6 +192,30 @@ export const ticketsRouter = router({
       }
 
       const conditions = [eq(tickets.orgId, org!.id)];
+
+      if (input.ticketScope === "mine") {
+        conditions.push(eq(tickets.requesterId, ctx.user!.id));
+      }
+
+      if (input.problemId) {
+        const keRows = await db
+          .select({ id: knownErrors.id })
+          .from(knownErrors)
+          .where(and(eq(knownErrors.orgId, org!.id), eq(knownErrors.problemId, input.problemId)));
+        if (keRows.length === 0) {
+          conditions.push(sql`1 = 0`);
+        } else {
+          conditions.push(
+            inArray(
+              tickets.knownErrorId,
+              keRows.map((r: { id: string }) => r.id),
+            ),
+          );
+        }
+      }
+
+      if (input.knownErrorId) conditions.push(eq(tickets.knownErrorId, input.knownErrorId));
+      if (input.isMajorIncident === true) conditions.push(eq(tickets.isMajorIncident, true));
 
       if (input.statusId) conditions.push(eq(tickets.statusId, input.statusId));
       if (input.priorityId) conditions.push(eq(tickets.priorityId, input.priorityId));
@@ -446,7 +532,139 @@ export const ticketsRouter = router({
       ? comments
       : comments.filter((c: any) => !c.isInternal);
 
-    return { ticket, comments: visibleComments, activityLog };
+    const relRows: (typeof ticketRelations.$inferSelect)[] = await db
+      .select()
+      .from(ticketRelations)
+      .where(
+        or(eq(ticketRelations.sourceId, ticket.id), eq(ticketRelations.targetId, ticket.id)),
+      )
+      .orderBy(desc(ticketRelations.createdAt));
+
+    const peerIds: string[] = [
+      ...new Set(relRows.map((r) => (r.sourceId === ticket.id ? r.targetId : r.sourceId))),
+    ];
+    const peerMeta = new Map<string, { number: string; title: string }>();
+    if (peerIds.length > 0) {
+      const peerRows = await db
+        .select({ id: tickets.id, number: tickets.number, title: tickets.title })
+        .from(tickets)
+        .where(and(eq(tickets.orgId, org!.id), inArray(tickets.id, peerIds)));
+      for (const t of peerRows) {
+        peerMeta.set(t.id, { number: t.number, title: t.title });
+      }
+    }
+
+    const relations = relRows.map((r) => {
+      const outgoing = r.sourceId === ticket.id;
+      const relatedTicketId = outgoing ? r.targetId : r.sourceId;
+      const meta = peerMeta.get(relatedTicketId);
+      return {
+        id: r.id,
+        type: r.type,
+        direction: outgoing ? ("outgoing" as const) : ("incoming" as const),
+        relatedTicketId,
+        relatedNumber: meta?.number ?? "",
+        relatedTitle: meta?.title ?? "",
+        createdAt: r.createdAt,
+      };
+    });
+
+    const linkedKbArticleIds = readLinkedKbArticleIds(ticket.customFields);
+    let suggestedKbArticles: Array<{
+      id: string;
+      title: string;
+      viewCount: number;
+      helpfulCount: number;
+    }> = [];
+
+    const canSuggestKb = checkDbUserPermission(
+      ctx.user!.role,
+      "knowledge",
+      "read",
+      ctx.user!.matrixRole as string | undefined,
+    );
+    if (canSuggestKb) {
+      const terms = kbSearchTermsFromTicketTitle(ticket.title);
+      if (terms.length > 0) {
+        const kwOr = or(...terms.map((t) => ilike(kbArticles.title, `%${t}%`)));
+        const kbConds = [
+          eq(kbArticles.orgId, org!.id),
+          eq(kbArticles.status, "published"),
+          kwOr!,
+        ];
+        if (linkedKbArticleIds.length > 0) kbConds.push(notInArray(kbArticles.id, linkedKbArticleIds));
+        suggestedKbArticles = await db
+          .select({
+            id: kbArticles.id,
+            title: kbArticles.title,
+            viewCount: kbArticles.viewCount,
+            helpfulCount: kbArticles.helpfulCount,
+          })
+          .from(kbArticles)
+          .where(and(...kbConds))
+          .orderBy(desc(kbArticles.viewCount))
+          .limit(8);
+      }
+    }
+
+    const linkedKbArticles =
+      linkedKbArticleIds.length === 0
+        ? []
+        : await db
+            .select({
+              id: kbArticles.id,
+              title: kbArticles.title,
+              viewCount: kbArticles.viewCount,
+              helpfulCount: kbArticles.helpfulCount,
+            })
+            .from(kbArticles)
+            .where(
+              and(eq(kbArticles.orgId, org!.id), inArray(kbArticles.id, linkedKbArticleIds)),
+            );
+
+    let configurationItem: { id: string; name: string; ciType: string; status: string } | null = null;
+    if (ticket.configurationItemId) {
+      const [ci] = await db
+        .select({
+          id: ciItems.id,
+          name: ciItems.name,
+          ciType: ciItems.ciType,
+          status: ciItems.status,
+        })
+        .from(ciItems)
+        .where(and(eq(ciItems.id, ticket.configurationItemId), eq(ciItems.orgId, org!.id)));
+      configurationItem = ci ?? null;
+    }
+
+    let knownError: { id: string; title: string } | null = null;
+    if (ticket.knownErrorId) {
+      const [ke] = await db
+        .select({ id: knownErrors.id, title: knownErrors.title })
+        .from(knownErrors)
+        .where(and(eq(knownErrors.id, ticket.knownErrorId), eq(knownErrors.orgId, org!.id)));
+      knownError = ke ?? null;
+    }
+
+    let ciDownstreamCount = 0;
+    if (ticket.configurationItemId) {
+      const [{ n }] = await db
+        .select({ n: count() })
+        .from(ciRelationships)
+        .where(eq(ciRelationships.targetId, ticket.configurationItemId));
+      ciDownstreamCount = Number(n ?? 0);
+    }
+
+    return {
+      ticket,
+      comments: visibleComments,
+      activityLog,
+      relations,
+      suggestedKbArticles,
+      linkedKbArticles,
+      configurationItem,
+      knownError,
+      ciDownstreamCount,
+    };
   }),
 
   create: permissionProcedure("incidents", "write")
@@ -534,24 +752,67 @@ export const ticketsRouter = router({
       }
     }
 
-    // Calculate SLA from the resolved priority
+    // SLA: active `sla_policies` (conditions match) override per-field; else priority tier minutes.
     let slaResponseDueAt: Date | undefined;
     let slaResolveDueAt: Date | undefined;
-
+    const policyMins = await resolveSlaPolicyMinutes(db, org!.id, {
+      type: input.type ?? "request",
+      categoryId: input.categoryId ?? null,
+    });
+    let respMin: number | null | undefined;
+    let resMin: number | null | undefined;
     if (resolvedPriorityId) {
       const [priority] = await db
         .select()
         .from(ticketPriorities)
         .where(eq(ticketPriorities.id, resolvedPriorityId));
-
       if (priority) {
-        const now = new Date();
-        if (priority.slaResponseMinutes) {
-          slaResponseDueAt = new Date(now.getTime() + priority.slaResponseMinutes * 60 * 1000);
-        }
-        if (priority.slaResolveMinutes) {
-          slaResolveDueAt = new Date(now.getTime() + priority.slaResolveMinutes * 60 * 1000);
-        }
+        respMin = policyMins?.response ?? priority.slaResponseMinutes ?? null;
+        resMin = policyMins?.resolve ?? priority.slaResolveMinutes ?? null;
+      }
+    } else if (policyMins && (policyMins.response != null || policyMins.resolve != null)) {
+      respMin = policyMins.response ?? undefined;
+      resMin = policyMins.resolve ?? undefined;
+    }
+
+    const [orgRow] = await db
+      .select({ settings: organizations.settings })
+      .from(organizations)
+      .where(eq(organizations.id, org!.id))
+      .limit(1);
+    const slaCal = parseOrgSlaCalendarSettings(orgRow?.settings);
+    if (respMin != null || resMin != null) {
+      const now = new Date();
+      if (respMin != null && respMin > 0) {
+        slaResponseDueAt = adjustSlaDeadlineForBusinessCalendar(
+          new Date(now.getTime() + respMin * 60 * 1000),
+          slaCal,
+        );
+      }
+      if (resMin != null && resMin > 0) {
+        slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(
+          new Date(now.getTime() + resMin * 60 * 1000),
+          slaCal,
+        );
+      }
+    }
+
+    if (input.configurationItemId) {
+      const [ci] = await db
+        .select({ id: ciItems.id })
+        .from(ciItems)
+        .where(and(eq(ciItems.id, input.configurationItemId), eq(ciItems.orgId, org!.id)));
+      if (!ci) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Configuration item not found for this organisation" });
+      }
+    }
+    if (input.knownErrorId) {
+      const [ke] = await db
+        .select({ id: knownErrors.id })
+        .from(knownErrors)
+        .where(and(eq(knownErrors.id, input.knownErrorId), eq(knownErrors.orgId, org!.id)));
+      if (!ke) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Known error not found for this organisation" });
       }
     }
 
@@ -630,6 +891,10 @@ export const ticketsRouter = router({
               dueDate: input.dueDate,
               tags: input.tags ?? [],
               customFields: input.customFields,
+              configurationItemId: input.configurationItemId ?? null,
+              knownErrorId: input.knownErrorId ?? null,
+              isMajorIncident: input.isMajorIncident ?? false,
+              intakeChannel: input.intakeChannel ?? "portal",
               slaResponseDueAt,
               slaResolveDueAt,
               idempotencyKey,
@@ -753,18 +1018,46 @@ export const ticketsRouter = router({
         changes["statusId"] = { from: existing.statusId, to: input.data.statusId };
         updateData.statusId = input.data.statusId;
 
-        // Load current and new status categories for lifecycle validation
-        const [currentStatus] = existing.statusId
-          ? await db.select({ category: ticketStatuses.category }).from(ticketStatuses).where(eq(ticketStatuses.id, existing.statusId))
+        const [oldStatusRow] = existing.statusId
+          ? await db
+              .select({ category: ticketStatuses.category })
+              .from(ticketStatuses)
+              .where(eq(ticketStatuses.id, existing.statusId))
           : [];
         const [newStatus] = await db
           .select()
           .from(ticketStatuses)
           .where(eq(ticketStatuses.id, input.data.statusId));
 
-        // Enforce lifecycle rules: open → in_progress → resolved → closed
-        if (currentStatus?.category && newStatus?.category) {
-          assertTicketTransition(currentStatus.category, newStatus.category);
+        if (oldStatusRow?.category && newStatus?.category) {
+          assertTicketTransition(oldStatusRow.category, newStatus.category);
+        }
+
+        if (newStatus?.category === "pending") {
+          const nextPaused = new Date();
+          updateData.slaPausedAt = nextPaused;
+          const prevPausedMs = existing.slaPausedAt
+            ? new Date(existing.slaPausedAt as Date).getTime()
+            : null;
+          if (prevPausedMs !== nextPaused.getTime()) {
+            changes["slaPausedAt"] = { from: existing.slaPausedAt ?? null, to: nextPaused };
+          }
+        } else if (oldStatusRow?.category === "pending" && newStatus?.category && newStatus.category !== "pending") {
+          const pausedAt = existing.slaPausedAt;
+          let nextDuration = existing.slaPauseDurationMins ?? 0;
+          if (pausedAt) {
+            const extraMins = Math.max(
+              0,
+              Math.round((Date.now() - new Date(pausedAt).getTime()) / 60_000),
+            );
+            nextDuration += extraMins;
+            updateData.slaPauseDurationMins = nextDuration;
+            changes["slaPauseDurationMins"] = { from: existing.slaPauseDurationMins ?? 0, to: nextDuration };
+          }
+          updateData.slaPausedAt = null;
+          if (existing.slaPausedAt != null) {
+            changes["slaPausedAt"] = { from: existing.slaPausedAt, to: null };
+          }
         }
 
         if (newStatus?.category === "resolved") {
@@ -780,6 +1073,42 @@ export const ticketsRouter = router({
       if (input.data.priorityId !== undefined) {
         changes["priorityId"] = { from: existing.priorityId, to: input.data.priorityId };
         updateData.priorityId = input.data.priorityId;
+      }
+      if (input.data.configurationItemId !== undefined) {
+        const nextCi = input.data.configurationItemId;
+        if (nextCi) {
+          const [ci] = await db
+            .select({ id: ciItems.id })
+            .from(ciItems)
+            .where(and(eq(ciItems.id, nextCi), eq(ciItems.orgId, org!.id)));
+          if (!ci) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Configuration item not found" });
+          }
+        }
+        changes["configurationItemId"] = { from: existing.configurationItemId, to: nextCi };
+        updateData.configurationItemId = nextCi;
+      }
+      if (input.data.knownErrorId !== undefined) {
+        const nextKe = input.data.knownErrorId;
+        if (nextKe) {
+          const [ke] = await db
+            .select({ id: knownErrors.id })
+            .from(knownErrors)
+            .where(and(eq(knownErrors.id, nextKe), eq(knownErrors.orgId, org!.id)));
+          if (!ke) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Known error not found" });
+          }
+        }
+        changes["knownErrorId"] = { from: existing.knownErrorId, to: nextKe };
+        updateData.knownErrorId = nextKe;
+      }
+      if (input.data.isMajorIncident !== undefined && input.data.isMajorIncident !== existing.isMajorIncident) {
+        changes["isMajorIncident"] = { from: existing.isMajorIncident, to: input.data.isMajorIncident };
+        updateData.isMajorIncident = input.data.isMajorIncident;
+      }
+      if (input.data.intakeChannel !== undefined && input.data.intakeChannel !== existing.intakeChannel) {
+        changes["intakeChannel"] = { from: existing.intakeChannel, to: input.data.intakeChannel };
+        updateData.intakeChannel = input.data.intakeChannel;
       }
 
       updateData.updatedAt = new Date();
@@ -815,6 +1144,22 @@ export const ticketsRouter = router({
           event: "updated",
           ticket: merged,
           changes: changes as Record<string, { from: unknown; to: unknown }>,
+        });
+      }
+
+      if (input.data.statusId !== undefined && input.data.statusId !== existing.statusId) {
+        const [st] = await db
+          .select({ category: ticketStatuses.category })
+          .from(ticketStatuses)
+          .where(eq(ticketStatuses.id, updated.statusId));
+        await syncTicketSlaJobs({
+          ticketId: updated.id,
+          orgId: org!.id,
+          ticketNumber: updated.number,
+          assigneeId: updated.assigneeId,
+          slaResponseDueAt: updated.slaResponseDueAt,
+          slaResolveDueAt: updated.slaResolveDueAt,
+          statusCategory: st?.category ?? null,
         });
       }
 
@@ -857,6 +1202,12 @@ export const ticketsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
 
+      const [prev] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
+      if (!prev) throw new TRPCError({ code: "NOT_FOUND" });
+
       const [ticket] = await db
         .update(tickets)
         .set({ assigneeId: input.assigneeId, updatedAt: new Date() })
@@ -865,14 +1216,223 @@ export const ticketsRouter = router({
 
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
 
+      if (input.assigneeId && prev.assigneeId !== input.assigneeId) {
+        const [orgRow] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id))
+          .limit(1);
+        const cal = parseOrgSlaCalendarSettings(orgRow?.settings);
+        await db
+          .update(ticketHandoffs)
+          .set({ metAt: new Date() })
+          .where(and(eq(ticketHandoffs.ticketId, input.id), isNull(ticketHandoffs.metAt)));
+        const rawDue = new Date(Date.now() + 4 * 60 * 60 * 1000);
+        const dueAt = adjustSlaDeadlineForBusinessCalendar(rawDue, cal);
+        await db.insert(ticketHandoffs).values({
+          orgId: org!.id,
+          ticketId: input.id,
+          fromAssigneeId: prev.assigneeId,
+          toAssigneeId: input.assigneeId,
+          dueAt,
+        });
+      }
+
       await db.insert(ticketActivityLogs).values({
         ticketId: input.id,
         userId: user!.id,
         action: "assigned",
-        changes: { assigneeId: { from: null, to: input.assigneeId } },
+        changes: { assigneeId: { from: prev.assigneeId, to: input.assigneeId } },
       });
 
       return ticket;
+    }),
+
+  linkKnowledgeArticle: permissionProcedure("incidents", "write")
+    .input(z.object({ ticketId: z.string().uuid(), articleId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [t] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const [article] = await db
+        .select({ id: kbArticles.id })
+        .from(kbArticles)
+        .where(and(eq(kbArticles.id, input.articleId), eq(kbArticles.orgId, org!.id)));
+      if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+      const base =
+        t.customFields && typeof t.customFields === "object" && !Array.isArray(t.customFields)
+          ? { ...(t.customFields as Record<string, unknown>) }
+          : {};
+      const cur = readLinkedKbArticleIds(base);
+      if (cur.includes(input.articleId)) return t;
+
+      const customFields = { ...base, linkedKbArticleIds: [...cur, input.articleId] };
+
+      const [updated] = await db
+        .update(tickets)
+        .set({
+          customFields: customFields as Record<string, unknown>,
+          updatedAt: new Date(),
+          version: sql`${tickets.version} + 1`,
+        } as any)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Record was modified by another user. Please refresh and try again.",
+        });
+      }
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "updated",
+        changes: { linkedKbArticleIds: { from: cur, to: [...cur, input.articleId] } } as any,
+      });
+
+      return updated;
+    }),
+
+  unlinkKnowledgeArticle: permissionProcedure("incidents", "write")
+    .input(z.object({ ticketId: z.string().uuid(), articleId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [t] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const base =
+        t.customFields && typeof t.customFields === "object" && !Array.isArray(t.customFields)
+          ? { ...(t.customFields as Record<string, unknown>) }
+          : {};
+      const cur = readLinkedKbArticleIds(base);
+      const next = cur.filter((id) => id !== input.articleId);
+      if (next.length === cur.length) return t;
+
+      const customFields = { ...base, linkedKbArticleIds: next };
+
+      const [updated] = await db
+        .update(tickets)
+        .set({
+          customFields: customFields as Record<string, unknown>,
+          updatedAt: new Date(),
+          version: sql`${tickets.version} + 1`,
+        } as any)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Record was modified by another user. Please refresh and try again.",
+        });
+      }
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "updated",
+        changes: { linkedKbArticleIds: { from: cur, to: next } } as any,
+      });
+
+      return updated;
+    }),
+
+  addRelation: permissionProcedure("incidents", "write")
+    .input(
+      z.object({
+        ticketId: z.string().uuid(),
+        targetTicketId: z.string().uuid(),
+        type: z.enum(["blocks", "blocked_by", "duplicate", "related"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      if (input.ticketId === input.targetTicketId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot relate a ticket to itself" });
+      }
+      const [src] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      const [tgt] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.targetTicketId), eq(tickets.orgId, org!.id)));
+      if (!src || !tgt) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const [dup] = await db
+        .select({ id: ticketRelations.id })
+        .from(ticketRelations)
+        .where(
+          and(
+            eq(ticketRelations.sourceId, input.ticketId),
+            eq(ticketRelations.targetId, input.targetTicketId),
+            eq(ticketRelations.type, input.type),
+          ),
+        )
+        .limit(1);
+      if (dup) {
+        throw new TRPCError({ code: "CONFLICT", message: "This relation already exists" });
+      }
+
+      const [row] = await db
+        .insert(ticketRelations)
+        .values({
+          sourceId: input.ticketId,
+          targetId: input.targetTicketId,
+          type: input.type,
+        })
+        .returning();
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "relation_added",
+        changes: { relation: { from: null, to: { targetId: input.targetTicketId, type: input.type } } },
+      });
+
+      return row;
+    }),
+
+  removeRelation: permissionProcedure("incidents", "write")
+    .input(z.object({ relationId: z.string().uuid(), ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [rel] = await db
+        .select()
+        .from(ticketRelations)
+        .where(eq(ticketRelations.id, input.relationId))
+        .limit(1);
+      if (!rel) throw new TRPCError({ code: "NOT_FOUND", message: "Relation not found" });
+      if (rel.sourceId !== input.ticketId && rel.targetId !== input.ticketId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Relation does not belong to this ticket" });
+      }
+      const [ticket] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      await db.delete(ticketRelations).where(eq(ticketRelations.id, input.relationId));
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "relation_removed",
+        changes: { relation: { from: { targetId: rel.targetId, type: rel.type }, to: null } },
+      });
+
+      return { ok: true };
     }),
 
   bulkUpdate: permissionProcedure("incidents", "write")

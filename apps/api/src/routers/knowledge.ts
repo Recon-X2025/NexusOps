@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { kbArticles, kbFeedback, eq, and, desc, sql } from "@nexusops/db";
+import { kbArticles, kbFeedback, eq, and, desc, sql, or, ilike } from "@nexusops/db";
 
 export const knowledgeRouter = router({
   list: permissionProcedure("knowledge", "read")
@@ -18,6 +18,14 @@ export const knowledgeRouter = router({
       const conditions = [eq(kbArticles.orgId, org!.id)];
       if (input.status) conditions.push(eq(kbArticles.status, input.status as any));
       if (input.categoryId) conditions.push(eq(kbArticles.categoryId, input.categoryId));
+      const q = input.search?.trim().slice(0, 120);
+      if (q) {
+        const safe = q.replace(/\\/g, "").replace(/%/g, "").replace(/_/g, "");
+        if (safe.length > 0) {
+          const pat = `%${safe}%`;
+          conditions.push(or(ilike(kbArticles.title, pat), ilike(kbArticles.content, pat))!);
+        }
+      }
       return db.select().from(kbArticles).where(and(...conditions)).orderBy(desc(kbArticles.viewCount)).limit(input.limit);
     }),
 

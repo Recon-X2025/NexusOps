@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
+import { tickets } from "./tickets";
 
 export const catalogItemStatusEnum = pgEnum("catalog_item_status", [
   "active",
@@ -69,6 +70,9 @@ export const catalogRequests = pgTable(
     fulfillerId: uuid("fulfiller_id").references(() => users.id, { onDelete: "set null" }),
     approvalId: uuid("approval_id"),
     notes: text("notes"),
+    fulfillmentTicketId: uuid("fulfillment_ticket_id").references(() => tickets.id, {
+      onDelete: "set null",
+    }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -90,4 +94,9 @@ export const catalogRequestsRelations = relations(catalogRequests, ({ one }) => 
   item: one(catalogItems, { fields: [catalogRequests.itemId], references: [catalogItems.id] }),
   requester: one(users, { fields: [catalogRequests.requesterId], references: [users.id], relationName: "cr_requester" }),
   fulfiller: one(users, { fields: [catalogRequests.fulfillerId], references: [users.id], relationName: "cr_fulfiller" }),
+  fulfillmentTicket: one(tickets, {
+    fields: [catalogRequests.fulfillmentTicketId],
+    references: [tickets.id],
+    relationName: "catalog_fulfillment_ticket",
+  }),
 }));

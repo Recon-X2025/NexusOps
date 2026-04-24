@@ -71,7 +71,7 @@ function ProgressBar({ value, color = "bg-primary" }: { value: number; color?: s
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function PerformancePage() {
-  const { canAccess } = useRBAC();
+  const { canAccess, mergeTrpcQueryOpts } = useRBAC();
   if (!canAccess("hr")) return <AccessDenied />;
   return <PerformanceContent />;
 }
@@ -84,11 +84,11 @@ function PerformanceContent() {
   const [showCreateCycle, setShowCreateCycle] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
 
-  const cycles = trpc.performance.listCycles.useQuery({});
-  const myReviews = trpc.performance.myReviews.useQuery(undefined, { enabled: tab === "my-reviews" });
-  const myGoals = trpc.performance.myGoals.useQuery({}, { enabled: tab === "goals" });
-  const teamGoals = trpc.performance.listGoals.useQuery({}, { enabled: tab === "team" });
-  const summary = trpc.performance.summary.useQuery();
+  const cycles = trpc.performance.listCycles.useQuery({}, mergeTrpcQueryOpts("performance.listCycles", undefined));
+  const myReviews = trpc.performance.myReviews.useQuery(undefined, mergeTrpcQueryOpts("performance.myReviews", { enabled: tab === "my-reviews" }));
+  const myGoals = trpc.performance.myGoals.useQuery({}, mergeTrpcQueryOpts("performance.myGoals", { enabled: tab === "goals" }));
+  const teamGoals = trpc.performance.listGoals.useQuery({}, mergeTrpcQueryOpts("performance.listGoals", { enabled: tab === "team" }));
+  const summary = trpc.performance.summary.useQuery(undefined, mergeTrpcQueryOpts("performance.summary", undefined));
 
   const updateCycle = trpc.performance.updateCycle.useMutation({
     onSuccess: () => { toast.success("Cycle updated"); cycles.refetch(); },

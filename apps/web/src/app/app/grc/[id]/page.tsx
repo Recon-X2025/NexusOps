@@ -50,11 +50,11 @@ export default function GRCRiskDetailPage() {
   const [reviewNote, setReviewNote] = useState("");
   const [treatmentDraft, setTreatmentDraft] = useState("");
   const [editingTreatment, setEditingTreatment] = useState(false);
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
   // @ts-ignore
-  const riskQuery = trpc.grc.getRisk.useQuery({ id });
+  const riskQuery = trpc.grc.getRisk.useQuery({ id }, mergeTrpcQueryOpts("grc.getRisk", undefined));
 
   // @ts-ignore
   const updateRiskMutation = trpc.grc.updateRisk.useMutation({

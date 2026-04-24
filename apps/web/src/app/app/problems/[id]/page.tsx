@@ -29,7 +29,7 @@ const PRIORITY_BAR: Record<string, string> = {
 
 export default function ProblemDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [comment, setComment] = useState("");
   const [editingRca, setEditingRca] = useState(false);
   const [rcaDraft, setRcaDraft] = useState("");
@@ -41,10 +41,16 @@ export default function ProblemDetailPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  const { data: allProblems, isLoading, refetch } = trpc.changes.listProblems.useQuery(
-    { limit: 200 },
-    { enabled: can("problems", "read") }
-  );
+  const { data: allProblems, isLoading, refetch } = trpc.changes.listProblems.useQuery({ limit: 200 }, mergeTrpcQueryOpts("changes.listProblems", { enabled: can("problems", "read") }));
+
+  const { data: allKnownErrors } = trpc.changes.listKnownErrors.useQuery(undefined, mergeTrpcQueryOpts("changes.listKnownErrors", {
+    enabled: can("problems", "read"),
+  }));
+  const kedbForProblem = (allKnownErrors as { id: string; title?: string; problemId?: string | null }[] | undefined)?.filter(
+    (ke) => ke.problemId === id,
+  ) ?? [];
+
+  const { data: linkedIncidentsPage } = trpc.tickets.list.useQuery({ problemId: id, type: "incident", limit: 30, orderBy: "updatedAt", order: "desc" }, mergeTrpcQueryOpts("tickets.list", { enabled: !!id && can("incidents", "read") },));
 
   const updateStatus = trpc.changes.updateProblem.useMutation({
     onSuccess: () => { toast.success("Status updated"); refetch(); },
@@ -215,6 +221,45 @@ export default function ProblemDetailPage() {
               )}
             </div>
           </PermissionGate>
+
+          {can("incidents", "read") && (
+            <div className="bg-card border border-border rounded p-4">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Linked service desk work
+              </h2>
+              {kedbForProblem.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] text-muted-foreground mb-1">Known error records (this problem)</p>
+                  <ul className="space-y-1">
+                    {kedbForProblem.map((ke) => (
+                      <li key={ke.id} className="text-xs flex justify-between gap-2">
+                        <span className="truncate font-medium text-foreground/90">{ke.title ?? "Known error"}</span>
+                        <span className="text-muted-foreground shrink-0 font-mono text-[10px]">{ke.id.slice(0, 8)}…</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground mb-1">Incidents linked via known error</p>
+              {!linkedIncidentsPage?.items?.length ? (
+                <p className="text-sm text-muted-foreground/70 italic">No linked incidents yet.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {(linkedIncidentsPage.items as { id: string; number: string; title: string }[]).map((t) => (
+                    <li key={t.id}>
+                      <Link
+                        href={`/app/tickets/${t.id}`}
+                        className="text-xs text-primary hover:underline flex min-w-0 gap-1"
+                      >
+                        <span className="font-mono shrink-0">{t.number}</span>
+                        <span className="truncate">{t.title}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Comment */}
           <PermissionGate module="problems" action="write">

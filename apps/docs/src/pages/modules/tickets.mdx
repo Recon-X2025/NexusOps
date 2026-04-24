@@ -17,24 +17,35 @@ When creating a ticket, users select the type. The system applies the appropriat
 
 ## Ticket Lifecycle
 
-Every ticket moves through a defined set of statuses:
+**Default status categories** (per organisation) shipped with seed and bootstrap:
 
 ```
-open → in_progress → pending → resolved → closed
-         ↑                ↓
-         └── reopened ←───┘
+open ⇄ in_progress ⇄ pending → resolved → closed
+  ↑                              ↑
+  └──────────────────────────────┘  (reopen paths per lifecycle rules)
 ```
 
-| Status | Description |
-|--------|-------------|
-| `open` | Ticket submitted, not yet assigned or worked |
-| `in_progress` | An agent is actively working the ticket |
-| `pending` | Waiting for information from the requester or a third party |
-| `resolved` | Agent has applied a fix; awaiting requester confirmation |
-| `closed` | Ticket complete; no further action required |
-| `cancelled` | Ticket withdrawn by requester or admin |
+| Category | Typical label | Description |
+|----------|---------------|-------------|
+| `open` | Open | Ticket submitted, not yet assigned or worked |
+| `in_progress` | In Progress | An agent is actively working the ticket |
+| `pending` | Pending | Awaiting customer, vendor, or other third party; **SLA clocks pause** |
+| `resolved` | Resolved | Agent has applied a fix; awaiting confirmation |
+| `closed` | Closed | Ticket complete; no further action required |
 
-SLA timers **pause** when a ticket enters `pending` status and **resume** when it returns to `in_progress`.
+Additional **named** statuses (e.g. “Cancelled”) can exist as long as their **category** maps to one of the five values above.
+
+### `pending` and SLA pause
+
+The **`pending`** category is a first-class enum value. Migration **`0013_ticket_status_pending_enum_and_rows`** extends the enum (via a safe type swap) and inserts one default “Pending” row per organisation.
+
+When a ticket’s status category is **`pending`**, the API **does not schedule** BullMQ SLA breach jobs, sets **`sla_paused_at`**, and **reschedules** SLA jobs when leaving `pending`, accumulating minutes into **`sla_pause_duration_mins`**.
+
+Operational notes: **`docs/ITSM_STAGING_RUNBOOK.md`** §7.
+
+### `cancelled` in UI copy
+
+Some screens mention **cancelled**; unless your org defines a status whose category maps to closed (or a dedicated workflow), treat “cancelled” as a **business label** aligned with your admin configuration.
 
 ## Priorities
 
@@ -74,6 +85,8 @@ NexusOps tracks two SLA targets per ticket:
 1. **First Response Time (FRT)**: Time from ticket creation until the first agent response.
 2. **Resolution Time**: Time from ticket creation until status changes to `resolved`.
 
+**Targets** come from the ticket’s **priority** tier (response / resolve minutes) unless an **active `sla_policies`** row matches the ticket (`conditions` JSON: optional `ticketTypes`, `categoryIds`, or `{}` for match‑all). See the staging runbook §6 for the condition schema.
+
 SLA status is shown as a color-coded indicator on every ticket:
 
 - 🟢 **On track** — more than 20% of time remaining
@@ -104,14 +117,18 @@ For long-running tickets with many comments and status changes, agents can click
 
 ## Ticket Relations
 
-Tickets can be linked to each other:
+Tickets can be linked to each other from the ticket detail page (**Related** tab → **Linked tickets**): enter the **target ticket UUID**, choose a relation type, and **Add link**.
 
-| Relation | Description |
-|----------|-------------|
-| **Duplicate** | This ticket is a duplicate of another |
-| **Related** | Tickets are related but independent |
-| **Parent/Child** | Hierarchical relationship (e.g., a problem ticket with multiple incident children) |
-| **Blocked by** | This ticket cannot proceed until another is resolved |
+| Relation type | Description |
+|---------------|-------------|
+| **related** | General association |
+| **duplicate** | Same underlying work as another ticket |
+| **blocks** | Source blocks the target |
+| **blocked_by** | Source is blocked by the target |
+
+Links are stored in `ticket_relations` and returned on `tickets.get` as `relations` (with direction **outgoing** / **incoming**).
+
+Formal **problem** and **change** records continue to live in their own modules; the Related tab also surfaces shortcuts to those lists where configured.
 
 ## Custom Fields
 

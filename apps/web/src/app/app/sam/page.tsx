@@ -22,7 +22,7 @@ const COMPLIANCE_COLOR: Record<string, string> = {
 };
 
 export default function SAMPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = SAM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [search, setSearch] = useState("");
@@ -35,7 +35,7 @@ export default function SAMPage() {
 
 
   // @ts-ignore
-  const licensesQuery = trpc.assets.licenses.list.useQuery(undefined, { refetchOnWindowFocus: false });
+  const licensesQuery = trpc.assets.licenses.list.useQuery(undefined, mergeTrpcQueryOpts("assets.licenses.list", { refetchOnWindowFocus: false }));
 
   const createLicense = trpc.assets.licenses.create.useMutation({
     onSuccess: () => { toast.success("License added to SAM registry"); setShowAddLicense(false); setLicForm({ productName: "", vendor: "", licenseType: "subscription", totalSeats: "", costPerSeat: "", expiresAt: "" }); licensesQuery.refetch(); },

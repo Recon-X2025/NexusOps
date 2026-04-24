@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -58,19 +58,26 @@ function matchStatusStyle(name: string) {
 }
 
 export default function MyRequestsPage() {
-  const { currentUser } = useRBAC();
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
 
-  const { data: statusData } = trpc.tickets.statusCounts.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
+  const { data: statusData } = trpc.tickets.statusCounts.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("tickets.statusCounts", { refetchOnWindowFocus: false }),
+  );
 
   const { data, isLoading, isError, refetch } = trpc.tickets.list.useQuery(
-    { type: "request", limit: 100, orderBy: "createdAt", order: "desc" },
-    { refetchOnWindowFocus: false },
+    {
+      type: "request",
+      ticketScope: "mine",
+      limit: 100,
+      orderBy: "createdAt",
+      order: "desc",
+    },
+    mergeTrpcQueryOpts("tickets.list", { refetchOnWindowFocus: false }),
   );
 
   const updateTicket = trpc.tickets.update.useMutation({
@@ -94,9 +101,7 @@ export default function MyRequestsPage() {
     s.name.toLowerCase().includes("closed"),
   )?.statusId;
 
-  const myTickets = (data?.items ?? []).filter(
-    (t: any) => t.requesterId === currentUser.id,
-  );
+  const myTickets = data?.items ?? [];
 
   function handleCancel(ticketId: string) {
     if (!closedStatusId) {

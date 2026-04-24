@@ -36,10 +36,10 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 export default function ReleaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
-  const { data: release, isLoading } = trpc.changes.getRelease.useQuery({ id });
+  const { data: release, isLoading } = trpc.changes.getRelease.useQuery({ id }, mergeTrpcQueryOpts("changes.getRelease", undefined));
 
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");

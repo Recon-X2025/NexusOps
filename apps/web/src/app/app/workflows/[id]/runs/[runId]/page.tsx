@@ -183,17 +183,11 @@ function StepCard({ step, index }: { step: StepRun; index: number }) {
 
 export default function WorkflowRunPage() {
   const { id, runId } = useParams<{ id: string; runId: string }>();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data, isLoading, error } = trpc.workflows.runs.get.useQuery(
-    { id: runId },
-    { enabled: can("approvals", "read") },
-  );
+  const { data, isLoading, error } = trpc.workflows.runs.get.useQuery({ id: runId }, mergeTrpcQueryOpts("workflows.runs.get", { enabled: can("approvals", "read") },));
 
-  const { data: workflowData } = trpc.workflows.get.useQuery(
-    { id },
-    { enabled: can("approvals", "read") },
-  );
+  const { data: workflowData } = trpc.workflows.get.useQuery({ id }, mergeTrpcQueryOpts("workflows.get", { enabled: can("approvals", "read") },));
 
   if (!can("approvals", "read")) return <AccessDenied module="Workflows" />;
 

@@ -86,17 +86,14 @@ const BOT_FLOWS: Record<string, { reply: string; options?: string[]; articleRef?
 };
 
 export default function VirtualAgentPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [view, setView] = useState<"chat" | "analytics">("chat");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: myTicketsData } = trpc.tickets.list.useQuery(
-    { limit: 5, statusCategory: "open" },
-    { enabled: can("incidents", "read"), refetchOnWindowFocus: false }
-  );
+  const { data: myTicketsData } = trpc.tickets.list.useQuery({ limit: 5, statusCategory: "open", ticketScope: "mine" }, mergeTrpcQueryOpts("tickets.list", { enabled: can("incidents", "read"), refetchOnWindowFocus: false },));
   const createTicketMutation = trpc.tickets.create.useMutation({
     onSuccess: (ticket: any) => {
       addMessage(`✅ Ticket created!\n\n**${ticket.number}** — ${ticket.title}\n**Priority**: ${ticket.priority ?? "P3"}\n**Status**: Open\n\nThe IT team will respond shortly.`, "bot", {

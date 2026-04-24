@@ -31,11 +31,11 @@ const TERMINAL_STATES = ["resolved", "closed"];
 export default function CSMCaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
   // @ts-ignore
-  const { data: caseData, isLoading } = trpc.csm.cases.get.useQuery({ id });
+  const { data: caseData, isLoading } = trpc.csm.cases.get.useQuery({ id }, mergeTrpcQueryOpts("csm.cases.get", undefined));
 
   const [comment, setComment] = useState("");
   const [newStatus, setNewStatus] = useState("");

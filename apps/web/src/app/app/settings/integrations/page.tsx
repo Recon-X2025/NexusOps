@@ -196,14 +196,15 @@ function IntegrationCard({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IntegrationsSettingsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [savingProvider, setSavingProvider] = useState<Provider | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<Provider | null>(null);
 
-  const { data: list, isLoading, refetch } = trpc.integrations.listIntegrations.useQuery(
-    undefined,
-    { enabled: can("settings", "read") },
-  );
+  const { data: list, isLoading, refetch } = trpc.integrations.listIntegrations.useQuery(undefined, mergeTrpcQueryOpts("integrations.listIntegrations", { enabled: can("settings", "read") },));
+
+  const { data: hubCatalog } = trpc.integrations.hubCatalog.useQuery(undefined, mergeTrpcQueryOpts("integrations.hubCatalog", {
+    enabled: can("settings", "read"),
+  }));
 
   const upsert = trpc.integrations.upsertIntegration.useMutation({
     onSuccess: () => {
@@ -275,14 +276,32 @@ export default function IntegrationsSettingsPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-dashed border-border p-5">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Settings className="h-4 w-4" />
-          <p className="text-sm">
-            More integrations — Jira bidirectional sync and SAP REST adapter — are in the roadmap.
-            Configuration will be fully handled here once those connectors are implemented.
-          </p>
+      <div className="rounded-xl border border-border bg-muted/20 p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Settings className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Integration hub catalogue</h2>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Curated connector roadmap from the integration hub catalog procedure. Tier reflects product readiness, not
+          live connection health.
+        </p>
+        {hubCatalog?.connectors && hubCatalog.connectors.length > 0 ? (
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {hubCatalog.connectors.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-lg border border-border bg-card px-3 py-2 text-xs flex flex-col gap-0.5"
+              >
+                <span className="font-medium text-foreground/90">{c.label}</span>
+                <span className="text-[10px] text-muted-foreground capitalize">
+                  {c.category} · {c.tier}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground">Catalog unavailable.</p>
+        )}
       </div>
     </div>
   );

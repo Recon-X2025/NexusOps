@@ -104,7 +104,7 @@ const BUILDER_TEMPLATE = {
 };
 
 export default function SurveysPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
   const visibleTabs = SURVEY_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
@@ -119,29 +119,17 @@ export default function SurveysPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: surveysData, refetch: refetchSurveys } = trpc.surveys.list.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: surveysData, refetch: refetchSurveys } = trpc.surveys.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("surveys.list", { refetchOnWindowFocus: false },));
 
   // Live results for selected survey
   const isRealSurveyId = /^[0-9a-f-]{36}$/.test(selectedResult);
-  const { data: liveResults } = trpc.surveys.getResults.useQuery(
-    { id: selectedResult },
-    { enabled: isRealSurveyId, refetchOnWindowFocus: false },
-  );
+  const { data: liveResults } = trpc.surveys.getResults.useQuery({ id: selectedResult }, mergeTrpcQueryOpts("surveys.getResults", { enabled: isRealSurveyId, refetchOnWindowFocus: false },));
 
   // Dashboard: get results for first CSAT and first Pulse surveys
   const csatSurveyId = (surveysData as any[] | undefined)?.find((s: any) => s.type === "csat" && s.status === "active")?.id ?? null;
   const pulseSurveyId = (surveysData as any[] | undefined)?.find((s: any) => (s.type === "pulse" || s.type === "enps") && s.status === "active")?.id ?? null;
-  const { data: csatResults } = trpc.surveys.getResults.useQuery(
-    { id: csatSurveyId ?? "" },
-    { enabled: !!csatSurveyId, refetchOnWindowFocus: false },
-  );
-  const { data: pulseResults } = trpc.surveys.getResults.useQuery(
-    { id: pulseSurveyId ?? "" },
-    { enabled: !!pulseSurveyId, refetchOnWindowFocus: false },
-  );
+  const { data: csatResults } = trpc.surveys.getResults.useQuery({ id: csatSurveyId ?? "" }, mergeTrpcQueryOpts("surveys.getResults", { enabled: !!csatSurveyId, refetchOnWindowFocus: false },));
+  const { data: pulseResults } = trpc.surveys.getResults.useQuery({ id: pulseSurveyId ?? "" }, mergeTrpcQueryOpts("surveys.getResults", { enabled: !!pulseSurveyId, refetchOnWindowFocus: false },));
 
   const createSurvey = trpc.surveys.create.useMutation({
     onSuccess: (survey) => {

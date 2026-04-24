@@ -56,19 +56,13 @@ type Task = {
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
   const utils = trpc.useUtils();
 
-  const { data: project, isLoading, isError, refetch } = trpc.projects.get.useQuery(
-    { id },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: project, isLoading, isError, refetch } = trpc.projects.get.useQuery({ id }, mergeTrpcQueryOpts("projects.get", { refetchOnWindowFocus: false },));
 
-  const boardQuery = trpc.projects.getAgileBoard.useQuery(
-    { projectId: id },
-    { refetchOnWindowFocus: false, enabled: !!id },
-  );
+  const boardQuery = trpc.projects.getAgileBoard.useQuery({ projectId: id }, mergeTrpcQueryOpts("projects.getAgileBoard", { refetchOnWindowFocus: false, enabled: !!id },));
 
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskForm, setTaskForm] = useState({

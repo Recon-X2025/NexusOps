@@ -51,7 +51,7 @@ const VENDOR_TABS = [
 ];
 
 export default function VendorsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = VENDOR_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vendors");
@@ -64,9 +64,9 @@ export default function VendorsPage() {
 
 
   // @ts-ignore
-  const vendorsQuery = trpc.vendors.list.useQuery({ limit: 50 });
+  const vendorsQuery = trpc.vendors.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("vendors.list", undefined));
   // @ts-ignore
-  const contractsQuery = trpc.contracts.list.useQuery({ limit: 50 });
+  const contractsQuery = trpc.contracts.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("contracts.list", undefined));
   // @ts-ignore
   const createVendorMutation = trpc.vendors.create.useMutation({
     onSuccess: () => {

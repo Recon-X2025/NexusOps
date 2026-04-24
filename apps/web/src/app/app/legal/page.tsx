@@ -116,7 +116,7 @@ const PRIORITY_BAR: Record<string, string> = {
 };
 
 export default function LegalPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = LEGAL_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
@@ -126,26 +126,11 @@ export default function LegalPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: mattersData, isLoading: loadingMatters, refetch: refetchMatters } = trpc.legal.listMatters.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: legalRequestsData, isLoading: loadingRequests } = trpc.legal.listRequests.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: investigationsData, isLoading: loadingInvestigations } = trpc.legal.listInvestigations.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: contractsData, isLoading: loadingContracts } = trpc.contracts.list.useQuery(
-    { limit: 20 },
-    { refetchOnWindowFocus: false },
-  );
-  const { data: kbData, isLoading: loadingKb } = trpc.knowledge.list.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: mattersData, isLoading: loadingMatters, refetch: refetchMatters } = trpc.legal.listMatters.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listMatters", { refetchOnWindowFocus: false },));
+  const { data: legalRequestsData, isLoading: loadingRequests } = trpc.legal.listRequests.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listRequests", { refetchOnWindowFocus: false },));
+  const { data: investigationsData, isLoading: loadingInvestigations } = trpc.legal.listInvestigations.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listInvestigations", { refetchOnWindowFocus: false },));
+  const { data: contractsData, isLoading: loadingContracts } = trpc.contracts.list.useQuery({ limit: 20 }, mergeTrpcQueryOpts("contracts.list", { refetchOnWindowFocus: false },));
+  const { data: kbData, isLoading: loadingKb } = trpc.knowledge.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("knowledge.list", { refetchOnWindowFocus: false },));
 
   const updateMatter = trpc.legal.updateMatter.useMutation({
     onSuccess: (m: any) => { toast.success(`Matter ${m?.number ?? ""} updated`); refetchMatters(); },

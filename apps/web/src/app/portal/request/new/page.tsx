@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import {
   Monitor,
   Code2,
@@ -88,6 +89,7 @@ const PRIORITIES = [
 type SubmittedTicket = { number: string; id: string };
 
 export default function NewRequestPage() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const [category, setCategory] = useState<Category | null>(null);
   const [title, setTitle] = useState("");
@@ -95,9 +97,10 @@ export default function NewRequestPage() {
   const [priority, setPriority] = useState("Medium");
   const [submitted, setSubmitted] = useState<SubmittedTicket | null>(null);
 
-  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
+  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("tickets.listPriorities", { refetchOnWindowFocus: false }),
+  );
 
   const create = trpc.tickets.create.useMutation({
     onSuccess: (ticket) => {

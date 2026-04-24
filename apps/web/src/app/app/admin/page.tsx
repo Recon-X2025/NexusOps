@@ -53,7 +53,7 @@ const MODULE_LABELS: Partial<Record<Module, string>> = {
 };
 
 export default function AdminConsolePage() {
-  const { can, isAdmin, currentUser } = useRBAC();
+  const { can, isAdmin, currentUser, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = ADMIN_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "overview");
   const [searchUsers, setSearchUsers] = useState("");
@@ -73,15 +73,15 @@ export default function AdminConsolePage() {
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
 
   // @ts-ignore
-  const slaQuery = trpc.admin.slaDefinitions.list.useQuery();
+  const slaQuery = trpc.admin.slaDefinitions.list.useQuery(undefined, mergeTrpcQueryOpts("admin.slaDefinitions.list", undefined));
   // @ts-ignore
-  const propsQuery = trpc.admin.systemProperties.list.useQuery();
+  const propsQuery = trpc.admin.systemProperties.list.useQuery(undefined, mergeTrpcQueryOpts("admin.systemProperties.list", undefined));
   // @ts-ignore
-  const nrQuery = trpc.admin.notificationRules.list.useQuery();
+  const nrQuery = trpc.admin.notificationRules.list.useQuery(undefined, mergeTrpcQueryOpts("admin.notificationRules.list", undefined));
   // @ts-ignore
-  const jobsQuery = trpc.admin.scheduledJobs.list.useQuery();
-  const usersQuery = trpc.admin.users.list.useQuery();
-  const auditOverviewQuery = trpc.admin.auditLog.list.useQuery({ page: 1, limit: 5 });
+  const jobsQuery = trpc.admin.scheduledJobs.list.useQuery(undefined, mergeTrpcQueryOpts("admin.scheduledJobs.list", undefined));
+  const usersQuery = trpc.admin.users.list.useQuery(undefined, mergeTrpcQueryOpts("admin.users.list", undefined));
+  const auditOverviewQuery = trpc.admin.auditLog.list.useQuery({ page: 1, limit: 5 }, mergeTrpcQueryOpts("admin.auditLog.list", undefined));
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [toggledRules, setToggledRules] = useState<Set<string>>(new Set());
 
@@ -1067,13 +1067,12 @@ export default function AdminConsolePage() {
 }
 
 function AuditLogTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [page, setPage] = useState(1);
   const [resourceType, setResourceType] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data, isLoading } = trpc.admin.auditLog.list.useQuery(
-    { page, limit: 50, resourceType: resourceType || undefined },
-  );
+  const { data, isLoading } = trpc.admin.auditLog.list.useQuery({ page, limit: 50, resourceType: resourceType || undefined }, mergeTrpcQueryOpts("admin.auditLog.list", undefined));
 
   return (
     <div className="p-4">
@@ -1165,8 +1164,9 @@ const BR_ACT_PLACEHOLDER = `[
 ]`;
 
 function BusinessRulesTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
-  const listQuery = trpc.admin.businessRules.list.useQuery();
+  const listQuery = trpc.admin.businessRules.list.useQuery(undefined, mergeTrpcQueryOpts("admin.businessRules.list", undefined));
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -1455,11 +1455,12 @@ const HR_CASE_TYPES = [
 ];
 
 function AssignmentRulesTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
   // @ts-ignore
-  const rulesQuery = trpc.assignmentRules.list.useQuery({});
+  const rulesQuery = trpc.assignmentRules.list.useQuery({}, mergeTrpcQueryOpts("assignmentRules.list", undefined));
   // @ts-ignore
-  const teamsQuery = trpc.assignmentRules.teamsWithMembers.useQuery();
+  const teamsQuery = trpc.assignmentRules.teamsWithMembers.useQuery(undefined, mergeTrpcQueryOpts("assignmentRules.teamsWithMembers", undefined));
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);

@@ -15,12 +15,7 @@ const config: DocsThemeConfig = {
   },
   docsRepositoryBase: "https://github.com/Recon-X2025/NexusOps/tree/main/apps/docs",
   footer: {
-    text: "© 2026 Coheron. All rights reserved.",
-  },
-  useNextSeoProps() {
-    return {
-      titleTemplate: "%s – NexusOps Docs",
-    };
+    content: "© 2026 Coheron. All rights reserved.",
   },
   head: (
     <>
@@ -29,7 +24,9 @@ const config: DocsThemeConfig = {
     </>
   ),
   darkMode: true,
-  primaryHue: 220,
+  color: {
+    hue: 220,
+  },
 };
 
 export default config;

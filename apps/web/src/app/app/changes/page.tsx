@@ -139,7 +139,7 @@ function ChangeCalendar({ items }: { items: Array<{ id: string; number: string; 
 }
 
 export default function ChangesPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const hasAccess = can("changes", "read");
 
   const visibleTabs = useMemo(() => TABS.filter((t) => can(t.module, t.action)), [can]);
@@ -153,14 +153,8 @@ export default function ChangesPage() {
   // happens AFTER this block to avoid React error #310 (conditional hook count).
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
 
-  const { data, isLoading, refetch } = trpc.changes.list.useQuery(
-    { status: activeStatus, limit: 50 },
-    { refetchOnWindowFocus: false, enabled: hasAccess },
-  );
-  const { data: counts } = trpc.changes.statusCounts.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false, enabled: hasAccess },
-  );
+  const { data, isLoading, refetch } = trpc.changes.list.useQuery({ status: activeStatus, limit: 50 }, mergeTrpcQueryOpts("changes.list", { refetchOnWindowFocus: false, enabled: hasAccess },));
+  const { data: counts } = trpc.changes.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("changes.statusCounts", { refetchOnWindowFocus: false, enabled: hasAccess },));
 
   const [actionRow, setActionRow] = useState<string | null>(null);
   const [cabComment, setCabComment] = useState("");
@@ -179,6 +173,24 @@ export default function ChangesPage() {
       setTimeout(() => setActionMsg(null), 3000);
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const { data: blackouts, refetch: refetchBlackouts } = trpc.changes.listBlackouts.useQuery(undefined, mergeTrpcQueryOpts("changes.listBlackouts", {
+    enabled: hasAccess,
+    refetchOnWindowFocus: false,
+  }));
+  const [boName, setBoName] = useState("");
+  const [boStart, setBoStart] = useState("");
+  const [boEnd, setBoEnd] = useState("");
+  const createBlackoutMut = trpc.changes.createBlackout.useMutation({
+    onSuccess: () => {
+      toast.success("Blackout window saved");
+      setBoName("");
+      setBoStart("");
+      setBoEnd("");
+      refetchBlackouts();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to save blackout"),
   });
 
   // Deferred access guard — all hooks already called above
@@ -235,6 +247,78 @@ export default function ChangesPage() {
           </div>
         ))}
       </div>
+
+      {can("changes", "write") && (
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="border-b border-border pb-2 mb-2">
+            <h2 className="text-[12px] font-semibold text-foreground">Change blackout windows</h2>
+            <p className="text-[10px] text-muted-foreground">
+              Phase B4 — frozen periods for CAB planning; use overlap checks when scheduling.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-4 sm:items-end">
+            <div className="sm:col-span-2">
+              <label className="text-[10px] text-muted-foreground">Name</label>
+              <input
+                className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                value={boName}
+                onChange={(e) => setBoName(e.target.value)}
+                placeholder="e.g. Year-end freeze"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Starts</label>
+              <input
+                type="datetime-local"
+                className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                value={boStart}
+                onChange={(e) => setBoStart(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Ends</label>
+              <input
+                type="datetime-local"
+                className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1 text-[11px]"
+                value={boEnd}
+                onChange={(e) => setBoEnd(e.target.value)}
+              />
+            </div>
+            <div className="sm:col-span-4 flex justify-end">
+              <button
+                type="button"
+                disabled={createBlackoutMut.isPending || !boName.trim() || !boStart || !boEnd}
+                onClick={() => {
+                  const s = new Date(boStart);
+                  const e = new Date(boEnd);
+                  createBlackoutMut.mutate({
+                    name: boName.trim(),
+                    startsAt: s.toISOString(),
+                    endsAt: e.toISOString(),
+                  });
+                }}
+                className="rounded-md bg-primary px-3 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {createBlackoutMut.isPending ? "Saving…" : "Add blackout"}
+              </button>
+            </div>
+          </div>
+          <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto text-[11px]">
+            {(blackouts ?? []).length === 0 ? (
+              <li className="text-muted-foreground italic">No blackout windows defined.</li>
+            ) : (
+              (blackouts as any[]).map((b: any) => (
+                <li key={b.id} className="flex justify-between gap-2 border-b border-border/60 py-0.5 last:border-0">
+                  <span className="font-medium text-foreground">{b.name}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {formatDate(b.startsAt)} → {formatDate(b.endsAt)}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
 
       {/* CAB alert */}
       {cabPending > 0 && (

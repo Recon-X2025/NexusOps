@@ -64,6 +64,34 @@
       "when": 1775664000000,
       "tag": "0010_invoice_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775750400000,
+      "tag": "0011_catalog_fulfillment_ticket",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1775836800000,
+      "tag": "0012_itsm_phases_bc",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1775923200000,
+      "tag": "0013_ticket_status_pending_enum_and_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1776009600000,
+      "tag": "0014_layer8_schema_alignment",
+      "breakpoints": true
     }
   ]
 }

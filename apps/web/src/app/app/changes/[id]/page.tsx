@@ -35,17 +35,14 @@ const RISK_COLORS: Record<string, string> = {
 export default function ChangeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [comment, setComment] = useState("");
   const [editingImpl, setEditingImpl] = useState(false);
   const [implDraft, setImplDraft] = useState("");
   const [editingRollback, setEditingRollback] = useState(false);
   const [rollbackDraft, setRollbackDraft] = useState("");
 
-  const { data: change, isLoading, refetch } = trpc.changes.get.useQuery(
-    { id },
-    { enabled: can("changes", "read") }
-  );
+  const { data: change, isLoading, refetch } = trpc.changes.get.useQuery({ id }, mergeTrpcQueryOpts("changes.get", { enabled: can("changes", "read") }));
 
   const updateState = trpc.changes.update.useMutation({
     onSuccess: () => { toast.success("Status updated"); refetch(); },

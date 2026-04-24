@@ -5,9 +5,10 @@ import { TRPCError } from "@trpc/server";
  * Spec: incidents — open → in_progress → resolved → closed
  */
 export const TICKET_LIFECYCLE: Record<string, string[]> = {
-  open: ["in_progress", "resolved", "closed"],
-  in_progress: ["resolved", "open", "closed"],
-  resolved: ["closed", "open"],
+  open: ["in_progress", "pending", "resolved", "closed"],
+  in_progress: ["pending", "resolved", "open", "closed"],
+  pending: ["open", "in_progress", "resolved", "closed"],
+  resolved: ["closed", "open", "in_progress", "pending"],
   closed: ["open"],
 };
 

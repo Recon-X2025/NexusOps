@@ -216,18 +216,12 @@ function ChangeRequestModal({ ci, blastRadius, onClose }: { ci: CINode; blastRad
 
 export default function ImpactAnalysisPage() {
   const { id } = useParams<{ id: string }>();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [showChangeModal, setShowChangeModal] = useState(false);
 
-  const { data: cisData, isLoading: cisLoading } = trpc.assets.cmdb.list.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: cisData, isLoading: cisLoading } = trpc.assets.cmdb.list.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.list", { refetchOnWindowFocus: false },));
 
-  const { data: topoData, isLoading: topoLoading } = trpc.assets.cmdb.getTopology.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: topoData, isLoading: topoLoading } = trpc.assets.cmdb.getTopology.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.getTopology", { refetchOnWindowFocus: false },));
 
   const isLoading = cisLoading || topoLoading;
 

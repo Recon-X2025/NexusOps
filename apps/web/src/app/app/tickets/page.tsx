@@ -94,7 +94,7 @@ type TicketRow = {
 };
 
 export default function TicketsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"overview" | "queue" | "board">("queue");
@@ -141,19 +141,19 @@ export default function TicketsPage() {
     bulkUpdate.mutate({ ids: Array.from(selectedRows), data: { statusId: closedStatus.statusId } });
   };
 
-  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
-  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, { staleTime: STALE_TIME.LIVE });
+  const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", { staleTime: STALE_TIME.LIVE }));
+  const { data: priorityList } = trpc.tickets.listPriorities.useQuery(undefined, mergeTrpcQueryOpts("tickets.listPriorities", { staleTime: STALE_TIME.LIVE }));
   const priorityMap = Object.fromEntries((priorityList ?? []).map((p: any) => [p.id, p]));
   const { data, isLoading, isFetching, refetch } = trpc.tickets.list.useQuery({
     search: search || undefined,
     statusId: selectedStatusId ?? undefined,
     limit: 50,
-  }, {
+  }, mergeTrpcQueryOpts("tickets.list", {
     staleTime: STALE_TIME.LIVE,
     // Keep previous results visible while a search/filter refetch is in-flight
     // so the table never flashes "0 of 0 records" during a query transition.
     placeholderData: (prev: any) => prev,
-  });
+  }));
 
   if (!can("incidents", "read") && !can("requests", "read")) {
     return <AccessDenied module="Service Desk" />;

@@ -30,7 +30,7 @@ const INDIA_STATES = [
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default function HolidaysPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView  = can("hr", "read");
   const canWrite = can("hr", "write");
 
@@ -43,7 +43,7 @@ export default function HolidaysPage() {
   });
 
   const utils     = trpc.useUtils();
-  const holidaysQ = trpc.hr.holidays.list.useQuery({ year }, { enabled: canView });
+  const holidaysQ = trpc.hr.holidays.list.useQuery({ year }, mergeTrpcQueryOpts("hr.holidays.list", { enabled: canView }));
 
   const createMut = trpc.hr.holidays.create.useMutation({ onSuccess: () => { toast.success("Holiday added"); setShowAdd(false); setForm(f => ({ ...f, name: "", date: "", stateCode: "", notes: "" })); void utils.hr.holidays.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const deleteMut = trpc.hr.holidays.delete.useMutation({ onSuccess: () => { toast.success("Holiday removed"); setDeleteId(null); void utils.hr.holidays.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });

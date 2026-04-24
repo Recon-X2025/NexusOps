@@ -2,8 +2,11 @@ import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
 import {
   tickets,
+  ticketStatuses,
   ticketCategories,
+  ticketHandoffs,
   changeRequests,
+  organizations,
   securityIncidents,
   budgetLines,
   surveyResponses,
@@ -17,7 +20,12 @@ import {
   gte,
   avg,
   isNotNull,
+  isNull,
 } from "@nexusops/db";
+import {
+  adjustSlaDeadlineForBusinessCalendar,
+  parseOrgSlaCalendarSettings,
+} from "../lib/sla-business-calendar";
 
 type Granularity = "day" | "week" | "month";
 
@@ -327,6 +335,187 @@ export const reportsRouter = router({
           };
         }),
         periodLabels: periods.map((p) => p.label),
+      };
+    }),
+
+  /** Phase A ITSM reporting pack — SLA, backlog ageing, reopens, volume (see docs/ITSM_PRODUCT_UPGRADE_PLAN_SNOW_SFDC.md). */
+  itsmServiceDeskPack: permissionProcedure("reports", "read")
+    .input(daysInput)
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+
+      const [{ createdN }] = await db
+        .select({ createdN: count() })
+        .from(tickets)
+        .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, since)));
+
+      const [{ breachedN }] = await db
+        .select({ breachedN: count() })
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            gte(tickets.createdAt, since),
+            eq(tickets.slaBreached, true),
+          ),
+        );
+
+      const created = Number(createdN);
+      const breached = Number(breachedN);
+      const slaCompliancePct = created > 0 ? Math.round(((created - breached) / created) * 100) : 100;
+
+      const openAgeRows = await db
+        .select({
+          ageDays: sql<number>`EXTRACT(EPOCH FROM (NOW() - ${tickets.createdAt})) / 86400.0`,
+        })
+        .from(tickets)
+        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            sql`${ticketStatuses.category} IN ('open', 'in_progress')`,
+          ),
+        );
+
+      const backlogAgeing = { d0_1: 0, d2_7: 0, d8_30: 0, d30p: 0 };
+      for (const r of openAgeRows) {
+        const d = Number(r.ageDays);
+        if (d < 2) backlogAgeing.d0_1++;
+        else if (d < 8) backlogAgeing.d2_7++;
+        else if (d < 31) backlogAgeing.d8_30++;
+        else backlogAgeing.d30p++;
+      }
+
+      const [{ reopenedN }] = await db
+        .select({ reopenedN: count() })
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            isNotNull(tickets.resolvedAt),
+            gte(tickets.resolvedAt, since),
+            sql`${tickets.reopenCount} > 0`,
+          ),
+        );
+
+      const [{ resolvedN }] = await db
+        .select({ resolvedN: count() })
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            isNotNull(tickets.resolvedAt),
+            gte(tickets.resolvedAt, since),
+          ),
+        );
+
+      const resolved = Number(resolvedN);
+      const reopened = Number(reopenedN);
+      const reopenRatePct = resolved > 0 ? Math.round((reopened / resolved) * 100) : 0;
+
+      const categoryRows = await db
+        .select({
+          category: sql<string>`COALESCE(${ticketCategories.name}, 'Uncategorized')`,
+          cnt: count(),
+        })
+        .from(tickets)
+        .leftJoin(ticketCategories, eq(tickets.categoryId, ticketCategories.id))
+        .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, since)))
+        .groupBy(sql`COALESCE(${ticketCategories.name}, 'Uncategorized')`)
+        .orderBy(desc(count()))
+        .limit(8);
+
+      type CatRow = { category: string; cnt: unknown };
+      const catTyped = categoryRows as CatRow[];
+      const totalCat = catTyped.reduce((s, r) => s + Number(r.cnt), 0);
+      const volumeByCategory = catTyped.map((r) => ({
+        category: r.category,
+        count: Number(r.cnt),
+        pct: totalCat > 0 ? Math.round((Number(r.cnt) / totalCat) * 100) : 0,
+      }));
+
+      const [{ openHandoffsBreached }] = await db
+        .select({ openHandoffsBreached: count() })
+        .from(ticketHandoffs)
+        .where(
+          and(
+            eq(ticketHandoffs.orgId, org!.id),
+            isNull(ticketHandoffs.metAt),
+            sql`${ticketHandoffs.dueAt} < NOW()`,
+          ),
+        );
+
+      const [{ majorIncidentsOpen }] = await db
+        .select({ majorIncidentsOpen: count() })
+        .from(tickets)
+        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            eq(tickets.isMajorIncident, true),
+            sql`${ticketStatuses.category} IN ('open', 'in_progress')`,
+          ),
+        );
+
+      const intakeRows = await db
+        .select({ channel: tickets.intakeChannel, n: count() })
+        .from(tickets)
+        .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, since)))
+        .groupBy(tickets.intakeChannel);
+
+      const intakeChannelMix = intakeRows.map((r: { channel: string | null; n: unknown }) => ({
+        channel: r.channel ?? "portal",
+        count: Number(r.n),
+      }));
+
+      return {
+        periodDays: input.days,
+        slaCompliancePct,
+        ticketsCreated: created,
+        slaBreaches: breached,
+        backlogAgeing,
+        reopenCount: reopened,
+        resolvedCount: resolved,
+        reopenRatePct,
+        volumeByCategory,
+        openHandoffsBreached: Number(openHandoffsBreached),
+        majorIncidentsOpen: Number(majorIncidentsOpen),
+        intakeChannelMix,
+      };
+    }),
+
+  /** Phase C4 — hypothetical SLA deadlines using the same org calendar rules as create. */
+  slaWhatIf: permissionProcedure("reports", "read")
+    .input(
+      z.object({
+        responseMinutes: z.coerce.number().min(1).max(10080),
+        resolveMinutes: z.coerce.number().min(1).max(10080).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [orgRow] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id))
+        .limit(1);
+      const cal = parseOrgSlaCalendarSettings(orgRow?.settings);
+      const now = new Date();
+      const responseDueAt = adjustSlaDeadlineForBusinessCalendar(
+        new Date(now.getTime() + input.responseMinutes * 60 * 1000),
+        cal,
+      );
+      const resolveDueAt =
+        input.resolveMinutes != null
+          ? adjustSlaDeadlineForBusinessCalendar(
+              new Date(now.getTime() + input.resolveMinutes * 60 * 1000),
+              cal,
+            )
+          : null;
+      return {
+        responseDueAt: responseDueAt.toISOString(),
+        resolveDueAt: resolveDueAt?.toISOString() ?? null,
       };
     }),
 });

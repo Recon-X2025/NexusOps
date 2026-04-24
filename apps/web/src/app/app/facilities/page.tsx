@@ -30,7 +30,7 @@ const SPACE_STATUS_CFG: Record<string, string> = {
 };
 
 export default function FacilitiesPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = FAC_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "spaces");
 
@@ -40,16 +40,16 @@ export default function FacilitiesPage() {
   const [bookingForm, setBookingForm] = useState({ roomId: "", title: "", startTime: "", endTime: "", attendeeCount: "" });
 
   // @ts-ignore — facilities router is being created in a parallel task
-  const buildingsQuery = trpc.facilities.buildings.list.useQuery({});
+  const buildingsQuery = trpc.facilities.buildings.list.useQuery({}, mergeTrpcQueryOpts("facilities.buildings.list", undefined));
 
   // @ts-ignore — facilities router is being created in a parallel task
-  const bookingsQuery = trpc.facilities.bookings.list.useQuery({ limit: 50 });
+  const bookingsQuery = trpc.facilities.bookings.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("facilities.bookings.list", undefined));
 
   // @ts-ignore — facilities router is being created in a parallel task
-  const movesQuery = trpc.facilities.moveRequests.list.useQuery({});
+  const movesQuery = trpc.facilities.moveRequests.list.useQuery({}, mergeTrpcQueryOpts("facilities.moveRequests.list", undefined));
 
   // @ts-ignore — facilities router is being created in a parallel task
-  const facilityReqsQuery = trpc.facilities.facilityRequests.list.useQuery({});
+  const facilityReqsQuery = trpc.facilities.facilityRequests.list.useQuery({}, mergeTrpcQueryOpts("facilities.facilityRequests.list", undefined));
 
   // @ts-ignore — facilities router is being created in a parallel task
   const createBookingMutation = trpc.facilities.bookings.create.useMutation({

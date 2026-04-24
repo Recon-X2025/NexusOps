@@ -22,7 +22,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 type ActionModal = { type: "issue" | "reorder" | "intake" | "create"; itemId?: string; itemName?: string };
 
 export default function PartsInventoryPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView = can("work_orders", "read") || can("incidents", "read");
   const canWrite = can("work_orders", "write");
   const [search, setSearch] = useState("");
@@ -33,7 +33,7 @@ export default function PartsInventoryPage() {
   const [notes, setNotes] = useState("");
   const [newItem, setNewItem] = useState({ partNumber: "", name: "", category: "spare", unit: "each", qty: 0, minQty: 5, location: "" });
 
-  const inventoryQuery = trpc.inventory.list.useQuery(undefined, { enabled: canView });
+  const inventoryQuery = trpc.inventory.list.useQuery(undefined, mergeTrpcQueryOpts("inventory.list", { enabled: canView }));
   const rawItems: any[] = (inventoryQuery.data as any)?.items ?? [];
 
   const issueStock = trpc.inventory.issueStock.useMutation({

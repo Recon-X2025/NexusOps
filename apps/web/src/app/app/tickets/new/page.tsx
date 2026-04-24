@@ -87,10 +87,10 @@ const CI_ITEMS = [
 
 export default function NewTicketPage() {
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canCreate = can("incidents", "write") || can("requests", "write");
 
-  const { data: statuses } = trpc.tickets.statusCounts.useQuery(undefined, { enabled: canCreate });
+  const { data: statuses } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", { enabled: canCreate }));
 
   const [form, setForm] = useState({
     type: "incident" as string,

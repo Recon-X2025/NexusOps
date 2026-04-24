@@ -2,7 +2,13 @@ import { z } from "zod";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const TicketTypeEnum = z.enum(["incident", "request", "problem", "change"]);
-export const TicketStatusCategoryEnum = z.enum(["open", "in_progress", "resolved", "closed"]);
+export const TicketStatusCategoryEnum = z.enum([
+  "open",
+  "in_progress",
+  "pending",
+  "resolved",
+  "closed",
+]);
 export const TicketRelationTypeEnum = z.enum(["blocks", "blocked_by", "duplicate", "related"]);
 
 export type TicketType = z.infer<typeof TicketTypeEnum>;
@@ -34,6 +40,8 @@ export const TicketSchema = z.object({
 
 export type Ticket = z.infer<typeof TicketSchema>;
 
+export const IntakeChannelEnum = z.enum(["portal", "email", "api", "chat"]);
+
 export const CreateTicketSchema = z.object({
   title: z.string().min(1, "Title is required").max(500),
   description: z.string().optional(),
@@ -48,6 +56,14 @@ export const CreateTicketSchema = z.object({
   tags: z.array(z.string()).default([]),
   customFields: z.record(z.unknown()).optional(),
   idempotencyKey: z.string().optional(),
+  /** Phase B1 — CMDB configuration item */
+  configurationItemId: z.string().uuid().nullable().optional(),
+  /** Phase B3 — known error record */
+  knownErrorId: z.string().uuid().nullable().optional(),
+  /** Phase C1 */
+  isMajorIncident: z.boolean().optional(),
+  /** Phase C2 */
+  intakeChannel: IntakeChannelEnum.optional(),
 });
 
 export const UpdateTicketSchema = CreateTicketSchema.partial().extend({
@@ -66,6 +82,14 @@ export const TicketListFiltersSchema = z.object({
   priorityId: z.string().uuid().optional(),
   categoryId: z.string().uuid().optional(),
   assigneeId: z.string().uuid().optional(),
+  /** When set, only tickets raised by the current user (portal / requester-safe list). */
+  ticketScope: z.enum(["mine"]).optional(),
+  /** Filter incidents linked to a known error (problem workspace). */
+  knownErrorId: z.string().uuid().optional(),
+  /** Major incident queue (Phase C1). */
+  isMajorIncident: z.boolean().optional(),
+  /** Incidents linked via known_errors.problem_id (problem workspace). */
+  problemId: z.string().uuid().optional(),
   type: TicketTypeEnum.optional(),
   search: z.string().optional(),
   tags: z.array(z.string()).optional(),

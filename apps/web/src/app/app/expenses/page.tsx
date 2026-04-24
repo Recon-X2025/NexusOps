@@ -32,7 +32,7 @@ function fmtInr(n: number) {
 }
 
 export default function ExpensesPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView  = can("hr", "read");
   const canWrite = can("hr", "write");
 
@@ -50,8 +50,8 @@ export default function ExpensesPage() {
   });
 
   const utils        = trpc.useUtils();
-  const employeesQ   = trpc.hr.listEmployees.useQuery({ limit: 200 }, { enabled: canView });
-  const expensesQ    = trpc.hr.expenses.list.useQuery({ status: filterStatus || undefined, limit: 200 }, { enabled: canView });
+  const employeesQ   = trpc.hr.listEmployees.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.listEmployees", { enabled: canView }));
+  const expensesQ    = trpc.hr.expenses.list.useQuery({ status: filterStatus || undefined, limit: 200 }, mergeTrpcQueryOpts("hr.expenses.list", { enabled: canView }));
 
   const createMut  = trpc.hr.expenses.create.useMutation({
     onSuccess: () => { toast.success("Expense claim created"); setShowNew(false); setForm(f => ({ ...f, title: "", description: "", amount: "", projectCode: "" })); void utils.hr.expenses.list.invalidate(); },

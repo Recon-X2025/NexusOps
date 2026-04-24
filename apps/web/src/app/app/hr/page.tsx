@@ -27,7 +27,7 @@ const CASE_STATE_COLOR: Record<string, string> = {
 };
 
 export default function HRPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
 
   const visibleTabs = HR_TABS.filter((t) => can(t.module, t.action));
 
@@ -42,15 +42,9 @@ export default function HRPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery(
-    {},
-    { refetchOnWindowFocus: false },
-  );
+  const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { refetchOnWindowFocus: false },));
   // employees list — drives Employee Directory tab
-  const { data: employeesData } = trpc.hr.employees.list.useQuery(
-    {},
-    { refetchOnWindowFocus: false },
-  );
+  const { data: employeesData } = trpc.hr.employees.list.useQuery({}, mergeTrpcQueryOpts("hr.employees.list", { refetchOnWindowFocus: false },));
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null);
@@ -71,10 +65,10 @@ export default function HRPage() {
     managerId: "",
   });
 
-  const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, {
+  const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
     enabled: showAddEmployee && can("hr", "write"),
     refetchOnWindowFocus: false,
-  });
+  }));
 
   const utils = trpc.useUtils();
 
@@ -107,7 +101,7 @@ export default function HRPage() {
   });
 
   // Leave management
-  const { data: leaveData, refetch: refetchLeave } = trpc.hr.leave.list.useQuery({}, { refetchOnWindowFocus: false });
+  const { data: leaveData, refetch: refetchLeave } = trpc.hr.leave.list.useQuery({}, mergeTrpcQueryOpts("hr.leave.list", { refetchOnWindowFocus: false }));
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ type: "annual", startDate: "", endDate: "", reason: "" });
   const createLeave = trpc.hr.leave.create.useMutation({
@@ -124,8 +118,8 @@ export default function HRPage() {
   });
 
   // India payroll compliance — TDS challans + EPFO ECR
-  const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, { refetchOnWindowFocus: false });
-  const epfoEcrQuery     = trpc.indiaCompliance.epfoEcr.list.useQuery({}, { refetchOnWindowFocus: false });
+  const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.tdsChallans.list", { refetchOnWindowFocus: false }));
+  const epfoEcrQuery     = trpc.indiaCompliance.epfoEcr.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.epfoEcr.list", { refetchOnWindowFocus: false }));
   const markTdsPaid      = trpc.indiaCompliance.tdsChallans.markPaid.useMutation({ onSuccess: () => { tdsChallansQuery.refetch(); setTdsPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const markEcrSubmitted = trpc.indiaCompliance.epfoEcr.markSubmitted.useMutation({ onSuccess: () => { epfoEcrQuery.refetch(); setEcrPanel(null); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const createHRCase = trpc.hr.cases.create.useMutation({

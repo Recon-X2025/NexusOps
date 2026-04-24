@@ -43,8 +43,8 @@ const TABS = [
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
 function OverviewTab() {
-  const { data: overview } = trpc.secretarial.overview.useQuery();
-  const { data: upcomingFilings = [] } = trpc.secretarial.filings.upcomingAlerts.useQuery();
+  const { data: overview } = trpc.secretarial.overview.useQuery(undefined, mergeTrpcQueryOpts("secretarial.overview", undefined));
+  const { data: upcomingFilings = [] } = trpc.secretarial.filings.upcomingAlerts.useQuery(undefined, mergeTrpcQueryOpts("secretarial.filings.upcomingAlerts", undefined));
 
   const kpis = [
     { label: "Upcoming Meetings",    value: overview?.upcomingMeetings ?? 0,   icon: Calendar,      color: "text-blue-600 bg-blue-50" },
@@ -132,9 +132,9 @@ function OverviewTab() {
 // ── Board & Directors Tab ──────────────────────────────────────────────────────
 
 function BoardTab() {
-  const { data: meetings = [], refetch: refetchMeetings } = trpc.secretarial.meetings.list.useQuery({});
-  const { data: directors = [], refetch: refetchDirectors } = trpc.secretarial.directors.list.useQuery({ activeOnly: true });
-  const { data: resolutions = [] } = trpc.secretarial.resolutions.list.useQuery({});
+  const { data: meetings = [], refetch: refetchMeetings } = trpc.secretarial.meetings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.meetings.list", undefined));
+  const { data: directors = [], refetch: refetchDirectors } = trpc.secretarial.directors.list.useQuery({ activeOnly: true }, mergeTrpcQueryOpts("secretarial.directors.list", undefined));
+  const { data: resolutions = [] } = trpc.secretarial.resolutions.list.useQuery({}, mergeTrpcQueryOpts("secretarial.resolutions.list", undefined));
   const updateKyc = trpc.secretarial.directors.updateKyc.useMutation({
     onSuccess: () => { toast.success("KYC status updated"); refetchDirectors(); },
     onError: e => toast.error(e.message),
@@ -314,7 +314,7 @@ function BoardTab() {
 // ── MCA Filings Tab ────────────────────────────────────────────────────────────
 
 function FilingsTab() {
-  const { data: filings = [], refetch } = trpc.secretarial.filings.list.useQuery({});
+  const { data: filings = [], refetch } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
   const [statusFilter, setStatusFilter] = useState("");
   const markFiled = trpc.secretarial.filings.markFiled.useMutation({
     onSuccess: () => { toast.success("Filing marked as filed"); refetch(); },
@@ -406,8 +406,8 @@ function FilingsTab() {
 // ── Share Capital Tab ──────────────────────────────────────────────────────────
 
 function ShareCapitalTab() {
-  const { data: shares = [], refetch } = trpc.secretarial.shares.list.useQuery({});
-  const { data: summary = [] } = trpc.secretarial.shares.summary.useQuery();
+  const { data: shares = [], refetch } = trpc.secretarial.shares.list.useQuery({}, mergeTrpcQueryOpts("secretarial.shares.list", undefined));
+  const { data: summary = [] } = trpc.secretarial.shares.summary.useQuery(undefined, mergeTrpcQueryOpts("secretarial.shares.summary", undefined));
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" });
   const createShare = trpc.secretarial.shares.create.useMutation({
@@ -492,8 +492,8 @@ function ShareCapitalTab() {
 // ── ESOP Tab ───────────────────────────────────────────────────────────────────
 
 function EsopTab() {
-  const { data: grants = [], refetch } = trpc.secretarial.esop.list.useQuery({});
-  const { data: summary = [] } = trpc.secretarial.esop.summary.useQuery();
+  const { data: grants = [], refetch } = trpc.secretarial.esop.list.useQuery({}, mergeTrpcQueryOpts("secretarial.esop.list", undefined));
+  const { data: summary = [] } = trpc.secretarial.esop.summary.useQuery(undefined, mergeTrpcQueryOpts("secretarial.esop.summary", undefined));
   const [showGrant, setShowGrant] = useState(false);
   const [form, setForm] = useState({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" });
   const grantEsop = trpc.secretarial.esop.grant.useMutation({
@@ -576,7 +576,7 @@ function EsopTab() {
 // ── Compliance Calendar Tab ────────────────────────────────────────────────────
 
 function CalendarTab() {
-  const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({});
+  const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
   const upcoming = filings.filter(f => ["upcoming","in_progress","overdue"].includes(f.status)).sort((a: any, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   return (
@@ -634,7 +634,7 @@ import { Award } from "lucide-react";
 // ── Main Content Component ─────────────────────────────────────────────────────
 
 function SecretarialContent() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get("tab");
   const [activeTab, setActiveTab] = useState(tabParam ?? "overview");

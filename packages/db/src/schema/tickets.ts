@@ -12,6 +12,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
+import { ciItems } from "./assets";
+import { knownErrors } from "./changes";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const ticketTypeEnum = pgEnum("ticket_type", [
@@ -28,6 +30,7 @@ export const ticketRequesterTypeEnum = pgEnum("ticket_requester_type", ["interna
 export const ticketStatusCategoryEnum = pgEnum("ticket_status_category", [
   "open",
   "in_progress",
+  "pending",
   "resolved",
   "closed",
 ]);
@@ -156,6 +159,14 @@ export const tickets = pgTable(
     requesterType: ticketRequesterTypeEnum("requester_type").notNull().default("internal"),
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+    configurationItemId: uuid("configuration_item_id").references(() => ciItems.id, {
+      onDelete: "set null",
+    }),
+    knownErrorId: uuid("known_error_id").references(() => knownErrors.id, {
+      onDelete: "set null",
+    }),
+    isMajorIncident: boolean("is_major_incident").notNull().default(false),
+    intakeChannel: text("intake_channel").notNull().default("portal"),
     resolutionNotes: text("resolution_notes"),
     escalationLevel: integer("escalation_level").notNull().default(0),
     reopenCount: integer("reopen_count").notNull().default(0),
@@ -293,6 +304,28 @@ export const ticketActivityLogs = pgTable(
   }),
 );
 
+/** OLA / handoff timer rows — created when assignee changes (Phase B2). */
+export const ticketHandoffs = pgTable(
+  "ticket_handoffs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    fromAssigneeId: uuid("from_assignee_id").references(() => users.id, { onDelete: "set null" }),
+    toAssigneeId: uuid("to_assignee_id").references(() => users.id, { onDelete: "set null" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    metAt: timestamp("met_at", { withTimezone: true }),
+  },
+  (t) => ({
+    orgTicketIdx: index("ticket_handoffs_org_ticket_idx").on(t.orgId, t.ticketId),
+  }),
+);
+
 // ── Relations ──────────────────────────────────────────────────────────────
 export const ticketsRelations = relations(tickets, ({ one, many }) => ({
   org: one(organizations, { fields: [tickets.orgId], references: [organizations.id] }),
@@ -302,6 +335,16 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
   priority: one(ticketPriorities, { fields: [tickets.priorityId], references: [ticketPriorities.id] }),
   status: one(ticketStatuses, { fields: [tickets.statusId], references: [ticketStatuses.id] }),
   team: one(teams, { fields: [tickets.teamId], references: [teams.id] }),
+  configurationItem: one(ciItems, {
+    fields: [tickets.configurationItemId],
+    references: [ciItems.id],
+    relationName: "ticket_configuration_item",
+  }),
+  knownError: one(knownErrors, {
+    fields: [tickets.knownErrorId],
+    references: [knownErrors.id],
+    relationName: "ticket_known_error",
+  }),
   comments: many(ticketComments),
   watchers: many(ticketWatchers),
   activityLogs: many(ticketActivityLogs),

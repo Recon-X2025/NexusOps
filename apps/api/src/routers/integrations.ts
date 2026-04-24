@@ -17,6 +17,18 @@ import { syncSapToNexus } from "../services/sap";
 // ─── Integrations (Slack, Teams, Jira, SAP …) ────────────────────────────────
 
 export const integrationsRouter = router({
+  /** Phase C3 — curated connector catalogue (status is roadmap / availability, not live health). */
+  hubCatalog: permissionProcedure("settings", "read").query(() => ({
+    connectors: [
+      { id: "email", label: "Email (SMTP / inbound)", category: "notification", tier: "ga" },
+      { id: "slack", label: "Slack", category: "chat", tier: "ga" },
+      { id: "teams", label: "Microsoft Teams", category: "chat", tier: "beta" },
+      { id: "jira", label: "Jira Cloud / DC", category: "itsm", tier: "ga" },
+      { id: "servicenow", label: "ServiceNow (spoke)", category: "itsm", tier: "planned" },
+      { id: "salesforce", label: "Salesforce Service Cloud", category: "crm", tier: "planned" },
+    ] as const,
+  })),
+
   // ── Integration providers ──────────────────────────────────────────────
   listIntegrations: permissionProcedure("settings", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;

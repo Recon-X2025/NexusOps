@@ -49,7 +49,7 @@ const TABS = [
 ];
 
 export default function ProblemsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = TABS.filter((t) => can(t.module, t.action));
   const [activeTab, setActiveTab] = useState(visibleTabs[0]?.key ?? "all");
@@ -66,10 +66,7 @@ export default function ProblemsPage() {
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
 
-  const { data: allData, isLoading, refetch } = trpc.changes.listProblems.useQuery(
-    { limit: 100 },
-    { refetchOnWindowFocus: false },
-  );
+  const { data: allData, isLoading, refetch } = trpc.changes.listProblems.useQuery({ limit: 100 }, mergeTrpcQueryOpts("changes.listProblems", { refetchOnWindowFocus: false },));
 
   const createProblem = trpc.changes.createProblem.useMutation({
     onSuccess: (prob) => { toast.success(`Problem ${prob?.number ?? ""} created`); setShowNewProblem(false); setNewTitle(""); setNewDesc(""); refetch(); },

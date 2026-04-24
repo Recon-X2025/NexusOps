@@ -36,11 +36,11 @@ export default function SecurityIncidentDetailPage() {
   const id = params?.id ?? "";
   const [tab, setTab] = useState("timeline");
   const [note, setNote] = useState("");
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
   // @ts-ignore
-  const incidentQuery = trpc.security.getIncident.useQuery({ id });
+  const incidentQuery = trpc.security.getIncident.useQuery({ id }, mergeTrpcQueryOpts("security.getIncident", undefined));
 
   // @ts-ignore
   const transitionMutation = trpc.security.transition.useMutation({

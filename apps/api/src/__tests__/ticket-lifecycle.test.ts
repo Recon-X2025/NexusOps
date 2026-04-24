@@ -20,4 +20,13 @@ describe("ITSM ticket lifecycle (regression)", () => {
   it("allows unknown from-category (custom statuses)", () => {
     expect(() => assertTicketTransition("custom_waiting", "open")).not.toThrow();
   });
+
+  it("allows in_progress → pending and pending → in_progress", () => {
+    expect(() => assertTicketTransition("in_progress", "pending")).not.toThrow();
+    expect(() => assertTicketTransition("pending", "in_progress")).not.toThrow();
+  });
+
+  it("rejects pending → bogus", () => {
+    expect(() => assertTicketTransition("pending", "bogus")).toThrow(/Invalid status transition/);
+  });
 });

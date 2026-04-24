@@ -34,7 +34,7 @@ const CLASS_ICON: Record<string, React.ElementType> = {
 };
 
 export default function CMDBPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = CMDB_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "cis");
   const [search, setSearch] = useState("");
@@ -45,14 +45,8 @@ export default function CMDBPage() {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
-  const { data: cisData, refetch: refetchCIs } = trpc.assets.cmdb.list.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
-  const { data: topologyData } = trpc.assets.cmdb.getTopology.useQuery(
-    undefined,
-    { refetchOnWindowFocus: false },
-  );
+  const { data: cisData, refetch: refetchCIs } = trpc.assets.cmdb.list.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.list", { refetchOnWindowFocus: false },));
+  const { data: topologyData } = trpc.assets.cmdb.getTopology.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.getTopology", { refetchOnWindowFocus: false },));
 
   const createCI = trpc.assets.create.useMutation({
     onSuccess: () => { toast.success("CI added to CMDB"); setShowAddCI(false); setCIForm({ name: "", class: "Linux Server", location: "", ipAddress: "", status: "operational" }); refetchCIs(); },

@@ -55,12 +55,18 @@ const PIPELINE_STAGE_COLORS: Record<string, string> = {
 };
 
 export default function CustomerSalesDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: crmMetrics, isLoading: loadingCrm } = trpc.crm.dashboardMetrics.useQuery();
-  const { data: deals, isLoading: loadingDeals } = trpc.crm.listDeals.useQuery({ limit: 100 });
-  const { data: catalogRequests, isLoading: loadingCatalog } = trpc.catalog.listRequests.useQuery({});
-  const { data: surveys, isLoading: loadingSurveys } = trpc.surveys.list.useQuery({});
+  const canAccounts = isAuthenticated && can("accounts", "read");
+  const canCatalog = isAuthenticated && can("catalog", "read");
+  const canSurveys = isAuthenticated && can("surveys", "read");
+
+  const { data: crmMetrics, isLoading: loadingCrm } = trpc.crm.dashboardMetrics.useQuery(undefined, mergeTrpcQueryOpts("crm.dashboardMetrics", {
+    enabled: canAccounts,
+  }));
+  const { data: deals, isLoading: loadingDeals } = trpc.crm.listDeals.useQuery({ limit: 100 }, mergeTrpcQueryOpts("crm.listDeals", { enabled: canAccounts },));
+  const { data: catalogRequests, isLoading: loadingCatalog } = trpc.catalog.listRequests.useQuery({}, mergeTrpcQueryOpts("catalog.listRequests", { enabled: canCatalog },));
+  const { data: surveys, isLoading: loadingSurveys } = trpc.surveys.list.useQuery({}, mergeTrpcQueryOpts("surveys.list", { enabled: canSurveys }));
 
   if (!can("csm", "read") && !can("accounts", "read") && !can("catalog", "read")) {
     return <AccessDenied module="Customer & Sales" />;

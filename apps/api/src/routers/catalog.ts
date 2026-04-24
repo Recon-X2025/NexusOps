@@ -1,7 +1,8 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { catalogItems, catalogRequests, eq, and, desc, count } from "@nexusops/db";
+import { catalogItems, catalogRequests, eq, and, desc, count, inArray } from "@nexusops/db";
+import { createCatalogFulfillmentTicket } from "../lib/catalog-fulfillment-ticket";
 
 export const catalogRouter = router({
   listItems: permissionProcedure("catalog", "read")
@@ -41,8 +42,8 @@ export const catalogRouter = router({
       return item;
     }),
 
-  /** Self-service: ordering an item should not require catalog write (manage items). */
-  submitRequest: permissionProcedure("catalog", "read")
+  /** Self-service order — requires catalog write so viewer role cannot submit. */
+  submitRequest: permissionProcedure("catalog", "write")
     .input(z.object({ itemId: z.string().uuid(), formData: z.record(z.unknown()).default({}) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -75,6 +76,7 @@ export const catalogRouter = router({
           fulfillerId: catalogRequests.fulfillerId,
           approvalId: catalogRequests.approvalId,
           notes: catalogRequests.notes,
+          fulfillmentTicketId: catalogRequests.fulfillmentTicketId,
           completedAt: catalogRequests.completedAt,
           createdAt: catalogRequests.createdAt,
           updatedAt: catalogRequests.updatedAt,
@@ -95,6 +97,7 @@ export const catalogRouter = router({
         fulfillerId: string | null;
         approvalId: string | null;
         notes: string | null;
+        fulfillmentTicketId: string | null;
         completedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
@@ -113,6 +116,7 @@ export const catalogRouter = router({
         fulfillerId: r.fulfillerId,
         approvalId: r.approvalId,
         notes: r.notes,
+        fulfillmentTicketId: r.fulfillmentTicketId,
         completedAt: r.completedAt,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
@@ -131,10 +135,60 @@ export const catalogRouter = router({
     .input(z.object({ id: z.string().uuid(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [req] = await db.update(catalogRequests)
-        .set({ status: "completed", fulfillerId: user!.id, notes: input.notes, completedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id))).returning();
+      const [req] = await db
+        .update(catalogRequests)
+        .set({
+          status: "completed",
+          fulfillerId: user!.id,
+          notes: input.notes,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(catalogRequests.id, input.id),
+            eq(catalogRequests.orgId, org!.id),
+            inArray(catalogRequests.status, ["fulfilling", "approved"]),
+          ),
+        )
+        .returning();
+      if (!req) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Request must be in fulfilling or approved state before marking complete.",
+        });
+      }
       return req;
+    }),
+
+  /** Creates fulfilment ticket for auto-approved (`submitted`) or legacy `approved` rows without a ticket yet. */
+  startFulfilment: permissionProcedure("catalog", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select()
+        .from(catalogRequests)
+        .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id)));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.fulfillmentTicketId) return row;
+      if (!["submitted", "approved"].includes(row.status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or approved requests can start fulfilment.",
+        });
+      }
+      await createCatalogFulfillmentTicket(db, {
+        orgId: org!.id,
+        orgSlug: org!.slug,
+        catalogRequestId: row.id,
+      });
+      const [updated] = await db
+        .update(catalogRequests)
+        .set({ status: "fulfilling", updatedAt: new Date() })
+        .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id)))
+        .returning();
+      return updated ?? row;
     }),
 
   // ── Admin: update catalog item (form builder) ───────────────────────────────
@@ -185,10 +239,45 @@ export const catalogRouter = router({
     .input(z.object({ id: z.string().uuid(), approve: z.boolean(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const status = input.approve ? "approved" : "rejected";
-      const [req] = await db.update(catalogRequests)
-        .set({ status, fulfillerId: user!.id, notes: input.reason, updatedAt: new Date() })
-        .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id))).returning();
+      if (!input.approve) {
+        const [req] = await db
+          .update(catalogRequests)
+          .set({
+            status: "rejected",
+            fulfillerId: user!.id,
+            notes: input.reason,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id)))
+          .returning();
+        if (!req) throw new TRPCError({ code: "NOT_FOUND" });
+        return req;
+      }
+
+      try {
+        await createCatalogFulfillmentTicket(db, {
+          orgId: org!.id,
+          orgSlug: org!.slug,
+          catalogRequestId: input.id,
+        });
+      } catch (e) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: e instanceof Error ? e.message : "Could not create fulfilment ticket",
+        });
+      }
+
+      const [req] = await db
+        .update(catalogRequests)
+        .set({
+          status: "fulfilling",
+          fulfillerId: user!.id,
+          notes: input.reason,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(catalogRequests.id, input.id), eq(catalogRequests.orgId, org!.id)))
+        .returning();
+      if (!req) throw new TRPCError({ code: "NOT_FOUND" });
       return req;
     }),
 

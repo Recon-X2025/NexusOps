@@ -23,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
 const CYCLES = ["q1","q2","q3","q4","annual"] as const;
 
 export default function OKRPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView  = can("hr", "read");
   const canWrite = can("hr", "write");
 
@@ -39,8 +39,8 @@ export default function OKRPage() {
   const [updateKR, setUpdateKR] = useState<{ id: string; current: number } | null>(null);
 
   const utils = trpc.useUtils();
-  const objectivesQ   = trpc.hr.okr.listObjectives.useQuery({ year, cycle: cycle || undefined }, { enabled: canView });
-  const employeesQ    = trpc.hr.listEmployees.useQuery({ limit: 200 }, { enabled: canView && showNewObj });
+  const objectivesQ   = trpc.hr.okr.listObjectives.useQuery({ year, cycle: cycle || undefined }, mergeTrpcQueryOpts("hr.okr.listObjectives", { enabled: canView }));
+  const employeesQ    = trpc.hr.listEmployees.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.listEmployees", { enabled: canView && showNewObj }));
 
   const createObjMut  = trpc.hr.okr.createObjective.useMutation({ onSuccess: () => { toast.success("Objective created"); setShowNewObj(false); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const createKRMut   = trpc.hr.okr.createKeyResult.useMutation({ onSuccess: () => { toast.success("Key Result added"); setShowNewKR(null); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });

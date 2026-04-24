@@ -39,7 +39,7 @@ function fmtInr(n: number) {
 
 // ── Chart of Accounts Tab ─────────────────────────────────────────────────
 function CoaTab() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canWrite = can("financial", "write");
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -47,7 +47,7 @@ function CoaTab() {
   const [form, setForm] = useState({ code: "", name: "", type: "asset" as const, subType: "", description: "", currency: "INR", openingBalance: "0" });
 
   const utils  = trpc.useUtils();
-  const coaQ   = trpc.accounting.coa.list.useQuery({ activeOnly: false });
+  const coaQ   = trpc.accounting.coa.list.useQuery({ activeOnly: false }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
   const seedMut = trpc.accounting.coa.seed.useMutation({ onSuccess: (d) => { toast.success(`Seeded ${(d as any).seeded} India COA accounts`); void utils.accounting.coa.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const createMut = trpc.accounting.coa.create.useMutation({ onSuccess: () => { toast.success("Account created"); setShowNew(false); void utils.accounting.coa.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
 
@@ -122,11 +122,11 @@ function CoaTab() {
 
 // ── Journal Entries Tab ────────────────────────────────────────────────────
 function JournalTab() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
-  const journalQ = trpc.accounting.journal.list.useQuery({ limit: 200 });
+  const journalQ = trpc.accounting.journal.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("accounting.journal.list", undefined));
   const utils = trpc.useUtils();
   const postMut = trpc.accounting.journal.post.useMutation({ onSuccess: () => { toast.success("Journal entry posted"); void utils.accounting.journal.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const reverseMut = trpc.accounting.journal.reverse.useMutation({ onSuccess: () => { toast.success("Entry reversed"); void utils.accounting.journal.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
@@ -175,7 +175,7 @@ function JournalTab() {
 
 // ── Trial Balance Tab ──────────────────────────────────────────────────────
 function TrialBalanceTab() {
-  const tbQ = trpc.accounting.trialBalance.useQuery({});
+  const tbQ = trpc.accounting.trialBalance.useQuery({}, mergeTrpcQueryOpts("accounting.trialBalance", undefined));
   const data = tbQ.data as any;
 
   return tbQ.isLoading ? <TableSkeleton rows={10} cols={4} /> : !data ? null : (
@@ -214,7 +214,7 @@ function TrialBalanceTab() {
 
 // ── P&L Tab ────────────────────────────────────────────────────────────────
 function PnLTab() {
-  const pnlQ = trpc.accounting.incomeStatement.useQuery({});
+  const pnlQ = trpc.accounting.incomeStatement.useQuery({}, mergeTrpcQueryOpts("accounting.incomeStatement", undefined));
   const data = pnlQ.data as any;
 
   return pnlQ.isLoading ? <TableSkeleton rows={8} cols={2} /> : !data ? null : (
@@ -261,11 +261,11 @@ function GSTRTab() {
   const [year, setYear]         = useState(new Date().getFullYear());
   const [generated, setGenerated] = useState<any>(null);
 
-  const gstinQ   = trpc.accounting.gstin.list.useQuery();
+  const gstinQ   = trpc.accounting.gstin.list.useQuery(undefined, mergeTrpcQueryOpts("accounting.gstin.list", undefined));
   const gstins   = (gstinQ.data ?? []) as any[];
 
-  const gstr1Q   = trpc.accounting.gstr.generateGSTR1.useQuery({ gstinId, month, year }, { enabled: false });
-  const gstr3bQ  = trpc.accounting.gstr.generateGSTR3B.useQuery({ gstinId, month, year }, { enabled: false });
+  const gstr1Q   = trpc.accounting.gstr.generateGSTR1.useQuery({ gstinId, month, year }, mergeTrpcQueryOpts("accounting.gstr.generateGSTR1", { enabled: false }));
+  const gstr3bQ  = trpc.accounting.gstr.generateGSTR3B.useQuery({ gstinId, month, year }, mergeTrpcQueryOpts("accounting.gstr.generateGSTR3B", { enabled: false }));
 
   async function generate() {
     if (!gstinId) { toast.error("Select a GSTIN first"); return; }
@@ -340,7 +340,7 @@ function GSTRTab() {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function AccountingPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [tab, setTab] = useState<Tab>("coa");
 
   if (!can("financial", "read")) return <AccessDenied module="Accounting" />;

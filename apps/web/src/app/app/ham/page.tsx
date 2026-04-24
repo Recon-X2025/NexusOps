@@ -32,7 +32,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
 };
 
 export default function HAMPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = HAM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "assets");
   const [search, setSearch] = useState("");
@@ -43,14 +43,14 @@ export default function HAMPage() {
 
 
   // @ts-ignore
-  const assetsQuery = trpc.assets.ham.list.useQuery({ limit: 50, search: search || undefined });
+  const assetsQuery = trpc.assets.ham.list.useQuery({ limit: 50, search: search || undefined }, mergeTrpcQueryOpts("assets.ham.list", undefined));
   // @ts-ignore
   const assignAsset = trpc.assets.ham.assign?.useMutation?.({
     onSuccess: () => { void assetsQuery.refetch(); toast.success("Asset assigned"); },
     onError: (e: any) => { console.error("ham.assign failed:", e); toast.error(e.message || "Failed to assign asset"); },
   });
 
-  const assetTypesQuery = trpc.assets.listTypes.useQuery(undefined, { staleTime: 60000 });
+  const assetTypesQuery = trpc.assets.listTypes.useQuery(undefined, mergeTrpcQueryOpts("assets.listTypes", { staleTime: 60000 }));
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [assetForm, setAssetForm] = useState({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "" });
   const [assetMsg, setAssetMsg] = useState<string | null>(null);

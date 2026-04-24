@@ -47,10 +47,12 @@ const MODULES = [
 ];
 
 export default function PeopleWorkplaceDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: hrCases, isLoading: loadingCases } = trpc.hr.cases.list.useQuery({});
-  const { data: employees, isLoading: loadingEmp } = trpc.hr.employees.list.useQuery({});
+  const canHr = isAuthenticated && can("hr", "read");
+
+  const { data: hrCases, isLoading: loadingCases } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { enabled: canHr }));
+  const { data: employees, isLoading: loadingEmp } = trpc.hr.employees.list.useQuery({}, mergeTrpcQueryOpts("hr.employees.list", { enabled: canHr }));
 
   if (!can("hr", "read") && !can("facilities", "read")) {
     return <AccessDenied module="People & Workplace" />;

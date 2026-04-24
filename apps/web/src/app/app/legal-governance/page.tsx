@@ -38,14 +38,17 @@ const MODULES = [
 ];
 
 export default function LegalGovernanceDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: matters, isLoading: loadingMatters } = trpc.legal.listMatters.useQuery({ limit: 5 });
-  const { data: allMatters, isLoading: loadingAllMatters } = trpc.legal.listMatters.useQuery({ limit: 200 });
-  const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery();
-  const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery({});
+  /** Legal + GRC list endpoints are guarded with `grc:read` on the API. */
+  const canGrc = isAuthenticated && can("grc", "read");
 
-  if (!can("grc", "read") && !can("audit", "read")) {
+  const { data: matters, isLoading: loadingMatters } = trpc.legal.listMatters.useQuery({ limit: 5 }, mergeTrpcQueryOpts("legal.listMatters", { enabled: canGrc },));
+  const { data: allMatters, isLoading: loadingAllMatters } = trpc.legal.listMatters.useQuery({ limit: 200 }, mergeTrpcQueryOpts("legal.listMatters", { enabled: canGrc },));
+  const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery(undefined, mergeTrpcQueryOpts("grc.listAudits", { enabled: canGrc }));
+  const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery({}, mergeTrpcQueryOpts("grc.listRisks", { enabled: canGrc }));
+
+  if (!can("grc", "read")) {
     return <AccessDenied module="Legal & Governance" />;
   }
 

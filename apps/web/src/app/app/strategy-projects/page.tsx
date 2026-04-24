@@ -51,10 +51,13 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function StrategyProjectsDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: projects, isLoading: loadingProjects } = trpc.projects.list.useQuery({ limit: 50 });
-  const { data: appsPage, isLoading: loadingApps } = trpc.apm.applications.list.useQuery({});
+  const canProjects = isAuthenticated && can("projects", "read");
+  const canAnalytics = isAuthenticated && can("analytics", "read");
+
+  const { data: projects, isLoading: loadingProjects } = trpc.projects.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("projects.list", { enabled: canProjects },));
+  const { data: appsPage, isLoading: loadingApps } = trpc.apm.applications.list.useQuery({}, mergeTrpcQueryOpts("apm.applications.list", { enabled: canAnalytics },));
 
   if (!can("projects", "read") && !can("demand", "read") && !can("analytics", "read")) {
     return <AccessDenied module="Strategy & Projects" />;

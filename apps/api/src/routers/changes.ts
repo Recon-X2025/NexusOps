@@ -2,8 +2,19 @@ import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
-  changeRequests, changeApprovals, problems, knownErrors, releases,
-  eq, and, desc, asc, count, inArray, sql,
+  changeRequests,
+  changeApprovals,
+  changeBlackoutWindows,
+  problems,
+  knownErrors,
+  releases,
+  eq,
+  and,
+  desc,
+  asc,
+  count,
+  inArray,
+  sql,
 } from "@nexusops/db";
 import { sendNotification } from "../services/notifications";
 import { getNextNumber } from "../lib/auto-number";
@@ -410,5 +421,103 @@ export const changesRouter = router({
         createdBy: user!.id,
       }).returning();
       return release;
+    }),
+
+  listKnownErrors: permissionProcedure("problems", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    return db
+      .select()
+      .from(knownErrors)
+      .where(eq(knownErrors.orgId, org!.id))
+      .orderBy(desc(knownErrors.createdAt))
+      .limit(200);
+  }),
+
+  listBlackouts: permissionProcedure("changes", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    return db
+      .select()
+      .from(changeBlackoutWindows)
+      .where(eq(changeBlackoutWindows.orgId, org!.id))
+      .orderBy(desc(changeBlackoutWindows.startsAt));
+  }),
+
+  createBlackout: permissionProcedure("changes", "write")
+    .input(
+      z.object({
+        name: z.string().min(1).max(200),
+        startsAt: z.string().datetime(),
+        endsAt: z.string().datetime(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const start = new Date(input.startsAt);
+      const end = new Date(input.endsAt);
+      if (!(start < end)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "startsAt must be before endsAt" });
+      }
+      const [row] = await db
+        .insert(changeBlackoutWindows)
+        .values({
+          orgId: org!.id,
+          name: input.name,
+          startsAt: start,
+          endsAt: end,
+        })
+        .returning();
+      return row;
+    }),
+
+  /** Read-only overlap check for CAB (Phase B4). */
+  checkBlackoutOverlap: permissionProcedure("changes", "read")
+    .input(
+      z.object({
+        scheduledStart: z.string().datetime(),
+        scheduledEnd: z.string().datetime(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const wStart = new Date(input.scheduledStart);
+      const wEnd = new Date(input.scheduledEnd);
+      if (!(wStart < wEnd)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "scheduledStart must be before scheduledEnd" });
+      }
+
+      const blackouts = await db
+        .select()
+        .from(changeBlackoutWindows)
+        .where(eq(changeBlackoutWindows.orgId, org!.id));
+
+      const overlappingBlackouts = blackouts.filter(
+        (b) => wStart < b.endsAt && b.startsAt < wEnd,
+      );
+
+      const scheduledChanges = await db
+        .select({
+          id: changeRequests.id,
+          number: changeRequests.number,
+          title: changeRequests.title,
+          scheduledStart: changeRequests.scheduledStart,
+          scheduledEnd: changeRequests.scheduledEnd,
+          status: changeRequests.status,
+        })
+        .from(changeRequests)
+        .where(
+          and(
+            eq(changeRequests.orgId, org!.id),
+            sql`${changeRequests.scheduledStart} IS NOT NULL`,
+            sql`${changeRequests.scheduledEnd} IS NOT NULL`,
+            inArray(changeRequests.status, ["approved", "scheduled", "implementing"]),
+          ),
+        );
+
+      const overlappingChanges = scheduledChanges.filter((c) => {
+        if (!c.scheduledStart || !c.scheduledEnd) return false;
+        return wStart < c.scheduledEnd && c.scheduledStart < wEnd;
+      });
+
+      return { overlappingBlackouts, overlappingChanges };
     }),
 });

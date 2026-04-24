@@ -31,7 +31,7 @@ function getCurrentOncall(rotation: Rotation) {
 }
 
 export default function OnCallPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const canView = can("incidents", "read");
   const canWrite = can("incidents", "write");
@@ -42,9 +42,9 @@ export default function OnCallPage() {
   const [newRotationType, setNewRotationType] = useState<"daily"|"weekly"|"custom">("weekly");
 
   // @ts-ignore
-  const schedulesQuery = trpc.oncall.schedules.list.useQuery({}, { enabled: canView });
+  const schedulesQuery = trpc.oncall.schedules.list.useQuery({}, mergeTrpcQueryOpts("oncall.schedules.list", { enabled: canView }));
   // @ts-ignore
-  const escalationsQuery = trpc.oncall.escalations.list.useQuery({ limit: 50 }, { enabled: canView });
+  const escalationsQuery = trpc.oncall.escalations.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("oncall.escalations.list", { enabled: canView }));
   const incidentsQuery = { data: [], isLoading: false, error: null };
   // @ts-ignore
   const createRotation = trpc.oncall.schedules.create.useMutation({

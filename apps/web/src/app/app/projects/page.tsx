@@ -37,7 +37,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = PPM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "portfolio");
 
@@ -46,10 +46,7 @@ export default function ProjectsPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data, isLoading, refetch } = trpc.projects.list.useQuery(
-    { limit: 50 },
-    { refetchOnWindowFocus: false },
-  );
+  const { data, isLoading, refetch } = trpc.projects.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("projects.list", { refetchOnWindowFocus: false },));
 
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectForm, setProjectForm] = useState({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
@@ -468,10 +465,7 @@ const PRIORITY_DOT: Record<string, string> = {
 function AgileKanban({ projects }: { projects: any[] }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id ?? "");
 
-  const board = trpc.projects.getAgileBoard.useQuery(
-    { projectId: selectedProjectId },
-    { enabled: !!selectedProjectId },
-  );
+  const board = trpc.projects.getAgileBoard.useQuery({ projectId: selectedProjectId }, mergeTrpcQueryOpts("projects.getAgileBoard", { enabled: !!selectedProjectId },));
 
   const updateTask = trpc.projects.updateTask.useMutation({
     onSuccess: () => board.refetch(),

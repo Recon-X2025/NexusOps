@@ -26,7 +26,7 @@ function fmtTime(ts: string | null | undefined) {
 }
 
 export default function AttendancePage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView  = can("hr", "read");
   const canWrite = can("hr", "write");
 
@@ -38,8 +38,8 @@ export default function AttendancePage() {
   const PAGE_SIZE = 30;
 
   const utils       = trpc.useUtils();
-  const employeesQ  = trpc.hr.listEmployees.useQuery({ limit: 200 }, { enabled: canView });
-  const attendanceQ = trpc.hr.attendance.list.useQuery({ month, year, employeeId: filterEmp || undefined }, { enabled: canView });
+  const employeesQ  = trpc.hr.listEmployees.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.listEmployees", { enabled: canView }));
+  const attendanceQ = trpc.hr.attendance.list.useQuery({ month, year, employeeId: filterEmp || undefined }, mergeTrpcQueryOpts("hr.attendance.list", { enabled: canView }));
 
   const clockInMut  = trpc.hr.attendance.clockIn.useMutation({ onSuccess: () => { toast.success("Clocked in"); void utils.hr.attendance.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const clockOutMut = trpc.hr.attendance.clockOut.useMutation({ onSuccess: () => { toast.success("Clocked out"); void utils.hr.attendance.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });

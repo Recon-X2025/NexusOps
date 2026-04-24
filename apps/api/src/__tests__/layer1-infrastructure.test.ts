@@ -197,10 +197,12 @@ describe("Layer 1: Infrastructure Integrity", () => {
       expect(procedures).toContain("auth.login");
     });
 
-    it("appRouter exposes tickets.list and tickets.create", () => {
+    it("appRouter exposes tickets core and relation procedures", () => {
       const procedures = Object.keys(appRouter._def.procedures);
       expect(procedures).toContain("tickets.list");
       expect(procedures).toContain("tickets.create");
+      expect(procedures).toContain("tickets.addRelation");
+      expect(procedures).toContain("tickets.removeRelation");
     });
 
     it("appRouter exposes security procedures", () => {

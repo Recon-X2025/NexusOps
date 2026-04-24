@@ -6,6 +6,7 @@ import {
   hasPermission, canAccessModule, MOCK_USERS, getVisibleModules,
 } from "./rbac";
 import { trpc } from "./trpc";
+import { TRPC_PROCEDURE_RBAC, type TrpcProcedureRbacRule } from "./trpc-procedure-rbac.generated";
 
 // Deny-all sentinel used while auth.me is in-flight.
 // Every can() / canAccess() call returns false until the real user loads.
@@ -36,6 +37,15 @@ interface RBACContextValue {
   /** True once auth.me has resolved and confirmed a real session. */
   isAuthenticated: boolean;
   isDemoMode: boolean;
+  /**
+   * Merge React Query options with RBAC-aware `enabled` for a tRPC procedure path
+   * (e.g. `"tickets.list"`). Callers pass their existing second argument; this ANDs
+   * permission checks so protected procedures are not requested before/forbidden roles.
+   */
+  mergeTrpcQueryOpts: <T extends { enabled?: boolean } | undefined>(
+    procedurePath: string,
+    opts?: T,
+  ) => T & { enabled: boolean };
 }
 
 const RBACContext = createContext<RBACContextValue | null>(null);
@@ -156,6 +166,28 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
     ? [realUser, ...MOCK_USERS.filter((u) => u.id !== realUser.id)]
     : MOCK_USERS;
 
+  const mergeTrpcQueryOpts = useCallback(
+    <T extends { enabled?: boolean } | undefined>(procedurePath: string, opts?: T): T & { enabled: boolean } => {
+      const base = (opts ?? {}) as { enabled?: boolean };
+      const baseEnabled = base.enabled ?? true;
+      const rule: TrpcProcedureRbacRule | undefined = TRPC_PROCEDURE_RBAC[procedurePath];
+      let rbacAllow = true;
+      if (!rule) {
+        rbacAllow = isAuthenticated;
+      } else if (rule.kind === "authMe" || rule.kind === "public") {
+        rbacAllow = true;
+      } else if (rule.kind === "protected") {
+        rbacAllow = isAuthenticated;
+      } else if (rule.kind === "adminRole") {
+        rbacAllow = isAuthenticated && currentUser.roles.includes("admin");
+      } else {
+        rbacAllow = isAuthenticated && hasPermission(currentUser.roles, rule.module, rule.action);
+      }
+      return { ...(opts as object), enabled: baseEnabled && rbacAllow } as T & { enabled: boolean };
+    },
+    [isAuthenticated, currentUser.roles],
+  );
+
   return (
     <RBACContext.Provider
       value={{
@@ -171,6 +203,7 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
         isLoadingAuth,
         isAuthenticated,
         isDemoMode,
+        mergeTrpcQueryOpts,
       }}
     >
       {children}

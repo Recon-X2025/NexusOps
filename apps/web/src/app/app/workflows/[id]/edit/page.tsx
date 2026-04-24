@@ -319,7 +319,7 @@ function ConfigPanel({ node, onChange }: ConfigPanelProps) {
 export default function EditWorkflowPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canEdit = can("approvals", "write");
 
   // Workflow metadata
@@ -340,10 +340,7 @@ export default function EditWorkflowPage() {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // ── Load workflow data ──
-  const { data: wfData, isLoading } = trpc.workflows.get.useQuery(
-    { id },
-    { enabled: canEdit },
-  );
+  const { data: wfData, isLoading } = trpc.workflows.get.useQuery({ id }, mergeTrpcQueryOpts("workflows.get", { enabled: canEdit },));
 
   useEffect(() => {
     if (!wfData || loaded) return;

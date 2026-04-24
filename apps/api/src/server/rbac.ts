@@ -100,6 +100,19 @@ const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
     delete: ["owner", "admin"],
     admin: ["owner", "admin"],
   },
+  knowledge: {
+    read: ["owner", "admin", "member", "viewer"],
+    write: ["owner", "admin", "member"],
+    delete: ["owner", "admin"],
+    admin: ["owner", "admin"],
+  },
+  catalog: {
+    read: ["owner", "admin", "member", "viewer"],
+    write: ["owner", "admin", "member"],
+    approve: ["owner", "admin"],
+    delete: ["owner", "admin"],
+    admin: ["owner", "admin"],
+  },
   admin_console: {
     read: ["owner", "admin"],
     write: ["owner", "admin"],
@@ -108,6 +121,7 @@ const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
   },
 };
 
+/** Exported for unit tests — prefer `permissionProcedure` in routers. */
 export function checkPermission(userRole: string, module: string, action: string): boolean {
   const allowed = PERMISSION_MATRIX[module]?.[action];
   if (!allowed) return true; // open by default if not defined

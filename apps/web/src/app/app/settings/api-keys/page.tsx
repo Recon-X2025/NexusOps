@@ -230,14 +230,11 @@ function KeyRevealModal({ apiKey, onClose }: { apiKey: string; onClose: () => vo
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ApiKeysSettingsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [showNew, setShowNew]       = useState(false);
   const [revealKey, setRevealKey]   = useState<string | null>(null);
 
-  const { data: keys, isLoading, refetch } = trpc.integrations.listApiKeys.useQuery(
-    undefined,
-    { enabled: can("settings", "read") },
-  );
+  const { data: keys, isLoading, refetch } = trpc.integrations.listApiKeys.useQuery(undefined, mergeTrpcQueryOpts("integrations.listApiKeys", { enabled: can("settings", "read") },));
 
   const revoke = trpc.integrations.revokeApiKey.useMutation({
     onSuccess: () => { refetch(); toast.success("API key revoked"); },

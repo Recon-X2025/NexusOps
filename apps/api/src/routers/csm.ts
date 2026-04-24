@@ -25,7 +25,7 @@ export const csmRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         try {
-          const rows = await db.execute(sql`
+          const result = await db.execute(sql`
             SELECT * FROM csm_cases
             WHERE org_id = ${org!.id}
             ${input.status ? sql`AND status = ${input.status}` : sql``}
@@ -33,7 +33,8 @@ export const csmRouter = router({
             ORDER BY created_at DESC
             LIMIT ${input.limit}
           `);
-          return { items: rows.rows as any[], nextCursor: null };
+          const items = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
+          return { items: items as any[], nextCursor: null };
         } catch {
           return { items: [], nextCursor: null };
         }
@@ -43,7 +44,9 @@ export const csmRouter = router({
       .input(z.object({ id: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
         const { db } = ctx;
-        const [row] = await db.execute(sql`SELECT * FROM csm_cases WHERE id = ${input.id}`);
+        const result = await db.execute(sql`SELECT * FROM csm_cases WHERE id = ${input.id}`);
+        const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
+        const row = rows[0];
         if (!row) throw new TRPCError({ code: "NOT_FOUND" });
         return row;
       }),
@@ -59,12 +62,15 @@ export const csmRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
         const number = await getNextNumber(db, org!.id, "CSM");
-        const [row] = await db.execute(sql`
+        const result = await db.execute(sql`
           INSERT INTO csm_cases (org_id, number, title, description, priority, account_id, contact_id, requester_id)
           VALUES (${org!.id}, ${number}, ${input.title}, ${input.description ?? null}, ${input.priority},
                   ${input.accountId ?? null}, ${input.contactId ?? null}, ${user!.id})
           RETURNING *
         `);
+        const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
+        const row = rows[0];
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create case" });
         return row;
       }),
 

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
+import { stripNonAuthTrpcCaches } from "@/lib/trpc-cache-auth-only";
 import { Home, Ticket, BookOpen, Package, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,19 +19,20 @@ const NAV_LINKS = [
 export function PortalNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { currentUser } = useRBAC();
-  const utils = trpc.useUtils();
 
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
       localStorage.removeItem("nexusops_session");
       document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
-      utils.invalidate();
+      stripNonAuthTrpcCaches(queryClient);
       router.push("/login");
     },
     onError: () => {
       localStorage.removeItem("nexusops_session");
       document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+      stripNonAuthTrpcCaches(queryClient);
       router.push("/login");
     },
   });
@@ -51,8 +54,10 @@ export function PortalNav() {
             N
           </div>
           <div>
-            <p className="text-sm font-bold leading-none text-gray-900">NexusOps</p>
-            <p className="text-[10px] leading-none text-gray-500">Employee Portal</p>
+            <p className="text-sm font-bold leading-none text-gray-900">
+              {currentUser.orgName?.trim() ? currentUser.orgName : "NexusOps"}
+            </p>
+            <p className="text-[10px] leading-none text-gray-500">Employee request portal</p>
           </div>
         </div>
 

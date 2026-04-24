@@ -65,7 +65,7 @@ function SkeletonSection({ cols = 6 }: { cols?: number }) {
 }
 
 export default function ReportsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = REPORT_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "overview");
   const [dateRange, setDateRange] = useState("30");
@@ -77,16 +77,16 @@ export default function ReportsPage() {
   const days = Number(dateRange);
   const queryOpts = { staleTime: 5 * 60 * 1000 };
 
-  const { data: metrics } = trpc.dashboard.getMetrics.useQuery(undefined, queryOpts);
+  const { data: metrics } = trpc.dashboard.getMetrics.useQuery(undefined, mergeTrpcQueryOpts("dashboard.getMetrics", queryOpts));
 
   // @ts-ignore
-  const execQuery = trpc.reports.executiveOverview.useQuery({ days }, queryOpts);
+  const execQuery = trpc.reports.executiveOverview.useQuery({ days }, mergeTrpcQueryOpts("reports.executiveOverview", queryOpts));
   // @ts-ignore
-  const slaQuery = trpc.reports.slaDashboard.useQuery({ days }, queryOpts);
+  const slaQuery = trpc.reports.slaDashboard.useQuery({ days }, mergeTrpcQueryOpts("reports.slaDashboard", queryOpts));
   // @ts-ignore
-  const workloadQuery = trpc.reports.workloadAnalysis.useQuery({ days }, queryOpts);
+  const workloadQuery = trpc.reports.workloadAnalysis.useQuery({ days }, mergeTrpcQueryOpts("reports.workloadAnalysis", queryOpts));
   // @ts-ignore
-  const trendQuery = trpc.reports.trendAnalysis.useQuery({ days }, queryOpts);
+  const trendQuery = trpc.reports.trendAnalysis.useQuery({ days }, mergeTrpcQueryOpts("reports.trendAnalysis", queryOpts));
 
   if (!can("reports", "read") && !can("analytics", "read")) return <AccessDenied module="Analytics & Reporting" />;
 

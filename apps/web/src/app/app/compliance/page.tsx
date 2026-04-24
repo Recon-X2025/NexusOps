@@ -29,14 +29,14 @@ const FINDING_SEVERITY_COLOR: Record<string, string> = {
 };
 
 export default function CompliancePage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const canView = can("grc", "read");
   const [showAddBaseline, setShowAddBaseline] = useState(false);
   const [baselineForm, setBaselineForm] = useState({ name: "", framework: "ISO 27001", scope: "", frequency: "quarterly" as "monthly"|"quarterly"|"annual" });
   const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
   // @ts-ignore
-  const auditsQuery = trpc.grc.listAudits.useQuery({ limit: 50 }, { enabled: canView });
-  const risksQuery = trpc.grc.listRisks.useQuery({ limit: 50 }, { enabled: canView });
+  const auditsQuery = trpc.grc.listAudits.useQuery({ limit: 50 }, mergeTrpcQueryOpts("grc.listAudits", { enabled: canView }));
+  const risksQuery = trpc.grc.listRisks.useQuery({ limit: 50 }, mergeTrpcQueryOpts("grc.listRisks", { enabled: canView }));
 
   const createAudit = trpc.grc.createAudit.useMutation({
     onSuccess: () => { toast.success("Compliance baseline/audit created"); setShowAddBaseline(false); setBaselineForm({ name: "", framework: "ISO 27001", scope: "", frequency: "quarterly" }); auditsQuery.refetch(); },

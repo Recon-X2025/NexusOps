@@ -21,7 +21,7 @@ const TABS = [
 ];
 
 function ProfileTab() {
-  const { currentUser } = useRBAC();
+  const { currentUser, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
   const [form, setForm] = useState({
     name: currentUser.name,
@@ -121,7 +121,7 @@ function SecurityTab() {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ current: "", newPwd: "", confirm: "" });
 
-  const sessionsQuery = trpc.auth.listMySessions.useQuery();
+  const sessionsQuery = trpc.auth.listMySessions.useQuery(undefined, mergeTrpcQueryOpts("auth.listMySessions", undefined));
   const revokeSession = trpc.auth.revokeSession.useMutation({
     onSuccess: () => { toast.success("Session revoked"); sessionsQuery.refetch(); },
     onError: (err) => toast.error(err?.message ?? "Something went wrong"),
@@ -258,7 +258,7 @@ function NotificationsTab() {
     { group: "System", events: ["maintenance_window", "system_alert"] },
   ];
 
-  const { data: existingPrefs } = trpc.notifications.getPreferences.useQuery();
+  const { data: existingPrefs } = trpc.notifications.getPreferences.useQuery(undefined, mergeTrpcQueryOpts("notifications.getPreferences", undefined));
   const updatePref = trpc.notifications.updatePreference.useMutation();
 
   const [prefs, setPrefs] = useState<Record<string, Record<string, boolean>>>(() => {

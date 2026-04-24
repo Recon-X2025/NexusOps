@@ -42,26 +42,23 @@ const MODULES = [
 ];
 
 export default function SecurityComplianceDashboard() {
-  const { can, isAuthenticated } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
   const canSec = isAuthenticated && can("security", "read");
   const canGrc = isAuthenticated && can("grc", "read");
   const canApprovals = isAuthenticated && can("approvals", "read");
 
-  const { data: secStatusCounts, isLoading: loadingSec } = trpc.security.statusCounts.useQuery(undefined, {
+  const { data: secStatusCounts, isLoading: loadingSec } = trpc.security.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("security.statusCounts", {
     enabled: canSec,
-  });
-  const { data: openIncidentCount, isLoading: loadingSecCount } = trpc.security.openIncidentCount.useQuery(undefined, {
+  }));
+  const { data: openIncidentCount, isLoading: loadingSecCount } = trpc.security.openIncidentCount.useQuery(undefined, mergeTrpcQueryOpts("security.openIncidentCount", {
     enabled: canSec,
-  });
-  const { data: vulns, isLoading: loadingVulns } = trpc.security.listVulnerabilities.useQuery(
-    { limit: 5 },
-    { enabled: canSec },
-  );
-  const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery({}, { enabled: canGrc });
-  const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery(undefined, { enabled: canGrc });
-  const { data: pendingApprovals, isLoading: loadingApprovals } = trpc.approvals.myPending.useQuery(undefined, {
+  }));
+  const { data: vulns, isLoading: loadingVulns } = trpc.security.listVulnerabilities.useQuery({ limit: 5 }, mergeTrpcQueryOpts("security.listVulnerabilities", { enabled: canSec },));
+  const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery({}, mergeTrpcQueryOpts("grc.listRisks", { enabled: canGrc }));
+  const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery(undefined, mergeTrpcQueryOpts("grc.listAudits", { enabled: canGrc }));
+  const { data: pendingApprovals, isLoading: loadingApprovals } = trpc.approvals.myPending.useQuery(undefined, mergeTrpcQueryOpts("approvals.myPending", {
     enabled: canApprovals,
-  });
+  }));
 
   if (!can("security", "read") && !can("grc", "read")) {
     return <AccessDenied module="Security & Compliance" />;

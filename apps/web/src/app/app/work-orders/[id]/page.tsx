@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { inferRouterOutputs } from "@trpc/server";
 import { trpc } from "@/lib/trpc";
+import { useRBAC } from "@/lib/rbac-context";
 import type { AppRouter } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -92,6 +93,7 @@ function formatDt(d: Date | string | null | undefined) {
 }
 
 export default function WorkOrderDetailPage() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<"tasks" | "workNotes" | "activity">("tasks");
   const [noteText, setNoteText] = useState("");
@@ -103,7 +105,10 @@ export default function WorkOrderDetailPage() {
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [newTaskHours, setNewTaskHours] = useState("");
 
-  const { data, isLoading, refetch } = trpc.workOrders.get.useQuery({ id });
+  const { data, isLoading, refetch } = trpc.workOrders.get.useQuery(
+    { id },
+    mergeTrpcQueryOpts("workOrders.get", {}),
+  );
   const updateState = trpc.workOrders.updateState.useMutation({
     onSuccess: () => { refetch(); toast.success("Status updated"); },
     onError: (e: any) => { console.error("workOrders.updateState failed:", e); toast.error(e.message || "Failed to update status"); },

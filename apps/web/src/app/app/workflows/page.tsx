@@ -17,11 +17,8 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 export default function WorkflowsPage() {
-  const { can } = useRBAC();
-  const { data: workflows, isLoading, refetch } = trpc.workflows.list.useQuery(
-    undefined,
-    { enabled: can("approvals", "read") },
-  );
+  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const { data: workflows, isLoading, refetch } = trpc.workflows.list.useQuery(undefined, mergeTrpcQueryOpts("workflows.list", { enabled: can("approvals", "read") },));
 
   const toggle = trpc.workflows.toggle.useMutation({
     onSuccess: () => {

@@ -155,6 +155,24 @@ export const knownErrors = pgTable(
   (t) => ({ orgIdx: index("known_errors_org_idx").on(t.orgId) }),
 );
 
+// ── Change blackout windows (Phase B4 — read-only risk / CAB visibility) ───
+export const changeBlackoutWindows = pgTable(
+  "change_blackout_windows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("change_blackout_windows_org_idx").on(t.orgId),
+  }),
+);
+
 // ── Releases ───────────────────────────────────────────────────────────────
 export const releases = pgTable(
   "releases",

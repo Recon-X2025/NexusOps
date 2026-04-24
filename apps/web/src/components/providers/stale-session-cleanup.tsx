@@ -1,8 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
+import { cancelNonAuthTrpcQueries, stripNonAuthTrpcCaches } from "@/lib/trpc-cache-auth-only";
 
 const PUBLIC_AUTH_PATHS = new Set(["/login", "/signup", "/forgot-password"]);
 
@@ -14,8 +16,17 @@ const PUBLIC_AUTH_PATHS = new Set(["/login", "/signup", "/forgot-password"]);
  */
 export function StaleSessionCleanup() {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const utils = trpc.useUtils();
   const ranForPath = useRef<string | null>(null);
+
+  // Before paint: drop any leftover tRPC cache from /app so inactive observers
+  // do not refetch (401 spam) while the login shell is visible.
+  useLayoutEffect(() => {
+    if (!PUBLIC_AUTH_PATHS.has(pathname)) return;
+    cancelNonAuthTrpcQueries(queryClient);
+    stripNonAuthTrpcCaches(queryClient);
+  }, [pathname, queryClient]);
 
   useEffect(() => {
     if (!PUBLIC_AUTH_PATHS.has(pathname)) {
@@ -37,20 +48,20 @@ export function StaleSessionCleanup() {
         if (!me) {
           localStorage.removeItem("nexusops_session");
           document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
-          void utils.invalidate();
+          stripNonAuthTrpcCaches(queryClient);
         }
       })
       .catch(() => {
         if (cancelled) return;
         localStorage.removeItem("nexusops_session");
         document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
-        void utils.invalidate();
+        stripNonAuthTrpcCaches(queryClient);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [pathname, utils]);
+  }, [pathname, utils, queryClient]);
 
   return null;
 }

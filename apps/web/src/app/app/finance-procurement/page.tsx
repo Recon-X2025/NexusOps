@@ -42,12 +42,15 @@ const MODULES = [
 ];
 
 export default function FinanceProcurementDashboard() {
-  const { can } = useRBAC();
+  const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
-  const { data: purchaseOrders, isLoading: loadingPOs } = trpc.procurement.purchaseRequests.list.useQuery({});
-  const { data: contractsPage, isLoading: loadingContracts } = trpc.contracts.list.useQuery({});
-  const { data: expiringContracts, isLoading: loadingExpiring } = trpc.contracts.expiringWithin.useQuery({ days: 30 });
-  const { data: vendors, isLoading: loadingVendors } = trpc.vendors.list.useQuery({});
+  const canProcurement = isAuthenticated && can("procurement", "read");
+  const canContracts = isAuthenticated && can("contracts", "read");
+
+  const { data: purchaseOrders, isLoading: loadingPOs } = trpc.procurement.purchaseRequests.list.useQuery({}, mergeTrpcQueryOpts("procurement.purchaseRequests.list", { enabled: canProcurement },));
+  const { data: contractsPage, isLoading: loadingContracts } = trpc.contracts.list.useQuery({}, mergeTrpcQueryOpts("contracts.list", { enabled: canContracts },));
+  const { data: expiringContracts, isLoading: loadingExpiring } = trpc.contracts.expiringWithin.useQuery({ days: 30 }, mergeTrpcQueryOpts("contracts.expiringWithin", { enabled: canContracts },));
+  const { data: vendors, isLoading: loadingVendors } = trpc.vendors.list.useQuery({}, mergeTrpcQueryOpts("vendors.list", { enabled: canProcurement }));
 
   if (!can("financial", "read") && !can("procurement", "read") && !can("contracts", "read")) {
     return <AccessDenied module="Finance & Procurement" />;

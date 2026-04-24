@@ -226,10 +226,7 @@ function WebhookRow({
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const { data: deliveries, isLoading: loadingDeliveries } = trpc.integrations.listDeliveries.useQuery(
-    { webhookId: hook.id, limit: 20 },
-    { enabled: expanded },
-  );
+  const { data: deliveries, isLoading: loadingDeliveries } = trpc.integrations.listDeliveries.useQuery({ webhookId: hook.id, limit: 20 }, mergeTrpcQueryOpts("integrations.listDeliveries", { enabled: expanded },));
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -328,14 +325,11 @@ function WebhookRow({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WebhooksSettingsPage() {
-  const { can } = useRBAC();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
   const [showNew, setShowNew]       = useState(false);
   const [revealSecret, setRevealSecret] = useState<string | null>(null);
 
-  const { data: hooks, isLoading, refetch } = trpc.integrations.listWebhooks.useQuery(
-    undefined,
-    { enabled: can("settings", "read") },
-  );
+  const { data: hooks, isLoading, refetch } = trpc.integrations.listWebhooks.useQuery(undefined, mergeTrpcQueryOpts("integrations.listWebhooks", { enabled: can("settings", "read") },));
 
   const deleteWebhook = trpc.integrations.deleteWebhook.useMutation({
     onSuccess: () => { refetch(); toast.success("Webhook deleted"); },

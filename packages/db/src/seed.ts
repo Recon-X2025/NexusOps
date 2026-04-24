@@ -159,8 +159,9 @@ async function seed() {
   const statuses = await db.insert(ticketStatuses).values([
     { orgId: orgId, name: "Open", color: "#6366f1", category: "open", sortOrder: 0 },
     { orgId: orgId, name: "In Progress", color: "#f59e0b", category: "in_progress", sortOrder: 1 },
-    { orgId: orgId, name: "Resolved", color: "#10b981", category: "resolved", sortOrder: 2 },
-    { orgId: orgId, name: "Closed", color: "#6b7280", category: "closed", sortOrder: 3 },
+    { orgId: orgId, name: "Pending", color: "#94a3b8", category: "pending", sortOrder: 2 },
+    { orgId: orgId, name: "Resolved", color: "#10b981", category: "resolved", sortOrder: 3 },
+    { orgId: orgId, name: "Closed", color: "#6b7280", category: "closed", sortOrder: 4 },
   ]).returning();
 
   const openStatus = statuses[0]!;
@@ -361,7 +362,7 @@ async function seed() {
 
   await db.insert(purchaseRequests).values([
     { orgId: orgId, number: "PR-0001", title: "15x Laptop replacement", requesterId: admin.id, totalAmount: "37500", status: "approved", priority: "high", department: "IT" },
-    { orgId: orgId, number: "PR-0002", title: "Network switches Q1", requesterId: agent1.id, totalAmount: "24000", status: "pending_approval", priority: "medium", department: "IT" },
+    { orgId: orgId, number: "PR-0002", title: "Network switches Q1", requesterId: agent1.id, totalAmount: "24000", status: "pending", priority: "medium", department: "IT" },
     { orgId: orgId, number: "PR-0003", title: "Office supplies restock", requesterId: agent2.id, totalAmount: "1200", status: "ordered", priority: "low", department: "Operations" },
   ]);
   console.log(`✅ Procurement: 3 vendors, 3 PRs`);
