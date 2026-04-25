@@ -134,6 +134,22 @@ function autoIdempotencyKey(orgId: string, userId: string, title: string): strin
 /** War-room comms for major incidents — stored in `ticket_activity_logs` (US-ITSM-004). */
 const MAJOR_INCIDENT_COMMS_ACTION = "major_incident_comms";
 
+/**
+ * Drop the dashboard "Active Incidents" preview cache so that newly-created
+ * or recently-updated tickets (especially status changes such as resolve/close)
+ * are reflected on the next dashboard load instead of waiting for the 60-second
+ * TTL to expire.
+ */
+function bustDashboardIncidentsCache(orgId: string): void {
+  try {
+    const redis = getRedis();
+    redis.del(`tickets:dashboard:incidents:${orgId}:active=0`).catch(() => {});
+    redis.del(`tickets:dashboard:incidents:${orgId}:active=1`).catch(() => {});
+  } catch {
+    // Redis unavailable — cached entry will expire on its own
+  }
+}
+
 async function syncTicketSlaJobs(args: {
   ticketId: string;
   orgId: string;
@@ -1050,6 +1066,8 @@ export const ticketsRouter = router({
     // idempotency key receive the exact same response without any DB reads.
     setCachedIdempotentResponse(org!.id, idempotencyKey, ticket as unknown as Record<string, unknown>).catch(() => {});
 
+    bustDashboardIncidentsCache(org!.id);
+
     return ticket;
   }),
 
@@ -1304,6 +1322,10 @@ export const ticketsRouter = router({
           slaResolveDueAt: updated.slaResolveDueAt,
           statusCategory: st?.category ?? null,
         });
+      }
+
+      if (Object.keys(changes).length > 0) {
+        bustDashboardIncidentsCache(org!.id);
       }
 
       return updated;

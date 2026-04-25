@@ -138,7 +138,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
     errorCode !== "FORBIDDEN" &&
     errorCode !== "NOT_FOUND";
 
-  const { data: incidentsPage } = trpc.tickets.list.useQuery({ type: "incident", limit: 5 }, mergeTrpcQueryOpts("tickets.list", { enabled: isAuthenticated && canAccess("incidents") }));
+  const { data: incidentsPage } = trpc.tickets.list.useQuery({ type: "incident", limit: 5, activeOnly: true }, mergeTrpcQueryOpts("tickets.list", { enabled: isAuthenticated && canAccess("incidents") }));
   const incidents = incidentsPage?.items ?? [];
 
   const { data: pendingApprovals } = trpc.approvals.myPending.useQuery(undefined, mergeTrpcQueryOpts("approvals.myPending", { enabled: isAuthenticated && canAccess("approvals") }));
