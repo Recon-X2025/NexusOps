@@ -147,9 +147,25 @@ export const csmRouter = router({
   slaMetrics: permissionProcedure("csm", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
     const [{ total }] = await db.select({ total: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org!.id));
+    let openCases = 0;
+    let totalCases = 0;
+    try {
+      const rows = await db.execute(sql`
+        SELECT
+          COUNT(*)::text AS total,
+          COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed'))::text AS open_cnt
+        FROM csm_cases
+        WHERE org_id = ${org!.id}
+      `);
+      const r = (rows as { total: string; open_cnt: string }[])[0];
+      totalCases = Number(r?.total ?? 0);
+      openCases = Number(r?.open_cnt ?? 0);
+    } catch {
+      /* table missing in some envs */
+    }
     return {
-      totalCases: 0,
-      openCases: 0,
+      totalCases,
+      openCases,
       slaBreached: 0,
       avgResolutionHours: 0,
       totalAccounts: Number(total),
@@ -160,10 +176,34 @@ export const csmRouter = router({
     const { db, org } = ctx;
     const [{ totalAccounts }] = await db.select({ totalAccounts: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org!.id));
     const [{ totalContacts }] = await db.select({ totalContacts: count() }).from(crmContacts).where(eq(crmContacts.orgId, org!.id));
+
+    let totalCases = 0;
+    let openCases = 0;
+    let resolvedToday = 0;
+    try {
+      const rows = await db.execute(sql`
+        SELECT
+          COUNT(*)::text AS total,
+          COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed'))::text AS open_cnt,
+          COUNT(*) FILTER (
+            WHERE status = 'resolved'
+            AND updated_at >= date_trunc('day', now())
+          )::text AS resolved_today
+        FROM csm_cases
+        WHERE org_id = ${org!.id}
+      `);
+      const r = (rows as { total: string; open_cnt: string; resolved_today: string }[])[0];
+      totalCases = Number(r?.total ?? 0);
+      openCases = Number(r?.open_cnt ?? 0);
+      resolvedToday = Number(r?.resolved_today ?? 0);
+    } catch {
+      /* csm_cases */
+    }
+
     return {
-      totalCases: 0,
-      openCases: 0,
-      resolvedToday: 0,
+      totalCases,
+      openCases,
+      resolvedToday,
       slaBreached: 0,
       avgCsat: 0,
       totalAccounts: Number(totalAccounts),

@@ -1,6 +1,7 @@
 # NexusOps — User Story Backlog (Gap-Closure Programme)
 
 **Purpose:** Consolidate **user stories** derived from module **gap analyses** and **sprint plans** in `docs/`. Use this for backlog refinement, PI planning, and traceability to source documents.  
+**Living status:** Implementation truth lives in the **Status rollup** and **Changelog** near the end of this file — update them when stories ship.  
 **Conventions:** Stories follow **As a / I want / So that**; **AC** = acceptance criteria. IDs are **stable prefixes** (`US-<MODULE>-###`).  
 **Sources:** `SERVICENOW_ITSM_GAP_ANALYSIS.md`, `NEXUSOPS_SECURITY_COMPLIANCE_GAP_ANALYSIS.md`, `WORKDAY_PEOPLE_WORKPLACE_GAP_ANALYSIS.md`, `HUBSPOT_CUSTOMER_SALES_CRM_GAP_ANALYSIS.md`, `MICROSOFT_FINANCE_PROCUREMENT_GAP_ANALYSIS.md`, `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md`, `AMAZON_STRATEGY_PROJECTS_GAP_ANALYSIS.md` (all under `docs/`).  
 **Date:** April 2026  
@@ -517,6 +518,95 @@
 | **Sizing** | Size in story points after technical spikes; **US-LEG-009+** is **epic-only** until phased breakdown. |
 | **Dependencies** | Security **Sprint 3** before org-wide SIEM; Legal **RBAC** before composite API if procedures assume new modules. |
 | **Traceability** | Link Jira/Linear `NEXUS-xxx` ↔ `US-*` in your tracker. |
+
+---
+
+## Living document
+
+This backlog is **maintained in-repo**. When a story ships, is de-scoped, or stalls, update the **Status rollup** (below) and append a row to **Changelog**. Prefer **Partial** over **Done** until every **AC** in the story is satisfied.
+
+### Status meanings
+
+| Status | Meaning |
+|--------|---------|
+| **Backlog** | Not started; story text and AC remain the planning target. |
+| **In progress** | Active implementation; point **Notes** at branch/PR if useful. |
+| **Partial** | Some AC met; **Notes** spell out what is left or what was descoped. |
+| **Done** | All AC satisfied (or story explicitly superseded — say by what). |
+| **Deferred** | Postponed by decision; **Notes** hold reason / revisit trigger. |
+| **Blocked** | Waiting on dependency, vendor, or architecture decision. |
+
+### Status rollup
+
+*Snapshot **last reviewed: 2026-04-25** (codebase paths: `apps/api`, `apps/web`, `packages/db`, `docs/`). Update this table on merge; do not let it rot.*
+
+| ID | Status | Notes |
+|----|--------|--------|
+| US-ITSM-001 | Partial | SLA pause + reason on tickets (`tickets` router, `sla_pause_reason_code`); org-configurable reason *catalog* still thin. |
+| US-ITSM-002 | Partial | Response vs resolve SLA fields (`sla_response_*`, `sla_resolve_*`); “multiple concurrent targets” beyond two clocks not fully validated vs AC. |
+| US-ITSM-003 | Backlog | — |
+| US-ITSM-004 | Partial | `parent_ticket_id` + wiring; comms log / war-room / full MIM not done. |
+| US-ITSM-005 | Backlog | — |
+| US-ITSM-006 | Partial | `cmdb` CI create/update/link (`assets` router); class graph, bulk import, service map depth still backlog. |
+| US-ITSM-007 | Backlog | — |
+| US-ITSM-008 | Backlog | — |
+| US-ITSM-009 | Backlog | — |
+| US-SEC-001 | Partial | Privileged **step-up** gate (`stepUpGate`, Redis session); org “MFA policy” matrix not fully productized. |
+| US-SEC-002 | Backlog | — |
+| US-SEC-003 | Backlog | — |
+| US-SEC-004 | Backlog | — |
+| US-SEC-005 | Backlog | — |
+| US-SEC-006 | Backlog | — |
+| US-SEC-007 | Backlog | — |
+| US-SEC-008 | Partial | `docs/FINANCE_SOD_MATRIX.md`, `docs/TRUST_CENTRE_STARTER.md`; SoD example on invoice pay (`markPaid` vs approver). |
+| US-HCM-001 | Backlog | — |
+| US-HCM-002 | Backlog | — |
+| US-HCM-003 | Backlog | — |
+| US-HCM-004 | Backlog | — |
+| US-HCM-005 | Backlog | — |
+| US-HCM-006 | Backlog | — |
+| US-HCM-007 | Backlog | — |
+| US-HCM-008 | Backlog | — |
+| US-CRM-001 | Partial | Customer & Sales hub: `csm.dashboard` counts from `csm_cases`; KPI + module tile + alert (no `"—"` when user has `csm` read). |
+| US-CRM-002 | Backlog | — |
+| US-CRM-003 | Backlog | — |
+| US-CRM-004 | Partial | Duplicate payable policy + match tolerance (`org-settings`, `procurement.matchToOrder`, `financial`); track under **US-FIN-004** if finance owns. |
+| US-CRM-005 | Backlog | Line/receipt-aware three-way match not v1-complete. |
+| US-CRM-006 | Partial | SoD doc + one enforced path; prefer **US-FIN-006** as source of truth for finance SoD. |
+| US-CRM-007 | Partial | Period close guard (`isInvoicePeriodClosed`, org settings); checklist UI v1 open. |
+| US-CRM-008 | Partial | `legal_entities`, `invoices.legal_entity_id`; admin CRUD / PO slice as needed. |
+| US-FIN-001 | Partial | Finance & Procurement hub: `procurement.dashboard` (PR **pending** = `pr_status.pending`), `financial.executiveSummary` (AP/AR open), real **PO** list via `purchaseOrders.list`; labels fixed (PR vs PO). |
+| US-FIN-002 | Partial | `financial.executiveSummary`; drill-down links / hub wiring may lag. |
+| US-FIN-003 | Backlog | DB-backed thresholds + admin UI + audit. |
+| US-FIN-004 | Partial | Same implementation as **US-CRM-004** (dedupe + tolerance). |
+| US-FIN-005 | Backlog | — |
+| US-FIN-006 | Partial | Matrix doc + enforced SoD example (invoice pay); expand tests / more pairs. |
+| US-FIN-007 | Partial | Same as **US-CRM-007**. |
+| US-FIN-008 | Partial | Same as **US-CRM-008**. |
+| US-LEG-001 | Backlog | — |
+| US-LEG-002 | Backlog | — |
+| US-LEG-003 | Deferred | Split `legal` / `secretarial` permissions — parked; revisit before composite legal API hard-gates. |
+| US-LEG-004 | Backlog | — |
+| US-LEG-005 | Backlog | — |
+| US-LEG-006 | Backlog | — |
+| US-LEG-007 | Backlog | — |
+| US-LEG-008 | Backlog | — |
+| US-LEG-009+ | Backlog | Programme epic; break into phased **US-LEG-xxx** when executing §3.9 / §6. |
+| US-STR-001 | Partial | Strategy hub Analytics tile: live **open tickets** count via `reports.executiveOverview` when user has `reports` read (else honest `"—"`). |
+| US-STR-002 | Partial | `projects.portfolioHealth` (+ related APM portfolio routes); “one procedure for strategy dashboard” may still split calls. |
+| US-STR-003 | Partial | OKR schema + `hr` OKR procedures + `dashboard.getMetrics` **activeOkrs** + migration `0017_okr_objectives`; Strategy home UX/RBAC polish open. |
+| US-STR-004 | Backlog | — |
+| US-STR-005 | Backlog | — |
+| US-STR-006 | Backlog | — |
+| US-STR-007 | Backlog | — |
+| US-STR-008 | Backlog | — |
+
+### Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-04-25 | Introduced **Living document**: status meanings, **Status rollup** (initial snapshot), **Changelog**. |
+| 2026-04-25 | Hub gap closures: **US-FIN-001** (finance-procurement), **US-CRM-001** (`csm.dashboard` SQL metrics), **US-STR-001** (strategy analytics tile); rollup updated. |
 
 ---
 

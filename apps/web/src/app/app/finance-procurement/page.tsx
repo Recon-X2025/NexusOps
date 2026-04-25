@@ -46,8 +46,20 @@ export default function FinanceProcurementDashboard() {
 
   const canProcurement = isAuthenticated && can("procurement", "read");
   const canContracts = isAuthenticated && can("contracts", "read");
+  const canFinancial = isAuthenticated && can("financial", "read");
 
-  const { data: purchaseOrders, isLoading: loadingPOs } = trpc.procurement.purchaseRequests.list.useQuery({}, mergeTrpcQueryOpts("procurement.purchaseRequests.list", { enabled: canProcurement },));
+  const { data: procurementDash, isLoading: loadingProcDash } = trpc.procurement.dashboard.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("procurement.dashboard", { enabled: canProcurement }),
+  );
+  const { data: purchaseOrdersList, isLoading: loadingPOs } = trpc.procurement.purchaseOrders.list.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("procurement.purchaseOrders.list", { enabled: canProcurement }),
+  );
+  const { data: finExec, isLoading: loadingFinExec } = trpc.financial.executiveSummary.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("financial.executiveSummary", { enabled: canFinancial }),
+  );
   const { data: contractsPage, isLoading: loadingContracts } = trpc.contracts.list.useQuery({}, mergeTrpcQueryOpts("contracts.list", { enabled: canContracts },));
   const { data: expiringContracts, isLoading: loadingExpiring } = trpc.contracts.expiringWithin.useQuery({ days: 30 }, mergeTrpcQueryOpts("contracts.expiringWithin", { enabled: canContracts },));
   const { data: vendors, isLoading: loadingVendors } = trpc.vendors.list.useQuery({}, mergeTrpcQueryOpts("vendors.list", { enabled: canProcurement }));
@@ -61,28 +73,38 @@ export default function FinanceProcurementDashboard() {
   const expiringArr: any[] = (expiringContracts as any) ?? [];
   const vendorItems: any[] = (vendors as any)?.items ?? (vendors as any) ?? [];
 
-  const pendingPOs = purchaseOrders
-    ? purchaseOrders.filter((p: any) => p.status === "pending_approval" || p.status === "draft" || p.status === "submitted").length
-    : 0;
+  /** PRs awaiting approval — aligns with `pr_status` / `procurement.dashboard` (pending). */
+  const pendingPRApprovals = procurementDash?.pendingApprovals ?? 0;
   const activeContracts = contracts.filter((c: any) => c.status === "active" || c.status === "signed").length;
 
   const alerts = [
     expiringArr.length > 0
       ? { color: "bg-red-500", text: `${expiringArr.length} contract${expiringArr.length !== 1 ? "s" : ""} expiring within 30 days` }
       : null,
-    pendingPOs > 0
-      ? { color: "bg-orange-500", text: `${pendingPOs} purchase order${pendingPOs !== 1 ? "s" : ""} awaiting approval` }
+    pendingPRApprovals > 0
+      ? { color: "bg-orange-500", text: `${pendingPRApprovals} purchase requisition${pendingPRApprovals !== 1 ? "s" : ""} pending approval` }
       : null,
     vendorItems.length > 0
       ? { color: "bg-blue-500", text: `${vendorItems.length} vendor${vendorItems.length !== 1 ? "s" : ""} in the system` }
       : null,
   ].filter(Boolean) as { color: string; text: string }[];
 
+  const apOpen = finExec?.apOpenCount ?? 0;
+  const arOpen = finExec?.arOpenCount ?? 0;
+  const spendLabel =
+    procurementDash?.totalSpend != null && String(procurementDash.totalSpend) !== ""
+      ? `₹${Number(procurementDash.totalSpend).toLocaleString("en-IN")}`
+      : "—";
+
   const moduleStats = [
-    [{ k: "Invoices", v: "—" }],
     [
-      { k: "Open POs",  v: loadingPOs      ? "…" : String(pendingPOs) },
-      { k: "Vendors",   v: loadingVendors  ? "…" : String(vendorItems.length) },
+      { k: "AP open", v: loadingFinExec ? "…" : String(apOpen) },
+      { k: "AR open", v: loadingFinExec ? "…" : String(arOpen) },
+    ],
+    [
+      { k: "PR pending", v: loadingProcDash ? "…" : String(pendingPRApprovals) },
+      { k: "PO spend", v: loadingProcDash ? "…" : spendLabel },
+      { k: "Vendors", v: loadingVendors ? "…" : String(vendorItems.length) },
     ],
     [
       { k: "Active",    v: loadingContracts ? "…" : String(activeContracts) },
@@ -121,7 +143,7 @@ export default function FinanceProcurementDashboard() {
       )}
 
       <div className="grid grid-cols-4 gap-2">
-        <KPICard label="POs Pending Approval" value={pendingPOs} color="text-orange-700" icon={ShoppingCart} href="/app/procurement" isLoading={loadingPOs} />
+        <KPICard label="PRs Pending Approval" value={pendingPRApprovals} color="text-orange-700" icon={ShoppingCart} href="/app/procurement" isLoading={loadingProcDash} />
         <KPICard label="Contracts Expiring 30d" value={expiringArr.length} color="text-red-700" icon={FileSignature} href="/app/contracts" isLoading={loadingExpiring} />
         <KPICard label="Active Contracts" value={activeContracts} color="text-blue-700" icon={Building2} href="/app/contracts" isLoading={loadingContracts} />
         <KPICard label="Total Vendors" value={vendorItems.length} color="text-green-700" icon={Banknote} href="/app/procurement" isLoading={loadingVendors} />
@@ -174,20 +196,20 @@ export default function FinanceProcurementDashboard() {
             </div>
           ) : (
             <table className="ent-table w-full">
-              <thead><tr><th>PO</th><th>Title</th><th>Amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>PO</th><th>Vendor / ref</th><th>Amount</th><th>Status</th></tr></thead>
               <tbody>
-                {(purchaseOrders ?? []).length === 0 ? (
+                {(purchaseOrdersList ?? []).length === 0 ? (
                   <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No purchase orders found</td></tr>
-                ) : (purchaseOrders ?? []).slice(0, 5).map((p: any) => (
+                ) : (purchaseOrdersList ?? []).slice(0, 5).map((p: any) => (
                   <tr key={p.id}>
-                    <td className="font-mono text-[11px] text-primary">{p.number}</td>
-                    <td className="max-w-[140px]"><span className="truncate block text-foreground">{p.title}</span></td>
+                    <td className="font-mono text-[11px] text-primary">{p.poNumber ?? p.number ?? p.id?.slice(0, 8)}</td>
+                    <td className="max-w-[140px]"><span className="truncate block text-foreground">{p.title ?? p.notes ?? "—"}</span></td>
                     <td className="font-mono text-[11px] font-semibold text-foreground">
                       {p.totalAmount ? `₹${parseFloat(String(p.totalAmount)).toLocaleString("en-IN")}` : "—"}
                     </td>
                     <td>
-                      <span className={`status-badge text-[10px] capitalize ${p.status === "approved" || p.status === "received" ? "text-green-700 bg-green-100" : p.status === "pending_approval" || p.status === "submitted" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>
-                        {p.status?.replace(/_/g, " ")}
+                      <span className={`status-badge text-[10px] capitalize ${p.status === "received" || p.status === "paid" || p.status === "invoiced" ? "text-green-700 bg-green-100" : p.status === "sent" || p.status === "acknowledged" || p.status === "partially_received" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>
+                        {String(p.status ?? "").replace(/_/g, " ")}
                       </span>
                     </td>
                   </tr>

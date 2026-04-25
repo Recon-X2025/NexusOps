@@ -58,9 +58,14 @@ export default function CustomerSalesDashboard() {
   const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
   const canAccounts = isAuthenticated && can("accounts", "read");
+  const canCsm = isAuthenticated && can("csm", "read");
   const canCatalog = isAuthenticated && can("catalog", "read");
   const canSurveys = isAuthenticated && can("surveys", "read");
 
+  const { data: csmDash, isLoading: loadingCsm } = trpc.csm.dashboard.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("csm.dashboard", { enabled: canCsm }),
+  );
   const { data: crmMetrics, isLoading: loadingCrm } = trpc.crm.dashboardMetrics.useQuery(undefined, mergeTrpcQueryOpts("crm.dashboardMetrics", {
     enabled: canAccounts,
   }));
@@ -102,6 +107,9 @@ export default function CustomerSalesDashboard() {
   const totalPipelineValue = pipelineRows.reduce((a, b) => a + b.value, 0);
 
   const alerts = [
+    (csmDash?.openCases ?? 0) > 0
+      ? { color: "bg-indigo-500", text: `${csmDash?.openCases} open customer case${csmDash?.openCases !== 1 ? "s" : ""}` }
+      : null,
     deals && deals.filter((d: any) => d.stage !== "closed_won" && d.stage !== "closed_lost").length > 0
       ? { color: "bg-blue-500", text: `${crmMetrics?.openPipeline.count ?? 0} open deals in the sales pipeline` }
       : null,
@@ -114,7 +122,10 @@ export default function CustomerSalesDashboard() {
   ].filter(Boolean) as { color: string; text: string }[];
 
   const moduleStats = [
-    [{ k: "Cases", v: "—" }],
+    [
+      { k: "Open cases", v: !canCsm ? "—" : loadingCsm ? "…" : String(csmDash?.openCases ?? 0) },
+      { k: "Total", v: !canCsm ? "—" : loadingCsm ? "…" : String(csmDash?.totalCases ?? 0) },
+    ],
     [
       { k: "Deals",    v: loadingCrm ? "…" : String(crmMetrics?.openPipeline.count ?? 0) },
       { k: "Leads",    v: loadingCrm ? "…" : String(crmMetrics?.newLeads ?? 0) },
@@ -159,7 +170,8 @@ export default function CustomerSalesDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
+        <KPICard label="Open Customer Cases" value={canCsm ? (csmDash?.openCases ?? 0) : "—"} color="text-blue-700" icon={MessageSquare} href="/app/csm" isLoading={canCsm && loadingCsm} />
         <KPICard label="Open Deals / Pipeline" value={crmMetrics?.openPipeline.count ?? 0} color="text-indigo-700" icon={TrendingUp} href="/app/crm" isLoading={loadingCrm} />
         <KPICard label="Won Deals" value={crmMetrics?.closedWon.count ?? 0} color="text-green-700" icon={Star} href="/app/crm" isLoading={loadingCrm} />
         <KPICard label="Catalog Requests Open" value={openCatalogRequests} color="text-orange-700" icon={ShoppingBag} href="/app/catalog" isLoading={loadingCatalog} />

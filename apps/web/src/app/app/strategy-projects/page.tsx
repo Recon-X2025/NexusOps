@@ -55,9 +55,14 @@ export default function StrategyProjectsDashboard() {
 
   const canProjects = isAuthenticated && can("projects", "read");
   const canAnalytics = isAuthenticated && can("analytics", "read");
+  const canReports = isAuthenticated && can("reports", "read");
 
   const { data: projects, isLoading: loadingProjects } = trpc.projects.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("projects.list", { enabled: canProjects },));
   const { data: appsPage, isLoading: loadingApps } = trpc.apm.applications.list.useQuery({}, mergeTrpcQueryOpts("apm.applications.list", { enabled: canAnalytics },));
+  const { data: execOverview, isLoading: loadingReports } = trpc.reports.executiveOverview.useQuery(
+    { days: 30 },
+    mergeTrpcQueryOpts("reports.executiveOverview", { enabled: canReports }),
+  );
 
   if (!can("projects", "read") && !can("demand", "read") && !can("analytics", "read")) {
     return <AccessDenied module="Strategy & Projects" />;
@@ -98,7 +103,7 @@ export default function StrategyProjectsDashboard() {
       { k: "Apps",     v: loadingApps ? "…" : String(apps?.length ?? 0) },
     ],
     [
-      { k: "Reports",  v: "—" },
+      { k: "Open tickets", v: !canReports ? "—" : loadingReports ? "…" : String(execOverview?.openTickets ?? 0) },
     ],
   ];
 
