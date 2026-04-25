@@ -3,14 +3,43 @@
 import Link from "next/link";
 import {
   Scale, Gavel, Briefcase, AlertTriangle, Calendar,
-  ChevronRight, CheckCircle2, Loader2,
+  ChevronRight, CheckCircle2, Loader2, FileWarning, FileCheck,
 } from "lucide-react";
 import { useRBAC } from "@/lib/rbac-context";
 import { AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 
-function KPICard({ label, value, color, href, icon: Icon, isLoading }: {
-  label: string; value: string | number; color: string; href?: string; icon: React.ElementType; isLoading?: boolean;
+type GovernanceSummary = {
+  legal: {
+    activeMatters: number;
+    totalMatters: number;
+    openRequests: number;
+    openInvestigations: number;
+  } | null;
+  secretarial: {
+    upcomingMeetings: number;
+    overdueFilings: number;
+    upcomingFilings: number;
+    totalDirectors: number;
+    kycExpiring: number;
+  } | null;
+  contracts: {
+    active: number;
+    expiringSoon: number;
+    expiringWithin30: Array<{
+      id: string;
+      number: string | null;
+      title: string;
+      counterparty: string | null;
+      endDate: string | null;
+      status: string | null;
+    }>;
+  } | null;
+  generatedAt: string;
+};
+
+function KPICard({ label, value, color, href, icon: Icon, isLoading, hint }: {
+  label: string; value: string | number; color: string; href?: string; icon: React.ElementType; isLoading?: boolean; hint?: string;
 }) {
   const content = (
     <div className="bg-card border border-border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer">
@@ -21,6 +50,7 @@ function KPICard({ label, value, color, href, icon: Icon, isLoading }: {
         {isLoading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : value}
       </div>
       <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">{label}</div>
+      {hint && <div className="text-[10px] text-muted-foreground/70 mt-0.5">{hint}</div>}
     </div>
   );
   return href ? <Link href={href}>{content}</Link> : content;
@@ -28,67 +58,80 @@ function KPICard({ label, value, color, href, icon: Icon, isLoading }: {
 
 const MODULES = [
   {
+    id: "legal",
     label: "Legal Service Delivery", href: "/app/legal",      icon: Gavel,     color: "text-blue-600 bg-blue-50",
     description: "Legal matter management, contract review requests, litigation tracking, external counsel.",
   },
   {
+    id: "secretarial",
     label: "Secretarial & CS",       href: "/app/secretarial", icon: Briefcase, color: "text-purple-600 bg-purple-50",
     description: "Corporate compliance, MCA/ROC filings, board & AGM management, share capital, statutory registers.",
   },
-];
+] as const;
 
 export default function LegalGovernanceDashboard() {
   const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
+  const canLegal = can("legal", "read");
+  const canSecretarial = can("secretarial", "read");
+  const canContracts = can("contracts", "read");
   const canSeeHub =
-    isAuthenticated &&
-    (can("legal", "read") || can("secretarial", "read") || can("grc", "read") || can("contracts", "read"));
+    isAuthenticated && (canLegal || canSecretarial || can("grc", "read") || canContracts);
 
+  const { data: summary, isLoading: loadingSummary } = trpc.legal.governanceSummary.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("legal.governanceSummary", {
+      enabled: canSeeHub && canLegal,
+      refetchOnWindowFocus: false,
+    }),
+  );
   const { data: matters, isLoading: loadingMatters } = trpc.legal.listMatters.useQuery(
     { limit: 5 },
-    mergeTrpcQueryOpts("legal.listMatters", { refetchOnWindowFocus: false }),
+    mergeTrpcQueryOpts("legal.listMatters", {
+      enabled: canSeeHub && canLegal,
+      refetchOnWindowFocus: false,
+    }),
   );
-  const { data: allMatters, isLoading: loadingAllMatters } = trpc.legal.listMatters.useQuery(
-    { limit: 200 },
-    mergeTrpcQueryOpts("legal.listMatters", { refetchOnWindowFocus: false }),
-  );
-  const { data: audits, isLoading: loadingAudits } = trpc.grc.listAudits.useQuery(
+  const { data: filings, isLoading: loadingFilings } = trpc.secretarial.filings.upcomingAlerts.useQuery(
     undefined,
-    mergeTrpcQueryOpts("grc.listAudits", { refetchOnWindowFocus: false }),
-  );
-  const { data: risks, isLoading: loadingRisks } = trpc.grc.listRisks.useQuery(
-    {},
-    mergeTrpcQueryOpts("grc.listRisks", { refetchOnWindowFocus: false }),
+    mergeTrpcQueryOpts("secretarial.filings.upcomingAlerts", {
+      enabled: canSeeHub && canSecretarial,
+      refetchOnWindowFocus: false,
+    }),
   );
 
   if (!canSeeHub) {
     return <AccessDenied module="Legal & Governance" />;
   }
 
-  const activeMatters = allMatters ? allMatters.filter((m: any) => m.status !== "closed" && m.status !== "resolved").length : 0;
-  const openRisks = risks ? risks.filter((r: any) => r.status !== "closed" && r.status !== "accepted").length : 0;
-  const scheduledAudits = audits ? audits.filter((a: any) => a.status === "planned" || a.status === "in_progress").length : 0;
+  const s = (summary ?? null) as GovernanceSummary | null;
+  const legalKpi = s?.legal ?? null;
+  const secKpi = s?.secretarial ?? null;
+  const contractsKpi = s?.contracts ?? null;
 
   const alerts = [
-    activeMatters > 0
-      ? { color: "bg-blue-500",    text: `${activeMatters} active legal matter${activeMatters !== 1 ? "s" : ""} require attention` }
+    legalKpi && legalKpi.activeMatters > 0
+      ? { color: "bg-blue-500",   text: `${legalKpi.activeMatters} active legal matter${legalKpi.activeMatters !== 1 ? "s" : ""}` }
       : null,
-    openRisks > 0
-      ? { color: "bg-orange-500",  text: `${openRisks} open risk item${openRisks !== 1 ? "s" : ""} pending resolution` }
+    contractsKpi && contractsKpi.expiringSoon > 0
+      ? { color: "bg-orange-500", text: `${contractsKpi.expiringSoon} contract${contractsKpi.expiringSoon !== 1 ? "s" : ""} expiring within 30 days` }
       : null,
-    scheduledAudits > 0
-      ? { color: "bg-yellow-400",  text: `${scheduledAudits} audit${scheduledAudits !== 1 ? "s" : ""} planned or in progress` }
+    secKpi && secKpi.overdueFilings > 0
+      ? { color: "bg-red-500",    text: `${secKpi.overdueFilings} secretarial filing${secKpi.overdueFilings !== 1 ? "s" : ""} overdue` }
+      : null,
+    secKpi && secKpi.kycExpiring > 0
+      ? { color: "bg-yellow-400", text: `${secKpi.kycExpiring} director KYC due within 30 days` }
       : null,
   ].filter(Boolean) as { color: string; text: string }[];
 
-  const moduleStats = [
+  const moduleStats: Array<Array<{ k: string; v: string }>> = [
     [
-      { k: "Matters",  v: loadingAllMatters ? "…" : String(activeMatters) },
-      { k: "Total",    v: loadingAllMatters ? "…" : String(allMatters?.length ?? 0) },
+      { k: "Active",  v: loadingSummary ? "…" : String(legalKpi?.activeMatters ?? "—") },
+      { k: "Total",   v: loadingSummary ? "…" : String(legalKpi?.totalMatters ?? "—") },
     ],
     [
-      { k: "Audits",   v: loadingAudits ? "…" : String(audits?.length ?? 0) },
-      { k: "Risks",    v: loadingRisks  ? "…" : String(risks?.length ?? 0) },
+      { k: "Meetings", v: loadingSummary ? "…" : String(secKpi?.upcomingMeetings ?? (canSecretarial ? 0 : "—")) },
+      { k: "Filings",  v: loadingSummary ? "…" : String(secKpi?.upcomingFilings ?? (canSecretarial ? 0 : "—")) },
     ],
   ];
 
@@ -108,7 +151,9 @@ export default function LegalGovernanceDashboard() {
             <h1 className="text-sm font-semibold text-foreground leading-tight">Legal & Governance Dashboard</h1>
           </div>
         </div>
-        <span className="text-[10px] text-muted-foreground/60">2 modules · live data</span>
+        <span className="text-[10px] text-muted-foreground/60">
+          {loadingSummary ? "Syncing…" : "Live data · 60s cache"}
+        </span>
       </div>
 
       {alerts.length > 0 && (
@@ -123,10 +168,46 @@ export default function LegalGovernanceDashboard() {
       )}
 
       <div className="grid grid-cols-4 gap-2">
-        <KPICard label="Active Legal Matters" value={activeMatters} color="text-blue-700" icon={Gavel} href="/app/legal" isLoading={loadingAllMatters} />
-        <KPICard label="Total Matters" value={allMatters?.length ?? 0} color="text-purple-700" icon={Scale} href="/app/legal" isLoading={loadingAllMatters} />
-        <KPICard label="Open Risk Items" value={openRisks} color="text-orange-700" icon={AlertTriangle} href="/app/grc" isLoading={loadingRisks} />
-        <KPICard label="Scheduled Audits" value={scheduledAudits} color="text-green-700" icon={CheckCircle2} href="/app/grc" isLoading={loadingAudits} />
+        <KPICard
+          label="Active Matters"
+          value={canLegal ? (legalKpi?.activeMatters ?? 0) : "—"}
+          color="text-blue-700"
+          icon={Gavel}
+          href={canLegal ? "/app/legal" : undefined}
+          isLoading={canLegal && loadingSummary}
+          hint={canLegal ? undefined : "Legal access required"}
+        />
+        <KPICard
+          label="Contracts Expiring (30d)"
+          value={canContracts ? (contractsKpi?.expiringSoon ?? 0) : "—"}
+          color="text-orange-700"
+          icon={FileWarning}
+          href={canContracts ? "/app/contracts" : undefined}
+          isLoading={canContracts && loadingSummary}
+          hint={canContracts ? undefined : "Contracts access required"}
+        />
+        <KPICard
+          label="Upcoming Board Meetings"
+          value={canSecretarial ? (secKpi?.upcomingMeetings ?? 0) : "—"}
+          color="text-purple-700"
+          icon={Calendar}
+          href={canSecretarial ? "/app/secretarial" : undefined}
+          isLoading={canSecretarial && loadingSummary}
+          hint={canSecretarial ? undefined : "Secretarial access required"}
+        />
+        <KPICard
+          label="Filings Due (30d)"
+          value={canSecretarial ? (secKpi?.upcomingFilings ?? 0) : "—"}
+          color={secKpi && secKpi.overdueFilings > 0 ? "text-red-700" : "text-green-700"}
+          icon={secKpi && secKpi.overdueFilings > 0 ? AlertTriangle : CheckCircle2}
+          href={canSecretarial ? "/app/secretarial?tab=filings" : undefined}
+          isLoading={canSecretarial && loadingSummary}
+          hint={
+            secKpi && secKpi.overdueFilings > 0
+              ? `${secKpi.overdueFilings} overdue`
+              : canSecretarial ? undefined : "Secretarial access required"
+          }
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -146,10 +227,10 @@ export default function LegalGovernanceDashboard() {
                 <div className="text-[10px] text-muted-foreground/70 mt-0.5 leading-snug">{m.description}</div>
               </div>
               <div className="flex gap-3 mt-auto pt-1 border-t border-border">
-                {moduleStats[idx]?.map((s) => (
-                  <div key={s.k} className="text-center">
-                    <div className="text-[13px] font-bold text-foreground">{s.v}</div>
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{s.k}</div>
+                {moduleStats[idx]?.map((stat) => (
+                  <div key={stat.k} className="text-center">
+                    <div className="text-[13px] font-bold text-foreground">{stat.v}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{stat.k}</div>
                   </div>
                 ))}
               </div>
@@ -158,7 +239,7 @@ export default function LegalGovernanceDashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {/* Active Matters */}
         <div className="bg-card border border-border rounded overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
@@ -166,31 +247,36 @@ export default function LegalGovernanceDashboard() {
               <Gavel className="w-3.5 h-3.5 text-muted-foreground/70" />
               <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Active Legal Matters</span>
             </div>
-            <Link href="/app/legal" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
-              All <ChevronRight className="w-3 h-3" />
-            </Link>
+            {canLegal && (
+              <Link href="/app/legal" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                All <ChevronRight className="w-3 h-3" />
+              </Link>
+            )}
           </div>
-          {loadingMatters ? (
+          {!canLegal ? (
+            <div className="text-center text-muted-foreground py-6 text-[12px]">No legal access</div>
+          ) : loadingMatters ? (
             <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
               <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
             </div>
           ) : (
             <table className="ent-table w-full">
-              <thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Due</th></tr></thead>
+              <thead><tr><th>Title</th><th>Type</th><th>Status</th></tr></thead>
               <tbody>
                 {(matters ?? []).length === 0 ? (
-                  <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No legal matters found</td></tr>
+                  <tr><td colSpan={3} className="text-center text-muted-foreground py-4 text-[12px]">No legal matters</td></tr>
                 ) : (matters ?? []).map((m: any) => (
                   <tr key={m.id}>
                     <td className="max-w-[160px]"><span className="truncate block text-foreground">{m.title}</span></td>
                     <td><span className="status-badge text-muted-foreground bg-muted capitalize">{m.type?.replace(/_/g, " ")}</span></td>
                     <td>
-                      <span className={`status-badge text-[10px] capitalize ${m.status === "active" || m.status === "open" ? "text-blue-700 bg-blue-100" : m.status === "closed" ? "text-green-700 bg-green-100" : "text-yellow-700 bg-yellow-100"}`}>
+                      <span className={`status-badge text-[10px] capitalize ${
+                        m.status === "active" || m.status === "open" ? "text-blue-700 bg-blue-100" :
+                        m.status === "closed" || m.status === "settled" ? "text-green-700 bg-green-100" :
+                        "text-yellow-700 bg-yellow-100"
+                      }`}>
                         {m.status?.replace(/_/g, " ")}
                       </span>
-                    </td>
-                    <td className="font-mono text-[11px] text-muted-foreground">
-                      {new Date(m.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
                     </td>
                   </tr>
                 ))}
@@ -199,37 +285,115 @@ export default function LegalGovernanceDashboard() {
           )}
         </div>
 
-        {/* Audit Plans */}
+        {/* Contracts expiring within 30 days (US-LEG-001 AC) */}
         <div className="bg-card border border-border rounded overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
             <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground/70" />
-              <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Audit Plans</span>
+              <FileWarning className="w-3.5 h-3.5 text-muted-foreground/70" />
+              <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Contracts Expiring (30d)</span>
             </div>
-            <Link href="/app/grc" className="text-[11px] text-primary hover:underline">GRC →</Link>
+            {canContracts && (
+              <Link href="/app/contracts" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                All <ChevronRight className="w-3 h-3" />
+              </Link>
+            )}
           </div>
-          {loadingAudits ? (
+          {!canContracts ? (
+            <div className="text-center text-muted-foreground py-6 text-[12px]">No contracts access</div>
+          ) : loadingSummary ? (
             <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
               <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {(audits ?? []).length === 0 ? (
-                <div className="text-center text-muted-foreground py-4 text-[12px]">No audit plans found</div>
-              ) : (audits ?? []).slice(0, 5).map((a: any) => (
-                <div key={a.id} className={`flex items-start gap-3 px-3 py-2.5`}>
+              {(contractsKpi?.expiringWithin30 ?? []).length === 0 ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
+                  <FileCheck className="w-4 h-4 mr-2 text-green-600" />
+                  Nothing expiring in the next 30 days
+                </div>
+              ) : (
+                (contractsKpi?.expiringWithin30 ?? []).map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/app/contracts/${c.id}`}
+                    className="flex items-start gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex-shrink-0 text-center w-16">
+                      <div className="text-[11px] font-bold text-foreground">
+                        {c.endDate ? new Date(c.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                      </div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Expires</div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {c.number && (
+                          <span className="font-mono text-[10px] text-primary">{c.number}</span>
+                        )}
+                        {c.status && (
+                          <span className={`status-badge text-[9px] capitalize ${
+                            c.status === "expiring_soon" ? "text-orange-700 bg-orange-100" : "text-blue-700 bg-blue-100"
+                          }`}>
+                            {c.status.replace(/_/g, " ")}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-foreground/80 leading-snug truncate">{c.title}</p>
+                      {c.counterparty && (
+                        <p className="text-[10px] text-muted-foreground/70 truncate">{c.counterparty}</p>
+                      )}
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Secretarial filings due (US-LEG-001 AC: secretarial truth) */}
+        <div className="bg-card border border-border rounded overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-3.5 h-3.5 text-muted-foreground/70" />
+              <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Secretarial Filings (30d)</span>
+            </div>
+            {canSecretarial && (
+              <Link href="/app/secretarial?tab=filings" className="text-[11px] text-primary hover:underline">All →</Link>
+            )}
+          </div>
+          {!canSecretarial ? (
+            <div className="text-center text-muted-foreground py-6 text-[12px]">No secretarial access</div>
+          ) : loadingFilings ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
+              <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {(filings ?? []).length === 0 ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
+                  <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                  No filings due in the next 30 days
+                </div>
+              ) : (filings ?? []).slice(0, 5).map((f: any) => (
+                <div key={f.id} className="flex items-start gap-3 px-3 py-2.5">
                   <div className="flex-shrink-0 text-center w-16">
                     <div className="text-[11px] font-bold text-foreground">
-                      {a.startDate ? new Date(a.startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                      {f.dueDate ? new Date(f.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
                     </div>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Due</div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className={`status-badge text-[9px] capitalize ${a.status === "completed" ? "text-green-700 bg-green-100" : a.status === "in_progress" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>
-                        {a.status?.replace(/_/g, " ") ?? "Planned"}
+                      <span className="font-mono text-[10px] text-primary">{f.formNumber}</span>
+                      <span className={`status-badge text-[9px] capitalize ${
+                        f.status === "in_progress" ? "text-blue-700 bg-blue-100" :
+                        f.status === "overdue" ? "text-red-700 bg-red-100" :
+                        "text-muted-foreground bg-muted"
+                      }`}>
+                        {f.status?.replace(/_/g, " ") ?? "Upcoming"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-foreground/80 leading-snug">{a.title}</p>
+                    <p className="text-[11px] text-foreground/80 leading-snug truncate">{f.title}</p>
+                    <p className="text-[10px] text-muted-foreground/70 truncate">{f.authority}</p>
                   </div>
                 </div>
               ))}

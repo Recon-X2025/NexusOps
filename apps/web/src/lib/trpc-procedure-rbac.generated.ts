@@ -347,6 +347,7 @@ export const TRPC_PROCEDURE_RBAC: Record<string, TrpcProcedureRbacRule> = {
   "legal.createMatter": { kind: "rbac", module: "legal" as Module, action: "write" as RbacAction },
   "legal.createRequest": { kind: "rbac", module: "legal" as Module, action: "write" as RbacAction },
   "legal.getMatter": { kind: "rbac", module: "legal" as Module, action: "read" as RbacAction },
+  "legal.governanceSummary": { kind: "rbac", module: "legal" as Module, action: "read" as RbacAction },
   "legal.listInvestigations": { kind: "rbac", module: "legal" as Module, action: "read" as RbacAction },
   "legal.listMatters": { kind: "rbac", module: "legal" as Module, action: "read" as RbacAction },
   "legal.listRequests": { kind: "rbac", module: "legal" as Module, action: "read" as RbacAction },
