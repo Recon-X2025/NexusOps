@@ -3,7 +3,7 @@
  * Verifies every business rule enforces correctly, including edge cases.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { testDb, seedFullOrg, authedCaller, cleanupOrg, loginAndGetToken } from "./helpers";
+import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession } from "./helpers";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {
@@ -22,28 +22,9 @@ describe("Layer 5: Business Logic", () => {
 
   beforeAll(async () => {
     orgCtx = await seedFullOrg();
-    adminToken = await loginAndGetToken(
-      (await testDb().select().from(
-        (await import("@nexusops/db")).users
-      ).where(
-        (await import("@nexusops/db")).eq(
-          (await import("@nexusops/db")).users.id,
-          orgCtx.adminId
-        )
-      ).limit(1))[0]!.email,
-      orgCtx.password,
-    );
-    agentToken = await loginAndGetToken(
-      (await testDb().select().from(
-        (await import("@nexusops/db")).users
-      ).where(
-        (await import("@nexusops/db")).eq(
-          (await import("@nexusops/db")).users.id,
-          orgCtx.agentId
-        )
-      ).limit(1))[0]!.email,
-      orgCtx.password,
-    );
+    // Bearer via session row — avoids auth.login rate limits + Redis when many suites run.
+    adminToken = await createSession(orgCtx.adminId);
+    agentToken = await createSession(orgCtx.agentId);
   });
 
   afterAll(async () => {

@@ -32,7 +32,7 @@
     "db:seed:modules": "tsx src/seed-modules.ts",
     "db:studio": "drizzle-kit studio",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -7,7 +7,9 @@ export default async function globalSetup() {
     process.env.DATABASE_URL ||
     "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test";
 
-  execSync("pnpm --filter @nexusops/db db:push", {
+  // Migrations only (no `db:push`): `push` can prompt interactively on drift
+  // (e.g. rename vs create), which hangs Playwright globalSetup in CI/local.
+  execSync("pnpm --filter @nexusops/db db:migrate", {
     env: {
       ...process.env,
       DATABASE_URL: testDbUrl,
@@ -24,7 +26,7 @@ export default async function globalSetup() {
       stdio: "inherit",
     });
   } catch {
-    // Seed may not exist yet — push is sufficient for schema
+    // Seed may not exist yet — migrate is sufficient for schema
     console.warn("⚠️  db:seed not found or failed — schema only mode");
   }
 

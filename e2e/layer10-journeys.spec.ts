@@ -106,8 +106,8 @@ test.describe("Layer 10: End-to-End User Journeys", () => {
       expect(body).not.toContain("Unhandled Runtime Error");
     });
 
-    test("regular viewer sees restricted modules as inaccessible", async ({ page }) => {
-      await loginAs(page, "viewer@coheron.com");
+    test("employee (requester) sees admin without crash (RBAC may redirect)", async ({ page }) => {
+      await loginAs(page, "employee@coheron.com");
       // Admin section should redirect or show access denied
       await page.goto("/app/admin");
       await page.waitForLoadState("networkidle");

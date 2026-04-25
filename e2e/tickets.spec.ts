@@ -26,7 +26,9 @@ test.describe("Ticket Lifecycle", () => {
       (e) => !e.includes("favicon") && !e.includes("ERR_"),
     );
     expect(critical).toHaveLength(0);
-    await expect(page.locator("h1, [data-testid='page-title']").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Service Desk/i })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("create ticket form renders required fields", async ({ page }) => {
@@ -124,7 +126,8 @@ test.describe("Ticket Lifecycle", () => {
     await page.getByTestId("ticket-relation-add").click();
 
     await expect(page.getByTestId("ticket-linked-list")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("ticket-linked-list")).toContainText(idB.slice(0, 8));
+    // UI shows ticket number + title, not raw UUID prefix
+    await expect(page.getByTestId("ticket-linked-list")).toContainText(`E2E Relation B ${suffix}`);
 
     await page.getByTestId("ticket-relation-remove").first().click();
     await expect(page.getByTestId("ticket-linked-empty")).toBeVisible({ timeout: 10_000 });

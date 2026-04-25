@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
 import {
   Zap, Bell, Search, Moon, Sun, HelpCircle, ChevronDown, Plus, Settings, Shield,
   CheckCheck, Info, AlertTriangle, CheckCircle, XCircle, ExternalLink,
@@ -107,8 +107,20 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "virtual-agent": "Virtual Agent",
 };
 
+/** Matches sidebar labels under Legal & Governance → Secretarial & CS */
+const SECRETARIAL_SUBPAGE_LABELS: Record<string, string> = {
+  overview: "Company Overview",
+  board: "Board & Meetings",
+  filings: "MCA / ROC Filings",
+  share: "Share Capital & ESOP",
+  esop: "ESOP",
+  registers: "Statutory Registers",
+  calendar: "Compliance Calendar",
+};
+
 function Breadcrumbs() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
   const crumbs: { label: string; href: string }[] = [];
 
@@ -117,6 +129,15 @@ function Breadcrumbs() {
     const label = BREADCRUMB_LABELS[seg] ?? seg;
     crumbs.push({ label, href });
   });
+
+  const lastSeg = segments[segments.length - 1];
+  if (lastSeg === "secretarial") {
+    const tab = searchParams.get("tab") ?? "overview";
+    const subLabel = SECRETARIAL_SUBPAGE_LABELS[tab] ?? SECRETARIAL_SUBPAGE_LABELS.overview;
+    const qs = new URLSearchParams(searchParams.toString());
+    if (!qs.has("tab")) qs.set("tab", tab);
+    crumbs.push({ label: subLabel, href: `/app/secretarial?${qs.toString()}` });
+  }
 
   const visible = crumbs.slice(1);
 
@@ -620,7 +641,9 @@ export function AppHeader() {
           </div>
         </Link>
         <div className="h-4 w-px bg-white/10 hidden md:block" />
-        <Breadcrumbs />
+        <Suspense fallback={null}>
+          <Breadcrumbs />
+        </Suspense>
       </div>
 
       {/* Center: Global search */}

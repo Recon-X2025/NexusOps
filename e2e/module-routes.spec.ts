@@ -19,7 +19,10 @@ const ADMIN_MODULE_ROUTES = [
   "/app/admin",
   "/app/tickets",
   "/app/changes",
+  "/app/problems",
+  "/app/releases",
   "/app/work-orders",
+  "/app/work-orders/parts",
   "/app/events",
   "/app/ham",
   "/app/sam",
@@ -27,9 +30,15 @@ const ADMIN_MODULE_ROUTES = [
   "/app/on-call",
   "/app/grc",
   "/app/security",
+  "/app/compliance",
   "/app/approvals",
   "/app/flows",
   "/app/hr",
+  "/app/employee-portal",
+  "/app/employee-center",
+  "/app/attendance",
+  "/app/holidays",
+  "/app/okr",
   "/app/recruitment",
   "/app/people-analytics",
   "/app/performance",
@@ -54,8 +63,11 @@ const ADMIN_MODULE_ROUTES = [
   "/app/notifications",
   "/app/workflows",
   "/app/payroll",
+  "/app/virtual-agent",
   "/app/settings/integrations",
+  "/app/settings/omnichannel",
   "/app/settings/webhooks",
+  "/app/settings/api-keys",
   "/app/expenses",
   "/app/esg",
   "/app/strategy-projects",
@@ -66,6 +78,8 @@ const ADMIN_MODULE_ROUTES = [
   "/app/customer-sales",
   "/app/people-workplace",
   "/app/it-services",
+  "/app/it-services/major-incidents",
+  "/app/it-services/analytics",
   "/app/onboarding-wizard",
 ] as const;
 
@@ -73,8 +87,9 @@ async function expectRouteHealthy(page: Page, path: string) {
   const batch: string[] = [];
   const onErr = (e: Error) => batch.push(e.message);
   page.on("pageerror", onErr);
-  await page.goto(path);
-  await page.waitForLoadState("networkidle");
+  // `networkidle` hangs on TRPC/React polling — `load` is enough for crash smoke.
+  await page.goto(path, { waitUntil: "load", timeout: 45_000 });
+  await page.waitForLoadState("domcontentloaded");
   const body = await page.textContent("body");
   page.off("pageerror", onErr);
   expect(body, path).not.toContain("Unhandled Runtime Error");
@@ -85,6 +100,7 @@ test.describe("Module routes (long-tail load smoke)", () => {
   test.describe.configure({ mode: "serial" });
 
   test("P1 admin: all listed module routes load without runtime error", async ({ page }) => {
+    test.setTimeout(240_000);
     await loginAs(page, "admin@coheron.com");
     for (const path of ADMIN_MODULE_ROUTES) {
       await expectRouteHealthy(page, path);

@@ -2,7 +2,7 @@
 
 **Purpose:** Compare each major surface to the **ITSM reference bar** and list **concrete gaps** to close for long-tail market readiness.  
 
-**Execution ledger (living):** `docs/MODULE_GAP_EXECUTION_STATUS.md` — what landed vs still open. **All-router long-tail QA index:** `docs/QA_LONGTAIL_ROUTERS_E2E_TEST_PACK.md` (excludes full ITSM-grade C1–C7 per router).  
+**Execution ledger (living):** `docs/MODULE_GAP_EXECUTION_STATUS.md` — what landed vs still open. **All-router long-tail QA index:** `docs/QA_LONGTAIL_ROUTERS_E2E_TEST_PACK.md` (excludes full ITSM-grade C1–C7 per router). **Full ITSM-grade (C1–C7) serial program:** `docs/ITSM_GRADE_ALL_MODULES_EXECUTION_PLAN.md`. **Serial v1 closure register (all Seq rows):** `docs/ITSM_GRADE_SERIAL_V1_CLOSURE_REGISTER.md`. **Legal & Governance ITSM-grade pack:** `docs/QA_LEGAL_GOVERNANCE_E2E_TEST_PACK.md`. **Finance & Procurement ITSM-grade pack:** `docs/QA_FINANCE_PROCUREMENT_E2E_TEST_PACK.md`. **Finance stack Seq 21–23 pack:** `docs/QA_FINANCE_SEQUENCE_21_23_E2E_TEST_PACK.md`.  
 
 **ITSM reference bundle (the bar):**  
 `docs/QA_ITSM_E2E_TEST_PACK.md` · `docs/ITSM_GAP_REMEDIATION_BUILD_PLAN.md` · `docs/ITSM_STAGING_RUNBOOK.md` · `e2e/tickets.spec.ts` · `e2e/layer10-journeys.spec.ts` (ticket paths) · `apps/api/src/__tests__/layer8-module-smoke.test.ts` §8.01 (deep: create/list/get/comment/assign/resolve + **relations** + **statusCounts**) · RBAC matrix in QA pack §3 + `apps/api/src/server/rbac.ts` · SLA/BullMQ **ENV-04** documentation.
@@ -285,6 +285,11 @@ When updating §6.2 for aesthetics, prefer copying the **§0** column layout fro
 | 1.1 | 2026-04-07 | §6 full `appRouter` coverage + gap-at-scale |
 | 1.2 | 2026-04-07 | Cross-links to execution status + program doc; C5/C1/C3/C4 wave (see ledger) |
 | 1.3 | 2026-04-07 | §6.4 long-tail 100% sync; `QA_LONGTAIL_ROUTERS_E2E_TEST_PACK.md` |
+| 1.4 | 2026-04-24 | Link `ITSM_GRADE_ALL_MODULES_EXECUTION_PLAN.md` (C1–C7 per module, serial) |
+| 1.5 | 2026-04-24 | LG wave artefacts: `QA_LEGAL_GOVERNANCE_*`, gap/runbook, L8 §8.51, RBAC + Playwright |
+| 1.6 | 2026-04-07 | FP wave artefacts: `QA_FINANCE_PROCUREMENT_*`, gap/runbook, L8 §8.39 depth, RBAC + Playwright |
+| 1.7 | 2026-04-07 | Seq 21–23 sprint: `QA_FINANCE_SEQUENCE_21_23_*`, L8 §8.53–§8.54, `finance-sequence-21-23-*` |
+| 1.8 | 2026-04-07 | Serial program **v1**: `ITSM_GRADE_SERIAL_V1_CLOSURE_REGISTER.md`; plan §7; `module-routes` expansion; long-tail §0 sync |
 
 ---
 

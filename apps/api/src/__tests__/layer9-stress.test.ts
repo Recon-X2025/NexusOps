@@ -3,7 +3,7 @@
  * Finds race conditions, boundary violations, Unicode handling.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { testDb, seedFullOrg, authedCaller, cleanupOrg, loginAndGetToken } from "./helpers";
+import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession } from "./helpers";
 import { tickets } from "@nexusops/db";
 
 beforeAll(async () => {
@@ -22,10 +22,7 @@ describe("Layer 9: Concurrency & Edge Cases", () => {
 
   beforeAll(async () => {
     orgCtx = await seedFullOrg();
-    const db = testDb();
-    const { users } = await import("@nexusops/db");
-    const [admin] = await db.select().from(users).where(eq(users.id, orgCtx.adminId)).limit(1);
-    adminToken = await loginAndGetToken(admin!.email, orgCtx.password);
+    adminToken = await createSession(orgCtx.adminId);
   });
 
   afterAll(async () => {

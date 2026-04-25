@@ -2,8 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import React, { useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import React, { useState, Suspense, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Briefcase, Download, Plus, AlertTriangle, CheckCircle2, Clock,
   FileText, Users, Building2, Scale, Calendar, BookOpen, Shield,
@@ -38,11 +38,19 @@ const TABS = [
   { key: "share",      label: "Share Capital",      icon: Scale },
   { key: "esop",       label: "ESOP",               icon: Award },
   { key: "calendar",   label: "Compliance Calendar", icon: Calendar },
-];
+] as const;
+
+const TAB_KEYS = new Set<string>(TABS.map((t) => t.key));
+
+function normalizeSecretarialTab(raw: string | null): (typeof TABS)[number]["key"] {
+  if (raw && TAB_KEYS.has(raw)) return raw as (typeof TABS)[number]["key"];
+  return "overview";
+}
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 
 function OverviewTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: overview } = trpc.secretarial.overview.useQuery(undefined, mergeTrpcQueryOpts("secretarial.overview", undefined));
   const { data: upcomingFilings = [] } = trpc.secretarial.filings.upcomingAlerts.useQuery(undefined, mergeTrpcQueryOpts("secretarial.filings.upcomingAlerts", undefined));
 
@@ -132,6 +140,7 @@ function OverviewTab() {
 // ── Board & Directors Tab ──────────────────────────────────────────────────────
 
 function BoardTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: meetings = [], refetch: refetchMeetings } = trpc.secretarial.meetings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.meetings.list", undefined));
   const { data: directors = [], refetch: refetchDirectors } = trpc.secretarial.directors.list.useQuery({ activeOnly: true }, mergeTrpcQueryOpts("secretarial.directors.list", undefined));
   const { data: resolutions = [] } = trpc.secretarial.resolutions.list.useQuery({}, mergeTrpcQueryOpts("secretarial.resolutions.list", undefined));
@@ -314,6 +323,7 @@ function BoardTab() {
 // ── MCA Filings Tab ────────────────────────────────────────────────────────────
 
 function FilingsTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: filings = [], refetch } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
   const [statusFilter, setStatusFilter] = useState("");
   const markFiled = trpc.secretarial.filings.markFiled.useMutation({
@@ -406,6 +416,7 @@ function FilingsTab() {
 // ── Share Capital Tab ──────────────────────────────────────────────────────────
 
 function ShareCapitalTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: shares = [], refetch } = trpc.secretarial.shares.list.useQuery({}, mergeTrpcQueryOpts("secretarial.shares.list", undefined));
   const { data: summary = [] } = trpc.secretarial.shares.summary.useQuery(undefined, mergeTrpcQueryOpts("secretarial.shares.summary", undefined));
   const [showAdd, setShowAdd] = useState(false);
@@ -492,6 +503,7 @@ function ShareCapitalTab() {
 // ── ESOP Tab ───────────────────────────────────────────────────────────────────
 
 function EsopTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: grants = [], refetch } = trpc.secretarial.esop.list.useQuery({}, mergeTrpcQueryOpts("secretarial.esop.list", undefined));
   const { data: summary = [] } = trpc.secretarial.esop.summary.useQuery(undefined, mergeTrpcQueryOpts("secretarial.esop.summary", undefined));
   const [showGrant, setShowGrant] = useState(false);
@@ -576,6 +588,7 @@ function EsopTab() {
 // ── Compliance Calendar Tab ────────────────────────────────────────────────────
 
 function CalendarTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
   const upcoming = filings.filter(f => ["upcoming","in_progress","overdue"].includes(f.status)).sort((a: any, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
@@ -634,10 +647,17 @@ import { Award } from "lucide-react";
 // ── Main Content Component ─────────────────────────────────────────────────────
 
 function SecretarialContent() {
-  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const { can } = useRBAC();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const tabParam = searchParams?.get("tab");
-  const [activeTab, setActiveTab] = useState(tabParam ?? "overview");
+  const tabParam = searchParams.get("tab");
+  const activeTab = useMemo(() => normalizeSecretarialTab(tabParam), [tabParam]);
+
+  const setTab = (key: (typeof TABS)[number]["key"]) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", key);
+    router.replace(`/app/secretarial?${next.toString()}`, { scroll: false });
+  };
 
   if (!can("secretarial", "read")) return <AccessDenied module="secretarial" />;
 
@@ -660,7 +680,7 @@ function SecretarialContent() {
           {TABS.map(t => (
             <button
               key={t.key}
-              onClick={() => setActiveTab(t.key)}
+              onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === t.key
                   ? "border-primary text-primary"

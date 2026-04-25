@@ -26,15 +26,17 @@ import { getRedis } from "../lib/redis";
  * Valid change request status lifecycle transitions.
  * create → approve → implement → close  (spec §6)
  */
+/** Must align with `change_status` enum (`packages/db/src/schema/changes.ts`). */
 const CHANGE_LIFECYCLE: Record<string, string[]> = {
-  draft:      ["cab_review", "cancelled"],
-  cab_review: ["approved", "rejected", "cancelled"],
-  rejected:   ["draft"],
-  approved:   ["scheduled", "in_progress", "cancelled"],
-  scheduled:  ["in_progress", "cancelled"],
-  in_progress:["completed", "cancelled"],
-  completed:  [],
-  cancelled:  [],
+  draft:         ["cab_review", "cancelled"],
+  submitted:     ["cab_review", "cancelled"],
+  cab_review:    ["approved", "cancelled"],
+  approved:      ["scheduled", "implementing", "cancelled"],
+  scheduled:     ["implementing", "cancelled"],
+  implementing:  ["completed", "failed", "cancelled"],
+  completed:     [],
+  failed:        ["implementing", "cancelled"],
+  cancelled:     [],
 };
 
 function assertChangeTransition(from: string, to: string) {
@@ -257,7 +259,7 @@ export const changesRouter = router({
         .from(changeRequests)
         .where(and(eq(changeRequests.id, input.changeId), eq(changeRequests.orgId, org!.id)));
       if (!current) throw new TRPCError({ code: "NOT_FOUND" });
-      assertChangeTransition(current.status, "rejected");
+      assertChangeTransition(current.status, "cancelled");
       const [approval] = await db
         .insert(changeApprovals)
         .values({ changeId: input.changeId, approverId: user!.id, decision: "rejected", comments: input.comments, decidedAt: new Date() })

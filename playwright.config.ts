@@ -31,8 +31,18 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
       env: {
-        DATABASE_URL: process.env.DATABASE_URL || "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test",
+        DATABASE_URL:
+          process.env.DATABASE_URL ||
+          "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test",
         REDIS_URL: process.env.REDIS_URL || "redis://localhost:6380",
+        MEILISEARCH_URL:
+          process.env.MEILISEARCH_URL || "http://localhost:7701",
+        MEILISEARCH_KEY: process.env.MEILISEARCH_KEY || "test_master_key",
+        AUTH_SECRET:
+          process.env.AUTH_SECRET || "test-secret-32-chars-minimum-here",
+        ENCRYPTION_KEY:
+          process.env.ENCRYPTION_KEY || "test-encryption-32-chars-minimum",
+        NODE_ENV: process.env.NODE_ENV || "development",
       },
     },
     {

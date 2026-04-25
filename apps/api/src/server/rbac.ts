@@ -68,6 +68,14 @@ const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
     delete: ["owner", "admin"],
     admin: ["owner", "admin"],
   },
+  /** Corporate secretarial — must exist here or `permissionProcedure("secretarial", …)` is wide open. */
+  secretarial: {
+    read: ["owner", "admin", "member", "viewer"],
+    write: ["owner", "admin", "member"],
+    approve: ["owner", "admin"],
+    delete: ["owner", "admin"],
+    admin: ["owner", "admin"],
+  },
   projects: {
     read: ["owner", "admin", "member", "viewer"],
     write: ["owner", "admin", "member"],

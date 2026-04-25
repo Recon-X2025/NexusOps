@@ -3,7 +3,7 @@
  * Verifies no bad data can enter the system, no injection is possible.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { testDb, seedFullOrg, authedCaller, cleanupOrg, loginAndGetToken } from "./helpers";
+import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession } from "./helpers";
 import { sanitizeHtml, sanitizeText } from "../lib/sanitize";
 
 beforeAll(async () => {
@@ -23,10 +23,7 @@ describe("Layer 6: Data Integrity", () => {
 
   beforeAll(async () => {
     orgCtx = await seedFullOrg();
-    const db = testDb();
-    const { users } = await import("@nexusops/db");
-    const [admin] = await db.select().from(users).where(eq(users.id, orgCtx.adminId)).limit(1);
-    adminToken = await loginAndGetToken(admin!.email, orgCtx.password);
+    adminToken = await createSession(orgCtx.adminId);
   });
 
   afterAll(async () => {

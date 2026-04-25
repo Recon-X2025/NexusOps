@@ -1,6 +1,5 @@
 import { router, publicProcedure, protectedProcedure, permissionProcedure } from "../lib/trpc";
-import { invalidateSessionCache, sessionCache } from "../middleware/auth";
-import { getRedis } from "../lib/redis";
+import { invalidateSessionCache } from "../middleware/auth";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { logInfo, logWarn } from "../lib/logger";
@@ -229,11 +228,8 @@ export const authRouter = router({
     if (ctx.sessionId) {
       // DB delete must complete before responding (correctness)
       await ctx.db.delete(sessions).where(eq(sessions.id, ctx.sessionId));
-      // In-memory cache: synchronous, instant
-      sessionCache.delete(ctx.sessionId);
-      // Redis flush: fire-and-forget — DB row already gone, any lingering cache
-      // entry will be stale and rejected at next auth check. Avoids ~1s latency spike.
-      getRedis().del(`session:${ctx.sessionId}`).catch(() => {});
+      // L1 + L2: await so the next request cannot read a stale Redis session.
+      await invalidateSessionCache(ctx.sessionId);
     }
     return { success: true };
   }),
@@ -528,7 +524,7 @@ export const authRouter = router({
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       const [updated] = await db
         .update(users)
-        .set({ status: input.active ? "active" : "inactive", updatedAt: new Date() })
+        .set({ status: input.active ? "active" : "disabled", updatedAt: new Date() })
         .where(eq(users.id, input.userId))
         .returning();
       return stripPasswordHash(updated!);

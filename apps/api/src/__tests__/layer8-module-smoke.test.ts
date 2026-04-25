@@ -3,8 +3,11 @@
  * Verifies core operations work end-to-end for all 32 modules.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { nanoid } from "nanoid";
 import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession, initTestEnvironment } from "./helpers";
 import { securityIncidents, contracts, assetTypes } from "@nexusops/db";
+import { appRouter } from "../routers";
+import type { Context } from "../lib/trpc";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {
@@ -15,15 +18,35 @@ beforeAll(async () => {
 });
 import { eq } from "@nexusops/db";
 
+function publicCaller() {
+  const db = testDb();
+  const ctx: Context = {
+    db,
+    mongoDb: null,
+    databaseProvider: "postgres",
+    user: null,
+    org: null,
+    orgId: null,
+    sessionId: null,
+    requestId: null,
+    ipAddress: "127.0.0.1",
+    userAgent: "vitest-layer8-auth",
+    idempotencyKey: null,
+  };
+  return appRouter.createCaller(ctx);
+}
+
 describe("Layer 8: Module Smoke Tests", () => {
   let orgCtx: Awaited<ReturnType<typeof seedFullOrg>>;
   let adminToken: string;
+  let agentToken: string;
 
   beforeAll(async () => {
     await initTestEnvironment();
     orgCtx = await seedFullOrg();
     // Session token (not password login) — avoids env-specific auth.login / bcrypt drift in CI.
     adminToken = await createSession(orgCtx.adminId);
+    agentToken = await createSession(orgCtx.agentId);
   });
 
   afterAll(async () => {
@@ -99,36 +122,74 @@ describe("Layer 8: Module Smoke Tests", () => {
 
   // ── 8.02 Changes ──────────────────────────────────────────────────────────
 
-  describe("8.02 Changes", () => {
-    it("create → list → get → submit for approval → approve → complete", async () => {
+  describe("8.02 Changes (ITSM-grade Seq 1)", () => {
+    it("create → list → get → submitForApproval → approve → schedule → implement → complete", async () => {
       const caller = await authedCaller(adminToken);
-      const change = await caller.changes.create({
-        title: "Smoke test change",
+      const t0 = Date.now();
+      const change = (await caller.changes.create({
+        title: `ITSM smoke change ${t0}`,
         type: "normal",
         risk: "low",
-        description: "Test change",
-        plannedStart: new Date(Date.now() + 86400000).toISOString(),
-        plannedEnd: new Date(Date.now() + 2 * 86400000).toISOString(),
-      }) as { id: string; number: string };
-      expect(change.number).toMatch(/^CHG-\d{4}$/);
+        description: "Lifecycle test",
+        scheduledStart: new Date(t0 + 86400000).toISOString(),
+        scheduledEnd: new Date(t0 + 2 * 86400000).toISOString(),
+        rollbackPlan: "Revert config",
+        implementationPlan: "Deploy patch",
+        testPlan: "Smoke tests",
+      })) as { id: string; number: string; status: string };
+      expect(change.number).toMatch(/^CHG-/);
 
-      const list = await caller.changes.list({}) as { items: { id: string }[] };
+      const list = (await caller.changes.list({})) as { items: { id: string }[] };
       expect(list.items.some((c) => c.id === change.id)).toBe(true);
 
-      await caller.changes.get({ id: change.id });
+      const detail = (await caller.changes.get({ id: change.id })) as { id: string; status: string };
+      expect(detail.status).toBe("draft");
 
-      // Submit for approval
-      await caller.changes.submit({ id: change.id }).catch(() => null);
-      // Approve
-      await caller.changes.approve({ id: change.id, comment: "Approved" }).catch(() => null);
-      // Mark implemented
-      await caller.changes.markImplemented({ id: change.id }).catch(() => null);
+      await caller.changes.submitForApproval({ id: change.id });
+      const cab = (await caller.changes.get({ id: change.id })) as { status: string };
+      expect(cab.status).toBe("cab_review");
+
+      await caller.changes.approve({ changeId: change.id, comments: "CAB approved" });
+      const appr = (await caller.changes.get({ id: change.id })) as { status: string };
+      expect(appr.status).toBe("approved");
+
+      await caller.changes.update({ id: change.id, status: "scheduled" });
+      await caller.changes.update({ id: change.id, status: "implementing" });
+      const done = (await caller.changes.update({ id: change.id, status: "completed" })) as { status: string };
+      expect(done.status).toBe("completed");
+    });
+
+    it("reject path + statusCounts + comment + blackout overlap", async () => {
+      const caller = await authedCaller(adminToken);
+      const ch = (await caller.changes.create({
+        title: "Change to reject",
+        type: "normal",
+        risk: "medium",
+      })) as { id: string };
+      await caller.changes.submitForApproval({ id: ch.id });
+      await caller.changes.reject({ changeId: ch.id, comments: "Out of scope for window" });
+      const cancelled = (await caller.changes.get({ id: ch.id })) as { status: string };
+      expect(cancelled.status).toBe("cancelled");
+
+      await caller.changes.addComment({ changeId: ch.id, body: "Post-close note for audit trail" });
+
+      const counts = await caller.changes.statusCounts();
+      expect(typeof counts).toBe("object");
+
+      const start = new Date(Date.now() + 3 * 86400000).toISOString();
+      const end = new Date(Date.now() + 4 * 86400000).toISOString();
+      await caller.changes.createBlackout({ name: "Freeze window", startsAt: start, endsAt: end });
+      const overlap = await caller.changes.checkBlackoutOverlap({
+        scheduledStart: new Date(Date.now() + 3 * 86400000 + 3600000).toISOString(),
+        scheduledEnd: new Date(Date.now() + 3 * 86400000 + 7200000).toISOString(),
+      });
+      expect(overlap).toHaveProperty("overlappingBlackouts");
     });
   });
 
   // ── 8.03 Security Incidents ───────────────────────────────────────────────
 
-  describe("8.10 Security Incidents", () => {
+  describe("8.10 Security (ITSM-grade Seq 12 — incidents + vulns)", () => {
     it("full lifecycle: new → triage → containment → eradication → recovery → closed", async () => {
       const db = testDb();
       const caller = await authedCaller(adminToken);
@@ -145,6 +206,51 @@ describe("Layer 8: Module Smoke Tests", () => {
 
       const [final] = await db.select().from(securityIncidents).where(eq(securityIncidents.id, incident.id)).limit(1);
       expect(final!.status).toBe("closed");
+    });
+
+    it("list/get, addContainment, false_positive branch, vulnerabilities, statusCounts, openIncidentCount", async () => {
+      const caller = await authedCaller(adminToken);
+      const inc = (await caller.security.createIncident({
+        title: "Containment journal",
+        severity: "high",
+        affectedSystems: ["edge-gateway"],
+      })) as { id: string };
+      await caller.security.transition({ id: inc.id, toStatus: "triage" });
+      await caller.security.addContainment({
+        id: inc.id,
+        action: "Isolate affected VLAN",
+        performedBy: orgCtx.adminId,
+      });
+      const got = (await caller.security.getIncident({ id: inc.id })) as {
+        containmentActions?: { action: string }[];
+      };
+      expect((got.containmentActions ?? []).length).toBeGreaterThan(0);
+
+      const fp = (await caller.security.createIncident({
+        title: "Benign scanner noise",
+        severity: "low",
+      })) as { id: string };
+      await caller.security.transition({ id: fp.id, toStatus: "triage" });
+      await caller.security.transition({ id: fp.id, toStatus: "false_positive" });
+
+      const vuln = (await caller.security.createVulnerability({
+        title: "Dependency CVE smoke",
+        cveId: "CVE-2024-TEST",
+        severity: "high",
+      })) as { id: string };
+      const vulnRows = (await caller.security.listVulnerabilities({ limit: 20 })) as { id: string }[];
+      expect(vulnRows.some((v) => v.id === vuln.id)).toBe(true);
+      await caller.security.remediateVulnerability({ id: vuln.id, notes: "Package upgraded" });
+
+      const counts = await caller.security.statusCounts();
+      expect(typeof counts).toBe("object");
+      const openN = await caller.security.openIncidentCount();
+      expect(typeof openN).toBe("number");
+
+      const listed = (await caller.security.listIncidents({ limit: 10, severity: "high" })) as {
+        items: { id: string }[];
+      };
+      expect(Array.isArray(listed.items)).toBe(true);
     });
   });
 
@@ -251,6 +357,24 @@ describe("Layer 8: Module Smoke Tests", () => {
         questionnaireStatus: "completed",
       }) as { riskScore: number | null };
       expect(Number(updated.riskScore)).toBe(4);
+    });
+
+    it("Seq 13 depth: listRisks + getRisk + listPolicies + riskMatrix", async () => {
+      const caller = await authedCaller(adminToken);
+      const r = (await caller.grc.createRisk({
+        title: "L8 list coverage",
+        category: "compliance",
+        likelihood: 2,
+        impact: 2,
+      })) as { id: string };
+      const listed = await caller.grc.listRisks({ limit: 50 });
+      expect(Array.isArray(listed)).toBe(true);
+      const one = (await caller.grc.getRisk({ id: r.id })) as { id: string };
+      expect(one.id).toBe(r.id);
+      const pols = await caller.grc.listPolicies({ limit: 20 });
+      expect(Array.isArray(pols)).toBe(true);
+      const matrix = await caller.grc.riskMatrix();
+      expect(Array.isArray(matrix)).toBe(true);
     });
   });
 
@@ -377,90 +501,295 @@ describe("Layer 8: Module Smoke Tests", () => {
 
   // ── 8.09 Knowledge ────────────────────────────────────────────────────────
 
-  describe("8.22 Knowledge", () => {
-    it("create article → get (increments view_count) → recordFeedback", async () => {
+  describe("8.22 Knowledge (ITSM-grade Seq 3)", () => {
+    it("create → list → publish → get → recordFeedback", async () => {
       const caller = await authedCaller(adminToken);
-      const article = await caller.knowledge.create({
-        title: "How to reset your password",
-        content: "<p>Go to login page and click Forgot Password.</p>",
+      const article = (await caller.knowledge.create({
+        title: "ITSM KB — password reset",
+        content: "<p>Use Forgot Password on the login page.</p>",
         tags: ["password", "auth"],
-      }) as { id: string };
+      })) as { id: string; status?: string };
 
-      const detail = await caller.knowledge.get({ id: article.id }) as { viewCount: number };
+      const listed = await caller.knowledge.list({ limit: 20, search: "ITSM KB" });
+      expect(Array.isArray(listed)).toBe(true);
+      expect((listed as { id: string }[]).some((a) => a.id === article.id)).toBe(true);
+
+      const published = (await caller.knowledge.publish({ id: article.id })) as { status: string };
+      expect(published.status).toBe("published");
+
+      const detail = (await caller.knowledge.get({ id: article.id })) as { viewCount: number; status: string };
+      expect(detail.status).toBe("published");
       expect(detail.viewCount).toBeGreaterThanOrEqual(1);
+
+      await caller.knowledge.recordFeedback({
+        articleId: article.id,
+        helpful: true,
+        comment: "Layer 8 smoke",
+      });
     });
   });
 
   // ── 8.10 Notifications ────────────────────────────────────────────────────
 
-  describe("8.29 Notifications", () => {
-    it("ticket create fires notification to assignee and markRead works", async () => {
-      const db = testDb();
-      const { notifications } = await import("@nexusops/db");
-      const { count } = await import("@nexusops/db");
+  describe("8.29 Notifications (ITSM-grade Seq 6)", () => {
+    it("admin send → agent list unread → markRead → getPreferences", async () => {
+      const adminCaller = await authedCaller(adminToken);
+      const agentCaller = await authedCaller(agentToken);
 
-      const caller = await authedCaller(adminToken);
-      const [before] = await db
-        .select({ cnt: count() })
-        .from(notifications)
-        .where(eq(notifications.userId, orgCtx.agentId));
+      const sent = (await adminCaller.notifications.send({
+        userId: orgCtx.agentId,
+        title: "ITSM Seq 6 in-app",
+        body: "Layer 8 notification smoke",
+        type: "info",
+        sourceType: "layer8",
+      })) as { id: string; userId: string; isRead: boolean };
+      expect(sent.userId).toBe(orgCtx.agentId);
+      expect(sent.isRead).toBe(false);
 
-      await caller.tickets.create({
+      const unreadList = (await agentCaller.notifications.list({
+        unreadOnly: true,
+        limit: 50,
+      })) as { items: { id: string; title: string }[] };
+      expect(unreadList.items.some((n) => n.id === sent.id)).toBe(true);
+
+      const unreadBefore = await agentCaller.notifications.unreadCount();
+      expect(typeof unreadBefore).toBe("number");
+      expect(unreadBefore).toBeGreaterThanOrEqual(1);
+
+      await agentCaller.notifications.markRead({ id: sent.id });
+
+      const afterMark = (await agentCaller.notifications.list({
+        unreadOnly: true,
+        limit: 50,
+      })) as { items: { id: string }[] };
+      expect(afterMark.items.some((n) => n.id === sent.id)).toBe(false);
+
+      const prefs = await agentCaller.notifications.getPreferences();
+      expect(Array.isArray(prefs)).toBe(true);
+      // updatePreference uses ON CONFLICT — requires DB unique on (user_id, channel, event_type); covered in staging when migration present.
+    });
+
+    it("ticket assignee still receives workflow path + markAllRead", async () => {
+      const adminCaller = await authedCaller(adminToken);
+      const agentCaller = await authedCaller(agentToken);
+
+      await adminCaller.tickets.create({
         title: "Notification trigger test",
         type: "incident",
         priorityId: orgCtx.p1Id!,
         assigneeId: orgCtx.agentId,
       });
 
-      const allNotifs = await caller.notifications.list({ limit: 50 }) as { items: { id: string }[] };
-      expect(Array.isArray(allNotifs.items ?? allNotifs)).toBe(true);
+      const listed = (await agentCaller.notifications.list({ limit: 50 })) as { items: unknown[] };
+      expect(Array.isArray(listed.items)).toBe(true);
 
-      const unread = await caller.notifications.unreadCount();
-      expect(typeof unread).toBe("number");
-
-      await caller.notifications.markAllRead();
+      await agentCaller.notifications.markAllRead();
+      const unread = await agentCaller.notifications.unreadCount();
+      expect(unread).toBe(0);
     });
   });
 
   // ── 8.11 Search ───────────────────────────────────────────────────────────
 
-  describe("8.30 Search", () => {
-    it("search.global returns results or empty array (graceful even without Meilisearch)", async () => {
+  describe("8.30 Search (ITSM-grade Seq 7)", () => {
+    it("search.global returns array (Meilisearch off → empty)", async () => {
       const caller = await authedCaller(adminToken);
-      const result = await caller.search.global({ query: "test server" }).catch(() => ({ results: [] }));
-      expect(result).toBeDefined();
+      const hits = await caller.search.global({ query: "smoke", limit: 10 });
+      expect(Array.isArray(hits)).toBe(true);
+    });
+
+    it("search.global with entityTypes filter (graceful)", async () => {
+      const caller = await authedCaller(adminToken);
+      const hits = await caller.search.global({
+        query: "ticket",
+        limit: 5,
+        entityTypes: ["tickets"],
+      });
+      expect(Array.isArray(hits)).toBe(true);
     });
   });
 
   // ── 8.12 Reports ──────────────────────────────────────────────────────────
 
-  describe("8.31 Reports", () => {
-    it("executiveOverview returns platform KPIs", async () => {
+  describe("8.31 Reports (ITSM-grade Seq 8)", () => {
+    it("executiveOverview + slaDashboard + workload + trend + ITSM pack + slaWhatIf", async () => {
       const caller = await authedCaller(adminToken);
-      const overview = await caller.reports.executiveOverview();
-      expect(overview).toBeDefined();
-    });
+      const overview = (await caller.reports.executiveOverview({ days: 30 })) as {
+        openTickets: number;
+        incidentTrend: number[];
+        byCategory: { category: string; count: number }[];
+      };
+      expect(typeof overview.openTickets).toBe("number");
+      expect(Array.isArray(overview.incidentTrend)).toBe(true);
+      expect(Array.isArray(overview.byCategory)).toBe(true);
 
-    it("slaDashboard returns SLA metrics", async () => {
+      const sla = (await caller.reports.slaDashboard({ days: 30 })) as {
+        byPriority: unknown[];
+        slaTrend: number[];
+      };
+      expect(Array.isArray(sla.byPriority)).toBe(true);
+      expect(Array.isArray(sla.slaTrend)).toBe(true);
+
+      const workload = (await caller.reports.workloadAnalysis({ days: 30 })) as {
+        byAssignee: { name: string; total: number }[];
+      };
+      expect(Array.isArray(workload.byAssignee)).toBe(true);
+
+      const trend = (await caller.reports.trendAnalysis({ days: 30 })) as {
+        backlogTrend: { week: string; total: number }[];
+      };
+      expect(Array.isArray(trend.backlogTrend)).toBe(true);
+
+      const pack = (await caller.reports.itsmServiceDeskPack({ days: 30 })) as {
+        slaCompliancePct: number;
+        ticketsCreated: number;
+        backlogAgeing: Record<string, number>;
+      };
+      expect(typeof pack.slaCompliancePct).toBe("number");
+      expect(pack.backlogAgeing).toHaveProperty("d0_1");
+
+      const whatIf = (await caller.reports.slaWhatIf({
+        responseMinutes: 60,
+        resolveMinutes: 480,
+      })) as { responseDueAt: string };
+      expect(whatIf.responseDueAt).toMatch(/^\d{4}-/);
+    });
+  });
+
+  // ── 8.40 Dashboard (Seq 9 — ITSM-grade, beyond §8.39 getMetrics touch) ─────
+
+  describe("8.40 Dashboard (ITSM-grade Seq 9)", () => {
+    it("getTimeSeries + getTopCategories", async () => {
       const caller = await authedCaller(adminToken);
-      const sla = await caller.reports.slaDashboard();
-      expect(sla).toBeDefined();
+      const ts = (await caller.dashboard.getTimeSeries({ days: 30 })) as {
+        created: unknown[];
+        resolved: unknown[];
+      };
+      expect(ts).toHaveProperty("created");
+      expect(ts).toHaveProperty("resolved");
+      const cats = await caller.dashboard.getTopCategories();
+      expect(Array.isArray(cats)).toBe(true);
     });
   });
 
   // ── 8.13 Admin ────────────────────────────────────────────────────────────
 
-  describe("8.32 Admin", () => {
-    it("users.list returns all org users", async () => {
+  describe("8.32 Admin (ITSM-grade Seq 10)", () => {
+    it("users, audit log, properties, SLA defs, notification rules, jobs, business rules lifecycle", async () => {
       const caller = await authedCaller(adminToken);
-      const result = await caller.admin.users.list({}) as { users: { id: string }[] } | { id: string }[];
-      expect(result).toBeDefined();
-    });
 
-    it("auditLog.list returns paginated results", async () => {
-      const caller = await authedCaller(adminToken);
-      const result = await caller.admin.auditLog.list({ limit: 10 }) as { items: unknown[] };
-      expect(Array.isArray(result.items ?? result)).toBe(true);
+      const usersList = (await caller.admin.users.list({})) as { id: string }[];
+      expect(Array.isArray(usersList)).toBe(true);
+      expect(usersList.length).toBeGreaterThan(0);
+
+      const log = (await caller.admin.auditLog.list({ page: 1, limit: 10 })) as {
+        items: unknown[];
+        total: number;
+      };
+      expect(Array.isArray(log.items)).toBe(true);
+      expect(typeof log.total).toBe("number");
+
+      const props = await caller.admin.systemProperties.list();
+      expect(Array.isArray(props)).toBe(true);
+      const propUpd = await caller.admin.systemProperties.update({
+        key: "platform.name",
+        value: "NexusOps",
+      });
+      expect(propUpd).toMatchObject({ key: "platform.name", value: "NexusOps" });
+
+      const slas = await caller.admin.slaDefinitions.list();
+      expect(Array.isArray(slas)).toBe(true);
+      const slaUp = await caller.admin.slaDefinitions.upsert({
+        name: "L8 smoke SLA",
+        priority: "high",
+        responseMinutes: 30,
+        resolveMinutes: 240,
+      });
+      expect(slaUp).toMatchObject({ name: "L8 smoke SLA", responseMinutes: 30 });
+
+      const nr = await caller.admin.notificationRules.create({
+        name: "L8 NR",
+        event: "ticket.created",
+        channel: "in_app",
+        recipients: "all-admins",
+      });
+      expect(nr).toHaveProperty("id");
+
+      const jobs = await caller.admin.scheduledJobs.list();
+      expect(Array.isArray(jobs)).toBe(true);
+      expect(jobs.length).toBeGreaterThan(0);
+      const trig = await caller.admin.scheduledJobs.trigger({ jobId: "sla-checker" });
+      expect(trig).toMatchObject({ success: true, jobId: "sla-checker" });
+
+      const brIn = {
+        name: "L8 admin business rule",
+        entityType: "ticket" as const,
+        events: ["created" as const],
+        conditions: [{ op: "status_category_is" as const, category: "open" as const }],
+        actions: [{ type: "notify_assignee" as const, title: "Smoke", body: "Rule fired" }],
+        priority: 42,
+        enabled: true,
+      };
+      const br = await caller.admin.businessRules.create(brIn);
+      expect(br.id).toBeDefined();
+      const listed = (await caller.admin.businessRules.list()) as { id: string }[];
+      expect(listed.some((r) => r.id === br.id)).toBe(true);
+      await caller.admin.businessRules.update({ id: br.id, name: "L8 admin business rule v2" });
+      await caller.admin.businessRules.toggle({ id: br.id, enabled: false });
+      await caller.admin.businessRules.delete({ id: br.id });
+    });
+  });
+
+  // ── 8.44 Auth (ITSM-grade Seq 11) ─────────────────────────────────────────
+
+  describe("8.44 Auth (ITSM-grade Seq 11)", () => {
+    it("public me, login deny, session profile + listMySessions + logout, invite accept + deleteUser", async () => {
+      const pub = publicCaller();
+      expect(await pub.auth.me()).toBeNull();
+
+      await expect(
+        pub.auth.login({
+          email: "nope@qa.nexusops.io",
+          password: "WrongPass1!",
+        }),
+      ).rejects.toThrow(/Invalid credentials|UNAUTHORIZED/i);
+
+      const pwSession = await createSession(orgCtx.adminId);
+      const sessionCaller = await authedCaller(pwSession);
+      const me = (await sessionCaller.auth.me()) as { user: { id: string; name: string } };
+      expect(me.user.id).toBe(orgCtx.adminId);
+
+      await sessionCaller.auth.updateProfile({ name: "Layer8 Auth Display" });
+      const sessionsList = await sessionCaller.auth.listMySessions();
+      expect(Array.isArray(sessionsList)).toBe(true);
+      expect(sessionsList.some((s: { isCurrent?: boolean }) => s.isCurrent)).toBe(true);
+
+      await sessionCaller.auth.logout();
+      const afterLogout = await authedCaller(pwSession);
+      expect(await afterLogout.auth.me()).toBeNull();
+
+      const adminCaller = await authedCaller(adminToken);
+      const inviteEmail = `invitel8${nanoid(10).toLowerCase()}@qa.nexusops.io`;
+      const inv = (await adminCaller.auth.inviteUser({
+        email: inviteEmail,
+        role: "member",
+        matrixRole: "requester",
+      })) as { inviteUrl: string };
+      const tokenMatch = inv.inviteUrl.match(/\/invite\/([^/?#]+)/);
+      expect(tokenMatch?.[1]).toBeDefined();
+      const accept = (await pub.auth.acceptInvite({
+        token: tokenMatch![1]!,
+        name: "Invited QA User",
+        password: "Welcome1A!",
+      })) as { user: { id: string }; sessionId: string };
+      expect(accept.user.id).toBeDefined();
+
+      const listed = (await adminCaller.auth.listUsers()) as { id: string; email: string }[];
+      expect(listed.some((u) => u.email === inviteEmail)).toBe(true);
+
+      await adminCaller.auth.deleteUser({ userId: accept.user.id });
+      const afterDel = (await adminCaller.auth.listUsers()) as { email: string }[];
+      expect(afterDel.some((u) => u.email === inviteEmail)).toBe(false);
     });
   });
 
@@ -504,6 +833,20 @@ describe("Layer 8: Module Smoke Tests", () => {
       const approved = await adminCaller.hr.leave.approve({ id: leave.id }) as { status: string };
       expect(approved.status).toBe("approved");
     });
+
+    it("Seq 15 depth: employees.get + employees.list", async () => {
+      const adminCaller = await authedCaller(adminToken);
+      const emp = (await adminCaller.hr.employees.create({
+        userId: orgCtx.securityAnalystId,
+        department: "QA",
+        title: "List smoke",
+        employmentType: "full_time",
+      })) as { id: string };
+      const got = (await adminCaller.hr.employees.get({ id: emp.id })) as { employee: { id: string } };
+      expect(got.employee.id).toBe(emp.id);
+      const list = await adminCaller.hr.employees.list({});
+      expect(Array.isArray(list)).toBe(true);
+    });
   });
 
   // ── 8.34 CSM ──────────────────────────────────────────────────────────────
@@ -526,28 +869,56 @@ describe("Layer 8: Module Smoke Tests", () => {
       const dash = await caller.csm.dashboard();
       expect(dash).toBeDefined();
     });
+
+    it("Seq 14 depth: cases.get + accounts.list + slaMetrics", async () => {
+      const caller = await authedCaller(adminToken);
+      const created = (await caller.csm.cases.create({
+        title: "Get-by-id smoke",
+        priority: "medium",
+      })) as { id: string };
+      const row = await caller.csm.cases.get({ id: created.id });
+      expect((row as { id: string }).id).toBe(created.id);
+      const accts = (await caller.csm.accounts.list({ limit: 10 })) as { items: unknown[] };
+      expect(Array.isArray(accts.items)).toBe(true);
+      const sla = await caller.csm.slaMetrics();
+      expect(sla).toHaveProperty("totalAccounts");
+    });
   });
 
   // ── 8.35 Catalog ───────────────────────────────────────────────────────────
 
-  describe("8.35 Catalog", () => {
-    it("create item → submit request → list requests", async () => {
+  describe("8.35 Catalog (ITSM-grade Seq 4)", () => {
+    it("create item → listItems → getItem → submit request → listRequests → stats", async () => {
       const caller = await authedCaller(adminToken);
-      const item = await caller.catalog.createItem({
-        name: "Smoke catalog item",
+      const item = (await caller.catalog.createItem({
+        name: "ITSM catalog smoke item",
         category: "it",
         approvalRequired: false,
-      }) as { id: string };
-      const req = await caller.catalog.submitRequest({ itemId: item.id, formData: {} }) as { id: string; status: string };
+      })) as { id: string };
+
+      const items = await caller.catalog.listItems({});
+      expect(Array.isArray(items)).toBe(true);
+      expect((items as { id: string }[]).some((i) => i.id === item.id)).toBe(true);
+
+      const got = await caller.catalog.getItem({ id: item.id });
+      expect((got as { id: string }).id).toBe(item.id);
+
+      const req = (await caller.catalog.submitRequest({ itemId: item.id, formData: {} })) as {
+        id: string;
+        status: string;
+      };
       expect(req.status).toMatch(/submitted|pending/);
       const requests = await caller.catalog.listRequests({});
       expect(requests.some((r: { id: string }) => r.id === req.id)).toBe(true);
+
+      const stats = await caller.catalog.stats();
+      expect(stats).toBeDefined();
     });
   });
 
   // ── 8.36 Approvals ─────────────────────────────────────────────────────────
 
-  describe("8.36 Approvals", () => {
+  describe("8.36 Approvals (ITSM-grade Seq 5)", () => {
     it("list + myPending + mySubmitted (API smoke)", async () => {
       const caller = await authedCaller(adminToken);
       const listed = await caller.approvals.list({ limit: 10 });
@@ -557,23 +928,89 @@ describe("Layer 8: Module Smoke Tests", () => {
       const submitted = await caller.approvals.mySubmitted();
       expect(Array.isArray(submitted)).toBe(true);
     });
+
+    it("viewer cannot decide approval (approvals:approve)", async () => {
+      const viewerCaller = await authedCaller(await createSession(orgCtx.viewerId));
+      const fakeId = "00000000-0000-4000-8000-000000000001";
+      await expect(
+        viewerCaller.approvals.decide({
+          requestId: fakeId,
+          decision: "approved",
+        }),
+      ).rejects.toThrow(/FORBIDDEN|permission denied/i);
+    });
   });
 
   // ── 8.37 Work orders ───────────────────────────────────────────────────────
 
-  describe("8.37 Work orders", () => {
-    it("create → list → get", async () => {
+  describe("8.37 Work orders (ITSM-grade Seq 2)", () => {
+    it("create → list → get → state path → update → task → note → metrics", async () => {
       const caller = await authedCaller(adminToken);
-      const wo = await caller.workOrders.create({
-        shortDescription: "Smoke WO — replace fan",
+      const t0 = Date.now();
+      const wo = (await caller.workOrders.create({
+        shortDescription: `ITSM WO fan replacement ${t0}`,
         type: "corrective",
-        priority: "4_low",
-      }) as { id: string; number?: string };
-      expect(wo.id).toBeDefined();
-      const listed = await caller.workOrders.list({ limit: 20 });
-      expect(listed.items.some((w: { id: string }) => w.id === wo.id)).toBe(true);
-      const detail = await caller.workOrders.get({ id: wo.id });
-      expect(detail?.workOrder?.id).toBe(wo.id);
+        priority: "3_moderate",
+        location: "DC-1",
+      })) as { id: string; number: string; state?: string };
+      expect(wo.number).toMatch(/^WO\d{7}$/);
+
+      const listed = (await caller.workOrders.list({ limit: 20, state: "open" })) as {
+        items: { id: string }[];
+      };
+      expect(listed.items.some((w) => w.id === wo.id)).toBe(true);
+
+      let detail = (await caller.workOrders.get({ id: wo.id })) as {
+        workOrder: { id: string; state: string };
+        tasks: { id: string }[];
+        activityLogs: { action: string }[];
+      };
+      expect(detail.workOrder.id).toBe(wo.id);
+      expect(detail.activityLogs.some((a) => a.action === "created")).toBe(true);
+
+      await caller.workOrders.updateState({
+        id: wo.id,
+        state: "work_in_progress",
+        note: "Tech dispatched",
+      });
+      await caller.workOrders.update({
+        id: wo.id,
+        shortDescription: `ITSM WO fan replacement ${t0} (updated)`,
+        location: "DC-1 / Rack A",
+      });
+
+      const task = (await caller.workOrders.addTask({
+        workOrderId: wo.id,
+        shortDescription: "Replace fan tray",
+        estimatedHours: 1,
+      })) as { id: string; number: string };
+      expect(task.number).toMatch(/^T\d{4}$/);
+
+      await caller.workOrders.updateTask({
+        id: task.id,
+        state: "work_in_progress",
+        actualHours: 1,
+      });
+
+      await caller.workOrders.addNote({
+        workOrderId: wo.id,
+        note: "Spare on site",
+        isInternal: true,
+      });
+
+      await caller.workOrders.updateState({ id: wo.id, state: "complete" });
+
+      detail = (await caller.workOrders.get({ id: wo.id })) as {
+        workOrder: { state: string };
+        tasks: { state: string }[];
+        activityLogs: { action: string }[];
+      };
+      expect(detail.workOrder.state).toBe("complete");
+      expect(detail.tasks.some((x) => x.state === "work_in_progress")).toBe(true);
+
+      const metrics = await caller.workOrders.metrics();
+      expect(typeof metrics.total).toBe("number");
+      expect(metrics).toHaveProperty("breached");
     });
   });
 
@@ -595,6 +1032,62 @@ describe("Layer 8: Module Smoke Tests", () => {
       }) as { status: string };
       expect(closed.status).toBe("closed");
     });
+
+    it("matter create → list → get → close; request create → list → update", async () => {
+      const caller = await authedCaller(adminToken);
+      const matter = await caller.legal.createMatter({
+        title: "Smoke matter",
+        type: "commercial",
+        confidential: false,
+      }) as { id: string; matterNumber: string };
+      expect(matter.matterNumber).toMatch(/^MAT-/);
+      const matters = await caller.legal.listMatters({ limit: 20 });
+      expect(matters.some((m: { id: string }) => m.id === matter.id)).toBe(true);
+      const got = await caller.legal.getMatter({ id: matter.id });
+      expect((got as { id: string }).id).toBe(matter.id);
+      const closedM = await caller.legal.updateMatter({ id: matter.id, status: "closed" }) as { status: string };
+      expect(closedM.status).toBe("closed");
+
+      const req = await caller.legal.createRequest({
+        title: "Smoke legal request",
+        type: "policy",
+        priority: "high",
+      }) as { id: string };
+      const reqs = await caller.legal.listRequests({ limit: 20 });
+      expect(reqs.some((r: { id: string }) => r.id === req.id)).toBe(true);
+      const updReq = await caller.legal.updateRequest({ id: req.id, status: "in_progress" }) as { status: string };
+      expect(updReq.status).toBe("in_progress");
+    });
+  });
+
+  // ── 8.51 Secretarial (ITSM-grade LG-3) ─────────────────────────────────────
+
+  describe("8.51 Secretarial", () => {
+    it("meeting create → list → get → updateStatus; filings + directors list", async () => {
+      const caller = await authedCaller(adminToken);
+      const when = new Date(Date.now() + 86400000).toISOString();
+      const mtg = await caller.secretarial.meetings.create({
+        title: "ITSM-grade board meeting",
+        scheduledAt: when,
+      }) as { id: string; number: string };
+      expect(mtg.number).toMatch(/^BM-/);
+      const listed = await caller.secretarial.meetings.list({});
+      expect(listed.some((m: { id: string }) => m.id === mtg.id)).toBe(true);
+      const detail = await caller.secretarial.meetings.get({ id: mtg.id }) as { meeting: { id: string } };
+      expect(detail.meeting.id).toBe(mtg.id);
+      const done = await caller.secretarial.meetings.updateStatus({
+        id: mtg.id,
+        status: "completed",
+      }) as { status: string };
+      expect(done.status).toBe("completed");
+
+      const res = await caller.secretarial.resolutions.list({ meetingId: mtg.id });
+      expect(Array.isArray(res)).toBe(true);
+      const filings = await caller.secretarial.filings.list({});
+      expect(Array.isArray(filings)).toBe(true);
+      const dirs = await caller.secretarial.directors.list({});
+      expect(Array.isArray(dirs)).toBe(true);
+    });
   });
 
   // ── 8.39 Financial + dashboard ────────────────────────────────────────────
@@ -608,6 +1101,108 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(budget).toBeDefined();
       const metrics = await caller.dashboard.getMetrics();
       expect(metrics).toBeDefined();
+    });
+
+    it("FP depth: budget line → variance; vendor → invoice → approve; AP aging", async () => {
+      const caller = await authedCaller(adminToken);
+      const fy = new Date().getFullYear();
+      const line = (await caller.financial.createBudgetLine({
+        category: "IT Operations (smoke)",
+        fiscalYear: fy,
+        budgeted: "100000",
+      })) as { id: string };
+      const budgetRows = (await caller.financial.listBudget({ fiscalYear: fy })) as { id: string }[];
+      expect(budgetRows.some((b) => b.id === line.id)).toBe(true);
+      const variance = (await caller.financial.getBudgetVariance({ fiscalYear: fy })) as unknown[];
+      expect(Array.isArray(variance)).toBe(true);
+
+      const vendor = (await caller.procurement.vendors.create({
+        name: "FP Layer8 vendor",
+        contactEmail: `fp-l8-${Date.now()}@vendor.test`,
+      })) as { id: string };
+      const inv = (await caller.financial.createInvoice({
+        vendorId: vendor.id,
+        invoiceNumber: `INV-L8-${Date.now()}`,
+        amount: "5000",
+      })) as { id: string; status: string };
+      expect(inv.status).toMatch(/pending/i);
+      const approved = (await caller.financial.approveInvoice({ id: inv.id })) as { status: string };
+      expect(approved.status).toBe("approved");
+      const aging = await caller.financial.apAging();
+      expect(aging && typeof aging === "object").toBe(true);
+    });
+  });
+
+  // ── 8.53 Inventory (Seq 22 — ITSM-grade depth) ─────────────────────────────
+
+  describe("8.53 Inventory", () => {
+    it("create → list → intake → issue → reorder → transactions", async () => {
+      const caller = await authedCaller(adminToken);
+      const item = (await caller.inventory.create({
+        partNumber: `L8-INV-${Date.now()}`,
+        name: "Layer8 spare",
+        qty: 10,
+        minQty: 2,
+        category: "spare",
+      })) as { id: string; qty: number };
+      expect(item.qty).toBe(10);
+      const page = (await caller.inventory.list({ limit: 100 })) as { items: { id: string }[] };
+      expect(page.items.some((i) => i.id === item.id)).toBe(true);
+
+      await caller.inventory.intake({ itemId: item.id, qty: 5, notes: "Receipt" });
+      await caller.inventory.issueStock({ itemId: item.id, qty: 3, notes: "WO consumption" });
+      await caller.inventory.reorder({ itemId: item.id, qty: 20 });
+
+      const txs = (await caller.inventory.transactions({ itemId: item.id, limit: 20 })) as { type: string }[];
+      expect(Array.isArray(txs)).toBe(true);
+      expect(txs.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  // ── 8.54 Accounting (Seq 23 — ITSM-grade depth) ────────────────────────────
+
+  describe("8.54 Accounting", () => {
+    it("COA seed → journal create/post → trial balance; GSTIN; GSTR-3B", async () => {
+      const caller = await authedCaller(adminToken);
+      const seed = (await caller.accounting.coa.seed()) as { seeded: number };
+      expect(seed.seeded).toBeGreaterThanOrEqual(0);
+
+      const rows = (await caller.accounting.coa.list({ activeOnly: true })) as { id: string; code: string }[];
+      expect(rows.length).toBeGreaterThan(0);
+      const cash = rows.find((a) => a.code === "1110");
+      const ap = rows.find((a) => a.code === "2110");
+      expect(cash?.id && ap?.id).toBeTruthy();
+
+      const je = (await caller.accounting.journal.create({
+        date: new Date(),
+        description: "Smoke balanced JE",
+        lines: [
+          { accountId: cash!.id, debitAmount: 500, creditAmount: 0 },
+          { accountId: ap!.id, debitAmount: 0, creditAmount: 500 },
+        ],
+      })) as { id: string; status: string };
+      expect(je.status).toBe("draft");
+      const posted = (await caller.accounting.journal.post({ id: je.id })) as { status: string };
+      expect(posted.status).toBe("posted");
+
+      const tb = (await caller.accounting.trialBalance({})) as { isBalanced: boolean };
+      expect(typeof tb.isBalanced).toBe("boolean");
+
+      const gstinDigits = String(Math.floor(1000 + Math.random() * 9000));
+      const gstinStr = `29ABCDE${gstinDigits}F1Z5`;
+      const gstin = (await caller.accounting.gstin.create({
+        gstin: gstinStr,
+        legalName: "Smoke GSTIN Org",
+        stateCode: "29",
+        isPrimary: true,
+      })) as { id: string };
+
+      const g3 = (await caller.accounting.gstr.generateGSTR3B({
+        gstinId: gstin.id,
+        month: 3,
+        year: 2025,
+      })) as { gstin?: string };
+      expect(g3.gstin).toBe(gstinStr);
     });
   });
 
@@ -737,17 +1332,6 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(Array.isArray(rules)).toBe(true);
     });
 
-    it("secretarial: meeting create → list", async () => {
-      const caller = await authedCaller(adminToken);
-      const when = new Date(Date.now() + 86400000).toISOString();
-      const mtg = await caller.secretarial.meetings.create({
-        title: "Smoke board meeting",
-        scheduledAt: when,
-      }) as { id: string };
-      const listed = await caller.secretarial.meetings.list({});
-      expect(listed.some((m: { id: string }) => m.id === mtg.id)).toBe(true);
-    });
-
     it("devops: listPipelines + doraMetrics", async () => {
       const caller = await authedCaller(adminToken);
       const pipes = await caller.devops.listPipelines({});
@@ -839,13 +1423,6 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(hub.connectors.length).toBeGreaterThan(0);
       const integ = await caller.integrations.listIntegrations();
       expect(Array.isArray(integ)).toBe(true);
-    });
-
-    it("accounting coa.seed → list", async () => {
-      const caller = await authedCaller(adminToken);
-      await caller.accounting.coa.seed();
-      const rows = await caller.accounting.coa.list({ activeOnly: true });
-      expect(rows.length).toBeGreaterThan(0);
     });
 
     it("customFields listDefinitions for ticket", async () => {

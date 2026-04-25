@@ -22,60 +22,79 @@ const LEGAL_TABS = [
 ];
 
 type MatterType = "litigation" | "employment" | "ip" | "regulatory" | "ma" | "data_privacy" | "corporate" | "commercial";
-type MatterStatus = "intake" | "active" | "hold" | "closed" | "appealing";
-type RequestStatus = "new" | "in_review" | "awaiting_info" | "in_progress" | "closed";
+/** Matches `legal_matter_status` enum (Postgres). */
+type MatterStatus = "intake" | "active" | "discovery" | "pre_trial" | "trial" | "closed" | "settled";
+/** Matches `legal_request_status` enum (Postgres). */
+type RequestStatus = "new" | "assigned" | "in_progress" | "completed" | "rejected";
+/** Matches `investigation_status` enum (Postgres). */
+type InvestigationStatus = "reported" | "under_investigation" | "findings" | "closed";
 type InvestigationType = "ethics" | "harassment" | "fraud" | "data_breach" | "whistleblower" | "discrimination";
+
+function matterDisplayNumber(m: { matterNumber?: string; number?: string }) {
+  return m.matterNumber ?? m.number ?? "—";
+}
+
+function legalRequestDisplayId(r: { id: string }) {
+  return `LR-${r.id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+function investigationDisplayId(inv: { id: string }) {
+  return `INV-${inv.id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+function humanizeEnum(s: string) {
+  return s.replace(/_/g, " ");
+}
+
+const TERMINAL_REQUEST_STATUSES: RequestStatus[] = ["completed", "rejected"];
 
 interface LegalMatter {
   id: string;
-  number: string;
+  matterNumber?: string;
+  number?: string;
   title: string;
   type: MatterType;
   status: MatterStatus;
-  priority: "critical" | "high" | "medium" | "low";
-  assignedTo: string;
-  practice: string;
-  client: string;
+  priority?: "critical" | "high" | "medium" | "low";
+  assignedTo?: string;
+  practice?: string;
+  client?: string;
   counterparty?: string;
-  openedDate: string;
+  openedDate?: string;
   targetDate?: string;
-  phase: string;
-  tasks: { done: number; total: number };
-  estimatedCost: number;
-  actualCost: number;
+  phase?: string | null;
+  tasks?: { done: number; total: number };
+  estimatedCost?: number | string | null;
+  actualCost?: number | string | null;
   confidential: boolean;
-  description: string;
+  description?: string | null;
+  createdAt?: Date | string;
 }
 
 interface LegalRequest {
   id: string;
-  number: string;
-  type: string;
-  subject: string;
-  requestedBy: string;
-  department: string;
+  title: string;
+  type?: string | null;
   status: RequestStatus;
-  assignedTo?: string;
-  created: string;
-  dueDate?: string;
-  priority: "urgent" | "high" | "normal" | "low";
-  notes?: string;
+  assignedTo?: string | null;
+  requesterId?: string;
+  createdAt?: Date | string;
+  priority?: string;
+  description?: string | null;
 }
 
 interface Investigation {
   id: string;
-  number: string;
+  title: string;
   type: InvestigationType;
-  summary: string;
-  anonymous: boolean;
-  reporter?: string;
-  assignedTo: string;
-  status: "new" | "assigned" | "in_progress" | "under_review" | "closed" | "escalated";
-  openedDate: string;
-  closedDate?: string;
-  outcome?: string;
+  status: InvestigationStatus;
   confidential: boolean;
-  priority: "critical" | "high" | "medium" | "low";
+  anonymousReport?: boolean;
+  investigatorId?: string | null;
+  findings?: string | null;
+  recommendation?: string | null;
+  createdAt?: Date | string;
+  closedAt?: Date | string | null;
 }
 
 
@@ -95,11 +114,28 @@ const MATTER_TYPE_CFG: Record<MatterType, { label: string; color: string }> = {
 };
 
 const MATTER_STATUS_CFG: Record<MatterStatus, string> = {
-  intake:   "text-muted-foreground bg-muted",
-  active:   "text-green-700 bg-green-100",
-  hold:     "text-yellow-700 bg-yellow-100",
-  closed:   "text-muted-foreground/70 bg-muted/30",
-  appealing:"text-purple-700 bg-purple-100",
+  intake:     "text-muted-foreground bg-muted",
+  active:     "text-green-700 bg-green-100",
+  discovery:  "text-amber-700 bg-amber-100",
+  pre_trial:  "text-blue-700 bg-blue-100",
+  trial:      "text-purple-700 bg-purple-100",
+  closed:     "text-muted-foreground/70 bg-muted/30",
+  settled:    "text-teal-700 bg-teal-100",
+};
+
+const REQUEST_STATUS_CFG: Record<RequestStatus, string> = {
+  new:           "text-muted-foreground bg-muted",
+  assigned:      "text-blue-700 bg-blue-100",
+  in_progress:   "text-green-700 bg-green-100",
+  completed:     "text-muted-foreground/70 bg-muted/30",
+  rejected:      "text-red-700 bg-red-100",
+};
+
+const INVESTIGATION_STATUS_CFG: Record<InvestigationStatus, string> = {
+  reported:              "text-muted-foreground bg-muted",
+  under_investigation:   "text-blue-700 bg-blue-100",
+  findings:              "text-amber-700 bg-amber-100",
+  closed:                "text-muted-foreground/70 bg-muted/30",
 };
 
 const INV_TYPE_CFG: Record<InvestigationType, { label: string; color: string }> = {
@@ -160,9 +196,9 @@ export default function LegalPage() {
   const kbArticles = (kbData?.items ?? kbData ?? []) as any[];
 
   const activeMatters = matters.filter((m: any) => m.status === "active");
-  const totalExposure = activeMatters.reduce((s: number, m: any) => s + (m.estimatedCost ?? 0), 0);
-  const openRequests = legalRequests.filter((l: any) => !["closed"].includes(l.status)).length;
-  const openInvestigations = investigations.filter((i: any) => !["closed"].includes(i.status)).length;
+  const totalExposure = activeMatters.reduce((s: number, m: any) => s + Number(m.estimatedCost ?? 0), 0);
+  const openRequests = legalRequests.filter((l: any) => !TERMINAL_REQUEST_STATUSES.includes(l.status)).length;
+  const openInvestigations = investigations.filter((i: any) => i.status !== "closed").length;
   const criticalItems = [...matters, ...investigations].filter((i: any) => i.priority === "critical").length;
 
   return (
@@ -176,7 +212,7 @@ export default function LegalPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => downloadCSV(matters.map((m: any) => ({ Number: m.number ?? m.id, Title: m.title, Type: m.type ?? "", Status: m.status, Priority: m.priority ?? "", Assigned_Counsel: m.assignedCounsel ?? "", Open_Date: m.createdAt ? new Date(m.createdAt).toLocaleDateString("en-IN") : "" })), "legal_matters")}
+            onClick={() => downloadCSV(matters.map((m: any) => ({ Number: matterDisplayNumber(m), Title: m.title, Type: m.type ?? "", Status: m.status, Priority: m.priority ?? "", Assigned_Counsel: m.assignedCounsel ?? m.assignedTo ?? "", Open_Date: m.createdAt ? new Date(m.createdAt).toLocaleDateString("en-IN") : "" })), "legal_matters")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Download className="w-3 h-3" /> Export
@@ -252,13 +288,13 @@ export default function LegalPage() {
                   <div key={r.id} className="flex items-start justify-between px-3 py-2.5 hover:bg-muted/30">
                     <div>
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="font-mono text-[10px] text-primary">{r.number}</span>
+                        <span className="font-mono text-[10px] text-primary">{legalRequestDisplayId(r)}</span>
                         <span className={`status-badge text-[10px] ${r.priority === "urgent" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>{r.priority}</span>
                       </div>
-                      <p className="text-[12px] text-foreground">{r.subject}</p>
-                      <p className="text-[11px] text-muted-foreground/70">{r.requestedBy} · {r.type}</p>
+                      <p className="text-[12px] text-foreground">{r.title}</p>
+                      <p className="text-[11px] text-muted-foreground/70">{r.requesterId ?? "—"} · {r.type ?? "—"}</p>
                     </div>
-                    <span className="text-[11px] text-muted-foreground/70 flex-shrink-0">{r.dueDate}</span>
+                    <span className="text-[11px] text-muted-foreground/70 flex-shrink-0">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}</span>
                   </div>
                 ))}
               </div>
@@ -277,12 +313,12 @@ export default function LegalPage() {
                       <Lock className="w-3 h-3 text-red-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="font-mono text-[10px] text-primary">{inv.number ?? inv.id?.slice(0,8)}</span>
+                          <span className="font-mono text-[10px] text-primary">{investigationDisplayId(inv)}</span>
                           <span className={`status-badge text-[10px] ${cfg.color}`}>{cfg.label}</span>
-                          {inv.anonymous && <span className="status-badge text-[9px] text-muted-foreground bg-muted">Anonymous</span>}
+                          {inv.anonymousReport && <span className="status-badge text-[9px] text-muted-foreground bg-muted">Anonymous</span>}
                         </div>
-                        <p className="text-[11px] text-foreground/80 truncate">{inv.summary ?? inv.title}</p>
-                        <p className="text-[10px] text-muted-foreground/70">{inv.assignedTo}</p>
+                        <p className="text-[11px] text-foreground/80 truncate">{inv.title}</p>
+                        <p className="text-[10px] text-muted-foreground/70">{inv.investigatorId ?? "—"}</p>
                       </div>
                     </div>
                   );
@@ -318,31 +354,33 @@ export default function LegalPage() {
             {matters.map((m: any) => {
               const typeCfg = MATTER_TYPE_CFG[m.type as MatterType] ?? MATTER_TYPE_CFG.commercial;
               const isExpanded = expandedMatter === m.id;
-              const pctCost = (m.estimatedCost ?? 0) > 0 ? Math.min(100, Math.round(((m.actualCost ?? 0)/(m.estimatedCost ?? 1))*100)) : 0;
+              const est = Number(m.estimatedCost ?? 0);
+              const act = Number(m.actualCost ?? 0);
+              const pctCost = est > 0 ? Math.min(100, Math.round((act / est) * 100)) : 0;
               return (
                 <div key={m.id} className="border-b border-border last:border-0">
                   <div className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30"
                     onClick={() => setExpandedMatter(isExpanded ? null : m.id)}>
-                    <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${PRIORITY_BAR[m.priority]}`} />
+                    <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${PRIORITY_BAR[m.priority ?? "medium"] ?? "bg-muted"}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-mono text-[11px] text-primary">{m.number}</span>
+                        <span className="font-mono text-[11px] text-primary">{matterDisplayNumber(m)}</span>
                         <span className={`status-badge ${typeCfg.color}`}>{typeCfg.label}</span>
-                        <span className={`status-badge capitalize ${(MATTER_STATUS_CFG as any)[m.status] ?? ""}`}>{m.status}</span>
+                        <span className={`status-badge capitalize ${MATTER_STATUS_CFG[m.status as MatterStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(m.status))}</span>
                         {m.confidential && <span className="status-badge text-red-600 bg-red-50 text-[9px] flex items-center gap-0.5"><Lock className="w-2.5 h-2.5" />Confidential</span>}
                         <span className="text-[11px] text-muted-foreground/70">Phase: {m.phase}</span>
                       </div>
                       <p className="text-[13px] font-semibold text-foreground">{m.title}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        Assigned: <strong>{m.assignedTo}</strong> · Practice: {m.practice}
+                        Assigned: <strong>{m.assignedTo ?? "—"}</strong> · Practice: {m.practice ?? "—"}
                         {m.counterparty && ` · vs. ${m.counterparty}`}
                         {m.targetDate && ` · Target: ${m.targetDate}`}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-[14px] font-bold text-foreground">₹{(m.estimatedCost ?? 0).toLocaleString("en-IN")}</div>
+                      <div className="text-[14px] font-bold text-foreground">₹{est.toLocaleString("en-IN")}</div>
                       <div className="text-[10px] text-muted-foreground/70">Est. exposure</div>
-                      <div className="text-[11px] text-muted-foreground">₹{(m.actualCost ?? 0).toLocaleString("en-IN")} spent ({pctCost}%)</div>
+                      <div className="text-[11px] text-muted-foreground">₹{act.toLocaleString("en-IN")} spent ({pctCost}%)</div>
                       <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden mt-1">
                         <div className={`h-full rounded-full ${pctCost > 80 ? "bg-red-500" : pctCost > 60 ? "bg-orange-400" : "bg-primary"}`} style={{width:`${pctCost}%`}} />
                       </div>
@@ -353,10 +391,10 @@ export default function LegalPage() {
                       <p className="text-[12px] text-foreground/80 mt-3 mb-3">{m.description}</p>
                       <div className="grid grid-cols-4 gap-3 mb-3">
                         {[
-                          { label: "Tasks",           value: `${m.tasks.done}/${m.tasks.total} done` },
-                          { label: "Practice",        value: m.practice },
-                          { label: "Opened",          value: m.openedDate },
-                          { label: "Budget Used",     value: `${pctCost}% of ₹${(m.estimatedCost ?? 0).toLocaleString("en-IN")}` },
+                          { label: "Tasks",           value: m.tasks ? `${m.tasks.done}/${m.tasks.total} done` : "—" },
+                          { label: "Practice",        value: m.practice ?? "—" },
+                          { label: "Opened",          value: m.openedDate ?? (m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "—") },
+                          { label: "Budget Used",     value: `${pctCost}% of ₹${Number(m.estimatedCost ?? 0).toLocaleString("en-IN")}` },
                         ].map(f => (
                           <div key={f.label} className="text-[11px]">
                             <span className="text-muted-foreground/70">{f.label}: </span>
@@ -374,8 +412,15 @@ export default function LegalPage() {
                           className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground"
                         >Add Task</button>
                         <label className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground cursor-pointer">Upload Document<input type="file" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) toast.info(`Document "${f.name}" received — documents will be stored once DMS integration is enabled.`); e.target.value = ""; }} /></label>
-                        {m.status === "active" && <button onClick={() => updateMatter.mutate({ id: m.id, status: "hold" })} disabled={updateMatter.isPending} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground disabled:opacity-50">Place on Hold</button>}
-                        {(m.status === "active" || m.status === "hold") && <button onClick={() => toast.message(`Close matter "${m.title}"?`, { description: "This action will archive the matter. It can be reopened if needed.", action: { label: "Close Matter", onClick: () => updateMatter.mutate({ id: m.id, status: "closed" }) }, cancel: { label: "Cancel", onClick: () => {} } })} className="px-3 py-1 bg-red-50 text-red-700 text-[11px] rounded hover:bg-red-100 border border-red-200">Close Matter</button>}
+                        {["intake", "active"].includes(m.status) && (
+                          <button onClick={() => updateMatter.mutate({ id: m.id, status: "discovery" })} disabled={updateMatter.isPending} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground disabled:opacity-50">Discovery phase</button>
+                        )}
+                        {["discovery", "pre_trial", "trial"].includes(m.status) && (
+                          <button onClick={() => updateMatter.mutate({ id: m.id, status: "settled" })} disabled={updateMatter.isPending} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground disabled:opacity-50">Mark settled</button>
+                        )}
+                        {["intake", "active", "discovery", "pre_trial", "trial"].includes(m.status) && (
+                          <button onClick={() => toast.message(`Close matter "${m.title}"?`, { description: "This action will archive the matter. It can be reopened if needed.", action: { label: "Close Matter", onClick: () => updateMatter.mutate({ id: m.id, status: "closed" }) }, cancel: { label: "Cancel", onClick: () => {} } })} className="px-3 py-1 bg-red-50 text-red-700 text-[11px] rounded hover:bg-red-100 border border-red-200">Close Matter</button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -406,19 +451,19 @@ export default function LegalPage() {
             </thead>
             <tbody>
               {legalRequests.map((r: any) => (
-                <tr key={r.id} className={r.status === "closed" ? "opacity-50" : ""}>
-                  <td className="p-0"><div className={`priority-bar ${PRIORITY_BAR[r.priority]}`} /></td>
-                  <td className="font-mono text-[11px] text-primary">{r.number}</td>
-                  <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{r.type}</span></td>
-                  <td className="font-medium text-foreground">{r.subject}</td>
-                  <td className="text-muted-foreground">{r.requestedBy}</td>
-                  <td className="text-muted-foreground">{r.department}</td>
+                <tr key={r.id} className={TERMINAL_REQUEST_STATUSES.includes(r.status) ? "opacity-50" : ""}>
+                  <td className="p-0"><div className={`priority-bar ${PRIORITY_BAR[r.priority ?? "medium"] ?? "bg-muted"}`} /></td>
+                  <td className="font-mono text-[11px] text-primary">{legalRequestDisplayId(r)}</td>
+                  <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{r.type ?? "—"}</span></td>
+                  <td className="font-medium text-foreground">{r.title}</td>
+                  <td className="text-muted-foreground">{r.requesterId ?? "—"}</td>
+                  <td className="text-muted-foreground">—</td>
                   <td className="text-muted-foreground">{r.assignedTo ?? "—"}</td>
-                  <td className="text-[11px] text-muted-foreground/70">{r.created}</td>
-                  <td className={`text-[11px] ${r.dueDate && new Date(r.dueDate) < new Date() && r.status !== "closed" ? "text-red-600 font-bold" : "text-muted-foreground"}`}>{r.dueDate ?? "—"}</td>
-                  <td><span className={`status-badge capitalize ${PRIORITY_BAR[r.priority] === "bg-red-600" ? "text-red-700 bg-red-100" : PRIORITY_BAR[r.priority] === "bg-orange-500" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{r.priority}</span></td>
-                  <td><span className={`status-badge capitalize ${r.status === "closed" ? "text-muted-foreground/70 bg-muted/30" : r.status === "in_progress" ? "text-green-700 bg-green-100" : r.status === "awaiting_info" ? "text-orange-700 bg-orange-100" : "text-blue-700 bg-blue-100"}`}>{r.status.replace("_"," ")}</span></td>
-                  <td className="text-[11px] text-muted-foreground/70 max-w-xs truncate">{r.notes ?? "—"}</td>
+                  <td className="text-[11px] text-muted-foreground/70">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}</td>
+                  <td className="text-[11px] text-muted-foreground">—</td>
+                  <td><span className={`status-badge capitalize ${PRIORITY_BAR[r.priority ?? "medium"] === "bg-red-600" ? "text-red-700 bg-red-100" : PRIORITY_BAR[r.priority ?? "medium"] === "bg-orange-500" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{r.priority ?? "—"}</span></td>
+                  <td><span className={`status-badge capitalize ${REQUEST_STATUS_CFG[r.status as RequestStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(r.status))}</span></td>
+                  <td className="text-[11px] text-muted-foreground/70 max-w-xs truncate">{r.description ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -457,17 +502,17 @@ export default function LegalPage() {
                   const cfg = INV_TYPE_CFG[inv.type as InvestigationType] ?? { label: inv.type, color: "text-muted-foreground bg-muted" };
                   return (
                     <tr key={inv.id} className={inv.status === "closed" ? "opacity-50" : ""}>
-                      <td className="p-0"><div className={`priority-bar ${PRIORITY_BAR[inv.priority] ?? "bg-muted"}`} /></td>
-                      <td className="font-mono text-[11px] text-primary">{inv.number ?? inv.id?.slice(0,8)}</td>
+                      <td className="p-0"><div className="priority-bar bg-muted" /></td>
+                      <td className="font-mono text-[11px] text-primary">{investigationDisplayId(inv)}</td>
                       <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
-                      <td className="font-medium text-foreground max-w-xs truncate">{inv.summary ?? inv.title}</td>
-                      <td className="text-center">{inv.anonymous ? <span className="status-badge text-muted-foreground bg-muted text-[10px]">Anonymous</span> : "—"}</td>
-                      <td className="text-muted-foreground">{inv.reporter ?? "Anonymous"}</td>
-                      <td className="text-muted-foreground">{inv.assignedTo ?? "—"}</td>
-                      <td className="text-[11px] text-muted-foreground/70">{inv.openedDate ?? (inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—")}</td>
-                      <td><span className={`status-badge capitalize ${PRIORITY_BAR[inv.priority] === "bg-red-600" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>{inv.priority}</span></td>
-                      <td><span className={`status-badge capitalize ${inv.status === "closed" ? "text-muted-foreground/70 bg-muted/30" : inv.status === "escalated" ? "text-red-700 bg-red-100" : inv.status === "in_progress" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{(inv.status ?? "—").replace("_"," ")}</span></td>
-                      <td className="text-[11px] text-muted-foreground max-w-xs truncate">{inv.outcome ?? "—"}</td>
+                      <td className="font-medium text-foreground max-w-xs truncate">{inv.title}</td>
+                      <td className="text-center">{inv.anonymousReport ? <span className="status-badge text-muted-foreground bg-muted text-[10px]">Anonymous</span> : "—"}</td>
+                      <td className="text-muted-foreground">{inv.anonymousReport ? "Withheld" : "—"}</td>
+                      <td className="text-muted-foreground">{inv.investigatorId ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground/70">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}</td>
+                      <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">—</span></td>
+                      <td><span className={`status-badge capitalize ${INVESTIGATION_STATUS_CFG[inv.status as InvestigationStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(inv.status))}</span></td>
+                      <td className="text-[11px] text-muted-foreground max-w-xs truncate">{inv.findings ?? inv.recommendation ?? "—"}</td>
                     </tr>
                   );
                 })}

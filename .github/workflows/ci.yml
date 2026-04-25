@@ -104,11 +104,83 @@ jobs:
           NODE_ENV: test
         run: pnpm test
 
+  # ── E2E (Playwright) — full app smoke; globalSetup uses db:migrate + seed ─────
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [test]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nexusops
+          POSTGRES_PASSWORD: nexusops_test
+          POSTGRES_DB: nexusops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      meilisearch:
+        image: getmeili/meilisearch:v1.10
+        env:
+          MEILI_MASTER_KEY: test_master_key
+          MEILI_ENV: development
+        ports:
+          - 7700:7700
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages (API + Web + deps)
+        run: pnpm --filter @nexusops/types --filter @nexusops/db --filter @nexusops/ui --filter @nexusops/api --filter @nexusops/web build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Playwright E2E
+        env:
+          CI: true
+          DATABASE_URL: postgresql://nexusops:nexusops_test@localhost:5432/nexusops_test
+          REDIS_URL: redis://localhost:6379
+          MEILISEARCH_URL: http://localhost:7700
+          MEILISEARCH_KEY: test_master_key
+          AUTH_SECRET: test-secret-32-chars-minimum-here
+          ENCRYPTION_KEY: test-encryption-32-chars-minimum
+          NODE_ENV: test
+        run: pnpm exec playwright test --reporter=line
+
   # ── Build Docker Images ─────────────────────────────────────────────────────
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, e2e]
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4

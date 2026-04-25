@@ -307,6 +307,14 @@ export async function cleanupOrg(orgId: string) {
   await db.execute(sql`DELETE FROM share_capital WHERE org_id = ${orgId}`);
   await db.execute(sql`DELETE FROM esop_grants WHERE org_id = ${orgId}`);
   await db.execute(sql`DELETE FROM company_directors WHERE org_id = ${orgId}`);
+  // Change management: `change_approvals.approver_id` → users is RESTRICT; org CASCADE may delete
+  // users before child rows — clear approvals + requests explicitly first.
+  await db.execute(sql`
+    DELETE FROM change_approvals
+    WHERE change_id IN (SELECT id FROM change_requests WHERE org_id = ${orgId})
+  `);
+  await db.execute(sql`DELETE FROM change_requests WHERE org_id = ${orgId}`);
+  await db.execute(sql`DELETE FROM change_blackout_windows WHERE org_id = ${orgId}`);
   // Work orders (activity logs reference users — delete WOs before org/users)
   await db.execute(sql`DELETE FROM work_orders WHERE org_id = ${orgId}`);
   await db.delete(organizations).where(eq(organizations.id, orgId));

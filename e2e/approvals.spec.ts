@@ -34,6 +34,15 @@ test.describe("Approvals & Procurement", () => {
     expect(hasContent).toBe(true);
   });
 
+  /** Seq 5 C4 — `/app/flows` spine (ITSM-grade serial). */
+  test("flows page loads for admin (Seq 5)", async ({ page }) => {
+    await loginAs(page, "admin@coheron.com");
+    await page.goto("/app/flows");
+    await page.waitForLoadState("networkidle");
+    const body = await page.textContent("body");
+    expect(body).not.toContain("Unhandled Runtime Error");
+  });
+
   test("procurement page loads", async ({ page }) => {
     await loginAs(page, "admin@coheron.com");
     await page.goto("/app/procurement");

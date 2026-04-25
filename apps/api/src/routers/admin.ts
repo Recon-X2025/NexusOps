@@ -260,11 +260,11 @@ export const adminRouter = router({
         const { db, org, user } = ctx;
         await db.insert(auditLogs).values({
           orgId: org!.id,
-          actorId: user!.id,
+          userId: user!.id,
           action: `scheduled_job.manual_trigger`,
           resourceType: "scheduled_job",
           resourceId: input.jobId,
-          changes: { jobId: input.jobId, triggeredAt: new Date().toISOString() } as any,
+          changes: { jobId: input.jobId, triggeredAt: new Date().toISOString() } as Record<string, unknown>,
         }).catch(() => {});
         return { success: true, jobId: input.jobId, triggeredAt: new Date() };
       }),

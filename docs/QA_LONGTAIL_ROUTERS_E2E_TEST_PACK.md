@@ -15,48 +15,48 @@ Personas **P1–P5** = `QA_ITSM_E2E_TEST_PACK.md` §2 unless a subsection overri
 | # | Router | Primary QA doc (C1 hero) | Layer 8 | Playwright route smoke |
 |---|--------|--------------------------|---------|-------------------------|
 | 1 | `mac` | **This pack §1** | N/A (public-style stats) | N/A |
-| 2 | `auth` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` + `e2e/auth.spec.ts` | Via test helpers | `auth.spec` |
-| 3 | `admin` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` | §8.32 | `/app/admin` |
+| 2 | `auth` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` + **`docs/QA_AUTH_ITSM_E2E_TEST_PACK.md`** | **§8.44** (Seq 11) | `e2e/auth.spec.ts` |
+| 3 | `admin` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` + **`docs/QA_ADMIN_ITSM_E2E_TEST_PACK.md`** | §8.32 (Seq 10 depth) | `e2e/admin.spec.ts` |
 | 4 | `tickets` | `QA_ITSM_E2E_TEST_PACK.md` | §8.01 | `tickets.spec` / L10 |
 | 5 | `assets` | **This pack §2** | §8.50 (assets) | `/app/ham` |
 | 6 | `workflows` | **This pack §3** | §8.50 | `/app/workflows` |
-| 7 | `hr` | `QA_HR_E2E_TEST_PACK.md` | §8.33 | `/app/hr` |
+| 7 | `hr` | `QA_HR_E2E_TEST_PACK.md` | §8.33 (Seq 15 depth) | `e2e/hr.spec.ts` |
 | 8 | `procurement` | `QA_PROCUREMENT_FINANCE_E2E_TEST_PACK.md` | §8.12 | `/app/procurement` |
-| 9 | `dashboard` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` | §8.39 (metrics) | `/app/dashboard` |
-| 10 | `workOrders` | **This pack §4** + ITSM overlap | §8.37 | `/app/work-orders` |
-| 11 | `changes` | `QA_ITSM_E2E_TEST_PACK.md` (CHG journeys) | §8.02 | `/app/changes` |
-| 12 | `security` | `QA_COMPLIANCE_E2E_TEST_PACK.md` | §8.10 | `/app/security` |
-| 13 | `grc` | `QA_COMPLIANCE_E2E_TEST_PACK.md` | §8.11 + §8.42 | `/app/grc` |
+| 9 | `dashboard` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` + **`docs/QA_DASHBOARD_ITSM_E2E_TEST_PACK.md`** | §8.39 + §8.40 | `e2e/dashboard.spec.ts` |
+| 10 | `workOrders` | **`docs/QA_WORK_ORDERS_ITSM_E2E_TEST_PACK.md`** + §4 | §8.37 (Seq 2 depth) | `e2e/work-orders.spec.ts` |
+| 11 | `changes` | `docs/QA_CHANGES_ITSM_E2E_TEST_PACK.md` | §8.02 (Seq 1 depth) | `e2e/changes.spec.ts` |
+| 12 | `security` | **`docs/QA_SECURITY_ITSM_E2E_TEST_PACK.md`** + compliance index | §8.10 (Seq 12 depth) | `e2e/security.spec.ts` |
+| 13 | `grc` | `QA_COMPLIANCE_E2E_TEST_PACK.md` | §8.11 + §8.42 | `e2e/grc.spec.ts` |
 | 14 | `financial` | `QA_PROCUREMENT_FINANCE_E2E_TEST_PACK.md` | §8.39 | `/app/financial` |
 | 15 | `contracts` | `QA_LEGAL_E2E_TEST_PACK.md` | §8.14 | `/app/contracts` |
 | 16 | `projects` | **This pack §5** | §8.18 | `/app/projects` |
-| 17 | `crm` | `QA_CRM_E2E_TEST_PACK.md` | §8.15 | `/app/crm` |
+| 17 | `crm` | `QA_CRM_E2E_TEST_PACK.md` | §8.15 | `e2e/crm.spec.ts` |
 | 18 | `legal` | `QA_LEGAL_E2E_TEST_PACK.md` | §8.38 | `/app/legal` |
 | 19 | `devops` | **This pack §6** | §8.50 | `/app/devops` |
 | 20 | `surveys` | **This pack §7** | §8.50 | `/app/surveys` |
-| 21 | `knowledge` | `QA_KNOWLEDGE_CATALOG_PORTAL_E2E_TEST_PACK.md` | §8.22 | `/app/knowledge` |
-| 22 | `notifications` | `QA_PLATFORM_SHELL_E2E_TEST_PACK.md` | §8.29 | `/app/notifications` |
-| 23 | `catalog` | `QA_KNOWLEDGE_CATALOG_PORTAL_E2E_TEST_PACK.md` | §8.35 | `/app/catalog` |
-| 24 | `csm` | `QA_CSM_E2E_TEST_PACK.md` | §8.34 | `/app/csm` |
+| 21 | `knowledge` | `QA_KNOWLEDGE_CATALOG_PORTAL_E2E_TEST_PACK.md` §4 (KNG) | §8.22 (Seq 3 depth) | `e2e/knowledge.spec.ts` |
+| 22 | `notifications` | `docs/QA_NOTIFICATIONS_ITSM_E2E_TEST_PACK.md` | §8.29 (Seq 6 depth) | `e2e/notifications.spec.ts` |
+| 23 | `catalog` | Same KCP pack §5 (KCT) | §8.35 (Seq 4 depth) | `e2e/catalog.spec.ts` |
+| 24 | `csm` | `QA_CSM_E2E_TEST_PACK.md` | §8.34 (Seq 14 depth) | `e2e/csm.spec.ts` |
 | 25 | `apm` | **This pack §8** | §8.50 | `/app/apm` |
 | 26 | `oncall` | **This pack §9** | §8.50 | `/app/on-call` |
 | 27 | `events` | **This pack §10** | §8.50 | `/app/events` |
 | 28 | `facilities` | **This pack §11** | §8.50 | `/app/facilities` |
 | 29 | `walkup` | **This pack §12** | §8.50 | `/app/walk-up` |
 | 30 | `vendors` | `QA_PROCUREMENT_FINANCE_E2E_TEST_PACK.md` | §8.24 | `/app/vendors` |
-| 31 | `approvals` | `QA_APPROVALS_E2E_TEST_PACK.md` | §8.36 | `/app/approvals` |
-| 32 | `reports` | **This pack §13** | §8.31 | `/app/reports` |
-| 33 | `search` | **This pack §14** | §8.30 | Covered via global search in ITSM / shell |
+| 31 | `approvals` | `QA_APPROVALS_E2E_TEST_PACK.md` + Seq 5 gap/runbook | §8.36 (Seq 5 depth) | `e2e/approvals.spec.ts` |
+| 32 | `reports` | **`docs/QA_REPORTS_ITSM_E2E_TEST_PACK.md`** + §13 | §8.31 (Seq 8 depth) | `e2e/reports.spec.ts` |
+| 33 | `search` | `docs/QA_SEARCH_ITSM_E2E_TEST_PACK.md` + §14 | §8.30 (Seq 7 depth) | `e2e/search.spec.ts` |
 | 34 | `ai` | **This pack §15** | Via tickets + `ai.summarizeTicket` §8.50 | `/app/tickets` (AI entry if present) |
 | 35 | `indiaCompliance` | **This pack §16** | §8.50 | Embedded HR/CSM tabs + statutory; spot-check `/app/hr` |
 | 36 | `assignmentRules` | **This pack §17** | §8.50 | `/app/admin` (rules UI) |
-| 37 | `inventory` | `QA_PROCUREMENT_FINANCE_E2E_TEST_PACK.md` | §8.50 | `/app/procurement` (inventory tab) |
+| 37 | `inventory` | `docs/QA_FINANCE_SEQUENCE_21_23_E2E_TEST_PACK.md` Part II | **§8.53** | `/app/work-orders/parts` |
 | 38 | `recruitment` | **This pack §18** | §8.50 | `/app/recruitment` |
-| 39 | `secretarial` | **This pack §19** | §8.50 | `/app/secretarial` |
+| 39 | `secretarial` | `docs/QA_LEGAL_GOVERNANCE_E2E_TEST_PACK.md` Part III | **§8.51** | `/app/secretarial` |
 | 40 | `workforce` | **This pack §20** | §8.50 | `/app/people-analytics` |
 | 41 | `integrations` | **This pack §21** | §8.50 | `/app/settings/integrations` |
 | 42 | `performance` | **This pack §22** | §8.50 | `/app/performance` |
-| 43 | `accounting` | **This pack §23** | §8.50 | `/app/accounting` |
+| 43 | `accounting` | `docs/QA_FINANCE_SEQUENCE_21_23_E2E_TEST_PACK.md` Part III | **§8.54** | `/app/accounting` |
 | 44 | `customFields` | **This pack §24** | §8.50 | `/app/admin` (definitions) |
 | 45 | `payroll` | **This pack §25** | §8.50 | `/app/payroll` |
 
@@ -294,7 +294,7 @@ Personas **P1–P5** = `QA_ITSM_E2E_TEST_PACK.md` §2 unless a subsection overri
 | Case ID | Persona | Steps | Expected |
 |---------|---------|-------|----------|
 | AC-TC-01 | P1 | `/app/accounting` | COA / journals shell |
-| AC-TC-02 | — | `accounting.coa.seed` + `list` | L8 |
+| AC-TC-02 | — | `accounting.coa.seed` + `journal` + `trialBalance` + GSTIN/GSTR | L8 **§8.54** |
 | AC-TC-03 | P5 | View accounting | Read or hidden |
 
 ---
@@ -328,3 +328,4 @@ For each router in §0: **at least one** of: dedicated pillar pack **or** §1–
 | Version | Date | Notes |
 |---------|------|-------|
 | 1.0 | 2026-04-07 | Closes C1 “remaining namespaces” at 100% for long-tail program (excludes full ITSM-grade C1–C7 everywhere). |
+| 1.1 | 2026-04-07 | §0 sync: `inventory` §8.53, `accounting` §8.54, `secretarial` §8.51 + LG pack; AC-TC-02 → §8.54 |
