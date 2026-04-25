@@ -1599,18 +1599,22 @@ function ProcurementPolicyTab() {
   const q = trpc.procurement.approvalRules.get.useQuery(undefined, mergeTrpcQueryOpts("procurement.approvalRules.get", undefined));
   const [autoBelow, setAutoBelow] = useState("");
   const [deptMax, setDeptMax] = useState("");
+  const [matchTol, setMatchTol] = useState("");
+  const [dupPolicy, setDupPolicy] = useState<"off" | "warn" | "block">("warn");
 
   useEffect(() => {
     if (q.data) {
       setAutoBelow(String(q.data.prAutoApproveBelow));
       setDeptMax(String(q.data.prDeptHeadMax));
+      setMatchTol(String(q.data.poMatchToleranceAbs ?? 1));
+      setDupPolicy(q.data.duplicatePayableInvoicePolicy ?? "warn");
     }
   }, [q.data]);
 
   const save = trpc.procurement.approvalRules.update.useMutation({
     onSuccess: () => {
       utils.procurement.approvalRules.get.invalidate();
-      toast.success("Procurement thresholds saved. New purchase requests use these rules immediately.");
+      toast.success("Procurement policy saved. PR rules apply immediately; AP duplicate / match tolerance apply on next API calls.");
     },
     onError: (e) => toast.error(e.message ?? "Save failed"),
   });
@@ -1624,7 +1628,7 @@ function ProcurementPolicyTab() {
   }
 
   return (
-    <div className="p-4 max-w-md space-y-4">
+    <div className="p-4 max-w-md space-y-6">
       <div>
         <h3 className="text-[12px] font-semibold text-foreground">Purchase requisition approval tiers</h3>
         <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
@@ -1661,21 +1665,61 @@ function ProcurementPolicyTab() {
           <code className="text-[10px]">vp_finance</code>.
         </span>
       </div>
+
+      <div className="border-t border-border pt-4 space-y-2">
+        <h3 className="text-[12px] font-semibold text-foreground">AP controls (US-CRM-004 / US-FIN-004)</h3>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          <strong>PO vs invoice match</strong> uses absolute tolerance in the same currency as totals (see <code className="text-[10px]">procurement.invoices.matchToOrder</code>).
+          <strong className="font-medium text-foreground"> Duplicate payables</strong> are same vendor + invoice number on the payable flow; <em>warn</em> allows create and returns a flag to the client.
+        </p>
+        <label className="block text-[11px] font-medium text-foreground">PO / invoice match tolerance (absolute)</label>
+        <input
+          type="number"
+          min={0}
+          step="0.01"
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={matchTol}
+          onChange={(e) => setMatchTol(e.target.value)}
+          disabled={q.isLoading}
+        />
+        <label className="block text-[11px] font-medium text-foreground mt-2">Duplicate payable invoice policy</label>
+        <select
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={dupPolicy}
+          onChange={(e) => setDupPolicy(e.target.value as "off" | "warn" | "block")}
+          disabled={q.isLoading}
+        >
+          <option value="off">Off — no duplicate check</option>
+          <option value="warn">Warn — allow; Finance UI can show warning</option>
+          <option value="block">Block — reject duplicate vendor + invoice #</option>
+        </select>
+      </div>
+
       <button
         type="button"
         disabled={save.isPending || q.isLoading}
         onClick={() => {
           const a = Number(autoBelow);
           const d = Number(deptMax);
+          const tol = Number(matchTol);
           if (!Number.isFinite(a) || !Number.isFinite(d) || d <= a) {
             toast.error("Department head upper bound must be greater than the auto-approve ceiling.");
             return;
           }
-          save.mutate({ prAutoApproveBelow: a, prDeptHeadMax: d });
+          if (!Number.isFinite(tol) || tol < 0) {
+            toast.error("Match tolerance must be a non-negative number.");
+            return;
+          }
+          save.mutate({
+            prAutoApproveBelow: a,
+            prDeptHeadMax: d,
+            poMatchToleranceAbs: tol,
+            duplicatePayableInvoicePolicy: dupPolicy,
+          });
         }}
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
-        {save.isPending ? "Saving…" : "Save thresholds"}
+        {save.isPending ? "Saving…" : "Save procurement policy"}
       </button>
     </div>
   );

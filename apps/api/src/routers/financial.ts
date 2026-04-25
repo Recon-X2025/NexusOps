@@ -104,7 +104,12 @@ export const financialRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const policy = getDuplicatePayablePolicy(org!.settings);
+      const [orgRow] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const settings = orgRow?.settings ?? org!.settings;
+      const policy = getDuplicatePayablePolicy(settings);
       const dup = await countDuplicatePayable(db, org!.id, input.vendorId, input.invoiceNumber);
       if (dup > 0 && policy === "block") {
         throw new TRPCError({ code: "CONFLICT", message: "DUPLICATE_PAYABLE_INVOICE" });
@@ -505,7 +510,12 @@ export const financialRouter = router({
       const totalTax = totalCgst + totalSgst + totalIgst;
       const totalAmount = totalTaxableValue + totalTax;
 
-      const policy = getDuplicatePayablePolicy(org!.settings);
+      const [orgRowGst] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const settingsGst = orgRowGst?.settings ?? org!.settings;
+      const policy = getDuplicatePayablePolicy(settingsGst);
       const dup = await countDuplicatePayable(db, org!.id, input.vendorId, input.invoiceNumber);
       if (dup > 0 && policy === "block") {
         throw new TRPCError({ code: "CONFLICT", message: "DUPLICATE_PAYABLE_INVOICE" });

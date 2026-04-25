@@ -184,7 +184,7 @@ export const ticketsRouter = router({
       // All other tickets.list calls are unaffected.
       const cacheKey =
         input.type === "incident" && input.limit === 5
-          ? `tickets:dashboard:incidents:${org!.id}`
+          ? `tickets:dashboard:incidents:${org!.id}:active=${input.activeOnly ? 1 : 0}`
           : null;
       if (cacheKey) {
         try {
@@ -235,6 +235,20 @@ export const ticketsRouter = router({
             db.select({ id: ticketStatuses.id })
               .from(ticketStatuses)
               .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, input.statusCategory))),
+          ),
+        );
+      if (input.activeOnly)
+        conditions.push(
+          notInArray(
+            tickets.statusId,
+            db.select({ id: ticketStatuses.id })
+              .from(ticketStatuses)
+              .where(
+                and(
+                  eq(ticketStatuses.orgId, org!.id),
+                  inArray(ticketStatuses.category, ["resolved", "closed"]),
+                ),
+              ),
           ),
         );
       if (input.search && input.search.length >= 2)

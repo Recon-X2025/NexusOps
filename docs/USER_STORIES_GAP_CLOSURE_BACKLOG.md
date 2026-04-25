@@ -5,7 +5,7 @@
 **Conventions:** Stories follow **As a / I want / So that**; **AC** = acceptance criteria. IDs are **stable prefixes** (`US-<MODULE>-###`).  
 **Sources:** `SERVICENOW_ITSM_GAP_ANALYSIS.md`, `NEXUSOPS_SECURITY_COMPLIANCE_GAP_ANALYSIS.md`, `WORKDAY_PEOPLE_WORKPLACE_GAP_ANALYSIS.md`, `HUBSPOT_CUSTOMER_SALES_CRM_GAP_ANALYSIS.md`, `MICROSOFT_FINANCE_PROCUREMENT_GAP_ANALYSIS.md`, `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md`, `AMAZON_STRATEGY_PROJECTS_GAP_ANALYSIS.md` (all under `docs/`).  
 **Date:** April 2026  
-**Rollup completion (verified 2026-04-26):** **20** Done · **9** Partial · **29** Backlog · **0** Deferred — **~34.5%** Done (of 58).  
+**Rollup completion (verified 2026-04-26):** **23** Done · **6** Partial · **29** Backlog · **0** Deferred — **~39.7%** Done (of 58).  
 **Programme commitment:** **100% closure** of **all 58** rollup `US-*` stories (including any **Deferred** row until cleared), including decomposition of **US-LEG-009+** into trackable child stories. Delivery is **multi-year / multi-phase**; status and evidence live in the **rollup** and **changelog**. Items that touch **legal, tax, or regulated** workflows still require **professional validation** before production (see **Disclaimer**) — that is not an excuse to leave stories **Backlog** forever; it means **Done** includes documented sign-off where required.
 
 ---
@@ -23,16 +23,16 @@
 
 ### Programme progress (rollup-derived)
 
-*Recalculate from **Status rollup** when statuses change. **Last verified:** **2026-04-26** (SoD test + **US-FIN-003** closure).*
+*Recalculate from **Status rollup** when statuses change. **Last verified:** **2026-04-26** (**US-ITSM-002** closure; **applyMatchToOrder** + war-room route).*
 
 | Metric | Count |
 |--------|------:|
 | **Stories in rollup** | 58 |
-| **Done** | 20 |
-| **Partial** | 9 |
+| **Done** | 23 |
+| **Partial** | 6 |
 | **Deferred** | 0 |
 | **Backlog** | 29 |
-| **Approx. closure** (Done ÷ 58) | 34.5% — *treat **Partial** as in-flight, not closed* |
+| **Approx. closure** (Done ÷ 58) | 39.7% — *treat **Partial** as in-flight, not closed* |
 
 ---
 
@@ -566,14 +566,14 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 
 ### Status rollup
 
-*Snapshot **last reviewed: 2026-04-26** — **20** **Done** / **9** **Partial** / **29** **Backlog**; remaining work is phased per gap docs (not deferred).*
+*Snapshot **last reviewed: 2026-04-26** — **23** **Done** / **6** **Partial** / **29** **Backlog**; remaining work is phased per gap docs (not deferred).*
 
 | ID | Status | Notes |
 |----|--------|--------|
 | US-ITSM-001 | Done | Org `settings.itsm.slaPauseReasons`; `tickets.slaPauseReasonsCatalog` get/update (admin); **validate** pause codes on `tickets.update` (pending transition + edits); `tickets.statusCounts` includes **`category`**; ticket detail **modal** when moving to pending + on-hold reason row; **Admin → SLA pause reasons**. |
-| US-ITSM-002 | Partial | Response vs resolve SLA fields (`sla_response_*`, `sla_resolve_*`); “multiple concurrent targets” beyond two clocks not fully validated vs AC. |
+| US-ITSM-002 | Done | Response vs resolve SLA clocks on create (`slaResponseDueAt`, `slaResolveDueAt` from priority + policy); **layer8** asserts both due dates and resolve after response; SLA job scheduling remains best-effort when workflow service is off (non-blocking). |
 | US-ITSM-003 | Partial | `reports.slaOperationalHealth` (paused / breached open / at-risk near due / overdue unbreached) + team & category filters + **IT Services → Analytics** UI. |
-| US-ITSM-004 | Partial | **Hierarchy:** `tickets.get` returns `parentTicket` + `childTickets`; `tickets.list` exposes `parentTicketId` / `isMajorIncident`; ticket detail **Incident hierarchy** (set/clear parent, child links); **Major incidents** queue shows Parent → / top-level; **war-room comms** (`majorIncidentComms`). Dedicated full-screen MIM / richer tree UX still open. |
+| US-ITSM-004 | Partial | **Hierarchy:** `tickets.get` returns `parentTicket` + `childTickets`; `tickets.list` exposes `parentTicketId` / `isMajorIncident`; ticket detail **Incident hierarchy** (set/clear parent, child links); **Major incidents** queue shows Parent → / top-level; **war-room comms** (`majorIncidentComms`); **full-screen war room** `/app/it-services/major-incidents/war-room/[ticketId]` (comms + hierarchy). Richer tree / commander UX still open. |
 | US-ITSM-005 | Backlog | — |
 | US-ITSM-006 | Partial | `cmdb` CI create/update/link (`assets` router); class graph, bulk import, service map depth still backlog. |
 | US-ITSM-007 | Backlog | — |
@@ -598,16 +598,16 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-CRM-001 | Done | Customer & Sales hub: `csm.dashboard` SQL metrics; KPIs and tiles permission-safe. |
 | US-CRM-002 | Done | `crm.executiveSummary`; hub consumes it; field reference **`docs/CRM_EXECUTIVE_SUMMARY.md`**. |
 | US-CRM-003 | Done | Org `settings.crm` thresholds (`dealCloseNoApprovalBelow`, `dealCloseExecutiveAbove`, `dealApprovalCurrency`); `crm.dealApprovalThresholds` get/update (admin); migration **`0019_crm_deal_won_approval`** + `crm_deals.won_*`; `movePipeline` gates **closed_won**; `crm.approveDealWon`; Admin **CRM deal thresholds**; CRM move modal + **`apps/api/src/lib/org-settings.ts`**. |
-| US-CRM-004 | Partial | Duplicate payable policy + match tolerance (`org-settings`, `procurement.matchToOrder`, `financial`); track under **US-FIN-004** if finance owns. |
-| US-CRM-005 | Partial | `procurement.invoices.matchToOrder` **line-keyed** pairing (invoice `line_item_number` order vs PO line id order), per-line PO vs invoice and **GRN** value by `po_line_item_id`; response **`lineMatchRows`** / **`lineKeyedMatched`**. Heavier ERP matching (fuzzy SKU, partial receipts) still open. |
+| US-CRM-004 | Done | Org `settings.procurement.poMatchToleranceAbs` + **`duplicatePayableInvoicePolicy`** (`off` / `warn` / `block`); **`procurement.approvalRules.get` / `update`** expose + persist; **`procurement.invoices.matchToOrder`** + **`financial.createInvoice`** already consume helpers; **Admin → Procurement Policy** AP controls; Finance create invoice **toast** on warn; **layer8** persistence test. |
+| US-CRM-005 | Partial | `procurement.invoices.matchToOrder` + **`applyMatchToOrder`** (financial write): on success sets **`matchingStatus: matched`** and **`poId`** (pay-ready for period close preflight). **Line-keyed** pairing + **GRN** tie-in unchanged. Heavier ERP matching (fuzzy SKU, partial receipts) still open. |
 | US-CRM-006 | Done | **Revenue path** in **`docs/FINANCE_SOD_MATRIX.md`** (deal **closed_won** approval / **US-CRM-003**); **AP** SoD shared with **US-FIN-006** (approve vs pay + tests). |
 | US-CRM-007 | Done | `isInvoicePeriodClosed`; **`financial.periodClose.get` / `setClosedPeriods`**; **`financial.periodClose.preflight`** (open AP/AR + matching checks, UTC month); **Finance → Period close** tab; **Admin → Accounting periods** + cross-link; mark-paid guard for closed months; layer8 + full-QA + RBAC map. |
 | US-CRM-008 | Done | `legal_entities` + `invoices.legal_entity_id` + **`purchase_orders.legal_entity_id`** (migration **`0020`**); **`financial.createLegalEntity`** / **`listLegalEntities`**; **`procurement.legalEntityOptions`** (procurement read); AP/AR + **`purchaseOrders.createFromPR`** optional **`legalEntityId`**; **`purchaseOrders.list`** / hub PO table join (**`legalEntityCode`** / **`legalEntityName`**); **Admin → Legal entities**; **Financial** + **Procurement** create UX + export. |
 | US-FIN-001 | Done | Finance & Procurement hub: live procurement + financial + contracts KPIs; PO list; PR pending semantics aligned. |
 | US-FIN-002 | Done | `financial.executiveSummary` on hub; **AP/AR** stats link to **`/app/financial?tab=ap|ar`**; Finance page honors **`?tab=`** deep link. |
 | US-FIN-003 | Done | DB-backed PR tiers (`prAutoApproveBelow` / `prDeptHeadMax`); **Admin → Procurement Policy**; `procurement.approvalRules`; fresh org settings on PR create; defaults 75k / 750k; layer8 `approvalRules.update` coverage. |
-| US-FIN-004 | Partial | Same implementation as **US-CRM-004** (dedupe + tolerance). |
-| US-FIN-005 | Partial | Same as **US-CRM-005**: line-keyed + per-line GRN tie-in in `matchToOrder` (`lineKeyedMatched`, `lineMatchRows`); header totals + line-sum checks retained. |
+| US-FIN-004 | Done | Same delivery as **US-CRM-004** (admin + API + `matchToOrder` / payable create behaviour). |
+| US-FIN-005 | Partial | Same as **US-CRM-005**: `matchToOrder` + **`applyMatchToOrder`** persist **`matched`**; line-keyed + GRN tie-in retained. |
 | US-FIN-006 | Done | **`docs/FINANCE_SOD_MATRIX.md`**; **`financial.markPaid`** blocks approver = payer; **layer8** SoD test (`finance_manager` approve → second user pays). |
 | US-FIN-007 | Done | Same delivery as **US-CRM-007** (preflight + checklist UI + admin closed periods + posting guard). |
 | US-FIN-008 | Done | Same delivery as **US-CRM-008**: AP/AR invoices + **purchase orders** (`purchase_orders.legal_entity_id`) + admin entity list/create + hub/Procurement surfaces. |
@@ -652,6 +652,8 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-26 | **Completion status** + **PO decision:** **US-FIN-003**, **US-FIN-006**, **US-CRM-006**, **US-SEC-008** → **Done**; SoD doc + **layer8** approve vs **markPaid** test. **Programme progress:** **18** Done / **11** Partial / **29** Backlog / **0** Deferred (**~31.0%**). |
 | 2026-04-26 | **US-CRM-008** / **US-FIN-008** → **Done**: legal entities on AP/AR invoices; **Admin → Legal entities**; **layer8** legal-entity smoke. **Programme progress:** **20** Done / **9** Partial / **29** Backlog (**~34.5%**). |
 | 2026-04-26 | **US-CRM-008** (completion): **`purchase_orders.legal_entity_id`**; **`procurement.legalEntityOptions`**; PO create + list + Finance hub column; **layer8** PO legal-entity test. *(Rollup counts unchanged.)* |
+| 2026-04-26 | **US-CRM-004** / **US-FIN-004** → **Done**: **`procurement.approvalRules`** extends **`poMatchToleranceAbs`** + **`duplicatePayableInvoicePolicy`**; **Admin → Procurement Policy** AP section; Finance payable create warns on duplicate when policy = **warn**; **layer8** persistence test. **Programme progress:** **22** Done / **7** Partial / **29** Backlog (**~37.9%**). |
+| 2026-04-26 | **US-ITSM-002** → **Done**: concurrent **response** + **resolve** SLA due dates validated (**layer8**). **`procurement.invoices.applyMatchToOrder`** + shared **`computeInvoicePoMatch`**; payable **`matchingStatus: matched`** + **`poId`** on success (**US-CRM-005** / **US-FIN-005** partial advance). **IT Services → Major incidents → War room** full-screen page. **Programme progress:** **23** Done / **6** Partial / **29** Backlog (**~39.7%**). RBAC map regenerated. |
 
 ---
 

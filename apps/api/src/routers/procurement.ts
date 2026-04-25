@@ -11,8 +11,6 @@ import {
   purchaseOrders,
   poLineItems,
   invoices,
-  invoiceLineItems,
-  grnLineItems,
   approvalRequests,
   assets,
   assetTypes,
@@ -20,7 +18,6 @@ import {
   legalEntities,
   eq,
   and,
-  inArray,
   desc,
   asc,
   count,
@@ -28,7 +25,12 @@ import {
   sql,
 } from "@nexusops/db";
 import { CreatePurchaseRequestSchema } from "@nexusops/types";
-import { getProcurementMatchToleranceAbs, getProcurementApprovalTiers } from "../lib/org-settings";
+import {
+  getProcurementMatchToleranceAbs,
+  getProcurementApprovalTiers,
+  getDuplicatePayablePolicy,
+} from "../lib/org-settings";
+import { computeInvoicePoMatch } from "../lib/invoice-po-match";
 
 async function determineApproval(amount: number, orgSettings: unknown): Promise<string> {
   const { prAutoApproveBelow, prDeptHeadMax } = getProcurementApprovalTiers(orgSettings);
@@ -373,166 +375,55 @@ export const procurementRouter = router({
       .input(z.object({ invoiceId: z.string().uuid(), poId: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-
-        const [invoice] = await db
-          .select()
-          .from(invoices)
-          .where(and(eq(invoices.id, input.invoiceId), eq(invoices.orgId, org!.id)));
-
-        const [po] = await db
-          .select()
-          .from(purchaseOrders)
-          .where(and(eq(purchaseOrders.id, input.poId), eq(purchaseOrders.orgId, org!.id)));
-
-        if (!invoice || !po) throw new TRPCError({ code: "NOT_FOUND" });
-
-        const tolerance = getProcurementMatchToleranceAbs(org!.settings);
-        const invoiceTotal = parseFloat(invoice.amount);
-        const poTotal = parseFloat(po.totalAmount);
-        const discrepancy = Math.abs(invoiceTotal - poTotal);
-        let matched = discrepancy <= tolerance;
-
-        const lines = await db
-          .select()
-          .from(invoiceLineItems)
-          .where(eq(invoiceLineItems.invoiceId, invoice.id));
-        const invoiceLineSum = lines.reduce(
-          (s: number, li: (typeof lines)[number]) => s + parseFloat(String(li.lineTotal)),
-          0,
-        );
-        const lineDelta = lines.length > 0 ? Math.abs(invoiceTotal - invoiceLineSum) : 0;
-
-        const poLines = await db.select().from(poLineItems).where(eq(poLineItems.poId, po.id));
-        const poLineSum = poLines.reduce(
-          (s: number, li: (typeof poLines)[number]) =>
-            s + Number(li.quantity ?? 0) * parseFloat(String(li.unitPrice ?? 0)),
-          0,
-        );
-        const poInvoiceLineDelta =
-          lines.length > 0 && poLines.length > 0 ? Math.abs(poLineSum - invoiceLineSum) : 0;
-
-        const invSorted = [...lines].sort((a, b) => a.lineItemNumber - b.lineItemNumber);
-        const poSorted = [...poLines].sort((a, b) => a.id.localeCompare(b.id));
-
-        let lineKeyedMatched = true;
-        const lineMatchRows: Array<{
-          lineIndex: number;
-          invoiceLineNumber: number | null;
-          poLineId: string | null;
-          invoiceLineTotal: number | null;
-          poLineExtended: number | null;
-          grnLineValue: number | null;
-          poInvoiceDelta: number | null;
-          threeWayDelta: number | null;
-          ok: boolean;
-        }> = [];
-
-        const grnByPoLine = new Map<string, number>();
-        if (invoice.grnId) {
-          const grnLinesAll = await db
-            .select()
-            .from(grnLineItems)
-            .where(eq(grnLineItems.grnId, invoice.grnId));
-          const poLineIds = [
-            ...new Set(grnLinesAll.map((g) => g.poLineItemId).filter(Boolean)),
-          ] as string[];
-          const priceByPolId = new Map<string, number>();
-          if (poLineIds.length > 0) {
-            const polRows = await db.select().from(poLineItems).where(inArray(poLineItems.id, poLineIds));
-            for (const p of polRows) {
-              priceByPolId.set(p.id, parseFloat(String(p.unitPrice)));
-            }
-          }
-          for (const gl of grnLinesAll) {
-            if (!gl.poLineItemId) continue;
-            const up = priceByPolId.get(gl.poLineItemId) ?? 0;
-            const add = Number(gl.acceptedQuantity ?? 0) * up;
-            grnByPoLine.set(gl.poLineItemId, (grnByPoLine.get(gl.poLineItemId) ?? 0) + add);
-          }
-        }
-
-        if (lines.length > 0 && poLines.length > 0) {
-          if (invSorted.length !== poSorted.length) {
-            lineKeyedMatched = false;
-          }
-          const n = Math.max(invSorted.length, poSorted.length);
-          for (let i = 0; i < n; i++) {
-            const invL = invSorted[i];
-            const poL = poSorted[i];
-            if (!invL || !poL) {
-              lineKeyedMatched = false;
-              lineMatchRows.push({
-                lineIndex: i,
-                invoiceLineNumber: invL?.lineItemNumber ?? null,
-                poLineId: poL?.id ?? null,
-                invoiceLineTotal: invL ? parseFloat(String(invL.lineTotal)) : null,
-                poLineExtended: poL ? Number(poL.quantity) * parseFloat(String(poL.unitPrice)) : null,
-                grnLineValue: poL ? grnByPoLine.get(poL.id) ?? null : null,
-                poInvoiceDelta: null,
-                threeWayDelta: null,
-                ok: false,
-              });
-              continue;
-            }
-            const invAmt = parseFloat(String(invL.lineTotal));
-            const poAmt = Number(poL.quantity) * parseFloat(String(poL.unitPrice));
-            const poInvD = Math.abs(invAmt - poAmt);
-            let rowOk = poInvD <= tolerance;
-            let grnVal: number | null = null;
-            let threeWayD: number | null = null;
-            if (invoice.grnId) {
-              grnVal = grnByPoLine.get(poL.id) ?? 0;
-              threeWayD = Math.abs(invAmt - grnVal);
-              rowOk = rowOk && threeWayD <= tolerance;
-            }
-            if (!rowOk) lineKeyedMatched = false;
-            lineMatchRows.push({
-              lineIndex: i,
-              invoiceLineNumber: invL.lineItemNumber,
-              poLineId: poL.id,
-              invoiceLineTotal: invAmt,
-              poLineExtended: poAmt,
-              grnLineValue: grnVal,
-              poInvoiceDelta: poInvD,
-              threeWayDelta: threeWayD,
-              ok: rowOk,
-            });
-          }
-          matched = matched && lineKeyedMatched;
-        }
-
-        let grnReceivedValue: number | null = null;
-        if (invoice.grnId) {
-          let recv = 0;
-          for (const v of grnByPoLine.values()) {
-            recv += v;
-          }
-          grnReceivedValue = recv;
-          const threeWayGap = Math.abs(invoiceTotal - recv);
-          const lineAware =
-            lines.length > 0 && poLines.length > 0 ? lineKeyedMatched : poInvoiceLineDelta <= tolerance;
-          matched =
-            matched &&
-            threeWayGap <= tolerance &&
-            (lines.length === 0 || lineDelta <= tolerance) &&
-            lineAware;
-        }
-
+        const out = await computeInvoicePoMatch(db, org!.id, input.invoiceId, input.poId);
         return {
-          invoice,
-          po,
-          matched,
-          discrepancy,
-          toleranceUsed: tolerance,
-          discrepancyPct: poTotal > 0 ? Math.round((discrepancy / poTotal) * 100) : 0,
-          invoiceLineSum,
-          poLineSum,
-          poLineCount: poLines.length,
-          invoiceLineCount: lines.length,
-          poInvoiceLineDelta: lines.length > 0 && poLines.length > 0 ? poInvoiceLineDelta : null,
-          lineKeyedMatched: lines.length > 0 && poLines.length > 0 ? lineKeyedMatched : null,
-          lineMatchRows: lineMatchRows.length > 0 ? lineMatchRows : null,
-          grnReceivedValue,
+          invoice: out.invoice,
+          po: out.po,
+          matched: out.matched,
+          discrepancy: out.discrepancy,
+          toleranceUsed: out.toleranceUsed,
+          discrepancyPct: out.discrepancyPct,
+          invoiceLineSum: out.invoiceLineSum,
+          poLineSum: out.poLineSum,
+          poLineCount: out.poLineCount,
+          invoiceLineCount: out.invoiceLineCount,
+          poInvoiceLineDelta: out.poInvoiceLineDelta,
+          lineKeyedMatched: out.lineKeyedMatched,
+          lineMatchRows: out.lineMatchRows,
+          grnReceivedValue: out.grnReceivedValue,
+        };
+      }),
+
+    /** Persist successful three-way match: links `poId` and sets `matchingStatus` to `matched` (pay-ready for period close). */
+    applyMatchToOrder: permissionProcedure("financial", "write")
+      .input(z.object({ invoiceId: z.string().uuid(), poId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const out = await computeInvoicePoMatch(db, org!.id, input.invoiceId, input.poId);
+        if (!out.matched) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "INVOICE_PO_MATCH_FAILED",
+          });
+        }
+        const [updated] = await db
+          .update(invoices)
+          .set({
+            poId: input.poId,
+            matchingStatus: "matched",
+            updatedAt: new Date(),
+          })
+          .where(and(eq(invoices.id, input.invoiceId), eq(invoices.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+        return {
+          ok: true as const,
+          invoice: updated,
+          match: {
+            discrepancy: out.discrepancy,
+            toleranceUsed: out.toleranceUsed,
+            lineKeyedMatched: out.lineKeyedMatched,
+          },
         };
       }),
   }),
@@ -559,9 +450,17 @@ export const procurementRouter = router({
   /** DB-backed PR approval tiers (US-FIN-003). */
   approvalRules: router({
     get: permissionProcedure("procurement", "read").query(async ({ ctx }) => {
-      const tiers = getProcurementApprovalTiers(ctx.org!.settings);
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const settings = row?.settings ?? org!.settings;
+      const tiers = getProcurementApprovalTiers(settings);
       return {
         ...tiers,
+        poMatchToleranceAbs: getProcurementMatchToleranceAbs(settings),
+        duplicatePayableInvoicePolicy: getDuplicatePayablePolicy(settings),
         currencyNote: "Amounts use the same numeric basis as PR line totals (org default: INR-style integers in product copy).",
       };
     }),
@@ -571,6 +470,10 @@ export const procurementRouter = router({
         z.object({
           prAutoApproveBelow: z.coerce.number().min(0).max(1e12),
           prDeptHeadMax: z.coerce.number().min(1).max(1e12),
+          /** Absolute amount allowed between PO total and invoice total for `matchToOrder` (default 1). */
+          poMatchToleranceAbs: z.coerce.number().min(0).max(1e9).optional(),
+          /** Payable invoice: duplicate vendor + invoice # — `off` (no check), `warn` (allow + flag), `block` (reject). */
+          duplicatePayableInvoicePolicy: z.enum(["off", "warn", "block"]).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -587,11 +490,17 @@ export const procurementRouter = router({
           .where(eq(organizations.id, org!.id));
         const raw = (row?.settings ?? {}) as Record<string, unknown>;
         const prevProc = (raw.procurement as Record<string, unknown> | undefined) ?? {};
-        const procurement = {
+        const procurement: Record<string, unknown> = {
           ...prevProc,
           prAutoApproveBelow: input.prAutoApproveBelow,
           prDeptHeadMax: input.prDeptHeadMax,
         };
+        if (input.poMatchToleranceAbs !== undefined) {
+          procurement.poMatchToleranceAbs = input.poMatchToleranceAbs;
+        }
+        if (input.duplicatePayableInvoicePolicy !== undefined) {
+          procurement.duplicatePayableInvoicePolicy = input.duplicatePayableInvoicePolicy;
+        }
         await db
           .update(organizations)
           .set({
@@ -606,7 +515,14 @@ export const procurementRouter = router({
           ok: true as const,
           prAutoApproveBelow: input.prAutoApproveBelow,
           prDeptHeadMax: input.prDeptHeadMax,
-          previous: { prAutoApproveBelow: prevProc.prAutoApproveBelow, prDeptHeadMax: prevProc.prDeptHeadMax },
+          poMatchToleranceAbs: procurement.poMatchToleranceAbs,
+          duplicatePayableInvoicePolicy: procurement.duplicatePayableInvoicePolicy,
+          previous: {
+            prAutoApproveBelow: prevProc.prAutoApproveBelow,
+            prDeptHeadMax: prevProc.prDeptHeadMax,
+            poMatchToleranceAbs: prevProc.poMatchToleranceAbs,
+            duplicatePayableInvoicePolicy: prevProc.duplicatePayableInvoicePolicy,
+          },
         };
       }),
   }),

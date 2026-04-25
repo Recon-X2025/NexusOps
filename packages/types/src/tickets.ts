@@ -85,6 +85,8 @@ export const AddCommentSchema = z.object({
 export const TicketListFiltersSchema = z.object({
   statusId: z.string().uuid().optional(),
   statusCategory: TicketStatusCategoryEnum.optional(),
+  /** When true, exclude tickets whose status category is `resolved` or `closed`. */
+  activeOnly: z.boolean().optional(),
   priorityId: z.string().uuid().optional(),
   categoryId: z.string().uuid().optional(),
   assigneeId: z.string().uuid().optional(),

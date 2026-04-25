@@ -92,8 +92,12 @@ export default function FinancialPage() {
     mergeTrpcQueryOpts("financial.listLegalEntities", { refetchOnWindowFocus: false }),
   );
   const createInvoiceMutation = trpc.financial.createInvoice.useMutation({
-    onSuccess: () => {
-      toast.success("Invoice created");
+    onSuccess: (data: { duplicatePayableWarning?: boolean }) => {
+      if (data?.duplicatePayableWarning) {
+        toast.warning("Invoice created — duplicate vendor + invoice # detected (org policy: warn).");
+      } else {
+        toast.success("Invoice created");
+      }
       setShowNewInvoice(false);
       setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
       void utils.financial.listInvoices.invalidate();

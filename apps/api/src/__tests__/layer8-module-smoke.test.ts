@@ -16,7 +16,7 @@ beforeAll(async () => {
     );
   }
 });
-import { eq } from "@nexusops/db";
+import { eq, and, invoices, invoiceLineItems } from "@nexusops/db";
 
 function publicCaller() {
   const db = testDb();
@@ -167,6 +167,26 @@ describe("Layer 8: Module Smoke Tests", () => {
         parentTicket: { id: string } | null;
       };
       expect(cDetail.parentTicket?.id).toBe(parent.id);
+    });
+
+    it("concurrent response + resolve SLA targets on create (US-ITSM-002)", async () => {
+      const caller = await authedCaller(adminToken);
+      const ticket = (await caller.tickets.create({
+        title: "Dual SLA clocks",
+        type: "incident",
+        priorityId: orgCtx.p1Id!,
+      })) as { id: string };
+      const detail = (await caller.tickets.get({ id: ticket.id })) as {
+        ticket: {
+          slaResponseDueAt: string | Date | null;
+          slaResolveDueAt: string | Date | null;
+        };
+      };
+      expect(detail.ticket.slaResponseDueAt).toBeTruthy();
+      expect(detail.ticket.slaResolveDueAt).toBeTruthy();
+      const r = new Date(detail.ticket.slaResponseDueAt as string).getTime();
+      const x = new Date(detail.ticket.slaResolveDueAt as string).getTime();
+      expect(x).toBeGreaterThan(r);
     });
   });
 
@@ -517,6 +537,108 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(row?.legalEntityCode).toBe(le.code);
       const opts = (await caller.procurement.legalEntityOptions()) as { id: string; code: string }[];
       expect(opts.some((o) => o.id === le.id)).toBe(true);
+    });
+
+    it("approval rules: PO match tolerance + duplicate payable policy persist (US-CRM-004 / US-FIN-004)", async () => {
+      const caller = await authedCaller(adminToken);
+      await caller.procurement.approvalRules.update({
+        prAutoApproveBelow: 75_000,
+        prDeptHeadMax: 750_000,
+        poMatchToleranceAbs: 42,
+        duplicatePayableInvoicePolicy: "block",
+      });
+      const got = (await caller.procurement.approvalRules.get()) as {
+        poMatchToleranceAbs: number;
+        duplicatePayableInvoicePolicy: string;
+      };
+      expect(got.poMatchToleranceAbs).toBe(42);
+      expect(got.duplicatePayableInvoicePolicy).toBe("block");
+      await caller.procurement.approvalRules.update({
+        prAutoApproveBelow: 75_000,
+        prDeptHeadMax: 750_000,
+        poMatchToleranceAbs: 1,
+        duplicatePayableInvoicePolicy: "warn",
+      });
+      const restored = (await caller.procurement.approvalRules.get()) as {
+        poMatchToleranceAbs: number;
+        duplicatePayableInvoicePolicy: string;
+      };
+      expect(restored.poMatchToleranceAbs).toBe(1);
+      expect(restored.duplicatePayableInvoicePolicy).toBe("warn");
+    });
+
+    it("applyMatchToOrder persists matched status (US-CRM-005 / US-FIN-005 pay-ready)", async () => {
+      const caller = await authedCaller(adminToken);
+      const db = testDb();
+      const suffix = nanoid(6);
+      const vendor = (await caller.procurement.vendors.create({
+        name: `Match vendor ${suffix}`,
+        contactEmail: `match-${suffix}@vendor.test`,
+      })) as { id: string };
+      const pr = (await caller.procurement.purchaseRequests.create({
+        title: `Match PR ${suffix}`,
+        justification: "layer8",
+        items: [{ description: "Widget", quantity: 1, unitPrice: 100 }],
+        priority: "low",
+        department: "IT",
+      })) as { id: string };
+      const po = (await caller.procurement.purchaseOrders.createFromPR({
+        prId: pr.id,
+        vendorId: vendor.id,
+      })) as { id: string };
+      const inv = (await caller.financial.createInvoice({
+        vendorId: vendor.id,
+        invoiceNumber: `MATCH-${suffix}`,
+        amount: "100",
+      })) as { id: string };
+
+      await db.insert(invoiceLineItems).values({
+        invoiceId: inv.id,
+        lineItemNumber: 1,
+        description: "Widget",
+        quantity: "1",
+        unitPrice: "100",
+        lineTotal: "100",
+        taxableValue: "100",
+      });
+      await db.update(invoices).set({ poId: po.id }).where(and(eq(invoices.id, inv.id), eq(invoices.orgId, orgCtx.orgId)));
+
+      const preview = (await caller.procurement.invoices.matchToOrder({
+        invoiceId: inv.id,
+        poId: po.id,
+      })) as { matched: boolean; lineKeyedMatched: boolean | null };
+      expect(preview.matched).toBe(true);
+      expect(preview.lineKeyedMatched).toBe(true);
+
+      const applied = (await caller.procurement.invoices.applyMatchToOrder({
+        invoiceId: inv.id,
+        poId: po.id,
+      })) as { invoice: { matchingStatus: string; poId: string | null } };
+      expect(applied.invoice.matchingStatus).toBe("matched");
+      expect(applied.invoice.poId).toBe(po.id);
+
+      await expect(
+        caller.procurement.invoices.applyMatchToOrder({
+          invoiceId: inv.id,
+          poId: po.id,
+        }),
+      ).resolves.toMatchObject({ ok: true });
+
+      await db
+        .update(invoiceLineItems)
+        .set({ lineTotal: "50" })
+        .where(and(eq(invoiceLineItems.invoiceId, inv.id), eq(invoiceLineItems.lineItemNumber, 1)));
+      await db
+        .update(invoices)
+        .set({ matchingStatus: "pending", amount: "100", updatedAt: new Date() })
+        .where(eq(invoices.id, inv.id));
+
+      await expect(
+        caller.procurement.invoices.applyMatchToOrder({
+          invoiceId: inv.id,
+          poId: po.id,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 

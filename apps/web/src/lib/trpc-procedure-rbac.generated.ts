@@ -413,6 +413,7 @@ export const TRPC_PROCEDURE_RBAC: Record<string, TrpcProcedureRbacRule> = {
   "procurement.approvalRules.get": { kind: "rbac", module: "procurement" as Module, action: "read" as RbacAction },
   "procurement.approvalRules.update": { kind: "adminRole" },
   "procurement.dashboard": { kind: "rbac", module: "procurement" as Module, action: "read" as RbacAction },
+  "procurement.invoices.applyMatchToOrder": { kind: "rbac", module: "financial" as Module, action: "write" as RbacAction },
   "procurement.invoices.list": { kind: "rbac", module: "financial" as Module, action: "read" as RbacAction },
   "procurement.invoices.matchToOrder": { kind: "rbac", module: "financial" as Module, action: "read" as RbacAction },
   "procurement.legalEntityOptions": { kind: "rbac", module: "procurement" as Module, action: "read" as RbacAction },

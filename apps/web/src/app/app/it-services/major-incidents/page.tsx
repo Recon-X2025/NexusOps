@@ -115,12 +115,17 @@ export default function MajorIncidentsPage() {
                     {t.title}
                   </Link>
                 </div>
-                <Link
-                  href={`/app/tickets/${t.id}`}
-                  className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
-                >
-                  {formatRelativeTime(t.updatedAt)}
-                </Link>
+                <div className="shrink-0 flex flex-col items-end gap-0.5 text-[11px]">
+                  <Link
+                    href={`/app/it-services/major-incidents/war-room/${t.id}`}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    War room
+                  </Link>
+                  <Link href={`/app/tickets/${t.id}`} className="text-muted-foreground hover:text-foreground">
+                    {formatRelativeTime(t.updatedAt)}
+                  </Link>
+                </div>
               </div>
             </li>
           ))}
