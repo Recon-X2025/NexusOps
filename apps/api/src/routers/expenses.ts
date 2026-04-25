@@ -2,8 +2,8 @@
  * Financial expense **reports** (expense_reports / line items) — distinct from
  * `hr.expenses` (employee `expense_claims`), which powers the web Expenses page.
  *
- * Not mounted on `appRouter` until a UI or integration consumes it; avoids a
- * duplicate top-level `expenses` tree alongside `hr.expenses`.
+ * Mounted on `appRouter` as **`expenseReports`** so finance integrations and
+ * reporting can use `trpc.expenseReports.*` without colliding with `hr.expenses`.
  */
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";

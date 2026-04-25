@@ -136,8 +136,7 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
     !isPending &&
     errorCode !== "UNAUTHORIZED" &&
     errorCode !== "FORBIDDEN" &&
-    errorCode !== "NOT_FOUND" &&
-    process.env.NODE_ENV !== "production";
+    errorCode !== "NOT_FOUND";
 
   const { data: incidentsPage } = trpc.tickets.list.useQuery({ type: "incident", limit: 5 }, mergeTrpcQueryOpts("tickets.list", { enabled: isAuthenticated && canAccess("incidents") }));
   const incidents = incidentsPage?.items ?? [];
@@ -186,10 +185,17 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
 
       {isApiDown && (
         <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-          Could not reach the NexusOps API ({process.env.NEXT_PUBLIC_API_URL ?? (typeof window !== "undefined" ? `${window.location.hostname}:3001` : "localhost:3001")}). Start the API
-          (<code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">pnpm --filter @nexusops/api dev</code>) and
-          ensure Postgres/Redis match your <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">.env</code>.
-          KPIs below use demo fallbacks until the connection works.
+          <p className="font-medium">Could not load live metrics from the NexusOps API.</p>
+          <p className="mt-1 opacity-90">
+            Check that the API is running and reachable
+            {process.env.NEXT_PUBLIC_API_URL ? ` (${process.env.NEXT_PUBLIC_API_URL})` : ""}.
+            KPIs below may be incomplete until the connection is restored.
+          </p>
+          {process.env.NODE_ENV !== "production" && (
+            <p className="mt-1 opacity-80">
+              Dev: start the API (e.g. <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">pnpm --filter @nexusops/api dev</code>) and align Postgres/Redis with <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/60">.env</code>.
+            </p>
+          )}
         </div>
       )}
 
@@ -237,6 +243,47 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
           <KPICard label="Failed Deploys" value={failedDeploys} color="text-red-700" href="/app/developer-ops" icon={Target} />
         )}
       </div>
+
+      {can("financial", "read") && can("reports", "read") && metrics != null && (() => {
+        const m = metrics as typeof metrics & {
+          payableOutstanding?: number;
+          receivableOutstanding?: number;
+          openIncidents?: number;
+          totalAssets?: number;
+        };
+        return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <KPICard
+            label="AP outstanding"
+            value={`₹${Math.round(Number(m.payableOutstanding ?? 0)).toLocaleString("en-IN")}`}
+            color="text-amber-800"
+            href="/app/financial"
+            icon={Banknote}
+          />
+          <KPICard
+            label="AR outstanding"
+            value={`₹${Math.round(Number(m.receivableOutstanding ?? 0)).toLocaleString("en-IN")}`}
+            color="text-emerald-800"
+            href="/app/financial"
+            icon={TrendingUp}
+          />
+          <KPICard
+            label="Open incidents"
+            value={m.openIncidents ?? 0}
+            color="text-red-700"
+            href="/app/tickets"
+            icon={AlertTriangle}
+          />
+          <KPICard
+            label="Assets tracked"
+            value={m.totalAssets ?? 0}
+            color="text-slate-700"
+            href="/app/ham"
+            icon={Layers}
+          />
+        </div>
+        );
+      })()}
 
       {/* Main content grid */}
       <div className="grid grid-cols-3 gap-3 flex-1 items-start">

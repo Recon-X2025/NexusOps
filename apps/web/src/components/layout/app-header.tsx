@@ -161,7 +161,7 @@ function getPrimaryRole(roles: string[]): string {
 }
 
 function RoleSwitcher() {
-  const { currentUser, switchUser, mergeTrpcQueryOpts } = useRBAC();
+  const { currentUser, switchUser } = useRBAC();
   const [open, setOpen] = useState(false);
 
   return (
@@ -502,7 +502,7 @@ export function AppHeader() {
   const { resolvedTheme, setTheme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
   useEffect(() => setThemeMounted(true), []);
-  const { currentUser, can, isAdmin, isDemoMode, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
+  const { currentUser, can, isAdmin, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
 
   const canCreateTicket = can("incidents", "write") || can("requests", "write");
@@ -808,8 +808,8 @@ export function AppHeader() {
         {/* Notifications */}
         <NotificationBell />
 
-        {/* RBAC Role switcher — dev builds only; hidden in production */}
-        {isDemoMode && process.env.NODE_ENV !== "production" && <RoleSwitcher />}
+        {/* RBAC demo switcher — opt-in only (avoid mock users in customer-facing builds). */}
+        {process.env.NEXT_PUBLIC_ENABLE_DEMO_ROLE_SWITCHER === "true" && <RoleSwitcher />}
 
         {/* Admin console — admins only */}
         {showAdminLink && (

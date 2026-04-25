@@ -11,35 +11,27 @@ import {
 import { trpc } from "@/lib/trpc";
 
 export default function ApprovalsScreen() {
-  const approvalsQ = trpc.approvals.list.useQuery({
-    status: "pending",
-    limit: 50,
-  });
+  const approvalsQ = trpc.approvals.myPending.useQuery(undefined);
   const utils = trpc.useUtils();
 
-  const approveMut = trpc.approvals.approve.useMutation({
-    onSuccess: () => void utils.approvals.list.invalidate(),
+  const decideMut = trpc.approvals.decide.useMutation({
+    onSuccess: () => void utils.approvals.myPending.invalidate(),
     onError: (e: any) => Alert.alert("Error", e?.message ?? "Failed"),
   });
 
-  const rejectMut = trpc.approvals.reject.useMutation({
-    onSuccess: () => void utils.approvals.list.invalidate(),
-    onError: (e: any) => Alert.alert("Error", e?.message ?? "Failed"),
-  });
-
-  const items = ((approvalsQ.data as any)?.items ?? []) as any[];
+  const items = (approvalsQ.data ?? []) as any[];
 
   function handleApprove(id: string) {
     Alert.alert("Approve?", "Confirm approval of this request.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Approve", onPress: () => approveMut.mutate({ id, comments: "Approved from mobile" }) },
+      { text: "Approve", onPress: () => decideMut.mutate({ requestId: id, decision: "approved", comment: "Approved from mobile" }) },
     ]);
   }
 
   function handleReject(id: string) {
     Alert.alert("Reject?", "Confirm rejection of this request.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Reject", style: "destructive", onPress: () => rejectMut.mutate({ id, comments: "Rejected from mobile" }) },
+      { text: "Reject", style: "destructive", onPress: () => decideMut.mutate({ requestId: id, decision: "rejected", comment: "Rejected from mobile" }) },
     ]);
   }
 
@@ -50,20 +42,20 @@ export default function ApprovalsScreen() {
           <Text style={styles.type}>{(item.type ?? "Request").replace(/_/g, " ")}</Text>
           <Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString("en-IN")}</Text>
         </View>
-        <Text style={styles.subject} numberOfLines={2}>{item.subject ?? item.title ?? "Approval Request"}</Text>
-        <Text style={styles.meta}>Requested by: {item.requestedByName ?? "—"}</Text>
+        <Text style={styles.subject} numberOfLines={2}>{item.title ?? item.subject ?? item.entityType ?? "Approval Request"}</Text>
+        <Text style={styles.meta}>Requested by: {item.requestedBy ?? item.requestedByName ?? "—"}</Text>
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.btn, styles.approveBtn]}
             onPress={() => handleApprove(item.id)}
-            disabled={approveMut.isPending}
+            disabled={decideMut.isPending}
           >
             <Text style={[styles.btnText, { color: "#065F46" }]}>✓ Approve</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.btn, styles.rejectBtn]}
             onPress={() => handleReject(item.id)}
-            disabled={rejectMut.isPending}
+            disabled={decideMut.isPending}
           >
             <Text style={[styles.btnText, { color: "#991B1B" }]}>✕ Reject</Text>
           </TouchableOpacity>

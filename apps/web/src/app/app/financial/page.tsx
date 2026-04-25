@@ -68,7 +68,9 @@ export default function FinancialPage() {
   });
 
   const [showNewInvoice, setShowNewInvoice] = useState(false);
+  const [showNewARInvoice, setShowNewARInvoice] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+  const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
   const createInvoiceMutation = trpc.financial.createInvoice.useMutation({
     onSuccess: () => {
       toast.success("Invoice created");
@@ -77,6 +79,15 @@ export default function FinancialPage() {
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
+  });
+  const createReceivableInvoiceMutation = trpc.financial.createReceivableInvoice.useMutation({
+    onSuccess: () => {
+      toast.success("Receivable invoice created");
+      setShowNewARInvoice(false);
+      setArInvoiceForm({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+      void utils.financial.listInvoices.invalidate();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create receivable"),
   });
   const { data: vendorListData } = trpc.vendors.list.useQuery({ limit: 100 }, mergeTrpcQueryOpts("vendors.list", { refetchOnWindowFocus: false }));
 
@@ -512,16 +523,32 @@ export default function FinancialPage() {
 
         {/* ACCOUNTS RECEIVABLE */}
         {tab === "ar" && (
-          <div className="p-4">
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                Counterparties use the <strong>Vendors</strong> master (e.g. customers as vendor records).
+              </p>
+              {can("financial", "write") && (
+                <button
+                  type="button"
+                  onClick={() => setShowNewARInvoice(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-[11px] bg-primary text-primary-foreground rounded hover:opacity-90"
+                >
+                  <Plus className="w-3 h-3" /> New receivable
+                </button>
+              )}
+            </div>
             {(() => {
               const arInvoices: any[] = (arInvoicesData as any)?.items ?? [];
-              const totalAR = arInvoices.reduce((s: number, i: any) => s + Number(i.totalAmount ?? 0), 0);
+              const totalAR = arInvoices.reduce((s: number, i: any) => s + Number(i.totalAmount ?? i.amount ?? 0), 0);
               const overdueAR = arInvoices.filter((i: any) => i.status === "overdue");
               return arInvoices.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+                <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground border border-dashed border-border rounded">
                   <TrendingUp className="w-8 h-8 opacity-30" />
-                  <p className="text-[13px]">No receivable invoices found</p>
-                  <p className="text-[11px] text-muted-foreground/60">Invoices with direction &apos;receivable&apos; will appear here.</p>
+                  <p className="text-[13px]">No receivable invoices yet</p>
+                  <p className="text-[11px] text-muted-foreground/60 text-center max-w-md">
+                    Create receivables issued to customers. Customer must exist in Vendors (add as &quot;customer&quot; vendor type if you use types).
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -540,15 +567,23 @@ export default function FinancialPage() {
                     </div>
                   </div>
                   <table className="ent-table w-full">
-                    <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
                       {arInvoices.map((inv: any) => (
                         <tr key={inv.id}>
                           <td><span className="font-mono text-[11px]">{inv.invoiceNumber ?? inv.number ?? inv.id.slice(0,8)}</span></td>
                           <td className="text-[12px]">{inv.vendorName ?? inv.customerName ?? "—"}</td>
-                          <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? 0).toLocaleString()}</td>
+                          <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? inv.amount ?? 0).toLocaleString()}</td>
                           <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
                           <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
+                          <td className="flex flex-wrap gap-2">
+                            {inv.status === "pending" && can("financial", "write") && (
+                              <button type="button" onClick={() => approveInvoiceMutation.mutate({ id: inv.id })} disabled={approveInvoiceMutation.isPending} className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">Approve</button>
+                            )}
+                            {(inv.status === "pending" || inv.status === "approved" || inv.status === "overdue") && can("financial", "write") && (
+                              <button type="button" onClick={() => markPaidMutation.mutate({ id: inv.id, paymentMethod: "collection" })} disabled={markPaidMutation.isPending} className="text-[10px] text-green-600 hover:underline disabled:opacity-50">Mark paid</button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -849,12 +884,72 @@ export default function FinancialPage() {
       </div>
     )}
 
+    {showNewARInvoice && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold">Create receivable (AR)</h2>
+            <button type="button" onClick={() => setShowNewARInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Customer (vendor record) *</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={arInvoiceForm.customerVendorId}
+                onChange={(e) => setArInvoiceForm((f) => ({ ...f, customerVendorId: e.target.value }))}
+              >
+                <option value="">— select —</option>
+                {((vendorListData as any)?.items ?? []).map((v: any) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Invoice Number *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. AR-2026-001" value={arInvoiceForm.invoiceNumber} onChange={(e) => setArInvoiceForm((f) => ({ ...f, invoiceNumber: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Amount (₹) *</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 250000" value={arInvoiceForm.amount} onChange={(e) => setArInvoiceForm((f) => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
+              <input type="date" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={arInvoiceForm.dueDate} onChange={(e) => setArInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button type="button" onClick={() => setShowNewARInvoice(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!arInvoiceForm.customerVendorId || !arInvoiceForm.invoiceNumber.trim() || !arInvoiceForm.amount) {
+                  toast.error("Customer, invoice number, and amount are required");
+                  return;
+                }
+                createReceivableInvoiceMutation.mutate({
+                  customerVendorId: arInvoiceForm.customerVendorId,
+                  invoiceNumber: arInvoiceForm.invoiceNumber.trim(),
+                  amount: arInvoiceForm.amount,
+                  dueDate: arInvoiceForm.dueDate || undefined,
+                });
+              }}
+              disabled={createReceivableInvoiceMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50"
+            >
+              {createReceivableInvoiceMutation.isPending ? "Creating…" : "Create receivable"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     {showNewInvoice && (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold">Create Invoice</h2>
-            <button onClick={() => setShowNewInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            <button type="button" onClick={() => setShowNewInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
           <div className="space-y-3">
             <div>

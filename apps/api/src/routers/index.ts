@@ -44,6 +44,7 @@ import { performanceRouter } from "./performance";
 import { customFieldsRouter } from "./custom-fields";
 import { accountingRouter } from "./accounting";
 import { payrollRouter } from "./payroll";
+import { expensesRouter } from "./expenses";
 
 export const appRouter = router({
   mac: macRouter,
@@ -98,6 +99,8 @@ export const appRouter = router({
   // Phase 7 — Custom Fields
   customFields: customFieldsRouter,
   payroll: payrollRouter,
+  /** Finance expense reports (`expense_reports`) — distinct from `hr.expenses` (claims). */
+  expenseReports: expensesRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -186,6 +186,7 @@ describe("Layer 1: Infrastructure Integrity", () => {
         "accounting",
         "customFields",
         "payroll",
+        "expenseReports",
       ];
 
       const missing = EXPECTED_ROUTERS.filter((r) => !routerPrefixes.has(r));

@@ -1131,6 +1131,46 @@ describe("Layer 8: Module Smoke Tests", () => {
       const aging = await caller.financial.apAging();
       expect(aging && typeof aging === "object").toBe(true);
     });
+
+    it("receivable invoice → listInvoices shape; expenseReports.create + listReports", async () => {
+      const caller = await authedCaller(adminToken);
+      const customer = (await caller.procurement.vendors.create({
+        name: "Layer8 AR customer",
+        contactEmail: `ar-l8-${Date.now()}@cust.test`,
+      })) as { id: string };
+      const rec = (await caller.financial.createReceivableInvoice({
+        customerVendorId: customer.id,
+        invoiceNumber: `AR-L8-${Date.now()}`,
+        amount: "1200.50",
+      })) as { id: string };
+
+      const arPage = (await caller.financial.listInvoices({
+        direction: "receivable",
+        limit: 50,
+      })) as {
+        items: Array<{
+          id: string;
+          direction: string;
+          totalAmount: string;
+          vendorName: string | null;
+        }>;
+      };
+      const row = arPage.items.find((r) => r.id === rec.id);
+      expect(row).toBeDefined();
+      expect(row!.direction).toBe("receivable");
+      expect(String(row!.totalAmount)).toBe("1200.50");
+      expect(row!.vendorName).toBeTruthy();
+
+      await caller.expenseReports.createReport({
+        title: "L8 expense report smoke",
+        currency: "USD",
+      });
+      const reports = await caller.expenseReports.listReports({ limit: 30 });
+      expect(Array.isArray(reports)).toBe(true);
+      expect(
+        (reports as { title: string }[]).some((r) => r.title === "L8 expense report smoke"),
+      ).toBe(true);
+    });
   });
 
   // ── 8.53 Inventory (Seq 22 — ITSM-grade depth) ─────────────────────────────

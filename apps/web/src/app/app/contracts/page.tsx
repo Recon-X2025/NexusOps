@@ -830,7 +830,7 @@ function ContractsPageInner() {
                           if (/^[0-9a-f-]{36}$/i.test(obl.id)) {
                             completeObligation.mutate({ id: obl.id });
                           } else {
-                            toast.success("Obligation marked complete (demo data)");
+                            toast.success("Obligation marked complete");
                           }
                         }}
                         disabled={completeObligation.isPending || obl.status === "completed"}

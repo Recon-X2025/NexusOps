@@ -14,6 +14,12 @@ import {
 } from "@nexusops/db";
 import { getTemporalClient } from "../lib/temporal";
 
+function isWorkflowEngineRequired(): boolean {
+  const v =
+    process.env.NEXUSOPS_WORKFLOW_ENGINE_REQUIRED ?? process.env.WORKFLOW_ENGINE_REQUIRED;
+  return v === "true" || v === "1";
+}
+
 const WorkflowNodeSchema = z.object({
   id: z.string(),
   type: z.string(),
@@ -226,6 +232,31 @@ export const workflowsRouter = router({
           .set({ temporalWorkflowId })
           .where(eq(workflowRuns.id, runId));
       } catch (temporalErr) {
+        const errMsg = String(temporalErr);
+        if (isWorkflowEngineRequired()) {
+          await db
+            .update(workflows)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(workflows.id, input.id));
+          await db
+            .update(workflowRuns)
+            .set({
+              status: "failed",
+              error: errMsg.slice(0, 2000),
+              completedAt: new Date(),
+              triggerData: {
+                triggeredBy: "publish",
+                temporalUnavailable: true,
+                temporalError: errMsg,
+              },
+            })
+            .where(eq(workflowRuns.id, runId));
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Workflow engine is required but unavailable",
+            cause: temporalErr,
+          });
+        }
         // Temporal is unavailable — mark the run with a metadata note but do
         // not fail the publish operation entirely.
         console.warn("[publish] Temporal unavailable, running in degraded mode:", temporalErr);
@@ -235,7 +266,7 @@ export const workflowsRouter = router({
             triggerData: {
               triggeredBy: "publish",
               temporalUnavailable: true,
-              temporalError: String(temporalErr),
+              temporalError: errMsg,
             },
           })
           .where(eq(workflowRuns.id, runId));

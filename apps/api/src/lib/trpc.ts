@@ -15,6 +15,7 @@ import {
   shortRef,
   type RequestMeta,
 } from "./logger";
+import { sanitizeForAudit } from "./audit-sanitize";
 
 export type Context = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -271,27 +272,6 @@ const enforceAuth = t.middleware(({ ctx, path, next }) => {
     },
   });
 });
-
-/** Fields that must never appear in audit change logs. */
-const SENSITIVE_KEYS = new Set([
-  "password", "passwordHash", "password_hash", "token", "secret", "key",
-  "apiKey", "api_key", "accessToken", "access_token", "refreshToken", "refresh_token",
-]);
-
-function sanitizeForAudit(obj: unknown): unknown {
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
-  const sanitized: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    if (SENSITIVE_KEYS.has(k)) {
-      sanitized[k] = "[REDACTED]";
-    } else if (v && typeof v === "object" && !Array.isArray(v)) {
-      sanitized[k] = sanitizeForAudit(v);
-    } else {
-      sanitized[k] = v;
-    }
-  }
-  return sanitized;
-}
 
 /**
  * Successful mutations → audit_logs.

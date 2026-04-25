@@ -1,7 +1,8 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { budgetLines, chargebacks, invoices, eq, and, desc, sum, sql } from "@nexusops/db";
+import { getTableColumns } from "drizzle-orm";
+import { budgetLines, chargebacks, invoices, vendors, eq, and, desc, sum, sql } from "@nexusops/db";
 
 export const financialRouter = router({
   // ── Budget ─────────────────────────────────────────────────────────────────
@@ -79,6 +80,38 @@ export const financialRouter = router({
       return inv;
     }),
 
+  /** Customer AR: counterparty is a row in `vendors` (e.g. vendor_type = customer). */
+  createReceivableInvoice: permissionProcedure("financial", "write")
+    .input(
+      z.object({
+        customerVendorId: z.string().uuid(),
+        invoiceNumber: z.string().min(1),
+        amount: z.string(),
+        dueDate: z.string().optional(),
+        invoiceDate: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [inv] = await db
+        .insert(invoices)
+        .values({
+          orgId: org!.id,
+          vendorId: input.customerVendorId,
+          invoiceFlow: "receivable",
+          invoiceNumber: input.invoiceNumber,
+          invoiceType: "tax_invoice",
+          amount: input.amount,
+          taxableValue: input.amount,
+          status: "pending",
+          matchingStatus: "pending",
+          invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
+          dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+        } as any)
+        .returning();
+      return inv;
+    }),
+
   listInvoices: permissionProcedure("financial", "read")
     .input(z.object({
       direction: z.enum(["payable", "receivable"]).optional(),
@@ -94,16 +127,31 @@ export const financialRouter = router({
       }
       if (input.status) conditions.push(eq(invoices.status, input.status as any));
 
-      const rows = await db
-        .select()
+      const base = await db
+        .select({
+          ...getTableColumns(invoices),
+          vendorName: vendors.name,
+        })
         .from(invoices)
+        .leftJoin(vendors, eq(invoices.vendorId, vendors.id))
         .where(and(...conditions))
         .orderBy(desc(invoices.createdAt))
         .limit(input.limit + 1)
         .offset(input.cursor ? parseInt(input.cursor) : 0);
 
-      const hasMore = rows.length > input.limit;
-      return { items: hasMore ? rows.slice(0, -1) : rows, nextCursor: hasMore ? String((input.cursor ? parseInt(input.cursor) : 0) + input.limit) : null };
+      const hasMore = base.length > input.limit;
+      const slice = hasMore ? base.slice(0, -1) : base;
+      const items = slice.map((row) => ({
+        ...row,
+        totalAmount: row.amount,
+        direction: row.invoiceFlow,
+        customerName: row.invoiceFlow === "receivable" ? row.vendorName : undefined,
+      }));
+
+      return {
+        items,
+        nextCursor: hasMore ? String((input.cursor ? parseInt(input.cursor) : 0) + input.limit) : null,
+      };
     }),
 
   approveInvoice: permissionProcedure("financial", "write")
@@ -132,8 +180,16 @@ export const financialRouter = router({
 
   apAging: permissionProcedure("financial", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
-    const rows = await db.select().from(invoices)
-      .where(and(eq(invoices.orgId, org!.id), sql`status IN ('pending','approved','overdue')`))
+    const rows = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.orgId, org!.id),
+          eq(invoices.invoiceFlow, "payable"),
+          sql`status IN ('pending','approved','overdue')`,
+        ),
+      )
       .orderBy(invoices.dueDate);
     const now = Date.now();
     const buckets = { current: 0, d30: 0, d60: 0, d90: 0, over90: 0 };

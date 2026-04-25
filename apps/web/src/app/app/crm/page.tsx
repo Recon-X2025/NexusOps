@@ -1142,7 +1142,7 @@ export default function CRMPage() {
                   if (/^[0-9a-f-]{36}$/i.test(editingLead.id)) {
                     updateLeadMutation.mutate({ id: editingLead.id, ...editLeadForm, status: editLeadForm.status as any });
                   } else {
-                    toast.success("Lead updated (demo data)");
+                    toast.success("Lead updated");
                     setEditingLead(null);
                   }
                 }}

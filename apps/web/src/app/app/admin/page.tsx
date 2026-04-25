@@ -245,21 +245,34 @@ export default function AdminConsolePage() {
                     Quick Links
                   </div>
                   <div className="divide-y divide-border">
-                    {[
-                      { label: "Manage Users", desc: "Create, edit, deactivate, reset passwords", tab: "users" },
-                      { label: "Role Assignments", desc: "Assign/revoke roles to users", tab: "roles" },
-                      { label: "RBAC Permission Matrix", desc: "Full module × action matrix", tab: "rbac" },
-                      { label: "SLA Definitions", desc: "Configure SLA targets per priority", tab: "sla_defs" },
-                      { label: "Business Rules", desc: "Automated record processing logic", tab: "biz_rules" },
-                      { label: "Audit Log", desc: "All system changes and user actions", tab: "audit_log" },
-                    ].map((l) => (
-                      <button key={l.tab} onClick={() => setTab(l.tab)} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 text-left">
-                        <div>
-                          <div className="text-[12px] font-medium text-foreground">{l.label}</div>
-                          <div className="text-[10px] text-muted-foreground/70">{l.desc}</div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/70" />
-                      </button>
+                    {(
+                      [
+                        { label: "Manage Users", desc: "Create, edit, deactivate, reset passwords", tab: "users" },
+                        { label: "Role Assignments", desc: "Assign/revoke roles to users", tab: "roles" },
+                        { label: "RBAC Permission Matrix", desc: "Full module × action matrix", tab: "rbac" },
+                        { label: "Custom Fields", desc: "Org field definitions for tickets, assets, and more", href: "/app/admin/custom-fields" },
+                        { label: "SLA Definitions", desc: "Configure SLA targets per priority", tab: "sla_defs" },
+                        { label: "Business Rules", desc: "Automated record processing logic", tab: "biz_rules" },
+                        { label: "Audit Log", desc: "All system changes and user actions", tab: "audit_log" },
+                      ] as const
+                    ).map((l) => (
+                      "href" in l ? (
+                        <Link key={l.href} href={l.href} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 text-left">
+                          <div>
+                            <div className="text-[12px] font-medium text-foreground">{l.label}</div>
+                            <div className="text-[10px] text-muted-foreground/70">{l.desc}</div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/70" />
+                        </Link>
+                      ) : (
+                        <button key={l.tab} type="button" onClick={() => setTab(l.tab)} className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 text-left">
+                          <div>
+                            <div className="text-[12px] font-medium text-foreground">{l.label}</div>
+                            <div className="text-[10px] text-muted-foreground/70">{l.desc}</div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/70" />
+                        </button>
+                      )
                     ))}
                   </div>
                 </div>

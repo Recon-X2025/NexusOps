@@ -36,6 +36,7 @@
     "check:trpc-parity": "VITEST_SKIP_GLOBAL_MIGRATE=1 pnpm --filter @nexusops/api exec vitest run src/__tests__/trpc-web-parity.test.ts",
     "audit:web-routes": "node scripts/audit-web-routes-trpc.mjs",
     "audit:web-routes:json": "node scripts/audit-web-routes-trpc.mjs --json",
+    "scorecard": "node scripts/product-scorecard-compute.mjs",
     "test:local-ready": "bash scripts/local-test-ready.sh",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",

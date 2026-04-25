@@ -1,51 +1,101 @@
-import { describe, it, expect } from "vitest";
+/**
+ * Auth contract tests (DB-backed). Layer 2 (`layer2-auth.test.ts`) is exhaustive;
+ * this file replaces placeholders with a stable smoke set for CI discovery.
+ */
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { nanoid } from "nanoid";
+import {
+  seedTestOrg,
+  seedUser,
+  cleanupOrg,
+  authedCaller,
+  createSession,
+  testDb,
+} from "./helpers";
+import { appRouter } from "../routers";
+import type { Context } from "../lib/trpc";
 
-describe("Auth: Login", () => {
-  it("should reject login with wrong password", async () => {
-    // Test structure - these would call actual tRPC procedures
-    // with a test DB. Documenting expected behavior:
-    expect(true).toBe(true); // placeholder
-    // Real test: auth.login({ email: "test@example.com", password: "wrongpassword" }) → throws UNAUTHORIZED
-  });
+const loginEmail = `auth-file-${nanoid(8)}@qa.nexusops.io`;
+const password = "TestPass123!";
 
-  it("should reject login for nonexistent user", async () => {
-    expect(true).toBe(true);
-    // Real test: auth.login({ email: "nonexistent@example.com", password: "anything" }) → throws UNAUTHORIZED (same error, no enumeration)
-  });
+function publicCaller() {
+  const db = testDb();
+  const ctx: Context = {
+    db,
+    mongoDb: null,
+    databaseProvider: "postgres",
+    user: null,
+    org: null,
+    orgId: null,
+    sessionId: null,
+    requestId: null,
+    ipAddress: "127.0.0.1",
+    userAgent: "vitest-auth-file",
+    idempotencyKey: null,
+  };
+  return appRouter.createCaller(ctx);
+}
 
-  it("should return session token on successful login", async () => {
-    expect(true).toBe(true);
-    // Real test: auth.login({ email: adminEmail, password }) → returns { sessionToken: string }
-  });
+let orgId: string;
+let seededUserId: string;
 
-  it("should reject expired session tokens", async () => {
-    expect(true).toBe(true);
-    // Real test: protectedProcedure with expired token → throws UNAUTHORIZED
+beforeAll(async () => {
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      "DATABASE_URL not set. Run: docker compose -f docker-compose.test.yml up -d && source .env.test",
+    );
+  }
+  const { orgId: oid } = await seedTestOrg(`auth-smoke-${nanoid(4)}`);
+  orgId = oid;
+  const { userId } = await seedUser(orgId, {
+    email: loginEmail,
+    role: "admin",
+    matrixRole: "admin",
+    password,
   });
-
-  it("should rate limit after 10 failed attempts", async () => {
-    expect(true).toBe(true);
-    // Real test: 11th failed login attempt for same email → throws TOO_MANY_REQUESTS
-  });
+  seededUserId = userId;
 });
 
-describe("Auth: Password Reset", () => {
-  it("should not error for nonexistent email (prevent enumeration)", async () => {
-    expect(true).toBe(true);
-    // auth.requestPasswordReset({ email: "nonexistent@example.com" }) → no error
-  });
-
-  it("should invalidate old sessions after password reset", async () => {
-    expect(true).toBe(true);
-  });
+afterAll(async () => {
+  await cleanupOrg(orgId);
 });
 
-describe("Auth: Session Management", () => {
-  it("should allow session revocation", async () => {
-    expect(true).toBe(true);
+describe.sequential("Auth (auth.test)", () => {
+  it("rejects wrong password", async () => {
+    await expect(
+      publicCaller().auth.login({ email: loginEmail, password: "wrong-password" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("should extend session on each valid request (sliding window)", async () => {
-    expect(true).toBe(true);
+  it("rejects nonexistent user (same error family)", async () => {
+    const ghostEmail = `ghost-${nanoid(10)}@example.invalid`;
+    await expect(
+      publicCaller().auth.login({ email: ghostEmail, password }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("session token from createSession authenticates (password login → layer2-auth.test.ts)", async () => {
+    const token = await createSession(seededUserId);
+    expect(token).toBeTruthy();
+    const caller = await authedCaller(token);
+    const metrics = await caller.dashboard.getMetrics();
+    expect(metrics).toBeDefined();
+  });
+
+  it("requestPasswordReset does not error for unknown email", async () => {
+    await expect(
+      publicCaller().auth.requestPasswordReset({ email: `ghost-${nanoid(8)}@example.invalid` }),
+    ).resolves.toBeDefined();
+  });
+
+  it("invalid bearer token fails authenticated procedures", async () => {
+    await expect(
+      (async () => {
+        const caller = await authedCaller("totally-invalid-token-xyz");
+        await caller.tickets.list({});
+      })(),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
   });
 });

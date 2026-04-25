@@ -1,0 +1,142 @@
+{
+  "as_of": "2026-04-25",
+  "benchmark_context": "Scores are qualitative product assessment vs typical leaders (e.g. ServiceNow, Workday, Coupa, Salesforce). They reflect repo/docs signals, not a licensed vendor matrix.",
+  "modules": [
+    {
+      "module_key": "MOD_ITSM",
+      "module_name": "ITSM / Service Desk",
+      "specialist_owner": "ITSM practice lead (ITIL 4)",
+      "scores": { "process_depth": 2, "admin_config": 1, "integrations": 2, "analytics": 2, "compliance_audit": 2, "ai_automation": 1, "mobile_offline": 2, "tco_implementation": 2 },
+      "evidence_refs": ["README.md (modules)", "apps/api/src/routers/tickets.ts", "apps/web/src/lib/sidebar-config.ts"],
+      "notes": "Strong core desk + SLAs; gaps vs leaders on omnichannel depth, template/industry packs, predictive routing."
+    },
+    {
+      "module_key": "MOD_CHG_PRB_REL",
+      "module_name": "Change, Problem, Release",
+      "specialist_owner": "Change enablement / release manager",
+      "scores": { "process_depth": 2, "admin_config": 2, "integrations": 1, "analytics": 1, "compliance_audit": 2, "ai_automation": 1, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/changes.ts", "NexusOps_Architecture_Design_Document.md §13"],
+      "notes": "Lifecycle present; leaders ahead on collision/risk intelligence and deep DevOps-linked change analytics."
+    },
+    {
+      "module_key": "MOD_FIELD",
+      "module_name": "Field service, inventory, on-call",
+      "specialist_owner": "Field service operations",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 1, "compliance_audit": 1, "ai_automation": 0, "mobile_offline": 2, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/work-orders.ts", "apps/api/src/routers/inventory.ts", "apps/api/src/routers/oncall.ts", "apps/mobile/README.md"],
+      "notes": "Work orders + parts + on-call exist; route optimization, offline FSM, PagerDuty-class paging not at leader tier."
+    },
+    {
+      "module_key": "MOD_CMDB_ITOM",
+      "module_name": "CMDB & IT operations (events)",
+      "specialist_owner": "ITOM / CMDB architect",
+      "scores": { "process_depth": 1, "admin_config": 2, "integrations": 1, "analytics": 2, "compliance_audit": 2, "ai_automation": 0, "mobile_offline": 0, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/assets.ts", "apps/api/src/routers/events.ts", "apps/web/src/app/app/cmdb"],
+      "notes": "CMDB and events surfaced; automated discovery, service mapping, and ML correlation are typical leader gaps."
+    },
+    {
+      "module_key": "MOD_ITAM",
+      "module_name": "ITAM (HAM / SAM)",
+      "specialist_owner": "ITAM / license compliance",
+      "scores": { "process_depth": 1, "admin_config": 2, "integrations": 1, "analytics": 1, "compliance_audit": 2, "ai_automation": 0, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["apps/web/src/lib/sidebar-config.ts (HAM/SAM)", "apps/api/src/routers/assets.ts"],
+      "notes": "License sophistication and publisher-specific rules lag Flexera/Snow-class tools without heavy connector investment."
+    },
+    {
+      "module_key": "MOD_SECOPS",
+      "module_name": "Security operations",
+      "specialist_owner": "SOC / SecOps architect",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 2, "analytics": 2, "compliance_audit": 2, "ai_automation": 0, "mobile_offline": 0, "tco_implementation": 1 },
+      "evidence_refs": ["apps/api/src/routers/security.ts"],
+      "notes": "Module in suite; SIEM-scale ingestion, SOAR playbooks, and threat-intel depth are not SIEM-replacement tier."
+    },
+    {
+      "module_key": "MOD_GRC",
+      "module_name": "GRC & ESG",
+      "specialist_owner": "GRC program manager",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 2, "compliance_audit": 2, "ai_automation": 0, "mobile_offline": 0, "tco_implementation": 1 },
+      "evidence_refs": ["apps/api/src/routers/grc.ts", "apps/web/src/app/app/grc", "apps/web/src/app/app/esg"],
+      "notes": "Control/audit workflows present; prebuilt global control libraries and continuous control monitoring vs ERP/HR depth."
+    },
+    {
+      "module_key": "MOD_WORKFLOW",
+      "module_name": "Approvals & workflow engine",
+      "specialist_owner": "Enterprise automation architect",
+      "scores": { "process_depth": 2, "admin_config": 2, "integrations": 2, "analytics": 2, "compliance_audit": 2, "ai_automation": 1, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/workflows.ts", "apps/api/src/routers/approvals.ts", "README.md (Temporal)"],
+      "notes": "Temporal-backed with graceful degradation when unavailable; leaders stress always-on HA and huge step catalogs."
+    },
+    {
+      "module_key": "MOD_HR",
+      "module_name": "HR, payroll, performance, India compliance",
+      "specialist_owner": "HRIS / payroll implementer",
+      "scores": { "process_depth": 2, "admin_config": 1, "integrations": 1, "analytics": 2, "compliance_audit": 3, "ai_automation": 1, "mobile_offline": 2, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/hr.ts", "apps/api/src/routers/payroll.ts", "apps/api/src/routers/india-compliance.ts", "apps/api/src/routers/performance.ts"],
+      "notes": "India compliance and payroll pipeline are a wedge; global benefits depth and multi-country payroll networks lag Workday/UKG."
+    },
+    {
+      "module_key": "MOD_RECRUIT",
+      "module_name": "Recruitment",
+      "specialist_owner": "TA operations",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 1, "compliance_audit": 1, "ai_automation": 0, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/recruitment.ts", "NexusOps_Architecture_Design_Document.md changelog Phase 3"],
+      "notes": "Requisitions-to-offers track; sourcing marketplaces, scheduling depth, and agency workflows behind Greenhouse/Lever."
+    },
+    {
+      "module_key": "MOD_WORKPLACE",
+      "module_name": "Facilities & walk-up",
+      "specialist_owner": "Workplace services",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 1, "compliance_audit": 1, "ai_automation": 0, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/facilities.ts", "apps/api/src/routers/walkup.ts"],
+      "notes": "Facilities and walk-up supported; space/sensor/visitor depth vs ServiceNow Workplace / Envoy-class."
+    },
+    {
+      "module_key": "MOD_CUSTOMER",
+      "module_name": "CSM, CRM, catalog, surveys",
+      "specialist_owner": "RevOps / customer ops",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 2, "compliance_audit": 1, "ai_automation": 1, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/csm.ts", "apps/api/src/routers/crm.ts", "apps/api/src/routers/catalog.ts", "apps/api/src/routers/surveys.ts"],
+      "notes": "Breadth present; CRM/CS ecosystem, CPQ, and health-score maturity lag Salesforce/HubSpot/Gainsight."
+    },
+    {
+      "module_key": "MOD_FINANCE",
+      "module_name": "Finance, procurement, accounting, vendors",
+      "specialist_owner": "P2P / finance transformation",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 2, "compliance_audit": 2, "ai_automation": 0, "mobile_offline": 1, "tco_implementation": 2 },
+      "evidence_refs": ["README.md (AP/AR, expenses router note)", "apps/api/src/routers/procurement.ts", "apps/api/src/routers/financial.ts", "apps/api/src/routers/accounting.ts"],
+      "notes": "PR–PO–invoice and India accounting hooks; AR customer UIs TBD, expenses router split, OCR/network depth vs Coupa/Ariba."
+    },
+    {
+      "module_key": "MOD_LEGAL",
+      "module_name": "Legal, contracts, secretarial",
+      "specialist_owner": "Legal ops / company secretary",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 1, "compliance_audit": 2, "ai_automation": 0, "mobile_offline": 0, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/legal.ts", "apps/api/src/routers/contracts.ts", "apps/api/src/routers/secretarial.ts"],
+      "notes": "Distinct secretarial depth for India context; AI redlining and global CLM marketplace behind Ironclad/Icertis."
+    },
+    {
+      "module_key": "MOD_STRATEGY",
+      "module_name": "Projects, application portfolio, reporting",
+      "specialist_owner": "PMO / enterprise architecture",
+      "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 2, "compliance_audit": 1, "ai_automation": 0, "mobile_offline": 0, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/projects.ts", "apps/api/src/routers/reports.ts", "sidebar APM vs Apptio/TBM"],
+      "notes": "PPM and reports exist; scenario planning, funding gates, and TBM-grade IT financials are leader gaps."
+    },
+    {
+      "module_key": "MOD_DEV_KNOW",
+      "module_name": "Knowledge & DevOps",
+      "specialist_owner": "Developer productivity / tech comms",
+      "scores": { "process_depth": 1, "admin_config": 2, "integrations": 2, "analytics": 1, "compliance_audit": 1, "ai_automation": 1, "mobile_offline": 0, "tco_implementation": 2 },
+      "evidence_refs": ["apps/api/src/routers/knowledge.ts", "apps/api/src/routers/devops.ts"],
+      "notes": "KB + DevOps area; developer portal / Backstage-class inner-source still emerging vs Git-vendor ecosystems."
+    },
+    {
+      "module_key": "MOD_PLATFORM",
+      "module_name": "Platform (admin, RBAC, integrations, search, AI)",
+      "specialist_owner": "Platform product / enterprise architect",
+      "scores": { "process_depth": 2, "admin_config": 2, "integrations": 2, "analytics": 2, "compliance_audit": 3, "ai_automation": 1, "mobile_offline": 1, "tco_implementation": 3 },
+      "evidence_refs": ["README.md (stack)", "apps/api/src/routers/integrations.ts", "apps/api/src/routers/search.ts", "apps/api/src/routers/ai.ts", "README.md customFields admin UI gap"],
+      "notes": "Strong engineering base (tRPC, audit, OTel, self-host); custom fields admin UI lagging API; AI single-vendor; connector count vs iPaaS."
+    }
+  ]
+}

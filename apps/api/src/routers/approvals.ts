@@ -151,7 +151,7 @@ export const approvalsRouter = router({
           requestId: input.requestId,
           orgId: org!.id,
           actorId: ctx.user!.id,
-          requesterId: request.approverId, // fallback: notify approver themselves if no requester col
+          requesterId: request.requesterId ?? request.approverId,
           decision: input.decision,
           comment: input.comment,
           resourceType: request.entityType ?? "Approval",

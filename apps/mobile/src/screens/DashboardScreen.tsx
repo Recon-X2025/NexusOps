@@ -13,7 +13,7 @@ import { useAuthStore } from "@/lib/auth-store";
 
 export default function DashboardScreen() {
   const userName  = useAuthStore(s => s.userName);
-  const statsQ    = trpc.dashboard.stats.useQuery({}, { staleTime: 30_000 });
+  const statsQ    = trpc.dashboard.getMetrics.useQuery(undefined, { staleTime: 30_000 });
   const stats     = (statsQ.data as any) ?? {};
 
   const KPI_CARDS = [

@@ -4,15 +4,14 @@ import {
   tickets,
   ticketStatuses,
   assets,
-  employees,
   approvalRequests,
+  invoices,
   eq,
   and,
   count,
-  desc,
+  sum,
   sql,
   gte,
-  lte,
 } from "@nexusops/db";
 import { getRedis } from "../lib/redis";
 import { rateLimit } from "../lib/rate-limit";
@@ -62,6 +61,10 @@ export const dashboardRouter = router({
         [slaBreachedCount],
         [totalCount],
         [resolvedCount],
+        [openIncidentsCount],
+        [payableOutstandingRow],
+        [receivableOutstandingRow],
+        [assetsCountRow],
       ] = await Promise.all([
         db
           .select({ count: count() })
@@ -110,6 +113,41 @@ export const dashboardRouter = router({
           .from(tickets)
           .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
           .where(and(eq(tickets.orgId, org!.id), eq(ticketStatuses.category, "resolved"))),
+        db
+          .select({ count: count() })
+          .from(tickets)
+          .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+          .where(
+            and(
+              eq(tickets.orgId, org!.id),
+              eq(tickets.type, "incident"),
+              eq(ticketStatuses.category, "open"),
+            ),
+          ),
+        db
+          .select({ total: sum(invoices.amount) })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.orgId, org!.id),
+              eq(invoices.invoiceFlow, "payable"),
+              sql`${invoices.status} NOT IN ('paid')`,
+            ),
+          ),
+        db
+          .select({ total: sum(invoices.amount) })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.orgId, org!.id),
+              eq(invoices.invoiceFlow, "receivable"),
+              sql`${invoices.status} NOT IN ('paid')`,
+            ),
+          ),
+        db
+          .select({ count: count() })
+          .from(assets)
+          .where(eq(assets.orgId, org!.id)),
       ]);
 
       const slaCompliance =
@@ -127,6 +165,10 @@ export const dashboardRouter = router({
         slaCompliancePct: slaCompliance,
         totalTickets: totalCount?.count ?? 0,
         resolvedTickets: resolvedCount?.count ?? 0,
+        openIncidents: openIncidentsCount?.count ?? 0,
+        payableOutstanding: Number(payableOutstandingRow?.total ?? 0),
+        receivableOutstanding: Number(receivableOutstandingRow?.total ?? 0),
+        totalAssets: assetsCountRow?.count ?? 0,
       };
     }).then((v) => {
       console.info("dashboard.getMetrics", { duration: Date.now() - start, orgId: org?.id });
