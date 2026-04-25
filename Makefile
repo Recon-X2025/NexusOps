@@ -1,10 +1,14 @@
-.PHONY: dev build test lint format docker-up docker-down docker-logs \
+.PHONY: dev dev-stack build test lint format docker-up docker-down docker-logs \
         db-push db-migrate db-seed db-studio install clean \
         docker-test-up docker-test-down docker-test-reset local-test-ready
 
 # ── Development ────────────────────────────────────────────────────────────
 dev:
 	pnpm dev
+
+# Docker dev infra + migrate + Turbo dev (requires Docker Desktop running)
+dev-stack:
+	bash scripts/start-dev-stack.sh
 
 build:
 	pnpm build

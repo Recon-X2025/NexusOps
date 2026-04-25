@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "turbo run dev",
+    "dev:stack": "bash scripts/start-dev-stack.sh",
     "build": "turbo run build",
     "test": "turbo run test",
     "test:e2e": "playwright test",
