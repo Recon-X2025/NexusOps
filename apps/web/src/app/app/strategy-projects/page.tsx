@@ -199,6 +199,51 @@ export default function StrategyProjectsDashboard() {
         <KPICard label="Total Projects" value={projects?.length ?? 0} color="text-green-700" icon={Target} href="/app/projects" isLoading={loadingProjects} />
       </div>
 
+      {canProjects && stratSum && !loadingStratSum && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-foreground/85">
+          <div className="rounded border border-border bg-card px-3 py-2">
+            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Initiative coverage</div>
+            <div className="font-semibold mt-0.5">
+              {stratSum.initiativeCoverage?.aligned ?? 0}
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                / {stratSum.initiativeCoverage?.inFlight ?? 0} in-flight
+              </span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">Projects aligned to a strategic initiative</div>
+          </div>
+          <div className="rounded border border-border bg-card px-3 py-2">
+            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Benefit tracking</div>
+            <div className="font-semibold mt-0.5">
+              {stratSum.benefits?.tracked ?? 0} targets · {stratSum.benefits?.withActual ?? 0} actuals
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">Outcome fields on projects (hub aggregate)</div>
+          </div>
+          <div className="rounded border border-border bg-card px-3 py-2">
+            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Dependency risk</div>
+            <div className="font-semibold mt-0.5">
+              {stratSum.portfolioDependencies?.riskSignalCount ?? 0}
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                / {stratSum.portfolioDependencies?.edgeCount ?? 0} edges
+              </span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">Successor in-flight while predecessor open</div>
+          </div>
+          <div className="rounded border border-border bg-card px-3 py-2">
+            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">APM ↔ projects</div>
+            <div className="font-semibold mt-0.5">
+              {stratSum.apmProjectLinks?.inFlightWithLinkedApps ?? 0}
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                / {stratSum.apmProjectLinks?.inFlightTotal ?? 0} in-flight
+              </span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">Migration / rationalization linkage</div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-2">
         {MODULES.map((m, idx) => {
           const Icon = m.icon;

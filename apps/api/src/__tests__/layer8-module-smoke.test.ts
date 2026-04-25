@@ -255,6 +255,31 @@ describe("Layer 8: Module Smoke Tests", () => {
       });
       expect(overlap).toHaveProperty("overlappingBlackouts");
     });
+
+    it("CAB approve requires risk score + questionnaire for high/critical (US-ITSM-007)", async () => {
+      const caller = await authedCaller(adminToken);
+      const ch = (await caller.changes.create({
+        title: `High risk CAB ${Date.now()}`,
+        risk: "high",
+        type: "normal",
+      })) as { id: string };
+      await caller.changes.submitForApproval({ id: ch.id });
+      await expect(caller.changes.approve({ changeId: ch.id })).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+      await caller.changes.approve({
+        changeId: ch.id,
+        riskScore: 18,
+        riskQuestionnaire: {
+          impact: "Sev-2 customer-facing",
+          likelihood: "Probable",
+          rollbackValidated: "yes",
+        },
+      });
+      const done = (await caller.changes.get({ id: ch.id })) as { status: string; riskScore: number | null };
+      expect(done.status).toBe("approved");
+      expect(done.riskScore).toBe(18);
+    });
   });
 
   // ── 8.03 Security Incidents ───────────────────────────────────────────────
@@ -752,6 +777,29 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(typeof s.activeProjectCount).toBe("number");
       expect(typeof s.atRiskByHealth).toBe("number");
     });
+
+    it("strategyDashboardSummary includes initiative / benefit / dependency / APM link stats (US-STR-004…008)", async () => {
+      const caller = await authedCaller(adminToken);
+      const s = (await caller.projects.strategyDashboardSummary()) as {
+        initiativeCoverage: { aligned: number; inFlight: number };
+        benefits: { tracked: number; withActual: number };
+        portfolioDependencies: { edgeCount: number; riskSignalCount: number };
+        apmProjectLinks: { inFlightWithLinkedApps: number; inFlightTotal: number };
+      };
+      expect(s.initiativeCoverage?.inFlight).toBeGreaterThanOrEqual(0);
+      expect(s.portfolioDependencies?.edgeCount).toBeGreaterThanOrEqual(0);
+      expect(s.apmProjectLinks?.inFlightTotal).toBeGreaterThanOrEqual(0);
+    });
+
+    it("portfolio dependency rejects cycles (US-STR-007)", async () => {
+      const caller = await authedCaller(adminToken);
+      const a = (await caller.projects.create({ name: `L8 dep A ${Date.now()}` })) as { id: string };
+      const b = (await caller.projects.create({ name: `L8 dep B ${Date.now()}` })) as { id: string };
+      await caller.projects.addProjectDependency({ fromProjectId: a.id, toProjectId: b.id });
+      await expect(
+        caller.projects.addProjectDependency({ fromProjectId: b.id, toProjectId: a.id }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
   });
 
   // ── 8.09 Knowledge ────────────────────────────────────────────────────────
@@ -781,6 +829,18 @@ describe("Layer 8: Module Smoke Tests", () => {
         helpful: true,
         comment: "Layer 8 smoke",
       });
+    });
+
+    it("knowledge.update snapshots prior content to listArticleVersions (US-ITSM-008)", async () => {
+      const caller = await authedCaller(adminToken);
+      const article = (await caller.knowledge.create({
+        title: `KB rev ${Date.now()}`,
+        content: "version one",
+        tags: ["layer8"],
+      })) as { id: string };
+      await caller.knowledge.update({ id: article.id, content: "version two" });
+      const revs = (await caller.knowledge.listArticleVersions({ articleId: article.id })) as { version: number }[];
+      expect(revs.some((r) => r.version === 1)).toBe(true);
     });
   });
 

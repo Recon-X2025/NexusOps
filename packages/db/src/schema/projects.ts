@@ -2,6 +2,7 @@ import {
   decimal,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -13,6 +14,7 @@ import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
 
 export const projectStatusEnum = pgEnum("project_status", [
+  "proposed",
   "planning",
   "active",
   "on_hold",
@@ -44,6 +46,23 @@ export const taskPriorityEnum = pgEnum("task_priority", [
   "critical",
 ]);
 
+// ── Strategic initiatives (US-STR-004) ─────────────────────────────────────
+export const strategicInitiatives = pgTable(
+  "strategic_initiatives",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    theme: text("theme"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("strategic_initiatives_org_idx").on(t.orgId),
+  }),
+);
+
 // ── Projects ───────────────────────────────────────────────────────────────
 export const projects = pgTable(
   "projects",
@@ -63,6 +82,13 @@ export const projects = pgTable(
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     department: text("department"),
     tags: text("tags").array().default([]),
+    initiativeId: uuid("initiative_id").references(() => strategicInitiatives.id, {
+      onDelete: "set null",
+    }),
+    benefitType: text("benefit_type"),
+    benefitTarget: decimal("benefit_target", { precision: 14, scale: 2 }),
+    benefitActual: decimal("benefit_actual", { precision: 14, scale: 2 }),
+    linkedApplicationIds: jsonb("linked_application_ids").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -70,6 +96,33 @@ export const projects = pgTable(
     orgNumberIdx: uniqueIndex("projects_org_number_idx").on(t.orgId, t.number),
     orgIdx: index("projects_org_idx").on(t.orgId),
     statusIdx: index("projects_status_idx").on(t.orgId, t.status),
+    initiativeIdx: index("projects_initiative_idx").on(t.initiativeId),
+  }),
+);
+
+// ── Project dependencies (US-STR-007) ─────────────────────────────────────
+export const projectDependencies = pgTable(
+  "project_dependencies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    fromProjectId: uuid("from_project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    toProjectId: uuid("to_project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    dependencyType: text("dependency_type").notNull().default("finish_to_start"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("project_dependencies_org_idx").on(t.orgId),
+    fromIdx: index("project_dependencies_from_idx").on(t.fromProjectId),
+    toIdx: index("project_dependencies_to_idx").on(t.toProjectId),
+    uniqPair: uniqueIndex("project_dependencies_pair_uidx").on(t.fromProjectId, t.toProjectId),
   }),
 );
 
@@ -115,11 +168,31 @@ export const projectTasks = pgTable(
   }),
 );
 
+export const strategicInitiativesRelations = relations(strategicInitiatives, ({ one, many }) => ({
+  org: one(organizations, { fields: [strategicInitiatives.orgId], references: [organizations.id] }),
+  projects: many(projects),
+}));
+
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   org: one(organizations, { fields: [projects.orgId], references: [organizations.id] }),
   owner: one(users, { fields: [projects.ownerId], references: [users.id] }),
+  initiative: one(strategicInitiatives, { fields: [projects.initiativeId], references: [strategicInitiatives.id] }),
   milestones: many(projectMilestones),
   tasks: many(projectTasks),
+}));
+
+export const projectDependenciesRelations = relations(projectDependencies, ({ one }) => ({
+  org: one(organizations, { fields: [projectDependencies.orgId], references: [organizations.id] }),
+  fromProject: one(projects, {
+    fields: [projectDependencies.fromProjectId],
+    references: [projects.id],
+    relationName: "project_dep_from",
+  }),
+  toProject: one(projects, {
+    fields: [projectDependencies.toProjectId],
+    references: [projects.id],
+    relationName: "project_dep_to",
+  }),
 }));
 
 export const projectMilestonesRelations = relations(projectMilestones, ({ one, many }) => ({

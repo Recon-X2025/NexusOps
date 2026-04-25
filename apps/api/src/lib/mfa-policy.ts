@@ -1,12 +1,16 @@
 import { TRPCError } from "@trpc/server";
-import { organizations, users, eq } from "@nexusops/db";
+import { organizations, users, auditLogs, eq } from "@nexusops/db";
 import { parseOrgSettings } from "./org-settings";
+import { sanitizeForAudit } from "./audit-sanitize";
 
 type MfaCtx = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any;
   orgId: string | null;
   user: Record<string, unknown> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  procedurePath?: string | null;
 };
 
 function effectiveMatrixRole(user: Record<string, unknown> | null): string {
@@ -49,6 +53,25 @@ export async function assertMfaIfRequired(ctx: MfaCtx): Promise<void> {
     .limit(1);
 
   if (u?.mfaEnrolled === true) return;
+
+  if (ctx.orgId && uid) {
+    ctx.db
+      .insert(auditLogs)
+      .values({
+        orgId: ctx.orgId,
+        userId: uid,
+        action: "mfa_policy_denied",
+        resourceType: "security",
+        resourceId: mine || "unknown_matrix_role",
+        changes: sanitizeForAudit({
+          reason: "MFA_ENROLLMENT_REQUIRED",
+          procedure: ctx.procedurePath ?? null,
+        }),
+        ipAddress: ctx.ipAddress ?? undefined,
+        userAgent: ctx.userAgent ?? undefined,
+      })
+      .catch(() => {});
+  }
 
   throw new TRPCError({
     code: "FORBIDDEN",

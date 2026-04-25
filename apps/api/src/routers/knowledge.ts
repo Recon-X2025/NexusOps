@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { kbArticles, kbFeedback, eq, and, desc, sql, or, ilike } from "@nexusops/db";
+import { kbArticles, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@nexusops/db";
 
 export const knowledgeRouter = router({
   list: permissionProcedure("knowledge", "read")
@@ -74,12 +74,51 @@ export const knowledgeRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const { id, ...data } = input;
-      const [article] = await db.update(kbArticles).set({ ...data, updatedAt: new Date() } as any)
-        .where(and(eq(kbArticles.id, id), eq(kbArticles.orgId, org!.id))).returning();
+      const [prev] = await db
+        .select()
+        .from(kbArticles)
+        .where(and(eq(kbArticles.id, id), eq(kbArticles.orgId, org!.id)));
+      if (!prev) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+      const titleChanged = data.title !== undefined && data.title !== prev.title;
+      const contentChanged = data.content !== undefined && data.content !== prev.content;
+      let nextVersion = prev.contentVersion ?? 1;
+      if (titleChanged || contentChanged) {
+        await db.insert(kbArticleRevisions).values({
+          articleId: id,
+          orgId: org!.id,
+          version: nextVersion,
+          title: prev.title,
+          content: prev.content,
+          createdBy: user!.id,
+        });
+        nextVersion += 1;
+      }
+
+      const [article] = await db
+        .update(kbArticles)
+        .set({
+          ...data,
+          contentVersion: titleChanged || contentChanged ? nextVersion : prev.contentVersion ?? 1,
+          updatedAt: new Date(),
+        } as any)
+        .where(and(eq(kbArticles.id, id), eq(kbArticles.orgId, org!.id)))
+        .returning();
       if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
       return article;
+    }),
+
+  listArticleVersions: permissionProcedure("knowledge", "read")
+    .input(z.object({ articleId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(kbArticleRevisions)
+        .where(and(eq(kbArticleRevisions.articleId, input.articleId), eq(kbArticleRevisions.orgId, org!.id)))
+        .orderBy(desc(kbArticleRevisions.version));
     }),
 
   publish: permissionProcedure("knowledge", "write")

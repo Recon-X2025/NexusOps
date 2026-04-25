@@ -17,6 +17,7 @@ import {
 } from "@nexusops/db";
 import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 import { parseOrgSettings } from "../lib/org-settings";
+import { sanitizeForAudit } from "../lib/audit-sanitize";
 import { invalidateSessionCache } from "../middleware/auth";
 
 export const adminRouter = router({
@@ -117,6 +118,14 @@ export const adminRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { userId, mfaEnrolled, ...rest } = input;
+        let prevMfa: boolean | null = null;
+        if (mfaEnrolled !== undefined) {
+          const [p] = await db
+            .select({ mfaEnrolled: users.mfaEnrolled })
+            .from(users)
+            .where(and(eq(users.id, userId), eq(users.orgId, org!.id)));
+          prevMfa = p?.mfaEnrolled ?? null;
+        }
         const patch: Record<string, unknown> = { ...rest, updatedAt: new Date() };
         if (mfaEnrolled !== undefined) patch.mfaEnrolled = mfaEnrolled;
         const [user] = await db
@@ -135,6 +144,21 @@ export const adminRouter = router({
         if (mfaEnrolled !== undefined && user) {
           const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
           await Promise.all(sess.map((s) => invalidateSessionCache(s.id)));
+          if (prevMfa !== mfaEnrolled) {
+            await db.insert(auditLogs).values({
+              orgId: org!.id,
+              userId: ctx.user!.id as string,
+              action: "user_mfa_attestation",
+              resourceType: "user",
+              resourceId: userId,
+              changes: sanitizeForAudit({ mfaEnrolled: { from: prevMfa, to: mfaEnrolled } }) as Record<
+                string,
+                unknown
+              >,
+              ipAddress: ctx.ipAddress ?? undefined,
+              userAgent: ctx.userAgent ?? undefined,
+            });
+          }
         }
         return user;
       }),
@@ -189,6 +213,25 @@ export const adminRouter = router({
             },
           })
           .where(eq(organizations.id, org!.id));
+        await db.insert(auditLogs).values({
+          orgId: org!.id,
+          userId: ctx.user!.id as string,
+          action: "security_policy_update",
+          resourceType: "organization",
+          resourceId: org!.id,
+          changes: sanitizeForAudit({
+            requireStepUpForMatrixRoles: {
+              before: prevSec.requireStepUpForMatrixRoles ?? null,
+              after: security.requireStepUpForMatrixRoles ?? null,
+            },
+            requireMfaForMatrixRoles: {
+              before: prevSec.requireMfaForMatrixRoles ?? null,
+              after: security.requireMfaForMatrixRoles ?? null,
+            },
+          }) as Record<string, unknown>,
+          ipAddress: ctx.ipAddress ?? undefined,
+          userAgent: ctx.userAgent ?? undefined,
+        });
         return {
           ok: true as const,
           requireStepUpForMatrixRoles: security.requireStepUpForMatrixRoles,

@@ -13,6 +13,121 @@ import {
 } from "@nexusops/db";
 import { getProcurementMatchToleranceAbs } from "./org-settings";
 
+/** Normalize descriptions for looser three-way line pairing (US-CRM-005 / US-FIN-005). */
+export function normalizeLineDescription(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9\s]/gi, "")
+    .trim();
+}
+
+type InvLine = typeof invoiceLineItems.$inferSelect;
+type PoLine = typeof poLineItems.$inferSelect;
+
+function evaluateInvoicePoLineRows(args: {
+  invLines: InvLine[];
+  poLines: PoLine[];
+  tolerance: number;
+  hasGrn: boolean;
+  grnByPoLine: Map<string, number>;
+}): { lineKeyedMatched: boolean; lineMatchRows: NonNullable<InvoicePoMatchResult["lineMatchRows"]> } {
+  const { invLines, poLines, tolerance, hasGrn, grnByPoLine } = args;
+  let lineKeyedMatched = true;
+  const lineMatchRows: NonNullable<InvoicePoMatchResult["lineMatchRows"]> = [];
+  if (invLines.length !== poLines.length) {
+    lineKeyedMatched = false;
+  }
+  const n = Math.max(invLines.length, poLines.length);
+  for (let i = 0; i < n; i++) {
+    const invL = invLines[i];
+    const poL = poLines[i];
+    if (!invL || !poL) {
+      lineKeyedMatched = false;
+      lineMatchRows.push({
+        lineIndex: i,
+        invoiceLineNumber: invL?.lineItemNumber ?? null,
+        poLineId: poL?.id ?? null,
+        invoiceLineTotal: invL ? parseFloat(String(invL.lineTotal)) : null,
+        poLineExtended: poL ? Number(poL.quantity) * parseFloat(String(poL.unitPrice)) : null,
+        grnLineValue: poL ? grnByPoLine.get(poL.id) ?? null : null,
+        poInvoiceDelta: null,
+        threeWayDelta: null,
+        ok: false,
+      });
+      continue;
+    }
+    const invAmt = parseFloat(String(invL.lineTotal));
+    const poAmt = Number(poL.quantity) * parseFloat(String(poL.unitPrice));
+    const poInvD = Math.abs(invAmt - poAmt);
+    let rowOk = poInvD <= tolerance;
+    let grnVal: number | null = null;
+    let threeWayD: number | null = null;
+    if (hasGrn) {
+      grnVal = grnByPoLine.get(poL.id) ?? 0;
+      threeWayD = Math.abs(invAmt - grnVal);
+      rowOk = rowOk && threeWayD <= tolerance;
+    }
+    if (!rowOk) lineKeyedMatched = false;
+    lineMatchRows.push({
+      lineIndex: i,
+      invoiceLineNumber: invL.lineItemNumber,
+      poLineId: poL.id,
+      invoiceLineTotal: invAmt,
+      poLineExtended: poAmt,
+      grnLineValue: grnVal,
+      poInvoiceDelta: poInvD,
+      threeWayDelta: threeWayD,
+      ok: rowOk,
+    });
+  }
+  return { lineKeyedMatched, lineMatchRows };
+}
+
+function greedyPairInvoicePoLines(
+  invSorted: InvLine[],
+  poSorted: PoLine[],
+  tolerance: number,
+  hasGrn: boolean,
+  grnByPoLine: Map<string, number>,
+): { lineKeyedMatched: boolean; lineMatchRows: NonNullable<InvoicePoMatchResult["lineMatchRows"]> } {
+  const used = new Set<string>();
+  const invOut: InvLine[] = [];
+  const poOut: PoLine[] = [];
+  for (const invL of invSorted) {
+    const invKey = normalizeLineDescription(invL.description);
+    const invAmt = parseFloat(String(invL.lineTotal));
+    let best: PoLine | null = null;
+    let bestScore = Infinity;
+    for (const poL of poSorted) {
+      if (used.has(poL.id)) continue;
+      const poAmt = Number(poL.quantity) * parseFloat(String(poL.unitPrice));
+      const descPenalty = normalizeLineDescription(poL.description) === invKey ? 0 : 1_000_000_000;
+      const score = descPenalty + Math.abs(invAmt - poAmt);
+      if (score < bestScore) {
+        bestScore = score;
+        best = poL;
+      }
+    }
+    if (!best) {
+      return { lineKeyedMatched: false, lineMatchRows: [] };
+    }
+    used.add(best.id);
+    invOut.push(invL);
+    poOut.push(best);
+  }
+  if (used.size !== poSorted.length) {
+    return { lineKeyedMatched: false, lineMatchRows: [] };
+  }
+  return evaluateInvoicePoLineRows({
+    invLines: invOut,
+    poLines: poOut,
+    tolerance,
+    hasGrn,
+    grnByPoLine,
+  });
+}
+
 export type InvoicePoMatchResult = {
   invoice: typeof invoices.$inferSelect;
   po: typeof purchaseOrders.$inferSelect;
@@ -114,52 +229,46 @@ export async function computeInvoicePoMatch(
   }
 
   if (lines.length > 0 && poLines.length > 0) {
-    if (invSorted.length !== poSorted.length) {
-      lineKeyedMatched = false;
-    }
-    const n = Math.max(invSorted.length, poSorted.length);
-    for (let i = 0; i < n; i++) {
-      const invL = invSorted[i];
-      const poL = poSorted[i];
-      if (!invL || !poL) {
-        lineKeyedMatched = false;
-        lineMatchRows!.push({
-          lineIndex: i,
-          invoiceLineNumber: invL?.lineItemNumber ?? null,
-          poLineId: poL?.id ?? null,
-          invoiceLineTotal: invL ? parseFloat(String(invL.lineTotal)) : null,
-          poLineExtended: poL ? Number(poL.quantity) * parseFloat(String(poL.unitPrice)) : null,
-          grnLineValue: poL ? grnByPoLine.get(poL.id) ?? null : null,
-          poInvoiceDelta: null,
-          threeWayDelta: null,
-          ok: false,
-        });
-        continue;
-      }
-      const invAmt = parseFloat(String(invL.lineTotal));
-      const poAmt = Number(poL.quantity) * parseFloat(String(poL.unitPrice));
-      const poInvD = Math.abs(invAmt - poAmt);
-      let rowOk = poInvD <= tolerance;
-      let grnVal: number | null = null;
-      let threeWayD: number | null = null;
-      if (invoice.grnId) {
-        grnVal = grnByPoLine.get(poL.id) ?? 0;
-        threeWayD = Math.abs(invAmt - grnVal);
-        rowOk = rowOk && threeWayD <= tolerance;
-      }
-      if (!rowOk) lineKeyedMatched = false;
-      lineMatchRows!.push({
-        lineIndex: i,
-        invoiceLineNumber: invL.lineItemNumber,
-        poLineId: poL.id,
-        invoiceLineTotal: invAmt,
-        poLineExtended: poAmt,
-        grnLineValue: grnVal,
-        poInvoiceDelta: poInvD,
-        threeWayDelta: threeWayD,
-        ok: rowOk,
+    const hasGrn = Boolean(invoice.grnId);
+    let pairingResult = evaluateInvoicePoLineRows({
+      invLines: invSorted,
+      poLines: poSorted,
+      tolerance,
+      hasGrn,
+      grnByPoLine,
+    });
+    lineKeyedMatched = pairingResult.lineKeyedMatched;
+    let rows = pairingResult.lineMatchRows;
+
+    if (!lineKeyedMatched && invSorted.length === poSorted.length) {
+      const invD = [...invSorted].sort((a, b) =>
+        normalizeLineDescription(a.description).localeCompare(normalizeLineDescription(b.description)),
+      );
+      const poD = [...poSorted].sort((a, b) =>
+        normalizeLineDescription(a.description).localeCompare(normalizeLineDescription(b.description)),
+      );
+      const byDesc = evaluateInvoicePoLineRows({
+        invLines: invD,
+        poLines: poD,
+        tolerance,
+        hasGrn,
+        grnByPoLine,
       });
+      if (byDesc.lineKeyedMatched) {
+        lineKeyedMatched = true;
+        rows = byDesc.lineMatchRows;
+      }
     }
+
+    if (!lineKeyedMatched) {
+      const greedy = greedyPairInvoicePoLines(invSorted, poSorted, tolerance, hasGrn, grnByPoLine);
+      if (greedy.lineKeyedMatched && greedy.lineMatchRows.length > 0) {
+        lineKeyedMatched = true;
+        rows = greedy.lineMatchRows;
+      }
+    }
+
+    lineMatchRows.push(...rows);
     matched = matched && lineKeyedMatched;
   }
 

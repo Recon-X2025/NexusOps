@@ -168,20 +168,71 @@ async function seed() {
   const highPrio = prios[1]!;
   const medPrio = prios[2]!;
 
-  // ── Tickets (20) ───────────────────────────────────────────────────────────
-  await db.insert(tickets).values([
-    { orgId: orgId, number: "INC-0001", title: "Email server is down", type: "incident", requesterId: agent1.id, assigneeId: agent2.id, statusId: openStatus.id, priorityId: critPrio.id, categoryId: cats[0]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0002", title: "VPN connectivity issues", type: "incident", requesterId: admin.id, assigneeId: agent1.id, statusId: inProgressStatus.id, priorityId: highPrio.id, categoryId: cats[0]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0003", title: "Password reset request", type: "request", requesterId: agent2.id, statusId: openStatus.id, priorityId: medPrio.id, categoryId: cats[0]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0004", title: "Database performance degradation", type: "problem", requesterId: admin.id, assigneeId: agent2.id, statusId: inProgressStatus.id, priorityId: critPrio.id, categoryId: cats[4]!.id, slaBreached: true },
-    { orgId: orgId, number: "INC-0005", title: "New laptop setup request", type: "request", requesterId: agent1.id, statusId: openStatus.id, priorityId: medPrio.id, categoryId: cats[0]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0006", title: "Printer not working on 3rd floor", type: "incident", requesterId: agent2.id, statusId: openStatus.id, priorityId: medPrio.id, categoryId: cats[2]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0007", title: "Suspicious login attempt detected", type: "incident", requesterId: admin.id, assigneeId: agent1.id, statusId: inProgressStatus.id, priorityId: critPrio.id, categoryId: cats[4]!.id, slaBreached: true },
-    { orgId: orgId, number: "INC-0008", title: "Software license renewal needed", type: "request", requesterId: agent1.id, statusId: openStatus.id, priorityId: highPrio.id, categoryId: cats[3]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0009", title: "Network switch failure", type: "incident", requesterId: agent2.id, assigneeId: agent1.id, statusId: inProgressStatus.id, priorityId: highPrio.id, categoryId: cats[0]!.id, slaBreached: false },
-    { orgId: orgId, number: "INC-0010", title: "HR system access issue", type: "request", requesterId: admin.id, statusId: openStatus.id, priorityId: medPrio.id, categoryId: cats[1]!.id, slaBreached: false },
-  ]);
-  console.log(`✅ Tickets created: 10`);
+  // ── Tickets (10) ───────────────────────────────────────────────────────────
+  // Tickets are seeded with realistic SLA deadlines computed from each row's
+  // priority + age, so the dashboard's "On Track" / "Breached" badge reflects
+  // the actual deadline math instead of a frozen boolean. The periodic SLA
+  // sweeper (apps/api/src/workflows/ticketLifecycleWorkflow.ts) will keep
+  // these in sync as time passes — but we set the initial value here so the
+  // dashboard is correct even before the worker has run.
+  const minutesAgo = (mins: number) => new Date(NOW.getTime() - mins * 60_000);
+  const dueFromCreated = (created: Date, mins: number | null | undefined) =>
+    mins != null && mins > 0 ? new Date(created.getTime() + mins * 60_000) : null;
+
+  type SeedTicket = {
+    number: string;
+    title: string;
+    type: "incident" | "request" | "problem" | "change";
+    requesterId: string;
+    assigneeId?: string;
+    statusId: string;
+    priority: typeof critPrio;
+    categoryId: string;
+    /** Minutes since the ticket was created. Drives both createdAt and SLA breach state. */
+    ageMins: number;
+  };
+
+  const ticketSeeds: SeedTicket[] = [
+    // Fresh — well within SLA
+    { number: "INC-0001", title: "Email server is down",            type: "incident", requesterId: agent1.id, assigneeId: agent2.id, statusId: openStatus.id,       priority: critPrio, categoryId: cats[0]!.id, ageMins: 15 },
+    { number: "INC-0002", title: "VPN connectivity issues",         type: "incident", requesterId: admin.id,  assigneeId: agent1.id, statusId: inProgressStatus.id, priority: highPrio, categoryId: cats[0]!.id, ageMins: 45 },
+    { number: "INC-0003", title: "Password reset request",          type: "request",  requesterId: agent2.id,                        statusId: openStatus.id,       priority: medPrio,  categoryId: cats[0]!.id, ageMins: 30 },
+    // Aged past resolve deadline → naturally breached by the math
+    { number: "INC-0004", title: "Database performance degradation",type: "problem",  requesterId: admin.id,  assigneeId: agent2.id, statusId: inProgressStatus.id, priority: critPrio, categoryId: cats[4]!.id, ageMins: 60 * 8 },
+    { number: "INC-0005", title: "New laptop setup request",        type: "request",  requesterId: agent1.id,                        statusId: openStatus.id,       priority: medPrio,  categoryId: cats[0]!.id, ageMins: 60 * 6 },
+    { number: "INC-0006", title: "Printer not working on 3rd floor",type: "incident", requesterId: agent2.id,                        statusId: openStatus.id,       priority: medPrio,  categoryId: cats[2]!.id, ageMins: 60 * 3 },
+    { number: "INC-0007", title: "Suspicious login attempt detected", type: "incident", requesterId: admin.id, assigneeId: agent1.id, statusId: inProgressStatus.id, priority: critPrio, categoryId: cats[4]!.id, ageMins: 60 * 12 },
+    { number: "INC-0008", title: "Software license renewal needed", type: "request",  requesterId: agent1.id,                        statusId: openStatus.id,       priority: highPrio, categoryId: cats[3]!.id, ageMins: 60 * 4 },
+    { number: "INC-0009", title: "Network switch failure",          type: "incident", requesterId: agent2.id, assigneeId: agent1.id, statusId: inProgressStatus.id, priority: highPrio, categoryId: cats[0]!.id, ageMins: 60 * 2 },
+    { number: "INC-0010", title: "HR system access issue",          type: "request",  requesterId: admin.id,                         statusId: openStatus.id,       priority: medPrio,  categoryId: cats[1]!.id, ageMins: 60 },
+  ];
+
+  await db.insert(tickets).values(
+    ticketSeeds.map((t) => {
+      const createdAt = minutesAgo(t.ageMins);
+      const slaResponseDueAt = dueFromCreated(createdAt, t.priority.slaResponseMinutes);
+      const slaResolveDueAt  = dueFromCreated(createdAt, t.priority.slaResolveMinutes);
+      // Breached at seed time iff resolve deadline has elapsed (matches sweeper logic).
+      const slaBreached = !!slaResolveDueAt && slaResolveDueAt.getTime() < NOW.getTime();
+      return {
+        orgId,
+        number: t.number,
+        title: t.title,
+        type: t.type,
+        requesterId: t.requesterId,
+        assigneeId: t.assigneeId,
+        statusId: t.statusId,
+        priorityId: t.priority.id,
+        categoryId: t.categoryId,
+        createdAt,
+        updatedAt: createdAt,
+        slaResponseDueAt: slaResponseDueAt ?? undefined,
+        slaResolveDueAt:  slaResolveDueAt  ?? undefined,
+        slaBreached,
+      };
+    }),
+  );
+  console.log(`✅ Tickets created: ${ticketSeeds.length}`);
 
   // ── Asset Types & Assets ───────────────────────────────────────────────────
   await db.insert(assetTypes).values([

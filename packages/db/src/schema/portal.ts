@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -40,12 +41,39 @@ export const kbArticles = pgTable(
       .notNull()
       .references(() => users.id),
     embeddingVector: text("embedding_vector"), // stored as JSON string of number[]
+    contentVersion: integer("content_version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     orgIdx: index("kb_articles_org_idx").on(t.orgId),
     statusIdx: index("kb_articles_status_idx").on(t.orgId, t.status),
+  }),
+);
+
+// ── KB article revisions (US-ITSM-008) ─────────────────────────────────────
+export const kbArticleRevisions = pgTable(
+  "kb_article_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    articleId: uuid("article_id")
+      .notNull()
+      .references(() => kbArticles.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    articleIdx: index("kb_article_revisions_article_idx").on(t.articleId),
+    articleVersionUidx: uniqueIndex("kb_article_revisions_article_version_uidx").on(
+      t.articleId,
+      t.version,
+    ),
   }),
 );
 
@@ -110,8 +138,15 @@ export const announcements = pgTable(
 );
 
 // ── Relations ──────────────────────────────────────────────────────────────
-export const kbArticlesRelations = relations(kbArticles, ({ one }) => ({
+export const kbArticlesRelations = relations(kbArticles, ({ one, many }) => ({
   org: one(organizations, { fields: [kbArticles.orgId], references: [organizations.id] }),
   author: one(users, { fields: [kbArticles.authorId], references: [users.id] }),
   category: one(ticketCategories, { fields: [kbArticles.categoryId], references: [ticketCategories.id] }),
+  revisions: many(kbArticleRevisions),
+}));
+
+export const kbArticleRevisionsRelations = relations(kbArticleRevisions, ({ one }) => ({
+  article: one(kbArticles, { fields: [kbArticleRevisions.articleId], references: [kbArticles.id] }),
+  org: one(organizations, { fields: [kbArticleRevisions.orgId], references: [organizations.id] }),
+  createdByUser: one(users, { fields: [kbArticleRevisions.createdBy], references: [users.id] }),
 }));

@@ -429,11 +429,14 @@ export const stepUpGate = t.middleware(async ({ ctx, next }) => {
 });
 
 /** Org policy: `settings.security.requireMfaForMatrixRoles` → `users.mfa_enrolled` must be true (US-SEC-001). */
-export const mfaGate = t.middleware(async ({ ctx, next }) => {
+export const mfaGate = t.middleware(async ({ ctx, next, path }) => {
   await assertMfaIfRequired({
     db: ctx.db,
     orgId: ctx.orgId,
     user: ctx.user as Record<string, unknown> | null,
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+    procedurePath: path,
   });
   return next();
 });

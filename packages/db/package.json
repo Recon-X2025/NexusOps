@@ -30,6 +30,7 @@
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx src/seed.ts",
     "db:seed:modules": "tsx src/seed-modules.ts",
+    "backfill:sla": "tsx src/scripts/backfill-sla-deadlines.ts",
     "db:studio": "drizzle-kit studio",
     "lint": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"

@@ -16,6 +16,7 @@ import {
 } from "../workflows/approvalWorkflow";
 import {
   createSlaQueue,
+  scheduleSlaSweep,
   startSlaWorker,
   type SlaJobData,
 } from "../workflows/ticketLifecycleWorkflow";
@@ -43,6 +44,13 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   });
   slaWorker.on("failed", (job, err) => {
     console.error(`[workflow:sla] Job ${job?.id} failed:`, err.message);
+  });
+
+  // Register the periodic SLA deadline sweeper. Idempotent — BullMQ
+  // dedupes repeatable jobs by (name, repeat options). Failure here is
+  // non-fatal: per-ticket delayed jobs still cover the happy path.
+  scheduleSlaSweep(slaQueue).catch((err) => {
+    console.warn("[workflow:sla] Failed to register periodic deadline sweeper:", err);
   });
 
   _instance = {

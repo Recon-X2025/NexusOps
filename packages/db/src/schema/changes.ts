@@ -85,6 +85,8 @@ export const changeRequests = pgTable(
     implementationPlan: text("implementation_plan"),
     testPlan: text("test_plan"),
     affectedCis: jsonb("affected_cis").$type<string[]>().default([]),
+    riskScore: integer("risk_score"),
+    riskQuestionnaire: jsonb("risk_questionnaire").$type<Record<string, unknown>>(),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

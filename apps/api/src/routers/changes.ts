@@ -53,6 +53,33 @@ function assertChangeTransition(from: string, to: string) {
   }
 }
 
+const CAB_RISK_Q_KEYS = ["impact", "likelihood", "rollbackValidated"] as const;
+
+/** US-ITSM-007: high/critical CAB approval requires score + structured questionnaire. */
+function assertCabRiskForApprove(
+  risk: string,
+  riskScore: number | null | undefined,
+  riskQuestionnaire: Record<string, unknown> | null | undefined,
+) {
+  if (risk !== "high" && risk !== "critical") return;
+  if (riskScore == null || riskScore < 1 || riskScore > 25) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "CAB approval requires riskScore between 1 and 25 for high/critical changes",
+    });
+  }
+  const q = riskQuestionnaire ?? {};
+  for (const k of CAB_RISK_Q_KEYS) {
+    const v = q[k];
+    if (v == null || String(v).trim() === "") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `CAB approval requires risk questionnaire field: ${k}`,
+      });
+    }
+  }
+}
+
 export const changesRouter = router({
   // ── Change Requests ──────────────────────────────────────────────────────
   list: permissionProcedure("changes", "read")
@@ -166,6 +193,8 @@ export const changesRouter = router({
       description: z.string().optional(),
       status: z.string().optional(),
       risk: z.string().optional(),
+      riskScore: z.coerce.number().int().min(1).max(25).optional(),
+      riskQuestionnaire: z.record(z.unknown()).optional(),
       scheduledStart: z.string().optional(),
       scheduledEnd: z.string().optional(),
       rollbackPlan: z.string().optional(),
@@ -211,20 +240,49 @@ export const changesRouter = router({
     }),
 
   approve: permissionProcedure("changes", "approve")
-    .input(z.object({ changeId: z.string().uuid(), comments: z.string().optional() }))
+    .input(
+      z.object({
+        changeId: z.string().uuid(),
+        comments: z.string().optional(),
+        riskScore: z.coerce.number().int().min(1).max(25).optional(),
+        riskQuestionnaire: z.record(z.unknown()).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [current] = await db.select({ status: changeRequests.status, version: changeRequests.version, requesterId: changeRequests.requesterId, title: changeRequests.title, number: changeRequests.number })
+      const [current] = await db
+        .select({
+          status: changeRequests.status,
+          version: changeRequests.version,
+          requesterId: changeRequests.requesterId,
+          title: changeRequests.title,
+          number: changeRequests.number,
+          risk: changeRequests.risk,
+          riskScore: changeRequests.riskScore,
+          riskQuestionnaire: changeRequests.riskQuestionnaire,
+        })
         .from(changeRequests)
         .where(and(eq(changeRequests.id, input.changeId), eq(changeRequests.orgId, org!.id)));
       if (!current) throw new TRPCError({ code: "NOT_FOUND" });
       assertChangeTransition(current.status, "approved");
+      const mergedQ = {
+        ...((current.riskQuestionnaire as Record<string, unknown> | null) ?? {}),
+        ...(input.riskQuestionnaire ?? {}),
+      };
+      const mergedScore = input.riskScore ?? current.riskScore ?? undefined;
+      assertCabRiskForApprove(String(current.risk), mergedScore, mergedQ);
       const [approval] = await db
         .insert(changeApprovals)
         .values({ changeId: input.changeId, approverId: user!.id, decision: "approved", comments: input.comments, decidedAt: new Date() })
         .returning();
       const [change] = await db.update(changeRequests)
-        .set({ status: "approved", version: sql`${changeRequests.version} + 1`, updatedAt: new Date() })
+        .set({
+          status: "approved",
+          riskScore: mergedScore ?? null,
+          riskQuestionnaire: mergedQ,
+          version: sql`${changeRequests.version} + 1`,
+          updatedAt: new Date(),
+        })
         .where(and(
           eq(changeRequests.id, input.changeId),
           eq(changeRequests.orgId, org!.id),
