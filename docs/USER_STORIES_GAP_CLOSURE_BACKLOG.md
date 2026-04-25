@@ -21,7 +21,7 @@
 
 ### Programme progress (rollup-derived)
 
-*Recalculate from **Status rollup** when statuses change. Last counted: **2026-04-25**.*
+*Recalculate from **Status rollup** when statuses change. Last counted: **2026-04-26**.*
 
 | Metric | Count |
 |--------|------:|
@@ -564,7 +564,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 
 ### Status rollup
 
-*Snapshot **last reviewed: 2026-04-25** (codebase paths: `apps/api`, `apps/web`, `packages/db`, `docs/`). Update this table on merge; do not let it rot.*
+*Snapshot **last reviewed: 2026-04-26** (codebase paths: `apps/api`, `apps/web`, `packages/db`, `docs/`, `tests/`). Update this table on merge; do not let it rot.*
 
 | ID | Status | Notes |
 |----|--------|--------|
@@ -638,6 +638,8 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | **US-ITSM-003** / **US-FIN-005** (partial): SLA operational health API + IT analytics UI; PO vs invoice line-sum three-way tightening. |
 | 2026-04-25 | **US-HCM-001** / **US-CRM-002** (partial): workplace hub snapshots (`facilities` / `walkup`); `crm.executiveSummary` + hub; programme counts refreshed. |
 | 2026-04-25 | **US-HCM-001** / **US-HCM-004** (partial): org workplace integration toggles; optional platform home HR strip (`hr.platformHomeStrip`, env flag); hub onboarding/offboarding stats from **HR case types**. |
+| 2026-04-26 | **Living document** refresh: rollup **last reviewed** + programme **last counted**; programme counts unchanged (**26** partial / **31** backlog / **1** deferred / **58** stories). |
+| 2026-04-26 | **Dev & QA defaults (non-story):** Full-QA / Playwright / chaos / k6 scripts default to **localhost:3000** (web) and **localhost:3001** (API) via `NEXUS_QA_BASE_URL` / `NEXUS_QA_API_URL`; `tests/run-full-qa.sh` exports the same; remote targets opt-in. **`scripts/push-to-vultr.sh`** requires **`VULTR_HOST`** (no baked-in IP). Documented in **`.env.example`**. |
 
 ---
 
