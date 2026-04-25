@@ -143,7 +143,7 @@ export const adminRouter = router({
           });
         if (mfaEnrolled !== undefined && user) {
           const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
-          await Promise.all(sess.map((s) => invalidateSessionCache(s.id)));
+          await Promise.all(sess.map((s: { id: string }) => invalidateSessionCache(s.id)));
           if (prevMfa !== mfaEnrolled) {
             await db.insert(auditLogs).values({
               orgId: org!.id,

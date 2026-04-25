@@ -318,12 +318,25 @@ function LeaveTab({ leaveData }: { leaveData: any }) {
 // ── Grade Distribution Tab ─────────────────────────────────────────────────────
 
 function GradesTab({ grades }: { grades: any }) {
+  const jobGrades = grades?.byJobGrade ?? [];
+  const departments = grades?.byDepartment ?? [];
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="bg-card border border-border rounded-xl p-5">
-        <h3 className="font-semibold mb-4">Grade / Level Distribution</h3>
-        <MiniBar data={(grades?.byGrade ?? []).filter((g: any) => g.grade)} valueKey="n" labelKey="grade" color="bg-violet-500" />
-        {(!grades?.byGrade?.length) && <p className="text-sm text-muted-foreground">No grade data available</p>}
+        <h3 className="font-semibold mb-4">Job grade (compensation ladder)</h3>
+        <p className="text-xs text-muted-foreground mb-3">Uses <code className="text-[11px]">employees.job_grade</code> when set (US-HCM-002).</p>
+        <MiniBar data={jobGrades.filter((g: any) => g.jobGrade)} valueKey="n" labelKey="jobGrade" color="bg-violet-500" />
+        {(!jobGrades?.length) && <p className="text-sm text-muted-foreground">No job grade data — set job grade on employee records.</p>}
+      </div>
+      <div className="bg-card border border-border rounded-xl p-5">
+        <h3 className="font-semibold mb-4">Department (org structure)</h3>
+        <MiniBar
+          data={departments.filter((g: any) => g.department)}
+          valueKey="n"
+          labelKey="department"
+          color="bg-slate-500"
+        />
+        {(!departments?.length) && <p className="text-sm text-muted-foreground">No department data available</p>}
       </div>
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-semibold mb-4">Management Span</h3>
@@ -340,7 +353,7 @@ function GradesTab({ grades }: { grades: any }) {
               <p className="text-sm font-medium">Individual Contributors</p>
               <p className="text-xs text-muted-foreground">Non-managers</p>
             </div>
-            <span className="text-3xl font-bold">{Math.max(0, (grades?.byGrade ?? []).reduce((s: number, g: any) => s + (g.n ?? 0), 0) - (grades?.managersCount ?? 0))}</span>
+            <span className="text-3xl font-bold">{Math.max(0, departments.reduce((s: number, g: any) => s + (g.n ?? 0), 0) - (grades?.managersCount ?? 0))}</span>
           </div>
         </div>
       </div>
@@ -362,9 +375,13 @@ export default function PeopleAnalyticsPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const [tab, setTab]   = useState<Tab>("overview");
   const [period, setPeriod] = useState(180);
+  const [scope, setScope] = useState<"org" | "my_team">("org");
 
   const { data: summary }   = trpc.workforce.summary.useQuery(undefined, mergeTrpcQueryOpts("workforce.summary", undefined));
-  const { data: headcount } = trpc.workforce.headcount.useQuery({ days: period }, mergeTrpcQueryOpts("workforce.headcount", undefined));
+  const { data: headcount } = trpc.workforce.headcount.useQuery(
+    { days: period, scope },
+    mergeTrpcQueryOpts("workforce.headcount", undefined),
+  );
   const { data: tenure }    = trpc.workforce.tenure.useQuery(undefined, mergeTrpcQueryOpts("workforce.tenure", undefined));
   const { data: attrition } = trpc.workforce.attrition.useQuery({ months: 12 }, mergeTrpcQueryOpts("workforce.attrition", undefined));
   const { data: leaveData } = trpc.workforce.leaveAnalytics.useQuery({ year: new Date().getFullYear() }, mergeTrpcQueryOpts("workforce.leaveAnalytics", undefined));
@@ -400,14 +417,27 @@ export default function PeopleAnalyticsPage() {
             <p className="text-sm text-muted-foreground">Headcount, attrition, leave utilisation, and grade insights</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-muted-foreground">Period:</label>
-          <select value={period} onChange={e => setPeriod(+e.target.value)} className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background">
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value={180}>Last 6 months</option>
-            <option value={365}>Last 12 months</option>
-          </select>
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Scope:</label>
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value as "org" | "my_team")}
+              className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background max-w-[11rem]"
+            >
+              <option value="org">Entire org</option>
+              <option value="my_team">My team (report chain)</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Period:</label>
+            <select value={period} onChange={e => setPeriod(+e.target.value)} className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background">
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+              <option value={180}>Last 6 months</option>
+              <option value={365}>Last 12 months</option>
+            </select>
+          </div>
         </div>
       </div>
 

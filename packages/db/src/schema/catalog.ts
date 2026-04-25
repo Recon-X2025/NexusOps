@@ -73,6 +73,10 @@ export const catalogRequests = pgTable(
     fulfillmentTicketId: uuid("fulfillment_ticket_id").references(() => tickets.id, {
       onDelete: "set null",
     }),
+    batchId: uuid("batch_id"),
+    fulfillmentChecklist: jsonb("fulfillment_checklist")
+      .$type<Array<{ id: string; label: string; done: boolean }>>()
+      .default([]),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -81,6 +85,7 @@ export const catalogRequests = pgTable(
     orgIdx: index("catalog_requests_org_idx").on(t.orgId),
     statusIdx: index("catalog_requests_status_idx").on(t.orgId, t.status),
     requesterIdx: index("catalog_requests_requester_idx").on(t.requesterId),
+    batchIdx: index("catalog_requests_batch_idx").on(t.orgId, t.batchId),
   }),
 );
 

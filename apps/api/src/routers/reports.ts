@@ -13,6 +13,8 @@ import {
   surveyResponses,
   ticketPriorities,
   users,
+  catalogRequests,
+  kbArticles,
   eq,
   and,
   or,
@@ -457,6 +459,76 @@ export const reportsRouter = router({
         categoryOptions,
       };
     }),
+
+  /** US-ITSM-009 — executive ITSM KPIs (tickets, SLA, changes, security, catalog, KB). */
+  itsmExecutiveScorecard: permissionProcedure("reports", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const since30 = new Date(Date.now() - 30 * 86400000);
+
+    const [{ openTickets }] = await db
+      .select({ openTickets: count() })
+      .from(tickets)
+      .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+      .where(
+        and(
+          eq(tickets.orgId, org!.id),
+          sql`${ticketStatuses.category} IN ('open', 'in_progress')`,
+        ),
+      );
+
+    const [{ breached30 }] = await db
+      .select({ breached30: count() })
+      .from(tickets)
+      .where(
+        and(eq(tickets.orgId, org!.id), eq(tickets.slaBreached, true), gte(tickets.createdAt, since30)),
+      );
+
+    const [{ pendingChanges }] = await db
+      .select({ pendingChanges: count() })
+      .from(changeRequests)
+      .where(
+        and(
+          eq(changeRequests.orgId, org!.id),
+          sql`${changeRequests.status} IN ('submitted', 'cab_review', 'approved', 'scheduled')`,
+        ),
+      );
+
+    const [{ openSec }] = await db
+      .select({ openSec: count() })
+      .from(securityIncidents)
+      .where(
+        and(
+          eq(securityIncidents.orgId, org!.id),
+          sql`${securityIncidents.status} NOT IN ('closed', 'false_positive')`,
+        ),
+      );
+
+    const [{ catalogDone }] = await db
+      .select({ catalogDone: count() })
+      .from(catalogRequests)
+      .where(
+        and(
+          eq(catalogRequests.orgId, org!.id),
+          eq(catalogRequests.status, "completed"),
+          gte(catalogRequests.createdAt, since30),
+        ),
+      );
+
+    const [{ kbNew }] = await db
+      .select({ kbNew: count() })
+      .from(kbArticles)
+      .where(and(eq(kbArticles.orgId, org!.id), gte(kbArticles.createdAt, since30)));
+
+    return {
+      openTickets: Number(openTickets),
+      ticketsSlaBreachedLast30d: Number(breached30),
+      pendingChanges: Number(pendingChanges),
+      openSecurityIncidents: Number(openSec),
+      catalogRequestsCompletedLast30d: Number(catalogDone),
+      kbArticlesCreatedLast30d: Number(kbNew),
+      generatedAt: new Date().toISOString(),
+    };
+  }),
 
   /** Phase A ITSM reporting pack — SLA, backlog ageing, reopens, volume (see docs/ITSM_PRODUCT_UPGRADE_PLAN_SNOW_SFDC.md). */
   itsmServiceDeskPack: permissionProcedure("reports", "read")

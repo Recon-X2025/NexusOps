@@ -11,6 +11,12 @@ import {
   leaveBalances,
   onboardingTemplates,
   users,
+  jobRequisitions,
+  candidateApplications,
+  surveys,
+  surveyResponses,
+  performanceReviews,
+  reviewCycles,
   eq,
   and,
   desc,
@@ -18,7 +24,10 @@ import {
   count,
   sql,
   isNull,
+  gte,
+  inArray,
 } from "@nexusops/db";
+import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { CreateLeaveRequestSchema } from "@nexusops/types";
 
 export const hrRouter = router({
@@ -151,6 +160,8 @@ export const hrRouter = router({
           department: z.string().optional(),
           title: z.string().optional(),
           managerId: z.string().uuid().nullable().optional(),
+          jobGrade: z.string().optional(),
+          dottedLineManagerId: z.string().uuid().nullable().optional(),
           employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).default("full_time"),
           location: z.string().optional(),
           startDate: z.coerce.date().optional(),
@@ -197,6 +208,8 @@ export const hrRouter = router({
             department: input.department,
             title: input.title,
             managerId: input.managerId,
+            jobGrade: input.jobGrade,
+            dottedLineManagerId: input.dottedLineManagerId,
             employmentType: input.employmentType,
             location: input.location,
             startDate: input.startDate,
@@ -213,6 +226,8 @@ export const hrRouter = router({
         department: z.string().optional(),
         title: z.string().optional(),
         managerId: z.string().uuid().nullable().optional(),
+        jobGrade: z.string().nullable().optional(),
+        dottedLineManagerId: z.string().uuid().nullable().optional(),
         location: z.string().optional(),
         employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).optional(),
       }))
@@ -1190,6 +1205,205 @@ export const hrRouter = router({
       }
       return kr!;
     }),
+  }),
+
+  /** US-HCM-003 — manager snapshot (primary reporting chain). */
+  managerHub: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+    const { db, org, user } = ctx;
+    const [me] = await db
+      .select()
+      .from(employees)
+      .where(and(eq(employees.orgId, org!.id), eq(employees.userId, user!.id)));
+    if (!me) return { ok: false as const, reason: "no_employee_record" as const };
+    const subtree = await collectReportSubtreeEmployeeIds(db, org!.id, me.id);
+    const teamEmployeeFilter =
+      subtree.length > 0 ? inArray(employees.id, subtree) : sql<boolean>`false`;
+
+    const [directReports] = await db
+      .select({ n: count() })
+      .from(employees)
+      .where(and(eq(employees.orgId, org!.id), eq(employees.managerId, me.id)));
+
+    const [teamHeadcount] = await db
+      .select({ n: count() })
+      .from(employees)
+      .where(
+        and(eq(employees.orgId, org!.id), eq(employees.status, "active"), teamEmployeeFilter),
+      );
+
+    const leaveFilter =
+      subtree.length > 0 ? inArray(leaveRequests.employeeId, subtree) : sql<boolean>`false`;
+    const [pendingLeave] = await db
+      .select({ n: count() })
+      .from(leaveRequests)
+      .where(
+        and(
+          eq(leaveRequests.orgId, org!.id),
+          eq(leaveRequests.status, "pending"),
+          leaveFilter,
+        ),
+      );
+
+    const caseFilter =
+      subtree.length > 0 ? inArray(hrCases.employeeId, subtree) : sql<boolean>`false`;
+    const [onboardingCases] = await db
+      .select({ n: count() })
+      .from(hrCases)
+      .where(
+        and(eq(hrCases.orgId, org!.id), eq(hrCases.caseType, "onboarding"), caseFilter),
+      );
+
+    const teamUserRows =
+      subtree.length > 0
+        ? await db
+            .select({ userId: employees.userId })
+            .from(employees)
+            .where(and(eq(employees.orgId, org!.id), inArray(employees.id, subtree)))
+        : [];
+    const teamUserIds = teamUserRows.map((r: (typeof teamUserRows)[number]) => r.userId).filter(Boolean) as string[];
+
+    let performanceCycle: {
+      cycleId: string;
+      cycleName: string;
+      cycleStatus: string;
+      teamReviewsOpen: number;
+      teamReviewsCompleted: number;
+    } | null = null;
+
+    if (teamUserIds.length > 0) {
+      const [cycle] = await db
+        .select()
+        .from(reviewCycles)
+        .where(
+          and(
+            eq(reviewCycles.orgId, org!.id),
+            inArray(reviewCycles.status, ["active", "calibration"]),
+          ),
+        )
+        .orderBy(desc(reviewCycles.updatedAt))
+        .limit(1);
+
+      if (cycle) {
+        const reviewRows = await db
+          .select({ status: performanceReviews.status })
+          .from(performanceReviews)
+          .where(
+            and(
+              eq(performanceReviews.orgId, org!.id),
+              eq(performanceReviews.cycleId, cycle.id),
+              inArray(performanceReviews.revieweeId, teamUserIds),
+            ),
+          );
+        const teamReviewsCompleted = reviewRows.filter(
+          (r: (typeof reviewRows)[number]) => r.status === "completed",
+        ).length;
+        performanceCycle = {
+          cycleId: cycle.id,
+          cycleName: cycle.name,
+          cycleStatus: cycle.status,
+          teamReviewsOpen: reviewRows.length - teamReviewsCompleted,
+          teamReviewsCompleted,
+        };
+      }
+    }
+
+    return {
+      ok: true as const,
+      directReports: Number(directReports?.n ?? 0),
+      teamHeadcountActive: Number(teamHeadcount?.n ?? 0),
+      pendingLeaveInTeam: Number(pendingLeave?.n ?? 0),
+      onboardingCasesInTeam: Number(onboardingCases?.n ?? 0),
+      performanceCycle,
+      deepLinkHr: "/app/hr",
+      deepLinkPerformance: "/app/performance",
+      note: "Team = primary reporting chain; HRBP org scope is `workforce.headcount` with `scope: org` (US-HCM-005).",
+    };
+  }),
+
+  /** US-HCM-007 — org chart payload (client lays out graph). */
+  orgChartSnapshot: permissionProcedure("hr", "read")
+    .input(z.object({ maxNodes: z.coerce.number().min(10).max(800).default(400) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const rows = await db
+        .select({
+          id: employees.id,
+          employeeId: employees.employeeId,
+          managerId: employees.managerId,
+          dottedLineManagerId: employees.dottedLineManagerId,
+          department: employees.department,
+          title: employees.title,
+          name: users.name,
+        })
+        .from(employees)
+        .innerJoin(users, eq(employees.userId, users.id))
+        .where(eq(employees.orgId, org!.id))
+        .orderBy(asc(users.name))
+        .limit(input.maxNodes);
+      const roots = rows
+        .filter((r: (typeof rows)[number]) => r.managerId == null)
+        .map((r: (typeof rows)[number]) => r.id);
+      return {
+        nodes: rows.map((r: (typeof rows)[number]) => ({
+          id: r.id,
+          label: `${r.name} (${r.employeeId})`,
+          managerId: r.managerId,
+          dottedLineManagerId: r.dottedLineManagerId,
+          department: r.department,
+          title: r.title,
+        })),
+        roots,
+      };
+    }),
+
+  /** US-HCM-006 — onboarding journey progress from HR case tasks. */
+  onboardingJourneyProgress: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const cases = await db
+      .select({ id: hrCases.id })
+      .from(hrCases)
+      .where(and(eq(hrCases.orgId, org!.id), eq(hrCases.caseType, "onboarding")));
+    let totalPct = 0;
+    for (const c of cases) {
+      const tasks = await db.select().from(hrCaseTasks).where(eq(hrCaseTasks.caseId, c.id));
+      const done = tasks.filter((t: (typeof tasks)[number]) => t.status === "done").length;
+      totalPct += tasks.length ? (done / tasks.length) * 100 : 0;
+    }
+    const n = cases.length;
+    return {
+      onboardingCaseCount: n,
+      averageTemplateProgressPct: n ? Math.round(totalPct / n) : 0,
+      deepLink: "/app/hr",
+    };
+  }),
+
+  /** US-HCM-008 — privacy-safe engagement + recruitment signals for People hub. */
+  peopleHubTalentSignals: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const since = new Date(Date.now() - 30 * 86400000);
+    const byType = await db
+      .select({ type: surveys.type, n: count() })
+      .from(surveyResponses)
+      .innerJoin(surveys, eq(surveyResponses.surveyId, surveys.id))
+      .where(and(eq(surveys.orgId, org!.id), gte(surveyResponses.submittedAt, since)))
+      .groupBy(surveys.type);
+    const [openReqs] = await db
+      .select({ n: count() })
+      .from(jobRequisitions)
+      .where(and(eq(jobRequisitions.orgId, org!.id), eq(jobRequisitions.status, "open")));
+    const [apps] = await db
+      .select({ n: count() })
+      .from(candidateApplications)
+      .innerJoin(jobRequisitions, eq(candidateApplications.jobId, jobRequisitions.id))
+      .where(eq(jobRequisitions.orgId, org!.id));
+    return {
+      surveyResponsesLast30dByType: byType.map((r: { type: string; n: unknown }) => ({
+        type: r.type,
+        count: Number(r.n),
+      })),
+      openRequisitions: Number(openReqs?.n ?? 0),
+      activeApplications: Number(apps?.n ?? 0),
+    };
   }),
 
   /** Flat alias for `hr.employees.list` — supports an optional `limit` used by OKR, Expenses, and Attendance pages. */

@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations } from "./auth";
 
@@ -11,6 +11,10 @@ export const legalEntities = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     code: text("code").notNull(),
     name: text("name").notNull(),
+    cin: text("cin"),
+    parentLegalEntityId: uuid("parent_legal_entity_id"),
+    holdingPercentage: numeric("holding_percentage", { precision: 6, scale: 2 }),
+    materialSubsidiary: boolean("material_subsidiary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

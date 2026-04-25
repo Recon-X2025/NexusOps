@@ -1,7 +1,22 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { securityIncidents, vulnerabilities, eq, and, desc, count, sql } from "@nexusops/db";
+import {
+  securityIncidents,
+  vulnerabilities,
+  secIncidentTicketLinks,
+  vulnerabilityExceptions,
+  privacyBreachNotificationProfiles,
+  resourceReadAuditEvents,
+  auditLogs,
+  tickets,
+  organizations,
+  eq,
+  and,
+  desc,
+  count,
+  sql,
+} from "@nexusops/db";
 import { getNextNumber } from "../lib/auto-number";
 
 const STATE_MACHINE: Record<string, string[]> = {
@@ -168,4 +183,265 @@ export const securityRouter = router({
       );
     return row?.count ?? 0;
   }),
+
+  // ── US-SEC-004 IR playbook + ITSM links ───────────────────────────────────
+  setIrPlaybookChecklist: permissionProcedure("security", "write")
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        checklist: z.array(z.object({ id: z.string(), label: z.string(), done: z.boolean() })),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .update(securityIncidents)
+        .set({ irPlaybookChecklist: input.checklist, updatedAt: new Date() })
+        .where(and(eq(securityIncidents.id, input.id), eq(securityIncidents.orgId, org!.id)))
+        .returning();
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
+    }),
+
+  linkIncidentToTicket: permissionProcedure("security", "write")
+    .input(z.object({ incidentId: z.string().uuid(), ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [inc] = await db
+        .select({ id: securityIncidents.id })
+        .from(securityIncidents)
+        .where(and(eq(securityIncidents.id, input.incidentId), eq(securityIncidents.orgId, org!.id)));
+      const [tk] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!inc || !tk) throw new TRPCError({ code: "NOT_FOUND", message: "Incident or ticket not in org" });
+      await db
+        .insert(secIncidentTicketLinks)
+        .values({ orgId: org!.id, incidentId: input.incidentId, ticketId: input.ticketId })
+        .onConflictDoNothing();
+      return { ok: true };
+    }),
+
+  listIncidentTicketLinks: permissionProcedure("security", "read")
+    .input(z.object({ incidentId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(secIncidentTicketLinks)
+        .where(
+          and(
+            eq(secIncidentTicketLinks.orgId, org!.id),
+            eq(secIncidentTicketLinks.incidentId, input.incidentId),
+          ),
+        );
+    }),
+
+  // ── US-SEC-005 vulnerability import / exceptions ───────────────────────────
+  importVulnerabilities: permissionProcedure("vulnerabilities", "write")
+    .input(
+      z.object({
+        source: z.string().default("scanner"),
+        findings: z.array(
+          z.object({
+            fingerprint: z.string().min(4),
+            title: z.string(),
+            cveId: z.string().optional(),
+            severity: z.enum(["critical", "high", "medium", "low", "none"]).default("medium"),
+            remediationSlaDays: z.coerce.number().min(1).max(365).optional(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const created: string[] = [];
+      const updated: string[] = [];
+      for (const f of input.findings) {
+        const due = f.remediationSlaDays
+          ? new Date(Date.now() + f.remediationSlaDays * 86400000)
+          : undefined;
+        const [existing] = await db
+          .select({ id: vulnerabilities.id })
+          .from(vulnerabilities)
+          .where(
+            and(
+              eq(vulnerabilities.orgId, org!.id),
+              eq(vulnerabilities.externalFingerprint, f.fingerprint),
+            ),
+          )
+          .limit(1);
+        if (existing) {
+          await db
+            .update(vulnerabilities)
+            .set({
+              title: f.title,
+              cveId: f.cveId,
+              severity: f.severity as any,
+              scannerSource: input.source,
+              remediationSlaDays: f.remediationSlaDays,
+              remediationDueAt: due,
+              updatedAt: new Date(),
+            })
+            .where(eq(vulnerabilities.id, existing.id));
+          updated.push(existing.id);
+        } else {
+          const [row] = await db
+            .insert(vulnerabilities)
+            .values({
+              orgId: org!.id,
+              externalFingerprint: f.fingerprint,
+              title: f.title,
+              cveId: f.cveId,
+              severity: f.severity as any,
+              scannerSource: input.source,
+              remediationSlaDays: f.remediationSlaDays,
+              remediationDueAt: due,
+            })
+            .returning();
+          if (row) created.push(row.id);
+        }
+      }
+      return { created, updated };
+    }),
+
+  createVulnerabilityException: permissionProcedure("vulnerabilities", "write")
+    .input(
+      z.object({
+        vulnerabilityId: z.string().uuid(),
+        reason: z.string().min(3),
+        expiresAt: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [v] = await db
+        .select({ id: vulnerabilities.id })
+        .from(vulnerabilities)
+        .where(and(eq(vulnerabilities.id, input.vulnerabilityId), eq(vulnerabilities.orgId, org!.id)));
+      if (!v) throw new TRPCError({ code: "NOT_FOUND" });
+      const [row] = await db
+        .insert(vulnerabilityExceptions)
+        .values({
+          orgId: org!.id,
+          vulnerabilityId: input.vulnerabilityId,
+          reason: input.reason,
+          approvedBy: user!.id,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+        })
+        .returning();
+      await db
+        .update(vulnerabilities)
+        .set({ status: "accepted", updatedAt: new Date() })
+        .where(eq(vulnerabilities.id, input.vulnerabilityId));
+      return row;
+    }),
+
+  // ── US-SEC-007 breach clocks ───────────────────────────────────────────────
+  listPrivacyBreachProfiles: permissionProcedure("security", "read").query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(privacyBreachNotificationProfiles)
+      .where(eq(privacyBreachNotificationProfiles.orgId, ctx.org!.id));
+  }),
+
+  upsertPrivacyBreachProfile: permissionProcedure("security", "write")
+    .input(
+      z.object({
+        jurisdictionCode: z.string().min(2),
+        regulatorName: z.string().optional(),
+        notificationOffsetHours: z.coerce.number().min(1).max(720).default(72),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [existing] = await db
+        .select({ id: privacyBreachNotificationProfiles.id })
+        .from(privacyBreachNotificationProfiles)
+        .where(
+          and(
+            eq(privacyBreachNotificationProfiles.orgId, org!.id),
+            eq(privacyBreachNotificationProfiles.jurisdictionCode, input.jurisdictionCode),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        await db
+          .update(privacyBreachNotificationProfiles)
+          .set({
+            regulatorName: input.regulatorName,
+            notificationOffsetHours: input.notificationOffsetHours,
+          })
+          .where(eq(privacyBreachNotificationProfiles.id, existing.id));
+      } else {
+        await db.insert(privacyBreachNotificationProfiles).values({
+          orgId: org!.id,
+          jurisdictionCode: input.jurisdictionCode,
+          regulatorName: input.regulatorName,
+          notificationOffsetHours: input.notificationOffsetHours,
+        });
+      }
+      return { ok: true };
+    }),
+
+  // ── US-SEC-003 SIEM-oriented export preview (structured JSON, no secrets) ──
+  siemExportPreview: permissionProcedure("security", "read")
+    .input(z.object({ limit: z.coerce.number().min(1).max(500).default(100) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const since = new Date(Date.now() - 7 * 86400000);
+      const logs = await db
+        .select({
+          id: auditLogs.id,
+          action: auditLogs.action,
+          resourceType: auditLogs.resourceType,
+          resourceId: auditLogs.resourceId,
+          userId: auditLogs.userId,
+          createdAt: auditLogs.createdAt,
+        })
+        .from(auditLogs)
+        .where(and(eq(auditLogs.orgId, org!.id), sql`${auditLogs.createdAt} >= ${since.toISOString()}::timestamptz`))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(input.limit);
+      const incidents = await db
+        .select({
+          id: securityIncidents.id,
+          number: securityIncidents.number,
+          severity: securityIncidents.severity,
+          status: securityIncidents.status,
+          updatedAt: securityIncidents.updatedAt,
+        })
+        .from(securityIncidents)
+        .where(eq(securityIncidents.orgId, org!.id))
+        .orderBy(desc(securityIncidents.updatedAt))
+        .limit(50);
+      return {
+        schema: "nexusops.security.siem_preview.v1",
+        windowDays: 7,
+        auditLogSample: logs,
+        securityIncidentSnapshot: incidents,
+      };
+    }),
+
+  /** Optional read-audit for sensitive modules (org.settings.security.sensitiveReadAuditEnabled). */
+  recordSensitiveRead: permissionProcedure("security", "write")
+    .input(z.object({ resourceType: z.string(), resourceId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [o] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const raw = (o?.settings ?? {}) as Record<string, unknown>;
+      const sec = (raw["security"] as Record<string, unknown> | undefined) ?? {};
+      if (sec["sensitiveReadAuditEnabled"] !== true) return { recorded: false };
+      await db.insert(resourceReadAuditEvents).values({
+        orgId: org!.id,
+        userId: user!.id,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+      });
+      return { recorded: true };
+    }),
 });

@@ -69,6 +69,14 @@ export default function PeopleWorkplaceDashboard() {
     undefined,
     mergeTrpcQueryOpts("walkup.hubSnapshot", { enabled: canWalkup && walkupLive }),
   );
+  const { data: obProg, isLoading: loadingOb } = trpc.hr.onboardingJourneyProgress.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("hr.onboardingJourneyProgress", { enabled: canHr }),
+  );
+  const { data: talentSig, isLoading: loadingTalent } = trpc.hr.peopleHubTalentSignals.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("hr.peopleHubTalentSignals", { enabled: canHr }),
+  );
 
   if (!can("hr", "read") && !can("facilities", "read") && !can("incidents", "read")) {
     return <AccessDenied module="People & Workplace" />;
@@ -143,6 +151,50 @@ export default function PeopleWorkplaceDashboard() {
         <KPICard label="Offboarding cases" value={offboardingCases} color="text-orange-700" icon={UserMinus} href="/app/hr" isLoading={loadingCases} />
         <KPICard label="Total Employees" value={totalEmployees} color="text-purple-700" icon={Users} href="/app/hr" isLoading={loadingEmp} />
       </div>
+
+      {canHr && (
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href="/app/hr"
+            className="bg-card border border-border rounded p-3 hover:border-primary/30 transition-colors flex flex-col gap-1"
+          >
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Onboarding journey</div>
+            <div className="text-xl font-bold text-foreground">
+              {loadingOb ? "…" : `${obProg?.averageTemplateProgressPct ?? 0}%`}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Avg template progress across {obProg?.onboardingCaseCount ?? 0} onboarding case
+              {(obProg?.onboardingCaseCount ?? 0) === 1 ? "" : "s"} · US-HCM-006
+            </div>
+          </Link>
+          <div className="bg-card border border-border rounded p-3 flex flex-col gap-1">
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Talent signals (30d)</div>
+            {loadingTalent ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-[12px] py-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <>
+                <div className="text-[12px] text-foreground">
+                  Open requisitions: <span className="font-semibold">{talentSig?.openRequisitions ?? 0}</span>
+                  {" · "}
+                  Applications: <span className="font-semibold">{talentSig?.activeApplications ?? 0}</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Survey responses by type (aggregated, no respondent PII) — US-HCM-008
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {(talentSig?.surveyResponsesLast30dByType ?? []).map((x: { type: string; count: number }) => (
+                    <span key={x.type} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground/80">
+                      {x.type}: {x.count}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-2">
         {MODULES.map((m, idx) => {

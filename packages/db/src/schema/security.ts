@@ -1,6 +1,7 @@
 import {
   decimal,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -65,6 +66,9 @@ export const securityIncidents = pgTable(
     containmentActions: jsonb("containment_actions").$type<Array<{ action: string; performedAt: string; performedBy: string }>>().default([]),
     affectedSystems: jsonb("affected_systems").$type<string[]>().default([]),
     timeline: jsonb("timeline").$type<Array<{ time: string; event: string; actor?: string }>>().default([]),
+    irPlaybookChecklist: jsonb("ir_playbook_checklist")
+      .$type<Array<{ id: string; label: string; done: boolean }>>()
+      .default([]),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,6 +97,10 @@ export const vulnerabilities = pgTable(
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     discoveredAt: timestamp("discovered_at", { withTimezone: true }),
     remediatedAt: timestamp("remediated_at", { withTimezone: true }),
+    externalFingerprint: text("external_fingerprint"),
+    scannerSource: text("scanner_source"),
+    remediationSlaDays: integer("remediation_sla_days"),
+    remediationDueAt: timestamp("remediation_due_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

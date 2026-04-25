@@ -1240,6 +1240,29 @@ describe("Layer 8: Module Smoke Tests", () => {
       const stats = await caller.catalog.stats();
       expect(stats).toBeDefined();
     });
+
+    it("submitCart — multi-item transaction + shared batch id (US-ITSM-005)", async () => {
+      const caller = await authedCaller(adminToken);
+      const a = (await caller.catalog.createItem({
+        name: "Cart item A",
+        category: "it",
+        approvalRequired: false,
+      })) as { id: string };
+      const b = (await caller.catalog.createItem({
+        name: "Cart item B",
+        category: "it",
+        approvalRequired: false,
+      })) as { id: string };
+      const cart = (await caller.catalog.submitCart({
+        items: [
+          { itemId: a.id, formData: {} },
+          { itemId: b.id, formData: {} },
+        ],
+      })) as { batchId: string; requests: { id: string; batchId: string | null }[] };
+      expect(cart.requests.length).toBe(2);
+      expect(cart.batchId).toBeDefined();
+      expect(cart.requests.every((r) => r.batchId === cart.batchId)).toBe(true);
+    });
   });
 
   // ── 8.36 Approvals ─────────────────────────────────────────────────────────
@@ -1385,6 +1408,22 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(updReq.status).toBe("in_progress");
     });
 
+    it("programme matrix + RPT CSV (US-LEG-007 / US-LEG-009+)", async () => {
+      const caller = await authedCaller(adminToken);
+      const matrix = await caller.legal.programmeMatrix();
+      expect(Array.isArray(matrix)).toBe(true);
+      expect(matrix.length).toBeGreaterThanOrEqual(24);
+      await caller.legal.createRelatedPartyTransaction({
+        counterpartyName: "Smoke RPT counterparty",
+        amount: "1000",
+        currency: "INR",
+        status: "draft",
+      });
+      const csv = await caller.legal.exportRelatedPartyCsv();
+      expect(csv).toContain("counterparty_name");
+      expect(csv).toContain("Smoke RPT counterparty");
+    });
+
     it("governanceSummary returns single composite round-trip with RBAC-scoped sections (US-LEG-001/002)", async () => {
       const caller = await authedCaller(adminToken);
       const summary = (await caller.legal.governanceSummary()) as {
@@ -1404,6 +1443,7 @@ describe("Layer 8: Module Smoke Tests", () => {
         contracts: {
           active: number;
           expiringSoon: number;
+          indiaFormalitiesAttention: number;
           expiringWithin30: Array<{
             id: string;
             number: string | null;
@@ -1443,6 +1483,7 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(summary.contracts).not.toBeNull();
       expect(Array.isArray(summary.contracts?.expiringWithin30)).toBe(true);
       expect(typeof summary.contracts?.expiringSoon).toBe("number");
+      expect(typeof summary.contracts?.indiaFormalitiesAttention).toBe("number");
       // US-LEG-004 AC: india-compliance calendar surfaced under same secretarial gate.
       expect(summary.indiaCompliance).not.toBeNull();
       expect(typeof summary.indiaCompliance?.overdue).toBe("number");
@@ -1480,7 +1521,7 @@ describe("Layer 8: Module Smoke Tests", () => {
       try {
         const { getRedis } = await import("../lib/redis.js");
         const redis = getRedis();
-        const keys = await redis.keys(`legal:governanceSummary:v2:${orgCtx.orgId}:*`);
+        const keys = await redis.keys(`legal:governanceSummary:v3:${orgCtx.orgId}:*`);
         if (keys.length) await redis.del(...keys);
       } catch {
         // Redis is best-effort in tests; if it's not available the helper falls back to live build.
@@ -1982,10 +2023,42 @@ describe("Layer 8: Module Smoke Tests", () => {
 
     it("workforce headcount + tenure", async () => {
       const caller = await authedCaller(adminToken);
-      const hc = await caller.workforce.headcount({ days: 180 });
+      const hc = await caller.workforce.headcount({ days: 180, scope: "org" });
       expect(typeof hc.total).toBe("number");
+      expect(hc.scope).toBe("org");
       const tenure = await caller.workforce.tenure();
       expect(Array.isArray(tenure)).toBe(true);
+      const grades = await caller.workforce.gradeDistribution();
+      expect(grades).toHaveProperty("byJobGrade");
+      expect(grades).toHaveProperty("byDepartment");
+    });
+
+    it("ITSM executive scorecard + SNOW dry-run (US-ITSM-009)", async () => {
+      const caller = await authedCaller(adminToken);
+      const score = await caller.reports.itsmExecutiveScorecard();
+      expect(score).toHaveProperty("openTickets");
+      const dry = await caller.integrations.serviceNowImportDryRun({
+        entity: "incident",
+        rows: [{ sys_id: "abc", short_description: "x" }],
+      });
+      expect(dry.wouldCreate).toBeGreaterThanOrEqual(1);
+    });
+
+    it("security: vuln import idempotency + SIEM preview (US-SEC-003/005)", async () => {
+      const caller = await authedCaller(adminToken);
+      const fp = `layer8-fp-${Date.now()}`;
+      const a = await caller.security.importVulnerabilities({
+        source: "layer8",
+        findings: [{ fingerprint: fp, title: "Smoke CVE", severity: "high", remediationSlaDays: 14 }],
+      });
+      expect(a.created.length).toBe(1);
+      const b = await caller.security.importVulnerabilities({
+        source: "layer8",
+        findings: [{ fingerprint: fp, title: "Smoke CVE updated", severity: "medium" }],
+      });
+      expect(b.updated.length).toBe(1);
+      const preview = await caller.security.siemExportPreview({ limit: 5 });
+      expect(preview.schema).toContain("siem_preview");
     });
 
     it("recruitment: create requisition → list", async () => {

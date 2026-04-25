@@ -75,6 +75,14 @@ export const legalMatters = pgTable(
     assignedTo: uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
     externalCounsel: text("external_counsel"),
     jurisdiction: text("jurisdiction"),
+    cnr: text("cnr"),
+    courtName: text("court_name"),
+    forum: text("forum"),
+    nextHearingAt: timestamp("next_hearing_at", { withTimezone: true }),
+    limitationDeadlineAt: timestamp("limitation_deadline_at", { withTimezone: true }),
+    arbitrationSeat: text("arbitration_seat"),
+    arbitrationInstitution: text("arbitration_institution"),
+    legalHold: boolean("legal_hold").notNull().default(false),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -83,6 +91,7 @@ export const legalMatters = pgTable(
     orgNumberIdx: uniqueIndex("legal_matters_org_number_idx").on(t.orgId, t.matterNumber),
     orgIdx: index("legal_matters_org_idx").on(t.orgId),
     statusIdx: index("legal_matters_status_idx").on(t.orgId, t.status),
+    nextHearingIdx: index("legal_matters_next_hearing_idx").on(t.orgId, t.nextHearingAt),
   }),
 );
 

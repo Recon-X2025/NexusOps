@@ -44,6 +44,8 @@ export * from "./accounting";
 export * from "./custom-fields";
 // Business rules engine (admin automation)
 export * from "./business-rules";
+// Issuer / India legal programme (§3.9 spine)
+export * from "./issuer-programme";
 
 // Re-export drizzle operators used in routers.
 // Single authoritative source — do NOT also export from packages/db/src/index.ts.

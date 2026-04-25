@@ -237,21 +237,21 @@ export const assetsRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
 
-        const cis = await db.select().from(ciItems).where(eq(ciItems.orgId, org!.id));
-        const byId = new Map(cis.map((c) => [c.id, c]));
+        const cis = (await db.select().from(ciItems).where(eq(ciItems.orgId, org!.id))) as CIItem[];
+        const byId = new Map(cis.map((c: CIItem) => [c.id, c]));
         if (!byId.has(input.rootCiId)) {
           throw new TRPCError({ code: "NOT_FOUND", message: "CI not found" });
         }
 
-        const rels =
+        const rels: CIRelationship[] =
           cis.length === 0
             ? []
-            : await db
+            : ((await db
                 .select()
                 .from(ciRelationships)
                 .where(
                   sql`${ciRelationships.sourceId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id}) AND ${ciRelationships.targetId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id})`,
-                );
+                )) as CIRelationship[]);
 
         const adj = new Map<string, Set<string>>();
         for (const r of rels) {
@@ -280,7 +280,7 @@ export const assetsRouter = router({
         }
 
         const nodeSet = visited;
-        const edgeRows = rels.filter((r) => nodeSet.has(r.sourceId) && nodeSet.has(r.targetId));
+        const edgeRows = rels.filter((r: CIRelationship) => nodeSet.has(r.sourceId) && nodeSet.has(r.targetId));
 
         return {
           rootCiId: input.rootCiId,
@@ -289,7 +289,7 @@ export const assetsRouter = router({
             const ci = byId.get(id)!;
             return { id: ci.id, name: ci.name, type: ci.ciType, status: ci.status };
           }),
-          edges: edgeRows.map((r) => ({
+          edges: edgeRows.map((r: CIRelationship) => ({
             id: r.id,
             source: r.sourceId,
             target: r.targetId,

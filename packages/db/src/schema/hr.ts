@@ -109,7 +109,9 @@ export const employees = pgTable(
     employeeId: text("employee_id").notNull(), // EMP-0001
     department: text("department"),
     title: text("title"),
+    jobGrade: text("job_grade"),
     managerId: uuid("manager_id"),
+    dottedLineManagerId: uuid("dotted_line_manager_id"),
     employmentType: employmentTypeEnum("employment_type").notNull().default("full_time"),
     location: text("location"),
     city: text("city"),

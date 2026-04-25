@@ -192,6 +192,8 @@ export const vendorRisks = pgTable(
     lastAssessed: timestamp("last_assessed", { withTimezone: true }),
     nextAssessment: timestamp("next_assessment", { withTimezone: true }),
     findings: jsonb("findings").$type<Record<string, unknown>>(),
+    attachmentRefs: jsonb("attachment_refs").$type<string[]>().default([]),
+    questionnaireAnswers: jsonb("questionnaire_answers").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -222,6 +224,26 @@ export const riskControls = pgTable(
   (t) => ({
     orgControlNumberIdx: uniqueIndex("risk_controls_org_number_idx").on(t.orgId, t.controlNumber),
     orgIdx: index("risk_controls_org_idx").on(t.orgId),
+  }),
+);
+
+// ── Risk control evidence (SOC-style artifacts) ───────────────────────────
+export const riskControlEvidence = pgTable(
+  "risk_control_evidence",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    controlId: uuid("control_id")
+      .notNull()
+      .references(() => riskControls.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    storageUri: text("storage_uri").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("risk_control_evidence_org_idx").on(t.orgId),
+    controlIdx: index("risk_control_evidence_control_idx").on(t.controlId),
   }),
 );
 

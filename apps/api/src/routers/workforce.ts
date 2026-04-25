@@ -1,43 +1,99 @@
 import { router, permissionProcedure } from "../lib/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   employees, leaveRequests, leaveBalances,
-  eq, and, desc, count, sql, asc,
+  eq, and, desc, count, sql, asc, inArray,
 } from "@nexusops/db";
+import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 
 export const workforceRouter = router({
 
   // ── Headcount ───────────────────────────────────────────────────────────────
 
   headcount: permissionProcedure("workforce_analytics", "read")
-    .input(z.object({ days: z.number().default(180) }))
+    .input(
+      z.object({
+        days: z.number().default(180),
+        /** US-HCM-005 — managers default to org-wide unless `my_team` (primary reporting chain). */
+        scope: z.enum(["org", "my_team"]).default("org"),
+      }),
+    )
     .query(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const since = new Date(Date.now() - input.days * 86400000).toISOString();
 
-      const [total]    = await db.select({ n: count() }).from(employees).where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
-      const [newHires] = await db.select({ n: count() }).from(employees)
-        .where(and(eq(employees.orgId, org!.id), sql`${employees.startDate} >= ${since}::timestamptz`));
-      const [resigned] = await db.select({ n: count() }).from(employees)
-        .where(and(eq(employees.orgId, org!.id), eq(employees.status, "terminated"), sql`${employees.updatedAt} >= ${since}::timestamptz`));
-      const [onLeave]  = await db.select({ n: count() }).from(employees)
-        .where(and(eq(employees.orgId, org!.id), eq(employees.status, "on_leave")));
+      let teamFilter: ReturnType<typeof inArray> | undefined;
+      if (input.scope === "my_team") {
+        const [me] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.orgId, org!.id), eq(employees.userId, user!.id)))
+          .limit(1);
+        if (!me) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No employee record for current user — cannot scope analytics to my_team.",
+          });
+        }
+        const subtree = await collectReportSubtreeEmployeeIds(db, org!.id, me.id);
+        teamFilter = inArray(
+          employees.id,
+          subtree.length ? subtree : ["00000000-0000-0000-0000-000000000001"],
+        );
+      }
 
-      const byDept = await db.select({ dept: employees.department, n: count() })
-        .from(employees).where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")))
-        .groupBy(employees.department).orderBy(desc(count()));
+      const scopeCond = teamFilter ? and(eq(employees.orgId, org!.id), teamFilter) : eq(employees.orgId, org!.id);
 
-      const byEmploymentType = await db.select({ type: employees.employmentType, n: count() })
-        .from(employees).where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")))
+      const [total] = await db
+        .select({ n: count() })
+        .from(employees)
+        .where(and(scopeCond, eq(employees.status, "active")));
+      const [newHires] = await db
+        .select({ n: count() })
+        .from(employees)
+        .where(
+          and(scopeCond, sql`${employees.startDate} >= ${since}::timestamptz`),
+        );
+      const [resigned] = await db
+        .select({ n: count() })
+        .from(employees)
+        .where(
+          and(
+            scopeCond,
+            eq(employees.status, "terminated"),
+            sql`${employees.updatedAt} >= ${since}::timestamptz`,
+          ),
+        );
+      const [onLeave] = await db
+        .select({ n: count() })
+        .from(employees)
+        .where(and(scopeCond, eq(employees.status, "on_leave")));
+
+      const byDept = await db
+        .select({ dept: employees.department, n: count() })
+        .from(employees)
+        .where(and(scopeCond, eq(employees.status, "active")))
+        .groupBy(employees.department)
+        .orderBy(desc(count()));
+
+      const byEmploymentType = await db
+        .select({ type: employees.employmentType, n: count() })
+        .from(employees)
+        .where(and(scopeCond, eq(employees.status, "active")))
         .groupBy(employees.employmentType);
 
-      const byLocation = await db.select({ location: employees.location, n: count() })
-        .from(employees).where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")))
-        .groupBy(employees.location).orderBy(desc(count()));
+      const byLocation = await db
+        .select({ location: employees.location, n: count() })
+        .from(employees)
+        .where(and(scopeCond, eq(employees.status, "active")))
+        .groupBy(employees.location)
+        .orderBy(desc(count()));
 
       const attritionRate = total.n > 0 ? Math.round((resigned.n / total.n) * 100 * 10) / 10 : 0;
 
       return {
+        scope: input.scope,
         total: total.n,
         newHires: newHires.n,
         resigned: resigned.n,
@@ -151,17 +207,36 @@ export const workforceRouter = router({
   gradeDistribution: permissionProcedure("workforce_analytics", "read")
     .query(async ({ ctx }) => {
       const { db, org } = ctx;
-      const byDept = await db.select({ grade: employees.department, n: count() })
+      const byDepartment = await db
+        .select({ department: employees.department, n: count() })
         .from(employees)
         .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")))
-        .groupBy(employees.department).orderBy(employees.department);
+        .groupBy(employees.department)
+        .orderBy(employees.department);
 
-      const byManager = await db.select({ managerId: employees.managerId, n: count() })
+      const byJobGrade = await db
+        .select({
+          jobGrade: sql<string>`COALESCE(${employees.jobGrade}, '(unspecified job grade)')`,
+          n: count(),
+        })
+        .from(employees)
+        .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")))
+        .groupBy(employees.jobGrade)
+        .orderBy(employees.jobGrade);
+
+      const byManager = await db
+        .select({ managerId: employees.managerId, n: count() })
         .from(employees)
         .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")))
         .groupBy(employees.managerId);
-      const managersCount = byManager.filter((r: any) => r.managerId !== null).length;
-      return { byGrade: byDept, managersCount };
+      const managersCount = byManager.filter((r: { managerId: string | null }) => r.managerId !== null).length;
+      return {
+        byDepartment,
+        byJobGrade,
+        /** @deprecated misleading name — use `byDepartment` / `byJobGrade` (US-HCM-002). */
+        byGrade: byDepartment,
+        managersCount,
+      };
     }),
 
   // ── Full Summary for Dashboard ───────────────────────────────────────────────

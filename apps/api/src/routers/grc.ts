@@ -1,7 +1,18 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { risks, policies, auditPlans, vendorRisks, eq, and, desc, count, sql } from "@nexusops/db";
+import {
+  risks,
+  policies,
+  auditPlans,
+  vendorRisks,
+  riskControlEvidence,
+  riskControls,
+  eq,
+  and,
+  desc,
+  count,
+} from "@nexusops/db";
 import { getNextNumber } from "../lib/auto-number";
 
 export const grcRouter = router({
@@ -135,4 +146,48 @@ export const grcRouter = router({
       .from(risks).where(eq(risks.orgId, ctx.org!.id)).groupBy(risks.status, risks.riskScore);
     return rows;
   }),
+
+  // ── US-SEC-006 control evidence ────────────────────────────────────────────
+  listControlEvidence: permissionProcedure("grc", "read")
+    .input(z.object({ controlId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(riskControlEvidence)
+        .where(
+          and(
+            eq(riskControlEvidence.orgId, ctx.org!.id),
+            eq(riskControlEvidence.controlId, input.controlId),
+          ),
+        )
+        .orderBy(desc(riskControlEvidence.createdAt));
+    }),
+
+  addControlEvidence: permissionProcedure("grc", "write")
+    .input(
+      z.object({
+        controlId: z.string().uuid(),
+        title: z.string().min(1),
+        storageUri: z.string().min(4),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [ctrl] = await db
+        .select({ id: riskControls.id })
+        .from(riskControls)
+        .where(and(eq(riskControls.id, input.controlId), eq(riskControls.orgId, org!.id)));
+      if (!ctrl) throw new TRPCError({ code: "NOT_FOUND", message: "Control not found" });
+      const [row] = await db
+        .insert(riskControlEvidence)
+        .values({
+          orgId: org!.id,
+          controlId: input.controlId,
+          title: input.title,
+          storageUri: input.storageUri,
+          createdBy: user!.id,
+        })
+        .returning();
+      return row;
+    }),
 });

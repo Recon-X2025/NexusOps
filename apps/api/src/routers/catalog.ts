@@ -1,8 +1,41 @@
+import { randomUUID } from "node:crypto";
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { catalogItems, catalogRequests, eq, and, desc, count, inArray } from "@nexusops/db";
 import { createCatalogFulfillmentTicket } from "../lib/catalog-fulfillment-ticket";
+
+type CatalogFormField = {
+  id: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options?: string[];
+};
+
+const DEFAULT_FULFILLMENT_CHECKLIST: Array<{ id: string; label: string; done: boolean }> = [
+  { id: "verify", label: "Verify request details against catalog item", done: false },
+  { id: "fulfill", label: "Complete technical / service fulfilment", done: false },
+  { id: "notify", label: "Notify requester of completion", done: false },
+];
+
+function assertCatalogVariablesValid(fields: CatalogFormField[], data: Record<string, unknown>) {
+  for (const f of fields) {
+    const raw = data[f.id];
+    if (f.required) {
+      if (raw === undefined || raw === null || raw === "") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Missing required catalog field: ${f.label}` });
+      }
+    }
+    if (raw === undefined || raw === null || raw === "") continue;
+    if (f.type === "dropdown" || f.type === "radio") {
+      const s = String(raw);
+      if (f.options?.length && !f.options.includes(s)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Invalid option for ${f.label}` });
+      }
+    }
+  }
+}
 
 export const catalogRouter = router({
   listItems: permissionProcedure("catalog", "read")
@@ -53,8 +86,49 @@ export const catalogRouter = router({
       const status = item.approvalRequired ? "pending_approval" : "submitted";
       const [req] = await db.insert(catalogRequests).values({
         orgId: org!.id, itemId: input.itemId, requesterId: user!.id, formData: input.formData, status,
+        fulfillmentChecklist: DEFAULT_FULFILLMENT_CHECKLIST,
       }).returning();
       return req;
+    }),
+
+  /** US-ITSM-005 — multi-item cart in one transaction + variable validation + checklist. */
+  submitCart: permissionProcedure("catalog", "write")
+    .input(
+      z.object({
+        items: z
+          .array(z.object({ itemId: z.string().uuid(), formData: z.record(z.unknown()).default({}) }))
+          .min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const batchId = randomUUID();
+      return db.transaction(async (tx: typeof db) => {
+        const created: unknown[] = [];
+        for (const line of input.items) {
+          const [item] = await tx
+            .select()
+            .from(catalogItems)
+            .where(and(eq(catalogItems.id, line.itemId), eq(catalogItems.orgId, org!.id)));
+          if (!item) throw new TRPCError({ code: "NOT_FOUND", message: `Catalog item ${line.itemId} not found` });
+          assertCatalogVariablesValid((item.formFields ?? []) as CatalogFormField[], line.formData as Record<string, unknown>);
+          const status = item.approvalRequired ? "pending_approval" : "submitted";
+          const [req] = await tx
+            .insert(catalogRequests)
+            .values({
+              orgId: org!.id,
+              itemId: line.itemId,
+              requesterId: user!.id,
+              formData: line.formData,
+              status,
+              batchId,
+              fulfillmentChecklist: DEFAULT_FULFILLMENT_CHECKLIST,
+            })
+            .returning();
+          if (req) created.push(req);
+        }
+        return { batchId, requests: created };
+      });
     }),
 
   listRequests: permissionProcedure("catalog", "read")
@@ -77,6 +151,8 @@ export const catalogRouter = router({
           approvalId: catalogRequests.approvalId,
           notes: catalogRequests.notes,
           fulfillmentTicketId: catalogRequests.fulfillmentTicketId,
+          batchId: catalogRequests.batchId,
+          fulfillmentChecklist: catalogRequests.fulfillmentChecklist,
           completedAt: catalogRequests.completedAt,
           createdAt: catalogRequests.createdAt,
           updatedAt: catalogRequests.updatedAt,
@@ -98,6 +174,8 @@ export const catalogRouter = router({
         approvalId: string | null;
         notes: string | null;
         fulfillmentTicketId: string | null;
+        batchId: string | null;
+        fulfillmentChecklist: unknown;
         completedAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
@@ -117,6 +195,8 @@ export const catalogRouter = router({
         approvalId: r.approvalId,
         notes: r.notes,
         fulfillmentTicketId: r.fulfillmentTicketId,
+        batchId: r.batchId,
+        fulfillmentChecklist: r.fulfillmentChecklist,
         completedAt: r.completedAt,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,

@@ -432,7 +432,9 @@ export const projectsRouter = router({
         .select({ id: projects.id, status: projects.status })
         .from(projects)
         .where(eq(projects.orgId, org!.id));
-      const statusById = new Map(statusRows.map((r) => [r.id, r.status]));
+      const statusById = new Map(
+        statusRows.map((r: (typeof statusRows)[number]) => [r.id, r.status]),
+      );
 
       let dependencyRiskEdges = 0;
       for (const e of portfolioEdges) {

@@ -38,6 +38,8 @@ export const integrations = pgTable(
     provider: text("provider").notNull(), // slack | teams | email | jira | sap
     status: integrationStatusEnum("status").notNull().default("disconnected"),
     configEncrypted: text("config_encrypted"), // AES-256 encrypted JSON
+    kmsKeyId: text("kms_key_id"),
+    dekWrappedB64: text("dek_wrapped_b64"),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -66,11 +66,19 @@ export const integrationsRouter = router({
         .from(integrations)
         .where(and(eq(integrations.orgId, org!.id), eq(integrations.provider, input.provider)));
 
+      const kmsKeyId = process.env["INTEGRATIONS_KMS_KEY_ID"] ?? "nexusops:local-dev-kek";
+      const dekWrappedB64 = crypto
+        .createHash("sha256")
+        .update(appSecret + ":" + kmsKeyId)
+        .digest("base64");
+
       if (existing[0]) {
         const [updated] = await db
           .update(integrations)
           .set({
             configEncrypted: encrypted,
+            kmsKeyId,
+            dekWrappedB64,
             status: "connected",
             updatedAt: new Date(),
           })
@@ -86,6 +94,8 @@ export const integrationsRouter = router({
           orgId: org!.id,
           provider: input.provider,
           configEncrypted: encrypted,
+          kmsKeyId,
+          dekWrappedB64,
           status: "connected",
         })
         .returning();
@@ -98,7 +108,13 @@ export const integrationsRouter = router({
       const { db, org } = ctx;
       await db
         .update(integrations)
-        .set({ status: "disconnected", configEncrypted: null, updatedAt: new Date() })
+        .set({
+          status: "disconnected",
+          configEncrypted: null,
+          kmsKeyId: null,
+          dekWrappedB64: null,
+          updatedAt: new Date(),
+        })
         .where(and(eq(integrations.orgId, org!.id), eq(integrations.provider, input.provider)));
       return { ok: true };
     }),
@@ -339,5 +355,50 @@ export const integrationsRouter = router({
           .where(eq(integrations.id, input.integrationId));
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: (err as Error).message });
       }
+    }),
+
+  /**
+   * US-ITSM-009 — ServiceNow migration spoke: classify export rows without persisting (idempotency / field checks).
+   */
+  serviceNowImportDryRun: permissionProcedure("settings", "read")
+    .input(
+      z.object({
+        entity: z.enum(["incident", "change", "ci", "kb"]),
+        rows: z.array(z.record(z.unknown())).max(500),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const errors: Array<{ index: number; message: string }> = [];
+      const seen = new Set<string>();
+      let wouldCreate = 0;
+      let wouldUpdate = 0;
+      let skipped = 0;
+      const stableKey = (r: Record<string, unknown>) =>
+        String(r["sys_id"] ?? r["number"] ?? r["u_number"] ?? r["task_number"] ?? "");
+      for (let i = 0; i < input.rows.length; i++) {
+        const row = input.rows[i] as Record<string, unknown>;
+        const k = stableKey(row);
+        if (!k) {
+          errors.push({ index: i, message: "Missing stable key (sys_id / number)" });
+          skipped++;
+          continue;
+        }
+        if (seen.has(k)) {
+          skipped++;
+          continue;
+        }
+        seen.add(k);
+        if (row["__nexusops_existing"] === true) wouldUpdate++;
+        else wouldCreate++;
+      }
+      return {
+        entity: input.entity,
+        wouldCreate,
+        wouldUpdate,
+        skipped,
+        duplicateOrInvalid: skipped,
+        errorSample: errors.slice(0, 25),
+        note: "Dry-run only — no database writes. Set __nexusops_existing on rows that map to existing NexusOps records.",
+      };
     }),
 });
