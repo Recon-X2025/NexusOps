@@ -290,7 +290,14 @@ export const legalRouter = router({
           contractsKpi = {
             active: Number(activeRow.n),
             expiringSoon: Number(expiringSoonRow.n),
-            expiringWithin30: expiringRows.map((r) => ({
+            expiringWithin30: expiringRows.map((r: {
+              id: string;
+              contractNumber: string | null;
+              title: string;
+              counterparty: string | null;
+              endDate: Date | string | null;
+              status: string | null;
+            }) => ({
               id: r.id,
               number: r.contractNumber,
               title: r.title,

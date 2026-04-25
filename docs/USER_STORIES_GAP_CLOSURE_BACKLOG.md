@@ -23,16 +23,33 @@
 
 ### Programme progress (rollup-derived)
 
-*Recalculate from **Status rollup** when statuses change. **Last verified:** **2026-04-26** (**US-ITSM-002** closure; **applyMatchToOrder** + war-room route).*
+*Recalculate from **Status rollup** when statuses change. **Last verified:** **2026-04-26** (**US-ITSM-002** closure; **applyMatchToOrder** + war-room route; **legal.governanceSummary** hub + **US-LEG-001/002** AC closure — see changelog).*
 
 | Metric | Count |
 |--------|------:|
 | **Stories in rollup** | 58 |
-| **Done** | 23 |
+| **Done** | 25 |
 | **Partial** | 6 |
 | **Deferred** | 0 |
-| **Backlog** | 29 |
-| **Approx. closure** (Done ÷ 58) | 39.7% — *treat **Partial** as in-flight, not closed* |
+| **Backlog** | 27 |
+| **Approx. closure** (Done ÷ 58) | 43.1% — *treat **Partial** as in-flight, not closed* |
+
+### Completion status by module
+
+*Derived from the **Status rollup** below (same counts; **Partial** is not counted as **Done**). **CRM** and **Finance** each have eight `US-*` rows; several themes are intentionally mirrored (**US-CRM-00x** / **US-FIN-00x**) so programme delivery is double-represented across those modules.*
+
+| Module | Gap-analysis theme | Story IDs (count) | Done | Partial | Backlog | Deferred | **Done ÷ stories** |
+|--------|-------------------|-------------------|-----:|--------:|--------:|---------:|-------------------:|
+| **ITSM** | ServiceNow ITSM & service operations | US-ITSM-001 … 009 (9) | 2 | 3 | 4 | 0 | 22.2% |
+| **Security & compliance** | Enterprise / CISO bar | US-SEC-001 … 008 (8) | 1 | 1 | 6 | 0 | 12.5% |
+| **HCM / People & Workplace** | Workday-style people & workplace | US-HCM-001 … 008 (8) | 2 | 0 | 6 | 0 | 25.0% |
+| **CRM / Customer & Sales** | HubSpot-style RevOps & sales | US-CRM-001 … 008 (8) | 7 | 1 | 0 | 0 | 87.5% |
+| **Finance & procurement** | Microsoft Finance / procurement depth | US-FIN-001 … 008 (8) | 7 | 1 | 0 | 0 | 87.5% |
+| **Legal & governance (India)** | Reliance legal / secretarial programme | US-LEG-001 … 008 + **US-LEG-009+** (9) | 3 | 0 | 6 | 0 | 33.3% |
+| **Strategy & projects** | Amazon-style strategy / portfolio | US-STR-001 … 008 (8) | 3 | 0 | 5 | 0 | 37.5% |
+| **All modules** | Full rollup | **58** | **25** | **6** | **27** | **0** | **43.1%** |
+
+**How to read:** **Partial** means remaining AC in that row are still scheduled (see **Notes** in the rollup). **US-LEG-009+** is one rollup row until decomposed into additional **`US-LEG-xxx`** stories.
 
 ---
 
@@ -566,7 +583,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 
 ### Status rollup
 
-*Snapshot **last reviewed: 2026-04-26** — **23** **Done** / **6** **Partial** / **29** **Backlog**; remaining work is phased per gap docs (not deferred).*
+*Snapshot **last reviewed: 2026-04-26** — **25** **Done** / **6** **Partial** / **27** **Backlog**; see **Completion status by module** above. Remaining work is phased per gap docs (not deferred).*
 
 | ID | Status | Notes |
 |----|--------|--------|
@@ -611,8 +628,8 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-FIN-006 | Done | **`docs/FINANCE_SOD_MATRIX.md`**; **`financial.markPaid`** blocks approver = payer; **layer8** SoD test (`finance_manager` approve → second user pays). |
 | US-FIN-007 | Done | Same delivery as **US-CRM-007** (preflight + checklist UI + admin closed periods + posting guard). |
 | US-FIN-008 | Done | Same delivery as **US-CRM-008**: AP/AR invoices + **purchase orders** (`purchase_orders.legal_entity_id`) + admin entity list/create + hub/Procurement surfaces. |
-| US-LEG-001 | Backlog | — |
-| US-LEG-002 | Backlog | — |
+| US-LEG-001 | Done | **`/app/legal-governance`** hub now consumes **`legal.governanceSummary`**: secretarial tile shows upcoming board meetings + filings due (30d) + director KYC due (30d); contracts expiring within 30 days surfaced as KPI + dedicated panel; legacy GRC-only tiles removed. **`layer8` smoke** asserts secretarial truth + contracts panel populate. |
+| US-LEG-002 | Done | **`legal.governanceSummary`** is a single composite tRPC procedure (60s Redis cache per `org × visibility`), gated by **`permissionProcedure("legal","read")`** and per-section scoping via `checkDbUserPermission` for **`secretarial:read`** / **`contracts:read`** so a `legal_counsel` caller sees `secretarial: null` while `contracts` is populated. **`layer8` smoke** locks both shapes (admin → all sections; `legal_counsel` → `secretarial=null`). |
 | US-LEG-003 | Done | **`legal` module** + **`legal_counsel`** / **`company_secretary`** matrix roles; `legal` tRPC uses `permissionProcedure("legal", …)` (not `grc`); `grc_analyst` no longer inherits secretarial; hub gates: **Legal & Governance** (`legal-governance/page.tsx`), sidebar **Legal & Governance**; demo seed **`legal@coheron.com`** / **`secretary@coheron.com`**; tests `layer3-rbac.test.ts`. |
 | US-LEG-004 | Backlog | — |
 | US-LEG-005 | Backlog | — |
@@ -654,6 +671,8 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-26 | **US-CRM-008** (completion): **`purchase_orders.legal_entity_id`**; **`procurement.legalEntityOptions`**; PO create + list + Finance hub column; **layer8** PO legal-entity test. *(Rollup counts unchanged.)* |
 | 2026-04-26 | **US-CRM-004** / **US-FIN-004** → **Done**: **`procurement.approvalRules`** extends **`poMatchToleranceAbs`** + **`duplicatePayableInvoicePolicy`**; **Admin → Procurement Policy** AP section; Finance payable create warns on duplicate when policy = **warn**; **layer8** persistence test. **Programme progress:** **22** Done / **7** Partial / **29** Backlog (**~37.9%**). |
 | 2026-04-26 | **US-ITSM-002** → **Done**: concurrent **response** + **resolve** SLA due dates validated (**layer8**). **`procurement.invoices.applyMatchToOrder`** + shared **`computeInvoicePoMatch`**; payable **`matchingStatus: matched`** + **`poId`** on success (**US-CRM-005** / **US-FIN-005** partial advance). **IT Services → Major incidents → War room** full-screen page. **Programme progress:** **23** Done / **6** Partial / **29** Backlog (**~39.7%**). RBAC map regenerated. |
+| 2026-04-26 | **Documentation:** Added **Completion status by module** (per-module Done / Partial / Backlog / **Done ÷ stories**). **`legal.governanceSummary`** + Legal & Governance hub UI; **US-LEG-001** rollup note references hub progress vs formal AC closure. |
+| 2026-04-26 | **US-LEG-001** / **US-LEG-002** → **Done**: hub UI now reads **`legal.governanceSummary`** end-to-end (secretarial truth: meetings + filings + KYC; contracts expiring panel); **layer8** smoke validates composite shape **and** RBAC scoping (`legal_counsel` → `secretarial=null`, `contracts` populated). **Programme progress:** **25** Done / **6** Partial / **27** Backlog (**~43.1%**). |
 
 ---
 

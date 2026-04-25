@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { nanoid } from "nanoid";
-import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession, initTestEnvironment } from "./helpers";
+import { testDb, seedFullOrg, seedUser, authedCaller, cleanupOrg, createSession, initTestEnvironment } from "./helpers";
 import { securityIncidents, contracts, assetTypes } from "@nexusops/db";
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
@@ -1324,6 +1324,76 @@ describe("Layer 8: Module Smoke Tests", () => {
       const updReq = await caller.legal.updateRequest({ id: req.id, status: "in_progress" }) as { status: string };
       expect(updReq.status).toBe("in_progress");
     });
+
+    it("governanceSummary returns single composite round-trip with RBAC-scoped sections (US-LEG-001/002)", async () => {
+      const caller = await authedCaller(adminToken);
+      const summary = (await caller.legal.governanceSummary()) as {
+        legal: {
+          activeMatters: number;
+          totalMatters: number;
+          openRequests: number;
+          openInvestigations: number;
+        };
+        secretarial: {
+          upcomingMeetings: number;
+          overdueFilings: number;
+          upcomingFilings: number;
+          totalDirectors: number;
+          kycExpiring: number;
+        } | null;
+        contracts: {
+          active: number;
+          expiringSoon: number;
+          expiringWithin30: Array<{
+            id: string;
+            number: string | null;
+            title: string;
+            counterparty: string | null;
+            endDate: string | null;
+            status: string | null;
+          }>;
+        } | null;
+        generatedAt: string;
+      };
+
+      // US-LEG-002 AC: single round-trip with all sections present for the admin caller.
+      expect(summary.legal).toBeDefined();
+      expect(typeof summary.legal.activeMatters).toBe("number");
+      expect(typeof summary.legal.totalMatters).toBe("number");
+      // US-LEG-001 AC: secretarial truth (meetings/calendar/KYC) and contracts expiring surfaced.
+      expect(summary.secretarial).not.toBeNull();
+      expect(typeof summary.secretarial?.upcomingMeetings).toBe("number");
+      expect(typeof summary.secretarial?.upcomingFilings).toBe("number");
+      expect(typeof summary.secretarial?.kycExpiring).toBe("number");
+      expect(summary.contracts).not.toBeNull();
+      expect(Array.isArray(summary.contracts?.expiringWithin30)).toBe(true);
+      expect(typeof summary.contracts?.expiringSoon).toBe("number");
+      expect(typeof summary.generatedAt).toBe("string");
+    });
+
+    it("governanceSummary scopes secretarial/contracts sections by matrix role (US-LEG-002 RBAC)", async () => {
+      // legal_counsel has legal:read + contracts:read but NO secretarial:read,
+      // so secretarial section must come back as `null` even though contracts section is populated.
+      const { userId: legalCounselId } = await seedUser(orgCtx.orgId, {
+        email: `legal-counsel-${nanoid(4)}@qa.nexusops.io`,
+        role: "member",
+        matrixRole: "legal_counsel",
+        password: orgCtx.password,
+      });
+      const lcToken = await createSession(legalCounselId);
+      const lcCaller = await authedCaller(lcToken);
+
+      const summary = (await lcCaller.legal.governanceSummary()) as {
+        legal: { activeMatters: number };
+        secretarial: unknown | null;
+        contracts: { expiringSoon: number } | null;
+      };
+
+      expect(summary.legal).toBeDefined();
+      expect(summary.secretarial).toBeNull();
+      expect(summary.contracts).not.toBeNull();
+      expect(typeof summary.contracts?.expiringSoon).toBe("number");
+    });
   });
 
   // ── 8.51 Secretarial (ITSM-grade LG-3) ─────────────────────────────────────
@@ -1465,6 +1535,42 @@ describe("Layer 8: Module Smoke Tests", () => {
         paymentMethod: "transfer",
       })) as { status: string };
       expect(paid.status).toBe("paid");
+    });
+
+    it("MFA matrix policy blocks approve until admin enrolls user (US-SEC-001)", async () => {
+      const financeToken = await createSession(orgCtx.financeId);
+      const financeCaller = await authedCaller(financeToken);
+      const adminCaller = await authedCaller(adminToken);
+
+      await adminCaller.admin.securityPolicy.update({
+        requireMfaForMatrixRoles: ["finance_manager"],
+      });
+
+      const vendor = (await adminCaller.procurement.vendors.create({
+        name: "MFA Layer8 vendor",
+        contactEmail: `mfa-l8-${Date.now()}@vendor.test`,
+      })) as { id: string };
+      const inv = (await adminCaller.financial.createInvoice({
+        vendorId: vendor.id,
+        invoiceNumber: `MFA-L8-${Date.now()}`,
+        amount: "100",
+      })) as { id: string };
+
+      await expect(financeCaller.financial.approveInvoice({ id: inv.id })).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: "MFA_ENROLLMENT_REQUIRED",
+      });
+
+      await adminCaller.admin.users.update({
+        userId: orgCtx.financeId,
+        mfaEnrolled: true,
+      });
+
+      const approved = (await financeCaller.financial.approveInvoice({ id: inv.id })) as { status: string };
+      expect(approved.status).toBe("approved");
+
+      await adminCaller.admin.users.update({ userId: orgCtx.financeId, mfaEnrolled: false });
+      await adminCaller.admin.securityPolicy.update({ requireMfaForMatrixRoles: [] });
     });
 
     it("FP depth: budget line → variance; vendor → invoice → approve; AP aging", async () => {
@@ -1665,6 +1771,34 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(asset.assetTag).toMatch(/^AST-/);
       const listed = await caller.assets.list({ limit: 10 });
       expect(listed.items.some((a: { id: string }) => a.id === asset.id)).toBe(true);
+    });
+
+    it("assets.cmdb.bulkImportCis upserts by external key (US-ITSM-006)", async () => {
+      const caller = await authedCaller(adminToken);
+      const key = `CI-BULK-${nanoid(8)}`;
+      const first = (await caller.assets.cmdb.bulkImportCis({
+        items: [
+          {
+            externalKey: key,
+            name: "Bulk server v1",
+            ciType: "server",
+            status: "operational",
+          },
+        ],
+      })) as { items: Array<{ id: string; name: string }> };
+      expect(first.items[0]?.name).toBe("Bulk server v1");
+
+      const second = (await caller.assets.cmdb.bulkImportCis({
+        items: [
+          {
+            externalKey: key,
+            name: "Bulk server v2",
+            ciType: "server",
+          },
+        ],
+      })) as { items: Array<{ id: string; name: string }> };
+      expect(second.items[0]?.id).toBe(first.items[0]?.id);
+      expect(second.items[0]?.name).toBe("Bulk server v2");
     });
 
     it("workflows: create → list → get", async () => {
