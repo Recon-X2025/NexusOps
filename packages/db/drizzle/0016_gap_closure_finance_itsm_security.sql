@@ -19,4 +19,4 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS parent_ticket_id uuid REFERENCES ti
 
 CREATE INDEX IF NOT EXISTS tickets_parent_ticket_id_idx ON tickets(parent_ticket_id);
 
-ALTER TABLE users ADD COLUMN IF NOT EXISTS step_up_verified_until timestamptz;
+-- Privileged step-up is stored in Redis (see apps/api/src/lib/step-up-session.ts), not users.step_up_verified_until.

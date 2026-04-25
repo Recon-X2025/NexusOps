@@ -31,6 +31,7 @@ import { randomBytes, createHash } from "crypto";
 import { nanoid } from "nanoid";
 import { checkLoginRateLimit, recordFailedLogin, clearLoginAttempts } from "../lib/login-rate-limit";
 import { hashSessionToken } from "../middleware/auth";
+import { clearSessionStepUp, setSessionStepUpVerified } from "../lib/step-up-session";
 
 /** Never return password hashes to clients. */
 function stripPasswordHash<T extends { passwordHash?: string | null }>(row: T) {
@@ -202,10 +203,7 @@ export const authRouter = router({
     const session = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent, input.rememberMe ?? false);
     const tSession = Date.now();
 
-    await db
-      .update(users)
-      .set({ lastLoginAt: new Date(), stepUpVerifiedUntil: null })
-      .where(eq(users.id, user.id));
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
     const [org] = await db
       .select()
@@ -229,6 +227,7 @@ export const authRouter = router({
 
   logout: protectedProcedure.mutation(async ({ ctx }) => {
     if (ctx.sessionId) {
+      await clearSessionStepUp(ctx.sessionId);
       // DB delete must complete before responding (correctness)
       await ctx.db.delete(sessions).where(eq(sessions.id, ctx.sessionId));
       // L1 + L2: await so the next request cannot read a stale Redis session.
@@ -245,6 +244,9 @@ export const authRouter = router({
     .input(z.object({ password: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const { db, user, sessionId } = ctx;
+      if (!sessionId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No active session" });
+      }
       const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
       if (!row?.passwordHash) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
@@ -253,9 +255,8 @@ export const authRouter = router({
       if (!valid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
       }
+      await setSessionStepUpVerified(sessionId);
       const until = new Date(Date.now() + 15 * 60 * 1000);
-      await db.update(users).set({ stepUpVerifiedUntil: until, updatedAt: new Date() }).where(eq(users.id, user!.id));
-      if (sessionId) await invalidateSessionCache(sessionId);
       return { stepUpVerifiedUntil: until.toISOString() };
     }),
 

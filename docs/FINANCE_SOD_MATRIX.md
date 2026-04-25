@@ -9,7 +9,7 @@
 ## Enforced in product (US-FIN-006 / US-SEC-008)
 
 - **`financial.markPaid`**: rejects when `approved_by_id` equals the current user (same person cannot approve and pay).
-- **`financial.approveInvoice`** and **`financial.markPaid`**: optional **step-up** when `organizations.settings.security.requireStepUpForMatrixRoles` includes the user’s `matrix_role` (see `auth.verifyStepUp`).
+- **`financial.approveInvoice`** and **`financial.markPaid`**: optional **step-up** when `organizations.settings.security.requireStepUpForMatrixRoles` includes the user’s `matrix_role` (see `auth.verifyStepUp`). Step-up validity is stored in **Redis** per session (not in `users`).
 
 ## Org settings (JSON)
 

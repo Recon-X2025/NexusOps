@@ -422,8 +422,8 @@ export function permissionProcedure(module: Module, action: RbacAction) {
 }
 
 /** Org policy: `settings.security.requireStepUpForMatrixRoles` → password re-check via `auth.verifyStepUp`. */
-export const stepUpGate = t.middleware(({ ctx, next }) => {
-  assertStepUpIfRequired(ctx);
+export const stepUpGate = t.middleware(async ({ ctx, next }) => {
+  await assertStepUpIfRequired(ctx);
   return next();
 });
 

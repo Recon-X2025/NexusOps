@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { parseOrgSettings } from "./org-settings";
+import { isSessionStepUpValid } from "./step-up-session";
 
 type StepUpCtx = {
   user?: Record<string, unknown> | null;
   org?: Record<string, unknown> | null;
+  sessionId?: string | null;
 };
 
 function effectiveMatrixRole(ctx: StepUpCtx): string {
@@ -18,8 +20,10 @@ function effectiveMatrixRole(ctx: StepUpCtx): string {
 /**
  * When org enables `settings.security.requireStepUpForMatrixRoles`, privileged routes
  * must run after `auth.verifyStepUp` (password re-check) within the TTL window.
+ * State is stored in Redis (session token hash) so login `SELECT users` is not blocked
+ * when optional DB migrations have not been applied.
  */
-export function assertStepUpIfRequired(ctx: StepUpCtx): void {
+export async function assertStepUpIfRequired(ctx: StepUpCtx): Promise<void> {
   const org = ctx.org as Record<string, unknown> | null;
   if (!org || !ctx.user) return;
 
@@ -29,15 +33,14 @@ export function assertStepUpIfRequired(ctx: StepUpCtx): void {
   const mine = effectiveMatrixRole(ctx);
   if (!roles.includes(mine)) return;
 
-  const untilRaw = (ctx.user as { stepUpVerifiedUntil?: Date | string | null }).stepUpVerifiedUntil;
-  if (!untilRaw) {
+  const sid = ctx.sessionId;
+  if (!sid) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "STEP_UP_REQUIRED",
+      message: "STEP_UP_REQUIRES_INTERACTIVE_SESSION",
     });
   }
-  const until = untilRaw instanceof Date ? untilRaw : new Date(String(untilRaw));
-  if (Number.isNaN(until.getTime()) || until.getTime() < Date.now()) {
+  if (!(await isSessionStepUpValid(sid))) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "STEP_UP_REQUIRED",
