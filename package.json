@@ -8,6 +8,7 @@
     "test:e2e": "playwright test",
     "test:ci": "turbo run test && playwright test",
     "test:class-l": "bash scripts/run-class-l-tests.sh",
+    "test:class-p": "bash scripts/run-class-p-tests.sh",
     "test:stage1": "turbo run test --filter=./packages/db... --filter=./packages/auth...",
     "test:stage2": "turbo run test --filter=./apps/api...",
     "test:all": "turbo run test",

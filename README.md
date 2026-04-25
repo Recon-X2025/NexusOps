@@ -118,6 +118,7 @@ Isolated stack: **`docker-compose.test.yml`** (Postgres **5433**, Redis **6380**
 | **API layer tests** | `pnpm test:layer1` … `pnpm test:layer9` |
 | **Full 10-layer QA** (API + Playwright) | `pnpm test:full-qa` |
 | **Class L rows** (closure register Seq **1–12 · 17–23 · 38** — Layer 8 + L `*-rbac` Vitest + hero Playwright only) | With test stack up and **`.env.test`**: `pnpm test:class-l` (`scripts/run-class-l-tests.sh`) |
+| **Class P rows** (Seq **13–16 · 24–37 · 39–44** — L8 smoke + P RBAC + `module-routes` + GRC/CSM/HR/CRM specs) | With test stack up and **`.env.test`**: `pnpm test:class-p` (`scripts/run-class-p-tests.sh`) |
 | **CI-equivalent (Turbo + all Playwright)** | With test stack up and **`.env.test`**: `pnpm exec dotenv -e .env.test -- pnpm test` then `pnpm exec dotenv -e .env.test -- pnpm exec playwright test` (same split as **`.github/workflows/ci.yml`** jobs **`test`** + **`e2e`**) |
 
 **Vitest** applies **`pnpm db:migrate`** once before workers (`apps/api/src/__tests__/global-setup.ts`) whenever **`.env.test`** defines `DATABASE_URL`, so schema-based tests see migrated tables. **`pnpm check:trpc-parity`** skips that migrate step (no DB required).

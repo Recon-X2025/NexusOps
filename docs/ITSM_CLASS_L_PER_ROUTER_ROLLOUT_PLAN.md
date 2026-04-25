@@ -159,6 +159,7 @@ Re-baseline **quarterly** using actual epic burn-down.
 | Living execution ledger | `MODULE_GAP_EXECUTION_STATUS.md` |
 | Gap program umbrella | `NEXUSOPS_MODULE_GAP_ANALYSIS_ITSM_GRADE.md` §6 |
 | **Re-run all current Class L rows** (Vitest L8 + L `*-rbac` + hero Playwright; excludes Class P-only RBAC) | Root **`pnpm test:class-l`** → `scripts/run-class-l-tests.sh` (closure register **v2.3**) |
+| **Re-run Class P program bar** (L8 smoke + P RBAC + `module-routes` + GRC/CSM/HR/CRM) | Root **`pnpm test:class-p`** → `scripts/run-class-p-tests.sh` (closure register **v2.4**) |
 
 ---
 
@@ -168,5 +169,6 @@ Re-baseline **quarterly** using actual epic burn-down.
 |---------|------|-------|
 | 1.0 | 2026-04-07 | Initial master plan: automation vs Class L, phases, promotion rules, KPIs |
 | 1.1 | 2026-04-07 | §10 artefact index: **`pnpm test:class-l`** for regression on already-**L** modules |
+| 1.2 | 2026-04-07 | §10: **`pnpm test:class-p`** for **Class P** regression (program bar, not L hero packs) |
 
 When a **phase** completes (e.g. “Phase A trust slice”), bump minor version and add a one-line **evidence pointer** (release tag or date range).

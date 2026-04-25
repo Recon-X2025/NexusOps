@@ -1,7 +1,7 @@
 # Module gap remediation — execution status
 
 **Source plan:** `docs/NEXUSOPS_MODULE_GAP_ANALYSIS_ITSM_GRADE.md` · **ITSM-grade (C1–C7) serial program:** `docs/ITSM_GRADE_ALL_MODULES_EXECUTION_PLAN.md`  
-**Last updated:** 2026-04-07 (serial register **v2.3**: **`pnpm test:class-l`** for **Class L** Vitest + hero Playwright; **v2.1** CI **`test`** + **`e2e`**; **v2.0** Class **P** for **13–16** + **25·26·34**)
+**Last updated:** 2026-04-07 (serial register **v2.4**: **`pnpm test:class-p`** for **Class P** L8 + RBAC + `module-routes` + GRC/CSM/HR/CRM; **v2.3** **`test:class-l`**; **v2.1** CI **`test`** + **`e2e`**; **v2.0** Class **P** evidence **13–16** + **25·26·34**)
 
 **Full backlog (Seq 0–44) — v1 closure:** `docs/ITSM_GRADE_SERIAL_V1_CLOSURE_REGISTER.md` (**Class R/L/P** per module: **L** = LG/FP/stack waves; **P** = program-grade via long-tail + L8 + `module-routes`; **R** = tickets reference).
 
@@ -337,6 +337,8 @@ This file is the **living ledger** for C1–C7-style work. Update rows when arte
 | **CI** | **`.github/workflows/ci.yml`**: job **`test`** (migrate + env) + job **`e2e`** (Postgres, Redis, Meilisearch, `playwright install chromium --with-deps`, same Playwright command). Job **`build`** (Docker) **`needs: [lint, test, e2e]`** on `main`. | **Done** |
 
 Local mirror (Docker test stack + **`.env.test`**): `pnpm exec dotenv -e .env.test -- pnpm test` then `pnpm exec dotenv -e .env.test -- pnpm exec playwright test` (or `pnpm test:full-qa`).
+
+**Targeted re-runs (closure register):** **`pnpm test:class-l`** (Seq **1–12 · 17–23 · 38**) · **`pnpm test:class-p`** (Seq **13–16 · 24–37 · 39–44** — L8 smoke + P RBAC + `module-routes` + GRC/CSM/HR/CRM).
 
 ---
 
