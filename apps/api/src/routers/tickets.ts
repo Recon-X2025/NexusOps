@@ -408,6 +408,8 @@ export const ticketsRouter = router({
           closedAt: tickets.closedAt,
           createdAt: tickets.createdAt,
           updatedAt: tickets.updatedAt,
+          isMajorIncident: tickets.isMajorIncident,
+          parentTicketId: tickets.parentTicketId,
         })
         .from(tickets)
         .leftJoin(users, eq(tickets.assigneeId, users.id))
@@ -657,6 +659,32 @@ export const ticketsRouter = router({
       ciDownstreamCount = Number(n ?? 0);
     }
 
+    let parentTicket: { id: string; number: string; title: string; isMajorIncident: boolean } | null = null;
+    if (ticket.parentTicketId) {
+      const [p] = await db
+        .select({
+          id: tickets.id,
+          number: tickets.number,
+          title: tickets.title,
+          isMajorIncident: tickets.isMajorIncident,
+        })
+        .from(tickets)
+        .where(and(eq(tickets.id, ticket.parentTicketId), eq(tickets.orgId, org!.id)));
+      parentTicket = p ?? null;
+    }
+
+    const childTickets = await db
+      .select({
+        id: tickets.id,
+        number: tickets.number,
+        title: tickets.title,
+        isMajorIncident: tickets.isMajorIncident,
+      })
+      .from(tickets)
+      .where(and(eq(tickets.parentTicketId, ticket.id), eq(tickets.orgId, org!.id)))
+      .orderBy(desc(tickets.updatedAt))
+      .limit(50);
+
     return {
       ticket,
       comments: visibleComments,
@@ -667,6 +695,8 @@ export const ticketsRouter = router({
       configurationItem,
       knownError,
       ciDownstreamCount,
+      parentTicket,
+      childTickets,
     };
   }),
 

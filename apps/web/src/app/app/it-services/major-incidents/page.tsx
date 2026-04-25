@@ -77,25 +77,51 @@ export default function MajorIncidentsPage() {
 
       {!isLoading && !isError && items.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-          {(items as { id: string; number: string; title: string; updatedAt: string }[]).map((t) => (
-            <li key={t.id}>
-              <Link
-                href={`/app/tickets/${t.id}`}
-                className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/30 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-muted-foreground">{t.number}</span>
+          {(items as {
+            id: string;
+            number: string;
+            title: string;
+            updatedAt: string;
+            parentTicketId?: string | null;
+          }[]).map((t) => (
+            <li key={t.id} className="border-b border-border last:border-0">
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-muted/30">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/app/tickets/${t.id}`}
+                      className="font-mono text-[11px] text-primary hover:underline"
+                    >
+                      {t.number}
+                    </Link>
                     <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-800">
                       Major
                     </span>
+                    {t.parentTicketId ? (
+                      <Link
+                        href={`/app/tickets/${t.parentTicketId}`}
+                        className="text-[10px] text-primary hover:underline"
+                      >
+                        Parent →
+                      </Link>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/80">Top-level</span>
+                    )}
                   </div>
-                  <p className="truncate text-[13px] font-medium text-foreground/90">{t.title}</p>
+                  <Link
+                    href={`/app/tickets/${t.id}`}
+                    className="mt-0.5 block truncate text-[13px] font-medium text-foreground/90 hover:text-primary"
+                  >
+                    {t.title}
+                  </Link>
                 </div>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
+                <Link
+                  href={`/app/tickets/${t.id}`}
+                  className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+                >
                   {formatRelativeTime(t.updatedAt)}
-                </span>
-              </Link>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

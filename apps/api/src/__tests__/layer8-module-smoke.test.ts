@@ -141,6 +141,33 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(after.length).toBe(1);
       expect(after[0]!.body).toContain("mitigating");
     });
+
+    it("incident parent/child hierarchy on tickets.get (US-ITSM-004)", async () => {
+      const caller = await authedCaller(adminToken);
+      const parent = await caller.tickets.create({
+        title: "Parent incident hierarchy",
+        type: "incident",
+        priorityId: orgCtx.p2Id!,
+      }) as { id: string };
+      await caller.tickets.update({
+        id: parent.id,
+        data: { isMajorIncident: true },
+      });
+      const child = await caller.tickets.create({
+        title: "Child under parent",
+        type: "incident",
+        priorityId: orgCtx.p2Id!,
+        parentTicketId: parent.id,
+      }) as { id: string };
+      const pDetail = (await caller.tickets.get({ id: parent.id })) as {
+        childTickets: { id: string }[];
+      };
+      expect(pDetail.childTickets.some((c) => c.id === child.id)).toBe(true);
+      const cDetail = (await caller.tickets.get({ id: child.id })) as {
+        parentTicket: { id: string } | null;
+      };
+      expect(cDetail.parentTicket?.id).toBe(parent.id);
+    });
   });
 
   // ── 8.02 Changes ──────────────────────────────────────────────────────────

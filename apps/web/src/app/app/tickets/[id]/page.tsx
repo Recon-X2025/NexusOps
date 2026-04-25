@@ -98,6 +98,7 @@ export default function TicketDetailPage() {
   const [activeTab, setActiveTab] = useState<"notes" | "activity" | "related">("notes");
   const [commentBody, setCommentBody] = useState("");
   const [warRoomBody, setWarRoomBody] = useState("");
+  const [parentIdDraft, setParentIdDraft] = useState("");
   const [isInternal, setIsInternal] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
@@ -240,6 +241,16 @@ export default function TicketDetailPage() {
     | undefined;
   const knownErrorLinked = (data as any).knownError as { id: string; title: string } | null | undefined;
   const ciDownstreamCount = Number((data as any).ciDownstreamCount ?? 0);
+  const parentTicket = (data as any).parentTicket as
+    | { id: string; number: string; title: string; isMajorIncident: boolean }
+    | null
+    | undefined;
+  const childTickets = ((data as any).childTickets ?? []) as Array<{
+    id: string;
+    number: string;
+    title: string;
+    isMajorIncident: boolean;
+  }>;
   const relations = rawRelations ?? [];
   const comments: any[] = rawComments ?? [];
   const activityLog: any[] = rawActivityLog ?? [];
@@ -1212,13 +1223,17 @@ export default function TicketDetailPage() {
             </div>
           </div>
 
-          {(can("cmdb", "read") || can("problems", "read") || can("incidents", "write")) && (
+          {(can("cmdb", "read") ||
+            can("problems", "read") ||
+            can("incidents", "write") ||
+            !!parentTicket ||
+            childTickets.length > 0) && (
             <div className="bg-card border border-border rounded">
               <div className="px-3 py-2 border-b border-border bg-muted/30">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Service linkage
                 </span>
-                <p className="text-[9px] text-muted-foreground/80 mt-0.5">CMDB, known errors, major flag (Phases B/C)</p>
+                <p className="text-[9px] text-muted-foreground/80 mt-0.5">CMDB, known errors, major flag, parent/child (Phases B/C)</p>
               </div>
               <div className="px-3 py-2 space-y-2 text-[11px]">
                 {can("cmdb", "read") && (
@@ -1299,6 +1314,87 @@ export default function TicketDetailPage() {
                     <span>Major incident (C1)</span>
                   </label>
                 )}
+                <div className="border-t border-border pt-2 mt-2 space-y-2">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Incident hierarchy
+                  </div>
+                  {parentTicket ? (
+                    <p className="text-[11px] leading-snug">
+                      <span className="text-muted-foreground">Parent:</span>{" "}
+                      <Link
+                        href={`/app/tickets/${parentTicket.id}`}
+                        className="font-mono text-primary hover:underline"
+                      >
+                        {parentTicket.number}
+                      </Link>
+                      {parentTicket.isMajorIncident ? (
+                        <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-800">
+                          Major
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">No parent incident linked.</p>
+                  )}
+                  {!isTerminal && can("incidents", "write") && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <input
+                        className="min-w-[10rem] flex-1 rounded border border-border bg-background px-1.5 py-1 text-[10px] font-mono"
+                        placeholder="Parent ticket UUID"
+                        value={parentIdDraft}
+                        onChange={(e) => setParentIdDraft(e.target.value)}
+                        data-testid="ticket-parent-uuid-input"
+                      />
+                      <button
+                        type="button"
+                        className="rounded bg-primary px-2 py-1 text-[10px] text-primary-foreground disabled:opacity-40"
+                        disabled={updateTicket.isPending || parentIdDraft.trim().length < 32}
+                        onClick={() => {
+                          const v = parentIdDraft.trim();
+                          updateTicket.mutate(
+                            { id: ticket.id, data: { parentTicketId: v } },
+                            { onSuccess: () => setParentIdDraft("") },
+                          );
+                        }}
+                      >
+                        Set parent
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-border px-2 py-1 text-[10px] hover:bg-muted/40 disabled:opacity-40"
+                        disabled={updateTicket.isPending || !parentTicket}
+                        onClick={() => updateTicket.mutate({ id: ticket.id, data: { parentTicketId: null } })}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  {childTickets.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-[10px] text-muted-foreground">
+                        Child incidents ({childTickets.length})
+                      </p>
+                      <ul className="max-h-36 space-y-1 overflow-y-auto">
+                        {childTickets.map((c) => (
+                          <li key={c.id} className="flex min-w-0 items-baseline gap-1 text-[11px]">
+                            <Link
+                              href={`/app/tickets/${c.id}`}
+                              className="shrink-0 font-mono text-primary hover:underline"
+                            >
+                              {c.number}
+                            </Link>
+                            <span className="min-w-0 truncate text-muted-foreground">{c.title}</span>
+                            {c.isMajorIncident ? (
+                              <span className="shrink-0 rounded bg-red-100 px-1 text-[9px] font-medium text-red-800">
+                                Maj
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

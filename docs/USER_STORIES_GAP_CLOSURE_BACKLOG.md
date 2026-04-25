@@ -571,7 +571,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-ITSM-001 | Partial | SLA pause + reason on tickets (`tickets` router, `sla_pause_reason_code`); org-configurable reason *catalog* still thin. |
 | US-ITSM-002 | Partial | Response vs resolve SLA fields (`sla_response_*`, `sla_resolve_*`); “multiple concurrent targets” beyond two clocks not fully validated vs AC. |
 | US-ITSM-003 | Partial | `reports.slaOperationalHealth` (paused / breached open / at-risk near due / overdue unbreached) + team & category filters + **IT Services → Analytics** UI. |
-| US-ITSM-004 | Partial | `parent_ticket_id` + wiring; **war-room comms:** `tickets.majorIncidentComms` (activity log `major_incident_comms`) + ticket detail panel; dedicated MIM page / parent-child UX polish still open. |
+| US-ITSM-004 | Partial | **Hierarchy:** `tickets.get` returns `parentTicket` + `childTickets`; `tickets.list` exposes `parentTicketId` / `isMajorIncident`; ticket detail **Incident hierarchy** (set/clear parent, child links); **Major incidents** queue shows Parent → / top-level; **war-room comms** (`majorIncidentComms`). Dedicated full-screen MIM / richer tree UX still open. |
 | US-ITSM-005 | Backlog | — |
 | US-ITSM-006 | Partial | `cmdb` CI create/update/link (`assets` router); class graph, bulk import, service map depth still backlog. |
 | US-ITSM-007 | Backlog | — |
@@ -641,6 +641,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-26 | **Living document** refresh: rollup **last reviewed** + programme **last counted**; programme counts unchanged (**26** partial / **31** backlog / **1** deferred / **58** stories). |
 | 2026-04-26 | **Dev & QA defaults (non-story):** Full-QA / Playwright / chaos / k6 scripts default to **localhost:3000** (web) and **localhost:3001** (API) via `NEXUS_QA_BASE_URL` / `NEXUS_QA_API_URL`; `tests/run-full-qa.sh` exports the same; remote targets opt-in. **`scripts/push-to-vultr.sh`** requires **`VULTR_HOST`** (no baked-in IP). Documented in **`.env.example`**. |
 | 2026-04-25 | **US-ITSM-004** (partial): `tickets.majorIncidentComms.list` / `append` + major-incident panel on ticket detail; **`financial.periodClose`** + **Admin → Accounting periods** for **US-CRM-007** / **US-FIN-007** (partial); `periodClose.get` reads org settings from DB; layer8 + full-QA `financial.periodClose.get`; RBAC map regenerated. |
+| 2026-04-25 | **US-ITSM-004** (partial): `tickets.get` **parent/child** snapshot; list columns for major/parent; ticket detail hierarchy controls; major-incidents queue **Parent →** / **Top-level**; layer8 hierarchy test. |
 
 ---
 
