@@ -1353,6 +1353,21 @@ describe("Layer 8: Module Smoke Tests", () => {
             status: string | null;
           }>;
         } | null;
+        indiaCompliance: {
+          overdue: number;
+          dueWithin30: number;
+          totalPenaltyInr: number;
+          upcoming: Array<{
+            id: string;
+            eventName: string;
+            mcaForm: string | null;
+            complianceType: string;
+            dueDate: string | null;
+            status: string;
+            daysOverdue: number;
+            totalPenaltyInr: number;
+          }>;
+        } | null;
         generatedAt: string;
       };
 
@@ -1368,7 +1383,64 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(summary.contracts).not.toBeNull();
       expect(Array.isArray(summary.contracts?.expiringWithin30)).toBe(true);
       expect(typeof summary.contracts?.expiringSoon).toBe("number");
+      // US-LEG-004 AC: india-compliance calendar surfaced under same secretarial gate.
+      expect(summary.indiaCompliance).not.toBeNull();
+      expect(typeof summary.indiaCompliance?.overdue).toBe("number");
+      expect(typeof summary.indiaCompliance?.dueWithin30).toBe("number");
+      expect(typeof summary.indiaCompliance?.totalPenaltyInr).toBe("number");
+      expect(Array.isArray(summary.indiaCompliance?.upcoming)).toBe(true);
       expect(typeof summary.generatedAt).toBe("string");
+    });
+
+    it("governanceSummary surfaces india-compliance calendar items under secretarial gate (US-LEG-004)", async () => {
+      // Seed an MCA filing item that's overdue + one that's due in next 30d, then
+      // assert the hub composite returns counts, penalty rollup, and the upcoming preview.
+      const caller = await authedCaller(adminToken);
+      const overdueDue = new Date(Date.now() - 7 * 86400000).toISOString();
+      const upcomingDue = new Date(Date.now() + 10 * 86400000).toISOString();
+
+      await caller.indiaCompliance.calendar.create({
+        complianceType: "annual",
+        eventName: `MGT-7 annual return ${nanoid(4)}`,
+        mcaForm: "MGT-7",
+        dueDate: overdueDue,
+        penaltyPerDayInr: 100,
+      });
+      await caller.indiaCompliance.calendar.create({
+        complianceType: "event_based",
+        eventName: `DIR-12 director change ${nanoid(4)}`,
+        mcaForm: "DIR-12",
+        dueDate: upcomingDue,
+        penaltyPerDayInr: 100,
+      });
+
+      // Bust the 60s composite cache — `update*` mutations on calendar items don't
+      // currently invalidate `legal.governanceSummary`, so we hit redis directly to
+      // keep the test deterministic and not flaky behind the 60s TTL window.
+      try {
+        const { getRedis } = await import("../lib/redis.js");
+        const redis = getRedis();
+        const keys = await redis.keys(`legal:governanceSummary:v2:${orgCtx.orgId}:*`);
+        if (keys.length) await redis.del(...keys);
+      } catch {
+        // Redis is best-effort in tests; if it's not available the helper falls back to live build.
+      }
+
+      const summary = (await caller.legal.governanceSummary()) as {
+        indiaCompliance: {
+          overdue: number;
+          dueWithin30: number;
+          upcoming: Array<{ eventName: string; status: string; mcaForm: string | null }>;
+        } | null;
+      };
+
+      expect(summary.indiaCompliance).not.toBeNull();
+      // The freshly-seeded items mean these counts must be at least 1 each.
+      expect(summary.indiaCompliance!.dueWithin30).toBeGreaterThanOrEqual(1);
+      // Overdue count depends on the periodic penalty job flipping status to 'overdue';
+      // we don't run that here, so we just assert the upcoming preview surfaces our items.
+      const forms = summary.indiaCompliance!.upcoming.map((u) => u.mcaForm);
+      expect(forms).toEqual(expect.arrayContaining(["MGT-7", "DIR-12"]));
     });
 
     it("governanceSummary scopes secretarial/contracts sections by matrix role (US-LEG-002 RBAC)", async () => {

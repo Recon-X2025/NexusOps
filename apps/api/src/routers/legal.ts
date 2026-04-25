@@ -8,6 +8,7 @@ import {
   boardMeetings,
   secretarialFilings,
   companyDirectors,
+  complianceCalendarItems,
   contracts,
   eq,
   and,
@@ -150,7 +151,8 @@ export const legalRouter = router({
       const canSec = checkDbUserPermission(role, "secretarial", "read", matrixRole);
       const canCont = checkDbUserPermission(role, "contracts", "read", matrixRole);
       const orgId = org!.id;
-      const cacheKey = `legal:governanceSummary:${orgId}:${canSec ? 1 : 0}${canCont ? 1 : 0}`;
+        // v2 cache namespace: shape changed when india-compliance section was added (US-LEG-004).
+        const cacheKey = `legal:governanceSummary:v2:${orgId}:${canSec ? 1 : 0}${canCont ? 1 : 0}`;
 
       const build = async () => {
         const today = new Date().toISOString();
@@ -312,6 +314,111 @@ export const legalRouter = router({
           };
         }
 
+        // ── India Compliance (US-LEG-004) ────────────────────────────────────
+        // MCA/ROC statutory calendar items so a CS sees overdue + "due in 30d"
+        // filings on the hub. Same `secretarial:read` gate as the rest of the
+        // section because compliance_calendar_items lives under that module.
+        let indiaCompliance: {
+          overdue: number;
+          dueWithin30: number;
+          totalPenaltyInr: number;
+          upcoming: Array<{
+            id: string;
+            eventName: string;
+            mcaForm: string | null;
+            complianceType: string;
+            dueDate: string | null;
+            status: string;
+            daysOverdue: number;
+            totalPenaltyInr: number;
+          }>;
+        } | null = null;
+        if (canSec) {
+          const [overdueRow] = await db
+            .select({ n: count() })
+            .from(complianceCalendarItems)
+            .where(
+              and(
+                eq(complianceCalendarItems.orgId, orgId),
+                eq(complianceCalendarItems.status, "overdue"),
+              ),
+            );
+          const [dueSoonRow] = await db
+            .select({ n: count() })
+            .from(complianceCalendarItems)
+            .where(
+              and(
+                eq(complianceCalendarItems.orgId, orgId),
+                sql`${complianceCalendarItems.status} IN ('upcoming','due_soon')`,
+                sql`${complianceCalendarItems.dueDate} <= ${thirtyDays}::timestamptz`,
+                sql`${complianceCalendarItems.dueDate} >= ${today}::timestamptz`,
+              ),
+            );
+          const [penaltyRow] = await db
+            .select({
+              total: sql<string | null>`COALESCE(SUM(${complianceCalendarItems.totalPenaltyInr}), 0)`,
+            })
+            .from(complianceCalendarItems)
+            .where(
+              and(
+                eq(complianceCalendarItems.orgId, orgId),
+                eq(complianceCalendarItems.status, "overdue"),
+              ),
+            );
+          // Overdue first (most urgent), then nearest due — limit 5 for the hub panel.
+          const upcomingItems = await db
+            .select({
+              id: complianceCalendarItems.id,
+              eventName: complianceCalendarItems.eventName,
+              mcaForm: complianceCalendarItems.mcaForm,
+              complianceType: complianceCalendarItems.complianceType,
+              dueDate: complianceCalendarItems.dueDate,
+              status: complianceCalendarItems.status,
+              daysOverdue: complianceCalendarItems.daysOverdue,
+              totalPenaltyInr: complianceCalendarItems.totalPenaltyInr,
+            })
+            .from(complianceCalendarItems)
+            .where(
+              and(
+                eq(complianceCalendarItems.orgId, orgId),
+                sql`${complianceCalendarItems.status} IN ('upcoming','due_soon','overdue')`,
+              ),
+            )
+            .orderBy(
+              sql`CASE WHEN ${complianceCalendarItems.status} = 'overdue' THEN 0 ELSE 1 END`,
+              asc(complianceCalendarItems.dueDate),
+            )
+            .limit(5);
+          indiaCompliance = {
+            overdue: Number(overdueRow.n),
+            dueWithin30: Number(dueSoonRow.n),
+            totalPenaltyInr: Number(penaltyRow?.total ?? 0),
+            upcoming: upcomingItems.map((r: {
+              id: string;
+              eventName: string;
+              mcaForm: string | null;
+              complianceType: string;
+              dueDate: Date | string | null;
+              status: string;
+              daysOverdue: number;
+              totalPenaltyInr: string | null;
+            }) => ({
+              id: r.id,
+              eventName: r.eventName,
+              mcaForm: r.mcaForm,
+              complianceType: r.complianceType,
+              dueDate: r.dueDate
+                ? r.dueDate instanceof Date
+                  ? r.dueDate.toISOString()
+                  : String(r.dueDate)
+                : null,
+              status: r.status,
+              daysOverdue: Number(r.daysOverdue ?? 0),
+              totalPenaltyInr: Number(r.totalPenaltyInr ?? 0),
+            })),
+          };
+        }
+
         return {
           legal: {
             activeMatters: Number(activeMatters.n),
@@ -321,6 +428,7 @@ export const legalRouter = router({
           },
           secretarial,
           contracts: contractsKpi,
+          indiaCompliance,
           generatedAt: new Date().toISOString(),
         };
       };

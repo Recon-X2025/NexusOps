@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Scale, Gavel, Briefcase, AlertTriangle, Calendar,
   ChevronRight, CheckCircle2, Loader2, FileWarning, FileCheck,
+  IndianRupee,
 } from "lucide-react";
 import { useRBAC } from "@/lib/rbac-context";
 import { AccessDenied } from "@/lib/rbac-context";
@@ -35,8 +36,31 @@ type GovernanceSummary = {
       status: string | null;
     }>;
   } | null;
+  indiaCompliance: {
+    overdue: number;
+    dueWithin30: number;
+    totalPenaltyInr: number;
+    upcoming: Array<{
+      id: string;
+      eventName: string;
+      mcaForm: string | null;
+      complianceType: string;
+      dueDate: string | null;
+      status: string;
+      daysOverdue: number;
+      totalPenaltyInr: number;
+    }>;
+  } | null;
   generatedAt: string;
 };
+
+function formatInr(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return "₹0";
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+  return `₹${n.toFixed(0)}`;
+}
 
 function KPICard({ label, value, color, href, icon: Icon, isLoading, hint }: {
   label: string; value: string | number; color: string; href?: string; icon: React.ElementType; isLoading?: boolean; hint?: string;
@@ -108,6 +132,7 @@ export default function LegalGovernanceDashboard() {
   const legalKpi = s?.legal ?? null;
   const secKpi = s?.secretarial ?? null;
   const contractsKpi = s?.contracts ?? null;
+  const indiaKpi = s?.indiaCompliance ?? null;
 
   const alerts = [
     legalKpi && legalKpi.activeMatters > 0
@@ -118,6 +143,9 @@ export default function LegalGovernanceDashboard() {
       : null,
     secKpi && secKpi.overdueFilings > 0
       ? { color: "bg-red-500",    text: `${secKpi.overdueFilings} secretarial filing${secKpi.overdueFilings !== 1 ? "s" : ""} overdue` }
+      : null,
+    indiaKpi && indiaKpi.overdue > 0
+      ? { color: "bg-red-500",    text: `${indiaKpi.overdue} India compliance filing${indiaKpi.overdue !== 1 ? "s" : ""} overdue · ${formatInr(indiaKpi.totalPenaltyInr)} penalty` }
       : null,
     secKpi && secKpi.kycExpiring > 0
       ? { color: "bg-yellow-400", text: `${secKpi.kycExpiring} director KYC due within 30 days` }
@@ -239,7 +267,7 @@ export default function LegalGovernanceDashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         {/* Active Matters */}
         <div className="bg-card border border-border rounded overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
@@ -398,6 +426,71 @@ export default function LegalGovernanceDashboard() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* India compliance calendar (US-LEG-004 AC: data from india-compliance) */}
+        <div className="bg-card border border-border rounded overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-2">
+              <IndianRupee className="w-3.5 h-3.5 text-muted-foreground/70" />
+              <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">India Compliance</span>
+            </div>
+            {canSecretarial && (
+              <Link href="/app/secretarial?tab=india-compliance" className="text-[11px] text-primary hover:underline">All →</Link>
+            )}
+          </div>
+          {!canSecretarial ? (
+            <div className="text-center text-muted-foreground py-6 text-[12px]">No secretarial access</div>
+          ) : loadingSummary ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
+              <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
+            </div>
+          ) : (
+            <>
+              {indiaKpi && (indiaKpi.overdue > 0 || indiaKpi.totalPenaltyInr > 0) && (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-red-50 border-b border-red-100 text-[10px]">
+                  <span className="text-red-700 font-semibold">{indiaKpi.overdue} overdue · {indiaKpi.dueWithin30} due in 30d</span>
+                  <span className="text-red-700 font-mono">{formatInr(indiaKpi.totalPenaltyInr)} penalty</span>
+                </div>
+              )}
+              <div className="divide-y divide-border">
+                {(indiaKpi?.upcoming ?? []).length === 0 ? (
+                  <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
+                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                    No upcoming compliance items
+                  </div>
+                ) : (indiaKpi?.upcoming ?? []).map((c) => (
+                  <div key={c.id} className="flex items-start gap-3 px-3 py-2.5">
+                    <div className="flex-shrink-0 text-center w-16">
+                      <div className="text-[11px] font-bold text-foreground">
+                        {c.dueDate ? new Date(c.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                      </div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wide">
+                        {c.status === "overdue" ? `+${c.daysOverdue}d` : "Due"}
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {c.mcaForm && <span className="font-mono text-[10px] text-primary">{c.mcaForm}</span>}
+                        <span className={`status-badge text-[9px] capitalize ${
+                          c.status === "overdue" ? "text-red-700 bg-red-100" :
+                          c.status === "due_soon" ? "text-orange-700 bg-orange-100" :
+                          "text-blue-700 bg-blue-100"
+                        }`}>
+                          {c.status.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{c.complianceType}</span>
+                      </div>
+                      <p className="text-[11px] text-foreground/80 leading-snug truncate">{c.eventName}</p>
+                      {c.totalPenaltyInr > 0 && (
+                        <p className="text-[10px] text-red-700 font-mono">{formatInr(c.totalPenaltyInr)} penalty</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
