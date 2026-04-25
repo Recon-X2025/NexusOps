@@ -1873,6 +1873,40 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(second.items[0]?.name).toBe("Bulk server v2");
     });
 
+    it("assets.cmdb.getServiceMap returns hop-bounded subgraph (US-ITSM-006)", async () => {
+      const caller = await authedCaller(adminToken);
+      const a = (await caller.assets.cmdb.createCi({
+        name: "sm-map-a",
+        ciType: "server",
+      })) as { id: string };
+      const b = (await caller.assets.cmdb.createCi({
+        name: "sm-map-b",
+        ciType: "application",
+      })) as { id: string };
+      const c = (await caller.assets.cmdb.createCi({
+        name: "sm-map-c",
+        ciType: "database",
+      })) as { id: string };
+      await caller.assets.cmdb.linkCi({ sourceId: b.id, targetId: a.id, relationType: "runs_on" });
+      await caller.assets.cmdb.linkCi({ sourceId: c.id, targetId: b.id, relationType: "depends_on" });
+
+      const shallow = (await caller.assets.cmdb.getServiceMap({
+        rootCiId: b.id,
+        maxDepth: 0,
+        maxNodes: 50,
+      })) as { nodes: { id: string }[]; edges: { id: string }[] };
+      expect(shallow.nodes).toHaveLength(1);
+      expect(shallow.edges).toHaveLength(0);
+
+      const mid = (await caller.assets.cmdb.getServiceMap({
+        rootCiId: b.id,
+        maxDepth: 1,
+        maxNodes: 50,
+      })) as { nodes: { id: string }[]; edges: unknown[] };
+      expect(mid.nodes.length).toBe(3);
+      expect(mid.edges.length).toBeGreaterThanOrEqual(2);
+    });
+
     it("workflows: create → list → get", async () => {
       const caller = await authedCaller(adminToken);
       const wf = await caller.workflows.create({

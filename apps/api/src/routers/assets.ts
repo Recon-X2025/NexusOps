@@ -198,11 +198,17 @@ export const assetsRouter = router({
       const { db, org } = ctx;
 
       const cis = await db.select().from(ciItems).where(eq(ciItems.orgId, org!.id));
+      if (cis.length === 0) {
+        return {
+          nodes: [] as { id: string; name: string; type: string; status: string }[],
+          edges: [] as { id: string; source: string; target: string; type: string }[],
+        };
+      }
       const rels = await db
         .select()
         .from(ciRelationships)
         .where(
-          sql`${ciRelationships.sourceId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id})`,
+          sql`${ciRelationships.sourceId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id}) AND ${ciRelationships.targetId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id})`,
         );
 
       return {
@@ -215,6 +221,82 @@ export const assetsRouter = router({
         })),
       };
     }),
+
+    /**
+     * US-ITSM-006: hop-limited dependency subgraph from a root CI (service / impact neighborhood).
+     * `maxDepth` = max graph distance from root (0 → root only).
+     */
+    getServiceMap: permissionProcedure("cmdb", "read")
+      .input(
+        z.object({
+          rootCiId: z.string().uuid(),
+          maxDepth: z.coerce.number().int().min(0).max(6).default(3),
+          maxNodes: z.coerce.number().int().min(1).max(200).default(100),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+
+        const cis = await db.select().from(ciItems).where(eq(ciItems.orgId, org!.id));
+        const byId = new Map(cis.map((c) => [c.id, c]));
+        if (!byId.has(input.rootCiId)) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "CI not found" });
+        }
+
+        const rels =
+          cis.length === 0
+            ? []
+            : await db
+                .select()
+                .from(ciRelationships)
+                .where(
+                  sql`${ciRelationships.sourceId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id}) AND ${ciRelationships.targetId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id})`,
+                );
+
+        const adj = new Map<string, Set<string>>();
+        for (const r of rels) {
+          if (!adj.has(r.sourceId)) adj.set(r.sourceId, new Set());
+          if (!adj.has(r.targetId)) adj.set(r.targetId, new Set());
+          adj.get(r.sourceId)!.add(r.targetId);
+          adj.get(r.targetId)!.add(r.sourceId);
+        }
+
+        const visited = new Set<string>();
+        const queue: { id: string; d: number }[] = [{ id: input.rootCiId, d: 0 }];
+        visited.add(input.rootCiId);
+
+        while (queue.length > 0 && visited.size < input.maxNodes) {
+          const cur = queue.shift()!;
+          if (cur.d >= input.maxDepth) continue;
+          const nbr = adj.get(cur.id);
+          if (!nbr) continue;
+          for (const v of nbr) {
+            if (visited.size >= input.maxNodes) break;
+            if (!visited.has(v)) {
+              visited.add(v);
+              queue.push({ id: v, d: cur.d + 1 });
+            }
+          }
+        }
+
+        const nodeSet = visited;
+        const edgeRows = rels.filter((r) => nodeSet.has(r.sourceId) && nodeSet.has(r.targetId));
+
+        return {
+          rootCiId: input.rootCiId,
+          maxDepth: input.maxDepth,
+          nodes: [...nodeSet].map((id) => {
+            const ci = byId.get(id)!;
+            return { id: ci.id, name: ci.name, type: ci.ciType, status: ci.status };
+          }),
+          edges: edgeRows.map((r) => ({
+            id: r.id,
+            source: r.sourceId,
+            target: r.targetId,
+            type: r.relationType,
+          })),
+        };
+      }),
 
     impactAnalysis: permissionProcedure("cmdb", "read")
       .input(z.object({ ciId: z.string().uuid() }))

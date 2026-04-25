@@ -63,6 +63,7 @@ export const TRPC_PROCEDURE_RBAC: Record<string, TrpcProcedureRbacRule> = {
   "assets.assign": { kind: "rbac", module: "cmdb" as Module, action: "write" as RbacAction },
   "assets.cmdb.bulkImportCis": { kind: "rbac", module: "cmdb" as Module, action: "write" as RbacAction },
   "assets.cmdb.createCi": { kind: "rbac", module: "cmdb" as Module, action: "write" as RbacAction },
+  "assets.cmdb.getServiceMap": { kind: "rbac", module: "cmdb" as Module, action: "read" as RbacAction },
   "assets.cmdb.getTopology": { kind: "rbac", module: "cmdb" as Module, action: "read" as RbacAction },
   "assets.cmdb.impactAnalysis": { kind: "rbac", module: "cmdb" as Module, action: "read" as RbacAction },
   "assets.cmdb.linkCi": { kind: "rbac", module: "cmdb" as Module, action: "write" as RbacAction },

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Database, Search, GitMerge, Server, Cpu, Wifi, Shield, Globe, Plus, RefreshCw, Cloud, X, Upload, Zap } from "lucide-react";
+import { Database, Search, GitMerge, Server, Cpu, Wifi, Globe, Plus, RefreshCw, Cloud, X, Upload, Zap } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -18,19 +18,21 @@ const CMDB_TABS = [
 const STATUS_DOT: Record<string, string> = {
   operational: "bg-green-500",
   degraded:    "bg-yellow-400 animate-pulse",
+  down:        "bg-red-600 animate-pulse",
   critical:    "bg-red-600 animate-pulse",
+  planned:     "bg-slate-400",
   maintenance: "bg-blue-400",
   retired:     "bg-slate-400",
 };
 
-const CLASS_ICON: Record<string, React.ElementType> = {
-  "Linux Server":       Server,
-  "Database Server":    Database,
-  "Application Server": Cpu,
-  "Network Switch":     Wifi,
-  "Firewall":           Shield,
-  "Load Balancer":      Globe,
-  "Cloud Database":     Cloud,
+/** CMDB `ciType` enum → icon (API returns `ciType`, not legacy `class`). */
+const CI_TYPE_ICON: Record<string, React.ElementType> = {
+  server: Server,
+  database: Database,
+  application: Cpu,
+  network: Wifi,
+  service: Globe,
+  cloud: Cloud,
 };
 
 export default function CMDBPage() {
@@ -48,6 +50,16 @@ export default function CMDBPage() {
   const { data: cisData, refetch: refetchCIs } = trpc.assets.cmdb.list.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.list", { refetchOnWindowFocus: false },));
   const { data: topologyData } = trpc.assets.cmdb.getTopology.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.getTopology", { refetchOnWindowFocus: false },));
 
+  const [mapMode, setMapMode] = useState<"full" | "focused">("full");
+  const [mapRootId, setMapRootId] = useState<string | null>(null);
+  const { data: serviceMapData, isFetching: serviceMapFetching } = trpc.assets.cmdb.getServiceMap.useQuery(
+    { rootCiId: mapRootId!, maxDepth: 3, maxNodes: 100 },
+    mergeTrpcQueryOpts("assets.cmdb.getServiceMap", {
+      enabled: mapMode === "focused" && !!mapRootId,
+      refetchOnWindowFocus: false,
+    }),
+  );
+
   const createCI = trpc.assets.create.useMutation({
     onSuccess: () => { toast.success("CI added to CMDB"); setShowAddCI(false); setCIForm({ name: "", class: "Linux Server", location: "", ipAddress: "", status: "operational" }); refetchCIs(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
@@ -61,9 +73,27 @@ export default function CMDBPage() {
   const ciList = (cisData ?? []) as any[];
   const topoHasNodes = (((topologyData as any)?.nodes ?? []) as any[]).length > 0;
 
-  const displayCIs = ciList.filter((ci: any) =>
-    !search || ci.name?.toLowerCase().includes(search.toLowerCase()) || ci.class?.toLowerCase().includes(search.toLowerCase())
-  );
+  const displayCIs = ciList.filter((ci: any) => {
+    const typeOrClass = (ci.ciType ?? ci.class ?? "") as string;
+    return (
+      !search ||
+      ci.name?.toLowerCase().includes(search.toLowerCase()) ||
+      typeOrClass.toLowerCase().includes(search.toLowerCase())
+    );
+  });
+
+  const mapNodes =
+    mapMode === "focused" && serviceMapData
+      ? serviceMapData.nodes
+      : ((topologyData as { nodes?: { id: string; name: string; type: string; status: string }[] })?.nodes ?? []);
+  const mapEdges =
+    mapMode === "focused" && serviceMapData
+      ? serviceMapData.edges
+      : ((topologyData as { edges?: { id: string; source: string; target: string; type: string }[] })?.edges ?? []);
+  const mapReady =
+    mapMode === "full"
+      ? topoHasNodes
+      : Boolean(mapRootId) && !serviceMapFetching && Array.isArray(serviceMapData?.nodes);
 
   return (
     <div className="flex flex-col gap-3">
@@ -99,7 +129,7 @@ export default function CMDBPage() {
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: "Total CIs",          value: ciList.length,  color: "text-foreground/80" },
-          { label: "CIs Degraded/Critical", value: ciList.filter((c: any) => c.status !== "operational").length, color: "text-red-700" },
+          { label: "CIs Degraded/Down", value: ciList.filter((c: any) => c.status === "degraded" || c.status === "down").length, color: "text-red-700" },
           { label: "Stale (>24h)",       value: ciList.filter((c: any) => { const d = c.lastDiscovered ?? c.lastSeen; if (!d) return false; return Date.now() - new Date(d).getTime() > 86400000; }).length, color: "text-yellow-700" },
           { label: "Discovery Sources",  value: "—",        color: "text-blue-700" },
         ].map((k) => (
@@ -151,31 +181,33 @@ export default function CMDBPage() {
               <tbody>
                 {ciList.length === 0 ? (
                   <tr><td colSpan={13} className="text-center py-6 text-[11px] text-muted-foreground/50">No configuration items discovered yet</td></tr>
-                ) : displayCIs.map((ci) => {
-                  const Icon = CLASS_ICON[ci.class] ?? Database;
+                ) : displayCIs.map((ci: any) => {
+                  const ciType = (ci.ciType ?? ci.class ?? "server") as string;
+                  const Icon = CI_TYPE_ICON[ciType] ?? Database;
+                  const st = (ci.status ?? "operational") as string;
                   return (
                     <tr key={ci.id} onClick={() => setSelectedCI(selectedCI === ci.id ? null : ci.id)} className="cursor-pointer">
-                      <td className="p-0"><div className={`priority-bar ${ci.status === "critical" ? "bg-red-600" : ci.status === "degraded" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
+                      <td className="p-0"><div className={`priority-bar ${st === "down" ? "bg-red-600" : st === "degraded" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
                       <td className="font-mono text-[11px] text-primary">{ci.id}</td>
                       <td>
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[ci.status]}`} />
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[st] ?? STATUS_DOT.operational}`} />
                           <span className="font-medium text-foreground">{ci.name}</span>
                         </div>
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
                           <Icon className="w-3.5 h-3.5 text-muted-foreground/70" />
-                          <span className="status-badge text-muted-foreground bg-muted">{ci.class}</span>
+                          <span className="status-badge text-muted-foreground bg-muted">{ciType}</span>
                         </div>
                       </td>
-                      <td><span className={`status-badge capitalize ${ci.env === "Production" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>{ci.env}</span></td>
-                      <td><span className={`status-badge capitalize ${ci.status === "critical" ? "text-red-700 bg-red-100" : ci.status === "degraded" ? "text-yellow-700 bg-yellow-100" : "text-green-700 bg-green-100"}`}>{ci.status}</span></td>
-                      <td className="text-muted-foreground text-[11px]">{ci.os}</td>
-                      <td className="font-mono text-[11px] text-muted-foreground">{ci.ip}</td>
-                      <td className="text-muted-foreground">{ci.owner}</td>
+                      <td><span className={`status-badge capitalize ${ci.environment === "Production" || ci.env === "Production" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>{ci.environment ?? ci.env ?? "—"}</span></td>
+                      <td><span className={`status-badge capitalize ${st === "down" ? "text-red-700 bg-red-100" : st === "degraded" ? "text-yellow-700 bg-yellow-100" : "text-green-700 bg-green-100"}`}>{st}</span></td>
+                      <td className="text-muted-foreground text-[11px]">{ci.os ?? "—"}</td>
+                      <td className="font-mono text-[11px] text-muted-foreground">{ci.ip ?? "—"}</td>
+                      <td className="text-muted-foreground">{ci.owner ?? "—"}</td>
                       <td className="text-center">
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px]">{ci.relationships}</span>
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px]">{typeof ci.relationships === "number" ? ci.relationships : "—"}</span>
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
@@ -203,19 +235,48 @@ export default function CMDBPage() {
 
         {tab === "service_map" && (
           <div className="p-4">
-            <div className="text-[11px] text-muted-foreground mb-3">
-              Service dependency map — interactive force-directed graph · drag nodes · click to inspect
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              <div className="text-[11px] text-muted-foreground">
+                Service dependency map — interactive force-directed graph · drag nodes · click to inspect
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <label className="text-[10px] text-muted-foreground whitespace-nowrap">View</label>
+                <select
+                  className="text-[11px] border border-border rounded px-2 py-1 bg-background max-w-[240px]"
+                  value={mapMode === "full" ? "" : mapRootId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) {
+                      setMapMode("full");
+                      setMapRootId(null);
+                    } else {
+                      setMapMode("focused");
+                      setMapRootId(v);
+                    }
+                  }}
+                >
+                  <option value="">Full org topology</option>
+                  {ciList.map((ci: { id: string; name: string; ciType?: string }) => (
+                    <option key={ci.id} value={ci.id}>
+                      Focus: {ci.name} ({ci.ciType ?? "ci"})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            {!topoHasNodes ? (
+            {mapMode === "focused" && mapRootId && serviceMapFetching ? (
+              <div className="py-12 text-center bg-muted/30 border border-border rounded text-[11px] text-muted-foreground">
+                Loading subgraph…
+              </div>
+            ) : !mapReady ? (
               <div className="py-12 text-center bg-muted/30 border border-border rounded">
                 <GitMerge className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-[12px] text-muted-foreground/50">No topology data available yet</p>
+                <p className="text-[12px] text-muted-foreground/50">
+                  {mapMode === "focused" ? "No CI data for this focus, or subgraph is empty." : "No topology data available yet"}
+                </p>
               </div>
             ) : (
-              <ServiceMap
-                nodes={(topologyData as any)?.nodes ?? []}
-                edges={(topologyData as any)?.edges ?? []}
-              />
+              <ServiceMap nodes={mapNodes as any} edges={mapEdges as any} />
             )}
           </div>
         )}
