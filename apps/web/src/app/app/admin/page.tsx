@@ -9,7 +9,7 @@ import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
   Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
-  GitBranch, ShoppingCart,
+  GitBranch, ShoppingCart, Building2,
 } from "lucide-react";
 import {
   SYSTEM_ROLES_CATALOG, type SystemRole,
@@ -26,6 +26,7 @@ const ADMIN_TABS = [
   { key: "sla_defs",         label: "SLA Definitions",     icon: Clock,     module: "admin"             as const, action: "read"  as const },
   { key: "biz_rules",        label: "Business Rules",      icon: Workflow,  module: "flows"             as const, action: "admin" as const },
   { key: "procurement_policy", label: "Procurement Policy", icon: ShoppingCart, module: "admin"          as const, action: "admin" as const },
+  { key: "people_workplace", label: "People & Workplace", icon: Building2, module: "admin"             as const, action: "admin" as const },
   { key: "assignment_rules", label: "Assignment Rules",    icon: GitBranch, module: "admin"             as const, action: "read"  as const },
   { key: "sys_props",        label: "System Properties",   icon: Database,  module: "system_properties" as const, action: "read"  as const },
   { key: "notifications",    label: "Notification Rules",  icon: Bell,      module: "admin"             as const, action: "read"  as const },
@@ -634,6 +635,8 @@ export default function AdminConsolePage() {
           {tab === "biz_rules" && <BusinessRulesTab />}
 
           {tab === "procurement_policy" && <ProcurementPolicyTab />}
+
+          {tab === "people_workplace" && <PeopleWorkplacePolicyTab />}
 
           {/* SYSTEM PROPERTIES */}
           {tab === "sys_props" && (
@@ -1249,6 +1252,86 @@ function ProcurementPolicyTab() {
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
         {save.isPending ? "Saving…" : "Save thresholds"}
+      </button>
+    </div>
+  );
+}
+
+// ── People & Workplace hub (org.settings.peopleWorkplace) ───────────────────
+function PeopleWorkplacePolicyTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const meQ = trpc.auth.me.useQuery(undefined, mergeTrpcQueryOpts("auth.me", undefined));
+  const pw = ((meQ.data?.org as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined)?.peopleWorkplace as Record<string, unknown> | undefined;
+  const [facilitiesLive, setFacilitiesLive] = useState(true);
+  const [walkupLive, setWalkupLive] = useState(true);
+
+  useEffect(() => {
+    if (!meQ.isLoading && meQ.data?.org) {
+      setFacilitiesLive(pw?.facilitiesLive !== false);
+      setWalkupLive(pw?.walkupLive !== false);
+    }
+  }, [meQ.isLoading, meQ.data?.org, pw?.facilitiesLive, pw?.walkupLive]);
+
+  const save = trpc.hr.peopleWorkplace.updateIntegrationFlags.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      toast.success("Workplace hub integration flags saved.");
+    },
+    onError: (e: { message?: string }) => toast.error(e.message ?? "Save failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can change workplace hub integration flags.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 max-w-lg space-y-4">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">Hub integration toggles</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          When a module is <strong>off</strong>, the People & Workplace hub shows <strong>Off</strong> for that tile and skips live API calls. Defaults are on for new orgs.
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3 py-2 border-b border-border">
+        <div>
+          <div className="text-[12px] font-medium text-foreground">Facilities &amp; rooms</div>
+          <div className="text-[10px] text-muted-foreground">Spaces count on the hub</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setFacilitiesLive((v) => !v)}
+          className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded border border-border hover:bg-muted/40"
+        >
+          {facilitiesLive ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
+          {facilitiesLive ? "Live" : "Off"}
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-3 py-2 border-b border-border">
+        <div>
+          <div className="text-[12px] font-medium text-foreground">Walk-up queue</div>
+          <div className="text-[10px] text-muted-foreground">Active queue depth on the hub</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setWalkupLive((v) => !v)}
+          className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded border border-border hover:bg-muted/40"
+        >
+          {walkupLive ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
+          {walkupLive ? "Live" : "Off"}
+        </button>
+      </div>
+      <button
+        type="button"
+        disabled={save.isPending || meQ.isLoading}
+        onClick={() => save.mutate({ facilitiesLive, walkupLive })}
+        className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save flags"}
       </button>
     </div>
   );

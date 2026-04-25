@@ -141,6 +141,7 @@ const QUERY_PROCEDURES: string[] = [
   "hr.employees.list",
   "hr.leave.list",
   "hr.cases.list",
+  "hr.platformHomeStrip",
   "hr.onboardingTemplates.list",
   "hr.payroll.listPayslips",
   // india compliance (camelCase key)

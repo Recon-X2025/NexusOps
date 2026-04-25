@@ -9,7 +9,7 @@ import {
   TicketIcon, AlertTriangle, CheckCircle2, Activity, Shield, RefreshCw, Loader2, ChevronRight,
   Wrench, GitBranch, Target, CheckCircle, XCircle,
   Layers, Scale,
-  Monitor, ShieldCheck, Users, Handshake, Banknote, Code,
+  Monitor, ShieldCheck, Users, Handshake, Banknote, Code, UserCircle,
   TrendingDown, TrendingUp,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -153,6 +153,12 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
   const { data: changesPage } = trpc.changes.list.useQuery({ limit: 3 }, mergeTrpcQueryOpts("changes.list", { enabled: isAuthenticated && canAccess("changes") }));
   const changeList = changesPage?.items ?? [];
 
+  const showHomeHrStrip = process.env.NEXT_PUBLIC_HOME_HR_STRIP === "true" && can("hr", "read");
+  const { data: hrStrip, isPending: loadingHrStrip } = trpc.hr.platformHomeStrip.useQuery(undefined, mergeTrpcQueryOpts("hr.platformHomeStrip", {
+    enabled: isAuthenticated && showHomeHrStrip,
+    staleTime: STALE_TIME.LIVE,
+  }));
+
   const visibleModuleGroups = MODULE_GROUPS.filter((g) => canAccess(g.requiredModule));
   const canViewTickets = canAccess("incidents") || canAccess("requests");
   const canViewSecurity = canAccess("security");
@@ -243,6 +249,50 @@ function DashboardContent({ can, canAccess, isAuthenticated }: { can: (m: Module
           <KPICard label="Failed Deploys" value={failedDeploys} color="text-red-700" href="/app/developer-ops" icon={Target} />
         )}
       </div>
+
+      {showHomeHrStrip && (
+        <div className="rounded border border-border bg-card px-3 py-2.5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Users className="w-3.5 h-3.5 text-green-600" />
+              <span className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">People & Workplace</span>
+            </div>
+            <Link href="/app/people-workplace" className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+              Hub <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <KPICard
+              label="HR cases"
+              value={loadingHrStrip ? "…" : (hrStrip?.hrCases ?? 0)}
+              color="text-blue-700"
+              href="/app/hr"
+              icon={UserCircle}
+            />
+            <KPICard
+              label="Headcount"
+              value={loadingHrStrip ? "…" : (hrStrip?.totalEmployees ?? 0)}
+              color="text-purple-700"
+              href="/app/hr"
+              icon={Users}
+            />
+            <KPICard
+              label="Onboarding cases"
+              value={loadingHrStrip ? "…" : (hrStrip?.onboardingCases ?? 0)}
+              color="text-green-700"
+              href="/app/hr"
+              icon={CheckCircle2}
+            />
+            <KPICard
+              label="Offboarding cases"
+              value={loadingHrStrip ? "…" : (hrStrip?.offboardingCases ?? 0)}
+              color="text-orange-700"
+              href="/app/hr"
+              icon={AlertTriangle}
+            />
+          </div>
+        </div>
+      )}
 
       {can("financial", "read") && can("reports", "read") && metrics != null && (() => {
         const m = metrics as typeof metrics & {

@@ -886,6 +886,17 @@ describe("Layer 8: Module Smoke Tests", () => {
       const list = await adminCaller.hr.employees.list({});
       expect(Array.isArray(list)).toBe(true);
     });
+
+    it("platformHomeStrip + workplace integration flags", async () => {
+      const caller = await authedCaller(adminToken);
+      const strip = await caller.hr.platformHomeStrip() as { hrCases: number; totalEmployees: number; onboardingCases: number };
+      expect(strip).toBeDefined();
+      expect(typeof strip.hrCases).toBe("number");
+      expect(typeof strip.onboardingCases).toBe("number");
+      const off = await caller.hr.peopleWorkplace.updateIntegrationFlags({ facilitiesLive: false }) as { facilitiesLive: boolean };
+      expect(off.facilitiesLive).toBe(false);
+      await caller.hr.peopleWorkplace.updateIntegrationFlags({ facilitiesLive: true, walkupLive: true });
+    });
   });
 
   // ── 8.34 CSM ──────────────────────────────────────────────────────────────

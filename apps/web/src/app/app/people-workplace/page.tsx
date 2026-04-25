@@ -53,15 +53,21 @@ export default function PeopleWorkplaceDashboard() {
   const canFacilities = isAuthenticated && can("facilities", "read");
   const canWalkup = isAuthenticated && can("incidents", "read");
 
+  const { data: me } = trpc.auth.me.useQuery(undefined, mergeTrpcQueryOpts("auth.me", { enabled: isAuthenticated }));
+  const pwSettings = ((me?.org as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined)?.peopleWorkplace as Record<string, unknown> | undefined;
+  /** When `auth.me` has not resolved, default to live so we do not flash "Off". */
+  const facilitiesLive = me?.org == null ? true : pwSettings?.facilitiesLive !== false;
+  const walkupLive = me?.org == null ? true : pwSettings?.walkupLive !== false;
+
   const { data: hrCases, isLoading: loadingCases } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { enabled: canHr }));
   const { data: employees, isLoading: loadingEmp } = trpc.hr.employees.list.useQuery({}, mergeTrpcQueryOpts("hr.employees.list", { enabled: canHr }));
   const { data: facilitiesHub, isLoading: loadingFacilitiesHub } = trpc.facilities.hubSnapshot.useQuery(
     undefined,
-    mergeTrpcQueryOpts("facilities.hubSnapshot", { enabled: canFacilities }),
+    mergeTrpcQueryOpts("facilities.hubSnapshot", { enabled: canFacilities && facilitiesLive }),
   );
   const { data: walkupHub, isLoading: loadingWalkupHub } = trpc.walkup.hubSnapshot.useQuery(
     undefined,
-    mergeTrpcQueryOpts("walkup.hubSnapshot", { enabled: canWalkup }),
+    mergeTrpcQueryOpts("walkup.hubSnapshot", { enabled: canWalkup && walkupLive }),
   );
 
   if (!can("hr", "read") && !can("facilities", "read") && !can("incidents", "read")) {
@@ -69,29 +75,35 @@ export default function PeopleWorkplaceDashboard() {
   }
 
   const openCases = hrCases ? hrCases.length : 0;
-  const onboardingEmployees = employees ? employees.filter((e: any) => e.status === "onboarding").length : 0;
-  const offboardingEmployees = employees ? employees.filter((e: any) => e.status === "offboarding").length : 0;
+  const onboardingCases = hrCases ? hrCases.filter((row: any) => row.hrCase?.caseType === "onboarding").length : 0;
+  const offboardingCases = hrCases ? hrCases.filter((row: any) => row.hrCase?.caseType === "offboarding").length : 0;
   const totalEmployees = employees ? employees.length : 0;
 
   const alerts = [
-    offboardingEmployees > 0 ? { color: "bg-orange-500", text: `${offboardingEmployees} offboarding${offboardingEmployees !== 1 ? "s" : ""} in progress` } : null,
-    onboardingEmployees > 0 ? { color: "bg-blue-500",   text: `${onboardingEmployees} onboarding${onboardingEmployees !== 1 ? "s" : ""} in progress` } : null,
+    offboardingCases > 0 ? { color: "bg-orange-500", text: `${offboardingCases} offboarding case${offboardingCases !== 1 ? "s" : ""}` } : null,
+    onboardingCases > 0 ? { color: "bg-blue-500",   text: `${onboardingCases} onboarding case${onboardingCases !== 1 ? "s" : ""}` } : null,
   ].filter(Boolean) as { color: string; text: string }[];
 
   const moduleStats = [
     [
       { k: "Cases",      v: loadingCases ? "…" : String(openCases) },
-      { k: "Onboarding", v: loadingEmp   ? "…" : String(onboardingEmployees) },
+      { k: "Onboarding", v: loadingCases ? "…" : String(onboardingCases) },
     ],
     [
       { k: "Active", v: loadingEmp ? "…" : String(employees?.filter((e: any) => e.status === "active").length ?? 0) },
       { k: "Total",  v: loadingEmp ? "…" : String(totalEmployees) },
     ],
     [
-      { k: "Spaces", v: !canFacilities ? "—" : loadingFacilitiesHub ? "…" : String(facilitiesHub?.roomCount ?? 0) },
+      {
+        k: "Spaces",
+        v: !canFacilities ? "—" : !facilitiesLive ? "Off" : loadingFacilitiesHub ? "…" : String(facilitiesHub?.roomCount ?? 0),
+      },
     ],
     [
-      { k: "Queue", v: !canWalkup ? "—" : loadingWalkupHub ? "…" : String(walkupHub?.queueActive ?? 0) },
+      {
+        k: "Queue",
+        v: !canWalkup ? "—" : !walkupLive ? "Off" : loadingWalkupHub ? "…" : String(walkupHub?.queueActive ?? 0),
+      },
     ],
   ];
 
@@ -127,8 +139,8 @@ export default function PeopleWorkplaceDashboard() {
 
       <div className="grid grid-cols-4 gap-2">
         <KPICard label="Open HR Cases" value={openCases} color="text-blue-700" icon={Users2} href="/app/hr" isLoading={loadingCases} />
-        <KPICard label="Active Onboardings" value={onboardingEmployees} color="text-green-700" icon={UserPlus} href="/app/hr" isLoading={loadingEmp} />
-        <KPICard label="Pending Offboardings" value={offboardingEmployees} color="text-orange-700" icon={UserMinus} href="/app/hr" isLoading={loadingEmp} />
+        <KPICard label="Onboarding cases" value={onboardingCases} color="text-green-700" icon={UserPlus} href="/app/hr" isLoading={loadingCases} />
+        <KPICard label="Offboarding cases" value={offboardingCases} color="text-orange-700" icon={UserMinus} href="/app/hr" isLoading={loadingCases} />
         <KPICard label="Total Employees" value={totalEmployees} color="text-purple-700" icon={Users} href="/app/hr" isLoading={loadingEmp} />
       </div>
 

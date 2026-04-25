@@ -27,9 +27,9 @@
 |--------|------:|
 | **Stories in rollup** | 58 |
 | **Done** | 0 |
-| **Partial** | 25 |
+| **Partial** | 26 |
 | **Deferred** | 1 |
-| **Backlog** | 32 |
+| **Backlog** | 31 |
 | **Approx. closure** (Done ÷ 58) | 0% — *treat **Partial** as in-flight, not closed* |
 
 ---
@@ -585,10 +585,10 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-SEC-006 | Backlog | — |
 | US-SEC-007 | Backlog | — |
 | US-SEC-008 | Partial | `docs/FINANCE_SOD_MATRIX.md`, `docs/TRUST_CENTRE_STARTER.md`; SoD example on invoice pay (`markPaid` vs approver). |
-| US-HCM-001 | Partial | People & Workplace hub: `facilities.hubSnapshot` (org-scoped room count), `walkup.hubSnapshot` (active queue); tiles show **—** when user lacks module RBAC. Org integration disconnect flag still open vs AC. |
+| US-HCM-001 | Partial | People & Workplace hub: `facilities` / `walkup` snapshots; **Admin → People & Workplace** toggles `org.settings.peopleWorkplace.{facilitiesLive,walkupLive}` (default on); hub shows **Off** / skips API when off. Tiles **—** when user lacks module RBAC. |
 | US-HCM-002 | Backlog | — |
 | US-HCM-003 | Backlog | — |
-| US-HCM-004 | Backlog | — |
+| US-HCM-004 | Partial | Platform home: `NEXT_PUBLIC_HOME_HR_STRIP=true` + `hr.platformHomeStrip` (case/onboarding/offboarding counts + headcount); links to **People & Workplace** hub and HR. |
 | US-HCM-005 | Backlog | — |
 | US-HCM-006 | Backlog | — |
 | US-HCM-007 | Backlog | — |
@@ -637,6 +637,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | **US-FIN-003** (partial): DB-backed PR approval tiers, admin console tab, fresh settings on PR create. |
 | 2026-04-25 | **US-ITSM-003** / **US-FIN-005** (partial): SLA operational health API + IT analytics UI; PO vs invoice line-sum three-way tightening. |
 | 2026-04-25 | **US-HCM-001** / **US-CRM-002** (partial): workplace hub snapshots (`facilities` / `walkup`); `crm.executiveSummary` + hub; programme counts refreshed. |
+| 2026-04-25 | **US-HCM-001** / **US-HCM-004** (partial): org workplace integration toggles; optional platform home HR strip (`hr.platformHomeStrip`, env flag); hub onboarding/offboarding stats from **HR case types**. |
 
 ---
 

@@ -291,6 +291,8 @@ export const TRPC_PROCEDURE_RBAC: Record<string, TrpcProcedureRbacRule> = {
   "hr.payroll.generateECR": { kind: "rbac", module: "hr" as Module, action: "read" as RbacAction },
   "hr.payroll.listPayslips": { kind: "rbac", module: "hr" as Module, action: "read" as RbacAction },
   "hr.payroll.runMonthlyPayroll": { kind: "rbac", module: "hr" as Module, action: "write" as RbacAction },
+  "hr.peopleWorkplace.updateIntegrationFlags": { kind: "adminRole" },
+  "hr.platformHomeStrip": { kind: "rbac", module: "hr" as Module, action: "read" as RbacAction },
   "indiaCompliance.calendar.create": { kind: "rbac", module: "secretarial" as Module, action: "write" as RbacAction },
   "indiaCompliance.calendar.list": { kind: "rbac", module: "secretarial" as Module, action: "read" as RbacAction },
   "indiaCompliance.calendar.markFiled": { kind: "rbac", module: "secretarial" as Module, action: "write" as RbacAction },

@@ -1,9 +1,10 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
 import {
   employees,
+  organizations,
   hrCases,
   hrCaseTasks,
   leaveRequests,
@@ -21,6 +22,60 @@ import {
 import { CreateLeaveRequestSchema } from "@nexusops/types";
 
 export const hrRouter = router({
+  /** Compact counts for platform home (US-HCM-004). */
+  platformHomeStrip: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const orgId = org!.id;
+    const [{ caseCnt }] = await db
+      .select({ caseCnt: count() })
+      .from(hrCases)
+      .where(eq(hrCases.orgId, orgId));
+    const [{ totalEmp }] = await db
+      .select({ totalEmp: count() })
+      .from(employees)
+      .where(eq(employees.orgId, orgId));
+    const [{ onboardingCases }] = await db
+      .select({ onboardingCases: count() })
+      .from(hrCases)
+      .where(and(eq(hrCases.orgId, orgId), eq(hrCases.caseType, "onboarding")));
+    const [{ offboardingCases }] = await db
+      .select({ offboardingCases: count() })
+      .from(hrCases)
+      .where(and(eq(hrCases.orgId, orgId), eq(hrCases.caseType, "offboarding")));
+    return {
+      hrCases: Number(caseCnt ?? 0),
+      totalEmployees: Number(totalEmp ?? 0),
+      onboardingCases: Number(onboardingCases ?? 0),
+      offboardingCases: Number(offboardingCases ?? 0),
+    };
+  }),
+
+  peopleWorkplace: router({
+    updateIntegrationFlags: adminProcedure
+      .input(z.object({
+        facilitiesLive: z.boolean().optional(),
+        walkupLive: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prev = (raw.peopleWorkplace as Record<string, unknown> | undefined) ?? {};
+        const peopleWorkplace = { ...prev, ...input };
+        await db
+          .update(organizations)
+          .set({ settings: { ...raw, peopleWorkplace } })
+          .where(eq(organizations.id, org!.id));
+        return {
+          facilitiesLive: peopleWorkplace.facilitiesLive !== false,
+          walkupLive: peopleWorkplace.walkupLive !== false,
+        };
+      }),
+  }),
+
   employees: router({
     list: permissionProcedure("hr", "read")
       .input(
