@@ -1,4 +1,4 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { sendNotification } from "../services/notifications";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -15,6 +15,7 @@ import {
   approvalRequests,
   assets,
   assetTypes,
+  organizations,
   eq,
   and,
   desc,
@@ -23,15 +24,12 @@ import {
   sql,
 } from "@nexusops/db";
 import { CreatePurchaseRequestSchema } from "@nexusops/types";
-import { getProcurementMatchToleranceAbs } from "../lib/org-settings";
+import { getProcurementMatchToleranceAbs, getProcurementApprovalTiers } from "../lib/org-settings";
 
-const AUTO_APPROVE_THRESHOLD = 75000;   // < ₹75,000 auto-approved
-const DEPT_HEAD_THRESHOLD = 750000;     // ₹75,000–₹7,50,000 dept head
-// > ₹7,50,000 requires VP + Finance sequential approval
-
-async function determineApproval(amount: number, orgId: string): Promise<string> {
-  if (amount < AUTO_APPROVE_THRESHOLD) return "auto";
-  if (amount < DEPT_HEAD_THRESHOLD) return "dept_head";
+async function determineApproval(amount: number, orgSettings: unknown): Promise<string> {
+  const { prAutoApproveBelow, prDeptHeadMax } = getProcurementApprovalTiers(orgSettings);
+  if (amount < prAutoApproveBelow) return "auto";
+  if (amount < prDeptHeadMax) return "dept_head";
   return "vp_finance";
 }
 
@@ -104,7 +102,11 @@ export const procurementRouter = router({
         0,
       );
 
-      const approvalLevel = await determineApproval(totalAmount, org!.id);
+      const [freshOrg] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const approvalLevel = await determineApproval(totalAmount, freshOrg?.settings ?? org!.settings);
       const status = approvalLevel === "auto" ? "approved" : "pending";
 
       const [pr] = await db
@@ -413,5 +415,60 @@ export const procurementRouter = router({
       pendingApprovals: pendingCount?.count ?? 0,
       totalSpend: totalSpend?.total ?? "0",
     };
+  }),
+
+  /** DB-backed PR approval tiers (US-FIN-003). */
+  approvalRules: router({
+    get: permissionProcedure("procurement", "read").query(async ({ ctx }) => {
+      const tiers = getProcurementApprovalTiers(ctx.org!.settings);
+      return {
+        ...tiers,
+        currencyNote: "Amounts use the same numeric basis as PR line totals (org default: INR-style integers in product copy).",
+      };
+    }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          prAutoApproveBelow: z.coerce.number().min(0).max(1e12),
+          prDeptHeadMax: z.coerce.number().min(1).max(1e12),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (input.prDeptHeadMax <= input.prAutoApproveBelow) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "prDeptHeadMax must be greater than prAutoApproveBelow",
+          });
+        }
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevProc = (raw.procurement as Record<string, unknown> | undefined) ?? {};
+        const procurement = {
+          ...prevProc,
+          prAutoApproveBelow: input.prAutoApproveBelow,
+          prDeptHeadMax: input.prDeptHeadMax,
+        };
+        await db
+          .update(organizations)
+          .set({
+            settings: {
+              ...raw,
+              procurement,
+            },
+          })
+          .where(eq(organizations.id, org!.id));
+
+        return {
+          ok: true as const,
+          prAutoApproveBelow: input.prAutoApproveBelow,
+          prDeptHeadMax: input.prDeptHeadMax,
+          previous: { prAutoApproveBelow: prevProc.prAutoApproveBelow, prDeptHeadMax: prevProc.prDeptHeadMax },
+        };
+      }),
   }),
 });

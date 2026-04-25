@@ -409,6 +409,34 @@ describe("Layer 8: Module Smoke Tests", () => {
       }) as { status: string };
       expect(rejected.status).toBe("rejected");
     });
+
+    it("PR approval tiers follow org settings (US-FIN-003)", async () => {
+      const caller = await authedCaller(adminToken);
+      await caller.procurement.approvalRules.update({
+        prAutoApproveBelow: 1000,
+        prDeptHeadMax: 5000,
+      });
+      const small = await caller.procurement.purchaseRequests.create({
+        title: "Tier test small",
+        justification: "Under auto",
+        items: [{ description: "Clip", quantity: 10, unitPrice: 50 }],
+        priority: "low",
+        department: "IT",
+      }) as { status: string };
+      expect(small.status).toBe("approved");
+      const mid = await caller.procurement.purchaseRequests.create({
+        title: "Tier test mid",
+        justification: "Pending band",
+        items: [{ description: "Kit", quantity: 3, unitPrice: 400 }],
+        priority: "medium",
+        department: "IT",
+      }) as { status: string };
+      expect(mid.status).toBe("pending");
+      await caller.procurement.approvalRules.update({
+        prAutoApproveBelow: 75_000,
+        prDeptHeadMax: 750_000,
+      });
+    });
   });
 
   // ── 8.07 CRM ─────────────────────────────────────────────────────────────

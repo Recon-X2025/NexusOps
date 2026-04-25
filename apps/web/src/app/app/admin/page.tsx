@@ -9,7 +9,7 @@ import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
   Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
-  GitBranch,
+  GitBranch, ShoppingCart,
 } from "lucide-react";
 import {
   SYSTEM_ROLES_CATALOG, type SystemRole,
@@ -25,6 +25,7 @@ const ADMIN_TABS = [
   { key: "groups",           label: "Groups & Teams",      icon: Users,     module: "users"             as const, action: "read"  as const },
   { key: "sla_defs",         label: "SLA Definitions",     icon: Clock,     module: "admin"             as const, action: "read"  as const },
   { key: "biz_rules",        label: "Business Rules",      icon: Workflow,  module: "flows"             as const, action: "admin" as const },
+  { key: "procurement_policy", label: "Procurement Policy", icon: ShoppingCart, module: "admin"          as const, action: "admin" as const },
   { key: "assignment_rules", label: "Assignment Rules",    icon: GitBranch, module: "admin"             as const, action: "read"  as const },
   { key: "sys_props",        label: "System Properties",   icon: Database,  module: "system_properties" as const, action: "read"  as const },
   { key: "notifications",    label: "Notification Rules",  icon: Bell,      module: "admin"             as const, action: "read"  as const },
@@ -632,6 +633,8 @@ export default function AdminConsolePage() {
           {/* BUSINESS RULES */}
           {tab === "biz_rules" && <BusinessRulesTab />}
 
+          {tab === "procurement_policy" && <ProcurementPolicyTab />}
+
           {/* SYSTEM PROPERTIES */}
           {tab === "sys_props" && (
             <div className="p-4">
@@ -1158,6 +1161,95 @@ function AuditLogTab() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Procurement PR approval tiers (org.settings.procurement) ─────────────────
+function ProcurementPolicyTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const q = trpc.procurement.approvalRules.get.useQuery(undefined, mergeTrpcQueryOpts("procurement.approvalRules.get", undefined));
+  const [autoBelow, setAutoBelow] = useState("");
+  const [deptMax, setDeptMax] = useState("");
+
+  useEffect(() => {
+    if (q.data) {
+      setAutoBelow(String(q.data.prAutoApproveBelow));
+      setDeptMax(String(q.data.prDeptHeadMax));
+    }
+  }, [q.data]);
+
+  const save = trpc.procurement.approvalRules.update.useMutation({
+    onSuccess: () => {
+      utils.procurement.approvalRules.get.invalidate();
+      toast.success("Procurement thresholds saved. New purchase requests use these rules immediately.");
+    },
+    onError: (e) => toast.error(e.message ?? "Save failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can change procurement approval thresholds.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 max-w-md space-y-4">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">Purchase requisition approval tiers</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          Totals are computed from PR lines (quantity × unit price). Changes are stored in organization settings and audited.
+        </p>
+        {q.data?.currencyNote && (
+          <p className="text-[10px] text-muted-foreground/80 mt-1">{q.data.currencyNote}</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">Auto-approve below (exclusive max)</label>
+        <input
+          type="number"
+          min={0}
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={autoBelow}
+          onChange={(e) => setAutoBelow(e.target.value)}
+          disabled={q.isLoading}
+        />
+        <span className="text-[10px] text-muted-foreground">PRs with total &lt; this amount are approved automatically.</span>
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">Department head band — upper bound (exclusive)</label>
+        <input
+          type="number"
+          min={1}
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={deptMax}
+          onChange={(e) => setDeptMax(e.target.value)}
+          disabled={q.isLoading}
+        />
+        <span className="text-[10px] text-muted-foreground">
+          From auto threshold up to &lt; this value → <code className="text-[10px]">dept_head</code>. At or above →{" "}
+          <code className="text-[10px]">vp_finance</code>.
+        </span>
+      </div>
+      <button
+        type="button"
+        disabled={save.isPending || q.isLoading}
+        onClick={() => {
+          const a = Number(autoBelow);
+          const d = Number(deptMax);
+          if (!Number.isFinite(a) || !Number.isFinite(d) || d <= a) {
+            toast.error("Department head upper bound must be greater than the auto-approve ceiling.");
+            return;
+          }
+          save.mutate({ prAutoApproveBelow: a, prDeptHeadMax: d });
+        }}
+        className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save thresholds"}
+      </button>
     </div>
   );
 }

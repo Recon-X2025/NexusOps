@@ -27,9 +27,9 @@
 |--------|------:|
 | **Stories in rollup** | 58 |
 | **Done** | 0 |
-| **Partial** | 20 |
+| **Partial** | 21 |
 | **Deferred** | 1 |
-| **Backlog** | 37 |
+| **Backlog** | 36 |
 | **Approx. closure** (Done ÷ 58) | 0% — *treat **Partial** as in-flight, not closed* |
 
 ---
@@ -603,7 +603,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-CRM-008 | Partial | `legal_entities`, `invoices.legal_entity_id`; admin CRUD / PO slice as needed. |
 | US-FIN-001 | Partial | Finance & Procurement hub: `procurement.dashboard` (PR **pending** = `pr_status.pending`), `financial.executiveSummary` (AP/AR open), real **PO** list via `purchaseOrders.list`; labels fixed (PR vs PO). |
 | US-FIN-002 | Partial | `financial.executiveSummary`; drill-down links / hub wiring may lag. |
-| US-FIN-003 | Backlog | DB-backed thresholds + admin UI + audit. |
+| US-FIN-003 | Partial | `org.settings.procurement.prAutoApproveBelow` / `prDeptHeadMax`; **Admin → Procurement Policy**; `procurement.approvalRules` (owner/admin); PR create reads **fresh** org settings (session cache safe); defaults 75k / 750k; layer8 test. |
 | US-FIN-004 | Partial | Same implementation as **US-CRM-004** (dedupe + tolerance). |
 | US-FIN-005 | Backlog | — |
 | US-FIN-006 | Partial | Matrix doc + enforced SoD example (invoice pay); expand tests / more pairs. |
@@ -634,6 +634,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | Introduced **Living document**: status meanings, **Status rollup** (initial snapshot), **Changelog**. |
 | 2026-04-25 | Hub gap closures: **US-FIN-001** (finance-procurement), **US-CRM-001** (`csm.dashboard` SQL metrics), **US-STR-001** (strategy analytics tile); rollup updated. |
 | 2026-04-25 | **Programme charter**: explicit **100% closure** target, phased rules, **US-LEG-009+** decomposition requirement, rollup-derived **Programme progress** snapshot. |
+| 2026-04-25 | **US-FIN-003** (partial): DB-backed PR approval tiers, admin console tab, fresh settings on PR create. |
 
 ---
 
