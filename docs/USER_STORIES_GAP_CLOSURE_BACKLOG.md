@@ -5,6 +5,32 @@
 **Conventions:** Stories follow **As a / I want / So that**; **AC** = acceptance criteria. IDs are **stable prefixes** (`US-<MODULE>-###`).  
 **Sources:** `SERVICENOW_ITSM_GAP_ANALYSIS.md`, `NEXUSOPS_SECURITY_COMPLIANCE_GAP_ANALYSIS.md`, `WORKDAY_PEOPLE_WORKPLACE_GAP_ANALYSIS.md`, `HUBSPOT_CUSTOMER_SALES_CRM_GAP_ANALYSIS.md`, `MICROSOFT_FINANCE_PROCUREMENT_GAP_ANALYSIS.md`, `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md`, `AMAZON_STRATEGY_PROJECTS_GAP_ANALYSIS.md` (all under `docs/`).  
 **Date:** April 2026  
+**Programme commitment:** **100% closure** of every `US-*` story in this backlog is the target, including decomposition of **US-LEG-009+** into trackable child stories. Delivery is **multi-year / multi-phase**; status and evidence live in the **rollup** and **changelog**. Items that touch **legal, tax, or regulated** workflows still require **professional validation** before production (see **Disclaimer**) — that is not an excuse to leave stories **Backlog** forever; it means **Done** includes documented sign-off where required.
+
+---
+
+## Programme charter (100% closure)
+
+| Principle | How we run |
+|-----------|------------|
+| **North star** | Each story reaches **Done** only when its **AC** are met in product (or the story is **superseded** by another `US-*`, with both rollup rows updated and changelog noted). |
+| **Epic: Legal depth** | **US-LEG-009+** is not “infinite backlog”: before counting programme %, split it into concrete **`US-LEG-010`…** (or similar) mapped to `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md` §3.9 / §6 rows. |
+| **Deferred** | **Temporary** only; each **Deferred** row must name a **revisit trigger** (date, dependency, or decision) in **Notes**. Clearing **Deferred** is part of 100%. |
+| **Partial** | Expected during delivery; **Partial** is not the end state — schedule the remaining AC and move to **Done**. |
+| **Cadence** | After each merge that affects scope: update **rollup** + **changelog**. At least **quarterly**: refresh **Programme progress** counts below. |
+
+### Programme progress (rollup-derived)
+
+*Recalculate from **Status rollup** when statuses change. Last counted: **2026-04-25**.*
+
+| Metric | Count |
+|--------|------:|
+| **Stories in rollup** | 58 |
+| **Done** | 0 |
+| **Partial** | 20 |
+| **Deferred** | 1 |
+| **Backlog** | 37 |
+| **Approx. closure** (Done ÷ 58) | 0% — *treat **Partial** as in-flight, not closed* |
 
 ---
 
@@ -523,7 +549,7 @@
 
 ## Living document
 
-This backlog is **maintained in-repo**. When a story ships, is de-scoped, or stalls, update the **Status rollup** (below) and append a row to **Changelog**. Prefer **Partial** over **Done** until every **AC** in the story is satisfied.
+This backlog is **maintained in-repo**. When a story ships, is de-scoped, or stalls, update the **Status rollup** (below), refresh **Programme progress** counts if needed, and append a row to **Changelog**. Prefer **Partial** over **Done** until every **AC** in the story is satisfied. The programme **target remains 100%** of rollup stories **Done** (see **Programme charter**).
 
 ### Status meanings
 
@@ -607,9 +633,10 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 |------|--------|
 | 2026-04-25 | Introduced **Living document**: status meanings, **Status rollup** (initial snapshot), **Changelog**. |
 | 2026-04-25 | Hub gap closures: **US-FIN-001** (finance-procurement), **US-CRM-001** (`csm.dashboard` SQL metrics), **US-STR-001** (strategy analytics tile); rollup updated. |
+| 2026-04-25 | **Programme charter**: explicit **100% closure** target, phased rules, **US-LEG-009+** decomposition requirement, rollup-derived **Programme progress** snapshot. |
 
 ---
 
 ## Disclaimer
 
-User stories are **planning artefacts** derived from static gap docs; they are **not** commitments to ship every item. **Legal, tax, and regulatory** stories require **professional validation** before production use in regulated contexts.
+User stories are **planning artefacts** derived from static gap docs. The **programme** may still target **100% closure** of this backlog as a product roadmap: **Done** for sensitive domains means **implemented and professionally validated** where required — not “shipped untested to production.” **Legal, tax, and regulatory** stories require **professional validation** before use in regulated contexts; that work is part of reaching **Done**, not a reason to leave rows unbounded in **Backlog**.
