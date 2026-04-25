@@ -4,11 +4,11 @@
  * Populates the Vultr server with realistic data across all modules.
  *
  * Usage:
- *   BASE_URL=http://139.84.154.78:3001 node scripts/populate-live.js
+ *   BASE_URL=http://localhost:3001 node scripts/populate-live.js
  */
 "use strict";
 
-const BASE = (process.env.BASE_URL ?? "http://139.84.154.78:3001") + "/trpc";
+const BASE = (process.env.BASE_URL ?? "http://localhost:3001") + "/trpc";
 
 const PERSONAS = [
   { role: "admin",   email: "admin@coheron.com",    password: "demo1234!" },

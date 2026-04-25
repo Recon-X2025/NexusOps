@@ -8,8 +8,8 @@
  *   Mutations: POST /trpc/{proc} body={...}   → result.data
  */
 
-const BASE = "http://139.84.154.78";
-const API  = "http://139.84.154.78:3001";
+const BASE = process.env["NEXUS_QA_BASE_URL"] ?? process.env["CHAOS_BASE_URL"] ?? "http://localhost:3000";
+const API  = process.env["NEXUS_QA_API_URL"] ?? "http://localhost:3001";
 const ADMIN_EMAIL    = "admin@coheron.com";
 const ADMIN_PASSWORD = "demo1234!";
 

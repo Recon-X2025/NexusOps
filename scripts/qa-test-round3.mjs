@@ -5,7 +5,8 @@
 
 import { performance } from "perf_hooks";
 
-const BASE = "http://139.84.154.78:3001";
+const WEB_BASE = process.env.NEXUS_QA_BASE_URL ?? "http://localhost:3000";
+const BASE = process.env.NEXUS_QA_API_URL ?? process.env.BASE_URL ?? "http://localhost:3001";
 const USERS = [
   { email: "admin@coheron.com",   password: "demo1234!", role: "admin"           },
   { email: "agent1@coheron.com",  password: "demo1234!", role: "itil_agent"      },
@@ -502,7 +503,7 @@ async function phase8() {
   // Check if the web app is responding
   try {
     const t0 = performance.now();
-    const r = await fetch("http://139.84.154.78/", { redirect: "manual" });
+    const r = await fetch(`${WEB_BASE.replace(/\/$/, "")}/`, { redirect: "manual" });
     const ms = Math.round(performance.now() - t0);
     phase.webAppStatus = r.status;
     phase.webAppMs = ms;
@@ -516,7 +517,7 @@ async function phase8() {
 
   // Check the login page
   try {
-    const r = await fetch("http://139.84.154.78/login");
+    const r = await fetch(`${WEB_BASE.replace(/\/$/, "")}/login`);
     phase.loginPageStatus = r.status;
     phase.loginPageOk = r.status < 400;
     console.log(`  ${phase.loginPageOk ? "✓" : "✗"} Login page → HTTP ${r.status}`);

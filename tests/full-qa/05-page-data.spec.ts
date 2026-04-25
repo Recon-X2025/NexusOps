@@ -11,7 +11,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+const BASE_URL = process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function loadPage(page: Page, path: string): Promise<string> {

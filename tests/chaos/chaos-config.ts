@@ -6,7 +6,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const DEFAULT_BASE = "http://139.84.154.78";
+const DEFAULT_BASE = "http://localhost:3000";
 /** Default includes Playwright project key so parallel projects do not fight one org row. */
 const DEFAULT_ORG_SLUG_PREFIX = "nexusops-chaos-validation";
 const DEFAULT_SEED_PASSWORD = "ChaosValidation!9";

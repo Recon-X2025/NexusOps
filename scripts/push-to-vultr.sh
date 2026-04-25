@@ -3,7 +3,7 @@
 # NexusOps → Vultr — rsync + deploy (pull from GHCR by default).
 #
 # Env (laptop):
-#   VULTR_HOST              default 139.84.154.78
+#   VULTR_HOST              required — server IP or hostname (no default)
 #   VULTR_USER              default root
 #   DEPLOY_MODE             pull | build   (default: pull)
 #   NEXUSOPS_IMAGE_REPO     default ghcr.io/recon-x2025/nexusops  (lowercase)
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SERVER_IP="${VULTR_HOST:-139.84.154.78}"
+SERVER_IP="${VULTR_HOST:-}"
 SERVER="${VULTR_USER:-root}@${SERVER_IP}"
 SOCK="/tmp/nexusops-deploy-$$"
 
@@ -35,6 +35,10 @@ ok()   { echo -e "${GREEN}✓ $*${RESET}"; }
 die()  { echo -e "${RED}✗ $*${RESET}" >&2; exit 1; }
 
 SSH_BASE=(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
+
+if [[ -z "$SERVER_IP" ]]; then
+  die "Set VULTR_HOST to your VPS IP or hostname (example: export VULTR_HOST=203.0.113.10)"
+fi
 
 echo ""
 echo -e "${BOLD}NexusOps → Vultr${RESET}"

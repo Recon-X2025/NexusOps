@@ -3,7 +3,7 @@
  *
  * Full vertical (seed + UI + DB counts): Postgres for Drizzle **must be the same DB the API uses**.
  *
- *   CHAOS_BASE_URL          — default http://139.84.154.78
+ *   CHAOS_BASE_URL          — default http://localhost:3000
  *   CHAOS_DATABASE_URL      — optional; if set, used for seed + DB assertions (overrides DATABASE_URL for this process)
  *   DATABASE_URL            — used when CHAOS_DATABASE_URL unset (also read from repo .env)
  *
@@ -25,7 +25,7 @@ import bcrypt from "bcryptjs";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const BASE = process.env["CHAOS_BASE_URL"] ?? process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+const BASE = process.env["CHAOS_BASE_URL"] ?? process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 const DEFAULT_ADMIN_PASSWORD = "ChaosVertical!9";
 
 function parseEnvLine(key: string, line: string): string | undefined {

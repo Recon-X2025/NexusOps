@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
 # NexusOps Full-QA Runner
-# Runs all 4 test tiers against production (http://139.84.154.78)
+# Default target: local dev (web :3000, API :3001). Override for remote:
+#   export NEXUS_QA_BASE_URL=http://your-host
+#   export NEXUS_QA_API_URL=http://your-host:3001
 # =============================================================================
 set -euo pipefail
+
+NEXUS_QA_BASE_URL="${NEXUS_QA_BASE_URL:-http://localhost:3000}"
+NEXUS_QA_API_URL="${NEXUS_QA_API_URL:-http://localhost:3001}"
+export NEXUS_QA_BASE_URL NEXUS_QA_API_URL
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 QA_DIR="$SCRIPT_DIR/full-qa"
@@ -18,20 +24,20 @@ ok()    { echo -e "\033[1;32m[$(date '+%H:%M:%S')] ✅ $*\033[0m"; }
 warn()  { echo -e "\033[1;33m[$(date '+%H:%M:%S')] ⚠️  $*\033[0m"; }
 error() { echo -e "\033[1;31m[$(date '+%H:%M:%S')] ❌ $*\033[0m"; }
 
-# ── 0. Pre-flight: production health check ────────────────────────────────────
-log "0. Pre-flight health check..."
-WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://139.84.154.78/api/health || echo "000")
-API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://139.84.154.78:3001/health || echo "000")
+# ── 0. Pre-flight: stack health check ─────────────────────────────────────────
+log "0. Pre-flight health check ($NEXUS_QA_BASE_URL / $NEXUS_QA_API_URL)..."
+WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${NEXUS_QA_BASE_URL%/}/api/health" || echo "000")
+API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${NEXUS_QA_API_URL%/}/health" || echo "000")
 
 if [ "$WEB_STATUS" != "200" ]; then
-  error "Web not responding (HTTP $WEB_STATUS). Aborting."
+  error "Web not responding (HTTP $WEB_STATUS). Start web + API or set NEXUS_QA_* URLs. Aborting."
   exit 1
 fi
 if [ "$API_STATUS" != "200" ]; then
   error "API not responding (HTTP $API_STATUS). Aborting."
   exit 1
 fi
-ok "Production is live — web=$WEB_STATUS api=$API_STATUS"
+ok "Target is up — web=$WEB_STATUS api=$API_STATUS"
 
 # ── 1. Install Playwright if needed ──────────────────────────────────────────
 log "1. Checking Playwright installation..."
@@ -152,13 +158,13 @@ fi
 # ── 7. Post-chaos health check ────────────────────────────────────────────────
 log "7. Post-chaos health check..."
 sleep 5
-WEB_POST=$(curl -s -o /dev/null -w "%{http_code}" http://139.84.154.78/api/health || echo "000")
-API_POST=$(curl -s -o /dev/null -w "%{http_code}" http://139.84.154.78:3001/health || echo "000")
+WEB_POST=$(curl -s -o /dev/null -w "%{http_code}" "${NEXUS_QA_BASE_URL%/}/api/health" || echo "000")
+API_POST=$(curl -s -o /dev/null -w "%{http_code}" "${NEXUS_QA_API_URL%/}/health" || echo "000")
 if [ "$WEB_POST" = "200" ] && [ "$API_POST" = "200" ]; then
-  ok "Post-chaos: production still healthy ✅"
+  ok "Post-chaos: target still healthy ✅"
   POST_HEALTH="HEALTHY"
 else
-  error "Post-chaos: production degraded! web=$WEB_POST api=$API_POST"
+  error "Post-chaos: target degraded! web=$WEB_POST api=$API_POST"
   POST_HEALTH="DEGRADED (web=$WEB_POST api=$API_POST)"
 fi
 
@@ -204,7 +210,7 @@ cat > "$REPORT_FILE" << REPORT_EOF
 
 **Date:** $(date '+%B %d, %Y — %H:%M:%S UTC')
 **Run ID:** $TIMESTAMP
-**Target:** http://139.84.154.78 (Production)
+**Target:** $NEXUS_QA_BASE_URL (web) / $NEXUS_QA_API_URL (API)
 **Tester:** Automated Full-QA Suite v2
 
 ---
@@ -220,7 +226,7 @@ cat > "$REPORT_FILE" << REPORT_EOF
 | D — Chaos v2 | 30 workers × 25 iterations × all 53 routes | $CHAOS_STATUS |
 | E — API Stress | k6: 150 VUs sustained, 300 VU spike | $K6_STATUS |
 
-**Post-chaos production health:** $POST_HEALTH
+**Post-chaos target health:** $POST_HEALTH
 
 ---
 
@@ -366,8 +372,8 @@ PYEOF
 ## Post-Run System Vitals
 
 $(
-  VULTR_SSH="${VULTR_SSH:-root@139.84.154.78}"
-  ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$VULTR_SSH" '
+  if [ -n "${VULTR_SSH:-}" ]; then
+    ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$VULTR_SSH" '
     echo "### Container Status"
     echo ""
     docker ps --format "| {{.Names}} | {{.Status}} |"
@@ -380,7 +386,10 @@ $(
     echo ""
     echo "### Disk"
     df -h / | tail -1
-  ' 2>/dev/null || echo "Could not fetch server vitals (configure SSH key for \${VULTR_SSH})"
+  ' 2>/dev/null || echo "Could not fetch server vitals (SSH failed for ${VULTR_SSH})"
+  else
+    echo "*Remote vitals skipped — set **VULTR_SSH** (e.g. root@your.server) to collect Docker status after the run.*"
+  fi
 )
 
 ---

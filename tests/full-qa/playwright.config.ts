@@ -1,11 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import * as path from "path";
 
-const QA_BASE = process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+const QA_BASE = process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 
 /**
  * NexusOps Full-QA Playwright Config
- * Target: `NEXUS_QA_BASE_URL` or http://139.84.154.78 (production)
+ * Target: `NEXUS_QA_BASE_URL` or http://localhost:3000 (local dev)
  * Auth: shared storageState from global setup (login once, reuse everywhere)
  */
 export const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-state.json");

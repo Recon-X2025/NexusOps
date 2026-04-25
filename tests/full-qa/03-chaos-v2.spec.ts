@@ -20,8 +20,8 @@ import { test, expect, type Page } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 
-const BASE_URL = "http://139.84.154.78";
-const API_URL  = "http://139.84.154.78:3001";
+const BASE_URL = process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
+const API_URL  = process.env["NEXUS_QA_API_URL"] ?? "http://localhost:3001";
 const EMAIL    = "admin@coheron.com";
 const PASSWORD = "Admin1234!";
 

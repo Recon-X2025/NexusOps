@@ -195,7 +195,7 @@ async function bootstrap() {
   }
 
   // ── Plugins ──────────────────────────────────────────────────────────────
-  // CORS_ORIGIN supports comma-separated list: "http://139.84.154.78,https://app.example.com"
+  // CORS_ORIGIN supports comma-separated list: "http://localhost:3000,https://app.example.com"
   const corsOrigins: (string | RegExp)[] = [];
   const rawOrigin =
     process.env["CORS_ORIGIN"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "";

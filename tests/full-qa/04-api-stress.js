@@ -20,8 +20,8 @@ import { sleep, check, group } from "k6";
 import { Counter, Rate, Trend } from "k6/metrics";
 import { randomIntBetween } from "https://jslib.k6.io/k6-utils/1.2.0/index.js";
 
-const BASE = "http://139.84.154.78";
-const API  = "http://139.84.154.78/api/trpc"; // route through Nginx → Next.js proxy (port 80)
+const BASE = __ENV.NEXUS_QA_BASE_URL || "http://localhost:3000";
+const API  = `${String(BASE).replace(/\/$/, "")}/api/trpc`; // Next.js proxy to API (local or remote)
 
 // Custom metrics
 const authBypassAttempts = new Counter("auth_bypass_attempts");

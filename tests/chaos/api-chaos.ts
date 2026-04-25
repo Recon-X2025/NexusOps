@@ -16,8 +16,8 @@
  */
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const API_URL       = "http://139.84.154.78:3001";
-const WEB_URL       = "http://139.84.154.78";
+const API_URL       = process.env["NEXUS_QA_API_URL"] ?? "http://localhost:3001";
+const WEB_URL       = process.env["NEXUS_QA_BASE_URL"] ?? process.env["CHAOS_BASE_URL"] ?? "http://localhost:3000";
 const EMAIL         = "admin@coheron.com";
 const PASSWORD      = "demo1234!";
 const CONCURRENCY   = 200;

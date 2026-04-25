@@ -1,13 +1,13 @@
 /**
  * NexusOps · Playwright Full-System Chaos Test — Round 3 (v2)
  * 40 browser sessions, 50–100 random actions each
- * Target: http://139.84.154.78
+ * Target: NEXUS_QA_BASE_URL or http://localhost:3000
  */
 
 import { chromium } from '@playwright/test';
 import fs from 'fs';
 
-const BASE = 'http://139.84.154.78';
+const BASE = process.env.NEXUS_QA_BASE_URL ?? process.env.CHAOS_BASE_URL ?? 'http://localhost:3000';
 const SESSIONS = 40;
 const MIN_ACTIONS = 50;
 const MAX_ACTIONS = 80;

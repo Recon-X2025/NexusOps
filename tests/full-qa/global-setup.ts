@@ -9,7 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 
 const BASE_URL =
-  process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+  process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 export const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-state.json");
 const MAX_AGE_MS = 55 * 60 * 1000; // 55 minutes
 
@@ -28,7 +28,7 @@ export default async function globalSetup(_config: FullConfig) {
   const page    = await browser.newPage();
 
   try {
-    console.log("🔑 Global setup: logging in to production...");
+    console.log(`🔑 Global setup: logging in to ${BASE_URL}...`);
     await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 30_000 });
 
     const emailInput = page.locator('input[type="email"], input[name="email"]').first();

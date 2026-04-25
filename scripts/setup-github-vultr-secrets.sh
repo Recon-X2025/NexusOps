@@ -8,7 +8,7 @@
 #   gh auth login     # choose GitHub.com, HTTPS, login in browser
 #
 # Usage (from repo root):
-#   export VULTR_HOST=139.84.154.78
+#   export VULTR_HOST=your.vps.ip.or.hostname
 #   bash scripts/setup-github-vultr-secrets.sh
 #
 # Optional:
@@ -35,7 +35,7 @@ fi
 
 HOST="${VULTR_HOST:-}"
 if [[ -z "$HOST" ]]; then
-  read -r -p "Vultr server IP (e.g. 139.84.154.78): " HOST
+  read -r -p "Vultr server IP or hostname: " HOST
 fi
 if [[ -z "$HOST" ]]; then
   echo "VULTR_HOST is required." >&2

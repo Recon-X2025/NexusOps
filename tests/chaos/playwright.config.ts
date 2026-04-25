@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const BASE =
-  process.env["CHAOS_BASE_URL"] ?? process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+  process.env["CHAOS_BASE_URL"] ?? process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 
 /**
  * Chaos system validation — run from monorepo root:

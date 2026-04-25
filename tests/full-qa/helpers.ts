@@ -3,14 +3,16 @@
  */
 import { type Page, type BrowserContext, expect } from "@playwright/test";
 
+/** Web app origin (Playwright). Override with NEXUS_QA_BASE_URL for remote/staging. */
 export const BASE_URL =
   typeof process !== "undefined" && process.env["NEXUS_QA_BASE_URL"]
     ? process.env["NEXUS_QA_BASE_URL"]
-    : "http://139.84.154.78";
+    : "http://localhost:3000";
+/** API origin (direct Fastify). Override with NEXUS_QA_API_URL. */
 export const API_URL =
   typeof process !== "undefined" && process.env["NEXUS_QA_API_URL"]
     ? process.env["NEXUS_QA_API_URL"]
-    : "http://139.84.154.78:3001";
+    : "http://localhost:3001";
 
 export const ADMIN_EMAIL    = "admin@coheron.com";
 export const ADMIN_PASSWORD = "demo1234!";
@@ -126,7 +128,7 @@ export async function apiCall(
   method: "GET" | "POST" = "GET",
 ): Promise<{ ok: boolean; data: unknown; status: number }> {
   // Route through the Next.js /api/trpc proxy (same origin as cookies)
-  const PROXY_BASE = BASE_URL;  // http://139.84.154.78
+  const PROXY_BASE = BASE_URL; // same origin as web (e.g. /api/trpc proxy)
   const encoded = encodeURIComponent(JSON.stringify({ json: input }));
 
   const result = await page.evaluate(

@@ -67,7 +67,7 @@ Run Playwright **from the monorepo root** so dependencies and `@nexusops/db` res
 
 | Variable | Default / notes |
 |----------|------------------|
-| `CHAOS_BASE_URL` | `http://139.84.154.78` (strip trailing slash internally) |
+| `CHAOS_BASE_URL` | `http://localhost:3000` (strip trailing slash internally; override for remote) |
 | `NEXUS_QA_BASE_URL` | Fallback in `playwright.config.ts` if `CHAOS_BASE_URL` unset |
 
 ### Database (seed + assert)

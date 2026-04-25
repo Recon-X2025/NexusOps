@@ -3,8 +3,8 @@
 #
 # Requires CHAOS_DATABASE_URL to be the SAME PostgreSQL the deployment uses (public host:port or SSH tunnel).
 # Do not commit secrets. Example:
-#   export CHAOS_DATABASE_URL='postgresql://USER:PASS@139.84.154.78:5432/nexusops'
-#   export CHAOS_BASE_URL='http://139.84.154.78'   # optional; this is the default in chaos-config
+#   export CHAOS_DATABASE_URL='postgresql://USER:PASS@localhost:5434/nexusops'
+#   export CHAOS_BASE_URL='http://localhost:3000'   # optional; localhost is the default in chaos-config
 #
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

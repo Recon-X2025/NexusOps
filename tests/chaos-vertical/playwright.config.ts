@@ -7,13 +7,13 @@ import { defineConfig, devices } from "@playwright/test";
  *   DATABASE_URL=postgresql://... pnpm exec playwright test -c tests/chaos-vertical/playwright.config.ts
  *
  * Env:
- *   CHAOS_BASE_URL   — default http://139.84.154.78
+ *   CHAOS_BASE_URL   — default http://localhost:3000
  *   DATABASE_URL     — required for Drizzle seed + DB assertions (same DB the API uses)
  *
  * Defaults: testDir = this file's directory (see Playwright docs).
  */
 const CHAOS_BASE =
-  process.env["CHAOS_BASE_URL"] ?? process.env["NEXUS_QA_BASE_URL"] ?? "http://139.84.154.78";
+  process.env["CHAOS_BASE_URL"] ?? process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 
 export default defineConfig({
   testMatch: "**/*.spec.ts",
