@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap");
+/* Fonts: next/font in app/layout.tsx (avoids @import + CSP issues in embedded browsers). */
 
 @tailwind base;
 @tailwind components;
@@ -133,8 +133,7 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    @apply bg-background text-foreground antialiased font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -221,5 +220,5 @@
   }
 
   /* Tight monospace for IDs */
-  .mono { font-family: "JetBrains Mono", monospace; }
+  .mono { font-family: theme("fontFamily.mono"); }
 }
