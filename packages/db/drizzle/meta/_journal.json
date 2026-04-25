@@ -134,6 +134,20 @@
       "when": 1776528000000,
       "tag": "0020_purchase_orders_legal_entity",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1776614400000,
+      "tag": "0021_mfa_enrolled_ci_external_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1776700800000,
+      "tag": "0022_ci_items_external_key_unique_full",
+      "breakpoints": true
     }
   ]
 }

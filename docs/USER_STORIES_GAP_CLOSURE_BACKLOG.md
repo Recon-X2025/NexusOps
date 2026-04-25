@@ -592,11 +592,11 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-ITSM-003 | Partial | `reports.slaOperationalHealth` (paused / breached open / at-risk near due / overdue unbreached) + team & category filters + **IT Services → Analytics** UI. |
 | US-ITSM-004 | Partial | **Hierarchy:** `tickets.get` returns `parentTicket` + `childTickets`; `tickets.list` exposes `parentTicketId` / `isMajorIncident`; ticket detail **Incident hierarchy** (set/clear parent, child links); **Major incidents** queue shows Parent → / top-level; **war-room comms** (`majorIncidentComms`); **full-screen war room** `/app/it-services/major-incidents/war-room/[ticketId]` (comms + hierarchy). Richer tree / commander UX still open. |
 | US-ITSM-005 | Backlog | — |
-| US-ITSM-006 | Partial | `cmdb` CI create/update/link (`assets` router); class graph, bulk import, service map depth still backlog. |
+| US-ITSM-006 | Partial | `cmdb` CI create/update/link + **`assets.cmdb.bulkImportCis`** (idempotent upsert by `external_key`, migration **`0021`/`0022`**); topology/impact APIs; class graph + service map depth still backlog. |
 | US-ITSM-007 | Backlog | — |
 | US-ITSM-008 | Backlog | — |
 | US-ITSM-009 | Backlog | — |
-| US-SEC-001 | Partial | Privileged **step-up** gate (`stepUpGate`, Redis session); org “MFA policy” matrix not fully productized. |
+| US-SEC-001 | Partial | **`mfaGate`** on **`financial.approveInvoice`** / **`markPaid`**; org **`settings.security.requireMfaForMatrixRoles`** + **`admin.securityPolicy`**; **`users.mfa_enrolled`** + **Admin → User edit** + session cache invalidation; MFA check reads live DB (not stale session). **AC:** recovery/audit path for real IdP MFA still open — admin attestation only. |
 | US-SEC-002 | Backlog | — |
 | US-SEC-003 | Backlog | — |
 | US-SEC-004 | Backlog | — |
@@ -673,6 +673,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-26 | **US-ITSM-002** → **Done**: concurrent **response** + **resolve** SLA due dates validated (**layer8**). **`procurement.invoices.applyMatchToOrder`** + shared **`computeInvoicePoMatch`**; payable **`matchingStatus: matched`** + **`poId`** on success (**US-CRM-005** / **US-FIN-005** partial advance). **IT Services → Major incidents → War room** full-screen page. **Programme progress:** **23** Done / **6** Partial / **29** Backlog (**~39.7%**). RBAC map regenerated. |
 | 2026-04-26 | **Documentation:** Added **Completion status by module** (per-module Done / Partial / Backlog / **Done ÷ stories**). **`legal.governanceSummary`** + Legal & Governance hub UI; **US-LEG-001** rollup note references hub progress vs formal AC closure. |
 | 2026-04-26 | **US-LEG-001** / **US-LEG-002** → **Done**: hub UI now reads **`legal.governanceSummary`** end-to-end (secretarial truth: meetings + filings + KYC; contracts expiring panel); **layer8** smoke validates composite shape **and** RBAC scoping (`legal_counsel` → `secretarial=null`, `contracts` populated). **Programme progress:** **25** Done / **6** Partial / **27** Backlog (**~43.1%**). |
+| 2026-04-26 | **US-SEC-001** / **US-ITSM-006** (partial advance): migrations **`0021`** / **`0022`** (`users.mfa_enrolled`, `ci_items.external_key`, full unique index for upsert); **`mfaGate`** + live-DB MFA read; **`admin.securityPolicy`** + **Admin → Security policy** + per-user **MFA enrolled**; **`assets.cmdb.bulkImportCis`**; **layer8** smoke; RBAC map regenerated. *(Programme **Done** / **Partial** counts unchanged — both rows stay **Partial**.)* |
 
 ---
 

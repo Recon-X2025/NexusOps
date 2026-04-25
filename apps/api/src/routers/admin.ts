@@ -1,8 +1,23 @@
 import { router, adminProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, users, businessRules, eq, and, desc, asc, gte, lte, count } from "@nexusops/db";
+import {
+  auditLogs,
+  users,
+  businessRules,
+  organizations,
+  sessions,
+  eq,
+  and,
+  desc,
+  asc,
+  gte,
+  lte,
+  count,
+} from "@nexusops/db";
 import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
+import { parseOrgSettings } from "../lib/org-settings";
+import { invalidateSessionCache } from "../middleware/auth";
 
 export const adminRouter = router({
   auditLog: router({
@@ -78,6 +93,7 @@ export const adminRouter = router({
           role: users.role,
           matrixRole: users.matrixRole,
           status: users.status,
+          mfaEnrolled: users.mfaEnrolled,
           lastLoginAt: users.lastLoginAt,
           createdAt: users.createdAt,
         })
@@ -94,14 +110,18 @@ export const adminRouter = router({
           role: z.enum(["owner", "admin", "member", "viewer"]).optional(),
           matrixRole: z.string().nullable().optional(),
           status: z.enum(["active", "invited", "disabled"]).optional(),
+          /** US-SEC-001: admin attestation that MFA is enrolled for this user (invalidates session cache). */
+          mfaEnrolled: z.boolean().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { userId, ...updates } = input;
+        const { userId, mfaEnrolled, ...rest } = input;
+        const patch: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+        if (mfaEnrolled !== undefined) patch.mfaEnrolled = mfaEnrolled;
         const [user] = await db
           .update(users)
-          .set({ ...updates, updatedAt: new Date() })
+          .set(patch as typeof users.$inferInsert)
           .where(and(eq(users.id, userId), eq(users.orgId, org!.id)))
           .returning({
             id: users.id,
@@ -110,8 +130,70 @@ export const adminRouter = router({
             role: users.role,
             matrixRole: users.matrixRole,
             status: users.status,
+            mfaEnrolled: users.mfaEnrolled,
           });
+        if (mfaEnrolled !== undefined && user) {
+          const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
+          await Promise.all(sess.map((s) => invalidateSessionCache(s.id)));
+        }
         return user;
+      }),
+  }),
+
+  /** Org `settings.security` — step-up + MFA matrix policies (US-SEC-001). */
+  securityPolicy: router({
+    get: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const sec = parseOrgSettings(row?.settings ?? org!.settings).security;
+      return {
+        requireStepUpForMatrixRoles: [...(sec?.requireStepUpForMatrixRoles ?? [])],
+        requireMfaForMatrixRoles: [...(sec?.requireMfaForMatrixRoles ?? [])],
+      };
+    }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          requireStepUpForMatrixRoles: z.array(z.string().max(64)).max(40).optional(),
+          requireMfaForMatrixRoles: z.array(z.string().max(64)).max(40).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (input.requireStepUpForMatrixRoles === undefined && input.requireMfaForMatrixRoles === undefined) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No security policy fields to update" });
+        }
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevSec = (raw.security as Record<string, unknown> | undefined) ?? {};
+        const security: Record<string, unknown> = { ...prevSec };
+        if (input.requireStepUpForMatrixRoles !== undefined) {
+          security.requireStepUpForMatrixRoles = input.requireStepUpForMatrixRoles;
+        }
+        if (input.requireMfaForMatrixRoles !== undefined) {
+          security.requireMfaForMatrixRoles = input.requireMfaForMatrixRoles;
+        }
+        await db
+          .update(organizations)
+          .set({
+            settings: {
+              ...raw,
+              security,
+            },
+          })
+          .where(eq(organizations.id, org!.id));
+        return {
+          ok: true as const,
+          requireStepUpForMatrixRoles: security.requireStepUpForMatrixRoles,
+          requireMfaForMatrixRoles: security.requireMfaForMatrixRoles,
+        };
       }),
   }),
 

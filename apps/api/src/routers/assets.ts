@@ -344,6 +344,59 @@ export const assetsRouter = router({
           .returning();
         return rel;
       }),
+
+    /** US-ITSM-006: idempotent upsert by `external_key` per org (bulk CMDB ingest). */
+    bulkImportCis: permissionProcedure("cmdb", "write")
+      .input(
+        z.object({
+          items: z
+            .array(
+              z.object({
+                externalKey: z.string().min(1).max(256),
+                name: z.string().min(1),
+                ciType: z.enum(["server", "application", "database", "network", "service", "cloud"]),
+                status: z.enum(["operational", "degraded", "down", "planned"]).optional(),
+                environment: z.string().max(200).optional(),
+                attributes: z.record(z.unknown()).optional(),
+              }),
+            )
+            .min(1)
+            .max(500),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const now = new Date();
+        const items: CIItem[] = [];
+        for (const item of input.items) {
+          const [row] = await db
+            .insert(ciItems)
+            .values({
+              orgId: org!.id,
+              externalKey: item.externalKey,
+              name: item.name,
+              ciType: item.ciType,
+              status: item.status ?? "operational",
+              environment: item.environment,
+              attributes: item.attributes,
+              updatedAt: now,
+            })
+            .onConflictDoUpdate({
+              target: [ciItems.orgId, ciItems.externalKey],
+              set: {
+                name: item.name,
+                ciType: item.ciType,
+                status: item.status ?? "operational",
+                environment: item.environment,
+                attributes: item.attributes,
+                updatedAt: now,
+              },
+            })
+            .returning();
+          if (row) items.push(row);
+        }
+        return { count: items.length, items };
+      }),
   }),
 
   // ── Licenses ──────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { router, permissionProcedure, adminProcedure, stepUpGate } from "../lib/trpc";
+import { router, permissionProcedure, adminProcedure, mfaGate, stepUpGate } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getTableColumns } from "drizzle-orm";
@@ -225,6 +225,7 @@ export const financialRouter = router({
     }),
 
   approveInvoice: permissionProcedure("financial", "write")
+    .use(mfaGate)
     .use(stepUpGate)
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -238,6 +239,7 @@ export const financialRouter = router({
     }),
 
   markPaid: permissionProcedure("financial", "write")
+    .use(mfaGate)
     .use(stepUpGate)
     .input(z.object({ id: z.string().uuid(), paymentMethod: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {

@@ -3,6 +3,8 @@
 export type OrgSecuritySettings = {
   /** Matrix roles (e.g. `finance_manager`, `admin`) that must call `auth.verifyStepUp` before privileged mutations. */
   requireStepUpForMatrixRoles?: string[];
+  /** Matrix roles that must have `users.mfa_enrolled` before privileged mutations (e.g. finance approve / mark paid). */
+  requireMfaForMatrixRoles?: string[];
 };
 
 export type OrgProcurementSettings = {

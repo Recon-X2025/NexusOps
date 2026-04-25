@@ -68,7 +68,17 @@ const RBACContext = createContext<RBACContextValue | null>(null);
  *        owner  + "hr_manager" → ["requester", "admin", "hr_manager"]
  */
 function dbUserToSystemUser(
-  user: { id: string; name: string; email: string; role: string; matrixRole?: string | null; orgId: string; status: string; lastLoginAt?: Date | string | null },
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    matrixRole?: string | null;
+    orgId: string;
+    status: string;
+    mfaEnrolled?: boolean | null;
+    lastLoginAt?: Date | string | null;
+  },
   _org?: { name?: string | null } | null,
 ): SystemUser {
   // Derive base roles — "requester" is MANDATORY for ALL users (spec v3.2)
@@ -97,7 +107,7 @@ function dbUserToSystemUser(
     department: _org?.name ?? "Unknown",
     active: user.status === "active",
     lastLogin: user.lastLoginAt ? new Date(user.lastLoginAt).toISOString() : undefined,
-    mfaEnabled: false,
+    mfaEnabled: user.mfaEnrolled === true,
     orgId: user.orgId,
     orgName: _org?.name ?? undefined,
   };
@@ -115,7 +125,17 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
   const realUser =
     !isMeError && meData?.user != null
       ? dbUserToSystemUser(
-          meData.user as { id: string; name: string; email: string; role: string; matrixRole?: string | null; orgId: string; status: string; lastLoginAt?: Date | string | null },
+          meData.user as {
+            id: string;
+            name: string;
+            email: string;
+            role: string;
+            matrixRole?: string | null;
+            orgId: string;
+            status: string;
+            mfaEnrolled?: boolean | null;
+            lastLoginAt?: Date | string | null;
+          },
           meData.org as { name?: string | null } | null,
         )
       : null;

@@ -68,6 +68,8 @@ export const users = pgTable(
     /** Fine-grained RBAC matrix role (e.g. hr_manager, finance_manager). Falls back to role→SystemRole mapping when null. */
     matrixRole: text("matrix_role"),
     status: userStatusEnum("status").notNull().default("invited"),
+    /** US-SEC-001: set true after org-verified MFA enrollment (TOTP / IdP); enforced when `settings.security.requireMfaForMatrixRoles` matches. */
+    mfaEnrolled: boolean("mfa_enrolled").notNull().default(false),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

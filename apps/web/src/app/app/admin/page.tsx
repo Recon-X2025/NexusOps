@@ -27,6 +27,7 @@ const ADMIN_TABS = [
   { key: "sla_pause_reasons", label: "SLA pause reasons",  icon: PauseCircle, module: "admin"             as const, action: "admin" as const },
   { key: "biz_rules",        label: "Business Rules",      icon: Workflow,  module: "flows"             as const, action: "admin" as const },
   { key: "procurement_policy", label: "Procurement Policy", icon: ShoppingCart, module: "admin"          as const, action: "admin" as const },
+  { key: "security_policy", label: "Security policy", icon: Lock, module: "admin"          as const, action: "admin" as const },
   { key: "crm_deal_thresholds", label: "CRM deal thresholds", icon: CircleDollarSign, module: "admin"      as const, action: "admin" as const },
   { key: "accounting_periods", label: "Accounting periods", icon: Calendar, module: "admin"             as const, action: "admin" as const },
   { key: "legal_entities", label: "Legal entities", icon: Landmark, module: "admin"             as const, action: "admin" as const },
@@ -73,9 +74,10 @@ export default function AdminConsolePage() {
   const [inviteMatrixRole, setInviteMatrixRole] = useState("");
   const [inviteResult, setInviteResult] = useState<string | null>(null);
 
-  const [editUser, setEditUser] = useState<{ id: string; name: string; role: string; matrixRole: string | null; status: string } | null>(null);
+  const [editUser, setEditUser] = useState<{ id: string; name: string; role: string; matrixRole: string | null; status: string; mfaEnrolled?: boolean } | null>(null);
   const [editRole, setEditRole] = useState<"owner" | "admin" | "member" | "viewer">("member");
   const [editMatrixRole, setEditMatrixRole] = useState("");
+  const [editMfaEnrolled, setEditMfaEnrolled] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
 
   // @ts-ignore
@@ -325,7 +327,7 @@ export default function AdminConsolePage() {
                 >
                   <Plus className="w-3 h-3" /> New User
                 </button>
-                <button onClick={() => { const csv = ["Name,Email,Role,Matrix Role,Status", ...(allUsers as any[]).map((u: any) => `${u.name},${u.email},${u.role},${u.matrixRole ?? ""},${u.status ?? "active"}`)].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "nexusops-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
+                <button onClick={() => { const csv = ["Name,Email,Role,Matrix Role,MFA enrolled,Status", ...(allUsers as any[]).map((u: any) => `${u.name},${u.email},${u.role},${u.matrixRole ?? ""},${u.mfaEnrolled === true ? "yes" : "no"},${u.status ?? "active"}`)].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "nexusops-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
                   <Download className="w-3 h-3" /> Export
                 </button>
               </div>
@@ -374,7 +376,9 @@ export default function AdminConsolePage() {
                         </div>
                       </td>
                       <td>
-                        <span className="text-muted-foreground text-[11px]">—</span>
+                        <span className={`text-[11px] ${user.mfaEnrolled === true ? "text-green-700 font-medium" : "text-muted-foreground"}`}>
+                          {user.mfaEnrolled === true ? "Yes" : "No"}
+                        </span>
                       </td>
                       <td>
                         <span className={`status-badge capitalize ${isActive ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
@@ -387,7 +391,19 @@ export default function AdminConsolePage() {
                       <td>
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => { setEditUser({ id: user.id, name: user.name, role: user.role, matrixRole: user.matrixRole ?? null, status: user.status ?? "active" }); setEditRole(user.role as any); setEditMatrixRole(user.matrixRole ?? ""); }}
+                            onClick={() => {
+                              setEditUser({
+                                id: user.id,
+                                name: user.name,
+                                role: user.role,
+                                matrixRole: user.matrixRole ?? null,
+                                status: user.status ?? "active",
+                                mfaEnrolled: user.mfaEnrolled === true,
+                              });
+                              setEditRole(user.role as any);
+                              setEditMatrixRole(user.matrixRole ?? "");
+                              setEditMfaEnrolled(user.mfaEnrolled === true);
+                            }}
                             className="p-1 text-muted-foreground/70 hover:text-primary"
                             title="Edit role"
                           ><Edit2 className="w-3 h-3" /></button>
@@ -641,6 +657,7 @@ export default function AdminConsolePage() {
           {tab === "biz_rules" && <BusinessRulesTab />}
 
           {tab === "procurement_policy" && <ProcurementPolicyTab />}
+          {tab === "security_policy" && <SecurityPolicyTab />}
           {tab === "crm_deal_thresholds" && <CrmDealThresholdsTab />}
           {tab === "accounting_periods" && <AccountingPeriodsTab />}
           {tab === "legal_entities" && <LegalEntitiesTab />}
@@ -1050,11 +1067,29 @@ export default function AdminConsolePage() {
                   Setting a system role grants this user access to the modules and actions defined in the RBAC matrix for that role.
                 </p>
               </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editMfaEnrolled}
+                  onChange={(e) => setEditMfaEnrolled(e.target.checked)}
+                  className="rounded border-border"
+                />
+                <span className="text-[11px] text-foreground">
+                  MFA enrolled (admin attestation — required when org security policy lists this user&apos;s matrix role under MFA)
+                </span>
+              </label>
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button onClick={() => setEditUser(null)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
                 <button
                   disabled={updateUserMutation.isPending}
-                  onClick={() => updateUserMutation.mutate({ userId: editUser.id, role: editRole, matrixRole: editMatrixRole || null })}
+                  onClick={() =>
+                    updateUserMutation.mutate({
+                      userId: editUser.id,
+                      role: editRole,
+                      matrixRole: editMatrixRole || null,
+                      mfaEnrolled: editMfaEnrolled,
+                    })
+                  }
                   className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
                 >
                   {updateUserMutation.isPending ? "Saving…" : "Save Changes"}
@@ -1588,6 +1623,98 @@ function CrmDealThresholdsTab() {
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
         {save.isPending ? "Saving…" : "Save thresholds"}
+      </button>
+    </div>
+  );
+}
+
+function parseMatrixRolesCsv(s: string): string[] {
+  const parts = s.split(/[,\n]+/).map((x) => x.trim()).filter(Boolean);
+  return [...new Set(parts)];
+}
+
+function SecurityPolicyTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const q = trpc.admin.securityPolicy.get.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("admin.securityPolicy.get", undefined),
+  );
+  const [stepUpCsv, setStepUpCsv] = useState("");
+  const [mfaCsv, setMfaCsv] = useState("");
+
+  useEffect(() => {
+    if (q.data) {
+      setStepUpCsv(q.data.requireStepUpForMatrixRoles.join(", "));
+      setMfaCsv(q.data.requireMfaForMatrixRoles.join(", "));
+    }
+  }, [q.data]);
+
+  const save = trpc.admin.securityPolicy.update.useMutation({
+    onSuccess: () => {
+      utils.admin.securityPolicy.get.invalidate();
+      toast.success("Security policy saved. Step-up and MFA gates use these lists on the next API call.");
+    },
+    onError: (e) => toast.error(e.message ?? "Save failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can edit security policy.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 max-w-lg space-y-5">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">Privileged authentication (US-SEC-001)</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          Matrix roles are the fine-grained RBAC labels (e.g. <code className="text-[10px]">finance_manager</code>).{" "}
+          <strong>Step-up</strong> requires a recent password check via <code className="text-[10px]">auth.verifyStepUp</code>.{" "}
+          <strong>MFA</strong> requires the user&apos;s <strong>MFA enrolled</strong> flag (set per user in User Management).
+        </p>
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">Require step-up for matrix roles (comma-separated)</label>
+        <input
+          type="text"
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background font-mono"
+          value={stepUpCsv}
+          onChange={(e) => setStepUpCsv(e.target.value)}
+          placeholder="e.g. finance_manager"
+          disabled={q.isLoading}
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">
+          Require MFA enrollment for matrix roles (comma-separated)
+        </label>
+        <input
+          type="text"
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background font-mono"
+          value={mfaCsv}
+          onChange={(e) => setMfaCsv(e.target.value)}
+          placeholder="e.g. finance_manager"
+          disabled={q.isLoading}
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Applies to <code className="text-[10px]">financial.approveInvoice</code> and <code className="text-[10px]">financial.markPaid</code>.
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={save.isPending || q.isLoading}
+        onClick={() =>
+          save.mutate({
+            requireStepUpForMatrixRoles: parseMatrixRolesCsv(stepUpCsv),
+            requireMfaForMatrixRoles: parseMatrixRolesCsv(mfaCsv),
+          })
+        }
+        className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save security policy"}
       </button>
     </div>
   );

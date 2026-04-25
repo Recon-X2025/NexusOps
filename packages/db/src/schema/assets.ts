@@ -137,6 +137,8 @@ export const ciItems = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** Optional stable id for idempotent bulk import (unique per org when set). */
+    externalKey: text("external_key"),
     ciType: ciTypeEnum("ci_type").notNull(),
     status: ciStatusEnum("status").notNull().default("operational"),
     environment: text("environment"),
@@ -147,6 +149,7 @@ export const ciItems = pgTable(
   (t) => ({
     orgIdx: index("ci_items_org_idx").on(t.orgId),
     typeIdx: index("ci_items_type_idx").on(t.ciType),
+    orgExternalKeyUidx: uniqueIndex("ci_items_org_external_key_uidx").on(t.orgId, t.externalKey),
   }),
 );
 

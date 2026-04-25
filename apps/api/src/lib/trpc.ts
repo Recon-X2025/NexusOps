@@ -17,6 +17,7 @@ import {
 } from "./logger";
 import { sanitizeForAudit } from "./audit-sanitize";
 import { assertStepUpIfRequired } from "./step-up";
+import { assertMfaIfRequired } from "./mfa-policy";
 
 export type Context = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -424,6 +425,16 @@ export function permissionProcedure(module: Module, action: RbacAction) {
 /** Org policy: `settings.security.requireStepUpForMatrixRoles` → password re-check via `auth.verifyStepUp`. */
 export const stepUpGate = t.middleware(async ({ ctx, next }) => {
   await assertStepUpIfRequired(ctx);
+  return next();
+});
+
+/** Org policy: `settings.security.requireMfaForMatrixRoles` → `users.mfa_enrolled` must be true (US-SEC-001). */
+export const mfaGate = t.middleware(async ({ ctx, next }) => {
+  await assertMfaIfRequired({
+    db: ctx.db,
+    orgId: ctx.orgId,
+    user: ctx.user as Record<string, unknown> | null,
+  });
   return next();
 });
 
