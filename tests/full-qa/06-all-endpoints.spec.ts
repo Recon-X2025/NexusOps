@@ -130,6 +130,7 @@ const QUERY_PROCEDURES: string[] = [
   "financial.listBudget",
   "financial.listChargebacks",
   "financial.apAging",
+  "financial.periodClose.get",
   // financial.gstFilingCalendar — needs month+year; tested in explicit input section
   // grc
   "grc.listRisks",

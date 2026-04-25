@@ -9,7 +9,7 @@ import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
   Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
-  GitBranch, ShoppingCart, Building2,
+  GitBranch, ShoppingCart, Building2, Calendar,
 } from "lucide-react";
 import {
   SYSTEM_ROLES_CATALOG, type SystemRole,
@@ -26,6 +26,7 @@ const ADMIN_TABS = [
   { key: "sla_defs",         label: "SLA Definitions",     icon: Clock,     module: "admin"             as const, action: "read"  as const },
   { key: "biz_rules",        label: "Business Rules",      icon: Workflow,  module: "flows"             as const, action: "admin" as const },
   { key: "procurement_policy", label: "Procurement Policy", icon: ShoppingCart, module: "admin"          as const, action: "admin" as const },
+  { key: "accounting_periods", label: "Accounting periods", icon: Calendar, module: "admin"             as const, action: "admin" as const },
   { key: "people_workplace", label: "People & Workplace", icon: Building2, module: "admin"             as const, action: "admin" as const },
   { key: "assignment_rules", label: "Assignment Rules",    icon: GitBranch, module: "admin"             as const, action: "read"  as const },
   { key: "sys_props",        label: "System Properties",   icon: Database,  module: "system_properties" as const, action: "read"  as const },
@@ -635,6 +636,7 @@ export default function AdminConsolePage() {
           {tab === "biz_rules" && <BusinessRulesTab />}
 
           {tab === "procurement_policy" && <ProcurementPolicyTab />}
+          {tab === "accounting_periods" && <AccountingPeriodsTab />}
 
           {tab === "people_workplace" && <PeopleWorkplacePolicyTab />}
 
@@ -1169,6 +1171,108 @@ function AuditLogTab() {
 }
 
 // ── Procurement PR approval tiers (org.settings.procurement) ─────────────────
+/** Closed months (`YYYY-MM`) — `financial.markPaid` is blocked for invoices in these periods (org.settings.financial.closedPeriods). */
+function AccountingPeriodsTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const q = trpc.financial.periodClose.get.useQuery(undefined, mergeTrpcQueryOpts("financial.periodClose.get", undefined));
+  const [draft, setDraft] = useState<string[]>([]);
+  const [newPeriod, setNewPeriod] = useState("");
+
+  useEffect(() => {
+    if (q.data?.closedPeriods) setDraft([...q.data.closedPeriods]);
+  }, [q.data?.closedPeriods]);
+
+  const save = trpc.financial.periodClose.setClosedPeriods.useMutation({
+    onSuccess: () => {
+      void utils.financial.periodClose.get.invalidate();
+      toast.success("Accounting periods saved. Mark-paid is blocked for AP in these months.");
+    },
+    onError: (e) => toast.error(e.message ?? "Save failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can change closed accounting periods.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 max-w-lg space-y-4">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">Closed accounting periods</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          List months as <code className="text-[10px]">YYYY-MM</code> (UTC). Payable invoices dated in a closed month cannot be marked paid until the period is reopened.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-1.5 min-h-[2rem]">
+        {draft.length === 0 && (
+          <span className="text-[11px] text-muted-foreground italic">No periods closed — all months open for mark-paid.</span>
+        )}
+        {draft.map((p) => (
+          <span
+            key={p}
+            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-muted border border-border"
+          >
+            {p}
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-destructive"
+              title="Remove"
+              onClick={() => setDraft((d) => d.filter((x) => x !== p))}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Add period</label>
+          <input
+            type="text"
+            placeholder="2026-03"
+            className="border border-border rounded px-2 py-1.5 text-[12px] bg-background w-28 font-mono"
+            value={newPeriod}
+            onChange={(e) => setNewPeriod(e.target.value)}
+            disabled={q.isLoading}
+          />
+        </div>
+        <button
+          type="button"
+          className="text-[11px] px-2 py-1.5 rounded border border-border hover:bg-muted/40"
+          disabled={q.isLoading}
+          onClick={() => {
+            const t = newPeriod.trim();
+            if (!/^\d{4}-\d{2}$/.test(t)) {
+              toast.error("Use YYYY-MM (e.g. 2026-03).");
+              return;
+            }
+            if (draft.includes(t)) {
+              toast.error("Period already listed.");
+              return;
+            }
+            setDraft((d) => [...d, t].sort());
+            setNewPeriod("");
+          }}
+        >
+          Add
+        </button>
+      </div>
+      <button
+        type="button"
+        disabled={save.isPending || q.isLoading}
+        onClick={() => save.mutate({ periods: draft })}
+        className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save closed periods"}
+      </button>
+    </div>
+  );
+}
+
 function ProcurementPolicyTab() {
   const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
   const utils = trpc.useUtils();

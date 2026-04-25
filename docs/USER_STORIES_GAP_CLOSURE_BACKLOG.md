@@ -17,11 +17,11 @@
 | **Epic: Legal depth** | **US-LEG-009+** is not “infinite backlog”: before counting programme %, split it into concrete **`US-LEG-010`…** (or similar) mapped to `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md` §3.9 / §6 rows. |
 | **Deferred** | **Temporary** only; each **Deferred** row must name a **revisit trigger** (date, dependency, or decision) in **Notes**. Clearing **Deferred** is part of 100%. |
 | **Partial** | Expected during delivery; **Partial** is not the end state — schedule the remaining AC and move to **Done**. |
-| **Cadence** | After each merge that affects scope: update **rollup** + **changelog**. At least **quarterly**: refresh **Programme progress** counts below. |
+| **Cadence** | After each merge that affects scope: update **rollup** + **changelog**. At least **quarterly**: refresh **Programme progress** counts below. Validation stacks: local defaults use **`NEXUS_QA_BASE_URL`** / **`NEXUS_QA_API_URL`** (see `.env.example`). |
 
 ### Programme progress (rollup-derived)
 
-*Recalculate from **Status rollup** when statuses change. Last counted: **2026-04-26**.*
+*Recalculate from **Status rollup** when statuses change. Last counted: **2026-04-25**.*
 
 | Metric | Count |
 |--------|------:|
@@ -564,14 +564,14 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 
 ### Status rollup
 
-*Snapshot **last reviewed: 2026-04-26** (codebase paths: `apps/api`, `apps/web`, `packages/db`, `docs/`, `tests/`). Update this table on merge; do not let it rot.*
+*Snapshot **last reviewed: 2026-04-25** (codebase paths: `apps/api`, `apps/web`, `packages/db`, `docs/`, `tests/`). Update this table on merge; do not let it rot.*
 
 | ID | Status | Notes |
 |----|--------|--------|
 | US-ITSM-001 | Partial | SLA pause + reason on tickets (`tickets` router, `sla_pause_reason_code`); org-configurable reason *catalog* still thin. |
 | US-ITSM-002 | Partial | Response vs resolve SLA fields (`sla_response_*`, `sla_resolve_*`); “multiple concurrent targets” beyond two clocks not fully validated vs AC. |
 | US-ITSM-003 | Partial | `reports.slaOperationalHealth` (paused / breached open / at-risk near due / overdue unbreached) + team & category filters + **IT Services → Analytics** UI. |
-| US-ITSM-004 | Partial | `parent_ticket_id` + wiring; comms log / war-room / full MIM not done. |
+| US-ITSM-004 | Partial | `parent_ticket_id` + wiring; **war-room comms:** `tickets.majorIncidentComms` (activity log `major_incident_comms`) + ticket detail panel; dedicated MIM page / parent-child UX polish still open. |
 | US-ITSM-005 | Backlog | — |
 | US-ITSM-006 | Partial | `cmdb` CI create/update/link (`assets` router); class graph, bulk import, service map depth still backlog. |
 | US-ITSM-007 | Backlog | — |
@@ -599,7 +599,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-CRM-004 | Partial | Duplicate payable policy + match tolerance (`org-settings`, `procurement.matchToOrder`, `financial`); track under **US-FIN-004** if finance owns. |
 | US-CRM-005 | Backlog | Line/receipt-aware three-way match not v1-complete. |
 | US-CRM-006 | Partial | SoD doc + one enforced path; prefer **US-FIN-006** as source of truth for finance SoD. |
-| US-CRM-007 | Partial | Period close guard (`isInvoicePeriodClosed`, org settings); checklist UI v1 open. |
+| US-CRM-007 | Partial | `isInvoicePeriodClosed` + **`financial.periodClose`** (DB-backed get) + **Admin → Accounting periods** (`setClosedPeriods`, owner/admin); full close **checklist** UI v1 still open. |
 | US-CRM-008 | Partial | `legal_entities`, `invoices.legal_entity_id`; admin CRUD / PO slice as needed. |
 | US-FIN-001 | Partial | Finance & Procurement hub: `procurement.dashboard` (PR **pending** = `pr_status.pending`), `financial.executiveSummary` (AP/AR open), real **PO** list via `purchaseOrders.list`; labels fixed (PR vs PO). |
 | US-FIN-002 | Partial | `financial.executiveSummary`; drill-down links / hub wiring may lag. |
@@ -607,7 +607,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-FIN-004 | Partial | Same implementation as **US-CRM-004** (dedupe + tolerance). |
 | US-FIN-005 | Partial | `procurement.invoices.matchToOrder`: PO line sum vs invoice line sum within tolerance when both have lines; exposes `poLineSum`, counts, `poInvoiceLineDelta`. Full line-keyed match still open. |
 | US-FIN-006 | Partial | Matrix doc + enforced SoD example (invoice pay); expand tests / more pairs. |
-| US-FIN-007 | Partial | Same as **US-CRM-007**. |
+| US-FIN-007 | Partial | Same as **US-CRM-007** (period list admin + mark-paid guard). |
 | US-FIN-008 | Partial | Same as **US-CRM-008**. |
 | US-LEG-001 | Backlog | — |
 | US-LEG-002 | Backlog | — |
@@ -640,6 +640,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | **US-HCM-001** / **US-HCM-004** (partial): org workplace integration toggles; optional platform home HR strip (`hr.platformHomeStrip`, env flag); hub onboarding/offboarding stats from **HR case types**. |
 | 2026-04-26 | **Living document** refresh: rollup **last reviewed** + programme **last counted**; programme counts unchanged (**26** partial / **31** backlog / **1** deferred / **58** stories). |
 | 2026-04-26 | **Dev & QA defaults (non-story):** Full-QA / Playwright / chaos / k6 scripts default to **localhost:3000** (web) and **localhost:3001** (API) via `NEXUS_QA_BASE_URL` / `NEXUS_QA_API_URL`; `tests/run-full-qa.sh` exports the same; remote targets opt-in. **`scripts/push-to-vultr.sh`** requires **`VULTR_HOST`** (no baked-in IP). Documented in **`.env.example`**. |
+| 2026-04-25 | **US-ITSM-004** (partial): `tickets.majorIncidentComms.list` / `append` + major-incident panel on ticket detail; **`financial.periodClose`** + **Admin → Accounting periods** for **US-CRM-007** / **US-FIN-007** (partial); `periodClose.get` reads org settings from DB; layer8 + full-QA `financial.periodClose.get`; RBAC map regenerated. |
 
 ---
 

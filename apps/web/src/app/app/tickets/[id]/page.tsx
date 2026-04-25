@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
 import {
   ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X,
-  AlertTriangle, MessageSquare, Activity, Paperclip, User,
+  AlertTriangle, MessageSquare, Activity, Paperclip, User, Megaphone,
   Tag, RefreshCw, CheckCircle2, XCircle, ArrowUpCircle,
   Printer, Copy, MoreHorizontal, Star, Eye, CalendarDays, Sparkles, Loader2,
 } from "lucide-react";
@@ -97,6 +97,7 @@ export default function TicketDetailPage() {
   const { currentUser, can, mergeTrpcQueryOpts } = useRBAC();
   const [activeTab, setActiveTab] = useState<"notes" | "activity" | "related">("notes");
   const [commentBody, setCommentBody] = useState("");
+  const [warRoomBody, setWarRoomBody] = useState("");
   const [isInternal, setIsInternal] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
@@ -111,6 +112,23 @@ export default function TicketDetailPage() {
   const [watching, setWatching] = useState(false);
 
   const { data, isLoading, refetch } = trpc.tickets.get.useQuery({ id }, mergeTrpcQueryOpts("tickets.get", undefined));
+  const isMajorIncidentTicket = !!(data?.ticket as { isMajorIncident?: boolean } | undefined)?.isMajorIncident;
+  const commsListQuery = trpc.tickets.majorIncidentComms.list.useQuery(
+    { ticketId: id },
+    mergeTrpcQueryOpts("tickets.majorIncidentComms.list", {
+      enabled: Boolean(id) && !isLoading && !!data && isMajorIncidentTicket,
+      staleTime: 15_000,
+      refetchOnWindowFocus: false,
+    }),
+  );
+  const appendMajorComms = trpc.tickets.majorIncidentComms.append.useMutation({
+    onSuccess: () => {
+      setWarRoomBody("");
+      void commsListQuery.refetch();
+      toast.success("Posted to war room log");
+    },
+    onError: (e) => toast.error(e?.message ?? "Could not post"),
+  });
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", {
     refetchOnWindowFocus: false,
   }));
@@ -482,8 +500,78 @@ export default function TicketDetailPage() {
 
       {/* Two-column layout */}
       <div className="flex gap-3">
-        {/* Left — tabs */}
-        <div className="flex-1 min-w-0 flex flex-col gap-0">
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+        {/* Major incident war room */}
+        {isMajorIncidentTicket && (
+          <div className="w-full rounded border border-red-200 bg-red-50/40 shrink-0">
+            <div className="px-3 py-2 border-b border-red-100 bg-red-100/50 flex items-center gap-2">
+              <Megaphone className="w-3.5 h-3.5 text-red-700" />
+              <span className="text-[10px] font-semibold text-red-800 uppercase tracking-wider">
+                War room / comms log
+              </span>
+              <span className="text-[10px] text-red-700/80 ml-auto">Major incident only</span>
+            </div>
+            <div className="p-3 space-y-3 max-h-64 overflow-y-auto">
+              {(commsListQuery.data ?? []).length === 0 && !commsListQuery.isLoading && (
+                <p className="text-[11px] text-muted-foreground italic">No comms entries yet — post stakeholder updates below.</p>
+              )}
+              {commsListQuery.isLoading && (
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Loading…
+                </p>
+              )}
+              {(commsListQuery.data ?? []).map((entry) => {
+                const who = entry.authorName ?? "Agent";
+                const initials = who
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase();
+                return (
+                  <div key={entry.id} className="rounded border border-red-100 bg-card p-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-6 h-6 rounded-full bg-red-600 text-white text-[9px] flex items-center justify-center font-semibold shrink-0">
+                          {initials || "?"}
+                        </span>
+                        <span className="text-[11px] font-semibold text-foreground/90 truncate">{who}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(entry.createdAt)}</span>
+                    </div>
+                    <p className="text-[12px] text-foreground/85 whitespace-pre-wrap pl-8">{entry.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {can("incidents", "write") && !isTerminal && (
+              <div className="border-t border-red-100 p-2 bg-card/80">
+                <textarea
+                  value={warRoomBody}
+                  onChange={(e) => setWarRoomBody(e.target.value)}
+                  rows={2}
+                  placeholder="Stakeholder / exec comms update (not a customer reply)…"
+                  className="w-full px-2 py-1.5 text-[12px] rounded border border-border bg-background resize-none outline-none"
+                />
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    type="button"
+                    disabled={!warRoomBody.trim() || appendMajorComms.isPending}
+                    onClick={() =>
+                      appendMajorComms.mutate({ ticketId: id, body: warRoomBody.trim() })
+                    }
+                    className="px-3 py-1 bg-red-600 text-white text-[11px] rounded hover:bg-red-700 disabled:opacity-40"
+                  >
+                    {appendMajorComms.isPending ? "Posting…" : "Post to war room"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Notes / activity / related */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0 min-h-0">
           <div className="flex border-b border-border bg-card rounded-t border-x border-t">
             {(["notes", "activity", "related"] as const).map((tab) => (
               <button
@@ -923,6 +1011,7 @@ export default function TicketDetailPage() {
               </div>
             )}
           </div>
+        </div>
         </div>
 
         {/* Right panel */}

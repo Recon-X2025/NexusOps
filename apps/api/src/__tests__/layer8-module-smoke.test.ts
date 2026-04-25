@@ -118,6 +118,29 @@ describe("Layer 8: Module Smoke Tests", () => {
       const after = await caller.tickets.get({ id: a.id }) as { relations: unknown[] };
       expect((after.relations ?? []).filter((r: any) => r.relatedTicketId === b.id)).toHaveLength(0);
     });
+
+    it("major incident war-room comms (US-ITSM-004)", async () => {
+      const caller = await authedCaller(adminToken);
+      const ticket = await caller.tickets.create({
+        title: "Major comms smoke",
+        type: "incident",
+        priorityId: orgCtx.p2Id!,
+      }) as { id: string };
+      await caller.tickets.update({
+        id: ticket.id,
+        data: { isMajorIncident: true },
+      });
+      const empty = (await caller.tickets.majorIncidentComms.list({ ticketId: ticket.id })) as unknown[];
+      expect(Array.isArray(empty)).toBe(true);
+      expect(empty.length).toBe(0);
+      await caller.tickets.majorIncidentComms.append({
+        ticketId: ticket.id,
+        body: "Status: mitigating — failover complete",
+      });
+      const after = (await caller.tickets.majorIncidentComms.list({ ticketId: ticket.id })) as { body: string }[];
+      expect(after.length).toBe(1);
+      expect(after[0]!.body).toContain("mitigating");
+    });
   });
 
   // ── 8.02 Changes ──────────────────────────────────────────────────────────
@@ -1151,6 +1174,18 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(budget).toBeDefined();
       const metrics = await caller.dashboard.getMetrics();
       expect(metrics).toBeDefined();
+    });
+
+    it("period close: get + setClosedPeriods (US-FIN-007)", async () => {
+      const caller = await authedCaller(adminToken);
+      const before = (await caller.financial.periodClose.get()) as { closedPeriods: string[] };
+      const prev = [...before.closedPeriods];
+      await caller.financial.periodClose.setClosedPeriods({ periods: [...prev, "2099-06"].filter((v, i, a) => a.indexOf(v) === i).sort() });
+      const mid = (await caller.financial.periodClose.get()) as { closedPeriods: string[] };
+      expect(mid.closedPeriods).toContain("2099-06");
+      await caller.financial.periodClose.setClosedPeriods({ periods: prev });
+      const restored = (await caller.financial.periodClose.get()) as { closedPeriods: string[] };
+      expect(restored.closedPeriods).toEqual(prev);
     });
 
     it("FP depth: budget line → variance; vendor → invoice → approve; AP aging", async () => {

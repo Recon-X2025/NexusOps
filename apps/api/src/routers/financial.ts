@@ -1,4 +1,4 @@
-import { router, permissionProcedure, stepUpGate } from "../lib/trpc";
+import { router, permissionProcedure, adminProcedure, stepUpGate } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getTableColumns } from "drizzle-orm";
@@ -8,6 +8,7 @@ import {
   invoices,
   vendors,
   legalEntities,
+  organizations,
   eq,
   and,
   desc,
@@ -19,6 +20,7 @@ import {
 import {
   getDuplicatePayablePolicy,
   isInvoicePeriodClosed,
+  parseOrgSettings,
 } from "../lib/org-settings";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -594,4 +596,49 @@ export const financialRouter = router({
       };
       return { summary, lines: result };
     }),
+
+  /** Closed accounting months (`YYYY-MM`) — blocks mark-paid in those periods (US-FIN-007 / US-CRM-007 checklist). */
+  periodClose: router({
+    get: permissionProcedure("financial", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const closed = parseOrgSettings(row?.settings).financial?.closedPeriods;
+      return { closedPeriods: [...(closed ?? [])].sort() };
+    }),
+
+    setClosedPeriods: adminProcedure
+      .input(
+        z.object({
+          periods: z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(240),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const normalized = [...new Set(input.periods)].sort();
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevFin = (raw.financial as Record<string, unknown> | undefined) ?? {};
+        const financial = {
+          ...prevFin,
+          closedPeriods: normalized,
+        };
+        await db
+          .update(organizations)
+          .set({
+            settings: {
+              ...raw,
+              financial,
+            },
+          })
+          .where(eq(organizations.id, org!.id));
+
+        return { ok: true as const, closedPeriods: normalized };
+      }),
+  }),
 });

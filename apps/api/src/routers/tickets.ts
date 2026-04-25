@@ -130,6 +130,9 @@ function autoIdempotencyKey(orgId: string, userId: string, title: string): strin
     .slice(0, 32);
 }
 
+/** War-room comms for major incidents — stored in `ticket_activity_logs` (US-ITSM-004). */
+const MAJOR_INCIDENT_COMMS_ACTION = "major_incident_comms";
+
 async function syncTicketSlaJobs(args: {
   ticketId: string;
   orgId: string;
@@ -1253,6 +1256,88 @@ export const ticketsRouter = router({
     });
 
     return comment;
+  }),
+
+  majorIncidentComms: router({
+    list: permissionProcedure("incidents", "read")
+      .input(z.object({ ticketId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [ticket] = await db
+          .select({ id: tickets.id, isMajorIncident: tickets.isMajorIncident })
+          .from(tickets)
+          .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+        if (!ticket.isMajorIncident) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Not a major incident" });
+        }
+
+        const rows = await db
+          .select({
+            id: ticketActivityLogs.id,
+            userId: ticketActivityLogs.userId,
+            createdAt: ticketActivityLogs.createdAt,
+            changes: ticketActivityLogs.changes,
+          })
+          .from(ticketActivityLogs)
+          .where(
+            and(
+              eq(ticketActivityLogs.ticketId, input.ticketId),
+              eq(ticketActivityLogs.action, MAJOR_INCIDENT_COMMS_ACTION),
+            ),
+          )
+          .orderBy(asc(ticketActivityLogs.createdAt));
+
+        const userIds = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[];
+        const names: Record<string, string> = {};
+        if (userIds.length) {
+          const urows = await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(inArray(users.id, userIds));
+          for (const u of urows) names[u.id] = u.name ?? "";
+        }
+
+        return rows.map((r) => {
+          const ch = r.changes as Record<string, unknown> | null | undefined;
+          const body = typeof ch?.body === "string" ? ch.body : "";
+          return {
+            id: r.id,
+            userId: r.userId,
+            authorName: r.userId ? names[r.userId!] ?? null : null,
+            body,
+            createdAt: r.createdAt,
+          };
+        });
+      }),
+
+    append: permissionProcedure("incidents", "write")
+      .input(
+        z.object({
+          ticketId: z.string().uuid(),
+          body: z.string().trim().min(1).max(16_000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const [ticket] = await db
+          .select({ id: tickets.id, isMajorIncident: tickets.isMajorIncident })
+          .from(tickets)
+          .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+        if (!ticket.isMajorIncident) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Not a major incident" });
+        }
+
+        await db.insert(ticketActivityLogs).values({
+          ticketId: input.ticketId,
+          userId: user!.id,
+          action: MAJOR_INCIDENT_COMMS_ACTION,
+          changes: { body: input.body } as any,
+        });
+
+        return { ok: true as const };
+      }),
   }),
 
   assign: permissionProcedure("incidents", "assign")
