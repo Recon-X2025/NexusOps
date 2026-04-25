@@ -12,9 +12,20 @@ import {
   desc,
   asc,
   sql,
+  count,
 } from "@nexusops/db";
 
 export const facilitiesRouter = router({
+  hubSnapshot: permissionProcedure("facilities", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const [{ roomCount }] = await db
+      .select({ roomCount: count() })
+      .from(rooms)
+      .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
+      .where(eq(buildings.orgId, org!.id));
+    return { roomCount: Number(roomCount ?? 0) };
+  }),
+
   buildings: router({
     list: permissionProcedure("facilities", "read")
       .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))

@@ -50,11 +50,21 @@ export default function PeopleWorkplaceDashboard() {
   const { can, isAuthenticated, mergeTrpcQueryOpts } = useRBAC();
 
   const canHr = isAuthenticated && can("hr", "read");
+  const canFacilities = isAuthenticated && can("facilities", "read");
+  const canWalkup = isAuthenticated && can("incidents", "read");
 
   const { data: hrCases, isLoading: loadingCases } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { enabled: canHr }));
   const { data: employees, isLoading: loadingEmp } = trpc.hr.employees.list.useQuery({}, mergeTrpcQueryOpts("hr.employees.list", { enabled: canHr }));
+  const { data: facilitiesHub, isLoading: loadingFacilitiesHub } = trpc.facilities.hubSnapshot.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("facilities.hubSnapshot", { enabled: canFacilities }),
+  );
+  const { data: walkupHub, isLoading: loadingWalkupHub } = trpc.walkup.hubSnapshot.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("walkup.hubSnapshot", { enabled: canWalkup }),
+  );
 
-  if (!can("hr", "read") && !can("facilities", "read")) {
+  if (!can("hr", "read") && !can("facilities", "read") && !can("incidents", "read")) {
     return <AccessDenied module="People & Workplace" />;
   }
 
@@ -78,10 +88,10 @@ export default function PeopleWorkplaceDashboard() {
       { k: "Total",  v: loadingEmp ? "…" : String(totalEmployees) },
     ],
     [
-      { k: "Spaces", v: "—" },
+      { k: "Spaces", v: !canFacilities ? "—" : loadingFacilitiesHub ? "…" : String(facilitiesHub?.roomCount ?? 0) },
     ],
     [
-      { k: "Queue", v: "—" },
+      { k: "Queue", v: !canWalkup ? "—" : loadingWalkupHub ? "…" : String(walkupHub?.queueActive ?? 0) },
     ],
   ];
 

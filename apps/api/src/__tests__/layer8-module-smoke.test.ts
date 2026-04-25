@@ -474,6 +474,17 @@ describe("Layer 8: Module Smoke Tests", () => {
 
       const metrics = await caller.crm.dashboardMetrics();
       expect(metrics).toBeDefined();
+
+      const exec = await caller.crm.executiveSummary() as {
+        openPipeline: { count: number };
+        pipelineByStage: { stage: string }[];
+        recentDeals: unknown[];
+        leads: { open: number };
+      };
+      expect(exec.openPipeline).toBeDefined();
+      expect(Array.isArray(exec.pipelineByStage)).toBe(true);
+      expect(Array.isArray(exec.recentDeals)).toBe(true);
+      expect(exec.leads).toBeDefined();
     });
 
     it("list filters + closed_lost deal", async () => {

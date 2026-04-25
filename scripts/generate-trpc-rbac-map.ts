@@ -2,7 +2,7 @@
  * Walks apps/api/src/routers + index.ts and emits apps/web/src/lib/trpc-procedure-rbac.generated.ts
  * mapping flat tRPC procedure paths → RBAC rule kind for client-side query enabled merging.
  *
- * Run: pnpm --filter @nexusops/api exec tsx ../scripts/generate-trpc-rbac-map.ts
+ * Run: pnpm --filter @nexusops/api exec tsx ../../scripts/generate-trpc-rbac-map.ts
  */
 import * as fs from "node:fs";
 import * as path from "node:path";

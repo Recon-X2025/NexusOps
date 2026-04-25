@@ -13,6 +13,18 @@ import {
 } from "@nexusops/db";
 
 export const walkupRouter = router({
+  hubSnapshot: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const [{ queueActive }] = await db
+      .select({ queueActive: count() })
+      .from(walkupVisits)
+      .where(and(
+        eq(walkupVisits.orgId, org!.id),
+        inArray(walkupVisits.status, ["waiting", "in_service"]),
+      ));
+    return { queueActive: Number(queueActive ?? 0) };
+  }),
+
   queue: router({
     list: permissionProcedure("incidents", "read")
       .input(z.object({ locationId: z.string().uuid().optional() }))

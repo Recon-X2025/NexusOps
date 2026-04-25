@@ -99,6 +99,7 @@ const QUERY_PROCEDURES: string[] = [
   "crm.listQuotes",
   "crm.listActivities",
   "crm.dashboardMetrics",
+  "crm.executiveSummary",
   // csm (sub-router paths)
   "csm.cases.list",
   "csm.accounts.list",
@@ -123,6 +124,7 @@ const QUERY_PROCEDURES: string[] = [
   "facilities.bookings.list",
   "facilities.facilityRequests.list",
   "facilities.moveRequests.list",
+  "facilities.hubSnapshot",
   // financial
   "financial.listInvoices",
   "financial.listBudget",
@@ -194,6 +196,7 @@ const QUERY_PROCEDURES: string[] = [
   // vendors
   "vendors.list",
   // walkup (sub-router paths)
+  "walkup.hubSnapshot",
   "walkup.queue.list",
   "walkup.appointments.list",
   "walkup.locations",

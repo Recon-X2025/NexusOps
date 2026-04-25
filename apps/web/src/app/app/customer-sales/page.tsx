@@ -46,12 +46,13 @@ const MODULES = [
 ];
 
 const PIPELINE_STAGE_COLORS: Record<string, string> = {
-  prospect:      "bg-slate-400",
-  qualified:     "bg-blue-500",
-  proposal:      "bg-indigo-500",
-  negotiation:   "bg-purple-500",
-  closed_won:    "bg-green-500",
-  closed_lost:   "bg-red-400",
+  prospect:        "bg-slate-400",
+  qualification:   "bg-blue-500",
+  proposal:        "bg-indigo-500",
+  negotiation:     "bg-purple-500",
+  verbal_commit:   "bg-amber-500",
+  closed_won:      "bg-green-500",
+  closed_lost:     "bg-red-400",
 };
 
 export default function CustomerSalesDashboard() {
@@ -66,10 +67,9 @@ export default function CustomerSalesDashboard() {
     undefined,
     mergeTrpcQueryOpts("csm.dashboard", { enabled: canCsm }),
   );
-  const { data: crmMetrics, isLoading: loadingCrm } = trpc.crm.dashboardMetrics.useQuery(undefined, mergeTrpcQueryOpts("crm.dashboardMetrics", {
+  const { data: crmExec, isLoading: loadingCrm } = trpc.crm.executiveSummary.useQuery(undefined, mergeTrpcQueryOpts("crm.executiveSummary", {
     enabled: canAccounts,
   }));
-  const { data: deals, isLoading: loadingDeals } = trpc.crm.listDeals.useQuery({ limit: 100 }, mergeTrpcQueryOpts("crm.listDeals", { enabled: canAccounts },));
   const { data: catalogRequests, isLoading: loadingCatalog } = trpc.catalog.listRequests.useQuery({}, mergeTrpcQueryOpts("catalog.listRequests", { enabled: canCatalog },));
   const { data: surveys, isLoading: loadingSurveys } = trpc.surveys.list.useQuery({}, mergeTrpcQueryOpts("surveys.list", { enabled: canSurveys }));
 
@@ -83,24 +83,13 @@ export default function CustomerSalesDashboard() {
     : 0;
   const activeSurveys = surveys ? surveys.filter((s: any) => s.status === "active" || s.status === "published").length : 0;
 
-  // Build pipeline summary from deals
-  const pipelineByStage = deals
-    ? deals.reduce((acc: Record<string, { count: number; value: number }>, d: any) => {
-        const stage = d.stage ?? "prospect";
-        if (!acc[stage]) acc[stage] = { count: 0, value: 0 };
-        acc[stage]!.count++;
-        acc[stage]!.value += parseFloat(String(d.value ?? "0"));
-        return acc;
-      }, {})
-    : {} as Record<string, { count: number; value: number }>;
-
-  const pipelineRows = (Object.entries(pipelineByStage) as [string, { count: number; value: number }][])
-    .filter(([stage]) => stage !== "closed_lost")
-    .map(([stage, data]) => ({
-      stage: stage.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-      count: data.count,
-      value: data.value,
-      color: PIPELINE_STAGE_COLORS[stage] ?? "bg-slate-400",
+  const pipelineRows = (crmExec?.pipelineByStage ?? [])
+    .filter((r) => r.stage !== "closed_lost")
+    .map((r) => ({
+      stage: r.stage.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+      count: r.count,
+      value: parseFloat(String(r.value ?? "0")),
+      color: PIPELINE_STAGE_COLORS[r.stage] ?? "bg-slate-400",
     }))
     .sort((a, b) => a.stage.localeCompare(b.stage));
 
@@ -110,8 +99,8 @@ export default function CustomerSalesDashboard() {
     (csmDash?.openCases ?? 0) > 0
       ? { color: "bg-indigo-500", text: `${csmDash?.openCases} open customer case${csmDash?.openCases !== 1 ? "s" : ""}` }
       : null,
-    deals && deals.filter((d: any) => d.stage !== "closed_won" && d.stage !== "closed_lost").length > 0
-      ? { color: "bg-blue-500", text: `${crmMetrics?.openPipeline.count ?? 0} open deals in the sales pipeline` }
+    (crmExec?.openPipeline.count ?? 0) > 0
+      ? { color: "bg-blue-500", text: `${crmExec?.openPipeline.count ?? 0} open deals in the sales pipeline` }
       : null,
     openCatalogRequests > 0
       ? { color: "bg-orange-500", text: `${openCatalogRequests} catalog request${openCatalogRequests !== 1 ? "s" : ""} open and awaiting fulfillment` }
@@ -127,8 +116,8 @@ export default function CustomerSalesDashboard() {
       { k: "Total", v: !canCsm ? "—" : loadingCsm ? "…" : String(csmDash?.totalCases ?? 0) },
     ],
     [
-      { k: "Deals",    v: loadingCrm ? "…" : String(crmMetrics?.openPipeline.count ?? 0) },
-      { k: "Leads",    v: loadingCrm ? "…" : String(crmMetrics?.newLeads ?? 0) },
+      { k: "Deals",    v: loadingCrm ? "…" : String(crmExec?.openPipeline.count ?? 0) },
+      { k: "Leads",    v: loadingCrm ? "…" : String(crmExec?.newLeads ?? 0) },
     ],
     [
       { k: "Open",    v: loadingCatalog ? "…" : String(openCatalogRequests) },
@@ -172,8 +161,8 @@ export default function CustomerSalesDashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
         <KPICard label="Open Customer Cases" value={canCsm ? (csmDash?.openCases ?? 0) : "—"} color="text-blue-700" icon={MessageSquare} href="/app/csm" isLoading={canCsm && loadingCsm} />
-        <KPICard label="Open Deals / Pipeline" value={crmMetrics?.openPipeline.count ?? 0} color="text-indigo-700" icon={TrendingUp} href="/app/crm" isLoading={loadingCrm} />
-        <KPICard label="Won Deals" value={crmMetrics?.closedWon.count ?? 0} color="text-green-700" icon={Star} href="/app/crm" isLoading={loadingCrm} />
+        <KPICard label="Open Deals / Pipeline" value={crmExec?.openPipeline.count ?? 0} color="text-indigo-700" icon={TrendingUp} href="/app/crm" isLoading={loadingCrm} />
+        <KPICard label="Won Deals" value={crmExec?.closedWon.count ?? 0} color="text-green-700" icon={Star} href="/app/crm" isLoading={loadingCrm} />
         <KPICard label="Catalog Requests Open" value={openCatalogRequests} color="text-orange-700" icon={ShoppingBag} href="/app/catalog" isLoading={loadingCatalog} />
         <KPICard label="Active Surveys" value={activeSurveys} color="text-blue-700" icon={ClipboardList} href="/app/surveys" isLoading={loadingSurveys} />
       </div>
@@ -219,7 +208,7 @@ export default function CustomerSalesDashboard() {
               All <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          {loadingDeals ? (
+          {loadingCrm ? (
             <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
               <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
             </div>
@@ -227,9 +216,9 @@ export default function CustomerSalesDashboard() {
             <table className="ent-table w-full">
               <thead><tr><th>Title</th><th>Stage</th><th>Value</th></tr></thead>
               <tbody>
-                {(deals ?? []).length === 0 ? (
+                {(crmExec?.recentDeals ?? []).length === 0 ? (
                   <tr><td colSpan={3} className="text-center text-muted-foreground py-4 text-[12px]">No deals found</td></tr>
-                ) : (deals ?? []).slice(0, 5).map((d: any) => (
+                ) : (crmExec?.recentDeals ?? []).map((d: any) => (
                   <tr key={d.id}>
                     <td className="max-w-[180px]"><span className="truncate block text-foreground">{d.title}</span></td>
                     <td>
@@ -252,7 +241,7 @@ export default function CustomerSalesDashboard() {
             </div>
             <Link href="/app/crm" className="text-[11px] text-primary hover:underline">CRM →</Link>
           </div>
-          {loadingDeals ? (
+          {loadingCrm ? (
             <div className="flex items-center justify-center py-6 text-muted-foreground text-[12px]">
               <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
             </div>

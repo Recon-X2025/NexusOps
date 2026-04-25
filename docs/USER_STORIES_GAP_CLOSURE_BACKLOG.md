@@ -27,9 +27,9 @@
 |--------|------:|
 | **Stories in rollup** | 58 |
 | **Done** | 0 |
-| **Partial** | 23 |
+| **Partial** | 25 |
 | **Deferred** | 1 |
-| **Backlog** | 34 |
+| **Backlog** | 32 |
 | **Approx. closure** (Done ÷ 58) | 0% — *treat **Partial** as in-flight, not closed* |
 
 ---
@@ -585,7 +585,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-SEC-006 | Backlog | — |
 | US-SEC-007 | Backlog | — |
 | US-SEC-008 | Partial | `docs/FINANCE_SOD_MATRIX.md`, `docs/TRUST_CENTRE_STARTER.md`; SoD example on invoice pay (`markPaid` vs approver). |
-| US-HCM-001 | Backlog | — |
+| US-HCM-001 | Partial | People & Workplace hub: `facilities.hubSnapshot` (org-scoped room count), `walkup.hubSnapshot` (active queue); tiles show **—** when user lacks module RBAC. Org integration disconnect flag still open vs AC. |
 | US-HCM-002 | Backlog | — |
 | US-HCM-003 | Backlog | — |
 | US-HCM-004 | Backlog | — |
@@ -594,7 +594,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-HCM-007 | Backlog | — |
 | US-HCM-008 | Backlog | — |
 | US-CRM-001 | Partial | Customer & Sales hub: `csm.dashboard` counts from `csm_cases`; KPI + module tile + alert (no `"—"` when user has `csm` read). |
-| US-CRM-002 | Backlog | — |
+| US-CRM-002 | Partial | `crm.executiveSummary` (pipeline by stage, recent deals, open leads + stale open older than 7 days); Customer & Sales hub consumes one query; `crm.dashboardMetrics` delegates to same snapshot. Field doc / OpenAPI follow-up optional. |
 | US-CRM-003 | Backlog | — |
 | US-CRM-004 | Partial | Duplicate payable policy + match tolerance (`org-settings`, `procurement.matchToOrder`, `financial`); track under **US-FIN-004** if finance owns. |
 | US-CRM-005 | Backlog | Line/receipt-aware three-way match not v1-complete. |
@@ -636,6 +636,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | **Programme charter**: explicit **100% closure** target, phased rules, **US-LEG-009+** decomposition requirement, rollup-derived **Programme progress** snapshot. |
 | 2026-04-25 | **US-FIN-003** (partial): DB-backed PR approval tiers, admin console tab, fresh settings on PR create. |
 | 2026-04-25 | **US-ITSM-003** / **US-FIN-005** (partial): SLA operational health API + IT analytics UI; PO vs invoice line-sum three-way tightening. |
+| 2026-04-25 | **US-HCM-001** / **US-CRM-002** (partial): workplace hub snapshots (`facilities` / `walkup`); `crm.executiveSummary` + hub; programme counts refreshed. |
 
 ---
 
