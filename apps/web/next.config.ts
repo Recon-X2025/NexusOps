@@ -1,4 +1,11 @@
+import path from "node:path";
 import type { NextConfig } from "next";
+
+/**
+ * Monorepo root (pnpm-lock.yaml). Turbopack otherwise picks an unrelated lockfile
+ * (e.g. ~/package-lock.json) and app routes like /login 404. Turbo runs this package with cwd = apps/web.
+ */
+const monorepoRoot = path.resolve(process.cwd(), "../..");
 
 // All browser→API traffic goes through the same-origin /api/trpc proxy route,
 // so we no longer need to include the API port in the CSP connect-src.
@@ -45,10 +52,14 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: monorepoRoot,
   typescript: {
     ignoreBuildErrors: true,
   },
   transpilePackages: ["@nexusops/ui", "@nexusops/types"],
+  turbopack: {
+    root: monorepoRoot,
+  },
   async rewrites() {
     return [{ source: "/favicon.ico", destination: "/icon.svg" }];
   },
