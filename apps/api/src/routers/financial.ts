@@ -11,10 +11,13 @@ import {
   organizations,
   eq,
   and,
+  or,
   desc,
   sum,
   sql,
   count,
+  gte,
+  lt,
   notInArray,
 } from "@nexusops/db";
 import {
@@ -139,15 +142,24 @@ export const financialRouter = router({
         amount: z.string(),
         dueDate: z.string().optional(),
         invoiceDate: z.string().optional(),
+        legalEntityId: z.string().uuid().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      if (input.legalEntityId) {
+        const [le] = await db
+          .select({ id: legalEntities.id })
+          .from(legalEntities)
+          .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
+        if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
+      }
       const [inv] = await db
         .insert(invoices)
         .values({
           orgId: org!.id,
           vendorId: input.customerVendorId,
+          legalEntityId: input.legalEntityId ?? null,
           invoiceFlow: "receivable",
           invoiceNumber: input.invoiceNumber,
           invoiceType: "tax_invoice",
@@ -181,9 +193,12 @@ export const financialRouter = router({
         .select({
           ...getTableColumns(invoices),
           vendorName: vendors.name,
+          legalEntityCode: legalEntities.code,
+          legalEntityName: legalEntities.name,
         })
         .from(invoices)
         .leftJoin(vendors, eq(invoices.vendorId, vendors.id))
+        .leftJoin(legalEntities, eq(invoices.legalEntityId, legalEntities.id))
         .where(and(...conditions))
         .orderBy(desc(invoices.createdAt))
         .limit(input.limit + 1)
@@ -639,6 +654,136 @@ export const financialRouter = router({
           .where(eq(organizations.id, org!.id));
 
         return { ok: true as const, closedPeriods: normalized };
+      }),
+
+    /**
+     * Pre-close checklist for a calendar month (`YYYY-MM`, UTC boundaries).
+     * US-CRM-007 / US-FIN-007 — finance self-service before adding the month to `closedPeriods`.
+     */
+    preflight: permissionProcedure("financial", "read")
+      .input(z.object({ period: z.string().regex(/^\d{4}-\d{2}$/) }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [y, mo] = input.period.split("-").map((x) => Number(x));
+        if (!y || !mo || mo < 1 || mo > 12) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid period" });
+        }
+        const start = new Date(Date.UTC(y, mo - 1, 1));
+        const endExclusive = new Date(Date.UTC(y, mo, 1));
+
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const closed = parseOrgSettings(row?.settings).financial?.closedPeriods ?? [];
+        const alreadyClosed = closed.includes(input.period);
+
+        const terminal = ["paid", "cancelled"] as const;
+
+        const [apRow] = await db
+          .select({ c: count() })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.orgId, org!.id),
+              eq(invoices.invoiceFlow, "payable"),
+              gte(invoices.invoiceDate, start),
+              lt(invoices.invoiceDate, endExclusive),
+              notInArray(invoices.status, [...terminal]),
+            ),
+          );
+
+        const [arRow] = await db
+          .select({ c: count() })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.orgId, org!.id),
+              eq(invoices.invoiceFlow, "receivable"),
+              gte(invoices.invoiceDate, start),
+              lt(invoices.invoiceDate, endExclusive),
+              notInArray(invoices.status, [...terminal]),
+            ),
+          );
+
+        const [matchRow] = await db
+          .select({ c: count() })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.orgId, org!.id),
+              eq(invoices.invoiceFlow, "payable"),
+              gte(invoices.invoiceDate, start),
+              lt(invoices.invoiceDate, endExclusive),
+              notInArray(invoices.status, ["cancelled"]),
+              or(eq(invoices.matchingStatus, "pending"), eq(invoices.matchingStatus, "exception")),
+            ),
+          );
+
+        const openAp = Number(apRow?.c ?? 0);
+        const openAr = Number(arRow?.c ?? 0);
+        const matchingAttention = Number(matchRow?.c ?? 0);
+
+        const monthName = new Date(Date.UTC(y, mo - 1, 15)).toLocaleString("en-IN", {
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        });
+
+        const checks = [
+          {
+            key: "period_not_closed",
+            label: "Period not already closed in org settings",
+            ok: !alreadyClosed,
+            count: alreadyClosed ? 1 : 0,
+            hint: alreadyClosed
+              ? "This month is in the closed list — remove it under Admin → Accounting periods to post or pay in-period invoices."
+              : "Safe to proceed toward close once other checks pass.",
+          },
+          {
+            key: "open_ap",
+            label: "No open AP invoices dated in this month",
+            ok: openAp === 0,
+            count: openAp,
+            hint:
+              openAp > 0
+                ? "Approve / pay / cancel remaining vendor invoices dated in this month, or move dates."
+                : "All payable invoices for this month are paid or cancelled.",
+          },
+          {
+            key: "open_ar",
+            label: "No open AR invoices dated in this month",
+            ok: openAr === 0,
+            count: openAr,
+            hint:
+              openAr > 0
+                ? "Collect or write off customer invoices dated in this month."
+                : "All receivable invoices for this month are paid or cancelled.",
+          },
+          {
+            key: "matching_clear",
+            label: "No payable matching exceptions left in this month",
+            ok: matchingAttention === 0,
+            count: matchingAttention,
+            hint:
+              matchingAttention > 0
+                ? "Resolve PO/GRN matching (pending or exception) before locking the period."
+                : "No pending or exception matching rows for this month.",
+          },
+        ] as const;
+
+        const allClear = checks.every((c) => c.ok);
+
+        return {
+          period: input.period,
+          rangeLabel: `${monthName} (UTC)`,
+          alreadyClosed,
+          openApInPeriod: openAp,
+          openArInPeriod: openAr,
+          payableMatchingAttention: matchingAttention,
+          checks: [...checks],
+          allClear,
+        };
       }),
   }),
 });

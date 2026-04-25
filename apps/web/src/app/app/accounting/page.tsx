@@ -175,6 +175,7 @@ function JournalTab() {
 
 // ── Trial Balance Tab ──────────────────────────────────────────────────────
 function TrialBalanceTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const tbQ = trpc.accounting.trialBalance.useQuery({}, mergeTrpcQueryOpts("accounting.trialBalance", undefined));
   const data = tbQ.data as any;
 
@@ -214,6 +215,7 @@ function TrialBalanceTab() {
 
 // ── P&L Tab ────────────────────────────────────────────────────────────────
 function PnLTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const pnlQ = trpc.accounting.incomeStatement.useQuery({}, mergeTrpcQueryOpts("accounting.incomeStatement", undefined));
   const data = pnlQ.data as any;
 
@@ -255,6 +257,7 @@ function PnLTab() {
 
 // ── GSTR Tab ───────────────────────────────────────────────────────────────
 function GSTRTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [gstinId, setGstinId] = useState("");
   const [formType, setFormType] = useState<"GSTR-1" | "GSTR-3B">("GSTR-1");
   const [month, setMonth]       = useState(new Date().getMonth() + 1);

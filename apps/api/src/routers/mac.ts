@@ -87,7 +87,7 @@ export const macRouter = router({
       if (input.search) {
         const q = input.search.toLowerCase();
         return rows.filter(
-          (r) =>
+          (r: (typeof rows)[number]) =>
             r.name.toLowerCase().includes(q) ||
             r.slug.toLowerCase().includes(q),
         );
@@ -449,8 +449,8 @@ export const macRouter = router({
     const { db } = ctx;
     const orgs = await db.select().from(organizations).orderBy(desc(organizations.createdAt));
     const userCounts = await db.select({ orgId: users.orgId, count: count() }).from(users).groupBy(users.orgId);
-    const ucMap = new Map(userCounts.map((u) => [u.orgId, u.count]));
-    return orgs.map((org) => ({
+    const ucMap = new Map(userCounts.map((u: (typeof userCounts)[number]) => [u.orgId, u.count]));
+    return orgs.map((org: (typeof orgs)[number]) => ({
       ...org,
       userCount: ucMap.get(org.id) ?? 0,
     }));

@@ -169,7 +169,7 @@ export async function registerOidcRoutes(fastify: FastifyInstance): Promise<void
         });
 
       // Create a NexusOps session (reuses identical logic to password login)
-      const sessionId = await createSession(
+      const session = await createSession(
         db,
         user!.id,
         req.ip ?? "unknown",
@@ -179,7 +179,7 @@ export async function registerOidcRoutes(fastify: FastifyInstance): Promise<void
       // Redirect to the web app with the sessionId in the URL fragment
       // The web app reads it and stores in localStorage + cookie identically to password login
       const redirectTo = new URL(postLoginRedirect);
-      redirectTo.searchParams.set("session", sessionId);
+      redirectTo.searchParams.set("session", session.token);
       return reply.redirect(redirectTo.toString());
     } catch (err) {
       fastify.log.error(err, "OIDC callback error");

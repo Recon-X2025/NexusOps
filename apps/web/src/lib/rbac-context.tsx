@@ -42,10 +42,10 @@ interface RBACContextValue {
    * (e.g. `"tickets.list"`). Callers pass their existing second argument; this ANDs
    * permission checks so protected procedures are not requested before/forbidden roles.
    */
-  mergeTrpcQueryOpts: <T extends { enabled?: boolean } | undefined>(
+  mergeTrpcQueryOpts: (
     procedurePath: string,
-    opts?: T,
-  ) => T & { enabled: boolean };
+    opts?: Record<string, unknown> & { enabled?: boolean },
+  ) => Record<string, unknown> & { enabled: boolean };
 }
 
 const RBACContext = createContext<RBACContextValue | null>(null);
@@ -167,8 +167,11 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
     : MOCK_USERS;
 
   const mergeTrpcQueryOpts = useCallback(
-    <T extends { enabled?: boolean } | undefined>(procedurePath: string, opts?: T): T & { enabled: boolean } => {
-      const base = (opts ?? {}) as { enabled?: boolean };
+    (
+      procedurePath: string,
+      opts?: Record<string, unknown> & { enabled?: boolean },
+    ): Record<string, unknown> & { enabled: boolean } => {
+      const base = opts ?? {};
       const baseEnabled = base.enabled ?? true;
       const rule: TrpcProcedureRbacRule | undefined = TRPC_PROCEDURE_RBAC[procedurePath];
       let rbacAllow = true;
@@ -183,7 +186,7 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
       } else {
         rbacAllow = isAuthenticated && hasPermission(currentUser.roles, rule.module, rule.action);
       }
-      return { ...(opts as object), enabled: baseEnabled && rbacAllow } as T & { enabled: boolean };
+      return { ...base, enabled: Boolean(baseEnabled) && rbacAllow };
     },
     [isAuthenticated, currentUser.roles],
   );

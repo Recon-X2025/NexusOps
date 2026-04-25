@@ -8,6 +8,18 @@ import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { nanoid } from "nanoid";
+import type { InferSelectModel } from "drizzle-orm";
+import {
+  chartOfAccounts as chartOfAccountsTbl,
+  journalEntries as journalEntriesTbl,
+  journalEntryLines as journalEntryLinesTbl,
+} from "@nexusops/db";
+
+type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
+type JeRow = InferSelectModel<typeof journalEntriesTbl>;
+type JelRow = InferSelectModel<typeof journalEntryLinesTbl>;
+type JournalLineWithAcct = { line: JelRow; account: CoaRow | null };
+type LedgerLineRow = { line: JelRow; je: JeRow };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -139,7 +151,7 @@ export const accountingRouter = router({
           .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
           .from(chartOfAccounts)
           .where(dbEq(chartOfAccounts.orgId, org!.id));
-        const codeToId = new Map<string, string>(existing.map((r) => [r.code, r.id]));
+        const codeToId = new Map<string, string>(existing.map((r: CoaRow) => [r.code, r.id]));
 
         let seeded = 0;
         for (const acct of INDIA_COA_SEED) {
@@ -203,7 +215,7 @@ export const accountingRouter = router({
 
       if (entries.length === 0) return { items: [], total: 0 };
 
-      const ids = entries.map(e => e.id);
+      const ids = entries.map((e: JeRow) => e.id);
       const { inArray: dbInArray } = await import("@nexusops/db");
       const lines = await db.select({ line: journalEntryLines, account: chartOfAccounts })
         .from(journalEntryLines)
@@ -214,7 +226,10 @@ export const accountingRouter = router({
       const [total] = await db.select({ n: dbCount() }).from(journalEntries).where(dbAnd(...conds));
 
       return {
-        items: entries.map(e => ({ ...e, lines: lines.filter(l => l.line.journalEntryId === e.id) })),
+        items: entries.map((e: JeRow) => ({
+          ...e,
+          lines: lines.filter((l: JournalLineWithAcct) => l.line.journalEntryId === e.id),
+        })),
         total: total?.n ?? 0,
       };
     }),
@@ -233,7 +248,7 @@ export const accountingRouter = router({
         description: z.string().optional(),
       })).min(2),
     })).mutation(async ({ ctx, input }) => {
-      const { org, db, userId } = ctx;
+      const { org, db, user } = ctx;
       const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq } = await import("@nexusops/db");
 
       // Validate balanced entry
@@ -260,7 +275,7 @@ export const accountingRouter = router({
         currency: input.currency,
         totalDebit: String(totalDebit),
         totalCredit: String(totalCredit),
-        createdById: userId,
+        createdById: user!.id,
         financialYear: fy,
         period: input.date.getMonth() + 1,
       }).returning();
@@ -279,7 +294,7 @@ export const accountingRouter = router({
     }),
 
     post: permissionProcedure("financial", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
-      const { org, db, userId } = ctx;
+      const { org, db, user } = ctx;
       const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, sql } = await import("@nexusops/db");
 
       const [je] = await db.select().from(journalEntries)
@@ -299,7 +314,7 @@ export const accountingRouter = router({
 
       const [posted] = await db.update(journalEntries).set({
         status: "posted",
-        postedById: userId,
+        postedById: user!.id,
         postedAt: new Date(),
         updatedAt: new Date(),
       }).where(dbEq(journalEntries.id, je.id)).returning();
@@ -310,7 +325,7 @@ export const accountingRouter = router({
       id: z.string().uuid(),
       date: z.coerce.date().optional(),
     })).mutation(async ({ ctx, input }) => {
-      const { org, db, userId } = ctx;
+      const { org, db, user } = ctx;
       const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
 
       const [je] = await db.select().from(journalEntries)
@@ -336,15 +351,15 @@ export const accountingRouter = router({
         currency: je.currency,
         totalDebit: je.totalCredit,
         totalCredit: je.totalDebit,
-        createdById: userId,
-        postedById: userId,
+        createdById: user!.id,
+        postedById: user!.id,
         postedAt: revDate,
         reversalOfId: je.id,
         financialYear: currentFY(revDate),
         period: revDate.getMonth() + 1,
       }).returning();
 
-      const revLines = lines.map((l, i) => ({
+      const revLines = lines.map((l: JelRow, i: number) => ({
         journalEntryId: revJe!.id,
         orgId: org!.id,
         accountId: l.accountId,
@@ -387,7 +402,7 @@ export const accountingRouter = router({
       .orderBy(dbAsc(journalEntries.date));
 
     let balance = Number(acct.openingBalance);
-    const rows = lines.map(r => {
+    const rows = lines.map((r: LedgerLineRow) => {
       const net = Number(r.line.debitAmount) - Number(r.line.creditAmount);
       balance += net;
       return { ...r, runningBalance: balance };
@@ -407,12 +422,12 @@ export const accountingRouter = router({
     const accounts = await db.select().from(chartOfAccounts)
       .where(dbEq(chartOfAccounts.orgId, org!.id));
 
-    const totalDebit  = accounts.filter(a => Number(a.currentBalance) > 0).reduce((s, a) => s + Number(a.currentBalance), 0);
-    const totalCredit = accounts.filter(a => Number(a.currentBalance) < 0).reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
+    const totalDebit  = accounts.filter((a: CoaRow) => Number(a.currentBalance) > 0).reduce((s: number, a: CoaRow) => s + Number(a.currentBalance), 0);
+    const totalCredit = accounts.filter((a: CoaRow) => Number(a.currentBalance) < 0).reduce((s: number, a: CoaRow) => s + Math.abs(Number(a.currentBalance)), 0);
     const isBalanced  = Math.abs(totalDebit - totalCredit) < 0.001;
 
     return {
-      lines: accounts.map(a => ({
+      lines: accounts.map((a: CoaRow) => ({
         id: a.id,
         code: a.code,
         name: a.name,
@@ -436,11 +451,11 @@ export const accountingRouter = router({
     const { chartOfAccounts, eq: dbEq } = await import("@nexusops/db");
 
     const accounts = await db.select().from(chartOfAccounts).where(dbEq(chartOfAccounts.orgId, org!.id));
-    const income   = accounts.filter(a => a.type === "income");
-    const expenses = accounts.filter(a => a.type === "expense");
+    const income   = accounts.filter((a: CoaRow) => a.type === "income");
+    const expenses = accounts.filter((a: CoaRow) => a.type === "expense");
 
-    const totalIncome   = income.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
-    const totalExpenses = expenses.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
+    const totalIncome   = income.reduce((s: number, a: CoaRow) => s + Math.abs(Number(a.currentBalance)), 0);
+    const totalExpenses = expenses.reduce((s: number, a: CoaRow) => s + Math.abs(Number(a.currentBalance)), 0);
     const netProfit     = totalIncome - totalExpenses;
 
     return { income, expenses, totalIncome, totalExpenses, netProfit };

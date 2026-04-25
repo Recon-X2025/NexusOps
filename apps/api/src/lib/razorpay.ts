@@ -69,7 +69,7 @@ export async function createOrder(params: CreateOrderParams): Promise<RazorpayOr
   });
 
   if (!res.ok) throw new Error(`Razorpay createOrder failed (${res.status}): ${await res.text()}`);
-  return res.json();
+  return (await res.json()) as RazorpayOrder;
 }
 
 // ── Payment verification ───────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export async function fetchPayment(paymentId: string): Promise<RazorpayPayment> 
     headers: { Authorization: authHeader() },
   });
   if (!res.ok) throw new Error(`Razorpay fetchPayment failed (${res.status}): ${await res.text()}`);
-  return res.json();
+  return (await res.json()) as RazorpayPayment;
 }
 
 // ── Reconciliation helpers ────────────────────────────────────────────────

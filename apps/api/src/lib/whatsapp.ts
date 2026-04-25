@@ -17,6 +17,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 const API_VERSION = "v19.0";
 const BASE_URL    = `https://graph.facebook.com/${API_VERSION}`;
 
+type WaSendResponse = { messages?: Array<{ id?: string }> };
+
 export interface WhatsAppConfig {
   phoneNumberId: string;
   accessToken:   string;
@@ -54,7 +56,7 @@ export async function sendTextMessage(to: string, text: string): Promise<{ messa
     throw new Error(`WhatsApp send failed (${res.status}): ${err}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as WaSendResponse;
   return { messageId: data.messages?.[0]?.id ?? "" };
 }
 
@@ -79,7 +81,7 @@ export async function sendTemplateMessage(
   });
 
   if (!res.ok) throw new Error(`WhatsApp template send failed (${res.status}): ${await res.text()}`);
-  const data = await res.json();
+  const data = (await res.json()) as WaSendResponse;
   return { messageId: data.messages?.[0]?.id ?? "" };
 }
 
@@ -111,7 +113,7 @@ export async function sendListMessage(
   });
 
   if (!res.ok) throw new Error(`WhatsApp list message failed (${res.status}): ${await res.text()}`);
-  const data = await res.json();
+  const data = (await res.json()) as WaSendResponse;
   return { messageId: data.messages?.[0]?.id ?? "" };
 }
 

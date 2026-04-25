@@ -350,7 +350,7 @@ export default function CatalogPageClient() {
 
   const submitRequest = trpc.catalog.submitRequest.useMutation({
     onSuccess: (_, vars) => {
-      setRequestedItem(vars.itemId);
+      setRequestedItem((vars as { itemId: string }).itemId);
       refetchRequests();
       utils.catalog.listRequests.invalidate();
       import("sonner").then(({ toast }) => toast.success("Service request submitted successfully"));
@@ -600,7 +600,7 @@ export default function CatalogPageClient() {
 
                   <button
                     type="button"
-                    disabled={submitRequest.isPending && submitRequest.variables?.itemId === item.id}
+                    disabled={submitRequest.isPending && (submitRequest.variables as { itemId?: string } | undefined)?.itemId === item.id}
                     onClick={() => {
                       if (requestedItem === item.id) return;
                       if (item.id && /^[0-9a-f-]{36}$/i.test(item.id)) {

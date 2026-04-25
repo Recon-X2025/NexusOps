@@ -25,14 +25,14 @@ export const approvalsRouter = router({
       ))
       .orderBy(desc(approvalRequests.createdAt));
     // Enrich with requester names
-    const requesterIds = [...new Set(rows.map(r => r.requesterId).filter(Boolean))] as string[];
+    const requesterIds = [...new Set(rows.map((r: (typeof rows)[number]) => r.requesterId).filter(Boolean))] as string[];
     const requesterMap: Record<string, string> = {};
     if (requesterIds.length > 0) {
       const requesterRows = await db.select({ id: users.id, name: users.name }).from(users)
         .where(sql`${users.id} = ANY(${requesterIds})`);
       for (const u of requesterRows) requesterMap[u.id] = u.name;
     }
-    return rows.map(r => ({
+    return rows.map((r: (typeof rows)[number]) => ({
       ...r,
       state: r.status,
       requestedBy: r.requesterId ? (requesterMap[r.requesterId] ?? r.requesterId) : "Unknown",
@@ -49,7 +49,7 @@ export const approvalsRouter = router({
         eq(approvalRequests.requesterId, ctx.user!.id),
       ))
       .orderBy(desc(approvalRequests.createdAt));
-    return rows.map(r => ({
+    return rows.map((r: (typeof rows)[number]) => ({
       ...r,
       state: r.status,
       requestedBy: "Me",
@@ -189,7 +189,7 @@ export const approvalsRouter = router({
       const items = hasMore ? rows.slice(0, -1) : rows;
 
       // Enrich with requester names
-      const requesterIds = [...new Set(items.map(r => r.requesterId).filter(Boolean))] as string[];
+      const requesterIds = [...new Set(items.map((r: (typeof items)[number]) => r.requesterId).filter(Boolean))] as string[];
       const requesterMap: Record<string, string> = {};
       if (requesterIds.length > 0) {
         const requesterRows = await db.select({ id: users.id, name: users.name }).from(users)
@@ -198,7 +198,7 @@ export const approvalsRouter = router({
       }
 
       return {
-        items: items.map(r => ({
+        items: items.map((r: (typeof items)[number]) => ({
           ...r,
           state: r.status,
           requestedBy: r.requesterId ? (requesterMap[r.requesterId] ?? r.requesterId) : "Unknown",

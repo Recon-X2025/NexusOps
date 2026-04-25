@@ -340,6 +340,7 @@ function DashboardTab({ analytics }: { analytics: any }) {
 // ── Requisitions Tab ─────────────────────────────────────────────────────────────
 
 function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, title: string) => void }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -436,6 +437,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
 // ── Pipeline (Kanban) Tab ─────────────────────────────────────────────────────────
 
 function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: pipeline, refetch } = trpc.recruitment.applications.pipeline.useQuery({ jobId }, mergeTrpcQueryOpts("recruitment.applications.pipeline", undefined));
   const moveStage = trpc.recruitment.applications.moveStage.useMutation({
     onSuccess: () => { toast.success("Stage updated"); refetch(); },
@@ -489,6 +491,7 @@ function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
 // ── Candidates Tab ───────────────────────────────────────────────────────────────
 
 function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [search, setSearch] = useState("");
   const { data: candidates = [], refetch } = trpc.recruitment.candidates.list.useQuery({ search }, mergeTrpcQueryOpts("recruitment.candidates.list", undefined));
 
@@ -546,6 +549,7 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
 // ── Interviews Tab ───────────────────────────────────────────────────────────────
 
 function InterviewsTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: interviews = [] } = trpc.recruitment.interviews.list.useQuery({ upcoming: false }, mergeTrpcQueryOpts("recruitment.interviews.list", undefined));
 
   const statusStyle: Record<string, string> = {
@@ -594,6 +598,7 @@ function InterviewsTab() {
 // ── Offers Tab ───────────────────────────────────────────────────────────────────
 
 function OffersTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const { data: offers = [] } = trpc.recruitment.offers.list.useQuery({}, mergeTrpcQueryOpts("recruitment.offers.list", undefined));
   const updateStatus = trpc.recruitment.offers.updateStatus.useMutation({
     onSuccess: () => toast.success("Offer status updated"),

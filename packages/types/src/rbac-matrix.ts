@@ -5,6 +5,8 @@
  *  - Added `operator_field` role (replaces over-broad use of `field_service` as a catch-all)
  *  - Added `manager_ops` role (ops manager with approval + reporting, no write access to modules)
  *  - Added `secretarial` module (Corporate Secretarial & CS)
+ * v3.4: Added `legal` module; `legal_counsel` + `company_secretary` roles; `legal.*` tRPC no longer
+ *        piggybacks on `grc`. GRC analysts do not receive legal or secretarial by default.
  *  - `itil` role restricted to IT-only modules (removed GRC, finance, procurement, CRM, projects)
  *  - `requester` permissions tightened (read-only on approvals, no GRC/finance)
  *  - All roles explicitly declared — no hidden implicit access
@@ -34,7 +36,9 @@ export type SystemRole =
   | "report_viewer"
   | "cmdb_admin"
   | "vendor_manager"
-  | "catalog_admin";
+  | "catalog_admin"
+  | "legal_counsel"         // Legal matters, requests, investigations (not GRC / not CS registers)
+  | "company_secretary";    // Corporate secretarial & India issuer workflows
 
 export type Module =
   | "incidents"
@@ -55,6 +59,7 @@ export type Module =
   | "audit"
   | "policy"
   | "secretarial"           // NEW: Corporate Secretarial & Governance
+  | "legal"                 // Legal service delivery (matters, requests, investigations)
   | "hr"
   | "onboarding"
   | "procurement"
@@ -270,13 +275,26 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     risk:            ["read", "write", "admin"],
     audit:           ["read", "write", "admin"],
     policy:          ["read", "write", "admin"],
-    secretarial:     ["read"],
     security:        ["read"],
     vulnerabilities: ["read"],
     reports:         ["read", "write"],
     analytics:       ["read"],
     vendors:         ["read", "write"],
     contracts:       ["read", "write"],
+  },
+
+  /** Legal counsel — matters / requests / investigations; orthogonal to GRC and secretarial. */
+  legal_counsel: {
+    legal:     ["read", "write", "admin"],
+    contracts: ["read", "write"],
+    reports:   ["read"],
+  },
+
+  /** Company secretary — MCA, board, registers, India compliance calendar; orthogonal to legal + GRC. */
+  company_secretary: {
+    secretarial:     ["read", "write", "admin"],
+    contracts:       ["read"],
+    reports:         ["read"],
   },
 
   // ── HR ────────────────────────────────────────────────────────────────────
@@ -446,7 +464,7 @@ export function getVisibleModules(roles: SystemRole[]): Set<Module> {
       "incidents", "requests", "changes", "problems", "work_orders", "escalations",
       "knowledge", "catalog", "approvals", "events",
       "security", "vulnerabilities", "threat_intel",
-      "grc", "risk", "audit", "policy", "secretarial",
+      "grc", "risk", "audit", "policy", "secretarial", "legal",
       "hr", "onboarding", "recruitment", "workforce_analytics",
       "procurement", "inventory", "purchase_orders",
       "financial", "budget", "chargebacks",

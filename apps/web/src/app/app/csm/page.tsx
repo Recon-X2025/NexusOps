@@ -414,7 +414,11 @@ export default function CSMPage() {
                             />
                             <button
                               disabled={!suspendReason[u.id]?.trim() || suspendPortalUser.isPending}
-                              onClick={() => suspendPortalUser.mutate({ portalUserId: u.id, reason: suspendReason[u.id] })}
+                              onClick={() => {
+                                const reason = suspendReason[u.id]?.trim();
+                                if (!reason) return;
+                                suspendPortalUser.mutate({ portalUserId: u.id, reason });
+                              }}
                               className="text-[10px] text-red-600 hover:underline disabled:opacity-40"
                             >Suspend</button>
                           </div>

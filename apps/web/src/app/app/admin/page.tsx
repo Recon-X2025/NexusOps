@@ -9,7 +9,7 @@ import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
   Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
-  GitBranch, ShoppingCart, Building2, Calendar,
+  GitBranch, ShoppingCart, Building2, Calendar, CircleDollarSign, PauseCircle, Landmark,
 } from "lucide-react";
 import {
   SYSTEM_ROLES_CATALOG, type SystemRole,
@@ -24,9 +24,12 @@ const ADMIN_TABS = [
   { key: "rbac",             label: "RBAC Matrix",         icon: Key,       module: "roles"             as const, action: "admin" as const },
   { key: "groups",           label: "Groups & Teams",      icon: Users,     module: "users"             as const, action: "read"  as const },
   { key: "sla_defs",         label: "SLA Definitions",     icon: Clock,     module: "admin"             as const, action: "read"  as const },
+  { key: "sla_pause_reasons", label: "SLA pause reasons",  icon: PauseCircle, module: "admin"             as const, action: "admin" as const },
   { key: "biz_rules",        label: "Business Rules",      icon: Workflow,  module: "flows"             as const, action: "admin" as const },
   { key: "procurement_policy", label: "Procurement Policy", icon: ShoppingCart, module: "admin"          as const, action: "admin" as const },
+  { key: "crm_deal_thresholds", label: "CRM deal thresholds", icon: CircleDollarSign, module: "admin"      as const, action: "admin" as const },
   { key: "accounting_periods", label: "Accounting periods", icon: Calendar, module: "admin"             as const, action: "admin" as const },
+  { key: "legal_entities", label: "Legal entities", icon: Landmark, module: "admin"             as const, action: "admin" as const },
   { key: "people_workplace", label: "People & Workplace", icon: Building2, module: "admin"             as const, action: "admin" as const },
   { key: "assignment_rules", label: "Assignment Rules",    icon: GitBranch, module: "admin"             as const, action: "read"  as const },
   { key: "sys_props",        label: "System Properties",   icon: Database,  module: "system_properties" as const, action: "read"  as const },
@@ -103,7 +106,8 @@ export default function AdminConsolePage() {
   const deactivateUserMutation = trpc.admin.users.update.useMutation({
     onSuccess: (_r, vars) => {
       usersQuery.refetch();
-      toast.success(`User ${vars.status === "active" ? "activated" : "suspended"}`);
+      const st = (vars as { status?: string })?.status;
+      toast.success(`User ${st === "active" ? "activated" : "suspended"}`);
     },
     onError: (e: any) => toast.error(e.message || "Failed to update user status"),
   });
@@ -169,7 +173,7 @@ export default function AdminConsolePage() {
     return <AccessDenied module="Admin Console" />;
   }
 
-  const allUsers = usersQuery.data ?? [];
+  const allUsers = (usersQuery.data ?? []) as Array<{ status?: string; name?: string; email?: string; role?: string; matrixRole?: string | null }>;
 
   const filteredUsers = allUsers.filter((u: any) =>
     !searchUsers || u.name.toLowerCase().includes(searchUsers.toLowerCase()) || u.email.toLowerCase().includes(searchUsers.toLowerCase()),
@@ -547,6 +551,7 @@ export default function AdminConsolePage() {
           )}
 
           {/* SLA DEFINITIONS */}
+          {tab === "sla_pause_reasons" && <SlaPauseReasonsTab />}
           {tab === "sla_defs" && (
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
@@ -636,7 +641,9 @@ export default function AdminConsolePage() {
           {tab === "biz_rules" && <BusinessRulesTab />}
 
           {tab === "procurement_policy" && <ProcurementPolicyTab />}
+          {tab === "crm_deal_thresholds" && <CrmDealThresholdsTab />}
           {tab === "accounting_periods" && <AccountingPeriodsTab />}
+          {tab === "legal_entities" && <LegalEntitiesTab />}
 
           {tab === "people_workplace" && <PeopleWorkplacePolicyTab />}
 
@@ -1170,7 +1177,102 @@ function AuditLogTab() {
   );
 }
 
-// ── Procurement PR approval tiers (org.settings.procurement) ─────────────────
+/** Org legal entities for invoice / PO tagging (US-CRM-008 / US-FIN-008). */
+function LegalEntitiesTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const q = trpc.financial.listLegalEntities.useQuery(undefined, mergeTrpcQueryOpts("financial.listLegalEntities", undefined));
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+
+  const createLe = trpc.financial.createLegalEntity.useMutation({
+    onSuccess: () => {
+      void utils.financial.listLegalEntities.invalidate();
+      setCode("");
+      setName("");
+      toast.success("Legal entity added");
+    },
+    onError: (e) => toast.error(e.message ?? "Create failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can manage legal entities.
+      </div>
+    );
+  }
+
+  const rows = q.data ?? [];
+
+  return (
+    <div className="p-4 max-w-2xl space-y-4">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">Legal entities</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          Short <code className="text-[10px]">code</code> + name per company / branch. Invoices (AP/AR) and purchase orders can reference an entity — use on{" "}
+          <Link href="/app/financial" className="text-primary hover:underline">Financial</Link>{" "}
+          or <Link href="/app/procurement" className="text-primary hover:underline">Procurement</Link> when creating documents.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-end gap-2 border border-border rounded p-3 bg-muted/20">
+        <div>
+          <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Code</label>
+          <input
+            type="text"
+            className="border border-border rounded px-2 py-1.5 text-[12px] bg-background w-32 font-mono"
+            placeholder="IN-HO"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            maxLength={32}
+          />
+        </div>
+        <div className="flex-1 min-w-[12rem]">
+          <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Legal name</label>
+          <input
+            type="text"
+            className="border border-border rounded px-2 py-1.5 text-[12px] bg-background w-full"
+            placeholder="Coheron Technologies Private Limited"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={200}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={createLe.isPending || !code.trim() || !name.trim()}
+          onClick={() => createLe.mutate({ code: code.trim(), name: name.trim() })}
+          className="text-[11px] px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {createLe.isPending ? "Adding…" : "Add entity"}
+        </button>
+      </div>
+      {q.isLoading ? (
+        <p className="text-[12px] text-muted-foreground">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground italic">No legal entities yet.</p>
+      ) : (
+        <table className="ent-table w-full">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r: { id: string; code: string; name: string }) => (
+              <tr key={r.id}>
+                <td className="font-mono text-[11px]">{r.code}</td>
+                <td className="text-[12px]">{r.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 /** Closed months (`YYYY-MM`) — `financial.markPaid` is blocked for invoices in these periods (org.settings.financial.closedPeriods). */
 function AccountingPeriodsTab() {
   const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
@@ -1206,6 +1308,13 @@ function AccountingPeriodsTab() {
         <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
           List months as <code className="text-[10px]">YYYY-MM</code> (UTC). Payable invoices dated in a closed month cannot be marked paid until the period is reopened.
         </p>
+      </div>
+      <div className="rounded border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+        Before closing a month here, run the{" "}
+        <Link href="/app/financial" className="text-primary hover:underline font-medium text-foreground/90">
+          Finance → Period close
+        </Link>{" "}
+        checklist for that month.
       </div>
       <div className="flex flex-wrap gap-1.5 min-h-[2rem]">
         {draft.length === 0 && (
@@ -1268,6 +1377,217 @@ function AccountingPeriodsTab() {
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
         {save.isPending ? "Saving…" : "Save closed periods"}
+      </button>
+    </div>
+  );
+}
+
+function SlaPauseReasonsTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const q = trpc.tickets.slaPauseReasonsCatalog.get.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("tickets.slaPauseReasonsCatalog.get", undefined),
+  );
+  const [rows, setRows] = useState<{ code: string; label: string }[]>([]);
+
+  useEffect(() => {
+    if (!q.data) return;
+    setRows(q.data.reasons.length > 0 ? q.data.reasons.map((r: { code: string; label: string }) => ({ ...r })) : []);
+  }, [q.data]);
+
+  const save = trpc.tickets.slaPauseReasonsCatalog.update.useMutation({
+    onSuccess: () => {
+      void utils.tickets.slaPauseReasonsCatalog.get.invalidate();
+      toast.success("SLA pause reasons saved. Agents must pick one when moving a ticket to on hold.");
+    },
+    onError: (e) => toast.error(e.message ?? "Save failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can edit SLA pause reasons.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 max-w-lg space-y-4">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">SLA pause reason catalog (US-ITSM-001)</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          When the list is <strong>non-empty</strong>, moving a ticket to a status in the <strong>pending</strong> category requires choosing one of these
+          codes (audited on the ticket). Leave the list empty to allow on-hold transitions without a catalog reason.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div key={i} className="flex gap-2 items-start">
+            <input
+              type="text"
+              placeholder="code"
+              className="flex-1 min-w-0 border border-border rounded px-2 py-1.5 text-[11px] font-mono bg-background"
+              value={row.code}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRows((prev) => prev.map((r, j) => (j === i ? { ...r, code: v } : r)));
+              }}
+              disabled={q.isLoading || save.isPending}
+              maxLength={64}
+            />
+            <input
+              type="text"
+              placeholder="Label shown to agents"
+              className="flex-[2] min-w-0 border border-border rounded px-2 py-1.5 text-[11px] bg-background"
+              value={row.label}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRows((prev) => prev.map((r, j) => (j === i ? { ...r, label: v } : r)));
+              }}
+              disabled={q.isLoading || save.isPending}
+              maxLength={200}
+            />
+            <button
+              type="button"
+              className="px-2 py-1.5 text-[10px] rounded border border-border text-muted-foreground hover:bg-muted/50"
+              disabled={q.isLoading || save.isPending}
+              onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="text-[11px] text-primary hover:underline"
+          disabled={q.isLoading || save.isPending}
+          onClick={() => setRows((prev) => [...prev, { code: "", label: "" }])}
+        >
+          + Add reason
+        </button>
+      </div>
+      <button
+        type="button"
+        disabled={save.isPending || q.isLoading}
+        onClick={() => {
+          const cleaned = rows
+            .map((r) => ({ code: r.code.trim(), label: r.label.trim() }))
+            .filter((r) => r.code.length > 0 && r.label.length > 0);
+          const codes = cleaned.map((r) => r.code);
+          if (new Set(codes).size !== codes.length) {
+            toast.error("Each reason code must be unique.");
+            return;
+          }
+          save.mutate({ reasons: cleaned });
+        }}
+        className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save catalog"}
+      </button>
+    </div>
+  );
+}
+
+function CrmDealThresholdsTab() {
+  const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
+  const utils = trpc.useUtils();
+  const q = trpc.crm.dealApprovalThresholds.get.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("crm.dealApprovalThresholds.get", undefined),
+  );
+  const [currency, setCurrency] = useState("INR");
+  const [noBelow, setNoBelow] = useState("");
+  const [execAbove, setExecAbove] = useState("");
+
+  useEffect(() => {
+    if (q.data) {
+      setCurrency(q.data.dealApprovalCurrency);
+      setNoBelow(String(q.data.dealCloseNoApprovalBelow));
+      setExecAbove(String(q.data.dealCloseExecutiveAbove));
+    }
+  }, [q.data]);
+
+  const save = trpc.crm.dealApprovalThresholds.update.useMutation({
+    onSuccess: () => {
+      utils.crm.dealApprovalThresholds.get.invalidate();
+      toast.success("CRM deal thresholds saved. Closed-won gating uses these values immediately.");
+    },
+    onError: (e) => toast.error(e.message ?? "Save failed"),
+  });
+
+  if (!isAdmin()) {
+    return (
+      <div className="p-4 text-[12px] text-muted-foreground">
+        Only organization <strong>owner</strong> or <strong>admin</strong> can change CRM deal approval thresholds.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 max-w-md space-y-4">
+      <div>
+        <h3 className="text-[12px] font-semibold text-foreground">Deal close approval tiers (US-CRM-003)</h3>
+        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+          Amounts compare to deal <code className="text-[10px]">value</code>. Below the first threshold, reps may mark{" "}
+          <strong>Closed Won</strong> without a recorded approval. Between the two thresholds requires manager approval; at or above the second requires executive approval. Changes are stored in organization settings and audited.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">Currency code (ISO 4217)</label>
+        <input
+          type="text"
+          maxLength={3}
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background uppercase"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+          disabled={q.isLoading}
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">No approval below (deal value &lt; this)</label>
+        <input
+          type="number"
+          min={0}
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={noBelow}
+          onChange={(e) => setNoBelow(e.target.value)}
+          disabled={q.isLoading}
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="block text-[11px] font-medium text-foreground">Executive approval at or above</label>
+        <input
+          type="number"
+          min={1}
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          value={execAbove}
+          onChange={(e) => setExecAbove(e.target.value)}
+          disabled={q.isLoading}
+        />
+        <span className="text-[10px] text-muted-foreground">
+          Values &ge; this require <strong>executive</strong> recorded approval before <strong>Closed Won</strong>. Between the two thresholds → <strong>manager</strong>.
+        </span>
+      </div>
+      <button
+        type="button"
+        disabled={save.isPending || q.isLoading || currency.length !== 3}
+        onClick={() => {
+          const low = Number(noBelow);
+          const high = Number(execAbove);
+          if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
+            toast.error("Executive threshold must be greater than the no-approval ceiling.");
+            return;
+          }
+          save.mutate({
+            dealApprovalCurrency: currency,
+            dealCloseNoApprovalBelow: low,
+            dealCloseExecutiveAbove: high,
+          });
+        }}
+        className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {save.isPending ? "Saving…" : "Save thresholds"}
       </button>
     </div>
   );
@@ -1577,13 +1897,22 @@ function BusinessRulesTab() {
     };
 
     if (editId) {
-      updateMutation.mutate({ id: editId, ...payload });
+      updateMutation.mutate({ id: editId, ...payload } as never);
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(payload as never);
     }
   }
 
-  const rows = listQuery.data ?? [];
+  const rows = (listQuery.data ?? []) as Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    priority: number;
+    enabled: boolean;
+    events: unknown;
+    conditions: unknown;
+    actions: unknown;
+  }>;
 
   return (
     <div className="p-4">

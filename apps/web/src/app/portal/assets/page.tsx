@@ -64,6 +64,7 @@ type ReportModalProps = {
 };
 
 function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModalProps) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [title, setTitle] = useState(`Issue with ${assetName}`);
   const [description, setDescription] = useState("");
 

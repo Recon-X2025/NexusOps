@@ -1,8 +1,43 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { projects, projectMilestones, projectTasks, eq, and, asc, desc, count, sql } from "@nexusops/db";
+import {
+  projects,
+  applications,
+  projectMilestones,
+  projectTasks,
+  eq,
+  and,
+  asc,
+  desc,
+  count,
+  inArray,
+} from "@nexusops/db";
 import { getNextNumber } from "../lib/auto-number";
+import { getRedis } from "../lib/redis";
+import { rateLimit } from "../lib/rate-limit";
+
+const STRATEGY_SUMMARY_CACHE_SEC = 60;
+
+async function getStrategyDashboardSummaryCached<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
+  const key = `strategy:dashboardSummary:${orgId}`;
+  try {
+    const redis = getRedis();
+    const cached = await redis.get(key);
+    if (cached) {
+      try {
+        return JSON.parse(cached) as T;
+      } catch {
+        await redis.del(key).catch(() => {});
+      }
+    }
+    const result = await fn();
+    await redis.setex(key, STRATEGY_SUMMARY_CACHE_SEC, JSON.stringify(result)).catch(() => {});
+    return result;
+  } catch {
+    return fn();
+  }
+}
 
 export const projectsRouter = router({
   list: permissionProcedure("projects", "read")
@@ -125,5 +160,57 @@ export const projectsRouter = router({
     return Object.fromEntries(
       rows.map((r: { health: string | null; cnt: unknown }) => [r.health, Number(r.cnt)]),
     );
+  }),
+
+  /**
+   * Single hub-oriented snapshot: active project health buckets + APM counts (US-STR-002).
+   * Rate-limited; short Redis cache per org.
+   */
+  strategyDashboardSummary: permissionProcedure("projects", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    await rateLimit(ctx.user?.id, org?.id, "projects.strategyDashboardSummary");
+
+    return getStrategyDashboardSummaryCached(org!.id, async () => {
+      const healthRows = await db
+        .select({ health: projects.health, cnt: count() })
+        .from(projects)
+        .where(and(eq(projects.orgId, org!.id), eq(projects.status, "active")))
+        .groupBy(projects.health);
+
+      const portfolioHealth: Record<string, number> = {};
+      let activeProjectCount = 0;
+      let atRiskByHealth = 0;
+      for (const r of healthRows) {
+        const k = r.health ?? "unknown";
+        const n = Number(r.cnt ?? 0);
+        portfolioHealth[k] = n;
+        activeProjectCount += n;
+        if (k === "amber" || k === "red") atRiskByHealth += n;
+      }
+
+      const [appsTotal] = await db
+        .select({ cnt: count() })
+        .from(applications)
+        .where(eq(applications.orgId, org!.id));
+      const [appsRetiring] = await db
+        .select({ cnt: count() })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.orgId, org!.id),
+            inArray(applications.lifecycle, ["retiring", "obsolete"]),
+          ),
+        );
+
+      return {
+        portfolioHealth,
+        activeProjectCount,
+        atRiskByHealth,
+        applications: {
+          total: Number(appsTotal?.cnt ?? 0),
+          retiring: Number(appsRetiring?.cnt ?? 0),
+        },
+      };
+    });
   }),
 });

@@ -487,6 +487,37 @@ describe("Layer 8: Module Smoke Tests", () => {
         prDeptHeadMax: 750_000,
       });
     });
+
+    it("PO from PR can carry legalEntityId; list exposes legalEntityCode (US-CRM-008 PO slice)", async () => {
+      const caller = await authedCaller(adminToken);
+      const suffix = nanoid(6);
+      const le = (await caller.financial.createLegalEntity({
+        code: `PO-LE-${suffix}`,
+        name: `PO Legal ${suffix}`,
+      })) as { id: string; code: string };
+      const vendor = (await caller.procurement.vendors.create({
+        name: `PO vendor ${suffix}`,
+        contactEmail: `po-v-${suffix}@test.com`,
+      })) as { id: string };
+      const pr = (await caller.procurement.purchaseRequests.create({
+        title: `LE PR ${suffix}`,
+        justification: "smoke",
+        items: [{ description: "Item", quantity: 1, unitPrice: 100 }],
+        priority: "low",
+        department: "IT",
+      })) as { id: string; status: string };
+      expect(pr.status).toBe("approved");
+      const po = (await caller.procurement.purchaseOrders.createFromPR({
+        prId: pr.id,
+        vendorId: vendor.id,
+        legalEntityId: le.id,
+      })) as { id: string };
+      const list = (await caller.procurement.purchaseOrders.list()) as Array<{ id: string; legalEntityCode: string | null }>;
+      const row = list.find((p) => p.id === po.id);
+      expect(row?.legalEntityCode).toBe(le.code);
+      const opts = (await caller.procurement.legalEntityOptions()) as { id: string; code: string }[];
+      expect(opts.some((o) => o.id === le.id)).toBe(true);
+    });
   });
 
   // ── 8.07 CRM ─────────────────────────────────────────────────────────────
@@ -585,6 +616,19 @@ describe("Layer 8: Module Smoke Tests", () => {
 
       const board = await caller.projects.getAgileBoard({ projectId: project.id });
       expect(board).toBeDefined();
+    });
+
+    it("strategyDashboardSummary aggregates portfolio + APM (US-STR-002)", async () => {
+      const caller = await authedCaller(adminToken);
+      const s = (await caller.projects.strategyDashboardSummary()) as {
+        portfolioHealth: Record<string, number>;
+        activeProjectCount: number;
+        atRiskByHealth: number;
+        applications: { total: number; retiring: number };
+      };
+      expect(s.applications).toBeDefined();
+      expect(typeof s.activeProjectCount).toBe("number");
+      expect(typeof s.atRiskByHealth).toBe("number");
     });
   });
 
@@ -1213,6 +1257,92 @@ describe("Layer 8: Module Smoke Tests", () => {
       await caller.financial.periodClose.setClosedPeriods({ periods: prev });
       const restored = (await caller.financial.periodClose.get()) as { closedPeriods: string[] };
       expect(restored.closedPeriods).toEqual(prev);
+    });
+
+    it("period close: preflight checklist (US-FIN-007 / US-CRM-007)", async () => {
+      const caller = await authedCaller(adminToken);
+      const r = (await caller.financial.periodClose.preflight({ period: "2099-01" })) as {
+        period: string;
+        checks: { key: string; ok: boolean }[];
+        allClear: boolean;
+      };
+      expect(r.period).toBe("2099-01");
+      expect(Array.isArray(r.checks)).toBe(true);
+      expect(r.checks.some((c) => c.key === "open_ap")).toBe(true);
+      expect(r.checks.some((c) => c.key === "period_not_closed")).toBe(true);
+      expect(typeof r.allClear).toBe("boolean");
+    });
+
+    it("legal entity: create + AP/AR invoices list legalEntityCode (US-CRM-008 / US-FIN-008)", async () => {
+      const caller = await authedCaller(adminToken);
+      const suffix = nanoid(6);
+      const le = (await caller.financial.createLegalEntity({
+        code: `LE-${suffix}`,
+        name: `Smoke Legal Entity ${suffix}`,
+      })) as { id: string; code: string };
+
+      const entities = (await caller.financial.listLegalEntities()) as { id: string; code: string }[];
+      expect(entities.some((e) => e.id === le.id && e.code === le.code)).toBe(true);
+
+      const vendor = (await caller.procurement.vendors.create({
+        name: "LE smoke AP vendor",
+        contactEmail: `le-ap-${suffix}@vendor.test`,
+      })) as { id: string };
+      const apInv = (await caller.financial.createInvoice({
+        vendorId: vendor.id,
+        invoiceNumber: `LE-AP-${suffix}`,
+        amount: "100",
+        legalEntityId: le.id,
+      })) as { id: string };
+
+      const apPage = (await caller.financial.listInvoices({
+        direction: "payable",
+        limit: 100,
+      })) as { items: Array<{ id: string; legalEntityCode: string | null }> };
+      const apRow = apPage.items.find((r) => r.id === apInv.id);
+      expect(apRow?.legalEntityCode).toBe(le.code);
+
+      const customer = (await caller.procurement.vendors.create({
+        name: "LE smoke AR customer",
+        contactEmail: `le-ar-${suffix}@cust.test`,
+      })) as { id: string };
+      const arInv = (await caller.financial.createReceivableInvoice({
+        customerVendorId: customer.id,
+        invoiceNumber: `LE-AR-${suffix}`,
+        amount: "200",
+        legalEntityId: le.id,
+      })) as { id: string };
+
+      const arPage = (await caller.financial.listInvoices({
+        direction: "receivable",
+        limit: 100,
+      })) as { items: Array<{ id: string; legalEntityCode: string | null }> };
+      const arRow = arPage.items.find((r) => r.id === arInv.id);
+      expect(arRow?.legalEntityCode).toBe(le.code);
+    });
+
+    it("SoD: same user cannot approve and mark paid (US-FIN-006 / US-SEC-008)", async () => {
+      const financeToken = await createSession(orgCtx.financeId);
+      const financeCaller = await authedCaller(financeToken);
+      const adminCaller = await authedCaller(adminToken);
+      const vendor = (await adminCaller.procurement.vendors.create({
+        name: "SoD Layer8 vendor",
+        contactEmail: `sod-l8-${Date.now()}@vendor.test`,
+      })) as { id: string };
+      const inv = (await adminCaller.financial.createInvoice({
+        vendorId: vendor.id,
+        invoiceNumber: `SOD-L8-${Date.now()}`,
+        amount: "2500",
+      })) as { id: string };
+      await financeCaller.financial.approveInvoice({ id: inv.id });
+      await expect(
+        financeCaller.financial.markPaid({ id: inv.id, paymentMethod: "transfer" }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const paid = (await adminCaller.financial.markPaid({
+        id: inv.id,
+        paymentMethod: "transfer",
+      })) as { status: string };
+      expect(paid.status).toBe("paid");
     });
 
     it("FP depth: budget line → variance; vendor → invoice → approve; AP aging", async () => {

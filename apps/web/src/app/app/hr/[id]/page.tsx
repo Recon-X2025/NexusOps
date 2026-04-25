@@ -239,7 +239,7 @@ export default function HRCaseDetailPage() {
               <p className="text-[11px] text-muted-foreground/70 text-center">No work notes yet.</p>
             ) : (
               <div className="space-y-3">
-                {notesLines.slice().reverse().map((line: any, i) => {
+                {notesLines.slice().reverse().map((line: string, i: number) => {
                   const match = line.match(/^\[(.+?)\]\s*([\s\S]*)/);
                   const ts = match ? match[1] : "";
                   const text = match ? match[2] : line;

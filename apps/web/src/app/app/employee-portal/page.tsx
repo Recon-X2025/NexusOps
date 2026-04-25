@@ -235,15 +235,23 @@ export default function EmployeePayslipsPage() {
     mergeTrpcQueryOpts("payroll.taxPreview", { enabled: activeTab === "tax" }),
   );
 
-  const payslipsList = payslipsQuery.data ?? [];
+  type PayslipRow = {
+    id: string;
+    grossEarnings?: unknown;
+    totalDeductions?: unknown;
+    netPay?: unknown;
+    tds?: unknown;
+    employeePF?: unknown;
+  };
+  const payslipsList = (payslipsQuery.data ?? []) as PayslipRow[];
 
   // Calculate FY summary from payslips
   const fySummary = {
-    totalGross: payslipsList.reduce((s, p) => s + Number(p.grossEarnings || 0), 0),
-    totalDeductions: payslipsList.reduce((s, p) => s + Number(p.totalDeductions || 0), 0),
-    totalNet: payslipsList.reduce((s, p) => s + Number(p.netPay || 0), 0),
-    totalTDS: payslipsList.reduce((s, p) => s + Number(p.tds || 0), 0),
-    totalPF: payslipsList.reduce((s, p) => s + Number(p.employeePF || 0), 0),
+    totalGross: payslipsList.reduce((s: number, p: PayslipRow) => s + Number(p.grossEarnings || 0), 0),
+    totalDeductions: payslipsList.reduce((s: number, p: PayslipRow) => s + Number(p.totalDeductions || 0), 0),
+    totalNet: payslipsList.reduce((s: number, p: PayslipRow) => s + Number(p.netPay || 0), 0),
+    totalTDS: payslipsList.reduce((s: number, p: PayslipRow) => s + Number(p.tds || 0), 0),
+    totalPF: payslipsList.reduce((s: number, p: PayslipRow) => s + Number(p.employeePF || 0), 0),
     monthsProcessed: payslipsList.length,
   };
 
@@ -319,7 +327,7 @@ export default function EmployeePayslipsPage() {
               No payslips found for FY {selectedFY}
             </div>
           ) : (
-            payslipsList.map((ps) => (
+            payslipsList.map((ps: PayslipRow) => (
               <PayslipCard
                 key={ps.id}
                 payslip={ps}

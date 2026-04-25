@@ -177,6 +177,7 @@ const QUERY_PROCEDURES: string[] = [
   // projects
   "projects.list",
   "projects.portfolioHealth",
+  "projects.strategyDashboardSummary",
   // reports
   "reports.slaDashboard",
   "reports.executiveOverview",
@@ -368,6 +369,12 @@ test.describe("06 — All tRPC Endpoints", () => {
       const result = await api(page, "financial.gstFilingCalendar", { month: 1, year: 2026 }, "GET");
       expect(result.status).not.toBe(404);
       expect(result.status, "financial.gstFilingCalendar → 500").not.toBe(500);
+    });
+
+    test("GET financial.periodClose.preflight with period", async ({ page }) => {
+      const result = await api(page, "financial.periodClose.preflight", { period: "2026-01" }, "GET");
+      expect(result.status).not.toBe(404);
+      expect(result.status, "financial.periodClose.preflight → 500").not.toBe(500);
     });
 
     test("GET assignmentRules.teamMembers with dummy teamId", async ({ page }) => {

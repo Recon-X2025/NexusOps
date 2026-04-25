@@ -138,7 +138,15 @@ export default function PayrollPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const runs = runsQuery.data ?? [];
+  const runs = (runsQuery.data ?? []) as Array<{
+    id: string;
+    runNumber: string;
+    status: string;
+    month: number;
+    year: number;
+    employeeCount?: number;
+    totalNet?: string | number | null;
+  }>;
   const run = selectedRun.data;
   const currentStepIdx = run ? getStepIndex(run.status) : -1;
 

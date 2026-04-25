@@ -29,10 +29,11 @@ import {
   adjustSlaDeadlineForBusinessCalendar,
   parseOrgSlaCalendarSettings,
 } from "../lib/sla-business-calendar";
+import type { AnyColumn, SQL } from "drizzle-orm";
 
 type Granularity = "day" | "week" | "month";
 
-function trunc(col: Parameters<typeof sql>[0], granularity: Granularity) {
+function trunc(col: AnyColumn, granularity: Granularity): SQL<string> {
   if (granularity === "day") return sql<string>`DATE(${col})`;
   if (granularity === "week") return sql<string>`DATE_TRUNC('week', ${col})`;
   return sql<string>`DATE_TRUNC('month', ${col})`;
@@ -165,8 +166,12 @@ export const reportsRouter = router({
         .groupBy(trunc(tickets.resolvedAt, granularity))
         .orderBy(trunc(tickets.resolvedAt, granularity));
 
-      const createdMap = new Map(createdRows.map((r) => [String(r.period).slice(0, 10), Number(r.cnt)]));
-      const resolvedMap = new Map(resolvedRows.map((r) => [String(r.period).slice(0, 10), Number(r.cnt)]));
+      const createdMap = new Map(
+        createdRows.map((r: (typeof createdRows)[number]) => [String(r.period).slice(0, 10), Number(r.cnt)]),
+      );
+      const resolvedMap = new Map(
+        resolvedRows.map((r: (typeof resolvedRows)[number]) => [String(r.period).slice(0, 10), Number(r.cnt)]),
+      );
 
       // Category breakdown
       const categoryRows = await db.select({
@@ -179,8 +184,8 @@ export const reportsRouter = router({
         .orderBy(desc(count()))
         .limit(6);
 
-      const totalCat = categoryRows.reduce((s, r) => s + Number(r.cnt), 0);
-      const byCategory = categoryRows.map((r) => ({
+      const totalCat = categoryRows.reduce((s: number, r: (typeof categoryRows)[number]) => s + Number(r.cnt), 0);
+      const byCategory = categoryRows.map((r: (typeof categoryRows)[number]) => ({
         category: r.category,
         count: Number(r.cnt),
         pct: totalCat > 0 ? Math.round((Number(r.cnt) / totalCat) * 100) : 0,
@@ -239,13 +244,13 @@ export const reportsRouter = router({
         .orderBy(trunc(tickets.createdAt, granularity));
 
       const slaMap = new Map(
-        slaByPeriod.map((r) => [
+        slaByPeriod.map((r: (typeof slaByPeriod)[number]) => [
           String(r.period).slice(0, 10),
           Number(r.total) > 0 ? Math.round((Number(r.compliant) / Number(r.total)) * 100) : 0,
-        ])
+        ]),
       );
 
-      const byPriority = priorityCounts.map((row) => {
+      const byPriority = priorityCounts.map((row: (typeof priorityCounts)[number]) => {
         const total = Number(row.total);
         const breached = Number(row.breached);
         const mtd = total > 0 ? Math.round(((total - breached) / total) * 100) : 100;
@@ -291,7 +296,7 @@ export const reportsRouter = router({
         .orderBy(desc(count()));
 
       return {
-        byAssignee: workload.map((row) => ({
+        byAssignee: workload.map((row: (typeof workload)[number]) => ({
           assigneeId: row.assigneeId,
           name: row.name ?? "Unassigned",
           open: Number(row.open),
@@ -311,7 +316,14 @@ export const reportsRouter = router({
       const granularity = getGranularity(input.days);
       const periods = generatePeriods(since, granularity);
 
-      const rows = await db.select({
+      type TicketTrendAggRow = {
+        period: unknown;
+        total: number;
+        open: number;
+        breached: number;
+      };
+
+      const rows = (await db.select({
         period: trunc(tickets.createdAt, granularity),
         total: count(),
         open: sql<number>`SUM(CASE WHEN ${tickets.resolvedAt} IS NULL THEN 1 ELSE 0 END)`,
@@ -319,7 +331,7 @@ export const reportsRouter = router({
       }).from(tickets)
         .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, since)))
         .groupBy(trunc(tickets.createdAt, granularity))
-        .orderBy(trunc(tickets.createdAt, granularity));
+        .orderBy(trunc(tickets.createdAt, granularity))) as TicketTrendAggRow[];
 
       const rowMap = new Map(rows.map((r) => [String(r.period).slice(0, 10), r]));
 

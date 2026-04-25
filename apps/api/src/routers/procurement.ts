@@ -2,6 +2,7 @@ import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { sendNotification } from "../services/notifications";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { getTableColumns } from "drizzle-orm";
 import { getNextNumber } from "../lib/auto-number";
 import {
   vendors,
@@ -16,9 +17,12 @@ import {
   assets,
   assetTypes,
   organizations,
+  legalEntities,
   eq,
   and,
+  inArray,
   desc,
+  asc,
   count,
   sum,
   sql,
@@ -58,6 +62,16 @@ export const procurementRouter = router({
       }),
   }),
 
+  /** Org legal entities for PO tagging (procurement read — no separate `financial` permission required). */
+  legalEntityOptions: permissionProcedure("procurement", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    return db
+      .select({ id: legalEntities.id, code: legalEntities.code, name: legalEntities.name })
+      .from(legalEntities)
+      .where(eq(legalEntities.orgId, org!.id))
+      .orderBy(asc(legalEntities.code));
+  }),
+
   purchaseRequests: router({
     list: permissionProcedure("procurement", "read")
       .input(z.object({ status: z.string().optional() }))
@@ -79,7 +93,7 @@ export const procurementRouter = router({
         userId: user.id,
         orgId: org!.id,
         title: input.title,
-        totalAmount: input.totalAmount,
+        itemCount: input.items.length,
       });
 
       // Idempotency: if the caller already created a PR with this key, return it
@@ -204,13 +218,40 @@ export const procurementRouter = router({
 
   purchaseOrders: router({
     list: permissionProcedure("purchase_orders", "read").query(async ({ ctx }) => {
-      return ctx.db.select().from(purchaseOrders).where(eq(purchaseOrders.orgId, ctx.org!.id)).orderBy(desc(purchaseOrders.createdAt));
+      const { db, org } = ctx;
+      return db
+        .select({
+          ...getTableColumns(purchaseOrders),
+          legalEntityCode: legalEntities.code,
+          legalEntityName: legalEntities.name,
+        })
+        .from(purchaseOrders)
+        .leftJoin(legalEntities, eq(purchaseOrders.legalEntityId, legalEntities.id))
+        .where(eq(purchaseOrders.orgId, org!.id))
+        .orderBy(desc(purchaseOrders.createdAt));
     }),
 
     createFromPR: permissionProcedure("purchase_orders", "write")
-      .input(z.object({ prId: z.string().uuid(), vendorId: z.string().uuid(), expectedDelivery: z.coerce.date().optional() }))
+      .input(
+        z.object({
+          prId: z.string().uuid(),
+          vendorId: z.string().uuid(),
+          expectedDelivery: z.coerce.date().optional(),
+          legalEntityId: z.string().uuid().optional(),
+        }),
+      )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+
+        if (input.legalEntityId) {
+          const [leRow] = await db
+            .select({ id: legalEntities.id })
+            .from(legalEntities)
+            .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
+          if (!leRow) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
+          }
+        }
 
         const [pr] = await db
           .select()
@@ -239,6 +280,7 @@ export const procurementRouter = router({
             totalAmount: pr.totalAmount,
             status: "draft",
             expectedDelivery: input.expectedDelivery,
+            legalEntityId: input.legalEntityId ?? null,
           })
           .returning();
 
@@ -368,33 +410,112 @@ export const procurementRouter = router({
         );
         const poInvoiceLineDelta =
           lines.length > 0 && poLines.length > 0 ? Math.abs(poLineSum - invoiceLineSum) : 0;
+
+        const invSorted = [...lines].sort((a, b) => a.lineItemNumber - b.lineItemNumber);
+        const poSorted = [...poLines].sort((a, b) => a.id.localeCompare(b.id));
+
+        let lineKeyedMatched = true;
+        const lineMatchRows: Array<{
+          lineIndex: number;
+          invoiceLineNumber: number | null;
+          poLineId: string | null;
+          invoiceLineTotal: number | null;
+          poLineExtended: number | null;
+          grnLineValue: number | null;
+          poInvoiceDelta: number | null;
+          threeWayDelta: number | null;
+          ok: boolean;
+        }> = [];
+
+        const grnByPoLine = new Map<string, number>();
+        if (invoice.grnId) {
+          const grnLinesAll = await db
+            .select()
+            .from(grnLineItems)
+            .where(eq(grnLineItems.grnId, invoice.grnId));
+          const poLineIds = [
+            ...new Set(grnLinesAll.map((g) => g.poLineItemId).filter(Boolean)),
+          ] as string[];
+          const priceByPolId = new Map<string, number>();
+          if (poLineIds.length > 0) {
+            const polRows = await db.select().from(poLineItems).where(inArray(poLineItems.id, poLineIds));
+            for (const p of polRows) {
+              priceByPolId.set(p.id, parseFloat(String(p.unitPrice)));
+            }
+          }
+          for (const gl of grnLinesAll) {
+            if (!gl.poLineItemId) continue;
+            const up = priceByPolId.get(gl.poLineItemId) ?? 0;
+            const add = Number(gl.acceptedQuantity ?? 0) * up;
+            grnByPoLine.set(gl.poLineItemId, (grnByPoLine.get(gl.poLineItemId) ?? 0) + add);
+          }
+        }
+
         if (lines.length > 0 && poLines.length > 0) {
-          matched = matched && poInvoiceLineDelta <= tolerance;
+          if (invSorted.length !== poSorted.length) {
+            lineKeyedMatched = false;
+          }
+          const n = Math.max(invSorted.length, poSorted.length);
+          for (let i = 0; i < n; i++) {
+            const invL = invSorted[i];
+            const poL = poSorted[i];
+            if (!invL || !poL) {
+              lineKeyedMatched = false;
+              lineMatchRows.push({
+                lineIndex: i,
+                invoiceLineNumber: invL?.lineItemNumber ?? null,
+                poLineId: poL?.id ?? null,
+                invoiceLineTotal: invL ? parseFloat(String(invL.lineTotal)) : null,
+                poLineExtended: poL ? Number(poL.quantity) * parseFloat(String(poL.unitPrice)) : null,
+                grnLineValue: poL ? grnByPoLine.get(poL.id) ?? null : null,
+                poInvoiceDelta: null,
+                threeWayDelta: null,
+                ok: false,
+              });
+              continue;
+            }
+            const invAmt = parseFloat(String(invL.lineTotal));
+            const poAmt = Number(poL.quantity) * parseFloat(String(poL.unitPrice));
+            const poInvD = Math.abs(invAmt - poAmt);
+            let rowOk = poInvD <= tolerance;
+            let grnVal: number | null = null;
+            let threeWayD: number | null = null;
+            if (invoice.grnId) {
+              grnVal = grnByPoLine.get(poL.id) ?? 0;
+              threeWayD = Math.abs(invAmt - grnVal);
+              rowOk = rowOk && threeWayD <= tolerance;
+            }
+            if (!rowOk) lineKeyedMatched = false;
+            lineMatchRows.push({
+              lineIndex: i,
+              invoiceLineNumber: invL.lineItemNumber,
+              poLineId: poL.id,
+              invoiceLineTotal: invAmt,
+              poLineExtended: poAmt,
+              grnLineValue: grnVal,
+              poInvoiceDelta: poInvD,
+              threeWayDelta: threeWayD,
+              ok: rowOk,
+            });
+          }
+          matched = matched && lineKeyedMatched;
         }
 
         let grnReceivedValue: number | null = null;
         if (invoice.grnId) {
-          const grnLines = await db
-            .select()
-            .from(grnLineItems)
-            .where(eq(grnLineItems.grnId, invoice.grnId));
           let recv = 0;
-          for (const gl of grnLines) {
-            if (!gl.poLineItemId) continue;
-            const [poli] = await db
-              .select()
-              .from(poLineItems)
-              .where(eq(poLineItems.id, gl.poLineItemId));
-            if (poli) {
-              recv += parseFloat(String(poli.unitPrice)) * Number(gl.acceptedQuantity ?? 0);
-            }
+          for (const v of grnByPoLine.values()) {
+            recv += v;
           }
           grnReceivedValue = recv;
           const threeWayGap = Math.abs(invoiceTotal - recv);
+          const lineAware =
+            lines.length > 0 && poLines.length > 0 ? lineKeyedMatched : poInvoiceLineDelta <= tolerance;
           matched =
             matched &&
             threeWayGap <= tolerance &&
-            (lines.length === 0 || lineDelta <= tolerance);
+            (lines.length === 0 || lineDelta <= tolerance) &&
+            lineAware;
         }
 
         return {
@@ -409,6 +530,8 @@ export const procurementRouter = router({
           poLineCount: poLines.length,
           invoiceLineCount: lines.length,
           poInvoiceLineDelta: lines.length > 0 && poLines.length > 0 ? poInvoiceLineDelta : null,
+          lineKeyedMatched: lines.length > 0 && poLines.length > 0 ? lineKeyedMatched : null,
+          lineMatchRows: lineMatchRows.length > 0 ? lineMatchRows : null,
           grnReceivedValue,
         };
       }),

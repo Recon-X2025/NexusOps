@@ -27,15 +27,55 @@ export type OrgFinancialSettings = {
   closedPeriods?: string[];
 };
 
+/** US-CRM-003: RevOps-configurable thresholds (same numeric basis as deal `value` / quotes). */
+export type OrgCrmSettings = {
+  /** ISO 4217 code for display / future multi-currency (amounts still one numeric column per org). */
+  dealApprovalCurrency?: string;
+  /**
+   * Deal `value` **strictly below** this → may move to `closed_won` without recorded approval.
+   * Default 500_000 (INR-style units when org uses lakhs/crores in copy).
+   */
+  dealCloseNoApprovalBelow?: number;
+  /**
+   * Deal `value` **greater than or equal to** this → requires **executive** tier approval before `closed_won`.
+   * Between `dealCloseNoApprovalBelow` and this → **manager** tier. Default 5_000_000.
+   */
+  dealCloseExecutiveAbove?: number;
+};
+
+/** US-ITSM-001 — SLA pause reason catalog (codes stored on `tickets.sla_pause_reason_code`). */
+export type SlaPauseReasonEntry = { code: string; label: string };
+
+export type OrgItsmSettings = {
+  slaPauseReasons?: SlaPauseReasonEntry[];
+};
+
 export type NexusOpsOrgSettings = {
   security?: OrgSecuritySettings;
   procurement?: OrgProcurementSettings;
   financial?: OrgFinancialSettings;
+  crm?: OrgCrmSettings;
+  itsm?: OrgItsmSettings;
 };
 
 export function parseOrgSettings(raw: unknown): NexusOpsOrgSettings {
   if (!raw || typeof raw !== "object") return {};
   return raw as NexusOpsOrgSettings;
+}
+
+/** Normalized catalog: non-empty codes, trimmed; invalid entries dropped. */
+export function getSlaPauseReasonsCatalog(orgSettings: unknown): SlaPauseReasonEntry[] {
+  const raw = parseOrgSettings(orgSettings).itsm?.slaPauseReasons;
+  if (!Array.isArray(raw)) return [];
+  const out: SlaPauseReasonEntry[] = [];
+  for (const e of raw) {
+    if (!e || typeof e !== "object") continue;
+    const code = typeof (e as SlaPauseReasonEntry).code === "string" ? (e as SlaPauseReasonEntry).code.trim() : "";
+    const label = typeof (e as SlaPauseReasonEntry).label === "string" ? (e as SlaPauseReasonEntry).label.trim() : "";
+    if (!code || !label) continue;
+    out.push({ code: code.slice(0, 64), label: label.slice(0, 200) });
+  }
+  return out;
 }
 
 export function getProcurementMatchToleranceAbs(orgSettings: unknown): number {
@@ -71,6 +111,59 @@ export function getProcurementApprovalTiers(orgSettings: unknown): {
     prDeptHeadMax = Math.max(DEFAULT_PR_DEPT_HEAD_MAX, prAutoApproveBelow + 1);
   }
   return { prAutoApproveBelow, prDeptHeadMax };
+}
+
+const DEFAULT_DEAL_NO_APPROVAL_BELOW = 500_000;
+const DEFAULT_DEAL_EXECUTIVE_ABOVE = 5_000_000;
+
+export type DealCloseApprovalTier = "none" | "manager" | "executive";
+
+/** Effective deal close approval tier from deal amount vs org CRM settings. */
+export function getDealCloseApprovalTier(amount: number, orgSettings: unknown): DealCloseApprovalTier {
+  const c = parseOrgSettings(orgSettings).crm;
+  const low =
+    typeof c?.dealCloseNoApprovalBelow === "number" &&
+    Number.isFinite(c.dealCloseNoApprovalBelow) &&
+    c.dealCloseNoApprovalBelow >= 0
+      ? c.dealCloseNoApprovalBelow
+      : DEFAULT_DEAL_NO_APPROVAL_BELOW;
+  let execAbove =
+    typeof c?.dealCloseExecutiveAbove === "number" &&
+    Number.isFinite(c.dealCloseExecutiveAbove) &&
+    c.dealCloseExecutiveAbove > low
+      ? c.dealCloseExecutiveAbove
+      : DEFAULT_DEAL_EXECUTIVE_ABOVE;
+  if (execAbove <= low) execAbove = low + 1;
+  if (amount < low) return "none";
+  if (amount >= execAbove) return "executive";
+  return "manager";
+}
+
+/** Exposed thresholds for admin GET + migrations from constants. */
+export function getCrmDealApprovalThresholds(orgSettings: unknown): {
+  dealCloseNoApprovalBelow: number;
+  dealCloseExecutiveAbove: number;
+  dealApprovalCurrency: string;
+} {
+  const c = parseOrgSettings(orgSettings).crm;
+  const low =
+    typeof c?.dealCloseNoApprovalBelow === "number" &&
+    Number.isFinite(c.dealCloseNoApprovalBelow) &&
+    c.dealCloseNoApprovalBelow >= 0
+      ? c.dealCloseNoApprovalBelow
+      : DEFAULT_DEAL_NO_APPROVAL_BELOW;
+  let execAbove =
+    typeof c?.dealCloseExecutiveAbove === "number" &&
+    Number.isFinite(c.dealCloseExecutiveAbove) &&
+    c.dealCloseExecutiveAbove > low
+      ? c.dealCloseExecutiveAbove
+      : DEFAULT_DEAL_EXECUTIVE_ABOVE;
+  if (execAbove <= low) execAbove = low + 1;
+  const cur =
+    typeof c?.dealApprovalCurrency === "string" && c.dealApprovalCurrency.length === 3
+      ? c.dealApprovalCurrency.toUpperCase()
+      : "INR";
+  return { dealCloseNoApprovalBelow: low, dealCloseExecutiveAbove: execAbove, dealApprovalCurrency: cur };
 }
 
 export function isInvoicePeriodClosed(orgSettings: unknown, invoiceDate: Date | null | undefined): boolean {

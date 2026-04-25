@@ -72,6 +72,8 @@ export const UpdateTicketSchema = CreateTicketSchema.partial().extend({
   statusId: z.string().uuid().optional(),
   /** Stored when SLA pauses (pending); audited on ticket update (US-ITSM-001). */
   slaPauseReasonCode: z.string().max(64).optional(),
+  /** Clear parent link with `null` (OpenAPI/client may send null explicitly). */
+  parentTicketId: z.string().uuid().nullish(),
 });
 
 export const AddCommentSchema = z.object({

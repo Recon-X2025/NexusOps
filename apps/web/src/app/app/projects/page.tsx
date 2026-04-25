@@ -463,6 +463,7 @@ const PRIORITY_DOT: Record<string, string> = {
 };
 
 function AgileKanban({ projects }: { projects: any[] }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id ?? "");
 
   const board = trpc.projects.getAgileBoard.useQuery({ projectId: selectedProjectId }, mergeTrpcQueryOpts("projects.getAgileBoard", { enabled: !!selectedProjectId },));
@@ -577,7 +578,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
                         onChange={(e) => setNewTaskTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && newTaskTitle.trim() && selectedProjectId) {
-                            createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key });
+                            createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key } as never);
                             setNewTaskTitle("");
                             setAddingTo(null);
                           }
@@ -589,7 +590,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
                         <button
                           onClick={() => {
                             if (newTaskTitle.trim() && selectedProjectId) {
-                              createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key });
+                              createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key } as never);
                               setNewTaskTitle("");
                               setAddingTo(null);
                             }

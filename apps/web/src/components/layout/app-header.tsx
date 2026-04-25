@@ -133,7 +133,8 @@ function Breadcrumbs() {
   const lastSeg = segments[segments.length - 1];
   if (lastSeg === "secretarial") {
     const tab = searchParams.get("tab") ?? "overview";
-    const subLabel = SECRETARIAL_SUBPAGE_LABELS[tab] ?? SECRETARIAL_SUBPAGE_LABELS.overview;
+    const subLabel: string =
+      SECRETARIAL_SUBPAGE_LABELS[tab] ?? SECRETARIAL_SUBPAGE_LABELS["overview"] ?? "Secretarial";
     const qs = new URLSearchParams(searchParams.toString());
     if (!qs.has("tab")) qs.set("tab", tab);
     crumbs.push({ label: subLabel, href: `/app/secretarial?${qs.toString()}` });

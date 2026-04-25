@@ -96,10 +96,11 @@ export default function FinanceProcurementDashboard() {
       ? `₹${Number(procurementDash.totalSpend).toLocaleString("en-IN")}`
       : "—";
 
-  const moduleStats = [
+  type HubModStat = { k: string; v: string; href?: string };
+  const moduleStats: HubModStat[][] = [
     [
-      { k: "AP open", v: loadingFinExec ? "…" : String(apOpen) },
-      { k: "AR open", v: loadingFinExec ? "…" : String(arOpen) },
+      { k: "AP open", v: loadingFinExec ? "…" : String(apOpen), href: canFinancial ? "/app/financial?tab=ap" : undefined },
+      { k: "AR open", v: loadingFinExec ? "…" : String(arOpen), href: canFinancial ? "/app/financial?tab=ar" : undefined },
     ],
     [
       { k: "PR pending", v: loadingProcDash ? "…" : String(pendingPRApprovals) },
@@ -152,6 +153,47 @@ export default function FinanceProcurementDashboard() {
       <div className="grid grid-cols-3 gap-2">
         {MODULES.map((m, idx) => {
           const Icon = m.icon;
+          const statsRow = (
+            <div className="flex gap-3 mt-auto pt-1 border-t border-border">
+              {moduleStats[idx]?.map((s) => (
+                <div key={s.k} className="text-center flex-1 min-w-0">
+                  {s.href ? (
+                    <Link href={s.href} className="block hover:opacity-80 rounded">
+                      <div className="text-[13px] font-bold text-foreground">{s.v}</div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{s.k}</div>
+                    </Link>
+                  ) : (
+                    <>
+                      <div className="text-[13px] font-bold text-foreground">{s.v}</div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{s.k}</div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+          if (idx === 0) {
+            return (
+              <div
+                key={m.label}
+                className="bg-card border border-border rounded p-3 hover:shadow-sm hover:border-primary/30 transition-all flex flex-col gap-2"
+              >
+                <Link href={m.href} className="group flex flex-col gap-2 flex-1 min-h-0">
+                  <div className="flex items-center justify-between">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${m.color}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                  </div>
+                  <div>
+                    <div className="text-[12px] font-semibold text-foreground">{m.label}</div>
+                    <div className="text-[10px] text-muted-foreground/70 mt-0.5 leading-snug">{m.description}</div>
+                  </div>
+                </Link>
+                {statsRow}
+              </div>
+            );
+          }
           return (
             <Link key={m.label} href={m.href}
               className="bg-card border border-border rounded p-3 hover:shadow-sm hover:border-primary/30 transition-all group flex flex-col gap-2">
@@ -165,14 +207,7 @@ export default function FinanceProcurementDashboard() {
                 <div className="text-[12px] font-semibold text-foreground">{m.label}</div>
                 <div className="text-[10px] text-muted-foreground/70 mt-0.5 leading-snug">{m.description}</div>
               </div>
-              <div className="flex gap-3 mt-auto pt-1 border-t border-border">
-                {moduleStats[idx]?.map((s) => (
-                  <div key={s.k} className="text-center">
-                    <div className="text-[13px] font-bold text-foreground">{s.v}</div>
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{s.k}</div>
-                  </div>
-                ))}
-              </div>
+              {statsRow}
             </Link>
           );
         })}
@@ -196,13 +231,14 @@ export default function FinanceProcurementDashboard() {
             </div>
           ) : (
             <table className="ent-table w-full">
-              <thead><tr><th>PO</th><th>Vendor / ref</th><th>Amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>PO</th><th>Entity</th><th>Vendor / ref</th><th>Amount</th><th>Status</th></tr></thead>
               <tbody>
                 {(purchaseOrdersList ?? []).length === 0 ? (
-                  <tr><td colSpan={4} className="text-center text-muted-foreground py-4 text-[12px]">No purchase orders found</td></tr>
+                  <tr><td colSpan={5} className="text-center text-muted-foreground py-4 text-[12px]">No purchase orders found</td></tr>
                 ) : (purchaseOrdersList ?? []).slice(0, 5).map((p: any) => (
                   <tr key={p.id}>
                     <td className="font-mono text-[11px] text-primary">{p.poNumber ?? p.number ?? p.id?.slice(0, 8)}</td>
+                    <td className="font-mono text-[10px] text-muted-foreground">{p.legalEntityCode ?? "—"}</td>
                     <td className="max-w-[140px]"><span className="truncate block text-foreground">{p.title ?? p.notes ?? "—"}</span></td>
                     <td className="font-mono text-[11px] font-semibold text-foreground">
                       {p.totalAmount ? `₹${parseFloat(String(p.totalAmount)).toLocaleString("en-IN")}` : "—"}

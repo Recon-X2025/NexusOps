@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
+import Link from "next/link";
 import {
   ShoppingCart, Plus, Download, CheckCircle2,
   XCircle, Clock, AlertTriangle, Package,
@@ -93,6 +94,10 @@ export default function ProcurementPage() {
   const { data: prData, isLoading: prLoading, refetch: refetchPRs } = trpc.procurement.purchaseRequests.list.useQuery({}, mergeTrpcQueryOpts("procurement.purchaseRequests.list", { refetchOnWindowFocus: false },));
   const { data: poData, isLoading: poLoading, refetch: refetchPOs } = trpc.procurement.purchaseOrders.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.purchaseOrders.list", { refetchOnWindowFocus: false },));
   const { data: vendorsData } = trpc.procurement.vendors.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.vendors.list", { refetchOnWindowFocus: false },));
+  const { data: legalEntityOptions } = trpc.procurement.legalEntityOptions.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("procurement.legalEntityOptions", { refetchOnWindowFocus: false }),
+  );
 
   const approvePR  = trpc.procurement.purchaseRequests.approve.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const rejectPR   = trpc.procurement.purchaseRequests.reject.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
@@ -101,6 +106,11 @@ export default function ProcurementPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [creatingPO, setCreatingPO]    = useState<string | null>(null);
   const [poVendorId, setPOVendorId]    = useState("");
+  const [poLegalEntityId, setPoLegalEntityId] = useState("");
+
+  useEffect(() => {
+    setPoLegalEntityId("");
+  }, [creatingPO]);
 
   const [showNewPR, setShowNewPR] = useState(false);
   const [prForm, setPrForm] = useState({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
@@ -147,7 +157,15 @@ export default function ProcurementPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => downloadCSV(purchaseOrders.map((p: any) => ({ PO_Number: p.number, Vendor: p.vendorName ?? p.vendorId ?? "", Status: p.status, Total: p.totalAmount ?? "", Tax: p.gstAmount ?? "", Created: new Date(p.createdAt).toLocaleDateString("en-IN") })), "purchase_orders")}
+            onClick={() => downloadCSV(purchaseOrders.map((p: any) => ({
+              PO_Number: p.poNumber ?? p.number,
+              Legal_entity: p.legalEntityCode ?? "",
+              Vendor: p.vendorName ?? p.vendorId ?? "",
+              Status: p.status,
+              Total: p.totalAmount ?? "",
+              Tax: p.gstAmount ?? "",
+              Created: new Date(p.createdAt).toLocaleDateString("en-IN"),
+            })), "purchase_orders")}
             className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
           >
             <Download className="w-3 h-3" /> Export
@@ -460,19 +478,41 @@ export default function ProcurementPage() {
                                     </div>
                                   )}
                                   {creatingPO === pr.id && (
-                                    <div className="flex items-end gap-2 mt-2">
-                                      <select className="border border-border rounded px-2 py-1 text-[11px]" value={poVendorId} onChange={e => setPOVendorId(e.target.value)}>
-                                        <option value="">Select Vendor *</option>
-                                        {((vendorsData as any[]) ?? []).map((v: any) => (
-                                          <option key={v.id} value={v.id}>{v.name}</option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        disabled={!poVendorId || createPO.isPending}
-                                        onClick={() => createPO.mutate({ prId: pr.id, vendorId: poVendorId })}
-                                        className="px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
-                                      >{createPO.isPending ? "…" : "Create PO"}</button>
-                                      {createPO.isError && <span className="text-[11px] text-red-600">{(createPO.error as any)?.message}</span>}
+                                    <div className="flex flex-col gap-2 mt-2">
+                                      <div className="flex flex-wrap items-end gap-2">
+                                        <select className="border border-border rounded px-2 py-1 text-[11px]" value={poVendorId} onChange={(e) => setPOVendorId(e.target.value)}>
+                                          <option value="">Select Vendor *</option>
+                                          {((vendorsData as any[]) ?? []).map((v: any) => (
+                                            <option key={v.id} value={v.id}>{v.name}</option>
+                                          ))}
+                                        </select>
+                                        <select
+                                          className="border border-border rounded px-2 py-1 text-[11px] max-w-[14rem]"
+                                          value={poLegalEntityId}
+                                          onChange={(e) => setPoLegalEntityId(e.target.value)}
+                                          title="Optional legal entity for this PO"
+                                        >
+                                          <option value="">Legal entity (optional)</option>
+                                          {(legalEntityOptions ?? []).map((e: { id: string; code: string; name: string }) => (
+                                            <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          disabled={!poVendorId || createPO.isPending}
+                                          onClick={() =>
+                                            createPO.mutate({
+                                              prId: pr.id,
+                                              vendorId: poVendorId,
+                                              legalEntityId: poLegalEntityId || undefined,
+                                            })}
+                                          className="px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+                                        >{createPO.isPending ? "…" : "Create PO"}</button>
+                                        {createPO.isError && <span className="text-[11px] text-red-600">{(createPO.error as any)?.message}</span>}
+                                      </div>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        Manage entities under{" "}
+                                        <Link href="/app/admin" className="text-primary hover:underline">Admin → Legal entities</Link>.
+                                      </p>
                                     </div>
                                   )}
                                 </div>
@@ -527,7 +567,12 @@ export default function ProcurementPage() {
                             {isLate && <span className="status-badge text-red-700 bg-red-100 font-bold">⚠ Overdue</span>}
                           </div>
                           <p className="text-[13px] font-semibold text-foreground">{po.notes ?? "Purchase Order"}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">Vendor ID: <strong>{po.vendorId ? `…${po.vendorId.slice(-8)}` : "—"}</strong></p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Vendor ID: <strong>{po.vendorId ? `…${po.vendorId.slice(-8)}` : "—"}</strong>
+                            {po.legalEntityCode ? (
+                              <> · Legal entity: <strong className="font-mono">{po.legalEntityCode}</strong></>
+                            ) : null}
+                          </p>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-[15px] font-bold text-foreground">{po.currency ?? "INR"} {Number(po.totalAmount ?? 0).toLocaleString("en-IN")}</div>
@@ -543,6 +588,7 @@ export default function ProcurementPage() {
                         {[
                           { label: "PO Number",    value: po.poNumber ?? po.id },
                           { label: "Vendor ID",    value: po.vendorId ?? "—" },
+                          { label: "Legal entity", value: po.legalEntityCode ? `${po.legalEntityCode} (${po.legalEntityName ?? "—"})` : "—" },
                           { label: "Currency",     value: po.currency ?? "INR" },
                           { label: "Total Amount", value: `${po.currency ?? "INR"} ${Number(po.totalAmount ?? 0).toLocaleString("en-IN")}` },
                           { label: "Created",      value: po.createdAt ? new Date(po.createdAt).toISOString().split("T")[0] : "—" },

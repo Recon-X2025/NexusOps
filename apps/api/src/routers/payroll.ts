@@ -377,7 +377,7 @@ const runsRouter = router({
         .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
         .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
 
-      await db.transaction(async (tx) => {
+      await db.transaction(async (tx: typeof db) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
         for (const { emp, st } of empRows) {
           const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year);
@@ -610,7 +610,10 @@ export const payrollRouter = router({
         .from(payslips)
         .where(and(eq(payslips.employeeId, employee.id), fyCondition(fyStart)));
 
-      const fyGross = slipRows.reduce((s, p) => s + Number(p.grossEarnings || 0), 0);
+      const fyGross = slipRows.reduce(
+        (s: number, p: (typeof slipRows)[number]) => s + Number(p.grossEarnings || 0),
+        0,
+      );
       const monthsWithData = slipRows.length;
 
       const oldProfile = buildTaxProfileFromEmployee({

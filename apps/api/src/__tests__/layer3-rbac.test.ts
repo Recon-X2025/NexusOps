@@ -16,7 +16,8 @@ beforeAll(async () => {
 
 const ALL_ROLES: SystemRole[] = [
   "admin", "itil", "itil_admin", "itil_manager", "change_manager", "problem_manager",
-  "field_service", "security_admin", "security_analyst", "grc_analyst",
+  "field_service", "operator_field", "manager_ops", "security_admin", "security_analyst", "grc_analyst",
+  "legal_counsel", "company_secretary",
   "hr_manager", "hr_analyst", "procurement_admin", "procurement_analyst",
   "finance_manager", "project_manager", "approver", "requester",
   "report_viewer", "cmdb_admin", "vendor_manager", "catalog_admin",
@@ -93,6 +94,21 @@ describe("Layer 3: RBAC Exhaustive Matrix", () => {
       expect(hasPermission(["grc_analyst"], "grc", "read")).toBe(true);
       expect(hasPermission(["grc_analyst"], "grc", "write")).toBe(true);
       expect(hasPermission(["grc_analyst"], "grc", "admin")).toBe(true);
+    });
+
+    it("grc_analyst cannot access legal or secretarial (split from GRC)", () => {
+      expect(hasPermission(["grc_analyst"], "legal", "read")).toBe(false);
+      expect(hasPermission(["grc_analyst"], "secretarial", "read")).toBe(false);
+    });
+
+    it("legal_counsel can admin legal but not secretarial", () => {
+      expect(hasPermission(["legal_counsel"], "legal", "admin")).toBe(true);
+      expect(hasPermission(["legal_counsel"], "secretarial", "read")).toBe(false);
+    });
+
+    it("company_secretary can admin secretarial but not legal", () => {
+      expect(hasPermission(["company_secretary"], "secretarial", "admin")).toBe(true);
+      expect(hasPermission(["company_secretary"], "legal", "read")).toBe(false);
     });
 
     it("procurement_admin can admin procurement", () => {

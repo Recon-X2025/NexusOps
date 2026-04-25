@@ -1,6 +1,8 @@
 {
   "extends": "@nexusops/config/tsconfig-nextjs",
   "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
     "baseUrl": ".",
     "paths": {
       "@/*": [

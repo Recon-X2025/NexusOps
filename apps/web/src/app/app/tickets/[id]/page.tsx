@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
@@ -133,6 +133,19 @@ export default function TicketDetailPage() {
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", {
     refetchOnWindowFocus: false,
   }));
+  const { data: pauseCatalog } = trpc.tickets.slaPauseReasonsCatalog.get.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("tickets.slaPauseReasonsCatalog.get", {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    }),
+  );
+  const [pauseHoldPick, setPauseHoldPick] = useState<{ statusId: string } | null>(null);
+  const [pauseReasonChoice, setPauseReasonChoice] = useState("");
+
+  useEffect(() => {
+    if (pauseHoldPick) setPauseReasonChoice("");
+  }, [pauseHoldPick]);
 
   const toggleWatch = trpc.tickets.toggleWatch.useMutation({
     onSuccess: (res) => { setWatching(res.watching); toast.success(res.watching ? "Added to watchlist" : "Removed from watchlist"); },
@@ -265,6 +278,13 @@ export default function TicketDetailPage() {
   const isTerminal = TERMINAL_STATUS_NAMES.some((t) => currentStatusName.includes(t)) || !!ticket.closedAt || !!ticket.resolvedAt;
   const terminalLabel = ticket.closedAt ? "Closed" : ticket.resolvedAt ? "Resolved" : currentStatusName ? currentStatusName.charAt(0).toUpperCase() + currentStatusName.slice(1) : "Closed";
 
+  const currentStatusCategory = (statusCounts as { statusId: string; category?: string }[] | undefined)?.find(
+    (s) => s.statusId === ticket.statusId,
+  )?.category;
+  const slaPauseCode = (ticket as { slaPauseReasonCode?: string | null }).slaPauseReasonCode;
+  const slaPauseLabel =
+    slaPauseCode && pauseCatalog?.reasons?.find((r) => r.code === slaPauseCode)?.label;
+
   const slaOverdueMs =
     ticket.slaResolveDueAt
       ? Date.now() - new Date(ticket.slaResolveDueAt).getTime()
@@ -274,6 +294,73 @@ export default function TicketDetailPage() {
 
   return (
     <div className="flex flex-col gap-3">
+      {pauseHoldPick && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sla-pause-reason-title"
+        >
+          <div className="bg-card border border-border rounded-lg shadow-lg max-w-sm w-full p-4 space-y-3">
+            <h4 id="sla-pause-reason-title" className="text-sm font-semibold text-foreground">
+              Pause SLA — reason required
+            </h4>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Your organization requires a catalog reason when moving a ticket to <strong>on hold</strong>.
+            </p>
+            <select
+              data-testid="sla-pause-reason-select"
+              className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+              value={pauseReasonChoice}
+              onChange={(e) => setPauseReasonChoice(e.target.value)}
+            >
+              <option value="">Select a reason…</option>
+              {(pauseCatalog?.reasons ?? []).map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-[11px] rounded border border-border text-muted-foreground hover:bg-muted/50"
+                onClick={() => {
+                  setPauseHoldPick(null);
+                  setPauseReasonChoice("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                disabled={updateTicket.isPending}
+                onClick={() => {
+                  if (!pauseReasonChoice) {
+                    toast.error("Choose a pause reason.");
+                    return;
+                  }
+                  updateTicket.mutate(
+                    {
+                      id,
+                      data: { statusId: pauseHoldPick.statusId, slaPauseReasonCode: pauseReasonChoice },
+                    },
+                    {
+                      onSuccess: () => {
+                        setPauseHoldPick(null);
+                        setPauseReasonChoice("");
+                      },
+                    },
+                  );
+                }}
+              >
+                Put on hold
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
         <Link href="/app/tickets" className="hover:text-primary">
@@ -531,11 +618,11 @@ export default function TicketDetailPage() {
                   <Loader2 className="w-3 h-3 animate-spin" /> Loading…
                 </p>
               )}
-              {(commsListQuery.data ?? []).map((entry) => {
+              {(commsListQuery.data ?? []).map((entry: { id: string; authorName?: string | null; body: string; createdAt: Date | string }) => {
                 const who = entry.authorName ?? "Agent";
                 const initials = who
                   .split(" ")
-                  .map((n) => n[0])
+                  .map((n: string) => n[0])
                   .join("")
                   .slice(0, 2)
                   .toUpperCase();
@@ -624,7 +711,7 @@ export default function TicketDetailPage() {
                         <div>
                           <div className="text-[10px] uppercase text-muted-foreground mb-1">Linked</div>
                           <ul className="space-y-1.5">
-                            {linkedKbArticles.map((a) => (
+                            {linkedKbArticles.map((a: { id: string; title: string }) => (
                               <li key={a.id} className="flex items-center justify-between gap-2">
                                 <Link
                                   href={`/app/knowledge/${a.id}`}
@@ -1048,12 +1135,20 @@ export default function TicketDetailPage() {
                     disabled={updateTicket.isPending}
                     className="w-full rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
                     value={ticket.statusId ?? ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      const st = (statusCounts as { statusId: string; name: string; category?: string }[]).find(
+                        (s) => s.statusId === newId,
+                      );
+                      if (st?.category === "pending" && (pauseCatalog?.reasons?.length ?? 0) > 0) {
+                        setPauseHoldPick({ statusId: newId });
+                        return;
+                      }
                       updateTicket.mutate({
                         id,
-                        data: { statusId: e.target.value },
-                      })
-                    }
+                        data: { statusId: newId },
+                      });
+                    }}
                   >
                     {(statusCounts as { statusId: string; name: string }[]).map((st) => (
                       <option key={st.statusId} value={st.statusId}>
@@ -1069,6 +1164,37 @@ export default function TicketDetailPage() {
                   </span>
                 )}
               </FieldRow>
+              {currentStatusCategory === "pending" && !isTerminal && can("incidents", "write") && (pauseCatalog?.reasons?.length ?? 0) > 0 ? (
+                <FieldRow label="Pause reason">
+                  <select
+                    data-testid="ticket-sla-pause-reason-update"
+                    disabled={updateTicket.isPending}
+                    className="w-full rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
+                    value={slaPauseCode ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      updateTicket.mutate({
+                        id,
+                        data: { slaPauseReasonCode: v },
+                      });
+                    }}
+                  >
+                    {!slaPauseCode ? <option value="">Select reason…</option> : null}
+                    {(pauseCatalog?.reasons ?? []).map((r) => (
+                      <option key={r.code} value={r.code}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </FieldRow>
+              ) : slaPauseCode ? (
+                <FieldRow label="Pause reason">
+                  <span className="text-[11px] text-muted-foreground">
+                    {slaPauseLabel ? `${slaPauseLabel} (${slaPauseCode})` : slaPauseCode}
+                  </span>
+                </FieldRow>
+              ) : null}
               {(ticket as any).isMajorIncident && (
                 <FieldRow label="Major">
                   <span className="text-[10px] font-semibold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded">

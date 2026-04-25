@@ -57,11 +57,19 @@ export default function StrategyProjectsDashboard() {
   const canAnalytics = isAuthenticated && can("analytics", "read");
   const canReports = isAuthenticated && can("reports", "read");
 
+  const { data: stratSum, isLoading: loadingStratSum } = trpc.projects.strategyDashboardSummary.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("projects.strategyDashboardSummary", { enabled: canProjects }),
+  );
   const { data: projects, isLoading: loadingProjects } = trpc.projects.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("projects.list", { enabled: canProjects },));
   const { data: appsPage, isLoading: loadingApps } = trpc.apm.applications.list.useQuery({}, mergeTrpcQueryOpts("apm.applications.list", { enabled: canAnalytics },));
   const { data: execOverview, isLoading: loadingReports } = trpc.reports.executiveOverview.useQuery(
     { days: 30 },
     mergeTrpcQueryOpts("reports.executiveOverview", { enabled: canReports }),
+  );
+  const { data: dashMetrics, isLoading: loadingDashMetrics } = trpc.dashboard.getMetrics.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("dashboard.getMetrics", { enabled: canReports }),
   );
 
   if (!can("projects", "read") && !can("demand", "read") && !can("analytics", "read")) {
@@ -73,15 +81,20 @@ export default function StrategyProjectsDashboard() {
   const activeProjects = projects ? projects.filter((p: any) => p.status !== "completed" && p.status !== "cancelled").length : 0;
   const atRiskProjects = projects ? projects.filter((p: any) => p.status === "at_risk" || p.status === "delayed").length : 0;
 
+  const activeProjectsDisplay =
+    stratSum && !loadingStratSum ? stratSum.activeProjectCount : activeProjects;
+  const atRiskProjectsDisplay =
+    stratSum && !loadingStratSum ? stratSum.atRiskByHealth : atRiskProjects;
+
   const avgBudgetUsed = projects && projects.length > 0
     ? Math.round(
         projects
-          .filter((p: any) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0)
-          .reduce((sum: any, p) => {
+          .filter((p: { budgetTotal?: unknown }) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0)
+          .reduce((sum: number, p: { budgetTotal?: unknown; budgetSpent?: unknown }) => {
             const total = parseFloat(String(p.budgetTotal ?? "0"));
             const spent = parseFloat(String(p.budgetSpent ?? "0"));
             return sum + (total > 0 ? (spent / total) * 100 : 0);
-          }, 0) / Math.max(projects.filter((p: any) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0).length, 1)
+          }, 0) / Math.max(projects.filter((p: { budgetTotal?: unknown }) => p.budgetTotal && parseFloat(String(p.budgetTotal)) > 0).length, 1)
       )
     : 0;
 
@@ -90,17 +103,42 @@ export default function StrategyProjectsDashboard() {
       ? { color: "bg-red-500",    text: `${atRiskProjects} project${atRiskProjects !== 1 ? "s" : ""} at risk or delayed` }
       : null,
     apps && apps.length > 0
-      ? { color: "bg-yellow-400", text: `${apps.filter((a: any) => a.lifecycle === "retire" || a.lifecycle === "decommission").length} applications flagged for retirement` }
+      ? {
+          color: "bg-yellow-400",
+          text: `${apps.filter((a: any) => a.lifecycle === "retiring" || a.lifecycle === "obsolete").length} applications flagged for retirement`,
+        }
       : null,
   ].filter(Boolean) as { color: string; text: string }[];
 
+  const appsTotalDisplay =
+    stratSum && !loadingStratSum && canProjects
+      ? stratSum.applications.total
+      : apps?.length ?? 0;
+  const appsRetiringDisplay =
+    stratSum && !loadingStratSum && canProjects
+      ? stratSum.applications.retiring
+      : apps.filter((a: any) => a.lifecycle === "retiring" || a.lifecycle === "obsolete").length;
+
   const moduleStats = [
     [
-      { k: "Active",   v: loadingProjects ? "…" : String(activeProjects) },
-      { k: "At Risk",  v: loadingProjects ? "…" : String(atRiskProjects) },
+      {
+        k: "Active",
+        v: !canProjects ? "—" : loadingProjects && !stratSum ? "…" : String(activeProjectsDisplay),
+      },
+      {
+        k: "At Risk",
+        v: !canProjects ? "—" : loadingProjects && !stratSum ? "…" : String(atRiskProjectsDisplay),
+      },
     ],
     [
-      { k: "Apps",     v: loadingApps ? "…" : String(apps?.length ?? 0) },
+      {
+        k: "Apps",
+        v: !canAnalytics ? "—" : loadingApps && !(stratSum && canProjects) ? "…" : String(appsTotalDisplay),
+      },
+      {
+        k: "Retiring",
+        v: !canAnalytics ? "—" : loadingApps && !(stratSum && canProjects) ? "…" : String(appsRetiringDisplay),
+      },
     ],
     [
       { k: "Open tickets", v: !canReports ? "—" : loadingReports ? "…" : String(execOverview?.openTickets ?? 0) },
@@ -137,9 +175,26 @@ export default function StrategyProjectsDashboard() {
         </div>
       )}
 
+      {canReports && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border bg-muted/20 px-3 py-2">
+          <div className="flex items-center gap-2 text-[11px] text-foreground/90">
+            <Target className="w-3.5 h-3.5 text-primary" />
+            <span>
+              <span className="font-semibold">OKRs (active):</span>{" "}
+              {loadingDashMetrics ? "…" : String(dashMetrics?.activeOkrs ?? 0)}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">Proxy via dashboard metrics — full OKR workspace in HR.</span>
+          </div>
+          <Link href="/app/okr" className="text-[11px] text-primary hover:underline shrink-0">
+            Open OKRs →
+          </Link>
+        </div>
+      )}
+
       <div className="grid grid-cols-4 gap-2">
-        <KPICard label="Active Projects" value={activeProjects} color="text-blue-700" icon={FolderOpen} href="/app/projects" isLoading={loadingProjects} />
-        <KPICard label="Projects at Risk" value={atRiskProjects} color="text-red-700" icon={AlertTriangle} href="/app/projects" isLoading={loadingProjects} />
+        <KPICard label="Active Projects" value={activeProjectsDisplay} color="text-blue-700" icon={FolderOpen} href="/app/projects" isLoading={loadingProjects && !stratSum} />
+        <KPICard label="Health: amber + red" value={atRiskProjectsDisplay} color="text-red-700" icon={AlertTriangle} href="/app/projects" isLoading={loadingProjects && !stratSum} />
         <KPICard label="Avg Budget Utilized" value={`${avgBudgetUsed}%`} color="text-orange-700" icon={CheckCircle2} href="/app/projects" isLoading={loadingProjects} />
         <KPICard label="Total Projects" value={projects?.length ?? 0} color="text-green-700" icon={Target} href="/app/projects" isLoading={loadingProjects} />
       </div>
@@ -247,7 +302,7 @@ export default function StrategyProjectsDashboard() {
                   <tr key={a.id}>
                     <td className="max-w-[160px]"><span className="truncate block text-foreground">{a.name}</span></td>
                     <td>
-                      <span className={`status-badge capitalize text-[10px] ${a.lifecycle === "retire" || a.lifecycle === "decommission" ? "text-red-700 bg-red-100" : a.lifecycle === "active" || a.lifecycle === "maintain" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
+                      <span className={`status-badge capitalize text-[10px] ${a.lifecycle === "retiring" || a.lifecycle === "obsolete" ? "text-red-700 bg-red-100" : a.lifecycle === "sustaining" || a.lifecycle === "investing" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
                         {a.lifecycle?.replace(/_/g, " ")}
                       </span>
                     </td>

@@ -8,6 +8,7 @@ import {
   problems,
   knownErrors,
   releases,
+  kbArticles,
   eq,
   and,
   desc,
@@ -368,16 +369,14 @@ export const changesRouter = router({
       const [prob] = await db.select().from(problems)
         .where(and(eq(problems.id, input.problemId), eq(problems.orgId, org!.id)));
       if (!prob) throw new TRPCError({ code: "NOT_FOUND" });
-      // Import knowledge schema inline to avoid circular deps
-      const { knowledgeArticles } = await import("@nexusops/db");
-      const [article] = await db.insert(knowledgeArticles).values({
+      const [article] = await db.insert(kbArticles).values({
         orgId: org!.id,
         title: `[Known Error] ${prob.title}`,
-        content: `**Problem:** ${prob.description ?? ""}\n\n**Root Cause:** ${(prob as any).rootCause ?? "Under investigation."}\n\n**Workaround:** ${(prob as any).workaround ?? "None documented."}`,
+        content: `**Problem:** ${prob.description ?? ""}\n\n**Root Cause:** ${prob.rootCause ?? "Under investigation."}\n\n**Workaround:** ${prob.workaround ?? "None documented."}`,
         status: "published",
         authorId: user!.id,
         tags: ["known-error", "problem-management"],
-      } as any).returning();
+      }).returning();
       return article;
     }),
 
@@ -493,7 +492,7 @@ export const changesRouter = router({
         .where(eq(changeBlackoutWindows.orgId, org!.id));
 
       const overlappingBlackouts = blackouts.filter(
-        (b) => wStart < b.endsAt && b.startsAt < wEnd,
+        (b: (typeof blackouts)[number]) => wStart < b.endsAt && b.startsAt < wEnd,
       );
 
       const scheduledChanges = await db
@@ -515,7 +514,7 @@ export const changesRouter = router({
           ),
         );
 
-      const overlappingChanges = scheduledChanges.filter((c) => {
+      const overlappingChanges = scheduledChanges.filter((c: (typeof scheduledChanges)[number]) => {
         if (!c.scheduledStart || !c.scheduledEnd) return false;
         return wStart < c.scheduledEnd && c.scheduledStart < wEnd;
       });

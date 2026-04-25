@@ -39,7 +39,13 @@ export default function HolidaysPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    name: "", date: "", type: "national" as const, stateCode: "", year, isOptional: false, notes: "",
+    name: "",
+    date: "",
+    type: "national" as "national" | "state" | "restricted" | "company",
+    stateCode: "",
+    year,
+    isOptional: false,
+    notes: "",
   });
 
   const utils     = trpc.useUtils();
@@ -78,7 +84,9 @@ export default function HolidaysPage() {
       <div className="grid grid-cols-4 gap-2">
         {(["national", "state", "restricted", "company"] as const).map(t => {
           const n = holidays.filter(h => h.type === t).length;
-          const cfg = TYPE_CFG[t];
+          const cfg =
+            TYPE_CFG[t] ??
+            ({ label: "National", color: "text-blue-700 bg-blue-100" } as const);
           return (
             <div key={t} className="bg-card border border-border rounded px-3 py-2">
               <div className="text-xl font-bold text-foreground">{n}</div>
@@ -102,7 +110,9 @@ export default function HolidaysPage() {
                 <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{m} {year}</h3>
                 <div className="flex flex-col gap-1.5">
                   {hs.map((h: any) => {
-                    const cfg = TYPE_CFG[h.type] ?? TYPE_CFG.national;
+                    const cfg =
+                      TYPE_CFG[String(h.type)] ??
+                      ({ label: "National", color: "text-blue-700 bg-blue-100" } as const);
                     return (
                       <div key={h.id} className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2 min-w-0">

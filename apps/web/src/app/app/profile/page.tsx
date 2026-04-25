@@ -117,6 +117,7 @@ function ProfileTab() {
 }
 
 function SecurityTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ current: "", newPwd: "", confirm: "" });
@@ -250,6 +251,7 @@ function SecurityTab() {
 }
 
 function NotificationsTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const CHANNELS = ["email", "in_app"] as const;
   const EVENT_GROUPS = [
     { group: "Tickets & Incidents", events: ["ticket_assigned", "ticket_updated", "sla_breach", "ticket_resolved"] },

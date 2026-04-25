@@ -129,6 +129,7 @@ export const problems = pgTable(
     rootCause: text("root_cause"),
     workaround: text("workaround"),
     resolution: text("resolution"),
+    notes: jsonb("notes").$type<Array<{ body: string; authorId: string; createdAt: string }>>(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

@@ -86,15 +86,18 @@ export default function ITServicesDashboard() {
   const recentTickets = recentTicketsPage?.items ?? [];
   const changes = changesPage?.items ?? [];
 
-  const totalOpenTickets = statusCounts
-    ? statusCounts.filter((s: any) => !["closed", "resolved", "cancelled"].includes(s.name.toLowerCase())).reduce((a: any, b) => a + b.count, 0)
+  type TicketStatusCount = { name: string; count: number };
+  const scRows = statusCounts as TicketStatusCount[] | undefined;
+
+  const totalOpenTickets = scRows
+    ? scRows.filter((s) => !["closed", "resolved", "cancelled"].includes(s.name.toLowerCase())).reduce((a, b) => a + b.count, 0)
     : 0;
-  const totalTickets = statusCounts ? statusCounts.reduce((a: any, b) => a + b.count, 0) : 0;
+  const totalTickets = scRows ? scRows.reduce((a, b) => a + b.count, 0) : 0;
   const slaCompliance = totalTickets > 0
     ? Math.round(((recentTickets.filter((t: any) => !t.slaBreached).length) / Math.max(recentTickets.length, 1)) * 100)
     : 0;
-  const openIncidents = statusCounts
-    ? statusCounts.filter((s: any) => ["open", "new", "in progress", "in_progress", "assigned"].includes(s.name.toLowerCase())).reduce((a: any, b) => a + b.count, 0)
+  const openIncidents = scRows
+    ? scRows.filter((s) => ["open", "new", "in progress", "in_progress", "assigned"].includes(s.name.toLowerCase())).reduce((a, b) => a + b.count, 0)
     : 0;
 
   const alerts = [

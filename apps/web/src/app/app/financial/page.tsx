@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar, X } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
@@ -15,6 +16,7 @@ const FIN_TABS = [
   { key: "invoices",    label: "Invoices",               module: "financial"   as const, action: "read"  as const },
   { key: "ap",          label: "Accounts Payable",       module: "financial"   as const, action: "read"  as const },
   { key: "ar",          label: "Accounts Receivable",    module: "financial"   as const, action: "read"  as const },
+  { key: "period_close", label: "Period close",          module: "financial"   as const, action: "read"  as const },
   { key: "taxation",    label: "Taxation (India)",       module: "financial"   as const, action: "admin" as const },
 ];
 
@@ -33,12 +35,26 @@ const INV_STATUS: Record<string, string> = {
   disputed: "text-orange-700 bg-orange-100",
 };
 
+function normalizeFinTabParam(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.trim().toLowerCase();
+  if (s === "period-close") return "period_close";
+  const allowed = new Set(FIN_TABS.map((t) => t.key));
+  return allowed.has(s) ? s : null;
+}
+
 export default function FinancialPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const utils = trpc.useUtils();
   const visibleTabs = FIN_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "budget");
+
+  useEffect(() => {
+    const fromUrl = normalizeFinTabParam(searchParams.get("tab"));
+    if (fromUrl && visibleTabs.some((t) => t.key === fromUrl)) setTab(fromUrl);
+  }, [searchParams, visibleTabs]);
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -69,13 +85,17 @@ export default function FinancialPage() {
 
   const [showNewInvoice, setShowNewInvoice] = useState(false);
   const [showNewARInvoice, setShowNewARInvoice] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
-  const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
+  const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
+  const { data: legalEntitiesList } = trpc.financial.listLegalEntities.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("financial.listLegalEntities", { refetchOnWindowFocus: false }),
+  );
   const createInvoiceMutation = trpc.financial.createInvoice.useMutation({
     onSuccess: () => {
       toast.success("Invoice created");
       setShowNewInvoice(false);
-      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
@@ -84,7 +104,7 @@ export default function FinancialPage() {
     onSuccess: () => {
       toast.success("Receivable invoice created");
       setShowNewARInvoice(false);
-      setArInvoiceForm({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "" });
+      setArInvoiceForm({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create receivable"),
@@ -98,6 +118,18 @@ export default function FinancialPage() {
   const currentYear  = new Date().getFullYear();
   const gstCalendarQuery = trpc.financial.gstFilingCalendar.useQuery({ month: currentMonth, year: currentYear }, mergeTrpcQueryOpts("financial.gstFilingCalendar", { refetchOnWindowFocus: false },));
   const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.tdsChallans.list", { refetchOnWindowFocus: false },));
+
+  const [periodCloseMonth, setPeriodCloseMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  });
+  const periodClosePreflight = trpc.financial.periodClose.preflight.useQuery(
+    { period: periodCloseMonth },
+    mergeTrpcQueryOpts("financial.periodClose.preflight", {
+      enabled: tab === "period_close" && /^\d{4}-\d{2}$/.test(periodCloseMonth),
+      refetchOnWindowFocus: false,
+    }),
+  );
 
   if (!can("financial", "read")) return <AccessDenied module="Financial Management" />;
 
@@ -138,7 +170,7 @@ export default function FinancialPage() {
         <div className="flex items-center gap-2">
           <Coins className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-sm font-semibold text-foreground">IT Financial Management</h1>
-          <span className="text-[11px] text-muted-foreground/70">Budget · Chargebacks · CAPEX/OPEX · Invoices</span>
+          <span className="text-[11px] text-muted-foreground/70">Budget · Chargebacks · CAPEX/OPEX · Invoices · Period close</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -492,7 +524,7 @@ export default function FinancialPage() {
                   <table className="ent-table w-full">
                     <thead>
                       <tr>
-                        <th>Invoice #</th><th>Vendor</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th>
+                        <th>Invoice #</th><th>Vendor</th><th>Legal entity</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -500,6 +532,13 @@ export default function FinancialPage() {
                         <tr key={inv.id} className={inv.status === "overdue" ? "bg-red-50/30" : ""}>
                           <td><span className="font-mono text-[11px]">{inv.invoiceNumber ?? inv.id.slice(0,8)}</span></td>
                           <td className="text-[12px]">{inv.vendorName ?? "—"}</td>
+                          <td className="text-[11px] text-muted-foreground">
+                            {inv.legalEntityCode ? (
+                              <span title={inv.legalEntityName ?? ""} className="font-mono">{inv.legalEntityCode}</span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
                           <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? 0).toLocaleString()}</td>
                           <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
                           <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
@@ -567,12 +606,19 @@ export default function FinancialPage() {
                     </div>
                   </div>
                   <table className="ent-table w-full">
-                    <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Invoice #</th><th>Customer</th><th>Legal entity</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
                       {arInvoices.map((inv: any) => (
                         <tr key={inv.id}>
                           <td><span className="font-mono text-[11px]">{inv.invoiceNumber ?? inv.number ?? inv.id.slice(0,8)}</span></td>
                           <td className="text-[12px]">{inv.vendorName ?? inv.customerName ?? "—"}</td>
+                          <td className="text-[11px] text-muted-foreground">
+                            {inv.legalEntityCode ? (
+                              <span title={inv.legalEntityName ?? ""} className="font-mono">{inv.legalEntityCode}</span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
                           <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? inv.amount ?? 0).toLocaleString()}</td>
                           <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
                           <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
@@ -591,6 +637,110 @@ export default function FinancialPage() {
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {tab === "period_close" && (
+          <div className="p-4 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-[12px] font-semibold text-foreground">Period close checklist</h3>
+                <p className="text-[11px] text-muted-foreground mt-1 max-w-xl leading-relaxed">
+                  Review open AP/AR and payable matching for a calendar month (UTC) before adding it under{" "}
+                  <Link href="/app/admin" className="text-primary hover:underline">Admin → Accounting periods</Link>.
+                </p>
+              </div>
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Month (YYYY-MM)</label>
+                  <input
+                    type="text"
+                    className="border border-border rounded px-2 py-1.5 text-[12px] bg-background w-28 font-mono"
+                    value={periodCloseMonth}
+                    onChange={(e) => setPeriodCloseMonth(e.target.value)}
+                    placeholder="2026-04"
+                    aria-label="Accounting period YYYY-MM"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="text-[11px] px-2 py-1.5 rounded border border-border hover:bg-muted/40 flex items-center gap-1"
+                  onClick={() => void periodClosePreflight.refetch()}
+                  disabled={periodClosePreflight.isFetching || !/^\d{4}-\d{2}$/.test(periodCloseMonth)}
+                >
+                  <RefreshCw className={`w-3 h-3 ${periodClosePreflight.isFetching ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {periodClosePreflight.isLoading && (
+              <div className="flex items-center gap-2 text-muted-foreground text-[12px]">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading checklist…
+              </div>
+            )}
+
+            {periodClosePreflight.data && (
+              <>
+                <div
+                  className={`rounded border px-3 py-2 text-[11px] ${
+                    periodClosePreflight.data.allClear
+                      ? "border-green-700/40 bg-green-50/50 dark:bg-green-950/20"
+                      : "border-amber-700/40 bg-amber-50/50 dark:bg-amber-950/20"
+                  }`}
+                >
+                  <span className="font-semibold">{periodClosePreflight.data.rangeLabel}</span>
+                  {periodClosePreflight.data.allClear ? (
+                    <span className="ml-2 text-green-800 dark:text-green-300">
+                      All checks passed — safe to close once finance signs off.
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-amber-800 dark:text-amber-200">
+                      Resolve the items below before adding this month to closed periods.
+                    </span>
+                  )}
+                </div>
+
+                <ul className="space-y-2">
+                  {periodClosePreflight.data.checks.map((c) => (
+                    <li key={c.key} className="flex gap-3 border border-border rounded p-3 bg-muted/20">
+                      <div className="shrink-0 pt-0.5">
+                        {c.ok ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-700" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12px] font-medium text-foreground">{c.label}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{c.hint}</div>
+                        {c.count > 0 && (
+                          <div className="text-[10px] text-muted-foreground mt-1 font-mono">Count: {c.count}</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                  <button type="button" className="text-primary hover:underline" onClick={() => setTab("ap")}>
+                    Accounts Payable tab
+                  </button>
+                  <span className="text-muted-foreground">·</span>
+                  <button type="button" className="text-primary hover:underline" onClick={() => setTab("ar")}>
+                    Accounts Receivable tab
+                  </button>
+                  <span className="text-muted-foreground">·</span>
+                  <button type="button" className="text-primary hover:underline" onClick={() => setTab("invoices")}>
+                    Invoices tab
+                  </button>
+                  <span className="text-muted-foreground">·</span>
+                  <Link href="/app/admin" className="text-primary hover:underline">
+                    Admin → Accounting periods
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -917,6 +1067,20 @@ export default function FinancialPage() {
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
               <input type="date" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={arInvoiceForm.dueDate} onChange={(e) => setArInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))} />
             </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Legal entity</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={arInvoiceForm.legalEntityId}
+                onChange={(e) => setArInvoiceForm((f) => ({ ...f, legalEntityId: e.target.value }))}
+              >
+                <option value="">— optional —</option>
+                {(legalEntitiesList ?? []).map((le: { id: string; code: string; name: string }) => (
+                  <option key={le.id} value={le.id}>{le.code} — {le.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">Manage entities under Admin → Legal entities.</p>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button type="button" onClick={() => setShowNewARInvoice(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
@@ -932,6 +1096,7 @@ export default function FinancialPage() {
                   invoiceNumber: arInvoiceForm.invoiceNumber.trim(),
                   amount: arInvoiceForm.amount,
                   dueDate: arInvoiceForm.dueDate || undefined,
+                  legalEntityId: arInvoiceForm.legalEntityId || undefined,
                 });
               }}
               disabled={createReceivableInvoiceMutation.isPending}
@@ -977,13 +1142,33 @@ export default function FinancialPage() {
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
               <input type="date" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))} />
             </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Legal entity</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={invoiceForm.legalEntityId}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, legalEntityId: e.target.value }))}
+              >
+                <option value="">— optional —</option>
+                {(legalEntitiesList ?? []).map((le: { id: string; code: string; name: string }) => (
+                  <option key={le.id} value={le.id}>{le.code} — {le.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">Manage entities under Admin → Legal entities.</p>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={() => setShowNewInvoice(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!invoiceForm.vendorId || !invoiceForm.invoiceNumber.trim() || !invoiceForm.amount) { toast.error("Vendor, invoice number, and amount are required"); return; }
-                createInvoiceMutation.mutate({ vendorId: invoiceForm.vendorId, invoiceNumber: invoiceForm.invoiceNumber.trim(), amount: invoiceForm.amount, dueDate: invoiceForm.dueDate || undefined });
+                createInvoiceMutation.mutate({
+                  vendorId: invoiceForm.vendorId,
+                  invoiceNumber: invoiceForm.invoiceNumber.trim(),
+                  amount: invoiceForm.amount,
+                  dueDate: invoiceForm.dueDate || undefined,
+                  legalEntityId: invoiceForm.legalEntityId || undefined,
+                });
               }}
               disabled={createInvoiceMutation.isPending}
               className="flex-1 px-3 py-1.5 text-xs bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-50"

@@ -113,6 +113,27 @@
       "when": 1776268800000,
       "tag": "0017_okr_objectives",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776355200000,
+      "tag": "0018_problems_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776441600000,
+      "tag": "0019_crm_deal_won_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776528000000,
+      "tag": "0020_purchase_orders_legal_entity",
+      "breakpoints": true
     }
   ]
 }

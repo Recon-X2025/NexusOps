@@ -97,13 +97,16 @@ export const hrRouter = router({
           .innerJoin(users, eq(employees.userId, users.id))
           .where(and(...conditions));
 
-        return rows.map(({ emp, userName, userEmail }) => ({
-          ...emp,
-          name: userName,
-          email: userEmail,
-          employeeNumber: emp.employeeId,
-          jobTitle: emp.title,
-        }));
+        return rows.map((row: (typeof rows)[number]) => {
+          const { emp, userName, userEmail } = row;
+          return {
+            ...emp,
+            name: userName,
+            email: userEmail,
+            employeeNumber: emp.employeeId,
+            jobTitle: emp.title,
+          };
+        });
       }),
 
     /** Org users who do not yet have an employee row (for linking a new employee record). */
@@ -1106,10 +1109,10 @@ export const hrRouter = router({
       approved: z.boolean(),
       rejectionReason: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
-      const { org, db, userId } = ctx;
+      const { org, db, user } = ctx;
       const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
       const status = input.approved ? "approved" as const : "rejected" as const;
-      const [c] = await db.update(expenseClaims).set({ status, approvedById: input.approved ? userId : null, approvedAt: input.approved ? new Date() : null, rejectionReason: input.rejectionReason, updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
+      const [c] = await db.update(expenseClaims).set({ status, approvedById: input.approved ? user!.id : null, approvedAt: input.approved ? new Date() : null, rejectionReason: input.rejectionReason, updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
       return c!;
     }),
 
@@ -1136,9 +1139,12 @@ export const hrRouter = router({
         .from(okrObjectives).leftJoin(usersT, dbEq(okrObjectives.ownerId, usersT.id))
         .where(dbAnd(...conds)).orderBy(dbDesc(okrObjectives.createdAt));
       if (objectives.length === 0) return [];
-      const ids = objectives.map(o => o.objective.id);
+      const ids = objectives.map((o: (typeof objectives)[number]) => o.objective.id);
       const krs = await db.select().from(okrKeyResults).where(dbInArray(okrKeyResults.objectiveId, ids));
-      return objectives.map(o => ({ ...o, keyResults: krs.filter(k => k.objectiveId === o.objective.id) }));
+      return objectives.map((o: (typeof objectives)[number]) => ({
+        ...o,
+        keyResults: krs.filter((k: (typeof krs)[number]) => k.objectiveId === o.objective.id),
+      }));
     }),
 
     createObjective: permissionProcedure("hr", "write").input(z.object({
@@ -1178,8 +1184,8 @@ export const hrRouter = router({
       const [kr] = await db.update(okrKeyResults).set({ currentValue: String(input.currentValue), status: input.status, notes: input.notes, updatedAt: new Date() }).where(dbEq(okrKeyResults.id, input.id)).returning();
       if (kr) {
         const allKRs = await db.select().from(okrKeyResults).where(dbEq(okrKeyResults.objectiveId, kr.objectiveId));
-        const pcts = allKRs.map(k => (Number(k.currentValue) / Math.max(Number(k.targetValue), 1)) * 100);
-        const avg = pcts.length ? Math.round(pcts.reduce((s, p) => s + p, 0) / pcts.length) : 0;
+        const pcts = allKRs.map((k: (typeof allKRs)[number]) => (Number(k.currentValue) / Math.max(Number(k.targetValue), 1)) * 100);
+        const avg = pcts.length ? Math.round(pcts.reduce((s: number, p: number) => s + p, 0) / pcts.length) : 0;
         await db.update(okrObjectives).set({ overallProgress: avg, updatedAt: new Date() }).where(dbEq(okrObjectives.id, kr.objectiveId));
       }
       return kr!;
@@ -1211,12 +1217,15 @@ export const hrRouter = router({
 
       const rows = input.limit ? await query.limit(input.limit) : await query;
 
-      return rows.map(({ emp, userName, userEmail }) => ({
-        ...emp,
-        name: userName,
-        email: userEmail,
-        employeeNumber: emp.employeeId,
-        jobTitle: emp.title,
-      }));
+      return rows.map((row: (typeof rows)[number]) => {
+        const { emp, userName, userEmail } = row;
+        return {
+          ...emp,
+          name: userName,
+          email: userEmail,
+          employeeNumber: emp.employeeId,
+          jobTitle: emp.title,
+        };
+      });
     }),
 });

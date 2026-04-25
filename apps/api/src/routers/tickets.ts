@@ -1,4 +1,4 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -93,6 +93,7 @@ import {
   AddCommentSchema,
   TicketListFiltersSchema,
 } from "@nexusops/types";
+import { getSlaPauseReasonsCatalog } from "../lib/org-settings";
 
 function generateTicketNumber(orgSlug: string, seq: number): string {
   const prefix = orgSlug.toUpperCase().replace(/-/g, "").slice(0, 4);
@@ -1077,6 +1078,18 @@ export const ticketsRouter = router({
         }
 
         if (newStatus?.category === "pending") {
+          const pauseCatalog = getSlaPauseReasonsCatalog(org!.settings);
+          if (pauseCatalog.length > 0) {
+            const code = input.data.slaPauseReasonCode?.trim();
+            if (!code || !pauseCatalog.some((r) => r.code === code)) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: !code
+                  ? "Choose an SLA pause reason before putting this ticket on hold."
+                  : "Invalid SLA pause reason.",
+              });
+            }
+          }
           const nextPaused = new Date();
           updateData.slaPausedAt = nextPaused;
           const prevPausedMs = existing.slaPausedAt
@@ -1085,11 +1098,12 @@ export const ticketsRouter = router({
           if (prevPausedMs !== nextPaused.getTime()) {
             changes["slaPausedAt"] = { from: existing.slaPausedAt ?? null, to: nextPaused };
           }
-          if (input.data.slaPauseReasonCode) {
-            updateData.slaPauseReasonCode = input.data.slaPauseReasonCode;
+          if (input.data.slaPauseReasonCode?.trim()) {
+            const trimmed = input.data.slaPauseReasonCode.trim();
+            updateData.slaPauseReasonCode = trimmed;
             changes["slaPauseReasonCode"] = {
               from: existing.slaPauseReasonCode ?? null,
-              to: input.data.slaPauseReasonCode,
+              to: trimmed,
             };
           }
         } else if (oldStatusRow?.category === "pending" && newStatus?.category && newStatus.category !== "pending") {
@@ -1191,15 +1205,39 @@ export const ticketsRouter = router({
         changes["parentTicketId"] = { from: existing.parentTicketId ?? null, to: pid ?? null };
         updateData.parentTicketId = pid ?? null;
       }
-      if (
-        input.data.slaPauseReasonCode !== undefined &&
-        input.data.statusId === undefined
-      ) {
-        changes["slaPauseReasonCode"] = {
-          from: existing.slaPauseReasonCode ?? null,
-          to: input.data.slaPauseReasonCode || null,
-        };
-        updateData.slaPauseReasonCode = input.data.slaPauseReasonCode || null;
+      if (input.data.slaPauseReasonCode !== undefined && input.data.statusId === undefined) {
+        const pauseCatalog = getSlaPauseReasonsCatalog(org!.settings);
+        const raw = input.data.slaPauseReasonCode;
+        const trimmed = raw == null || raw === "" ? null : String(raw).trim();
+
+        const [curStForPause] = existing.statusId
+          ? await db
+              .select({ category: ticketStatuses.category })
+              .from(ticketStatuses)
+              .where(eq(ticketStatuses.id, existing.statusId))
+          : [];
+
+        if (pauseCatalog.length > 0) {
+          if (trimmed === null) {
+            if (curStForPause?.category === "pending") {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Pause reason cannot be cleared while the ticket is on hold.",
+              });
+            }
+          } else if (!pauseCatalog.some((r) => r.code === trimmed)) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid SLA pause reason." });
+          }
+        }
+
+        const nextPause = trimmed;
+        if ((existing.slaPauseReasonCode ?? null) !== nextPause) {
+          changes["slaPauseReasonCode"] = {
+            from: existing.slaPauseReasonCode ?? null,
+            to: nextPause,
+          };
+        }
+        updateData.slaPauseReasonCode = nextPause;
       }
 
       updateData.updatedAt = new Date();
@@ -1318,7 +1356,7 @@ export const ticketsRouter = router({
           )
           .orderBy(asc(ticketActivityLogs.createdAt));
 
-        const userIds = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[];
+        const userIds = [...new Set(rows.map((r: (typeof rows)[number]) => r.userId).filter(Boolean))] as string[];
         const names: Record<string, string> = {};
         if (userIds.length) {
           const urows = await db
@@ -1328,7 +1366,7 @@ export const ticketsRouter = router({
           for (const u of urows) names[u.id] = u.name ?? "";
         }
 
-        return rows.map((r) => {
+        return rows.map((r: (typeof rows)[number]) => {
           const ch = r.changes as Record<string, unknown> | null | undefined;
           const body = typeof ch?.body === "string" ? ch.body : "";
           return {
@@ -1669,12 +1707,56 @@ export const ticketsRouter = router({
         statusId: ticketStatuses.id,
         name: ticketStatuses.name,
         color: ticketStatuses.color,
+        category: ticketStatuses.category,
         count: count(tickets.id),
       })
       .from(ticketStatuses)
       .leftJoin(tickets, and(eq(tickets.statusId, ticketStatuses.id), eq(tickets.orgId, ticketStatuses.orgId)))
       .where(eq(ticketStatuses.orgId, org!.id))
-      .groupBy(ticketStatuses.id, ticketStatuses.name, ticketStatuses.color);
+      .groupBy(ticketStatuses.id, ticketStatuses.name, ticketStatuses.color, ticketStatuses.category);
+  }),
+
+  slaPauseReasonsCatalog: router({
+    get: permissionProcedure("incidents", "read").query(async ({ ctx }) => ({
+      reasons: getSlaPauseReasonsCatalog(ctx.org!.settings),
+    })),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          reasons: z
+            .array(
+              z.object({
+                code: z.string().min(1).max(64).transform((s) => s.trim()),
+                label: z.string().min(1).max(200).transform((s) => s.trim()),
+              }),
+            )
+            .max(40),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const codes = input.reasons.map((r) => r.code);
+        const uniq = new Set(codes);
+        if (uniq.size !== codes.length) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Duplicate SLA pause reason codes" });
+        }
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevItsm = (raw.itsm as Record<string, unknown> | undefined) ?? {};
+        const itsm = {
+          ...prevItsm,
+          slaPauseReasons: input.reasons,
+        };
+        await db
+          .update(organizations)
+          .set({ settings: { ...raw, itsm } })
+          .where(eq(organizations.id, org!.id));
+        return { ok: true as const, reasons: input.reasons };
+      }),
   }),
 
   toggleWatch: permissionProcedure("incidents", "read")

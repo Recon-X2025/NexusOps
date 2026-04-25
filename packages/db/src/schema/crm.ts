@@ -134,6 +134,10 @@ export const crmDeals = pgTable(
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     lostReason: text("lost_reason"),
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    /** US-CRM-003: set when leadership records approval before closed_won for gated deal values. */
+    wonApprovedAt: timestamp("won_approved_at", { withTimezone: true }),
+    wonApprovedBy: uuid("won_approved_by").references(() => users.id, { onDelete: "set null" }),
+    wonApprovalTier: text("won_approval_tier"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

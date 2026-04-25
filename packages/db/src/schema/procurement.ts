@@ -184,12 +184,14 @@ export const purchaseOrders = pgTable(
     status: poStatusEnum("status").notNull().default("draft"),
     expectedDelivery: timestamp("expected_delivery", { withTimezone: true }),
     notes: text("notes"),
+    legalEntityId: uuid("legal_entity_id").references(() => legalEntities.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     orgPoNumberIdx: uniqueIndex("purchase_orders_org_po_number_idx").on(t.orgId, t.poNumber),
     orgIdx: index("purchase_orders_org_idx").on(t.orgId),
+    legalEntityIdx: index("purchase_orders_legal_entity_idx").on(t.legalEntityId),
   }),
 );
 
@@ -420,6 +422,7 @@ export const purchaseRequestsRelations = relations(purchaseRequests, ({ one, man
 export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
   org: one(organizations, { fields: [purchaseOrders.orgId], references: [organizations.id] }),
   vendor: one(vendors, { fields: [purchaseOrders.vendorId], references: [vendors.id] }),
+  legalEntity: one(legalEntities, { fields: [purchaseOrders.legalEntityId], references: [legalEntities.id] }),
   lineItems: many(poLineItems),
   invoices: many(invoices),
   goodsReceiptNotes: many(goodsReceiptNotes),

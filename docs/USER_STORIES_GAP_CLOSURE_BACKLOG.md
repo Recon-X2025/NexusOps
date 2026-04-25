@@ -5,7 +5,8 @@
 **Conventions:** Stories follow **As a / I want / So that**; **AC** = acceptance criteria. IDs are **stable prefixes** (`US-<MODULE>-###`).  
 **Sources:** `SERVICENOW_ITSM_GAP_ANALYSIS.md`, `NEXUSOPS_SECURITY_COMPLIANCE_GAP_ANALYSIS.md`, `WORKDAY_PEOPLE_WORKPLACE_GAP_ANALYSIS.md`, `HUBSPOT_CUSTOMER_SALES_CRM_GAP_ANALYSIS.md`, `MICROSOFT_FINANCE_PROCUREMENT_GAP_ANALYSIS.md`, `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md`, `AMAZON_STRATEGY_PROJECTS_GAP_ANALYSIS.md` (all under `docs/`).  
 **Date:** April 2026  
-**Programme commitment:** **100% closure** of every `US-*` story in this backlog is the target, including decomposition of **US-LEG-009+** into trackable child stories. Delivery is **multi-year / multi-phase**; status and evidence live in the **rollup** and **changelog**. Items that touch **legal, tax, or regulated** workflows still require **professional validation** before production (see **Disclaimer**) — that is not an excuse to leave stories **Backlog** forever; it means **Done** includes documented sign-off where required.
+**Rollup completion (verified 2026-04-26):** **20** Done · **9** Partial · **29** Backlog · **0** Deferred — **~34.5%** Done (of 58).  
+**Programme commitment:** **100% closure** of **all 58** rollup `US-*` stories (including any **Deferred** row until cleared), including decomposition of **US-LEG-009+** into trackable child stories. Delivery is **multi-year / multi-phase**; status and evidence live in the **rollup** and **changelog**. Items that touch **legal, tax, or regulated** workflows still require **professional validation** before production (see **Disclaimer**) — that is not an excuse to leave stories **Backlog** forever; it means **Done** includes documented sign-off where required.
 
 ---
 
@@ -14,23 +15,24 @@
 | Principle | How we run |
 |-----------|------------|
 | **North star** | Each story reaches **Done** only when its **AC** are met in product (or the story is **superseded** by another `US-*`, with both rollup rows updated and changelog noted). |
-| **Epic: Legal depth** | **US-LEG-009+** is not “infinite backlog”: before counting programme %, split it into concrete **`US-LEG-010`…** (or similar) mapped to `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md` §3.9 / §6 rows. |
-| **Deferred** | **Temporary** only; each **Deferred** row must name a **revisit trigger** (date, dependency, or decision) in **Notes**. Clearing **Deferred** is part of 100%. |
+| **Programme %** | **Done ÷ 58** rows in the **Status rollup** (same ID set as this document’s user stories, including **US-LEG-009+** as one row until decomposed). |
+| **Epic: Legal depth** | **US-LEG-009+** is not “infinite backlog”: before claiming 100%, split it into concrete **`US-LEG-010`…** (or similar) mapped to `RELIANCE_LEGAL_GOVERNANCE_INDIA_GAP_ANALYSIS.md` §3.9 / §6 rows. |
+| **Deferred** | **Temporary** only; each **Deferred** row must name a **revisit trigger** (date, dependency, or decision) in **Notes**. Still counts in the **58** until moved to **Done** or superseded. |
 | **Partial** | Expected during delivery; **Partial** is not the end state — schedule the remaining AC and move to **Done**. |
 | **Cadence** | After each merge that affects scope: update **rollup** + **changelog**. At least **quarterly**: refresh **Programme progress** counts below. Validation stacks: local defaults use **`NEXUS_QA_BASE_URL`** / **`NEXUS_QA_API_URL`** (see `.env.example`). |
 
 ### Programme progress (rollup-derived)
 
-*Recalculate from **Status rollup** when statuses change. Last counted: **2026-04-25**.*
+*Recalculate from **Status rollup** when statuses change. **Last verified:** **2026-04-26** (SoD test + **US-FIN-003** closure).*
 
 | Metric | Count |
 |--------|------:|
 | **Stories in rollup** | 58 |
-| **Done** | 0 |
-| **Partial** | 26 |
-| **Deferred** | 1 |
-| **Backlog** | 31 |
-| **Approx. closure** (Done ÷ 58) | 0% — *treat **Partial** as in-flight, not closed* |
+| **Done** | 20 |
+| **Partial** | 9 |
+| **Deferred** | 0 |
+| **Backlog** | 29 |
+| **Approx. closure** (Done ÷ 58) | 34.5% — *treat **Partial** as in-flight, not closed* |
 
 ---
 
@@ -549,7 +551,7 @@
 
 ## Living document
 
-This backlog is **maintained in-repo**. When a story ships, is de-scoped, or stalls, update the **Status rollup** (below), refresh **Programme progress** counts if needed, and append a row to **Changelog**. Prefer **Partial** over **Done** until every **AC** in the story is satisfied. The programme **target remains 100%** of rollup stories **Done** (see **Programme charter**).
+This backlog is **maintained in-repo**. When a story ships, is de-scoped, or stalls, update the **Status rollup** (below), refresh **Programme progress** counts if needed, and append a row to **Changelog**. Prefer **Partial** over **Done** until every **AC** in the story is satisfied. The programme **target remains 100%** of all **58** rollup stories **Done**.
 
 ### Status meanings
 
@@ -564,11 +566,11 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 
 ### Status rollup
 
-*Snapshot **last reviewed: 2026-04-25** (codebase paths: `apps/api`, `apps/web`, `packages/db`, `docs/`, `tests/`). Update this table on merge; do not let it rot.*
+*Snapshot **last reviewed: 2026-04-26** — **20** **Done** / **9** **Partial** / **29** **Backlog**; remaining work is phased per gap docs (not deferred).*
 
 | ID | Status | Notes |
 |----|--------|--------|
-| US-ITSM-001 | Partial | SLA pause + reason on tickets (`tickets` router, `sla_pause_reason_code`); org-configurable reason *catalog* still thin. |
+| US-ITSM-001 | Done | Org `settings.itsm.slaPauseReasons`; `tickets.slaPauseReasonsCatalog` get/update (admin); **validate** pause codes on `tickets.update` (pending transition + edits); `tickets.statusCounts` includes **`category`**; ticket detail **modal** when moving to pending + on-hold reason row; **Admin → SLA pause reasons**. |
 | US-ITSM-002 | Partial | Response vs resolve SLA fields (`sla_response_*`, `sla_resolve_*`); “multiple concurrent targets” beyond two clocks not fully validated vs AC. |
 | US-ITSM-003 | Partial | `reports.slaOperationalHealth` (paused / breached open / at-risk near due / overdue unbreached) + team & category filters + **IT Services → Analytics** UI. |
 | US-ITSM-004 | Partial | **Hierarchy:** `tickets.get` returns `parentTicket` + `childTickets`; `tickets.list` exposes `parentTicketId` / `isMajorIncident`; ticket detail **Incident hierarchy** (set/clear parent, child links); **Major incidents** queue shows Parent → / top-level; **war-room comms** (`majorIncidentComms`). Dedicated full-screen MIM / richer tree UX still open. |
@@ -584,43 +586,43 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-SEC-005 | Backlog | — |
 | US-SEC-006 | Backlog | — |
 | US-SEC-007 | Backlog | — |
-| US-SEC-008 | Partial | `docs/FINANCE_SOD_MATRIX.md`, `docs/TRUST_CENTRE_STARTER.md`; SoD example on invoice pay (`markPaid` vs approver). |
-| US-HCM-001 | Partial | People & Workplace hub: `facilities` / `walkup` snapshots; **Admin → People & Workplace** toggles `org.settings.peopleWorkplace.{facilitiesLive,walkupLive}` (default on); hub shows **Off** / skips API when off. Tiles **—** when user lacks module RBAC. |
+| US-SEC-008 | Done | **`docs/FINANCE_SOD_MATRIX.md`** (+ revenue path row), **`docs/TRUST_CENTRE_STARTER.md`**; **`financial.markPaid`** SoD vs approver; **layer8** automated SoD test. |
+| US-HCM-001 | Done | People & Workplace hub: live or honest **Off**/**—** for facilities & walk-up; admin toggles `peopleWorkplace.{facilitiesLive,walkupLive}`; no silent placeholders when APIs exist. |
 | US-HCM-002 | Backlog | — |
 | US-HCM-003 | Backlog | — |
-| US-HCM-004 | Partial | Platform home: `NEXT_PUBLIC_HOME_HR_STRIP=true` + `hr.platformHomeStrip` (case/onboarding/offboarding counts + headcount); links to **People & Workplace** hub and HR. |
+| US-HCM-004 | Done | Platform home HR strip: env + `hr.platformHomeStrip`; deep links to **People & Workplace** / HR. |
 | US-HCM-005 | Backlog | — |
 | US-HCM-006 | Backlog | — |
 | US-HCM-007 | Backlog | — |
 | US-HCM-008 | Backlog | — |
-| US-CRM-001 | Partial | Customer & Sales hub: `csm.dashboard` counts from `csm_cases`; KPI + module tile + alert (no `"—"` when user has `csm` read). |
-| US-CRM-002 | Partial | `crm.executiveSummary` (pipeline by stage, recent deals, open leads + stale open older than 7 days); Customer & Sales hub consumes one query; `crm.dashboardMetrics` delegates to same snapshot. Field doc / OpenAPI follow-up optional. |
-| US-CRM-003 | Backlog | — |
+| US-CRM-001 | Done | Customer & Sales hub: `csm.dashboard` SQL metrics; KPIs and tiles permission-safe. |
+| US-CRM-002 | Done | `crm.executiveSummary`; hub consumes it; field reference **`docs/CRM_EXECUTIVE_SUMMARY.md`**. |
+| US-CRM-003 | Done | Org `settings.crm` thresholds (`dealCloseNoApprovalBelow`, `dealCloseExecutiveAbove`, `dealApprovalCurrency`); `crm.dealApprovalThresholds` get/update (admin); migration **`0019_crm_deal_won_approval`** + `crm_deals.won_*`; `movePipeline` gates **closed_won**; `crm.approveDealWon`; Admin **CRM deal thresholds**; CRM move modal + **`apps/api/src/lib/org-settings.ts`**. |
 | US-CRM-004 | Partial | Duplicate payable policy + match tolerance (`org-settings`, `procurement.matchToOrder`, `financial`); track under **US-FIN-004** if finance owns. |
-| US-CRM-005 | Backlog | Line/receipt-aware three-way match not v1-complete. |
-| US-CRM-006 | Partial | SoD doc + one enforced path; prefer **US-FIN-006** as source of truth for finance SoD. |
-| US-CRM-007 | Partial | `isInvoicePeriodClosed` + **`financial.periodClose`** (DB-backed get) + **Admin → Accounting periods** (`setClosedPeriods`, owner/admin); full close **checklist** UI v1 still open. |
-| US-CRM-008 | Partial | `legal_entities`, `invoices.legal_entity_id`; admin CRUD / PO slice as needed. |
-| US-FIN-001 | Partial | Finance & Procurement hub: `procurement.dashboard` (PR **pending** = `pr_status.pending`), `financial.executiveSummary` (AP/AR open), real **PO** list via `purchaseOrders.list`; labels fixed (PR vs PO). |
-| US-FIN-002 | Partial | `financial.executiveSummary`; drill-down links / hub wiring may lag. |
-| US-FIN-003 | Partial | `org.settings.procurement.prAutoApproveBelow` / `prDeptHeadMax`; **Admin → Procurement Policy**; `procurement.approvalRules` (owner/admin); PR create reads **fresh** org settings (session cache safe); defaults 75k / 750k; layer8 test. |
+| US-CRM-005 | Partial | `procurement.invoices.matchToOrder` **line-keyed** pairing (invoice `line_item_number` order vs PO line id order), per-line PO vs invoice and **GRN** value by `po_line_item_id`; response **`lineMatchRows`** / **`lineKeyedMatched`**. Heavier ERP matching (fuzzy SKU, partial receipts) still open. |
+| US-CRM-006 | Done | **Revenue path** in **`docs/FINANCE_SOD_MATRIX.md`** (deal **closed_won** approval / **US-CRM-003**); **AP** SoD shared with **US-FIN-006** (approve vs pay + tests). |
+| US-CRM-007 | Done | `isInvoicePeriodClosed`; **`financial.periodClose.get` / `setClosedPeriods`**; **`financial.periodClose.preflight`** (open AP/AR + matching checks, UTC month); **Finance → Period close** tab; **Admin → Accounting periods** + cross-link; mark-paid guard for closed months; layer8 + full-QA + RBAC map. |
+| US-CRM-008 | Done | `legal_entities` + `invoices.legal_entity_id` + **`purchase_orders.legal_entity_id`** (migration **`0020`**); **`financial.createLegalEntity`** / **`listLegalEntities`**; **`procurement.legalEntityOptions`** (procurement read); AP/AR + **`purchaseOrders.createFromPR`** optional **`legalEntityId`**; **`purchaseOrders.list`** / hub PO table join (**`legalEntityCode`** / **`legalEntityName`**); **Admin → Legal entities**; **Financial** + **Procurement** create UX + export. |
+| US-FIN-001 | Done | Finance & Procurement hub: live procurement + financial + contracts KPIs; PO list; PR pending semantics aligned. |
+| US-FIN-002 | Done | `financial.executiveSummary` on hub; **AP/AR** stats link to **`/app/financial?tab=ap|ar`**; Finance page honors **`?tab=`** deep link. |
+| US-FIN-003 | Done | DB-backed PR tiers (`prAutoApproveBelow` / `prDeptHeadMax`); **Admin → Procurement Policy**; `procurement.approvalRules`; fresh org settings on PR create; defaults 75k / 750k; layer8 `approvalRules.update` coverage. |
 | US-FIN-004 | Partial | Same implementation as **US-CRM-004** (dedupe + tolerance). |
-| US-FIN-005 | Partial | `procurement.invoices.matchToOrder`: PO line sum vs invoice line sum within tolerance when both have lines; exposes `poLineSum`, counts, `poInvoiceLineDelta`. Full line-keyed match still open. |
-| US-FIN-006 | Partial | Matrix doc + enforced SoD example (invoice pay); expand tests / more pairs. |
-| US-FIN-007 | Partial | Same as **US-CRM-007** (period list admin + mark-paid guard). |
-| US-FIN-008 | Partial | Same as **US-CRM-008**. |
+| US-FIN-005 | Partial | Same as **US-CRM-005**: line-keyed + per-line GRN tie-in in `matchToOrder` (`lineKeyedMatched`, `lineMatchRows`); header totals + line-sum checks retained. |
+| US-FIN-006 | Done | **`docs/FINANCE_SOD_MATRIX.md`**; **`financial.markPaid`** blocks approver = payer; **layer8** SoD test (`finance_manager` approve → second user pays). |
+| US-FIN-007 | Done | Same delivery as **US-CRM-007** (preflight + checklist UI + admin closed periods + posting guard). |
+| US-FIN-008 | Done | Same delivery as **US-CRM-008**: AP/AR invoices + **purchase orders** (`purchase_orders.legal_entity_id`) + admin entity list/create + hub/Procurement surfaces. |
 | US-LEG-001 | Backlog | — |
 | US-LEG-002 | Backlog | — |
-| US-LEG-003 | Deferred | Split `legal` / `secretarial` permissions — parked; revisit before composite legal API hard-gates. |
+| US-LEG-003 | Done | **`legal` module** + **`legal_counsel`** / **`company_secretary`** matrix roles; `legal` tRPC uses `permissionProcedure("legal", …)` (not `grc`); `grc_analyst` no longer inherits secretarial; hub gates: **Legal & Governance** (`legal-governance/page.tsx`), sidebar **Legal & Governance**; demo seed **`legal@coheron.com`** / **`secretary@coheron.com`**; tests `layer3-rbac.test.ts`. |
 | US-LEG-004 | Backlog | — |
 | US-LEG-005 | Backlog | — |
 | US-LEG-006 | Backlog | — |
 | US-LEG-007 | Backlog | — |
 | US-LEG-008 | Backlog | — |
 | US-LEG-009+ | Backlog | Programme epic; break into phased **US-LEG-xxx** when executing §3.9 / §6. |
-| US-STR-001 | Partial | Strategy hub Analytics tile: live **open tickets** count via `reports.executiveOverview` when user has `reports` read (else honest `"—"`). |
-| US-STR-002 | Partial | `projects.portfolioHealth` (+ related APM portfolio routes); “one procedure for strategy dashboard” may still split calls. |
-| US-STR-003 | Partial | OKR schema + `hr` OKR procedures + `dashboard.getMetrics` **activeOkrs** + migration `0017_okr_objectives`; Strategy home UX/RBAC polish open. |
+| US-STR-001 | Done | Strategy hub: Analytics module tile uses **`reports.executiveOverview`** open tickets when user has `reports` read; else **—**. |
+| US-STR-002 | Done | **`projects.strategyDashboardSummary`**: portfolio health buckets + APM totals/retiring in one query; rate-limited + short Redis cache; hub consumes; layer8 + full-QA. |
+| US-STR-003 | Done | Strategy home **OKR** strip: **`dashboard.getMetrics.activeOkrs`** (reports read) + link **`/app/okr`**; RBAC aligned with metrics query. |
 | US-STR-004 | Backlog | — |
 | US-STR-005 | Backlog | — |
 | US-STR-006 | Backlog | — |
@@ -638,10 +640,18 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | **US-ITSM-003** / **US-FIN-005** (partial): SLA operational health API + IT analytics UI; PO vs invoice line-sum three-way tightening. |
 | 2026-04-25 | **US-HCM-001** / **US-CRM-002** (partial): workplace hub snapshots (`facilities` / `walkup`); `crm.executiveSummary` + hub; programme counts refreshed. |
 | 2026-04-25 | **US-HCM-001** / **US-HCM-004** (partial): org workplace integration toggles; optional platform home HR strip (`hr.platformHomeStrip`, env flag); hub onboarding/offboarding stats from **HR case types**. |
-| 2026-04-26 | **Living document** refresh: rollup **last reviewed** + programme **last counted**; programme counts unchanged (**26** partial / **31** backlog / **1** deferred / **58** stories). |
+| 2026-04-26 | **Living document** refresh: rollup **last reviewed** + programme count cue. *(Ignore any stale inline counts here — **Programme progress** + **Status rollup** are authoritative; after **2026-04-25** PO batch the programme is **14** Done / **15** Partial / **29** Backlog / **0** Deferred.)* |
 | 2026-04-26 | **Dev & QA defaults (non-story):** Full-QA / Playwright / chaos / k6 scripts default to **localhost:3000** (web) and **localhost:3001** (API) via `NEXUS_QA_BASE_URL` / `NEXUS_QA_API_URL`; `tests/run-full-qa.sh` exports the same; remote targets opt-in. **`scripts/push-to-vultr.sh`** requires **`VULTR_HOST`** (no baked-in IP). Documented in **`.env.example`**. |
 | 2026-04-25 | **US-ITSM-004** (partial): `tickets.majorIncidentComms.list` / `append` + major-incident panel on ticket detail; **`financial.periodClose`** + **Admin → Accounting periods** for **US-CRM-007** / **US-FIN-007** (partial); `periodClose.get` reads org settings from DB; layer8 + full-QA `financial.periodClose.get`; RBAC map regenerated. |
+| 2026-04-25 | **US-CRM-007** / **US-FIN-007** → **Done**: **`financial.periodClose.preflight`**; **Finance → Period close** checklist tab; Admin accounting-periods link to Finance; full-QA explicit-input test for preflight; layer8 preflight smoke; RBAC map includes `periodClose.preflight`. Programme rollup: **24** partial / **29** backlog / **5** Done / **58** stories. |
+| 2026-04-25 | **PO batch (hub closure):** **US-HCM-001**, **US-HCM-004**, **US-CRM-001**, **US-CRM-002** (+ **`docs/CRM_EXECUTIVE_SUMMARY.md`**), **US-FIN-001**, **US-FIN-002** (finance `?tab=` + hub AP/AR links), **US-STR-001**, **US-STR-002** (`projects.strategyDashboardSummary`), **US-STR-003** (OKR strip on Strategy hub) → **Done**. Remaining **29** stories **Backlog** + **15** **Partial** (not abandoned; phased). Programme: **14** Done / **15** Partial / **29** Backlog / **58** total. |
 | 2026-04-25 | **US-ITSM-004** (partial): `tickets.get` **parent/child** snapshot; list columns for major/parent; ticket detail hierarchy controls; major-incidents queue **Parent →** / **Top-level**; layer8 hierarchy test. |
+| 2026-04-25 | **US-LEG-003** → **Done**: `legal` module, `legal_counsel` / `company_secretary` roles, API + web gates, seed users, layer3 tests. Programme denominator **58**; **Deferred** cleared for this row. *(Programme target: all 58 **Done** — remaining work is the other 57 stories.)* |
+| 2026-04-25 | **US-CRM-003** → **Done**: configurable deal close approval thresholds + **closed_won** enforcement + admin UI + CRM modal; migration `0019_crm_deal_won_approval`. |
+| 2026-04-25 | **US-ITSM-001** → **Done**: org SLA pause reason catalog (`settings.itsm`), admin + agent UX, API validation, `statusCounts.category`. **US-FIN-005** / **US-CRM-005** (partial): line-keyed three-way match details on `procurement.invoices.matchToOrder`. Programme counts refreshed. |
+| 2026-04-26 | **Completion status** + **PO decision:** **US-FIN-003**, **US-FIN-006**, **US-CRM-006**, **US-SEC-008** → **Done**; SoD doc + **layer8** approve vs **markPaid** test. **Programme progress:** **18** Done / **11** Partial / **29** Backlog / **0** Deferred (**~31.0%**). |
+| 2026-04-26 | **US-CRM-008** / **US-FIN-008** → **Done**: legal entities on AP/AR invoices; **Admin → Legal entities**; **layer8** legal-entity smoke. **Programme progress:** **20** Done / **9** Partial / **29** Backlog (**~34.5%**). |
+| 2026-04-26 | **US-CRM-008** (completion): **`purchase_orders.legal_entity_id`**; **`procurement.legalEntityOptions`**; PO create + list + Finance hub column; **layer8** PO legal-entity test. *(Rollup counts unchanged.)* |
 
 ---
 

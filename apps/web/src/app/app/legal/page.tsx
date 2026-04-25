@@ -13,12 +13,12 @@ import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const LEGAL_TABS = [
-  { key: "dashboard",      label: "Dashboard",      module: "contracts" as const, action: "read"  as const },
-  { key: "matters",        label: "Matters",        module: "contracts" as const, action: "read"  as const },
-  { key: "requests",       label: "Legal Requests", module: "contracts" as const, action: "write" as const },
-  { key: "investigations", label: "Investigations", module: "grc"       as const, action: "read"  as const },
-  { key: "contracts",      label: "Contract Review",module: "contracts" as const, action: "read"  as const },
-  { key: "knowledge",      label: "Legal Knowledge",module: "knowledge" as const, action: "read"  as const },
+  { key: "dashboard",      label: "Dashboard",      module: "legal" as const, action: "read"  as const },
+  { key: "matters",        label: "Matters",        module: "legal" as const, action: "read"  as const },
+  { key: "requests",       label: "Legal Requests", module: "legal" as const, action: "write" as const },
+  { key: "investigations", label: "Investigations", module: "legal" as const, action: "read"  as const },
+  { key: "contracts",      label: "Contract Review", module: "contracts" as const, action: "read"  as const },
+  { key: "knowledge",      label: "Legal Knowledge", module: "knowledge" as const, action: "read"  as const },
 ];
 
 type MatterType = "litigation" | "employment" | "ip" | "regulatory" | "ma" | "data_privacy" | "corporate" | "commercial";
@@ -187,7 +187,7 @@ export default function LegalPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to create request"),
   });
 
-  if (!can("contracts", "read") && !can("grc", "read")) return <AccessDenied module="Legal Service Delivery" />;
+  if (visibleTabs.length === 0) return <AccessDenied module="Legal Service Delivery" />;
 
   const matters = (mattersData ?? []) as any[];
   const legalRequests = (legalRequestsData ?? []) as any[];
@@ -217,7 +217,7 @@ export default function LegalPage() {
           >
             <Download className="w-3 h-3" /> Export
           </button>
-          <PermissionGate module="grc" action="write">
+          <PermissionGate module="legal" action="write">
             <button
               onClick={() => setShowNewMatter(true)}
               className="flex items-center gap-1 px-3 py-1 bg-purple-700 text-white text-[11px] rounded hover:bg-purple-800"
@@ -225,7 +225,7 @@ export default function LegalPage() {
               <Plus className="w-3 h-3" /> New Matter
             </button>
           </PermissionGate>
-          <PermissionGate module="grc" action="write">
+          <PermissionGate module="legal" action="write">
             <button
               onClick={() => setShowNewRequest(true)}
               className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
@@ -588,7 +588,7 @@ export default function LegalPage() {
                         onClick={() => router.push(`/app/knowledge/${kb.id}`)}
                         className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
                       ><Eye className="w-3 h-3" />Read</button>
-                      <PermissionGate module="grc" action="write">
+                      <PermissionGate module="knowledge" action="write">
                         <button
                           onClick={() => router.push(`/app/knowledge/${kb.id}?edit=1`)}
                           className="text-[11px] text-muted-foreground/70 hover:underline"

@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, type ElementType } from "react";
 import {
   Receipt, Plus, Search, Download, RefreshCw, CheckCircle2, XCircle, Clock,
   Loader2, FileText, DollarSign,
@@ -13,7 +13,7 @@ import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
 import { EmptyState, Pagination, TableSkeleton, ConfirmDialog } from "@nexusops/ui";
 
-const STATUS_CFG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+const STATUS_CFG: Record<string, { label: string; color: string; icon: ElementType }> = {
   draft:        { label: "Draft",          color: "text-muted-foreground bg-muted",     icon: FileText },
   submitted:    { label: "Submitted",      color: "text-blue-700 bg-blue-100",           icon: Clock },
   under_review: { label: "Under Review",   color: "text-yellow-700 bg-yellow-100",       icon: Clock },
@@ -130,7 +130,11 @@ export default function ExpensesPage() {
               <tbody className="divide-y divide-border">
                 {pageItems.map(row => {
                   const c = row.claim ?? row;
-                  const cfg = STATUS_CFG[c.status] ?? STATUS_CFG.draft;
+                  const cfg = (STATUS_CFG[c.status] ?? STATUS_CFG.draft) as {
+                    label: string;
+                    color: string;
+                    icon: ElementType;
+                  };
                   return (
                     <tr key={c.id} className="bg-card hover:bg-muted/20 transition-colors">
                       <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">{c.number}</td>
@@ -174,7 +178,7 @@ export default function ExpensesPage() {
             </div>
             <div className="flex items-center justify-end gap-2 mt-4">
               <button onClick={() => setShowNew(false)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/50">Cancel</button>
-              <button disabled={!form.title || !form.amount || !form.employeeId || createMut.isPending} onClick={() => createMut.mutate({ ...form, amount: parseFloat(form.amount), expenseDate: new Date(form.expenseDate) })} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[12px] rounded hover:bg-primary/90 disabled:opacity-50">
+              <button disabled={!form.title || !form.amount || !form.employeeId || createMut.isPending} onClick={() => createMut.mutate({ ...form, amount: parseFloat(form.amount), expenseDate: new Date(form.expenseDate) } as never)} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[12px] rounded hover:bg-primary/90 disabled:opacity-50">
                 {createMut.isPending && <Loader2 className="w-3 h-3 animate-spin" />} Create Claim
               </button>
             </div>

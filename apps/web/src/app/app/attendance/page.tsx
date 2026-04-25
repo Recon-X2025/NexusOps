@@ -116,7 +116,9 @@ export default function AttendancePage() {
                 {pageItems.map((row: any) => {
                   const rec = row.record;
                   const emp = row.employee;
-                  const cfg = STATUS_CFG[rec?.status] ?? STATUS_CFG.present;
+                  const cfg =
+                    STATUS_CFG[String(rec?.status ?? "present")] ??
+                    ({ label: "Present", color: "text-green-700 bg-green-100" } as const);
                   return (
                     <tr key={rec?.id} className="bg-card hover:bg-muted/20 transition-colors">
                       <td className="px-3 py-2.5 font-medium text-foreground">{emp?.firstName} {emp?.lastName}</td>

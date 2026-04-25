@@ -186,6 +186,21 @@ describe("getVisibleModules", () => {
       expect(modulesBoth.has(m)).toBe(true);
     }
   });
+
+  it("grc_analyst visible modules omit legal and secretarial (US-LEG-003)", () => {
+    const m = getVisibleModules(["grc_analyst"]);
+    expect(m.has("legal")).toBe(false);
+    expect(m.has("secretarial")).toBe(false);
+  });
+
+  it("legal_counsel and company_secretary see orthogonal modules", () => {
+    const lc = getVisibleModules(["legal_counsel"]);
+    const cs = getVisibleModules(["company_secretary"]);
+    expect(lc.has("legal")).toBe(true);
+    expect(lc.has("secretarial")).toBe(false);
+    expect(cs.has("secretarial")).toBe(true);
+    expect(cs.has("legal")).toBe(false);
+  });
 });
 
 // ── ROLE_PERMISSIONS matrix integrity ─────────────────────────────────────

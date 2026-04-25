@@ -208,8 +208,18 @@ const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-
 
 const PIPELINE_STAGES: DealStage[] = ["prospect","qualification","proposal","negotiation","verbal_commit"];
 
+function dealCloseTierClient(
+  value: number,
+  low: number,
+  execAbove: number,
+): "none" | "manager" | "executive" {
+  if (value < low) return "none";
+  if (value >= execAbove) return "executive";
+  return "manager";
+}
+
 export default function CRMPage() {
-  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const { can, mergeTrpcQueryOpts, isAdmin } = useRBAC();
   const visibleTabs = CRM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
@@ -274,6 +284,19 @@ export default function CRMPage() {
   const movePipeline = trpc.crm.movePipeline.useMutation({
     onSuccess: () => { toast.success("Deal stage updated"); refetchDeals(); setMovingDeal(null); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const dealThresholdsQ = trpc.crm.dealApprovalThresholds.get.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("crm.dealApprovalThresholds.get", { refetchOnWindowFocus: false }),
+  );
+
+  const approveDealWon = trpc.crm.approveDealWon.useMutation({
+    onSuccess: () => {
+      toast.success("Deal close approval recorded");
+      refetchDeals();
+    },
+    onError: (e: { message?: string }) => toast.error(e.message ?? "Approval failed"),
   });
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -441,13 +464,56 @@ export default function CRMPage() {
       )}
 
       {/* Move Stage popover */}
-      {movingDeal && (
+      {movingDeal && (() => {
+        const moving = DEALS_LIVE.find((x: any) => x.id === movingDeal);
+        const mv = Number(moving?.value ?? 0);
+        const low = dealThresholdsQ.data?.dealCloseNoApprovalBelow ?? 500_000;
+        const execAbove = dealThresholdsQ.data?.dealCloseExecutiveAbove ?? 5_000_000;
+        const needTier = dealCloseTierClient(mv, low, execAbove);
+        const pendingApproval = needTier !== "none" && !moving?.wonApprovedAt;
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-xs p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold">Move to Stage</h3>
               <button onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
+            {pendingApproval && (
+              <div className="mb-3 rounded border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 px-2 py-2 text-[10px] text-amber-900 dark:text-amber-100">
+                <div className="font-semibold">Closed-won approval</div>
+                <div className="mt-0.5 opacity-90">
+                  This deal value ({dealThresholdsQ.data?.dealApprovalCurrency ?? "INR"} {mv.toLocaleString()}) requires{" "}
+                  <strong>{needTier === "executive" ? "executive" : "manager"}</strong> approval before <strong>Closed Won</strong>.
+                </div>
+                {isAdmin() && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    {needTier === "manager" && (
+                      <button
+                        type="button"
+                        disabled={approveDealWon.isPending}
+                        onClick={() => approveDealWon.mutate({ id: movingDeal, tier: "manager" })}
+                        className="text-[10px] px-2 py-1 rounded bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-50"
+                      >
+                        Record manager approval
+                      </button>
+                    )}
+                    {needTier === "executive" && (
+                      <button
+                        type="button"
+                        disabled={approveDealWon.isPending}
+                        onClick={() => approveDealWon.mutate({ id: movingDeal, tier: "executive" })}
+                        className="text-[10px] px-2 py-1 rounded bg-amber-800 text-white hover:bg-amber-900 disabled:opacity-50"
+                      >
+                        Record executive approval
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!isAdmin() && (
+                  <div className="mt-1 text-[10px] opacity-80">Ask an organization owner/admin to record approval (Admin → CRM deal thresholds).</div>
+                )}
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               {(["prospect","qualification","proposal","negotiation","verbal_commit","closed_won","closed_lost"] as const).map(s => (
                 <button
@@ -462,7 +528,8 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -578,11 +645,11 @@ export default function CRMPage() {
               </div>
               <div className="divide-y divide-border">
                 {ACTIVITIES_LIVE.filter((a: any) => !a.completed).slice(0, 4).map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity" };
+                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity", icon: "" };
                   return (
                     <div key={a.id} className="flex items-center justify-between px-3 py-2 hover:bg-muted/30">
                       <div className="flex items-start gap-2">
-                        <span className={`status-badge flex-shrink-0 ${cfg.color}`}>{cfg.icon} {a.type}</span>
+                        <span className={`status-badge flex-shrink-0 ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type}</span>
                         <div>
                           <p className="text-[12px] text-foreground font-medium truncate max-w-56">{a.subject}</p>
                           <p className="text-[11px] text-muted-foreground/70">{a.account} · {a.owner}</p>
@@ -882,11 +949,11 @@ export default function CRMPage() {
               </thead>
               <tbody>
                 {ACTIVITIES_LIVE.map((a: any) => {
-                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity" };
+                  const cfg = ACTIVITY_TYPE_CFG[a.type as ActivityType] ?? { color: "bg-muted", label: a.type ?? "Activity", icon: "" };
                   return (
                     <tr key={a.id} className={a.completed ? "opacity-60" : ""}>
                       <td className="p-0"><div className={`priority-bar ${a.completed ? "bg-green-500" : "bg-blue-400"}`} /></td>
-                      <td><span className={`status-badge capitalize ${cfg.color}`}>{cfg.icon} {a.type.replace("_"," ")}</span></td>
+                      <td><span className={`status-badge capitalize ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type.replace("_"," ")}</span></td>
                       <td className="font-medium text-foreground">{a.subject}</td>
                       <td className="text-primary hover:underline cursor-pointer">{a.account}</td>
                       <td className="text-muted-foreground">{a.contact}</td>

@@ -37,8 +37,7 @@ async function seed() {
   let seedOrg = org;
   if (!seedOrg) {
     // Org exists — fetch it and only update passwords
-    const { eq: eqOp } = await import("drizzle-orm");
-    const [existing] = await db.select().from(organizations).where(eqOp(organizations.slug, DEMO_ORG_SLUG));
+    const [existing] = await db.select().from(organizations).where(eq(organizations.slug, DEMO_ORG_SLUG));
     seedOrg = existing!;
     console.log(`ℹ️  Org already exists: ${seedOrg.name} (${seedOrg.id})`);
   } else {
@@ -55,6 +54,8 @@ async function seed() {
     { email: "agent2@coheron.com", name: "Sam Rivera", role: "member" as const },
     { email: "hr@coheron.com", name: "Morgan Lee", role: "member" as const },
     { email: "finance@coheron.com", name: "Taylor Kim", role: "member" as const },
+    { email: "legal@coheron.com", name: "Riley Patel", role: "member" as const },
+    { email: "secretary@coheron.com", name: "Priya Nair", role: "member" as const },
     { email: "employee@coheron.com", name: "Casey Brown", role: "member" as const },
     { email: "viewer@coheron.com", name: "Robin White", role: "viewer" as const },
   ];
@@ -67,6 +68,8 @@ async function seed() {
     // Resulting effective roles: ["requester", "<matrix_role>"]
     "hr@coheron.com":       "hr_manager",
     "finance@coheron.com":  "finance_manager",
+    "legal@coheron.com":    "legal_counsel",
+    "secretary@coheron.com": "company_secretary",
     // employee@coheron.com → no matrix_role → stays as plain ["requester"]
     // viewer@coheron.com   → DB role "viewer" → ["requester", "report_viewer"]
   };
@@ -82,16 +85,11 @@ async function seed() {
   ).onConflictDoNothing();
 
   // Also update password hashes for existing users (idempotent re-seed)
-  const { eq: eqOp2 } = await import("drizzle-orm");
   for (const u of userSeed) {
-    await db.update(users).set({ passwordHash, status: "active" }).where(
-      eqOp2(users.email, u.email)
-    );
+    await db.update(users).set({ passwordHash, status: "active" }).where(eq(users.email, u.email));
   }
 
-  const allUsers = await db.select().from(users).where(
-    (await import("drizzle-orm")).eq(users.orgId, orgId)
-  );
+  const allUsers = await db.select().from(users).where(eq(users.orgId, orgId));
   const createdUsers = allUsers;
 
   const admin = allUsers.find((u) => u.email === "admin@coheron.com") ?? allUsers[0]!;
@@ -121,7 +119,7 @@ async function seed() {
     { name: "Viewer", description: "Read-only", isSystem: true },
   ];
   await db.insert(roles).values(defaultRoles.map((r) => ({ ...r, orgId }))).onConflictDoNothing();
-  const allRoles = await db.select().from(roles).where((await import("drizzle-orm")).eq(roles.orgId, orgId));
+  const allRoles = await db.select().from(roles).where(eq(roles.orgId, orgId));
   const adminRole = allRoles.find((r) => r.name === "Admin")!;
   const agentRole = allRoles.find((r) => r.name === "Agent")!;
 
@@ -345,11 +343,11 @@ async function seed() {
 
   // ── Knowledge Base ─────────────────────────────────────────────────────────
   await db.insert(kbArticles).values([
-    { orgId: orgId, title: "How to reset your VPN password", content: "## VPN Password Reset\n\nFollow these steps...", category: "IT Support", status: "published", authorId: agent1.id, viewCount: 342, helpfulCount: 98 },
-    { orgId: orgId, title: "Requesting new software access", content: "## Software Access Request\n\nUse the Service Catalog to...", category: "IT Support", status: "published", authorId: agent2.id, viewCount: 289, helpfulCount: 74 },
-    { orgId: orgId, title: "Expense reporting guidelines", content: "## Expense Policy\n\nAll expenses must be submitted within...", category: "Finance", status: "published", authorId: admin.id, viewCount: 156, helpfulCount: 62 },
-    { orgId: orgId, title: "How to book a meeting room", content: "## Room Booking\n\nUse the Facilities portal to...", category: "Facilities", status: "published", authorId: agent1.id, viewCount: 201, helpfulCount: 55 },
-    { orgId: orgId, title: "IT Security best practices", content: "## Security Guidelines\n\nAlways use strong passwords...", category: "Security", status: "published", authorId: admin.id, viewCount: 412, helpfulCount: 188 },
+    { orgId: orgId, title: "How to reset your VPN password", content: "## VPN Password Reset\n\nFollow these steps...", categoryId: null, status: "published", authorId: agent1.id, viewCount: 342, helpfulCount: 98 },
+    { orgId: orgId, title: "Requesting new software access", content: "## Software Access Request\n\nUse the Service Catalog to...", categoryId: null, status: "published", authorId: agent2.id, viewCount: 289, helpfulCount: 74 },
+    { orgId: orgId, title: "Expense reporting guidelines", content: "## Expense Policy\n\nAll expenses must be submitted within...", categoryId: null, status: "published", authorId: admin.id, viewCount: 156, helpfulCount: 62 },
+    { orgId: orgId, title: "How to book a meeting room", content: "## Room Booking\n\nUse the Facilities portal to...", categoryId: null, status: "published", authorId: agent1.id, viewCount: 201, helpfulCount: 55 },
+    { orgId: orgId, title: "IT Security best practices", content: "## Security Guidelines\n\nAlways use strong passwords...", categoryId: null, status: "published", authorId: admin.id, viewCount: 412, helpfulCount: 188 },
   ]);
   console.log(`✅ KB articles: 5`);
 

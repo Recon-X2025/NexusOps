@@ -225,6 +225,7 @@ function WebhookRow({
   onReroll: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { mergeTrpcQueryOpts } = useRBAC();
 
   const { data: deliveries, isLoading: loadingDeliveries } = trpc.integrations.listDeliveries.useQuery({ webhookId: hook.id, limit: 20 }, mergeTrpcQueryOpts("integrations.listDeliveries", { enabled: expanded },));
 

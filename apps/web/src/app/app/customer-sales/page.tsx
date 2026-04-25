@@ -9,6 +9,8 @@ import { useRBAC } from "@/lib/rbac-context";
 import { AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 
+type CrmPipelineStageRow = { stage: string; count: number; value: unknown };
+
 function KPICard({ label, value, color, href, icon: Icon, isLoading }: {
   label: string; value: string | number; color: string; href?: string; icon: React.ElementType; isLoading?: boolean;
 }) {
@@ -83,17 +85,17 @@ export default function CustomerSalesDashboard() {
     : 0;
   const activeSurveys = surveys ? surveys.filter((s: any) => s.status === "active" || s.status === "published").length : 0;
 
-  const pipelineRows = (crmExec?.pipelineByStage ?? [])
-    .filter((r) => r.stage !== "closed_lost")
-    .map((r) => ({
-      stage: r.stage.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+  const pipelineRows = (crmExec?.pipelineByStage ?? [] as CrmPipelineStageRow[])
+    .filter((r: CrmPipelineStageRow) => r.stage !== "closed_lost")
+    .map((r: CrmPipelineStageRow) => ({
+      stage: r.stage.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
       count: r.count,
       value: parseFloat(String(r.value ?? "0")),
       color: PIPELINE_STAGE_COLORS[r.stage] ?? "bg-slate-400",
     }))
-    .sort((a, b) => a.stage.localeCompare(b.stage));
+    .sort((a: { stage: string }, b: { stage: string }) => a.stage.localeCompare(b.stage));
 
-  const totalPipelineValue = pipelineRows.reduce((a, b) => a + b.value, 0);
+  const totalPipelineValue = pipelineRows.reduce((a: number, b: { value: number }) => a + b.value, 0);
 
   const alerts = [
     (csmDash?.openCases ?? 0) > 0
@@ -249,7 +251,7 @@ export default function CustomerSalesDashboard() {
             <div className="divide-y divide-border">
               {pipelineRows.length === 0 ? (
                 <div className="text-center text-muted-foreground py-4 text-[12px]">No pipeline data</div>
-              ) : pipelineRows.map((p) => (
+              ) : pipelineRows.map((p: { stage: string; color: string; count: number; value: number }) => (
                 <div key={p.stage} className="flex items-center justify-between px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 ${p.color}`} />

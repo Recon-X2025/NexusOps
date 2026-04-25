@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   Briefcase, Download, Plus, AlertTriangle, CheckCircle2, Clock,
   FileText, Users, Building2, Scale, Calendar, BookOpen, Shield,
-  RefreshCw, X, ChevronDown,
+  RefreshCw, X, ChevronDown, Award,
 } from "lucide-react";
 import { downloadCSV } from "@/lib/utils";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
@@ -81,7 +81,7 @@ function OverviewTab() {
             <AlertTriangle className="w-4 h-4" /> Upcoming Compliance Deadlines (Next 30 Days)
           </h3>
           <div className="space-y-2">
-            {upcomingFilings.map(f => (
+            {upcomingFilings.map((f: { id: string; title: string; formNumber: string; authority: string; dueDate: string | Date; status: string }) => (
               <div key={f.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <div>
                   <p className="text-sm font-medium">{f.title}</p>
@@ -183,7 +183,7 @@ function BoardTab() {
           </thead>
           <tbody>
             {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
-            {meetings.map(m => (
+            {meetings.map((m: { id: string; number: string; title: string; type?: string; scheduledAt: string | Date; duration: number; status?: string; quorumMet?: boolean | null }) => (
               <tr key={m.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
                 <td className="px-4 py-3 font-medium">{m.title}</td>
@@ -216,7 +216,7 @@ function BoardTab() {
           </thead>
           <tbody>
             {directors.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No directors found</td></tr>}
-            {directors.map(d => (
+            {directors.map((d: { id: string; name: string; din: string; designation: string; category?: string; pan?: string | null; appointedAt?: string | Date | null; kyc?: string | null }) => (
               <tr key={d.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-medium">{d.name}</td>
                 <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
@@ -255,7 +255,7 @@ function BoardTab() {
           </thead>
           <tbody>
             {resolutions.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
-            {resolutions.map(r => (
+            {resolutions.map((r: { id: string; number: string; title: string; type: string; status?: string; passedAt?: string | Date | null; votesFor?: number; votesAgainst?: number; abstentions?: number }) => (
               <tr key={r.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
                 <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
@@ -337,7 +337,7 @@ function FilingsTab() {
     onError: e => toast.error(e.message),
   });
 
-  const filtered = statusFilter ? filings.filter(f => f.status === statusFilter) : filings;
+  const filtered = statusFilter ? filings.filter((f: { status: string }) => f.status === statusFilter) : filings;
 
   return (
     <div className="space-y-4">
@@ -362,7 +362,7 @@ function FilingsTab() {
           </thead>
           <tbody>
             {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No filings found</td></tr>}
-            {filtered.map(f => (
+            {filtered.map((f: { id: string; formNumber: string; title: string; authority: string; category?: string; fy?: string | null; dueDate?: string | Date | null; status?: string; srn?: string | null }) => (
               <tr key={f.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
                 <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
@@ -430,7 +430,7 @@ function ShareCapitalTab() {
     <div className="space-y-6">
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {summary.map(s => (
+        {summary.map((s: { shareClass?: string; totalQty?: unknown; holders: number }) => (
           <div key={s.shareClass} className="bg-card border border-border rounded-xl p-4 text-center">
             <p className="text-xs text-muted-foreground capitalize mb-1">{s.shareClass?.replace("_"," ")} Shares</p>
             <p className="text-2xl font-bold">{Number(s.totalQty ?? 0).toLocaleString()}</p>
@@ -457,7 +457,7 @@ function ShareCapitalTab() {
           </thead>
           <tbody>
             {shares.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
-            {shares.map(s => (
+            {shares.map((s: { id: string; folio: string; holderName: string; holderType: string; shareClass?: string; nominalValue: number; quantity?: number; paidUpValue?: number | null; pan?: string | null }) => (
               <tr key={s.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
                 <td className="px-4 py-3 font-medium">{s.holderName}</td>
@@ -516,7 +516,7 @@ function EsopTab() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {summary.map(s => (
+        {summary.map((s: { event: string; totalOptions?: unknown; count: number }) => (
           <div key={s.event} className="bg-card border border-border rounded-xl p-4 text-center">
             <p className="text-xs text-muted-foreground capitalize mb-1">{s.event}ed Options</p>
             <p className="text-2xl font-bold">{Number(s.totalOptions ?? 0).toLocaleString()}</p>
@@ -543,7 +543,7 @@ function EsopTab() {
           </thead>
           <tbody>
             {grants.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
-            {grants.map(g => (
+            {grants.map((g: { id: string; grantNumber: string; employeeName: string; options: number; exercisePrice: number; grantDate: string | Date; vestingStart?: string | Date | null; vestingEnd?: string | Date | null; event: string }) => (
               <tr key={g.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
                 <td className="px-4 py-3 font-medium">{g.employeeName}</td>
@@ -590,21 +590,24 @@ function EsopTab() {
 function CalendarTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
   const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
-  const upcoming = filings.filter(f => ["upcoming","in_progress","overdue"].includes(f.status)).sort((a: any, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  type FilingRow = { status: string; dueDate: string | Date; id: string; title: string; formNumber: string; authority: string; fy?: string | null };
+  const upcoming = filings
+    .filter((f: FilingRow) => ["upcoming", "in_progress", "overdue"].includes(f.status))
+    .sort((a: FilingRow, b: FilingRow) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-red-700">{filings.filter(f => f.status === "overdue").length}</p>
+          <p className="text-2xl font-bold text-red-700">{filings.filter((f: { status: string }) => f.status === "overdue").length}</p>
           <p className="text-xs text-red-600">Overdue</p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-amber-700">{filings.filter(f => f.status === "upcoming").length}</p>
+          <p className="text-2xl font-bold text-amber-700">{filings.filter((f: { status: string }) => f.status === "upcoming").length}</p>
           <p className="text-xs text-amber-600">Upcoming</p>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-green-700">{filings.filter(f => f.status === "filed").length}</p>
+          <p className="text-2xl font-bold text-green-700">{filings.filter((f: { status: string }) => f.status === "filed").length}</p>
           <p className="text-xs text-green-600">Filed</p>
         </div>
       </div>
@@ -614,7 +617,7 @@ function CalendarTab() {
         </div>
         <div className="divide-y divide-border">
           {upcoming.length === 0 && <p className="px-4 py-10 text-center text-muted-foreground">No upcoming compliance events</p>}
-          {upcoming.map(f => {
+          {upcoming.map((f: FilingRow) => {
             const daysLeft = Math.ceil((new Date(f.dueDate).getTime() - Date.now()) / 86400000);
             return (
               <div key={f.id} className="flex items-center justify-between p-4 hover:bg-muted/30">
@@ -639,10 +642,6 @@ function CalendarTab() {
     </div>
   );
 }
-
-// ── Award Icon used above ─────────────────────────────────────────────────────
-
-import { Award } from "lucide-react";
 
 // ── Main Content Component ─────────────────────────────────────────────────────
 

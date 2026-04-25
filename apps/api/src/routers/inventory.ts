@@ -29,7 +29,7 @@ export const inventoryRouter = router({
         .orderBy(inventoryItems.name)
         .limit(input?.limit ?? 100);
 
-      const filtered = rows.filter((r) => {
+      const filtered = rows.filter((r: (typeof rows)[number]) => {
         if (input?.category && r.category !== input.category) return false;
         if (input?.lowStock && r.qty > r.minQty) return false;
         if (input?.search) {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
+import type { InferSelectModel } from "drizzle-orm";
 import {
   assignmentRules,
   teams,
@@ -10,7 +11,10 @@ import {
   and,
   asc,
   inArray,
+  count,
 } from "@nexusops/db";
+
+type AssignmentRuleRow = InferSelectModel<typeof assignmentRules>;
 
 const ENTITY_TYPES = ["ticket", "work_order", "hr_case"] as const;
 const ALGORITHMS = ["load_based", "round_robin"] as const;
@@ -39,15 +43,17 @@ export const assignmentRulesRouter = router({
       if (rules.length === 0) return [];
 
       // Enrich with team name
-      const teamIds = [...new Set(rules.map((r) => r.teamId))];
+      const teamIds: string[] = Array.from(
+        new Set(rules.map((r: AssignmentRuleRow) => String(r.teamId))),
+      );
       const teamRows = await db
         .select({ id: teams.id, name: teams.name })
         .from(teams)
         .where(inArray(teams.id, teamIds));
 
-      const teamMap = new Map(teamRows.map((t) => [t.id, t.name]));
+      const teamMap = new Map(teamRows.map((t: (typeof teamRows)[number]) => [t.id, t.name]));
 
-      return rules.map((r) => ({
+      return rules.map((r: AssignmentRuleRow) => ({
         ...r,
         teamName: teamMap.get(r.teamId) ?? r.teamId,
       }));
@@ -172,18 +178,15 @@ export const assignmentRulesRouter = router({
     const memberCounts = await db
       .select({
         teamId: teamMembers.teamId,
-        cnt: eq(teamMembers.teamId, teamMembers.teamId), // placeholder — use raw count below
+        cnt: count(),
       })
       .from(teamMembers)
-      .where(inArray(teamMembers.teamId, teamRows.map((t) => t.id)));
+      .where(inArray(teamMembers.teamId, teamRows.map((t: (typeof teamRows)[number]) => t.id)))
+      .groupBy(teamMembers.teamId);
 
-    // Count per team
-    const countMap = new Map<string, number>();
-    for (const m of memberCounts) {
-      countMap.set(m.teamId, (countMap.get(m.teamId) ?? 0) + 1);
-    }
+    const countMap = new Map(memberCounts.map((m: (typeof memberCounts)[number]) => [m.teamId, Number(m.cnt)]));
 
-    return teamRows.map((t) => ({
+    return teamRows.map((t: (typeof teamRows)[number]) => ({
       ...t,
       memberCount: countMap.get(t.id) ?? 0,
     }));

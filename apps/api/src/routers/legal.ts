@@ -7,7 +7,7 @@ import { getNextNumber } from "../lib/auto-number";
 
 export const legalRouter = router({
   // ── Matters ────────────────────────────────────────────────────────────────
-  listMatters: permissionProcedure("grc", "read")
+  listMatters: permissionProcedure("legal", "read")
     .input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -17,7 +17,7 @@ export const legalRouter = router({
       return db.select().from(legalMatters).where(and(...conditions)).orderBy(desc(legalMatters.createdAt)).limit(input.limit);
     }),
 
-  getMatter: permissionProcedure("grc", "read").input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
+  getMatter: permissionProcedure("legal", "read").input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
     const { db, org } = ctx;
     const [matter] = await db.select().from(legalMatters)
       .where(and(eq(legalMatters.id, input.id), eq(legalMatters.orgId, org!.id)));
@@ -25,7 +25,7 @@ export const legalRouter = router({
     return matter;
   }),
 
-  createMatter: permissionProcedure("grc", "write")
+  createMatter: permissionProcedure("legal", "write")
     .input(z.object({
       title: z.string().min(1),
       description: z.string().optional(),
@@ -44,7 +44,7 @@ export const legalRouter = router({
       return matter;
     }),
 
-  updateMatter: permissionProcedure("grc", "write")
+  updateMatter: permissionProcedure("legal", "write")
     .input(z.object({ id: z.string().uuid(), status: z.string().optional(), phase: z.string().optional(), actualCost: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -57,7 +57,7 @@ export const legalRouter = router({
     }),
 
   // ── Legal Requests ─────────────────────────────────────────────────────────
-  listRequests: permissionProcedure("grc", "read")
+  listRequests: permissionProcedure("legal", "read")
     .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -66,7 +66,7 @@ export const legalRouter = router({
       return db.select().from(legalRequests).where(and(...conditions)).orderBy(desc(legalRequests.createdAt)).limit(input.limit);
     }),
 
-  createRequest: permissionProcedure("grc", "write")
+  createRequest: permissionProcedure("legal", "write")
     .input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), priority: z.string().default("medium") }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -74,7 +74,7 @@ export const legalRouter = router({
       return req;
     }),
 
-  updateRequest: permissionProcedure("grc", "write")
+  updateRequest: permissionProcedure("legal", "write")
     .input(z.object({ id: z.string().uuid(), status: z.string().optional(), assignedTo: z.string().uuid().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -85,7 +85,7 @@ export const legalRouter = router({
     }),
 
   // ── Investigations ─────────────────────────────────────────────────────────
-  listInvestigations: permissionProcedure("grc", "read")
+  listInvestigations: permissionProcedure("legal", "read")
     .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -96,12 +96,12 @@ export const legalRouter = router({
       return rows.filter((investigation: any) => {
         if (!investigation.confidential) return true;
         const isInvestigator = investigation.investigatorId === ctx.user!.id;
-        const canSeeAll = checkDbUserPermission(ctx.user!.role, "grc", "admin", ctx.user!.matrixRole);
+        const canSeeAll = checkDbUserPermission(ctx.user!.role, "legal", "admin", ctx.user!.matrixRole);
         return isInvestigator || canSeeAll;
       });
     }),
 
-  createInvestigation: permissionProcedure("grc", "write")
+  createInvestigation: permissionProcedure("legal", "write")
     .input(z.object({
       title: z.string(),
       type: z.enum(["ethics", "harassment", "fraud", "data_breach", "whistleblower", "discrimination"]).default("ethics"),
@@ -113,7 +113,7 @@ export const legalRouter = router({
       return inv;
     }),
 
-  closeInvestigation: permissionProcedure("grc", "write")
+  closeInvestigation: permissionProcedure("legal", "write")
     .input(z.object({ id: z.string().uuid(), findings: z.string(), recommendation: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;

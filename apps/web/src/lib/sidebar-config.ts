@@ -268,10 +268,10 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     label: "Legal & Governance",
     icon: "Scale",
     defaultExpanded: false,
-    modules: ["contracts", "secretarial"],   // was ["contracts","policy"] — secretarial is now its own module
+    modules: ["legal", "contracts", "secretarial"],
     items: [
       { label: "Overview", href: "/app/legal-governance", icon: "LayoutDashboard", module: "contracts" },
-      { label: "Legal Service Delivery", href: "/app/legal", icon: "Gavel", module: "contracts" },
+      { label: "Legal Service Delivery", href: "/app/legal", icon: "Gavel", module: "legal" },
       {
         label: "Secretarial & CS",
         href: "/app/secretarial",

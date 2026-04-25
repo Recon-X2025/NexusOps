@@ -1,11 +1,17 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmQuotes,
+  organizations,
   eq, and, desc, count, sum, inArray, notInArray, lt,
 } from "@nexusops/db";
 import { getNextNumber } from "../lib/auto-number";
+import {
+  getCrmDealApprovalThresholds,
+  getDealCloseApprovalTier,
+  type DealCloseApprovalTier,
+} from "../lib/org-settings";
 
 async function getCrmExecutiveSummary(db: any, orgId: string) {
   const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
@@ -140,12 +146,153 @@ export const crmRouter = router({
     .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const updates: Record<string, any> = { stage: input.stage, updatedAt: new Date() };
-      if (input.stage === "closed_won" || input.stage === "closed_lost") updates.closedAt = new Date();
-      const [deal] = await db.update(crmDeals).set(updates)
-        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      const [existing] = await db
+        .select()
+        .from(crmDeals)
+        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+
+      const [freshOrg] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const settings = freshOrg?.settings ?? org!.settings;
+
+      const amount = Number(existing.value ?? 0);
+      const required = getDealCloseApprovalTier(amount, settings);
+
+      if (input.stage === "closed_won" && required !== "none") {
+        if (!existing.wonApprovedAt) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              required === "executive"
+                ? "Deal value requires executive approval before closed-won. An owner/admin must record approval (Admin → CRM deal thresholds or approveDealWon)."
+                : "Deal value requires leadership approval before closed-won. An owner/admin must record approval first.",
+          });
+        }
+        if (required === "executive" && existing.wonApprovalTier !== "executive") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Executive-tier approval is required for this deal value.",
+          });
+        }
+      }
+
+      const updates: Record<string, unknown> = { stage: input.stage, updatedAt: new Date() };
+      if (input.stage === "closed_won" || input.stage === "closed_lost") {
+        updates.closedAt = new Date();
+      } else {
+        // Re-opening pipeline clears won approval so value/stage changes re-validate.
+        updates.wonApprovedAt = null;
+        updates.wonApprovedBy = null;
+        updates.wonApprovalTier = null;
+        updates.closedAt = null;
+      }
+
+      const [deal] = await db
+        .update(crmDeals)
+        .set(updates as any)
+        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)))
+        .returning();
       return deal;
     }),
+
+  /** US-CRM-003: owner/admin records leadership approval to allow gated closed_won moves. */
+  approveDealWon: adminProcedure
+    .input(z.object({ id: z.string().uuid(), tier: z.enum(["manager", "executive"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [deal] = await db
+        .select()
+        .from(crmDeals)
+        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
+      if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+
+      const [freshOrg] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const settings = freshOrg?.settings ?? org!.settings;
+      const amount = Number(deal.value ?? 0);
+      const required: DealCloseApprovalTier = getDealCloseApprovalTier(amount, settings);
+      if (required === "none") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This deal value does not require recorded approval.",
+        });
+      }
+      if (required === "executive" && input.tier !== "executive") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This deal requires executive approval tier.",
+        });
+      }
+
+      const [updated] = await db
+        .update(crmDeals)
+        .set({
+          wonApprovedAt: new Date(),
+          wonApprovedBy: user!.id,
+          wonApprovalTier: input.tier,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)))
+        .returning();
+      return updated;
+    }),
+
+  /** DB-backed deal close thresholds (US-CRM-003). */
+  dealApprovalThresholds: router({
+    get: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
+      const { org } = ctx;
+      return getCrmDealApprovalThresholds(org!.settings);
+    }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          dealApprovalCurrency: z.string().length(3).transform((s) => s.toUpperCase()),
+          dealCloseNoApprovalBelow: z.coerce.number().min(0).max(1e14),
+          dealCloseExecutiveAbove: z.coerce.number().min(1).max(1e14),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (input.dealCloseExecutiveAbove <= input.dealCloseNoApprovalBelow) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "dealCloseExecutiveAbove must be greater than dealCloseNoApprovalBelow",
+          });
+        }
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevCrm = (raw.crm as Record<string, unknown> | undefined) ?? {};
+        const crm = {
+          ...prevCrm,
+          dealApprovalCurrency: input.dealApprovalCurrency,
+          dealCloseNoApprovalBelow: input.dealCloseNoApprovalBelow,
+          dealCloseExecutiveAbove: input.dealCloseExecutiveAbove,
+        };
+        await db
+          .update(organizations)
+          .set({ settings: { ...raw, crm } })
+          .where(eq(organizations.id, org!.id));
+
+        return {
+          ok: true as const,
+          ...input,
+          previous: {
+            dealApprovalCurrency: prevCrm.dealApprovalCurrency,
+            dealCloseNoApprovalBelow: prevCrm.dealCloseNoApprovalBelow,
+            dealCloseExecutiveAbove: prevCrm.dealCloseExecutiveAbove,
+          },
+        };
+      }),
+  }),
 
   // ── Leads ─────────────────────────────────────────────────────────────────
   listLeads: permissionProcedure("accounts", "read")

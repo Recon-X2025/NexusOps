@@ -213,6 +213,7 @@ function AttritionTab({ attrition, headcount }: { attrition: any; headcount: any
 // ── Leave Tab ──────────────────────────────────────────────────────────────────
 
 function LeaveTab({ leaveData }: { leaveData: any }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
   const [year, setYear] = useState(new Date().getFullYear());
   const { data: leave } = trpc.workforce.leaveAnalytics.useQuery({ year }, mergeTrpcQueryOpts("workforce.leaveAnalytics", undefined));
 
