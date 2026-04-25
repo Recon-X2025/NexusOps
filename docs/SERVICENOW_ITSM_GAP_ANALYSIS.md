@@ -267,7 +267,7 @@ This section turns the gap themes above into a **sequenced, time-boxed plan**. I
 | ID | Backlog item | Acceptance notes |
 |----|----------------|------------------|
 | PBI-8.1 | **ITSM executive dashboard**: incident volume, SLA %, change success, major incident count, catalog throughput | Uses Sprint 2/7 metrics where available |
-| PBI-8.2 | **SNOW migration guide** v1: table/field mapping (incident, change, CI, KB) + ordering of loads | Lives in `Docs/` or internal PS kit per repo convention |
+| PBI-8.2 | **SNOW migration guide** v1: table/field mapping (incident, change, CI, KB) + ordering of loads | Lives in `docs/` or internal PS kit per repo convention |
 | PBI-8.3 | **Import prototype**: scripted or API batch for incidents + CIs (pilot customers) | Idempotency keys; dry-run mode |
 
 ---
