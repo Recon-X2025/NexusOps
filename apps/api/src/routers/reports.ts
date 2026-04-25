@@ -4,6 +4,7 @@ import {
   tickets,
   ticketStatuses,
   ticketCategories,
+  teams,
   ticketHandoffs,
   changeRequests,
   organizations,
@@ -14,7 +15,9 @@ import {
   users,
   eq,
   and,
+  or,
   desc,
+  asc,
   count,
   sql,
   gte,
@@ -335,6 +338,111 @@ export const reportsRouter = router({
           };
         }),
         periodLabels: periods.map((p) => p.label),
+      };
+    }),
+
+  /**
+   * US-ITSM-003 — Live SLA operational snapshot for open work: paused clocks, breached, at-risk (due soon), optional team/category filters.
+   */
+  slaOperationalHealth: permissionProcedure("reports", "read")
+    .input(
+      z.object({
+        teamId: z.string().uuid().optional(),
+        categoryId: z.string().uuid().optional(),
+        atRiskWithinHours: z.coerce.number().min(1).max(168).default(4),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const hrs = input.atRiskWithinHours;
+
+      const baseConds = [
+        eq(tickets.orgId, org!.id),
+        sql`${ticketStatuses.category} IN ('open', 'in_progress')`,
+      ];
+      if (input.teamId) baseConds.push(eq(tickets.teamId, input.teamId));
+      if (input.categoryId) baseConds.push(eq(tickets.categoryId, input.categoryId));
+
+      const joinOpen = and(...baseConds);
+
+      const [{ pausedOpen }] = await db
+        .select({ pausedOpen: count() })
+        .from(tickets)
+        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(and(joinOpen, isNotNull(tickets.slaPausedAt)));
+
+      const [{ breachedOpen }] = await db
+        .select({ breachedOpen: count() })
+        .from(tickets)
+        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(and(joinOpen, eq(tickets.slaBreached, true)));
+
+      const [atRiskRow] = await db
+        .select({ n: count() })
+        .from(tickets)
+        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(
+          and(
+            joinOpen,
+            eq(tickets.slaBreached, false),
+            isNull(tickets.slaPausedAt),
+            or(
+              and(
+                isNotNull(tickets.slaResolveDueAt),
+                sql`${tickets.slaResolveDueAt} > NOW()`,
+                sql`${tickets.slaResolveDueAt} <= NOW() + (${hrs}::double precision * interval '1 hour')`,
+              ),
+              and(
+                isNotNull(tickets.slaResponseDueAt),
+                isNull(tickets.slaRespondedAt),
+                sql`${tickets.slaResponseDueAt} > NOW()`,
+                sql`${tickets.slaResponseDueAt} <= NOW() + (${hrs}::double precision * interval '1 hour')`,
+              ),
+            ),
+          ),
+        );
+
+      const [overdueRow] = await db
+        .select({ n: count() })
+        .from(tickets)
+        .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(
+          and(
+            joinOpen,
+            eq(tickets.slaBreached, false),
+            isNull(tickets.slaPausedAt),
+            or(
+              and(isNotNull(tickets.slaResolveDueAt), sql`${tickets.slaResolveDueAt} < NOW()`),
+              and(
+                isNotNull(tickets.slaResponseDueAt),
+                isNull(tickets.slaRespondedAt),
+                sql`${tickets.slaResponseDueAt} < NOW()`,
+              ),
+            ),
+          ),
+        );
+
+      const teamOptions = await db
+        .select({ id: teams.id, name: teams.name })
+        .from(teams)
+        .where(eq(teams.orgId, org!.id))
+        .orderBy(asc(teams.name));
+
+      const categoryOptions = await db
+        .select({ id: ticketCategories.id, name: ticketCategories.name })
+        .from(ticketCategories)
+        .where(eq(ticketCategories.orgId, org!.id))
+        .orderBy(asc(ticketCategories.name));
+
+      return {
+        atRiskWithinHours: hrs,
+        pausedOpen: Number(pausedOpen),
+        breachedOpen: Number(breachedOpen),
+        atRiskNearDue: Number(atRiskRow?.n ?? 0),
+        overdueUnbreached: Number(overdueRow?.n ?? 0),
+        filters: { teamId: input.teamId ?? null, categoryId: input.categoryId ?? null },
+        teamOptions,
+        categoryOptions,
       };
     }),
 

@@ -11,8 +11,20 @@ export default function ITSMServiceDeskAnalyticsPage() {
   const [days, setDays] = useState(30);
   const [whatIfRspMin, setWhatIfRspMin] = useState(60);
   const [whatIfResMin, setWhatIfResMin] = useState(480);
+  const [slaTeamId, setSlaTeamId] = useState("");
+  const [slaCategoryId, setSlaCategoryId] = useState("");
+  const [atRiskHours, setAtRiskHours] = useState(4);
 
   const { data, isLoading } = trpc.reports.itsmServiceDeskPack.useQuery({ days }, mergeTrpcQueryOpts("reports.itsmServiceDeskPack", { refetchOnWindowFocus: false, staleTime: 60_000 },));
+
+  const { data: slaHealth, isLoading: slaHealthLoading } = trpc.reports.slaOperationalHealth.useQuery(
+    {
+      teamId: slaTeamId || undefined,
+      categoryId: slaCategoryId || undefined,
+      atRiskWithinHours: atRiskHours,
+    },
+    mergeTrpcQueryOpts("reports.slaOperationalHealth", { refetchOnWindowFocus: false, staleTime: 30_000 },),
+  );
 
   const { data: whatIf } = trpc.reports.slaWhatIf.useQuery({ responseMinutes: whatIfRspMin, resolveMinutes: whatIfResMin }, mergeTrpcQueryOpts("reports.slaWhatIf", { refetchOnWindowFocus: false, staleTime: 30_000 },));
 
@@ -58,6 +70,70 @@ export default function ITSMServiceDeskAnalyticsPage() {
             Canned metrics aligned to the ITSM upgrade plan — SLA, backlog ageing, reopens, and volume.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          SLA operational health (live open work)
+        </h2>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          At-risk: resolve/response due within the window, clock running. Overdue unbreached: past due but not yet flagged breached — needs attention.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-3 text-[11px]">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-muted-foreground">Team</span>
+            <select
+              className="min-w-[140px] rounded border border-border bg-background px-2 py-1"
+              value={slaTeamId}
+              onChange={(e) => setSlaTeamId(e.target.value)}
+              disabled={slaHealthLoading}
+            >
+              <option value="">All teams</option>
+              {(slaHealth?.teamOptions ?? []).map((t: { id: string; name: string }) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-muted-foreground">Category</span>
+            <select
+              className="min-w-[140px] rounded border border-border bg-background px-2 py-1"
+              value={slaCategoryId}
+              onChange={(e) => setSlaCategoryId(e.target.value)}
+              disabled={slaHealthLoading}
+            >
+              <option value="">All categories</option>
+              {(slaHealth?.categoryOptions ?? []).map((c: { id: string; name: string }) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-muted-foreground">At-risk window (h)</span>
+            <select
+              className="rounded border border-border bg-background px-2 py-1"
+              value={atRiskHours}
+              onChange={(e) => setAtRiskHours(Number(e.target.value))}
+            >
+              {[1, 2, 4, 8, 24, 48].map((h) => (
+                <option key={h} value={h}>{h}h</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {slaHealthLoading || !slaHealth ? (
+          <div className="mt-4 flex items-center gap-2 text-[12px] text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading SLA health…
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard title="Paused (SLA clock)" value={String(slaHealth.pausedOpen)} hint="Open / in-progress with an active SLA pause" />
+            <MetricCard title="Breached (open)" value={String(slaHealth.breachedOpen)} hint="Still open with slaBreached set" />
+            <MetricCard title="At-risk (due soon)" value={String(slaHealth.atRiskNearDue)} hint={`Resolve or response due within ${slaHealth.atRiskWithinHours}h`} />
+            <MetricCard title="Overdue (unbreached)" value={String(slaHealth.overdueUnbreached)} hint="Past response/resolve due — clear breach flag or fix data" />
+          </div>
+        )}
       </div>
 
       {isLoading || !data ? (

@@ -360,6 +360,18 @@ export const procurementRouter = router({
         );
         const lineDelta = lines.length > 0 ? Math.abs(invoiceTotal - invoiceLineSum) : 0;
 
+        const poLines = await db.select().from(poLineItems).where(eq(poLineItems.poId, po.id));
+        const poLineSum = poLines.reduce(
+          (s: number, li: (typeof poLines)[number]) =>
+            s + Number(li.quantity ?? 0) * parseFloat(String(li.unitPrice ?? 0)),
+          0,
+        );
+        const poInvoiceLineDelta =
+          lines.length > 0 && poLines.length > 0 ? Math.abs(poLineSum - invoiceLineSum) : 0;
+        if (lines.length > 0 && poLines.length > 0) {
+          matched = matched && poInvoiceLineDelta <= tolerance;
+        }
+
         let grnReceivedValue: number | null = null;
         if (invoice.grnId) {
           const grnLines = await db
@@ -393,6 +405,10 @@ export const procurementRouter = router({
           toleranceUsed: tolerance,
           discrepancyPct: poTotal > 0 ? Math.round((discrepancy / poTotal) * 100) : 0,
           invoiceLineSum,
+          poLineSum,
+          poLineCount: poLines.length,
+          invoiceLineCount: lines.length,
+          poInvoiceLineDelta: lines.length > 0 && poLines.length > 0 ? poInvoiceLineDelta : null,
           grnReceivedValue,
         };
       }),

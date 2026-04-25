@@ -27,9 +27,9 @@
 |--------|------:|
 | **Stories in rollup** | 58 |
 | **Done** | 0 |
-| **Partial** | 21 |
+| **Partial** | 23 |
 | **Deferred** | 1 |
-| **Backlog** | 36 |
+| **Backlog** | 34 |
 | **Approx. closure** (Done ÷ 58) | 0% — *treat **Partial** as in-flight, not closed* |
 
 ---
@@ -570,7 +570,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 |----|--------|--------|
 | US-ITSM-001 | Partial | SLA pause + reason on tickets (`tickets` router, `sla_pause_reason_code`); org-configurable reason *catalog* still thin. |
 | US-ITSM-002 | Partial | Response vs resolve SLA fields (`sla_response_*`, `sla_resolve_*`); “multiple concurrent targets” beyond two clocks not fully validated vs AC. |
-| US-ITSM-003 | Backlog | — |
+| US-ITSM-003 | Partial | `reports.slaOperationalHealth` (paused / breached open / at-risk near due / overdue unbreached) + team & category filters + **IT Services → Analytics** UI. |
 | US-ITSM-004 | Partial | `parent_ticket_id` + wiring; comms log / war-room / full MIM not done. |
 | US-ITSM-005 | Backlog | — |
 | US-ITSM-006 | Partial | `cmdb` CI create/update/link (`assets` router); class graph, bulk import, service map depth still backlog. |
@@ -605,7 +605,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | US-FIN-002 | Partial | `financial.executiveSummary`; drill-down links / hub wiring may lag. |
 | US-FIN-003 | Partial | `org.settings.procurement.prAutoApproveBelow` / `prDeptHeadMax`; **Admin → Procurement Policy**; `procurement.approvalRules` (owner/admin); PR create reads **fresh** org settings (session cache safe); defaults 75k / 750k; layer8 test. |
 | US-FIN-004 | Partial | Same implementation as **US-CRM-004** (dedupe + tolerance). |
-| US-FIN-005 | Backlog | — |
+| US-FIN-005 | Partial | `procurement.invoices.matchToOrder`: PO line sum vs invoice line sum within tolerance when both have lines; exposes `poLineSum`, counts, `poInvoiceLineDelta`. Full line-keyed match still open. |
 | US-FIN-006 | Partial | Matrix doc + enforced SoD example (invoice pay); expand tests / more pairs. |
 | US-FIN-007 | Partial | Same as **US-CRM-007**. |
 | US-FIN-008 | Partial | Same as **US-CRM-008**. |
@@ -635,6 +635,7 @@ This backlog is **maintained in-repo**. When a story ships, is de-scoped, or sta
 | 2026-04-25 | Hub gap closures: **US-FIN-001** (finance-procurement), **US-CRM-001** (`csm.dashboard` SQL metrics), **US-STR-001** (strategy analytics tile); rollup updated. |
 | 2026-04-25 | **Programme charter**: explicit **100% closure** target, phased rules, **US-LEG-009+** decomposition requirement, rollup-derived **Programme progress** snapshot. |
 | 2026-04-25 | **US-FIN-003** (partial): DB-backed PR approval tiers, admin console tab, fresh settings on PR create. |
+| 2026-04-25 | **US-ITSM-003** / **US-FIN-005** (partial): SLA operational health API + IT analytics UI; PO vs invoice line-sum three-way tightening. |
 
 ---
 
