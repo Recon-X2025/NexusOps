@@ -64,10 +64,14 @@ export const CreateTicketSchema = z.object({
   isMajorIncident: z.boolean().optional(),
   /** Phase C2 */
   intakeChannel: IntakeChannelEnum.optional(),
+  /** Parent incident / major-incident child link (US-ITSM-004). */
+  parentTicketId: z.string().uuid().optional(),
 });
 
 export const UpdateTicketSchema = CreateTicketSchema.partial().extend({
   statusId: z.string().uuid().optional(),
+  /** Stored when SLA pauses (pending); audited on ticket update (US-ITSM-001). */
+  slaPauseReasonCode: z.string().max(64).optional(),
 });
 
 export const AddCommentSchema = z.object({

@@ -202,7 +202,10 @@ export const authRouter = router({
     const session = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent, input.rememberMe ?? false);
     const tSession = Date.now();
 
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    await db
+      .update(users)
+      .set({ lastLoginAt: new Date(), stepUpVerifiedUntil: null })
+      .where(eq(users.id, user.id));
 
     const [org] = await db
       .select()
@@ -233,6 +236,28 @@ export const authRouter = router({
     }
     return { success: true };
   }),
+
+  /**
+   * Password re-check for privileged flows (US-SEC-001). Extends session trust for ~15 minutes.
+   * Org must set `organizations.settings.security.requireStepUpForMatrixRoles` (e.g. `["finance_manager"]`).
+   */
+  verifyStepUp: protectedProcedure
+    .input(z.object({ password: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, user, sessionId } = ctx;
+      const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
+      if (!row?.passwordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
+      }
+      const valid = await verifyPassword(input.password, row.passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
+      }
+      const until = new Date(Date.now() + 15 * 60 * 1000);
+      await db.update(users).set({ stepUpVerifiedUntil: until, updatedAt: new Date() }).where(eq(users.id, user!.id));
+      if (sessionId) await invalidateSessionCache(sessionId);
+      return { stepUpVerifiedUntil: until.toISOString() };
+    }),
 
   /** Returns null when unauthenticated (HTTP 200) so clients do not treat routine “no session” as a 401 error. */
   me: publicProcedure.query(async ({ ctx }) => {

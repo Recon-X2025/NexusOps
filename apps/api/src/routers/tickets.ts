@@ -815,6 +815,15 @@ export const ticketsRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Known error not found for this organisation" });
       }
     }
+    if (input.parentTicketId) {
+      const [parent] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.parentTicketId), eq(tickets.orgId, org!.id)));
+      if (!parent) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Parent ticket not found for this organisation" });
+      }
+    }
 
     // getNextSeq uses an atomic INSERT ... ON CONFLICT DO UPDATE on org_counters,
     // which is serialised at the Postgres row level — safe under 800+ concurrent requests.
@@ -894,6 +903,7 @@ export const ticketsRouter = router({
               configurationItemId: input.configurationItemId ?? null,
               knownErrorId: input.knownErrorId ?? null,
               isMajorIncident: input.isMajorIncident ?? false,
+              parentTicketId: input.parentTicketId ?? null,
               intakeChannel: input.intakeChannel ?? "portal",
               slaResponseDueAt,
               slaResolveDueAt,
@@ -1042,6 +1052,13 @@ export const ticketsRouter = router({
           if (prevPausedMs !== nextPaused.getTime()) {
             changes["slaPausedAt"] = { from: existing.slaPausedAt ?? null, to: nextPaused };
           }
+          if (input.data.slaPauseReasonCode) {
+            updateData.slaPauseReasonCode = input.data.slaPauseReasonCode;
+            changes["slaPauseReasonCode"] = {
+              from: existing.slaPauseReasonCode ?? null,
+              to: input.data.slaPauseReasonCode,
+            };
+          }
         } else if (oldStatusRow?.category === "pending" && newStatus?.category && newStatus.category !== "pending") {
           const pausedAt = existing.slaPausedAt;
           let nextDuration = existing.slaPauseDurationMins ?? 0;
@@ -1055,8 +1072,12 @@ export const ticketsRouter = router({
             changes["slaPauseDurationMins"] = { from: existing.slaPauseDurationMins ?? 0, to: nextDuration };
           }
           updateData.slaPausedAt = null;
+          updateData.slaPauseReasonCode = null;
           if (existing.slaPausedAt != null) {
             changes["slaPausedAt"] = { from: existing.slaPausedAt, to: null };
+          }
+          if (existing.slaPauseReasonCode != null) {
+            changes["slaPauseReasonCode"] = { from: existing.slaPauseReasonCode, to: null };
           }
         }
 
@@ -1109,6 +1130,43 @@ export const ticketsRouter = router({
       if (input.data.intakeChannel !== undefined && input.data.intakeChannel !== existing.intakeChannel) {
         changes["intakeChannel"] = { from: existing.intakeChannel, to: input.data.intakeChannel };
         updateData.intakeChannel = input.data.intakeChannel;
+      }
+      if (input.data.parentTicketId !== undefined) {
+        const pid = input.data.parentTicketId;
+        if (pid) {
+          if (pid === input.id) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket cannot be its own parent" });
+          }
+          const [p] = await db
+            .select({ id: tickets.id })
+            .from(tickets)
+            .where(and(eq(tickets.id, pid), eq(tickets.orgId, org!.id)));
+          if (!p) throw new TRPCError({ code: "BAD_REQUEST", message: "Parent ticket not found" });
+          let walk: string | null = p.id;
+          for (let i = 0; i < 48; i++) {
+            const [row] = await db
+              .select({ parentTicketId: tickets.parentTicketId })
+              .from(tickets)
+              .where(eq(tickets.id, walk!));
+            if (!row?.parentTicketId) break;
+            if (row.parentTicketId === input.id) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Circular parent ticket chain" });
+            }
+            walk = row.parentTicketId;
+          }
+        }
+        changes["parentTicketId"] = { from: existing.parentTicketId ?? null, to: pid ?? null };
+        updateData.parentTicketId = pid ?? null;
+      }
+      if (
+        input.data.slaPauseReasonCode !== undefined &&
+        input.data.statusId === undefined
+      ) {
+        changes["slaPauseReasonCode"] = {
+          from: existing.slaPauseReasonCode ?? null,
+          to: input.data.slaPauseReasonCode || null,
+        };
+        updateData.slaPauseReasonCode = input.data.slaPauseReasonCode || null;
       }
 
       updateData.updatedAt = new Date();

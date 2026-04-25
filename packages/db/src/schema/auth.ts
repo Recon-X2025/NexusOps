@@ -69,6 +69,8 @@ export const users = pgTable(
     matrixRole: text("matrix_role"),
     status: userStatusEnum("status").notNull().default("invited"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    /** Recent password re-check for privileged finance / admin flows (US-SEC-001). */
+    stepUpVerifiedUntil: timestamp("step_up_verified_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

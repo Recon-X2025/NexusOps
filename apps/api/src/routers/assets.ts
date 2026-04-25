@@ -258,6 +258,92 @@ export const assetsRouter = router({
 
         return { upstream, downstream };
       }),
+
+    createCi: permissionProcedure("cmdb", "write")
+      .input(
+        z.object({
+          name: z.string().min(1),
+          ciType: z.enum(["server", "application", "database", "network", "service", "cloud"]),
+          status: z.enum(["operational", "degraded", "down", "planned"]).optional(),
+          environment: z.string().optional(),
+          attributes: z.record(z.unknown()).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .insert(ciItems)
+          .values({
+            orgId: org!.id,
+            name: input.name,
+            ciType: input.ciType,
+            status: input.status ?? "operational",
+            environment: input.environment,
+            attributes: input.attributes,
+          })
+          .returning();
+        return row;
+      }),
+
+    updateCi: permissionProcedure("cmdb", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          name: z.string().optional(),
+          status: z.enum(["operational", "degraded", "down", "planned"]).optional(),
+          environment: z.string().nullable().optional(),
+          attributes: z.record(z.unknown()).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, name, status, environment, attributes } = input;
+        const data: Record<string, unknown> = { updatedAt: new Date() };
+        if (name !== undefined) data.name = name;
+        if (status !== undefined) data.status = status;
+        if (environment !== undefined) data.environment = environment;
+        if (attributes !== undefined) data.attributes = attributes;
+        const [row] = await db
+          .update(ciItems)
+          .set(data as typeof ciItems.$inferInsert)
+          .where(and(eq(ciItems.id, id), eq(ciItems.orgId, org!.id)))
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "CI not found" });
+        return row;
+      }),
+
+    linkCi: permissionProcedure("cmdb", "write")
+      .input(
+        z.object({
+          sourceId: z.string().uuid(),
+          targetId: z.string().uuid(),
+          relationType: z.enum(["depends_on", "runs_on", "connected_to", "member_of", "hosts"]),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        if (input.sourceId === input.targetId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Source and target must differ" });
+        }
+        const [a] = await db
+          .select({ id: ciItems.id })
+          .from(ciItems)
+          .where(and(eq(ciItems.id, input.sourceId), eq(ciItems.orgId, org!.id)));
+        const [b] = await db
+          .select({ id: ciItems.id })
+          .from(ciItems)
+          .where(and(eq(ciItems.id, input.targetId), eq(ciItems.orgId, org!.id)));
+        if (!a || !b) throw new TRPCError({ code: "NOT_FOUND", message: "CI not found" });
+        const [rel] = await db
+          .insert(ciRelationships)
+          .values({
+            sourceId: input.sourceId,
+            targetId: input.targetId,
+            relationType: input.relationType,
+          })
+          .returning();
+        return rel;
+      }),
   }),
 
   // ── Licenses ──────────────────────────────────────────────────────────────

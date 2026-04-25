@@ -6,6 +6,8 @@ import {
   assets,
   approvalRequests,
   invoices,
+  projects,
+  okrObjectives,
   eq,
   and,
   count,
@@ -65,6 +67,8 @@ export const dashboardRouter = router({
         [payableOutstandingRow],
         [receivableOutstandingRow],
         [assetsCountRow],
+        [activeProjectsCount],
+        [activeOkrsCount],
       ] = await Promise.all([
         db
           .select({ count: count() })
@@ -148,6 +152,14 @@ export const dashboardRouter = router({
           .select({ count: count() })
           .from(assets)
           .where(eq(assets.orgId, org!.id)),
+        db
+          .select({ count: count() })
+          .from(projects)
+          .where(and(eq(projects.orgId, org!.id), eq(projects.status, "active"))),
+        db
+          .select({ count: count() })
+          .from(okrObjectives)
+          .where(and(eq(okrObjectives.orgId, org!.id), eq(okrObjectives.status, "active"))),
       ]);
 
       const slaCompliance =
@@ -169,6 +181,8 @@ export const dashboardRouter = router({
         payableOutstanding: Number(payableOutstandingRow?.total ?? 0),
         receivableOutstanding: Number(receivableOutstandingRow?.total ?? 0),
         totalAssets: assetsCountRow?.count ?? 0,
+        activeProjects: activeProjectsCount?.count ?? 0,
+        activeOkrs: activeOkrsCount?.count ?? 0,
       };
     }).then((v) => {
       console.info("dashboard.getMetrics", { duration: Date.now() - start, orgId: org?.id });

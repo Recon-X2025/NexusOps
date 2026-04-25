@@ -1,8 +1,42 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, stepUpGate } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getTableColumns } from "drizzle-orm";
-import { budgetLines, chargebacks, invoices, vendors, eq, and, desc, sum, sql } from "@nexusops/db";
+import {
+  budgetLines,
+  chargebacks,
+  invoices,
+  vendors,
+  legalEntities,
+  eq,
+  and,
+  desc,
+  sum,
+  sql,
+  count,
+  notInArray,
+} from "@nexusops/db";
+import {
+  getDuplicatePayablePolicy,
+  isInvoicePeriodClosed,
+} from "../lib/org-settings";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function countDuplicatePayable(db: any, orgId: string, vendorId: string, invoiceNumber: string): Promise<number> {
+  const [row] = await db
+    .select({ c: count() })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.orgId, orgId),
+        eq(invoices.vendorId, vendorId),
+        eq(invoices.invoiceNumber, invoiceNumber),
+        eq(invoices.invoiceFlow, "payable"),
+        notInArray(invoices.status, ["cancelled", "disputed"]),
+      ),
+    );
+  return Number(row?.c ?? 0);
+}
 
 export const financialRouter = router({
   // ── Budget ─────────────────────────────────────────────────────────────────
@@ -61,12 +95,26 @@ export const financialRouter = router({
       dueDate: z.string().optional(),
       invoiceDate: z.string().optional(),
       notes: z.string().optional(),
+      legalEntityId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      const policy = getDuplicatePayablePolicy(org!.settings);
+      const dup = await countDuplicatePayable(db, org!.id, input.vendorId, input.invoiceNumber);
+      if (dup > 0 && policy === "block") {
+        throw new TRPCError({ code: "CONFLICT", message: "DUPLICATE_PAYABLE_INVOICE" });
+      }
+      if (input.legalEntityId) {
+        const [le] = await db
+          .select({ id: legalEntities.id })
+          .from(legalEntities)
+          .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
+        if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
+      }
       const [inv] = await db.insert(invoices).values({
         orgId: org!.id,
         vendorId: input.vendorId,
+        legalEntityId: input.legalEntityId ?? null,
         invoiceFlow: "payable",
         invoiceNumber: input.invoiceNumber,
         invoiceType: "tax_invoice",
@@ -77,7 +125,7 @@ export const financialRouter = router({
         invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
       } as any).returning();
-      return inv;
+      return { ...inv, duplicatePayableWarning: dup > 0 && policy === "warn" };
     }),
 
   /** Customer AR: counterparty is a row in `vendors` (e.g. vendor_type = customer). */
@@ -141,7 +189,7 @@ export const financialRouter = router({
 
       const hasMore = base.length > input.limit;
       const slice = hasMore ? base.slice(0, -1) : base;
-      const items = slice.map((row) => ({
+      const items = slice.map((row: (typeof base)[number]) => ({
         ...row,
         totalAmount: row.amount,
         direction: row.invoiceFlow,
@@ -155,6 +203,7 @@ export const financialRouter = router({
     }),
 
   approveInvoice: permissionProcedure("financial", "write")
+    .use(stepUpGate)
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -167,14 +216,34 @@ export const financialRouter = router({
     }),
 
   markPaid: permissionProcedure("financial", "write")
+    .use(stepUpGate)
     .input(z.object({ id: z.string().uuid(), paymentMethod: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
+      const [existing] = await db
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+
+      if (isInvoicePeriodClosed(org!.settings, existing.invoiceDate ? new Date(existing.invoiceDate as Date) : null)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Accounting period is closed for this invoice date",
+        });
+      }
+
+      if (existing.approvedById && existing.approvedById === user!.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "SoD: approver cannot mark the same invoice as paid",
+        });
+      }
+
       const [inv] = await db.update(invoices)
         .set({ status: "paid", paidAt: new Date(), paymentMethod: input.paymentMethod, updatedAt: new Date() })
         .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)))
         .returning();
-      if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
       return inv;
     }),
 
@@ -204,6 +273,94 @@ export const financialRouter = router({
     }
     return buckets;
   }),
+
+  /** Consolidated AP/AR KPIs for exec dashboards (US-FIN-002). */
+  executiveSummary: permissionProcedure("financial", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const orgId = org!.id as string;
+
+    const payableRows = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.orgId, orgId),
+          eq(invoices.invoiceFlow, "payable"),
+          sql`status IN ('pending','approved','overdue')`,
+        ),
+      );
+
+    const receivableRows = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.orgId, orgId),
+          eq(invoices.invoiceFlow, "receivable"),
+          sql`status IN ('pending','approved','overdue')`,
+        ),
+      );
+
+    const now = Date.now();
+    const apBuckets = { current: 0, d30: 0, d60: 0, d90: 0, over90: 0 };
+    let payableOverdueCount = 0;
+    for (const inv of payableRows) {
+      if (!inv.dueDate) {
+        apBuckets.current += Number(inv.amount);
+        continue;
+      }
+      const days = Math.floor((now - new Date(inv.dueDate).getTime()) / 86400000);
+      if (days > 0) payableOverdueCount += 1;
+      if (days <= 0) apBuckets.current += Number(inv.amount);
+      else if (days <= 30) apBuckets.d30 += Number(inv.amount);
+      else if (days <= 60) apBuckets.d60 += Number(inv.amount);
+      else if (days <= 90) apBuckets.d90 += Number(inv.amount);
+      else apBuckets.over90 += Number(inv.amount);
+    }
+
+    let arOutstanding = 0;
+    let receivableOverdueCount = 0;
+    for (const inv of receivableRows) {
+      arOutstanding += Number(inv.amount);
+      if (inv.dueDate) {
+        const days = Math.floor((now - new Date(inv.dueDate).getTime()) / 86400000);
+        if (days > 0) receivableOverdueCount += 1;
+      }
+    }
+
+    return {
+      apAging: apBuckets,
+      apOpenCount: payableRows.length,
+      payableOverdueCount,
+      arOutstanding,
+      arOpenCount: receivableRows.length,
+      receivableOverdueCount,
+    };
+  }),
+
+  listLegalEntities: permissionProcedure("financial", "read").query(async ({ ctx }) => {
+    return ctx.db
+      .select()
+      .from(legalEntities)
+      .where(eq(legalEntities.orgId, ctx.org!.id))
+      .orderBy(legalEntities.code);
+  }),
+
+  createLegalEntity: permissionProcedure("financial", "write")
+    .input(
+      z.object({
+        code: z.string().min(1).max(32),
+        name: z.string().min(1).max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .insert(legalEntities)
+        .values({ orgId: org!.id, code: input.code, name: input.name })
+        .returning();
+      return row;
+    }),
 
   // ── Chargebacks ────────────────────────────────────────────────────────────
   listChargebacks: permissionProcedure("chargebacks", "read")
@@ -296,6 +453,7 @@ export const financialRouter = router({
         ),
         orgState: z.string(),
         vendorState: z.string(),
+        legalEntityId: z.string().uuid().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -330,6 +488,19 @@ export const financialRouter = router({
       const totalTax = totalCgst + totalSgst + totalIgst;
       const totalAmount = totalTaxableValue + totalTax;
 
+      const policy = getDuplicatePayablePolicy(org!.settings);
+      const dup = await countDuplicatePayable(db, org!.id, input.vendorId, input.invoiceNumber);
+      if (dup > 0 && policy === "block") {
+        throw new TRPCError({ code: "CONFLICT", message: "DUPLICATE_PAYABLE_INVOICE" });
+      }
+      if (input.legalEntityId) {
+        const [le] = await db
+          .select({ id: legalEntities.id })
+          .from(legalEntities)
+          .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
+        if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
+      }
+
       const [invoice] = await db
         .insert(invoices)
         .values({
@@ -337,6 +508,7 @@ export const financialRouter = router({
           invoiceNumber: input.invoiceNumber,
           invoiceType: "tax_invoice",
           vendorId: input.vendorId,
+          legalEntityId: input.legalEntityId ?? null,
           poId: input.poId ?? null,
           supplierGstin: input.supplierGstin,
           buyerGstin: input.buyerGstin ?? null,
@@ -362,6 +534,7 @@ export const financialRouter = router({
         invoice,
         eInvoiceRequired,
         eWayBillRequired,
+        duplicatePayableWarning: dup > 0 && policy === "warn",
         summary: { totalTaxableValue, totalCgst, totalSgst, totalIgst, totalTax, totalAmount, isInterstate },
       };
     }),

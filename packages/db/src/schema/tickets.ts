@@ -9,6 +9,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
@@ -166,6 +167,12 @@ export const tickets = pgTable(
       onDelete: "set null",
     }),
     isMajorIncident: boolean("is_major_incident").notNull().default(false),
+    /** Auditable SLA pause reason when status category is pending (US-ITSM-001). */
+    slaPauseReasonCode: text("sla_pause_reason_code"),
+    /** Parent ticket for major-incident / child incident hierarchy (US-ITSM-004). */
+    parentTicketId: uuid("parent_ticket_id").references((): AnyPgColumn => tickets.id, {
+      onDelete: "set null",
+    }),
     intakeChannel: text("intake_channel").notNull().default("portal"),
     resolutionNotes: text("resolution_notes"),
     escalationLevel: integer("escalation_level").notNull().default(0),
@@ -197,6 +204,7 @@ export const tickets = pgTable(
     assigneeIdx: index("tickets_assignee_idx").on(t.assigneeId),
     requesterIdx: index("tickets_requester_idx").on(t.requesterId),
     createdAtIdx: index("tickets_created_at_idx").on(t.createdAt),
+    parentIdx: index("tickets_parent_ticket_id_idx").on(t.parentTicketId),
     // Partial unique index: only enforce uniqueness when the key is non-null.
     // Allows unlimited inserts without a key while deduplicating keyed requests.
     idempotencyKeyIdx: uniqueIndex("tickets_idempotency_key_idx")
@@ -345,6 +353,12 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
     references: [knownErrors.id],
     relationName: "ticket_known_error",
   }),
+  parentTicket: one(tickets, {
+    fields: [tickets.parentTicketId],
+    references: [tickets.id],
+    relationName: "ticketHierarchy",
+  }),
+  childTickets: many(tickets, { relationName: "ticketHierarchy" }),
   comments: many(ticketComments),
   watchers: many(ticketWatchers),
   activityLogs: many(ticketActivityLogs),

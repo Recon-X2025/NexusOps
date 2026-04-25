@@ -10,6 +10,8 @@ import {
   purchaseOrders,
   poLineItems,
   invoices,
+  invoiceLineItems,
+  grnLineItems,
   approvalRequests,
   assets,
   assetTypes,
@@ -21,6 +23,7 @@ import {
   sql,
 } from "@nexusops/db";
 import { CreatePurchaseRequestSchema } from "@nexusops/types";
+import { getProcurementMatchToleranceAbs } from "../lib/org-settings";
 
 const AUTO_APPROVE_THRESHOLD = 75000;   // < ₹75,000 auto-approved
 const DEPT_HEAD_THRESHOLD = 750000;     // ₹75,000–₹7,50,000 dept head
@@ -339,17 +342,56 @@ export const procurementRouter = router({
 
         if (!invoice || !po) throw new TRPCError({ code: "NOT_FOUND" });
 
+        const tolerance = getProcurementMatchToleranceAbs(org!.settings);
         const invoiceTotal = parseFloat(invoice.amount);
         const poTotal = parseFloat(po.totalAmount);
         const discrepancy = Math.abs(invoiceTotal - poTotal);
-        const matched = discrepancy < 1; // $1 tolerance
+        let matched = discrepancy <= tolerance;
+
+        const lines = await db
+          .select()
+          .from(invoiceLineItems)
+          .where(eq(invoiceLineItems.invoiceId, invoice.id));
+        const invoiceLineSum = lines.reduce(
+          (s: number, li: (typeof lines)[number]) => s + parseFloat(String(li.lineTotal)),
+          0,
+        );
+        const lineDelta = lines.length > 0 ? Math.abs(invoiceTotal - invoiceLineSum) : 0;
+
+        let grnReceivedValue: number | null = null;
+        if (invoice.grnId) {
+          const grnLines = await db
+            .select()
+            .from(grnLineItems)
+            .where(eq(grnLineItems.grnId, invoice.grnId));
+          let recv = 0;
+          for (const gl of grnLines) {
+            if (!gl.poLineItemId) continue;
+            const [poli] = await db
+              .select()
+              .from(poLineItems)
+              .where(eq(poLineItems.id, gl.poLineItemId));
+            if (poli) {
+              recv += parseFloat(String(poli.unitPrice)) * Number(gl.acceptedQuantity ?? 0);
+            }
+          }
+          grnReceivedValue = recv;
+          const threeWayGap = Math.abs(invoiceTotal - recv);
+          matched =
+            matched &&
+            threeWayGap <= tolerance &&
+            (lines.length === 0 || lineDelta <= tolerance);
+        }
 
         return {
           invoice,
           po,
           matched,
           discrepancy,
-          discrepancyPct: Math.round((discrepancy / poTotal) * 100),
+          toleranceUsed: tolerance,
+          discrepancyPct: poTotal > 0 ? Math.round((discrepancy / poTotal) * 100) : 0,
+          invoiceLineSum,
+          grnReceivedValue,
         };
       }),
   }),

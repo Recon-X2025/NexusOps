@@ -16,6 +16,7 @@ import {
   type RequestMeta,
 } from "./logger";
 import { sanitizeForAudit } from "./audit-sanitize";
+import { assertStepUpIfRequired } from "./step-up";
 
 export type Context = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -419,6 +420,12 @@ export function permissionProcedure(module: Module, action: RbacAction) {
     return next({ ctx });
   });
 }
+
+/** Org policy: `settings.security.requireStepUpForMatrixRoles` → password re-check via `auth.verifyStepUp`. */
+export const stepUpGate = t.middleware(({ ctx, next }) => {
+  assertStepUpIfRequired(ctx);
+  return next();
+});
 
 export const adminProcedure = protectedProcedure.use(({ ctx, path, next }) => {
   // Same null guard — ensures admin checks always return UNAUTHORIZED/FORBIDDEN,

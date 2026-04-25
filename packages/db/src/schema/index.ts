@@ -1,5 +1,6 @@
 export * from "./counters";
 export * from "./auth";
+export * from "./legal-entity";
 export * from "./tickets";
 export * from "./assignment";
 export * from "./assets";
