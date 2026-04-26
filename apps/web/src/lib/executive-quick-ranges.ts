@@ -1,16 +1,19 @@
 import {
   eachMonthOfInterval,
+  endOfDay,
   endOfMonth,
   endOfQuarter,
   endOfYear,
+  startOfDay,
   startOfMonth,
   startOfQuarter,
   startOfYear,
+  subDays,
   subMonths,
   subQuarters,
   subYears,
 } from "date-fns";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 /** One quick range — `from` / `to` mirror Elasticsearch date-math style labels for traceability. */
 export type ExecutiveQuickRangeDef = {
@@ -26,6 +29,12 @@ export type ExecutiveQuickRangeDef = {
  * IDs are stable; `from`/`to` store the original expression strings for docs/API parity.
  */
 export const EXECUTIVE_QUICK_RANGES: ExecutiveQuickRangeDef[] = [
+  // Day ranges
+  { id: "today", from: "now/d", to: "now/d", display: "Today", group: "Recent" },
+  { id: "yesterday", from: "now-1d/d", to: "now-1d/d", display: "Yesterday", group: "Recent" },
+  { id: "span_7d", from: "now-7d/d", to: "now/d", display: "Last 7 days", group: "Recent" },
+  { id: "span_30d", from: "now-30d/d", to: "now/d", display: "Last 30 days", group: "Recent" },
+  { id: "span_90d", from: "now-90d/d", to: "now/d", display: "Last 90 days", group: "Recent" },
   // Year ranges (calendar)
   { id: "yr_this", from: "now/y", to: "now", display: "This year", group: "Year ranges" },
   { id: "yr_last", from: "now-1y/y", to: "now-1y/y", display: "Last year", group: "Year ranges" },
@@ -111,13 +120,73 @@ function fullMonthContaining(anchor: Date): { from: Date; to: Date } {
   };
 }
 
+/**
+ * Custom range id format: `custom:YYYY-MM-DD:YYYY-MM-DD`. Used by the
+ * calendar picker so an arbitrary user-selected interval can flow
+ * through the same `value` channel as preset ids without forcing every
+ * caller to maintain a parallel "custom range" state slot.
+ */
+export const CUSTOM_RANGE_PREFIX = "custom:";
+
+export function customRangeId(from: Date, to: Date): string {
+  return `${CUSTOM_RANGE_PREFIX}${format(from, "yyyy-MM-dd")}:${format(to, "yyyy-MM-dd")}`;
+}
+
+export function isCustomRangeId(id: string): boolean {
+  return id.startsWith(CUSTOM_RANGE_PREFIX);
+}
+
+function parseCustomRangeId(id: string): { from: Date; to: Date } | null {
+  if (!id.startsWith(CUSTOM_RANGE_PREFIX)) return null;
+  const [, fromStr, toStr] = id.split(":");
+  if (!fromStr || !toStr) return null;
+  const from = parseISO(fromStr);
+  const to = parseISO(toStr);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+  return { from: startOfDay(from), to: endOfDay(to) };
+}
+
 /** Resolve quick-range id to concrete [from, to] in local time (dashboard default). */
 export function resolveExecutiveQuickRange(id: string, now = new Date()): ExecutiveQuickRangeResolved {
-  const def = RANGE_BY_ID.get(id) ?? EXECUTIVE_QUICK_RANGES[0]!;
+  const custom = parseCustomRangeId(id);
+  if (custom) {
+    return {
+      id,
+      from: id,
+      to: id,
+      display: customRangeDisplay(custom.from, custom.to),
+      group: "Custom",
+      fromDate: custom.from,
+      toDate: custom.to,
+    };
+  }
+  const def = RANGE_BY_ID.get(id) ?? RANGE_BY_ID.get(executiveDefaultQuickRangeId())!;
   let fromDate: Date;
   let toDate: Date;
 
   switch (def.id) {
+    case "today":
+      fromDate = startOfDay(now);
+      toDate = endOfDay(now);
+      break;
+    case "yesterday": {
+      const y = subDays(now, 1);
+      fromDate = startOfDay(y);
+      toDate = endOfDay(y);
+      break;
+    }
+    case "span_7d":
+      fromDate = startOfDay(subDays(now, 6));
+      toDate = endOfDay(now);
+      break;
+    case "span_30d":
+      fromDate = startOfDay(subDays(now, 29));
+      toDate = endOfDay(now);
+      break;
+    case "span_90d":
+      fromDate = startOfDay(subDays(now, 89));
+      toDate = endOfDay(now);
+      break;
     case "yr_this":
       fromDate = startOfYear(now);
       toDate = now;
@@ -202,7 +271,27 @@ export function resolveExecutiveQuickRange(id: string, now = new Date()): Execut
 }
 
 export function executiveDefaultQuickRangeId(): string {
-  return "yr_this";
+  return "today";
+}
+
+/** Human-friendly label for a custom date interval, e.g. "Apr 1 – Apr 26, 2026". */
+export function customRangeDisplay(from: Date, to: Date): string {
+  const sameDay =
+    from.getFullYear() === to.getFullYear() &&
+    from.getMonth() === to.getMonth() &&
+    from.getDate() === to.getDate();
+  if (sameDay) return format(from, "MMM d, yyyy");
+  const sameYear = from.getFullYear() === to.getFullYear();
+  if (sameYear) {
+    return `${format(from, "MMM d")} – ${format(to, "MMM d, yyyy")}`;
+  }
+  return `${format(from, "MMM d, yyyy")} – ${format(to, "MMM d, yyyy")}`;
+}
+
+export function executiveRangeDisplay(id: string): string {
+  const custom = parseCustomRangeId(id);
+  if (custom) return customRangeDisplay(custom.from, custom.to);
+  return RANGE_BY_ID.get(id)?.display ?? id;
 }
 
 /** Grouped options for a &lt;select&gt; with optgroup. */

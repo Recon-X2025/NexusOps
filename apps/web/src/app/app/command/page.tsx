@@ -15,7 +15,7 @@ import { CommandCenterFlow } from "@/components/command-center/command-center-fl
 import { CommandCenterRisks } from "@/components/command-center/command-center-risks";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
-import { executiveDefaultQuickRangeId, resolveExecutiveQuickRange } from "@/lib/executive-quick-ranges";
+import { executiveDefaultQuickRangeId, granularityForRange, resolveExecutiveQuickRange } from "@/lib/executive-quick-ranges";
 
 const VIEW_WAIT_MS = 5000;
 
@@ -78,7 +78,11 @@ export default function CommandCenterPage() {
   const [rangeId, setRangeId] = useState(executiveDefaultQuickRangeId);
   const range = useMemo(() => {
     const r = resolveExecutiveQuickRange(rangeId);
-    return { start: r.fromDate, end: r.toDate, granularity: "week" as const };
+    return {
+      start: r.fromDate,
+      end: r.toDate,
+      granularity: granularityForRange(r.fromDate, r.toDate),
+    };
   }, [rangeId]);
 
   if (!canAccess("command_center")) {
@@ -101,7 +105,7 @@ function CommandCenterBody({
   setRangeId,
   mergeTrpcQueryOpts,
 }: {
-  range: { start: Date; end: Date; granularity: "week" };
+  range: { start: Date; end: Date; granularity: "day" | "week" | "month" };
   rangeId: string;
   setRangeId: (id: string) => void;
   mergeTrpcQueryOpts: ReturnType<typeof useRBAC>["mergeTrpcQueryOpts"];

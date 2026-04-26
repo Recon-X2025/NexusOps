@@ -4,10 +4,8 @@ import Link from "next/link";
 import type { ElementType, ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  executiveDefaultQuickRangeId,
-  executiveQuickRangeSelectGroups,
-} from "@/lib/executive-quick-ranges";
+import { executiveDefaultQuickRangeId } from "@/lib/executive-quick-ranges";
+import { ExecutivePeriodPicker } from "@/components/dashboard/executive-period-picker";
 
 /** Page shell: full-bleed executive background inside padded app main. */
 export function ExecutiveDashShell({ children, className }: { children: ReactNode; className?: string }) {
@@ -122,6 +120,14 @@ export function ExecutiveHubHeader({
   );
 }
 
+/**
+ * Drop-in time-range picker used across executive dashboards. Delegates
+ * to {@link ExecutivePeriodPicker} which renders a popover with preset
+ * groups + an inline two-month calendar for custom range selection.
+ * The string `value` channel still carries either a preset id or a
+ * `custom:YYYY-MM-DD:YYYY-MM-DD` token, so existing callers don't need
+ * to track separate "custom range" state.
+ */
 export function ExecutivePeriodSelect({
   value,
   onChange,
@@ -134,34 +140,10 @@ export function ExecutivePeriodSelect({
   /** e.g. max-w-[min(100%,280px)] for long labels */
   className?: string;
 }) {
-  const groups = executiveQuickRangeSelectGroups();
-  return (
-    <label
-      className={cn(
-        "flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2 text-[11px] text-[#001B3D]/70 dark:text-slate-400",
-        className,
-      )}
-    >
-      <span className="whitespace-nowrap font-medium">Time range</span>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-w-0 w-full sm:w-auto sm:max-w-[280px] rounded-lg border border-[#001B3D]/15 dark:border-slate-600 bg-white dark:bg-slate-900 text-[#001B3D] dark:text-slate-100 text-xs py-1.5 px-2 shadow-sm"
-      >
-        {groups.map((g) => (
-          <optgroup key={g.group} label={g.group}>
-            {g.options.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-    </label>
-  );
+  return <ExecutivePeriodPicker value={value} onChange={onChange} id={id} className={className} />;
 }
+
+export { ExecutivePeriodPicker };
 
 /** @deprecated Use `executiveDefaultQuickRangeId` from `@/lib/executive-quick-ranges`. */
 export function executiveCurrentPeriodValue(): string {
