@@ -26,7 +26,6 @@ import { apmRouter } from "./apm";
 import { oncallRouter } from "./oncall";
 import { eventsRouter } from "./events";
 import { facilitiesRouter } from "./facilities";
-import { walkupRouter } from "./walkup";
 import { vendorsRouter } from "./vendors";
 import { approvalsRouter } from "./approvals";
 import { reportsRouter } from "./reports";
@@ -47,6 +46,9 @@ import { payrollRouter } from "./payroll";
 import { expensesRouter } from "./expenses";
 import { commandCenterRouter } from "./command-center";
 import { workbenchRouter } from "./workbench";
+import { esignRouter } from "./esign";
+import { documentsRouter } from "./documents";
+import { agentRouter } from "./agent";
 
 export const appRouter = router({
   mac: macRouter,
@@ -79,7 +81,6 @@ export const appRouter = router({
   oncall: oncallRouter,
   events: eventsRouter,
   facilities: facilitiesRouter,
-  walkup: walkupRouter,
   vendors: vendorsRouter,
   approvals: approvalsRouter,
   reports: reportsRouter,
@@ -105,6 +106,11 @@ export const appRouter = router({
   expenseReports: expensesRouter,
   commandCenter: commandCenterRouter,
   workbench: workbenchRouter,
+  // GA workstreams (§ Production Readiness Plan 2026-04-26)
+  esign: esignRouter,
+  documents: documentsRouter,
+  // P1 — multi-turn Copilot agent with conversation memory + write tools
+  agent: agentRouter,
 });
 
 export type AppRouter = typeof appRouter;

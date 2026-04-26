@@ -20,10 +20,29 @@ import {
   startSlaWorker,
   type SlaJobData,
 } from "../workflows/ticketLifecycleWorkflow";
+import {
+  createVirusScanQueue,
+  startVirusScanWorker,
+  type VirusScanJobData,
+} from "../workflows/virusScanWorkflow";
+import {
+  createRetentionQueue,
+  scheduleRetentionSweep,
+  startRetentionWorker,
+  type RetentionJobData,
+} from "../workflows/documentRetentionWorkflow";
+import {
+  createIrnQueue,
+  startIrnWorker,
+  type IrnJobData,
+} from "../workflows/irnGenerationWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
   slaQueue: Queue<SlaJobData>;
+  virusScanQueue: Queue<VirusScanJobData>;
+  retentionQueue: Queue<RetentionJobData>;
+  irnQueue: Queue<IrnJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -35,9 +54,19 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
 
   const approvalQueue = createApprovalQueue();
   const slaQueue = createSlaQueue();
+  const virusScanQueue = createVirusScanQueue();
+  const retentionQueue = createRetentionQueue();
+  const irnQueue = createIrnQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
+  const virusScanWorker = startVirusScanWorker(db);
+  const retentionWorker = startRetentionWorker(db);
+  const irnWorker = startIrnWorker(db);
+
+  scheduleRetentionSweep(retentionQueue).catch((err) => {
+    console.warn("[workflow:retention] Failed to register sweeper:", err);
+  });
 
   approvalWorker.on("failed", (job, err) => {
     console.error(`[workflow:approval] Job ${job?.id} failed:`, err.message);
@@ -53,15 +82,28 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     console.warn("[workflow:sla] Failed to register periodic deadline sweeper:", err);
   });
 
+  irnWorker.on("failed", (job, err) => {
+    console.error(`[workflow:irn] Job ${job?.id} failed:`, err.message);
+  });
+
   _instance = {
     approvalQueue,
     slaQueue,
+    virusScanQueue,
+    retentionQueue,
+    irnQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
         slaWorker.close(),
+        virusScanWorker.close(),
+        retentionWorker.close(),
+        irnWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
+        virusScanQueue.close(),
+        retentionQueue.close(),
+        irnQueue.close(),
       ]);
       _instance = undefined;
     },

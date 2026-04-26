@@ -1,4 +1,5 @@
 import type { Module, SystemRole } from "@nexusops/types";
+import { DEVOPS_ENABLED, APM_ENABLED } from "@/lib/feature-flags";
 
 export type SidebarChild = { label: string; href: string };
 
@@ -176,7 +177,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Employee Center", href: "/app/employee-center" },
           { label: "Leave Requests", href: "/app/hr?tab=leave" },
           { label: "Attendance", href: "/app/attendance" },
-          { label: "Expense Claims", href: "/app/expenses" },
+          { label: "My Expense Claims", href: "/app/hr/expenses" },
           { label: "Holiday Calendar", href: "/app/holidays" },
           { label: "OKRs & Goals", href: "/app/okr" },
         ],
@@ -219,7 +220,6 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         icon: "Building2",
         module: "work_orders",
       },
-      { label: "Walk-Up Experience", href: "/app/walk-up", icon: "Footprints", module: "incidents" },
     ],
   },
   {
@@ -276,8 +276,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         module: "contracts",
       },
       {
-        label: "Expense Management",
-        href: "/app/expenses",
+        label: "Expenses & Reimbursements",
+        href: "/app/finance/expenses",
         icon: "Receipt",
         module: "financial",
       },
@@ -310,28 +310,32 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     ],
   },
   {
-    id: "strategy_projects",
-    label: "Strategy & Projects",
+    // Strategy Center: executive/PMO surface for initiatives, portfolio
+    // shape, OKRs, and the application landscape. The day-to-day task
+    // board (Linear/Jira space) intentionally lives behind a feature
+    // flag — this nav surface stays oversight-focused.
+    id: "strategy_center",
+    label: "Strategy Center",
     icon: "Target",
     defaultExpanded: false,
-    modules: ["projects", "analytics"],   // was ["reports","analytics"] — projects is a separate module
+    modules: ["projects", "analytics"],
     items: [
-      { label: "Overview", href: "/app/strategy-projects", icon: "LayoutDashboard", module: "projects" },
+      { label: "Strategy Center", href: "/app/strategy", icon: "LayoutDashboard", module: "projects" },
       { label: "PMO", href: "/app/workbench/pmo", icon: "Target", module: "workbench", dividerAfter: true },
-      { label: "Project Portfolio", href: "/app/projects", icon: "FolderKanban", module: "projects" },
-      { label: "Application Portfolio", href: "/app/apm", icon: "AppWindow", module: "reports" },
+      { label: "Initiatives", href: "/app/projects", icon: "FolderKanban", module: "projects" },
     ],
   },
   {
-    id: "developer_ops",
-    label: "Developer & Ops",
-    icon: "Code",
+    id: "knowledge_hub",
+    label: "Knowledge",
+    icon: "BookOpen",
     defaultExpanded: false,
     modules: ["knowledge"],
     items: [
-      { label: "Overview", href: "/app/developer-ops", icon: "LayoutDashboard", module: "knowledge" },
-      { label: "DevOps", href: "/app/devops", icon: "GitPullRequest", module: "cmdb" },
-      { label: "Knowledge Management", href: "/app/knowledge", icon: "BookOpen", module: "knowledge" },
+      { label: "Knowledge Base", href: "/app/knowledge", icon: "BookOpen", module: "knowledge" },
+      ...(DEVOPS_ENABLED
+        ? [{ label: "DevOps", href: "/app/devops", icon: "GitPullRequest" as const, module: "cmdb" as const }]
+        : []),
     ],
   },
   {
@@ -345,6 +349,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Omnichannel", href: "/app/settings/omnichannel", icon: "MessagesSquare", module: "settings" },
       { label: "Webhooks",     href: "/app/settings/webhooks",     icon: "Globe", module: "settings" },
       { label: "API Keys",     href: "/app/settings/api-keys",     icon: "KeyRound", module: "settings" },
+      { label: "App Inventory", href: "/app/apm", icon: "AppWindow", module: "reports" },
     ],
   },
   {

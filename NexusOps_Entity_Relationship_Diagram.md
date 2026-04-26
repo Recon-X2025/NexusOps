@@ -47,7 +47,7 @@
 18. [Domain 16 — Facilities & Workplace](#18-domain-16--facilities--workplace)
 19. [Domain 17 — DevOps & Deployments](#19-domain-17--devops--deployments)
 20. [Domain 18 — Surveys](#20-domain-18--surveys)
-21. [Domain 19 — Walk-Up Service Desk](#21-domain-19--walk-up-service-desk)
+21. ~~Domain 19 — Walk-Up Service Desk~~ *(retired 2026-04-26 — see migration `0028`)*
 22. [Domain 20 — Application Portfolio Management (APM)](#22-domain-20--application-portfolio-management-apm)
 23. [Domain 21 — On-Call Management](#23-domain-21--on-call-management)
 24. [Domain 22 — Service Catalog](#24-domain-22--service-catalog)
@@ -1796,41 +1796,9 @@ erDiagram
 
 ---
 
-## 21. Domain 19 — Walk-Up Service Desk
+## 21. Domain 19 — Walk-Up Service Desk *(retired 2026-04-26)*
 
-```mermaid
-erDiagram
-    walkup_visits {
-        uuid id PK
-        uuid org_id FK
-        uuid visitor_id FK
-        uuid agent_id FK
-        uuid location_id
-        text status
-        text purpose
-        int wait_time_minutes
-        timestamptz checked_in_at
-        timestamptz served_at
-        timestamptz completed_at
-        text notes
-        timestamptz created_at
-    }
-
-    walkup_appointments {
-        uuid id PK
-        uuid org_id FK
-        uuid visitor_id FK
-        uuid agent_id FK
-        uuid location_id
-        text status
-        text purpose
-        timestamptz scheduled_at
-        int duration_minutes
-        text notes
-        timestamptz created_at
-        timestamptz updated_at
-    }
-```
+The `walkup_visits` and `walkup_appointments` tables and their enums (`walkup_visit_status`, `walkup_appt_status`) were dropped by migration `packages/db/drizzle/0028_optimal_sinister_six.sql`. Walk-in visits are captured as regular `tickets` rows with `channel = "walk_in"` (Domain 1 — ITSM), so domain count drops by two tables. Section retained as a deletion marker so anyone searching old issues for `walkup_*` finds the migration reference.
 
 ---
 
@@ -2530,11 +2498,9 @@ All 82 PostgreSQL enum types defined across the schema:
 | `notification_type` | `info`, `warning`, `success`, `error` |
 | `notification_channel` | `email`, `in_app`, `slack` |
 
-### Walk-Up
-| Enum | Values |
-|------|--------|
-| `walkup_visit_status` | `waiting`, `in_service`, `completed`, `no_show` |
-| `walkup_appt_status` | `scheduled`, `confirmed`, `completed`, `cancelled`, `no_show` |
+### Walk-Up *(retired 2026-04-26)*
+
+`walkup_visit_status` and `walkup_appt_status` enums were dropped by migration `0028_optimal_sinister_six.sql` along with the `walkup_*` tables. No replacement enums — walk-in visits use the standard ticket status enum via `tickets.channel = "walk_in"`.
 
 ### APM
 | Enum | Values |
@@ -2596,8 +2562,6 @@ All 82 PostgreSQL enum types defined across the schema:
 | Missing FK constraint | `deployments` | `change_id` | Should reference `change_requests.id` |
 | Missing FK constraint | `catalog_requests` | `approval_id` | Should reference `approval_requests.id` |
 | Missing FK constraint | `facility_requests` | `location_id` | Should reference `buildings.id` or `rooms.id` |
-| Missing FK constraint | `walkup_visits` | `location_id` | No `locations` table; intended FK target unclear |
-| Missing FK constraint | `walkup_appointments` | `location_id` | Same as above |
 | Duplicate env variable | API health check | `MEILISEARCH_HOST` | Health check uses `MEILISEARCH_HOST`; search service uses `MEILISEARCH_URL` — should be unified |
 | Missing unique constraint | `notification_preferences` | (`user_id`, `channel`, `event_type`) | Composite uniqueness not enforced at DB level |
 | Missing India fields | `employees` | `pan`, `aadhaar`, `uan`, `bank_ifsc`, `tax_regime`, `is_metro_city` | Added in §7 ERD update; migration required |

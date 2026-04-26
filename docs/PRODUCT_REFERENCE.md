@@ -8,7 +8,7 @@
 
 ## 1. What NexusOps is
 
-**NexusOps** is an enterprise operations platform from **Coheron**: ITSM (service desk, change, problems, events), assets and CMDB, HR service delivery, procurement and finance touchpoints, security and GRC, legal and secretarial (incl. India compliance patterns), CRM/CSM, projects and application portfolio management, knowledge, DevOps telemetry, workflows with an optional **Temporal** backend, AI-assisted features, and self-hostable deployment (Docker / Helm).
+**NexusOps** is an enterprise operations platform from **Coheron**: ITSM (service desk, change, problems, events), assets and CMDB, HR service delivery, procurement and finance touchpoints, security and GRC, legal and secretarial (incl. India compliance patterns), CRM/CSM, the **Strategy Center** (initiatives, portfolio shape, application landscape), knowledge, DevOps telemetry, workflows with an optional **Temporal** backend, AI-assisted features, and self-hostable deployment (Docker / Helm).
 
 Primary interaction is the **web app** (`apps/web`). A **mobile** client (`apps/mobile`) and **managed-account console** (`apps/mac`) also exist.
 
@@ -81,7 +81,7 @@ Workbenches sit between the executive Command Center (`/app/command`) and the co
 | 9 | AP / AR | `/app/workbench/finance-ops` | AP/AR Manager | Dual-pane aging buckets (AP vs AR) | slate |
 | 10 | Procurement | `/app/workbench/procurement` | Buyer / Procurement Manager | Open POs Kanban | orange |
 | 11 | Company Secretary | `/app/workbench/company-secretary` | Company Secretary | Compliance calendar (filings + meetings) | violet (light) |
-| 12 | PMO | `/app/workbench/pmo` | PMO Lead | Portfolio matrix (impact × confidence) | blue (light) |
+| 12 | PMO | `/app/workbench/pmo` | PMO Lead | Portfolio matrix · milestones at risk · cross-project dependencies | blue (light) |
 
 **Backend:** `workbench.serviceDesk`, `workbench.changeRelease`, `workbench.fieldService`, `workbench.secops`, `workbench.grc`, `workbench.hrOps`, `workbench.recruiter`, `workbench.csm`, `workbench.financeOps`, `workbench.procurement`, `workbench.companySecretary`, `workbench.pmo`. Each procedure delegates to a payload builder under `apps/api/src/services/workbench-payloads/*` that runs source queries in parallel through `runPanel` (3s default timeout) and returns a `WorkbenchEnvelope` with the right-rail action queue plus per-panel `Panel<T>` results.
 
@@ -121,9 +121,10 @@ Workbenches sit between the executive Command Center (`/app/command`) and the co
 | Workforce analytics | `/app/people-analytics` |
 | Performance | `/app/performance` |
 | Facilities | `/app/facilities` |
-| Walk-up | `/app/walk-up` |
 
-**Backend:** `hr`, `recruitment`, `workforce`, `payroll`, `performance`, `facilities`, `walkup`, etc.
+**Backend:** `hr`, `recruitment`, `workforce`, `payroll`, `performance`, `facilities`, etc.
+
+> **Walk-Up Experience** was retired in 2026-04 (see Architecture Design changelog 1.10). In-person visits are now captured as a `walk_in` channel value on a regular `tickets` row — the dispatcher uses the same Service Desk workbench as every other channel. The `walkup_*` tables, router, schema, and `/app/walk-up` page were dropped (migration `0028_optimal_sinister_six.sql`).
 
 ### 4.5 Customer & Sales
 
@@ -146,9 +147,12 @@ Workbenches sit between the executive Command Center (`/app/command`) and the co
 | Accounting | `/app/accounting` |
 | Vendors | `/app/vendors` |
 | Contracts | `/app/contracts` |
-| Expenses | `/app/expenses` |
+| Employee expense self-serve | `/app/hr/expenses` (employee files own claims via `hr.expenses.createMine` / `listMine`) |
+| Finance expense queue | `/app/finance/expenses` (review / approve / reject / reimburse — gated by `financial.write`) |
 
 **Backend:** `procurement`, `financial`, `accounting`, `contracts`, `vendors`, `expenseReports` (finance reports; distinct from `hr.expenses` claims — see root `README.md`).
+
+> **Expense routes are intentionally split.** The employee surface (`/app/hr/expenses`) only allows the authenticated user to create / read **their own** claims — `employeeId` is resolved server-side from `users.id → employees.userId`, so an IC without `hr.write` can still file. The finance queue (`/app/finance/expenses`) is a separate page gated by `financial.write` and exposes the cross-org review/approve/reimburse workflow, including a mandatory rejection-reason capture (min 4 chars) shown to the employee. The same `expense_claims` table backs both surfaces; the split exists at the **route + permission** level, not the data level.
 
 ### 4.7 Legal & Governance
 
@@ -160,33 +164,43 @@ Workbenches sit between the executive Command Center (`/app/command`) and the co
 
 **Backend:** `legal`, `secretarial`, `grc` (where shared), India compliance via `indiaCompliance` router.
 
-### 4.8 Strategy & Projects
+### 4.8 Strategy Center
+
+The **Strategy Center** is the executive surface for portfolio shape and initiative health. It is positioned as a leadership / PMO instrument — not a contributor task tool — and pairs with the **PMO workbench** (`/app/workbench/pmo`) for daily portfolio governance.
 
 | Area | Routes |
 |------|--------|
-| Hub | `/app/strategy-projects` |
-| Projects | `/app/projects` |
-| Application portfolio | `/app/apm` |
+| Hub | `/app/strategy` |
+| PMO workbench | `/app/workbench/pmo` |
+| Initiatives | `/app/projects` (Portfolio View · All Initiatives) |
 | Reports & analytics | `/app/reports` |
 
-**Backend:** `projects`, `apm`, `reports`, `dashboard`.
+**Surface focus:** initiatives (status, phase, health, owner), milestones, dependencies, benefits/outcomes, portfolio rollups (`portfolioHealth`).
 
-### 4.9 Developer & Ops
+**Backend:** `projects`, `reports`, `dashboard`.
+
+> Legacy bookmarks to `/app/strategy-projects` 308-redirect to `/app/strategy`.
+
+### 4.9 Knowledge
 
 | Area | Routes |
 |------|--------|
-| Hub | `/app/developer-ops` |
-| DevOps | `/app/devops` |
-| Knowledge | `/app/knowledge` |
+| Knowledge Base | `/app/knowledge` |
 
-**Backend:** `devops`, `knowledge`.
+**Backend:** `knowledge`.
 
 ### 4.10 Settings & setup
 
-- Integrations, omnichannel, webhooks, API keys under `/app/settings/*`
-- Setup wizard `/app/onboarding-wizard`
+| Area | Routes |
+|------|--------|
+| Integrations | `/app/settings/integrations` |
+| Omnichannel | `/app/settings/omnichannel` |
+| Webhooks | `/app/settings/webhooks` |
+| API Keys | `/app/settings/api-keys` |
+| **App Inventory** | `/app/apm` — register of business applications (name, owner, vendor, annual cost, renewal) |
+| Setup wizard | `/app/onboarding-wizard` |
 
-**Backend:** `integrations`, `admin`, `auth`, etc.
+**Backend:** `integrations`, `admin`, `auth`, `apm` (App Inventory).
 
 ---
 
@@ -194,7 +208,9 @@ Workbenches sit between the executive Command Center (`/app/command`) and the co
 
 Routers are composed in `apps/api/src/routers/index.ts`. This is the authoritative list of **named API namespaces** exposed to the web (and other clients):
 
-`auth`, `admin`, `tickets`, `assets`, `workflows`, `hr`, `procurement`, `dashboard`, `workOrders`, `changes`, `security`, `grc`, `financial`, `contracts`, `projects`, `crm`, `legal`, `devops`, `surveys`, `knowledge`, `notifications`, `catalog`, `csm`, `apm`, `oncall`, `events`, `facilities`, `walkup`, `vendors`, `approvals`, `reports`, `search`, `ai`, `indiaCompliance`, `assignmentRules`, `inventory`, `recruitment`, `secretarial`, `workforce`, `integrations`, `mac`, `performance`, `accounting`, `customFields`, `payroll`, `expenseReports`, `commandCenter`, `workbench`.
+`auth`, `admin`, `tickets`, `assets`, `workflows`, `hr`, `procurement`, `dashboard`, `workOrders`, `changes`, `security`, `grc`, `financial`, `contracts`, `projects`, `crm`, `legal`, `devops`, `surveys`, `knowledge`, `notifications`, `catalog`, `csm`, `apm`, `oncall`, `events`, `facilities`, `vendors`, `approvals`, `reports`, `search`, `ai`, `indiaCompliance`, `assignmentRules`, `inventory`, `recruitment`, `secretarial`, `workforce`, `integrations`, `mac`, `performance`, `accounting`, `customFields`, `payroll`, `expenseReports`, `esign`, `documents`, `commandCenter`, `workbench`.
+
+> The `walkup` router was retired in 2026-04 along with the rest of the Walk-Up Experience module. Tenants migrating from earlier builds should drop any client integration against `walkup.*` and create regular `tickets.create` entries with `channel = "walk_in"`.
 
 **Cross-cutting:** Many mutations write **audit logs** (sanitized). Admin can list audit entries via `admin` procedures.
 
@@ -225,6 +241,66 @@ Use the matrix file when answering “who can do what?”
 - **Temporal** — workflow runs when publishing automation flows; can be required via `NEXUSOPS_WORKFLOW_ENGINE_REQUIRED` / `WORKFLOW_ENGINE_REQUIRED`.
 - **Workers** — `apps/worker` for queued processing.
 - **Integrations router** — external system hooks (see settings UI and `integrations` router).
+
+---
+
+## 8a. Production-readiness infrastructure (2026-04)
+
+The following capabilities were added during the GA hardening pass for the Indian mid-market segment. They are infra-level — most have no direct user-visible surface, but they are required for any tenant that is signing legally-binding contracts, accepting walk-in tickets through real channels, or storing files containing PII.
+
+### 8a.1 Integrations admin UI (tenant-managed credentials)
+
+Route: `/app/settings/integrations`. Backend: `integrations.providerCatalog`, `integrations.upsertIntegration`, `integrations.testIntegration`, `integrations.disconnectIntegration` in `apps/api/src/routers/integrations.ts`.
+
+The catalog of supported integrations is now declared **server-side** in the `integrations` router (`PROVIDER_CATALOG`), and the admin UI dynamically renders forms from that catalog — adding a new integration requires only an entry in the catalog plus an adapter in `apps/api/src/services/integrations/`. Currently catalogued: Slack, Microsoft Teams, Email (SMTP), Jira, SAP, **WhatsApp (AiSensy)**, **SMS (MSG91)**, **Razorpay**, **ClearTax GST (IRN)**, **Google Workspace**, **Microsoft 365**, **eMudhra Aadhaar e-Sign**.
+
+All credentials are encrypted at rest with AES-256-CBC using a per-tenant DEK wrapped against `INTEGRATIONS_KMS_KEY_ID` (`apps/api/src/services/encryption.ts`).
+
+### 8a.2 E-sign (Aadhaar e-Sign / DSC) — eMudhra adapter
+
+`apps/api/src/services/esign/emudhra.ts` implements the eMudhra ASP contract (init, sign, fetchStatus, fetchSignedDocument, verifyCallback). Webhook callbacks land at `POST /webhooks/esign/emudhra` and are HMAC-verified against the per-tenant `webhookSecret`. The legally-binding signed PDF + audit trail are persisted to `signature_requests` / `signature_audit` (8-year retention per IT Act §3A and Companies Act 2013).
+
+Production credentialing and the design-partner sandbox dry-run procedure are documented in **`docs/EMUDHRA_PRODUCTION_RUNBOOK.md`**.
+
+### 8a.3 Document virus scanning
+
+`apps/api/src/workflows/virusScanWorkflow.ts` runs a BullMQ consumer (`nexusops-doc-virusscan`) that streams every uploaded document to a ClamAV `clamd` sidecar via the INSTREAM TCP protocol. Outcomes (`clean | infected | skipped | failed`) are written to `documents.scanStatus` + `documents.scanResult` (JSONB). When ClamAV is not configured the worker emits `skipped` rather than blocking uploads — set `VIRUS_SCAN_DISABLED=true` to opt out entirely.
+
+### 8a.4 Document retention sweeper
+
+`apps/api/src/workflows/documentRetentionWorkflow.ts` runs a daily BullMQ cron (`nexusops-doc-retention`) that hard-deletes soft-deleted documents past their per-policy retention window. Documents on `legalHold` are **never** swept. The S3 object is removed first, then the DB rows (`documents` + `document_versions`), then an `audit_logs` entry is appended. Admins can trigger an out-of-band sweep via `documents.runRetentionSweepNow` (admin-only).
+
+### 8a.5 Webhook hardening
+
+`apps/api/src/http/webhooks.ts` enforces (in this order, per request):
+
+1. **CORS / browser origin block** — any request with an `Origin` header is rejected 403 (webhooks are server-to-server only).
+2. **OPTIONS rejection** — preflight is rejected 405 so misconfigured providers fail loudly.
+3. **Strict security headers** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; sandbox`, `Cache-Control: no-store`.
+4. **Per-provider IP allowlist** — `WEBHOOK_ALLOWLIST_EMUDHRA`, `WEBHOOK_ALLOWLIST_AISENSY`, `WEBHOOK_ALLOWLIST_RAZORPAY` are CIDR-aware comma-separated env vars. Empty allowlist → accept-all (rely on HMAC); set the env var to lock down to provider-published ranges.
+5. **HMAC verification** — provider-specific secret + signature header validated by `services/encryption.ts:verifyHmac` in constant time.
+
+### 8a.6 E2E spec for the e-sign callback path
+
+`e2e/esign-webhook.spec.ts` is the canonical happy-path + negative-path Playwright suite for the eMudhra webhook receiver: configure creds → seed signature envelope → POST simulated callback → assert row flips to `completed` and `signature_audit` is appended. Failure of this spec means contracts will never auto-close after eMudhra signs — treat as P0.
+
+### 8a.7 Walk-Up Experience retired
+
+The Walk-Up Experience module (`/app/walk-up`, `walkup` router, `walkup_*` schema) was retired in this pass. Walk-in visits are now a regular `tickets` row with `channel = "walk_in"`; the dispatcher works them in the Service Desk workbench. Migration `0028_optimal_sinister_six.sql` drops the `walkup_appointments` and `walkup_visits` tables and the associated enums.
+
+---
+
+## 8b. Feature flags (client surface)
+
+Client-side feature flags are declared in `apps/web/src/lib/feature-flags.ts` and read from `NEXT_PUBLIC_*` environment variables. They control which surfaces render on the web app without removing routers, schemas, or tRPC procedures.
+
+| Flag | Env var | Default | Effect when enabled |
+|------|---------|---------|---------------------|
+| `TASK_BOARD_ENABLED` | `NEXT_PUBLIC_ENABLE_TASK_BOARD` | off | Adds an additional contributor-level task board surface inside the Strategy Center for tenants that want it. The default Strategy Center experience is initiative- and portfolio-shaped only. |
+| `DEVOPS_ENABLED` | `NEXT_PUBLIC_ENABLE_DEVOPS` | off | Restores the `/app/devops` and `/app/developer-ops` surfaces (CI/CD pipelines, deployments, DORA telemetry). Default product positions stop at change-management; pipeline telemetry lives in the customer's CI provider. |
+| `APM_ENABLED` | `NEXT_PUBLIC_ENABLE_APM` | off | Expands `/app/apm` from the default lightweight **App Inventory** (name · owner · vendor · cost · renewal) into the full enterprise-architecture surface (Lifecycle, Tech Debt, Cloud Readiness, Capability Map). |
+
+Flags are intentionally additive: turning a flag off restores the canonical default product surface; turning it on does not weaken any RBAC check.
 
 ---
 

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
+import { FilePicker } from "@/components/dms/FilePicker";
 import {
   ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X,
   AlertTriangle, MessageSquare, Activity, Paperclip, User, Megaphone,
@@ -785,6 +786,9 @@ export default function TicketDetailPage() {
                   </p>
                 </div>
 
+                {/* Attachments */}
+                <TicketAttachments ticketId={ticket.id} disabled={isTerminal} />
+
                 {/* Comment composer */}
                 <div className={`border border-border rounded ${isTerminal ? "opacity-60" : ""}`}>
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
@@ -816,10 +820,18 @@ export default function TicketDetailPage() {
                   />
                   <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
                     <div className="flex items-center gap-2">
-                      <label className={`p-1 text-muted-foreground/70 ${!isTerminal ? "hover:text-muted-foreground cursor-pointer" : "cursor-not-allowed opacity-40"}`} title="Attach file">
-                        <Paperclip className="w-3.5 h-3.5" />
-                        {!isTerminal && <input type="file" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) toast.info(`Attachment "${f.name}" noted — file uploads will be stored once cloud storage is configured.`); e.target.value = ""; }} />}
-                      </label>
+                      {!isTerminal ? (
+                        <FilePicker
+                          source={{ type: "ticket", id: ticket.id }}
+                          classification="internal"
+                          onUploaded={(d) => toast.success(`Attached "${d.name}" to ticket`)}
+                          className="inline-block"
+                        />
+                      ) : (
+                        <span className="p-1 text-muted-foreground/40 cursor-not-allowed" title="Ticket closed">
+                          <Paperclip className="w-3.5 h-3.5" />
+                        </span>
+                      )}
                       <span className="text-[11px] text-muted-foreground/70">
                         {isTerminal
                           ? "Ticket is closed"
@@ -1332,13 +1344,21 @@ export default function TicketDetailPage() {
                     onChange={(e) =>
                       updateTicket.mutate({
                         id: ticket.id,
-                        data: { intakeChannel: e.target.value as "portal" | "email" | "api" | "chat" },
+                        data: {
+                          intakeChannel: e.target.value as
+                            | "portal"
+                            | "email"
+                            | "api"
+                            | "chat"
+                            | "walk_in"
+                            | "phone",
+                        },
                       })
                     }
                   >
-                    {(["portal", "email", "api", "chat"] as const).map((ch) => (
+                    {(["portal", "email", "api", "chat", "walk_in", "phone"] as const).map((ch) => (
                       <option key={ch} value={ch}>
-                        {ch}
+                        {ch === "walk_in" ? "walk-in" : ch}
                       </option>
                     ))}
                   </select>
@@ -1609,6 +1629,64 @@ export default function TicketDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TicketAttachments({ ticketId, disabled }: { ticketId: string; disabled: boolean }) {
+  const docs = trpc.documents.list.useQuery({
+    sourceType: "ticket",
+    sourceId: ticketId,
+    limit: 25,
+  });
+  const utils = trpc.useUtils();
+
+  const list = docs.data ?? [];
+  if (list.length === 0 && disabled) return null;
+
+  return (
+    <div className="border border-border rounded">
+      <div className="px-3 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+          Attachments {list.length > 0 ? `(${list.length})` : ""}
+        </span>
+      </div>
+      <div className="p-3 space-y-2">
+        {list.length === 0 ? (
+          <div className="text-[11px] text-muted-foreground/70">
+            No attachments yet — use the paperclip below to add files.
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {list.map((d) => (
+              <li
+                key={d.id}
+                className="flex items-center gap-2 text-[11px] border border-border rounded px-2 py-1 bg-background"
+              >
+                <Paperclip className="w-3 h-3 text-muted-foreground/70" />
+                <span className="truncate flex-1 text-foreground/80">{d.name}</span>
+                <span className="text-muted-foreground/60">{(d.sizeBytes / 1024).toFixed(0)} KB</span>
+                {d.scanStatus === "infected" ? (
+                  <span className="text-red-600 font-medium">INFECTED</span>
+                ) : d.scanStatus === "pending" ? (
+                  <span className="text-amber-600">scanning…</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const r = await utils.documents.getDownloadUrl.fetch({ id: d.id, ttlSeconds: 300 });
+                      window.open(r.url, "_blank", "noopener");
+                    }}
+                    className="text-blue-700 hover:underline"
+                  >
+                    Download
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

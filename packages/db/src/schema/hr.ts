@@ -488,6 +488,16 @@ export const expenseClaims = pgTable(
     reimbursedAt: timestamp("reimbursed_at", { withTimezone: true }),
     paymentMode: text("payment_mode"),
     notes: text("notes"),
+    /** Free-text merchant string (OCR-extracted or manual). */
+    merchant: text("merchant"),
+    /** Distance for `transport`/`fuel` claims, used by the mileage policy. */
+    mileageKm: decimal("mileage_km", { precision: 10, scale: 2 }),
+    /** Stable code from {@link evaluateExpenseClaim} when a claim violates org policy. */
+    policyViolationCode: text("policy_violation_code"),
+    policyViolationReason: text("policy_violation_reason"),
+    /** Raw structured output from receipt-OCR for audit / re-extraction. */
+    ocrExtracted: jsonb("ocr_extracted"),
+    ocrConfidence: decimal("ocr_confidence", { precision: 4, scale: 3 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

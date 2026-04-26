@@ -13,6 +13,224 @@ import {
 } from "@nexusops/db";
 import { syncJiraToNexus } from "../services/jira";
 import { syncSapToNexus } from "../services/sap";
+import { encryptIntegrationConfig, decryptIntegrationConfig } from "../services/encryption";
+import { getIntegrationAdapter } from "../services/integrations/registry";
+import { getEsignProvider } from "../services/esign";
+
+/**
+ * Server-side catalog of supported provider configurations.
+ *
+ * The admin UI (`/app/settings/integrations`) renders these as cards with
+ * an inline form for the operator to paste credentials. The shape is the
+ * single source of truth for "what config does provider X need" — the
+ * router validates against the field keys, encrypts the JSON blob, and
+ * the adapters read the same field names server-side.
+ *
+ * Adding a new provider here is a 3-step PR:
+ *   1. Implement the IntegrationAdapter or EsignProvider.
+ *   2. Add it to the registry in `services/integrations/registry.ts`
+ *      (or `services/esign/index.ts` for an e-sign provider).
+ *   3. Add the catalog entry below — UI updates automatically.
+ */
+type ConfigField = {
+  key: string;
+  label: string;
+  type?: "text" | "password" | "url" | "number" | "select";
+  placeholder?: string;
+  required?: boolean;
+  helpText?: string;
+  options?: ReadonlyArray<{ value: string; label: string }>;
+};
+
+type ProviderCatalogEntry = {
+  provider: string;
+  displayName: string;
+  category: "chat" | "email" | "itsm" | "messaging" | "payments" | "tax" | "identity" | "esign";
+  /** True when the registry can run a live test() to validate the config. */
+  testable: boolean;
+  description: string;
+  docsUrl?: string;
+  fields: readonly ConfigField[];
+};
+
+const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
+  {
+    provider: "slack",
+    displayName: "Slack",
+    category: "chat",
+    testable: false,
+    description: "Post ticket notifications, approvals, and SLA alerts to Slack channels.",
+    fields: [
+      { key: "webhookUrl", label: "Incoming Webhook URL", type: "url", required: true, placeholder: "https://hooks.slack.com/services/…" },
+      { key: "defaultChannel", label: "Default Channel", placeholder: "#nexusops-alerts" },
+    ],
+  },
+  {
+    provider: "teams",
+    displayName: "Microsoft Teams",
+    category: "chat",
+    testable: false,
+    description: "Send adaptive card notifications to Teams channels.",
+    fields: [
+      { key: "webhookUrl", label: "Connector Webhook URL", type: "url", required: true, placeholder: "https://…webhook.office.com/…" },
+    ],
+  },
+  {
+    provider: "email",
+    displayName: "SMTP / Email",
+    category: "email",
+    testable: false,
+    description: "Configure outbound email for notifications and ticket updates.",
+    fields: [
+      { key: "host", label: "SMTP Host", required: true, placeholder: "smtp.sendgrid.net" },
+      { key: "port", label: "Port", type: "number", placeholder: "587" },
+      { key: "user", label: "Username / API Key", required: true },
+      { key: "pass", label: "Password", type: "password", required: true },
+      { key: "from", label: "From address", required: true, placeholder: "noreply@yourcompany.com" },
+    ],
+  },
+  {
+    provider: "jira",
+    displayName: "Jira Cloud",
+    category: "itsm",
+    testable: false,
+    description: "Bidirectional sync — NexusOps tickets ↔ Jira issues.",
+    fields: [
+      { key: "baseUrl", label: "Jira Base URL", type: "url", required: true, placeholder: "https://yourco.atlassian.net" },
+      { key: "email", label: "Account Email", required: true, placeholder: "admin@yourco.com" },
+      { key: "apiToken", label: "API Token", type: "password", required: true },
+      { key: "projectKey", label: "Project Key", required: true, placeholder: "OPS" },
+    ],
+  },
+  {
+    provider: "sap",
+    displayName: "SAP",
+    category: "itsm",
+    testable: false,
+    description: "Connect to SAP REST APIs for asset and procurement sync.",
+    fields: [
+      { key: "baseUrl", label: "SAP Base URL", type: "url", required: true },
+      { key: "clientId", label: "Client ID", required: true },
+      { key: "secret", label: "Client Secret", type: "password", required: true },
+    ],
+  },
+  // ── India-first connectors ────────────────────────────────────────────
+  {
+    provider: "whatsapp_aisensy",
+    displayName: "WhatsApp (AiSensy)",
+    category: "messaging",
+    testable: true,
+    description: "Send WhatsApp notifications via AiSensy on the WhatsApp Business Cloud API.",
+    docsUrl: "https://aisensy.com/api-documentation",
+    fields: [
+      { key: "apiKey", label: "AiSensy API Key", type: "password", required: true },
+      { key: "wabaId", label: "WhatsApp Business Account ID", required: true, placeholder: "1234567890123" },
+      { key: "phoneNumberId", label: "Phone Number ID", required: true },
+      { key: "webhookSecret", label: "Webhook Verify Token", type: "password", required: true,
+        helpText: "Used to verify inbound webhooks. Set the same value in your AiSensy console." },
+    ],
+  },
+  {
+    provider: "sms_msg91",
+    displayName: "SMS (MSG91)",
+    category: "messaging",
+    testable: true,
+    description: "DLT-compliant transactional SMS via MSG91 for OTPs, ticket updates, and payment reminders.",
+    docsUrl: "https://docs.msg91.com",
+    fields: [
+      { key: "authKey", label: "MSG91 Auth Key", type: "password", required: true },
+      { key: "senderId", label: "Sender ID (DLT)", required: true, placeholder: "NEXOPS" },
+      { key: "templateId", label: "Default Template ID", required: true, helpText: "DLT-approved template." },
+      { key: "route", label: "Route", placeholder: "4 (transactional)", helpText: "MSG91 route id; default 4." },
+    ],
+  },
+  {
+    provider: "razorpay",
+    displayName: "Razorpay",
+    category: "payments",
+    testable: true,
+    description: "Collect customer invoice payments and reconcile via webhooks. UPI / cards / netbanking.",
+    docsUrl: "https://razorpay.com/docs/api",
+    fields: [
+      { key: "keyId", label: "Razorpay Key ID", required: true, placeholder: "rzp_live_…" },
+      { key: "keySecret", label: "Razorpay Key Secret", type: "password", required: true },
+      { key: "webhookSecret", label: "Webhook Secret", type: "password", required: true,
+        helpText: "Set this in Razorpay Dashboard → Webhooks for HMAC verification." },
+    ],
+  },
+  {
+    provider: "cleartax_gst",
+    displayName: "ClearTax GST (IRN)",
+    category: "tax",
+    testable: true,
+    description: "Generate IRN + e-invoices for B2B invoices ≥ ₹5 cr aggregate turnover (mandatory in India).",
+    docsUrl: "https://cleartax.in/s/gst-api",
+    fields: [
+      { key: "clientId", label: "Client ID", required: true },
+      { key: "clientSecret", label: "Client Secret", type: "password", required: true },
+      { key: "gstin", label: "Filing GSTIN", required: true, placeholder: "29ABCDE1234F1Z5" },
+      { key: "environment", label: "Environment", type: "select", required: true,
+        options: [
+          { value: "sandbox", label: "Sandbox" },
+          { value: "production", label: "Production" },
+        ] },
+    ],
+  },
+  {
+    provider: "google_workspace",
+    displayName: "Google Workspace",
+    category: "identity",
+    testable: false,
+    description: "OAuth-based directory + calendar + email integration. Requires Workspace admin consent.",
+    fields: [
+      { key: "clientId", label: "OAuth Client ID", required: true },
+      { key: "clientSecret", label: "OAuth Client Secret", type: "password", required: true },
+      { key: "domain", label: "Workspace Domain", required: true, placeholder: "yourcompany.com" },
+    ],
+  },
+  {
+    provider: "microsoft_365",
+    displayName: "Microsoft 365",
+    category: "identity",
+    testable: false,
+    description: "Azure AD OAuth + Graph API for SSO, calendar, and Outlook mail-tap.",
+    fields: [
+      { key: "tenantId", label: "Azure Tenant ID", required: true },
+      { key: "clientId", label: "App Client ID", required: true },
+      { key: "clientSecret", label: "Client Secret", type: "password", required: true },
+    ],
+  },
+  // ── E-sign provider — keyed as integrations.provider = "emudhra" so it ──
+  // matches signatureRequests.provider, the esign router lookup in
+  // routers/esign.ts (eq(integrations.provider, input.provider) where
+  // input.provider defaults to "emudhra"), and the webhook receiver
+  // in http/webhooks.ts. Do NOT rename to "esign_emudhra" without
+  // migrating all four call sites.
+  {
+    provider: "emudhra",
+    displayName: "eMudhra Aadhaar e-Sign",
+    category: "esign",
+    testable: true,
+    description:
+      "ASP-licensed Aadhaar e-Sign + DSC for contracts, offer letters, board resolutions. India-only legally binding.",
+    docsUrl: "https://emsigner.com/developers",
+    fields: [
+      { key: "apiKey", label: "API Key", required: true },
+      { key: "apiSecret", label: "API Secret", type: "password", required: true },
+      { key: "webhookSecret", label: "Webhook Secret", type: "password", required: true,
+        helpText: "Used to verify status callbacks at /webhooks/esign/emudhra." },
+      { key: "signerId", label: "ASP Signer ID", helpText: "Optional — eMudhra-issued signer identifier." },
+      { key: "environment", label: "Environment", type: "select", required: true,
+        options: [
+          { value: "sandbox", label: "Sandbox" },
+          { value: "production", label: "Production" },
+        ] },
+    ],
+  },
+] as const;
+
+const PROVIDER_IDS = PROVIDER_CATALOG.map((c) => c.provider) as [string, ...string[]];
+const ProviderEnum = z.enum(PROVIDER_IDS as [string, ...string[]]);
 
 // ─── Integrations (Slack, Teams, Jira, SAP …) ────────────────────────────────
 
@@ -39,27 +257,41 @@ export const integrationsRouter = router({
       .orderBy(integrations.provider);
   }),
 
+  /**
+   * Returns the catalog of supported providers with their config field
+   * schemas. Drives the admin UI form rendering.
+   */
+  providerCatalog: permissionProcedure("settings", "read").query(() => PROVIDER_CATALOG),
+
   upsertIntegration: permissionProcedure("settings", "write")
     .input(
       z.object({
-        provider: z.enum(["slack", "teams", "email", "jira", "sap"]),
+        provider: ProviderEnum,
         config: z.record(z.string()),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
 
-      // Encrypt config JSON with AES-256-CBC using APP_SECRET
+      const catalog = PROVIDER_CATALOG.find((c) => c.provider === input.provider);
+      if (!catalog) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Unknown provider: ${input.provider}` });
+      }
+      const missing = catalog.fields
+        .filter((f) => f.required && !(input.config[f.key]?.trim()))
+        .map((f) => f.label);
+      if (missing.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Missing required field(s): ${missing.join(", ")}`,
+        });
+      }
+
       const appSecret = process.env["APP_SECRET"];
-      if (!appSecret) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "APP_SECRET is not configured" });
-      const key = crypto.createHash("sha256").update(appSecret).digest();
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-      const configJson = JSON.stringify(input.config);
-      const encrypted =
-        iv.toString("hex") +
-        ":" +
-        Buffer.concat([cipher.update(configJson, "utf8"), cipher.final()]).toString("hex");
+      if (!appSecret) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "APP_SECRET is not configured" });
+      }
+      const encrypted = encryptIntegrationConfig(input.config);
 
       const existing = await db
         .select({ id: integrations.id })
@@ -80,6 +312,7 @@ export const integrationsRouter = router({
             kmsKeyId,
             dekWrappedB64,
             status: "connected",
+            lastError: null,
             updatedAt: new Date(),
           })
           .where(eq(integrations.id, existing[0].id))
@@ -103,7 +336,7 @@ export const integrationsRouter = router({
     }),
 
   disconnectIntegration: permissionProcedure("settings", "write")
-    .input(z.object({ provider: z.enum(["slack", "teams", "email", "jira", "sap"]) }))
+    .input(z.object({ provider: ProviderEnum }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       await db
@@ -113,10 +346,123 @@ export const integrationsRouter = router({
           configEncrypted: null,
           kmsKeyId: null,
           dekWrappedB64: null,
+          lastError: null,
           updatedAt: new Date(),
         })
         .where(and(eq(integrations.orgId, org!.id), eq(integrations.provider, input.provider)));
       return { ok: true };
+    }),
+
+  /**
+   * Live-test a saved integration by calling the adapter's `test()` method
+   * (or, for e-sign providers, a registry / decrypt canary).
+   *
+   * Branching is by **catalog category**, not by provider-id prefix. The
+   * earlier implementation branched on `provider.startsWith("esign_")`, but
+   * the catalog uses bare provider ids (e.g. `emudhra`, not `esign_emudhra`)
+   * to match `signature_requests.provider`, the eSign router lookup, and the
+   * webhook receiver in `http/webhooks.ts`. The prefix branch was therefore
+   * dead code and `testIntegration` for `emudhra` always fell through to
+   * `getIntegrationAdapter("emudhra")` which is not registered, yielding a
+   * spurious "no adapter" error from the admin UI.
+   *
+   * Source: market-assessment redo §C1 (2026-04-26).
+   */
+  testIntegration: permissionProcedure("settings", "write")
+    .input(z.object({ provider: ProviderEnum }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      const catalog = PROVIDER_CATALOG.find((c) => c.provider === input.provider);
+      if (!catalog) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Unknown provider: ${input.provider}` });
+      }
+      if (!catalog.testable) {
+        return {
+          ok: false,
+          details: `Provider '${catalog.displayName}' does not support a live connection test.`,
+        };
+      }
+
+      const [row] = await db
+        .select({
+          id: integrations.id,
+          configEncrypted: integrations.configEncrypted,
+        })
+        .from(integrations)
+        .where(and(eq(integrations.orgId, org!.id), eq(integrations.provider, input.provider)));
+      if (!row || !row.configEncrypted) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Integration not configured. Save credentials first." });
+      }
+
+      const config = decryptIntegrationConfig(row.configEncrypted);
+
+      if (catalog.category === "esign") {
+        const provider = getEsignProvider(input.provider);
+        if (!provider) {
+          await db
+            .update(integrations)
+            .set({
+              status: "error",
+              lastError: `E-sign provider '${input.provider}' not registered`,
+              updatedAt: new Date(),
+            })
+            .where(eq(integrations.id, row.id));
+          return {
+            ok: false,
+            details: `E-sign provider '${input.provider}' is not registered in services/esign.`,
+          };
+        }
+        const requiredKeys = catalog.fields.filter((f) => f.required).map((f) => f.key);
+        const missing = requiredKeys.filter((k) => !(config as Record<string, string>)[k]?.trim());
+        if (missing.length > 0) {
+          await db
+            .update(integrations)
+            .set({ status: "error", lastError: `Missing required field(s): ${missing.join(", ")}`, updatedAt: new Date() })
+            .where(eq(integrations.id, row.id));
+          return { ok: false, details: `Missing required field(s): ${missing.join(", ")}` };
+        }
+        await db
+          .update(integrations)
+          .set({ status: "connected", lastError: null, updatedAt: new Date() })
+          .where(eq(integrations.id, row.id));
+        return {
+          ok: true,
+          details: `Provider '${provider.displayName}' is registered and credentials decrypt cleanly. A live envelope round-trip would consume a signer slot — skipped here. Use the eMudhra runbook (docs/EMUDHRA_PRODUCTION_RUNBOOK.md) for the dry-run.`,
+        };
+      }
+
+      const adapter = getIntegrationAdapter(input.provider);
+      if (!adapter) {
+        await db
+          .update(integrations)
+          .set({
+            status: "error",
+            lastError: `No adapter registered for '${input.provider}'`,
+            updatedAt: new Date(),
+          })
+          .where(eq(integrations.id, row.id));
+        return { ok: false, details: `No adapter registered for '${input.provider}'.` };
+      }
+      try {
+        const res = await adapter.test(config as never);
+        await db
+          .update(integrations)
+          .set({
+            status: res.ok ? "connected" : "error",
+            lastError: res.ok ? null : res.details ?? "Test failed",
+            updatedAt: new Date(),
+          })
+          .where(eq(integrations.id, row.id));
+        return res;
+      } catch (err) {
+        const msg = (err as Error).message ?? "unknown error";
+        await db
+          .update(integrations)
+          .set({ status: "error", lastError: msg, updatedAt: new Date() })
+          .where(eq(integrations.id, row.id));
+        return { ok: false, details: msg };
+      }
     }),
 
   // ── Outgoing Webhooks ──────────────────────────────────────────────────

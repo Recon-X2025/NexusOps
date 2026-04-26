@@ -1859,14 +1859,12 @@ function PeopleWorkplacePolicyTab() {
   const meQ = trpc.auth.me.useQuery(undefined, mergeTrpcQueryOpts("auth.me", undefined));
   const pw = ((meQ.data?.org as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined)?.peopleWorkplace as Record<string, unknown> | undefined;
   const [facilitiesLive, setFacilitiesLive] = useState(true);
-  const [walkupLive, setWalkupLive] = useState(true);
 
   useEffect(() => {
     if (!meQ.isLoading && meQ.data?.org) {
       setFacilitiesLive(pw?.facilitiesLive !== false);
-      setWalkupLive(pw?.walkupLive !== false);
     }
-  }, [meQ.isLoading, meQ.data?.org, pw?.facilitiesLive, pw?.walkupLive]);
+  }, [meQ.isLoading, meQ.data?.org, pw?.facilitiesLive]);
 
   const save = trpc.hr.peopleWorkplace.updateIntegrationFlags.useMutation({
     onSuccess: () => {
@@ -1906,24 +1904,10 @@ function PeopleWorkplacePolicyTab() {
           {facilitiesLive ? "Live" : "Off"}
         </button>
       </div>
-      <div className="flex items-center justify-between gap-3 py-2 border-b border-border">
-        <div>
-          <div className="text-[12px] font-medium text-foreground">Walk-up queue</div>
-          <div className="text-[10px] text-muted-foreground">Active queue depth on the hub</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setWalkupLive((v) => !v)}
-          className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded border border-border hover:bg-muted/40"
-        >
-          {walkupLive ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
-          {walkupLive ? "Live" : "Off"}
-        </button>
-      </div>
       <button
         type="button"
         disabled={save.isPending || meQ.isLoading}
-        onClick={() => save.mutate({ facilitiesLive, walkupLive })}
+        onClick={() => save.mutate({ facilitiesLive })}
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
         {save.isPending ? "Saving…" : "Save flags"}

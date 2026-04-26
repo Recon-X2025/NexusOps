@@ -308,17 +308,7 @@ test.describe("11-G GRC & Security — risk matrix, tabs, new items", () => {
 // =============================================================================
 // 11-H  DevOps & Operations
 // =============================================================================
-test.describe("11-H DevOps & Operations — all tabs and modals", () => {
-  test("devops: all tabs clickable without crash", async ({ page }) => {
-    await gotoModule(page, "/app/devops");
-    await clickAllTabs(page);
-  });
-
-  test("developer-ops hub: renders without crash", async ({ page }) => {
-    await gotoModule(page, "/app/developer-ops");
-    await assertNoCrash(page, "developer-ops hub");
-  });
-
+test.describe("11-H Operations — all tabs and modals", () => {
   test("on-call: all tabs clickable without crash", async ({ page }) => {
     await gotoModule(page, "/app/on-call");
     await clickAllTabs(page);
@@ -332,11 +322,6 @@ test.describe("11-H DevOps & Operations — all tabs and modals", () => {
   test("events: page renders without crash", async ({ page }) => {
     await gotoModule(page, "/app/events");
     await assertNoCrash(page, "events page");
-  });
-
-  test("walk-up: all tabs clickable without crash", async ({ page }) => {
-    await gotoModule(page, "/app/walk-up");
-    await clickAllTabs(page);
   });
 
   test("facilities: all tabs clickable without crash", async ({ page }) => {
@@ -381,9 +366,9 @@ test.describe("11-I Automation & Projects — workflows, flows, surveys, project
     }
   });
 
-  test("strategy-projects hub: renders without crash", async ({ page }) => {
-    await gotoModule(page, "/app/strategy-projects");
-    await assertNoCrash(page, "strategy-projects hub");
+  test("strategy hub: renders without crash", async ({ page }) => {
+    await gotoModule(page, "/app/strategy");
+    await assertNoCrash(page, "strategy hub");
   });
 });
 

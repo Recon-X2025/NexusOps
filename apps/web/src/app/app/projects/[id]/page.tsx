@@ -11,6 +11,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useRBAC, PermissionGate } from "@/lib/rbac-context";
 import { formatDate } from "@/lib/utils";
+import { TASK_BOARD_ENABLED } from "@/lib/feature-flags";
 
 const STATUS_COLOR: Record<string, string> = {
   planning:  "text-blue-700 bg-blue-100",
@@ -62,7 +63,16 @@ export default function ProjectDetailPage() {
 
   const { data: project, isLoading, isError, refetch } = trpc.projects.get.useQuery({ id }, mergeTrpcQueryOpts("projects.get", { refetchOnWindowFocus: false },));
 
-  const boardQuery = trpc.projects.getAgileBoard.useQuery({ projectId: id }, mergeTrpcQueryOpts("projects.getAgileBoard", { refetchOnWindowFocus: false, enabled: !!id },));
+  // Task board (Layer A) is feature-flagged off by default — Strategy Center
+  // is an oversight surface, not a Linear/Jira competitor. We only fetch the
+  // board when the flag is on so the network call doesn't run for everyone.
+  const boardQuery = trpc.projects.getAgileBoard.useQuery(
+    { projectId: id },
+    mergeTrpcQueryOpts("projects.getAgileBoard", {
+      refetchOnWindowFocus: false,
+      enabled: !!id && TASK_BOARD_ENABLED,
+    }),
+  );
 
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskForm, setTaskForm] = useState({
@@ -155,36 +165,46 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <PermissionGate module="projects" action="write">
-            {!isTerminal && (
-              <button
-                onClick={() => setShowAddTask(v => !v)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
-              >
-                <Plus className="w-3 h-3" /> Add Task
-              </button>
-            )}
-          </PermissionGate>
+          {TASK_BOARD_ENABLED && (
+            <PermissionGate module="projects" action="write">
+              {!isTerminal && (
+                <button
+                  onClick={() => setShowAddTask(v => !v)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+                >
+                  <Plus className="w-3 h-3" /> Add Task
+                </button>
+              )}
+            </PermissionGate>
+          )}
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs — task counts only when the task board is enabled. */}
       <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Total Tasks",    value: allBoardTasks.length },
-          { label: "In Progress",    value: (board["in_progress"] ?? []).length },
-          { label: "Done",           value: (board["done"] ?? []).length },
-          { label: "Milestones",     value: milestones.length },
-        ].map((k) => (
+        {(TASK_BOARD_ENABLED
+          ? [
+              { label: "Total Tasks",  value: allBoardTasks.length },
+              { label: "In Progress",  value: (board["in_progress"] ?? []).length },
+              { label: "Done",         value: (board["done"] ?? []).length },
+              { label: "Milestones",   value: milestones.length },
+            ]
+          : [
+              { label: "Milestones",   value: milestones.length },
+              { label: "Health",       value: project.health ?? "—" },
+              { label: "Status",       value: (project.status ?? "—").replace(/_/g, " ") },
+              { label: "Phase",        value: project.phase ?? "—" },
+            ]
+        ).map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className="text-lg font-bold text-foreground">{k.value}</div>
+            <div className="text-lg font-bold text-foreground capitalize">{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
       </div>
 
       {/* Add Task Form */}
-      {showAddTask && (
+      {TASK_BOARD_ENABLED && showAddTask && (
         <div className="bg-card border border-primary/30 rounded p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[12px] font-semibold text-foreground">New Task</h3>
@@ -290,7 +310,8 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Agile Board */}
+      {/* Agile Board — opt-in via NEXT_PUBLIC_ENABLE_TASK_BOARD. */}
+      {TASK_BOARD_ENABLED && (
       <div className="bg-card border border-border rounded">
         <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center justify-between">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Task Board</span>
@@ -344,6 +365,7 @@ export default function ProjectDetailPage() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

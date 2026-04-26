@@ -13,6 +13,7 @@ import { downloadCSV } from "@/lib/utils";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { EsignPanel } from "@/components/esign/EsignPanel";
 
 // ── Shared style maps ─────────────────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ function BoardTab() {
     onError: e => toast.error(e.message),
   });
   const [showNewMeeting, setShowNewMeeting] = useState(false);
+  const [esignFor, setEsignFor] = useState<{ id: string; title: string } | null>(null);
   const [mtgForm, setMtgForm] = useState({ type: "board" as const, title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" });
   const createMeeting = trpc.secretarial.meetings.create.useMutation({
     onSuccess: () => { toast.success("Meeting scheduled"); refetchMeetings(); setShowNewMeeting(false); },
@@ -249,12 +251,12 @@ function BoardTab() {
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Number","Title","Type","Status","Passed","For","Against","Abstain"].map(h => (
+            <tr>{["Number","Title","Type","Status","Passed","For","Against","Abstain","Actions"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
           <tbody>
-            {resolutions.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
+            {resolutions.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
             {resolutions.map((r: { id: string; number: string; title: string; type: string; status?: string; passedAt?: string | Date | null; votesFor?: number; votesAgainst?: number; abstentions?: number }) => (
               <tr key={r.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
@@ -265,11 +267,48 @@ function BoardTab() {
                 <td className="px-4 py-3 text-xs text-green-600">{r.votesFor ?? 0}</td>
                 <td className="px-4 py-3 text-xs text-red-600">{r.votesAgainst ?? 0}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{r.abstentions ?? 0}</td>
+                <td className="px-4 py-3 text-xs">
+                  <button
+                    onClick={() => setEsignFor({ id: r.id, title: `Resolution ${r.number} — ${r.title}` })}
+                    className="text-blue-700 hover:underline font-medium"
+                  >
+                    E-sign
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* E-sign Modal */}
+      {esignFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => e.target === e.currentTarget && setEsignFor(null)}
+        >
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div>
+                <h2 className="text-base font-semibold">E-sign resolution</h2>
+                <p className="text-xs text-muted-foreground">{esignFor.title}</p>
+              </div>
+              <button onClick={() => setEsignFor(null)} className="p-2 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-4">
+              <EsignPanel
+                sourceType="resolution"
+                sourceId={esignFor.id}
+                defaultTitle={esignFor.title}
+                subject="Board / Committee resolution"
+                defaultSigners={directors
+                  .filter((d: any) => d.email)
+                  .map((d: any) => ({ name: d.name, email: d.email, role: "director" }))}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Meeting Modal */}
       {showNewMeeting && (

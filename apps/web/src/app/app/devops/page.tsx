@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, notFound } from "next/navigation";
 import {
   GitBranch, GitMerge, Play, CheckCircle2, XCircle, Clock, AlertTriangle,
   Plus, Download, RefreshCw, Zap, Package, Shield, BarChart2,
@@ -11,6 +11,7 @@ import {
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { DEVOPS_ENABLED } from "@/lib/feature-flags";
 
 const DEVOPS_TABS = [
   { key: "dashboard",    label: "Dashboard",       module: "changes"  as const, action: "read"  as const },
@@ -192,6 +193,7 @@ const ITEM_TYPE_CFG: Record<string, string> = {
 };
 
 export default function DevOpsPage() {
+  if (!DEVOPS_ENABLED) notFound();
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const visibleTabs = DEVOPS_TABS.filter((t) => can(t.module, t.action));

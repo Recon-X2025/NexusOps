@@ -18,6 +18,14 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: "destructive" | "warning" | "default";
   loading?: boolean;
+  /** Disable the confirm button (e.g. unmet input requirements). */
+  disableConfirm?: boolean;
+  /**
+   * Optional slot rendered between the description and the action row —
+   * used for capturing extra input like a rejection reason or a confirm
+   * checkbox before destructive actions.
+   */
+  children?: React.ReactNode;
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -31,6 +39,8 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "destructive",
   loading = false,
+  disableConfirm = false,
+  children,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -65,6 +75,8 @@ export function ConfirmDialog({
           )}
         </DialogHeader>
 
+        {children && <div className="pt-2">{children}</div>}
+
         <div className="flex items-center justify-end gap-2 pt-2">
           <button
             type="button"
@@ -77,7 +89,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || disableConfirm}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors disabled:opacity-50",
               confirmColors[variant],

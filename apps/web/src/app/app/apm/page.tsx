@@ -11,13 +11,18 @@ import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { downloadCSV } from "@/lib/utils";
+import { APM_ENABLED } from "@/lib/feature-flags";
 
 const APM_TABS = [
-  { key: "portfolio",  label: "Application Portfolio",       module: "projects"  as const, action: "read"  as const },
-  { key: "lifecycle",  label: "Lifecycle & Rationalization", module: "projects"  as const, action: "write" as const },
-  { key: "techdebt",   label: "Technology Debt",             module: "projects"  as const, action: "read"  as const },
-  { key: "cloud",      label: "Cloud Readiness",             module: "projects"  as const, action: "read"  as const },
-  { key: "capability", label: "Business Capability Map",     module: "reports"   as const, action: "read"  as const },
+  { key: "portfolio",  label: "App Inventory",               module: "projects"  as const, action: "read"  as const },
+  ...(APM_ENABLED
+    ? [
+        { key: "lifecycle",  label: "Lifecycle & Rationalization", module: "projects" as const, action: "write" as const },
+        { key: "techdebt",   label: "Technology Debt",             module: "projects" as const, action: "read"  as const },
+        { key: "cloud",      label: "Cloud Readiness",             module: "projects" as const, action: "read"  as const },
+        { key: "capability", label: "Business Capability Map",     module: "reports"  as const, action: "read"  as const },
+      ]
+    : []),
 ];
 
 type LifecycleStatus = "investing" | "sustaining" | "harvesting" | "retiring" | "obsolete" | "evaluating";
@@ -153,7 +158,7 @@ const CAPABILITY_MAP = [
   { capability: "IT Service Management",     apps: ["NexusOps Platform"],                                                       gap: false },
   { capability: "CRM / Sales",              apps: ["NexusOps Platform", "Salesforce Sales Cloud"],                            gap: true, gapNote: "Salesforce retiring — consolidate to NexusOps CRM" },
   { capability: "Security Operations",      apps: ["NexusOps Platform", "CrowdStrike Falcon"],                                gap: false },
-  { capability: "Project Portfolio",        apps: ["NexusOps Platform"],                                                       gap: false },
+  { capability: "Strategy & Initiatives",   apps: ["NexusOps Platform"],                                                       gap: false },
   { capability: "Knowledge Management",     apps: ["NexusOps Platform", "Jira Software + Confluence"],                        gap: true, gapNote: "Dual system — standardise on one platform" },
   { capability: "Collaboration & Comms",    apps: ["Microsoft 365 Suite"],                                                    gap: false },
   { capability: "Accounts Payable",         apps: ["SAP S/4HANA", "NexusOps Platform"],                                       gap: true, gapNote: "Legacy LIMS overlap — retire LIMS after migration" },
@@ -198,7 +203,7 @@ export default function APMPage() {
     onError: (e: any) => { console.error("apm.applications.create failed:", e); toast.error(e.message || "Failed to add application"); },
   });
 
-  if (!can("projects", "read") && !can("reports", "read")) return <AccessDenied module="Application Portfolio Management" />;
+  if (!can("projects", "read") && !can("reports", "read")) return <AccessDenied module="App Inventory" />;
 
   const APPS: Application[] = (appsQuery.data?.items ?? []) as Application[];
 
@@ -212,8 +217,12 @@ export default function APMPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Application Portfolio Management</h1>
-          <span className="text-[11px] text-muted-foreground/70">Portfolio · Lifecycle · Tech Debt · Cloud · Capability Map</span>
+          <h1 className="text-sm font-semibold text-foreground">App Inventory</h1>
+          <span className="text-[11px] text-muted-foreground/70">
+            {APM_ENABLED
+              ? "Inventory · Lifecycle · Tech Debt · Cloud · Capability Map"
+              : "Applications used across your organization · vendor · cost · renewal"}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button

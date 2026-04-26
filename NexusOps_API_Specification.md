@@ -13,6 +13,7 @@
 
 | Version | Date | Summary |
 |---------|------|---------|
+| **2.1** | 2026-04-26 | **GA-readiness pass — production hardening.** **Routers retired:** `walkup` removed (see §6.28); migration `0028_optimal_sinister_six.sql` drops `walkup_visits` + `walkup_appointments` + enums. **New / extended:** `integrations.providerCatalog` (server-side catalog driving the admin UI — Slack, Teams, Email, Jira, SAP, **WhatsApp AiSensy**, **SMS MSG91**, **Razorpay**, **ClearTax GST IRN**, **Google Workspace**, **M365**, **eMudhra Aadhaar e-Sign**); `integrations.upsertIntegration` validates against the catalog + AES-256-CBC encrypts; `integrations.testIntegration` resolves either an `IntegrationAdapter` or `EsignProvider` and calls `test()`. `hr.expenses.createMine` / `listMine` (`protectedProcedure`) for employee self-serve; `employeeId` resolved server-side. `documents.runRetentionSweepNow` (admin) triggers the document-retention worker. **New webhook routes:** `POST /webhooks/esign/emudhra`, `POST /webhooks/wa/aisensy/:integrationId`, `POST /webhooks/razorpay/:integrationId` — HMAC-verified, IP-allowlisted, browser-Origin-blocked, OPTIONS-rejected, strict CSP/CORS headers. **Bug fix:** integrations catalog provider key for eMudhra aligned to `emudhra` (was `esign_emudhra`) so `signature_requests.provider`, `esign.send`, the catalog row, and the webhook receiver all resolve to the same row. |
 | **2.0** | 2026-04-04 | **Phase 3 — Recruitment (in-platform requisitions/candidates/pipeline), Corporate Secretarial, Workforce analytics — deployed and verified on Vultr (`139.84.154.78`).** New routers: `recruitment.*` (requisitions with draft→publish, candidates, applications — duplicate apply returns `CONFLICT`, interviews, offers, pipeline metrics), `secretarial.*` (meetings, agendas, resolutions, minutes, statutory filings, share capital, ESOP grants, directors; meeting `create` maps client `chairpersonId` → column `chairperson`), `workforce.*` (headcount, turnover, leave balance, performance snapshots). **Schema:** `packages/db/drizzle/0004_recruitment_secretarial.sql` (11 tables + enums); production apply: `scripts/apply-phase3-schema.sh`. **RBAC:** `recruitment`, `workforce_analytics` modules. **Procedure count:** ~**299** (was 253). **Prod check:** `job_requisitions` exists; `/app/recruitment` HTTP 307 when unauthenticated (expected). |
 
 | **1.9** | 2026-04-04 | **Exhaustive QA validation complete — 261/261 tests pass.** Suite 05 (67 tests): all 53 page routes verified — no crash tokens, real content renders. Suite 06 (147 tests): all 253 tRPC procedures verified via authenticated HTTP calls — no `404` or `500` responses remain. Suite 07 (47 tests): all buttons, tabs, forms, and nav links exercised — zero crashes. **API bugs fixed:** `walkup.analytics` and `dashboard.getTimeSeries` — raw JavaScript `Date` object in Drizzle `sql` template literal replaced with `.toISOString()` + `::timestamptz` cast. **New procedures now live:** `csm.cases.*` (6 procedures), `hr.payroll.listPayslips`, `workOrders.create/update`, `assignmentRules.list`. **Schema gaps closed:** 6 new production tables created (csm_cases, assignment_rules, user_assignment_stats, salary_structures, payroll_runs, payslips). |
@@ -62,7 +63,7 @@
    - [oncall](#625-oncall)
    - [events](#626-events)
    - [facilities](#627-facilities)
-   - [walkup](#628-walkup)
+   - [walkup *(retired)*](#628-walkup-retired-2026-04-26)
    - [vendors](#629-vendors)
    - [approvals](#630-approvals)
    - [reports](#631-reports)
@@ -3181,77 +3182,15 @@ Creates a room booking after checking for conflicts.
 
 ---
 
-### 6.28 `walkup`
+### 6.28 `walkup` *(retired 2026-04-26)*
 
-Walk-up service desk queue management.
+The `walkup` router and `walkup_*` schema were removed as part of the GA-readiness pass. Walk-in visits are now created as regular `tickets` rows with `channel = "walk_in"`. Migration `packages/db/drizzle/0028_optimal_sinister_six.sql` drops the `walkup_visits`, `walkup_appointments` tables and the `walkup_visit_status`, `walkup_appt_status` enums.
 
----
+Clients that previously called `walkup.queue.*`, `walkup.appointments.*`, `walkup.locations`, or `walkup.analytics` should migrate to:
 
-#### `walkup.queue.list`
-**Type:** Query · **Access:** `PERM(incidents, read)`
-
-**Returns:** Current walk-up queue entries
-
----
-
-#### `walkup.queue.joinQueue`
-**Type:** Mutation · **Access:** `AUTH`
-
-**Input:** `{ locationId: string, issueType: string, description?: string }`  
-**Returns:** Queue entry with estimated wait time
-
----
-
-#### `walkup.queue.callNext`
-**Type:** Mutation · **Access:** `PERM(incidents, write)`
-
-Calls the next person in the queue for a given location.
-
-**Input:** `{ locationId: string }`  
-**Returns:** Queue entry (or null if empty)
-
----
-
-#### `walkup.queue.complete`
-**Type:** Mutation · **Access:** `PERM(incidents, write)`
-
-Marks a walk-up visit as complete.
-
-**Input:** `{ id: uuid, resolution?: string }`  
-**Returns:** Updated queue entry
-
----
-
-#### `walkup.appointments.list`
-**Type:** Query · **Access:** `PERM(incidents, read)`
-
-**Returns:** `WalkupAppointment[]`
-
----
-
-#### `walkup.appointments.create`
-**Type:** Mutation · **Access:** `AUTH`
-
-**Input:** `{ locationId: string, scheduledAt: datetime, issueType: string }`  
-**Returns:** `WalkupAppointment`
-
----
-
-#### `walkup.locations`
-**Type:** Query · **Access:** `PERM(incidents, read)`
-
-Returns available walk-up service desk locations.
-
-**Returns:** Static location list
-
----
-
-#### `walkup.analytics`
-**Type:** Query · **Access:** `PERM(incidents, read)`
-
-Returns walk-up visit analytics (count, avg wait/service time).
-
-**Returns:** `{ totalVisits, avgWaitMinutes, avgServiceMinutes }`
+- `tickets.create` with `channel: "walk_in"` for queueing,
+- the Service Desk workbench (`workbench.serviceDesk`) for live triage,
+- `tickets.list` filtered on channel for analytics.
 
 ---
 
@@ -3621,7 +3560,7 @@ Returns the transaction history for an inventory item.
 | oncall | 6 | 0 | 0 | 6 | 0 |
 | events | 5 | 0 | 0 | 5 | 0 |
 | facilities | 11 | 0 | 0 | 11 | 0 |
-| walkup | 7 | 0 | 2 | 5 | 0 |
+| ~~walkup~~ | — | — | — | — | — | *(retired 2026-04-26 — see §6.28)* |
 | vendors | 6 | 0 | 0 | 6 | 0 |
 | approvals | 4 | 0 | 0 | 4 | 0 |
 | reports | 4 | 0 | 0 | 4 | 0 |

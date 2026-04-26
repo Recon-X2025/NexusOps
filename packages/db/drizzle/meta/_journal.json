@@ -176,6 +176,27 @@
       "when": 1777046400000,
       "tag": "0026_expense_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1777190304557,
+      "tag": "0027_strange_rafael_vega",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1777192052035,
+      "tag": "0028_optimal_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1777276800000,
+      "tag": "0029_p1_features",
+      "breakpoints": true
     }
   ]
 }

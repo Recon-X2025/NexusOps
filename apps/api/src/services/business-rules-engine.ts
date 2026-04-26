@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { and, asc, eq, businessRules, ticketStatuses } from "@nexusops/db";
 import { sendNotification } from "./notifications";
+import { runWorkflowAction } from "../workflows/actions/runtime";
 
 const EventSchema = z.enum(["created", "updated"]);
 export const BusinessRuleEntitySchema = z.literal("ticket");
@@ -31,6 +32,17 @@ export const ActionSchema = z.discriminatedUnion("type", [
     type: z.literal("notify_assignee"),
     title: z.string().min(1).max(500),
     body: z.string().min(1).max(4000),
+  }),
+  /**
+   * Bridge into the workflow-action library. The rules engine doesn't try to
+   * type-check the action's input shape — that's the runtime's job. This is
+   * the consumer-side hook that addresses market-assessment redo §C2 (the
+   * actions library was previously dead code).
+   */
+  z.object({
+    type: z.literal("run_workflow_action"),
+    name: z.string().min(1).max(100),
+    input: z.record(z.unknown()).default({}),
   }),
 ]);
 
@@ -125,6 +137,19 @@ async function executeAction(
       type: "info",
       sourceType: "business_rule",
       sourceId: String(ticket.id),
+    });
+    return;
+  }
+  if (action.type === "run_workflow_action") {
+    // Default-substitute {{ ticket.id }} into a `ticketId` slot if the action
+    // schema asks for it and the rule didn't override. Keeps the common
+    // case (escalate_on_sla_breach for the current ticket) ergonomic.
+    const input: Record<string, unknown> = { ...action.input };
+    if (input["ticketId"] === undefined) input["ticketId"] = ticket.id;
+    await runWorkflowAction({
+      ctx: { db, orgId, actorId: "system:business-rule" },
+      name: action.name,
+      input,
     });
   }
 }

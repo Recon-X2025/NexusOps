@@ -4,18 +4,25 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Briefcase, Plus, Calendar, AlertTriangle, Loader2, Pencil, X, ChevronDown, LayoutGrid,
+  Briefcase, Plus, Calendar, Loader2, Pencil, X, LayoutGrid,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { formatDate, formatCurrency, downloadCSV } from "@/lib/utils";
+import { TASK_BOARD_ENABLED } from "@/lib/feature-flags";
 
+// Strategy Center → Initiatives surface.
+//
+// The page is intentionally an oversight view (portfolio, health, budget,
+// dates) — not an agile task board. The legacy "Agile Board" tab is hidden
+// unless the optional task-board flag is on; "Resources" and "Demand" stub
+// tabs were removed (they were always empty placeholders).
 const PPM_TABS = [
-  { key: "portfolio",  label: "Portfolio View",       module: "projects"  as const, action: "read"  as const },
-  { key: "projects",   label: "All Projects",         module: "projects"  as const, action: "read"  as const },
-  { key: "resources",  label: "Resource Management",  module: "resources" as const, action: "read"  as const },
-  { key: "demand",     label: "Demand",               module: "demand"    as const, action: "read"  as const },
-  { key: "agile",      label: "Agile Board",          module: "projects"  as const, action: "write" as const },
+  { key: "portfolio", label: "Portfolio View", module: "projects" as const, action: "read"  as const },
+  { key: "projects",  label: "All Projects",   module: "projects" as const, action: "read"  as const },
+  ...(TASK_BOARD_ENABLED
+    ? [{ key: "agile" as const, label: "Agile Board", module: "projects" as const, action: "write" as const }]
+    : []),
 ];
 
 
@@ -92,7 +99,7 @@ export default function ProjectsPage() {
 
   const projectList: ProjectItem[] = data ?? [];
 
-  if (!can("projects", "read")) return <AccessDenied module="Project Portfolio Management" />;
+  if (!can("projects", "read")) return <AccessDenied module="Initiatives" />;
 
   const totalBudget = projectList.reduce((s, p) => s + Number(p.budgetTotal ?? 0), 0);
   const totalSpent  = projectList.reduce((s, p) => s + Number(p.budgetSpent ?? 0), 0);
@@ -104,8 +111,8 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Briefcase className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Project Portfolio Management</h1>
-          <span className="text-[11px] text-muted-foreground/70">PPM · Resources · Demand · Agile</span>
+          <h1 className="text-sm font-semibold text-foreground">Initiatives</h1>
+          <span className="text-[11px] text-muted-foreground/70">Portfolio · Health · Benefits</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -375,70 +382,7 @@ export default function ProjectsPage() {
           )
         )}
 
-        {tab === "resources" && (
-          <table className="ent-table w-full">
-            <thead>
-              <tr>
-                <th>Resource</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th>Capacity %</th>
-                <th>Allocated %</th>
-                <th>Availability</th>
-                <th>Projects</th>
-                <th>Skills</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projectList.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground text-[12px]">
-                    No team members assigned to projects yet. Assign users to projects to see resource allocation.
-                  </td>
-                </tr>
-              ) : (
-                projectList.slice(0, 10).map((p) => (
-                  <tr key={p.id}>
-                    <td className="text-foreground">{p.name}</td>
-                    <td className="text-muted-foreground capitalize">{p.status?.replace(/_/g, " ")}</td>
-                    <td className="text-muted-foreground">{p.department ?? "—"}</td>
-                    <td className="text-center font-mono text-muted-foreground">
-                      {p.budgetTotal ? `₹${parseFloat(String(p.budgetTotal)).toLocaleString("en-IN")}` : "—"}
-                    </td>
-                    <td className="text-center">
-                      <span className={`status-badge capitalize ${p.status === "at_risk" || p.status === "delayed" ? "text-red-700 bg-red-100" : "text-green-700 bg-green-100"}`}>
-                        {p.status?.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="text-muted-foreground">{p.endDate ? new Date(p.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
-                    <td className="text-muted-foreground">—</td>
-                    <td className="text-muted-foreground">—</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        )}
-
-        {tab === "demand" && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-            <AlertTriangle className="w-8 h-8 opacity-30" />
-            <div className="text-center">
-              <p className="text-[13px] font-semibold">Demand Management</p>
-              <p className="text-[12px] text-muted-foreground/70 mt-1">Demand items will appear here once submitted through the intake process.</p>
-              <PermissionGate module="projects" action="write">
-                <button
-                  onClick={() => setShowNewProject(true)}
-                  className="mt-3 flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 mx-auto"
-                >
-                  <Plus className="w-3 h-3" /> New Demand Request
-                </button>
-              </PermissionGate>
-            </div>
-          </div>
-        )}
-
-        {tab === "agile" && (
+        {tab === "agile" && TASK_BOARD_ENABLED && (
           <AgileKanban projects={(data ?? []) as any[]} />
         )}
       </div>
@@ -447,6 +391,10 @@ export default function ProjectsPage() {
 }
 
 // ── Agile Kanban Board ─────────────────────────────────────────────────────
+// Hidden from the default product surface (see TASK_BOARD_ENABLED in
+// `lib/feature-flags`). The schema, tRPC routes, and component are kept so
+// the capability can be re-enabled without code changes when a customer
+// genuinely needs an in-product task board.
 const BOARD_COLUMNS = [
   { key: "backlog",     label: "Backlog",      color: "bg-muted border-border" },
   { key: "todo",        label: "To Do",        color: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" },

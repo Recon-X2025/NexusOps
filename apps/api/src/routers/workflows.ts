@@ -13,6 +13,7 @@ import {
   sql,
 } from "@nexusops/db";
 import { getTemporalClient } from "../lib/temporal";
+import { listWorkflowActions, runWorkflowAction } from "../workflows/actions/runtime";
 
 function isWorkflowEngineRequired(): boolean {
   const v =
@@ -37,6 +38,37 @@ const WorkflowEdgeSchema = z.object({
 });
 
 export const workflowsRouter = router({
+  /**
+   * Catalogue of workflow actions registered in
+   * `apps/api/src/workflows/actions/`. Drives the visual designer's node
+   * palette and the business-rules-engine UI for the
+   * `run_workflow_action` rule variant.
+   *
+   * Wires up the previously-orphaned actions library (market-assessment redo §C2).
+   */
+  listAvailableActions: permissionProcedure("flows", "read").query(() => listWorkflowActions()),
+
+  /**
+   * Manual / canary dispatch — admin-only. Used by the rules-engine UI to
+   * preview what an action does with a given input before saving the rule.
+   * Runs synchronously against the current org context.
+   */
+  runActionNow: permissionProcedure("flows", "write")
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        input: z.record(z.unknown()).default({}),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      return runWorkflowAction({
+        ctx: { db, orgId: org!.id, actorId: user!.id },
+        name: input.name,
+        input: input.input,
+      });
+    }),
+
   list: permissionProcedure("flows", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
     return db

@@ -234,7 +234,7 @@ export const SYSTEM_ROLES_CATALOG: Array<{
   { role: "procurement_admin", displayName: "Procurement Administrator",description: "Full procurement authority — POs, approval, inventory admin", category: "Procurement", isElevated: false },
   { role: "procurement_analyst",displayName: "Procurement Analyst",     description: "Create requisitions, receive goods, manage inventory", category: "Procurement", isElevated: false },
   { role: "finance_manager",   displayName: "Finance Manager",          description: "IT budget, chargebacks, financial reporting", category: "Finance", isElevated: false },
-  { role: "project_manager",   displayName: "Project Manager",          description: "Full PPM access — projects, resources, demand", category: "PMO", isElevated: false },
+  { role: "project_manager",   displayName: "Project Manager",          description: "Strategy Center access — initiatives, milestones, portfolio health", category: "PMO", isElevated: false },
   { role: "approver",          displayName: "Approver",                 description: "Approval-only role for changes, catalog, procurement", category: "Platform", isElevated: false },
   { role: "requester",         displayName: "End User / Requester",     description: "Self-service catalog, submit incidents, view own records", category: "Platform", isElevated: false },
   { role: "report_viewer",     displayName: "Report Viewer",            description: "Read-only analytics and reporting access", category: "Analytics", isElevated: false },

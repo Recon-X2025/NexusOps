@@ -7,6 +7,10 @@
 
 ---
 
+> **Status (2026-04-26):** the **Walk-Up Experience** module referenced throughout this analysis was retired in the GA-readiness pass (see `docs/MARKET_ASSESSMENT_2026-04-26.md` and the Architecture Design changelog v2.1). Walk-in visits are now captured as regular `tickets` rows with `channel = "walk_in"` and worked from the Service Desk workbench. Where this document mentions "walk-up tiles", "walkup KPIs", "queue length from `walkup` router", etc., treat those gaps as **N/A — surface removed**. The remaining gap commentary (HCM depth, manager hub, position management, analytics) is unchanged.
+
+---
+
 ## 1. Executive summary
 
 NexusOps offers a **modular People & Workplace hub**: a **dashboard** summarising HR cases, onboarding/offboarding counts, and links into **HR service delivery**, **employee portal**, **facilities**, and **walk-up**; a separate **People Analytics** experience powered by **`workforce`** APIs (headcount, tenure, leave, attrition, department/location splits); and a broad **`hr`** surface (employees, cases, leave, onboarding templates, payroll-related procedures, holidays, attendance, expenses, OKRs) plus **`performance`** (review cycles, reviews, goals) and **`recruitment`**.
@@ -167,7 +171,7 @@ This section maps **§3 gaps** and **§4 strategic themes** to a **time-boxed ba
 | ID | Backlog item | Acceptance notes |
 |----|----------------|------------------|
 | PBI-P1-1 | **Facilities** tile: surface real **space/desk/booking** counts or API-backed “connected / not configured” | Updates `people-workplace` module card stats for Facilities |
-| PBI-P1-2 | **Walk-up** tile: **queue length** or **appointments today** from `walkup` router (or documented stub with config flag) | Updates Walk-up module card stats |
+| ~~PBI-P1-2~~ | ~~**Walk-up** tile: **queue length** or **appointments today** from `walkup` router~~ — **N/A.** Walk-Up Experience module retired 2026-04-26; walk-in visits are now ordinary `tickets` rows with `channel = "walk_in"` and surface in the Service Desk workbench, not on the People hub. Drop this PBI from the sprint. |
 | PBI-P1-3 | Error and **empty states** consistent with design system | No silent `"—"` where data is expected |
 
 ---

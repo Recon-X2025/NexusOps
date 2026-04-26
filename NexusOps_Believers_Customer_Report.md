@@ -41,7 +41,7 @@ Your IT team's command centre.
 - **Changes & Releases:** Manage change advisory boards (CAB), approval chains, and release calendars. Emergency, normal, and standard change workflows are all supported.
 - **Problems:** Link multiple incidents to a root cause. Close the problem, close the chain.
 - **SLA Engine:** Response and resolution timers for every priority level (P1–P4), with pause-on-hold logic and breach alerts.
-- **Walk-Up Desk:** A virtual walk-up counter for requests that arrive in person. Queue management, appointment booking, and service analytics.
+- **Walk-In as a Channel:** Visits to the IT desk are filed as regular tickets with a `walk_in` channel — they share the same SLA, queue, and analytics as email, chat, and portal tickets. (The previous standalone Walk-Up Desk module was retired in 2026-04 in favour of this single-queue model.)
 - **On-Call Scheduling:** Manage on-call rotations, escalation chains, and override windows. Integrates with ticket auto-escalation.
 
 ---

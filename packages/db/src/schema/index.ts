@@ -26,7 +26,6 @@ export * from "./surveys";
 export * from "./knowledge";
 export * from "./approvals";
 export * from "./notifications";
-export * from "./walkup";
 export * from "./apm";
 export * from "./oncall";
 // Phase 4 schemas
@@ -46,6 +45,12 @@ export * from "./custom-fields";
 export * from "./business-rules";
 // Issuer / India legal programme (§3.9 spine)
 export * from "./issuer-programme";
+// E-sign (eMudhra / DocuSign envelopes + audit) — IT Act §3A
+export * from "./esign";
+// DMS — universal document store (versions, ACLs, retention)
+export * from "./documents";
+// Copilot agent — conversation memory for the tool-calling assistant
+export * from "./agent";
 
 // Re-export drizzle operators used in routers.
 // Single authoritative source — do NOT also export from packages/db/src/index.ts.

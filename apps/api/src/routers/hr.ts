@@ -1,7 +1,9 @@
-import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
+import { evaluateExpenseClaim } from "../lib/expense-policy";
+import { extractReceipt } from "../services/ai-receipt-ocr";
 import {
   employees,
   organizations,
@@ -63,7 +65,6 @@ export const hrRouter = router({
     updateIntegrationFlags: adminProcedure
       .input(z.object({
         facilitiesLive: z.boolean().optional(),
-        walkupLive: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -80,7 +81,6 @@ export const hrRouter = router({
           .where(eq(organizations.id, org!.id));
         return {
           facilitiesLive: peopleWorkplace.facilitiesLive !== false,
-          walkupLive: peopleWorkplace.walkupLive !== false,
         };
       }),
   }),
@@ -1112,6 +1112,149 @@ export const hrRouter = router({
       return claim!;
     }),
 
+    /**
+     * Employee self-serve creation. Resolves the employee record from the
+     * authenticated user (`employees.userId`) so an IC without `hr.write`
+     * can file their own claim. Status starts as "submitted" — going to
+     * "draft" first then submit-on-save adds friction without value for
+     * the self-serve flow. Approval still requires `financial.write`.
+     */
+    createMine: protectedProcedure.input(z.object({
+      title: z.string().min(1).max(200),
+      description: z.string().max(2000).optional(),
+      category: z.enum(["travel", "accommodation", "food", "fuel", "communication", "office_supplies", "client_entertainment", "training", "medical", "miscellaneous"]).default("miscellaneous"),
+      amount: z.number().positive(),
+      currency: z.string().length(3).default("INR"),
+      expenseDate: z.coerce.date(),
+      receiptUrl: z.string().url().optional(),
+      projectCode: z.string().optional(),
+      merchant: z.string().max(200).optional(),
+      mileageKm: z.number().positive().optional(),
+      ocrExtracted: z.unknown().optional(),
+      ocrConfidence: z.number().min(0).max(1).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db, user } = ctx;
+      const { employees, expenseClaims, count: dbCount, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+
+      const [emp] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(dbAnd(dbEq(employees.userId, user!.id), dbEq(employees.orgId, org!.id)))
+        .limit(1);
+      if (!emp) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "No employee record linked to this user account. Ask HR to provision your profile.",
+        });
+      }
+
+      // Run org expense policy. `block` enforcement throws; `warn`
+      // tags the claim with `policy_violation_*` so an approver sees
+      // the issue and can still approve manually.
+      const policy = evaluateExpenseClaim(
+        {
+          category: input.category,
+          amount: input.amount,
+          currency: input.currency,
+          receiptUrl: input.receiptUrl,
+          mileageKm: input.mileageKm,
+        },
+        org!.settings,
+      );
+      if (!policy.ok && policy.enforcement === "block") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Policy violation: ${policy.violation?.reason ?? "claim rejected by org policy"}`,
+        });
+      }
+
+      const [c] = await db
+        .select({ n: dbCount() })
+        .from(expenseClaims)
+        .where(dbEq(expenseClaims.orgId, org!.id));
+      const seq = (c?.n ?? 0) + 1;
+      const number = "EXP-" + new Date().getFullYear() + "-" + String(seq).padStart(4, "0");
+      const [claim] = await db
+        .insert(expenseClaims)
+        .values({
+          orgId: org!.id,
+          employeeId: emp.id,
+          number,
+          title: input.title,
+          description: input.description,
+          category: input.category,
+          amount: String(input.amount),
+          currency: input.currency,
+          expenseDate: input.expenseDate,
+          receiptUrl: input.receiptUrl,
+          projectCode: input.projectCode,
+          merchant: input.merchant,
+          mileageKm: input.mileageKm != null ? String(input.mileageKm) : null,
+          policyViolationCode: policy.violation?.code ?? null,
+          policyViolationReason: policy.violation?.reason ?? null,
+          ocrExtracted: input.ocrExtracted as Record<string, unknown> | undefined,
+          ocrConfidence: input.ocrConfidence != null ? String(input.ocrConfidence) : null,
+          status: "submitted",
+        })
+        .returning();
+      return { ...claim!, policy };
+    }),
+
+    /**
+     * Run vision OCR on a receipt the user has uploaded but not yet
+     * submitted. Stateless: callers paste back the returned values
+     * into the form, then submit via `createMine` which persists the
+     * raw extraction in `ocr_extracted`.
+     */
+    ocrReceipt: protectedProcedure.input(z.object({
+      imageBase64: z.string().min(20).max(8 * 1024 * 1024 / 3 + 100), // ~8MB image
+      mediaType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+    })).mutation(async ({ ctx, input }) => {
+      const { org } = ctx;
+      const baseCurrency = (() => {
+        const settings = (org!.settings ?? {}) as { expense?: { baseCurrency?: string } };
+        return settings.expense?.baseCurrency ?? "INR";
+      })();
+      const result = await extractReceipt({
+        imageBase64: input.imageBase64,
+        mediaType: input.mediaType,
+        defaultCurrency: baseCurrency,
+      });
+      if (!result) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "OCR is unavailable right now. Fill the form manually and submit.",
+        });
+      }
+      return result;
+    }),
+
+    /**
+     * List the current user's own expense claims. Self-serve read,
+     * gated only by authentication. Used by the employee portal.
+     */
+    listMine: protectedProcedure.input(z.object({
+      status: z.string().optional(),
+      limit: z.number().int().min(1).max(100).default(50),
+    })).query(async ({ ctx, input }) => {
+      const { org, db, user } = ctx;
+      const { employees, expenseClaims, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@nexusops/db");
+      const [emp] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(dbAnd(dbEq(employees.userId, user!.id), dbEq(employees.orgId, org!.id)))
+        .limit(1);
+      if (!emp) return [];
+      const conds: any[] = [dbEq(expenseClaims.orgId, org!.id), dbEq(expenseClaims.employeeId, emp.id)];
+      if (input.status) conds.push(dbEq(expenseClaims.status, input.status as any));
+      return db
+        .select()
+        .from(expenseClaims)
+        .where(dbAnd(...conds))
+        .orderBy(dbDesc(expenseClaims.createdAt))
+        .limit(input.limit);
+    }),
+
     submit: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
@@ -1119,7 +1262,14 @@ export const hrRouter = router({
       return c!;
     }),
 
-    approve: permissionProcedure("hr", "write").input(z.object({
+    /**
+     * Approve / reject an expense claim. Owned by Finance, not HR — moving
+     * money out of the org bank account is a finance-controlled action even
+     * though the underlying entity sits in the HR schema. Gated on
+     * `financial.write` so HR coordinators who can file claims cannot
+     * self-approve them.
+     */
+    approve: permissionProcedure("financial", "write").input(z.object({
       id: z.string().uuid(),
       approved: z.boolean(),
       rejectionReason: z.string().optional(),
@@ -1131,7 +1281,11 @@ export const hrRouter = router({
       return c!;
     }),
 
-    markReimbursed: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    /**
+     * Mark a claim reimbursed (money sent). Finance-owned for the same
+     * reason as approve(). Gated on `financial.write`.
+     */
+    markReimbursed: permissionProcedure("financial", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
       const [c] = await db.update(expenseClaims).set({ status: "reimbursed", reimbursedAt: new Date(), updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();

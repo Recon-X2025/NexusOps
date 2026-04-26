@@ -566,6 +566,92 @@ export const payrollRouter = router({
   runs: runsRouter,
   payslips: payslipsRouter,
 
+  /**
+   * Export a payroll run to a bank-disbursement file (NEFT / NACH-Credit).
+   *
+   * Returns the file body base64-encoded so the web client can download
+   * it without an extra round-trip. We don't push the file to S3 yet —
+   * payroll teams overwhelmingly want a one-click download into their
+   * bank portal, not a managed file. Storage + audit trail of exported
+   * files is a P2 follow-up.
+   */
+  exportBankFile: permissionProcedure("hr", "write")
+    .input(
+      z.object({
+        runId: z.string().uuid(),
+        format: z.enum([
+          "hdfc_neft",
+          "icici_connected_banking",
+          "sbi_cmp",
+          "axis_power_access",
+          "kotak_fynn",
+          "nach_credit",
+          "generic_neft",
+        ]),
+        debitAccount: z.string().min(4).max(35),
+        valueDate: z.coerce.date().optional(),
+        sponsorBankCode: z.string().optional(),
+        utilityCode: z.string().optional(),
+        utilityName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [run] = await db
+        .select()
+        .from(payrollRuns)
+        .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+
+      // Pull all payslips for the run, joined to the employee for bank/IFSC.
+      const slipRows = await db
+        .select({ slip: payslips, emp: employees })
+        .from(payslips)
+        .innerJoin(employees, eq(payslips.employeeId, employees.id))
+        .where(and(eq(payslips.payrollRunId, run.id), eq(payslips.orgId, org!.id)));
+      if (slipRows.length === 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No payslips computed for this run yet — generate payslips first.",
+        });
+      }
+
+      const { generateBankFile } = await import("../lib/india/bank-file-generator.js");
+
+      const valueDate =
+        (input.valueDate ?? new Date()).toISOString().slice(0, 10);
+
+      const bankRows = slipRows.map(({ slip, emp }: { slip: typeof payslips.$inferSelect; emp: typeof employees.$inferSelect }) => ({
+        employeeId: emp.employeeId ?? String(emp.id).slice(0, 12),
+        employeeName: emp.title ?? emp.employeeId ?? "Employee",
+        bankAccountNumber: emp.bankAccountNumber ?? "",
+        bankIfsc: emp.bankIfsc ?? "",
+        bankName: emp.bankName ?? "",
+        amount: Number(slip.netPay || 0),
+        valueDate,
+        narration: `Payroll ${slip.month}/${slip.year}`,
+      }));
+
+      const result = generateBankFile({
+        format: input.format,
+        rows: bankRows,
+        debitAccount: input.debitAccount,
+        ...(input.sponsorBankCode ? { sponsorBankCode: input.sponsorBankCode } : {}),
+        ...(input.utilityCode ? { utilityCode: input.utilityCode } : {}),
+        ...(input.utilityName ? { utilityName: input.utilityName } : {}),
+        fileSlug: `payroll-${run.year}-${String(run.month).padStart(2, "0")}`,
+      });
+
+      return {
+        filename: result.filename,
+        contentBase64: Buffer.from(result.body, "utf8").toString("base64"),
+        byteLength: result.byteLength,
+        recordCount: result.recordCount,
+        totalAmount: result.totalAmount,
+        skipped: result.skipped,
+      };
+    }),
+
   taxPreview: protectedProcedure
     .input(
       z.object({

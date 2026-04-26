@@ -179,7 +179,10 @@ export const HUB_TO_DEFAULT_WORKBENCH: Record<string, WorkbenchKey> = {
   "customer-sales": "csm",
   "finance-procurement": "finance-ops",
   "legal-governance": "company-secretary",
+  // The Strategy Center hub renamed from `strategy-projects` to `strategy`;
+  // we keep the legacy slug so any cached deep links still resolve.
   "strategy-projects": "pmo",
+  strategy: "pmo",
 };
 
 /**

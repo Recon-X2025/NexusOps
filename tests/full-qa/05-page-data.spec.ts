@@ -93,15 +93,10 @@ test.describe("05 — Page Data Loading (all hub/module routes)", () => {
     { path: "/app/security",      label: "Security" },
     { path: "/app/security-compliance", label: "Security & Compliance hub" },
     { path: "/app/compliance",    label: "Compliance" },
-    // DevOps
-    { path: "/app/devops",        label: "DevOps" },
-    { path: "/app/developer-ops", label: "Developer Ops hub" },
     // On-Call
     { path: "/app/on-call",       label: "On-Call" },
     // Facilities
     { path: "/app/facilities",    label: "Facilities" },
-    // Walk-Up
-    { path: "/app/walk-up",       label: "Walk-Up" },
     // Events
     { path: "/app/events",        label: "Events / NOC" },
     // APM
@@ -120,7 +115,7 @@ test.describe("05 — Page Data Loading (all hub/module routes)", () => {
     // Other hubs
     { path: "/app/it-services",      label: "IT Services hub" },
     { path: "/app/people-workplace", label: "People & Workplace hub" },
-    { path: "/app/strategy-projects","label": "Strategy & Projects hub" },
+    { path: "/app/strategy",         "label": "Strategy Center hub" },
     { path: "/app/escalations",      label: "Escalations" },
     { path: "/app/secretarial",      label: "Secretarial" },
     { path: "/app/recruitment",      label: "Recruitment" },

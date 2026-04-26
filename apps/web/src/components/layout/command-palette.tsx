@@ -13,7 +13,6 @@ import {
   CheckSquare,
   FileSignature,
   FolderKanban,
-  Footprints,
   Gavel,
   GitBranch,
   GitPullRequest,
@@ -27,6 +26,7 @@ import {
   Scale,
   Search,
   Shield,
+  Sparkles,
   ShoppingCart,
   SlidersHorizontal,
   Target,
@@ -37,6 +37,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEVOPS_ENABLED } from "@/lib/feature-flags";
 
 interface CommandItem {
   id: string;
@@ -51,6 +52,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   // Platform
   { id: "dashboard",   label: "Platform Dashboard",      group: "Platform",            href: "/app/dashboard",          icon: LayoutDashboard },
   { id: "admin",       label: "Administration",           group: "Platform",            href: "/app/admin",              icon: SlidersHorizontal },
+  { id: "copilot",     label: "Ask NexusOps Copilot",     group: "Platform",            href: "/app/agent",              icon: Sparkles,        keywords: ["agent", "copilot", "ai", "assistant", "chat", "ask"] },
 
   // IT Services
   { id: "tickets",     label: "Service Desk",             group: "IT Services",         href: "/app/tickets",            icon: Headset,        keywords: ["incidents", "requests", "itsm", "tickets"] },
@@ -75,7 +77,6 @@ const COMMAND_ITEMS: CommandItem[] = [
   { id: "performance", label: "Performance Management",   group: "People & Workplace",  href: "/app/performance",        icon: Target,         keywords: ["performance", "goals", "okr", "review", "360"] },
   { id: "people-analytics", label: "People Analytics",   group: "People & Workplace",  href: "/app/people-analytics",   icon: BarChart3,      keywords: ["workforce", "analytics", "headcount"] },
   { id: "facilities",  label: "Facilities & Real Estate", group: "People & Workplace",  href: "/app/facilities",         icon: Building2,      keywords: ["facilities", "rooms", "bookings"] },
-  { id: "walk-up",     label: "Walk-Up Experience",       group: "People & Workplace",  href: "/app/walk-up",            icon: Footprints,     keywords: ["walk up", "kiosk"] },
 
   // Customer & Sales
   { id: "csm",         label: "Customer Service",         group: "Customer & Sales",    href: "/app/csm",                icon: Headphones,     keywords: ["customer", "support", "csm"] },
@@ -87,20 +88,26 @@ const COMMAND_ITEMS: CommandItem[] = [
   { id: "financial",   label: "Financial Management",     group: "Finance & Procurement", href: "/app/financial",        icon: ShoppingCart,   keywords: ["finance", "invoices", "ap", "ar"] },
   { id: "vendors",     label: "Vendor Management",        group: "Finance & Procurement", href: "/app/vendors",          icon: ShoppingCart,   keywords: ["vendors", "suppliers"] },
   { id: "contracts",   label: "Contract Management",      group: "Finance & Procurement", href: "/app/contracts",        icon: FileSignature,  keywords: ["contracts", "clm", "agreements"] },
-  { id: "expenses",    label: "Expense Management",       group: "Finance & Procurement", href: "/app/expenses",         icon: Receipt,        keywords: ["expenses", "claims", "reimbursement", "travel"] },
+  { id: "expenses",    label: "My Expense Claims",        group: "People & Workplace",    href: "/app/hr/expenses",      icon: Receipt,        keywords: ["expenses", "claims", "reimbursement", "travel", "hr"] },
+  { id: "expenses-finance", label: "Expense Approver Queue", group: "Finance & Procurement", href: "/app/finance/expenses", icon: Receipt,        keywords: ["expenses", "approve", "reimburse", "finance"] },
 
   // Legal & Governance
   { id: "legal",       label: "Legal Service Delivery",   group: "Legal & Governance",  href: "/app/legal",              icon: Gavel,          keywords: ["legal", "documents", "counsel"] },
   { id: "secretarial", label: "Secretarial & Company Secretary", group: "Legal & Governance", href: "/app/secretarial",  icon: Briefcase,      keywords: ["company secretary", "mca", "roc", "board", "esop"] },
 
-  // Strategy & Projects
-  { id: "projects",    label: "Project Portfolio",        group: "Strategy & Projects", href: "/app/projects",           icon: FolderKanban,   keywords: ["projects", "ppm", "portfolio"] },
-  { id: "apm",         label: "Application Portfolio",    group: "Strategy & Projects", href: "/app/apm",                icon: AppWindow,      keywords: ["applications", "portfolio", "apm"] },
-  { id: "reports",     label: "Analytics & Reporting",    group: "Strategy & Projects", href: "/app/reports",            icon: BarChart3,      keywords: ["reports", "analytics", "kpis"] },
+  // Strategy Center
+  { id: "strategy",    label: "Strategy Center",          group: "Strategy Center", href: "/app/strategy",           icon: FolderKanban,   keywords: ["strategy", "initiatives", "portfolio", "okr", "executive"] },
+  { id: "projects",    label: "Initiatives",              group: "Strategy Center", href: "/app/projects",           icon: FolderKanban,   keywords: ["initiatives", "projects", "ppm", "portfolio"] },
+  { id: "reports",     label: "Analytics & Reporting",    group: "Strategy Center", href: "/app/reports",            icon: BarChart3,      keywords: ["reports", "analytics", "kpis"] },
 
-  // Developer & Ops
-  { id: "devops",      label: "DevOps",                   group: "Developer & Ops",     href: "/app/devops",             icon: GitPullRequest, keywords: ["devops", "deployments", "pipelines"] },
-  { id: "knowledge",   label: "Knowledge Management",     group: "Developer & Ops",     href: "/app/knowledge",          icon: BookOpen,       keywords: ["knowledge", "kb", "articles"] },
+  // Knowledge
+  { id: "knowledge",   label: "Knowledge Base",           group: "Knowledge",       href: "/app/knowledge",          icon: BookOpen,       keywords: ["knowledge", "kb", "articles"] },
+  ...(DEVOPS_ENABLED
+    ? [{ id: "devops", label: "DevOps", group: "Knowledge", href: "/app/devops", icon: GitPullRequest, keywords: ["devops", "deployments", "pipelines"] } as CommandItem]
+    : []),
+
+  // Settings
+  { id: "apm",         label: "App Inventory",            group: "Settings",        href: "/app/apm",                icon: AppWindow,      keywords: ["applications", "inventory", "apps", "saas", "renewal"] },
 ];
 
 const QUICK_ACTIONS: Array<{ label: string; href: string; hint: string }> = [

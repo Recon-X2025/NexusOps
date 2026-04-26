@@ -304,6 +304,16 @@ export const invoices = pgTable(
     eInvoiceIrn: text("e_invoice_irn"),
     eInvoiceAckNumber: text("e_invoice_ack_number"),
     eInvoiceAckDate: timestamp("e_invoice_ack_date", { withTimezone: true }),
+    /** ClearTax-signed QR payload (base64). Persisted for receipt printing / audit. */
+    eInvoiceSignedQrCode: text("e_invoice_signed_qr_code"),
+    /**
+     * Lifecycle of the IRN dual-write: `pending` (queued), `generated` (ClearTax
+     * accepted), `failed` (gave up after retries), `not_required` (explicit opt-out
+     * for low-value B2C). NULL = never attempted.
+     */
+    eInvoiceStatus: text("e_invoice_status"),
+    eInvoiceLastAttemptAt: timestamp("e_invoice_last_attempt_at", { withTimezone: true }),
+    eInvoiceError: text("e_invoice_error"),
     ewayBillNumber: text("eway_bill_number"),
     originalInvoiceNumber: text("original_invoice_number"),
     invoiceDate: timestamp("invoice_date", { withTimezone: true }).notNull().defaultNow(),
@@ -320,6 +330,7 @@ export const invoices = pgTable(
     orgFlowIdx: index("invoices_org_flow_idx").on(t.orgId, t.invoiceFlow),
     poIdx: index("invoices_po_idx").on(t.poId),
     statusIdx: index("invoices_status_idx").on(t.status),
+    eInvoiceStatusIdx: index("invoices_e_invoice_status_idx").on(t.orgId, t.eInvoiceStatus),
   }),
 );
 

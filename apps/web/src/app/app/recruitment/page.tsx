@@ -12,6 +12,7 @@ import {
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { downloadCSV } from "@/lib/utils";
+import { EsignPanel } from "@/components/esign/EsignPanel";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 
@@ -604,6 +605,7 @@ function OffersTab() {
     onSuccess: () => toast.success("Offer status updated"),
     onError: e => toast.error(e.message),
   });
+  const [esignOpen, setEsignOpen] = useState<{ id: string; title: string; candidateName?: string; candidateEmail?: string } | null>(null);
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -628,20 +630,65 @@ function OffersTab() {
               <td className="px-4 py-3 text-xs text-muted-foreground">{o.sentAt ? new Date(o.sentAt).toLocaleDateString() : "—"}</td>
               <td className="px-4 py-3 text-xs text-muted-foreground">{o.expiryDate ? new Date(o.expiryDate).toLocaleDateString() : "—"}</td>
               <td className="px-4 py-3">
-                {o.status === "draft" && (
-                  <button onClick={() => updateStatus.mutate({ id: o.id, status: "sent" })} className="text-xs text-primary hover:underline font-medium flex items-center gap-1"><Send className="w-3 h-3" /> Send</button>
-                )}
-                {o.status === "sent" && (
-                  <div className="flex gap-2">
-                    <button onClick={() => updateStatus.mutate({ id: o.id, status: "accepted" })} className="text-xs text-green-600 hover:underline font-medium">Accept</button>
-                    <button onClick={() => updateStatus.mutate({ id: o.id, status: "declined" })} className="text-xs text-red-600 hover:underline font-medium">Decline</button>
-                  </div>
-                )}
+                <div className="flex gap-2 items-center flex-wrap">
+                  {o.status === "draft" && (
+                    <button onClick={() => updateStatus.mutate({ id: o.id, status: "sent" })} className="text-xs text-primary hover:underline font-medium flex items-center gap-1"><Send className="w-3 h-3" /> Send</button>
+                  )}
+                  {o.status === "sent" && (
+                    <>
+                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "accepted" })} className="text-xs text-green-600 hover:underline font-medium">Accept</button>
+                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "declined" })} className="text-xs text-red-600 hover:underline font-medium">Decline</button>
+                    </>
+                  )}
+                  {(o.status === "draft" || o.status === "sent") && (
+                    <button
+                      onClick={() => setEsignOpen({
+                        id: o.id,
+                        title: `Offer Letter — ${o.title}`,
+                        candidateName: o.candidateName ?? o.candidate?.name,
+                        candidateEmail: o.candidateEmail ?? o.candidate?.email,
+                      })}
+                      className="text-xs text-blue-700 hover:underline font-medium"
+                    >
+                      E-sign
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {esignOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={(e) => e.target === e.currentTarget && setEsignOpen(null)}
+        >
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div>
+                <h2 className="text-base font-semibold">E-sign offer</h2>
+                <p className="text-xs text-muted-foreground">{esignOpen.title}</p>
+              </div>
+              <button onClick={() => setEsignOpen(null)} className="p-2 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-4">
+              <EsignPanel
+                sourceType="offer_letter"
+                sourceId={esignOpen.id}
+                defaultTitle={esignOpen.title}
+                subject={esignOpen.candidateName ?? "Candidate"}
+                defaultSigners={
+                  esignOpen.candidateEmail && esignOpen.candidateName
+                    ? [{ name: esignOpen.candidateName, email: esignOpen.candidateEmail, role: "candidate" }]
+                    : []
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

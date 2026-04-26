@@ -208,10 +208,6 @@ async function phase3() {
     ["oncall.activeRotation",              null],
     ["oncall.schedules.list",              null],
     ["oncall.escalations.list",            null],
-    // Walk-up
-    ["walkup.queue.list",                  {}],
-    ["walkup.appointments.list",           {}],
-    ["walkup.locations",                   null],
     // Surveys
     ["surveys.list",                       {}],
     // Admin

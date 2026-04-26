@@ -198,12 +198,6 @@ const QUERY_PROCEDURES: string[] = [
   "tickets.listPriorities",
   // vendors
   "vendors.list",
-  // walkup (sub-router paths)
-  "walkup.hubSnapshot",
-  "walkup.queue.list",
-  "walkup.appointments.list",
-  "walkup.locations",
-  // walkup.analytics — needs days param; tested in explicit input section
   // work-orders (camelCase key)
   "workOrders.list",
   "workOrders.metrics",
@@ -357,12 +351,6 @@ test.describe("06 — All tRPC Endpoints", () => {
       const result = await api(page, "hr.payroll.listPayslips", {}, "GET");
       expect(result.status).not.toBe(404);
       expect(result.status).not.toBe(500);
-    });
-
-    test("GET walkup.analytics with days=30", async ({ page }) => {
-      const result = await api(page, "walkup.analytics", { days: 30 }, "GET");
-      expect(result.status).not.toBe(404);
-      expect(result.status, "walkup.analytics → 500").not.toBe(500);
     });
 
     test("GET financial.gstFilingCalendar with month=1 year=2026", async ({ page }) => {

@@ -3,7 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import DOMPurify from "dompurify";
 import { usePathname } from "next/navigation";
-import { MessageCircle, X, Send, Minimize2, Maximize2, Bot, Zap, ChevronDown, RefreshCw } from "lucide-react";
+import { X, Send, Minimize2, Maximize2, Bot, RefreshCw, ChevronDown } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+
+interface CopilotTrace {
+  toolName?: string;
+  args?: Record<string, unknown>;
+  resultPreview?: string;
+  ms?: number;
+}
 
 interface Message {
   id: string;
@@ -12,15 +20,22 @@ interface Message {
   time: string;
   suggestions?: string[];
   action?: { label: string; href: string };
+  trace?: CopilotTrace[];
 }
 
 const INITIAL_MESSAGES: Message[] = [
   {
     id: "m0",
     role: "assistant",
-    content: "Hi! I'm **NexusOps Assistant** — powered by AI. I can help you:\n\n• Create tickets, requests, and work orders\n• Find knowledge articles\n• Check SLA status\n• Escalate incidents\n• Answer questions about any module\n\nWhat can I help you with today?",
+    content:
+      "Hi! I'm the **NexusOps Copilot** — grounded in your live tenant data.\n\nI can search your tickets, KB, employees, payslips, invoices, contracts, and statutory calendar — and tell you exactly which tool I used to answer.\n\nWhat would you like to know?",
     time: "Now",
-    suggestions: ["Create a P2 incident", "Check my open tickets", "Request software access", "Show SLA breaches"],
+    suggestions: [
+      "Show open P1 incidents",
+      "How many invoices are overdue?",
+      "What's due in the GST calendar this month?",
+      "Find contracts expiring in 30 days",
+    ],
   },
 ];
 
@@ -37,11 +52,13 @@ const ROUTE_CONTEXT: Record<string, { label: string; suggestions: string[] }> = 
   "/app/crm":               { label: "CRM & Sales", suggestions: ["Add new deal", "Check pipeline value", "Log a call activity", "View accounts at risk"] },
   "/app/procurement":       { label: "Procurement", suggestions: ["Create purchase request", "Approve pending POs", "Check vendor list", "Track open orders"] },
   "/app/contracts":         { label: "Contracts", suggestions: ["Show expiring contracts", "Add new contract", "Check obligation due dates", "Find contract by counterparty"] },
-  "/app/expenses":          { label: "Expense Management", suggestions: ["Create expense report", "Submit pending report", "Check approval status", "View my expense history"] },
+  "/app/hr/expenses":       { label: "My Expense Claims", suggestions: ["File a new expense claim", "Submit my draft", "Check approval status", "View my expense history"] },
+  "/app/finance/expenses":  { label: "Expense Approver Queue", suggestions: ["Show pending approvals", "Mark as reimbursed", "Reject with reason", "Export approved claims for payroll"] },
   "/app/performance":       { label: "Performance Management", suggestions: ["Create review cycle", "Add a goal or OKR", "Check my review status", "View team goals progress"] },
   "/app/security":          { label: "Security Operations", suggestions: ["Show open security incidents", "Check vulnerability status", "Review high risk items", "Escalate security alert"] },
   "/app/grc":               { label: "GRC", suggestions: ["Check compliance status", "View risk register", "Schedule audit", "Review policy attestations"] },
-  "/app/projects":          { label: "Project Portfolio", suggestions: ["Show at-risk projects", "Check resource allocation", "View project milestones", "Add project update"] },
+  "/app/strategy":          { label: "Strategy Center", suggestions: ["Show at-risk initiatives", "Which projects are off-track?", "OKR progress this quarter", "Top 3 dependencies blocking us"] },
+  "/app/projects":          { label: "Initiatives", suggestions: ["Show at-risk projects", "View project milestones", "Add project update", "Which initiative owns the largest budget?"] },
   "/app/knowledge":         { label: "Knowledge Base", suggestions: ["Search knowledge articles", "Create new article", "Show recently updated articles", "Find troubleshooting guides"] },
   "/app/reports":           { label: "Analytics", suggestions: ["Generate ITSM report", "Show SLA compliance trend", "Export ticket metrics", "View executive dashboard"] },
   "/app/catalog":           { label: "Service Catalog", suggestions: ["Browse available services", "Check my requests", "Request software access", "Order hardware"] },
@@ -54,42 +71,10 @@ function getPageContext(pathname: string) {
   return null;
 }
 
-const BOT_RESPONSES: Record<string, Message> = {
-  "Create a P2 incident": {
-    id: "r1", role: "assistant",
-    content: "I'll help you create a P2 incident. Can you provide:\n\n1. **Short description** of the issue\n2. **Affected system** or service\n3. **Impact** — how many users affected?\n\nOr I can open the incident form for you.",
-    time: "Now",
-    suggestions: ["Open incident form", "Auto-fill from template", "Assign to Service Desk"],
-    action: { label: "Open New Incident Form →", href: "/app/tickets/new" },
-  },
-  "Check my open tickets": {
-    id: "r2", role: "assistant",
-    content: "You have **12 open incidents** in your queue:\n\n• **4 P1/P2** — require immediate attention\n• **6 P3** — within SLA\n• **2 P4** — informational\n\nNewest: **COHE-0041** — Payment portal SQL injection (CRITICAL, SLA breached)\n\nWould you like me to filter by priority?",
-    time: "Now",
-    suggestions: ["Show P1/P2 only", "Show SLA breached", "Assign to colleague", "View all tickets"],
-    action: { label: "View All Tickets →", href: "/app/tickets" },
-  },
-  "Request software access": {
-    id: "r3", role: "assistant",
-    content: "I can raise a software access request for you. Which application do you need access to?\n\nCommon requests:\n• **GitHub** (dev team)\n• **Jira** (project management)\n• **Confluence** (knowledge)\n• **AWS Console** (needs approvals)\n• Other — type the name",
-    time: "Now",
-    suggestions: ["GitHub access", "Jira + Confluence", "AWS Console", "Adobe Creative Cloud"],
-    action: { label: "Browse Service Catalog →", href: "/app/catalog" },
-  },
-  "Show SLA breaches": {
-    id: "r4", role: "assistant",
-    content: "**Current SLA Breaches** — 3 active:\n\n🔴 **COHE-0041** — P1 Incident (4h 28m overdue) · Dana Kim\n🟠 **COHE-0038** — P2 Incident (48m overdue) · Jordan Chen\n🟡 **SR-0284** — Service Request (2h overdue) · Pat Murphy\n\nI've notified the respective owners. Want me to escalate any of these?",
-    time: "Now",
-    suggestions: ["Escalate COHE-0041", "Escalate all breaches", "Notify managers", "View escalation queue"],
-    action: { label: "View Escalation Queue →", href: "/app/escalations" },
-  },
-  default: {
-    id: "rd", role: "assistant",
-    content: "I'm processing your request... For complex queries, I can search the knowledge base or connect you to a live agent. Could you provide more details so I can assist you better?",
-    time: "Now",
-    suggestions: ["Search knowledge base", "Connect to live agent", "Create a ticket for this", "Cancel"],
-  },
-};
+/**
+ * Suggestion chips per route — purely presentational. Every chip click sends
+ * the chip text to the live AI Copilot agent.
+ */
 
 export function VirtualAgentWidget() {
   const pathname = usePathname();
@@ -137,30 +122,44 @@ export function VirtualAgentWidget() {
     return msg;
   };
 
+  const agentInvoke = trpc.ai.agentInvoke.useMutation();
+
   const handleSend = (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || isTyping) return;
     addMessage(text, true);
     setInput("");
     setIsTyping(true);
 
-    setTimeout(() => {
-      setIsTyping(false);
-      const response = BOT_RESPONSES[text] ?? {
-        ...BOT_RESPONSES.default,
-        id: Date.now().toString(),
-        content: `I understand you're asking about "${text}". Let me search the knowledge base and connected systems for relevant information.\n\nI found **3 related articles** and **1 open incident** that might be relevant. Would you like me to summarise them?`,
-        suggestions: ["Show knowledge articles", "View related incidents", "Create a ticket", "Connect to live agent"],
-      };
-      setMessages((prev) => [
-        ...prev,
-        {
-          ...response,
-          id: Date.now().toString(),
-          time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-          role: "assistant" as const,
+    agentInvoke.mutate(
+      { question: text },
+      {
+        onSuccess: (res) => {
+          setIsTyping(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              role: "assistant",
+              content: res.answer,
+              time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+              ...(Array.isArray(res.trace) && res.trace.length > 0 ? { trace: res.trace as CopilotTrace[] } : {}),
+            },
+          ]);
         },
-      ]);
-    }, 900 + Math.random() * 600);
+        onError: (err) => {
+          setIsTyping(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              role: "assistant",
+              content: `I couldn't answer that — ${err.message ?? "unknown error"}. Try a more specific question.`,
+              time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+            },
+          ]);
+        },
+      },
+    );
   };
 
   const renderContent = (text: string) => {
@@ -246,6 +245,30 @@ export function VirtualAgentWidget() {
                             </button>
                           ))}
                         </div>
+                      )}
+                      {msg.trace && msg.trace.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="text-[10px] text-muted-foreground/70 cursor-pointer flex items-center gap-1 hover:text-muted-foreground">
+                            <ChevronDown className="w-3 h-3" />
+                            {msg.trace.length} tool call{msg.trace.length > 1 ? "s" : ""}
+                          </summary>
+                          <div className="mt-1 space-y-1">
+                            {msg.trace.map((t, i) => (
+                              <div
+                                key={i}
+                                className="text-[10px] border border-border bg-muted/30 rounded px-2 py-1"
+                              >
+                                <div className="font-mono text-foreground/80">
+                                  {t.toolName ?? "tool"}
+                                  {typeof t.ms === "number" ? ` · ${t.ms}ms` : ""}
+                                </div>
+                                {t.resultPreview && (
+                                  <div className="text-muted-foreground truncate">{t.resultPreview}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
                       )}
                       <span className="text-[10px] text-muted-foreground">{msg.time}</span>
                     </div>

@@ -8,7 +8,9 @@
 
 ## 1. Executive summary
 
-NexusOps delivers a **unified work-ticket model** (incident, request, problem, change on one `tickets` surface) with **SLA policy resolution**, **assignment rules**, **business rules**, **catalog-driven request fulfillment**, **change lifecycle** (including CAB/blackout concepts in `changes`), **problem / known error** flows, **knowledge articles**, **CMDB-style configuration items** (via `assets` / CI tables referenced from tickets), **workflows** (Temporal/visual editor), **on-call**, **walk-up**, **approvals**, **reports**, and **integrations**. That stack covers the **shape** of core ITSM.
+> **Status (2026-04-26):** the **Walk-Up Experience** module referenced below was retired in the GA-readiness pass. Walk-in visits are now ordinary `tickets` rows with `channel = "walk_in"` and worked from the Service Desk workbench. Treat the "walk-up" rows in §3.8 and the "Walk-up Experience" parity row in the executive summary as **N/A — folded into the unified `tickets` surface**. (See Architecture Design v2.1 changelog and `docs/MARKET_ASSESSMENT_2026-04-26.md`.)
+
+NexusOps delivers a **unified work-ticket model** (incident, request, problem, change on one `tickets` surface — and as of 2026-04-26 also walk-in visits via `channel = "walk_in"`) with **SLA policy resolution**, **assignment rules**, **business rules**, **catalog-driven request fulfillment**, **change lifecycle** (including CAB/blackout concepts in `changes`), **problem / known error** flows, **knowledge articles**, **CMDB-style configuration items** (via `assets` / CI tables referenced from tickets), **workflows** (Temporal/visual editor), **on-call**, **approvals**, **reports**, and **integrations**. That stack covers the **shape** of core ITSM.
 
 ServiceNow remains broader and deeper in **process maturity**, **multi-table ITSM data model**, **enterprise integration and orchestration**, **discovery-driven CMDB**, **Performance Analytics**, **governance at scale** (SoD, audit, platform administration), and **ecosystem** (store, spokes, industry solutions).
 
@@ -92,9 +94,9 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 | Capability | Typical ServiceNow | NexusOps | Assessment |
 |------------|-------------------|----------|------------|
-| Employee / service portal | Service Portal / Workplace | Web app routes (`tickets`, `walkup`, etc.) | **Partial** — Different UX; feature depth varies by module. |
+| Employee / service portal | Service Portal / Workplace | Web app routes (`tickets`, etc.) | **Partial** — Different UX; feature depth varies by module. |
 | Virtual agent | VA, NLU, topic designer | `ai` router and virtual-agent style routes may exist | **Partial** — Ecosystem not SNOW’s VA product. |
-| Walk-up | Walk-up Experience | `walkup` router | **Partial** — Compare field-by-field with SNOW walk-up. |
+| Walk-up | Walk-up Experience | **Folded into `tickets` (channel = "walk_in")** as of 2026-04-26. Service Desk workbench works walk-ins on the same queue/SLA as every other channel; the dedicated `walkup` router and `walkup_*` schema were dropped (migration `0028`). | **Different** — A deliberate product decision to consolidate around one queue rather than a parallel surface. SNOW Walk-up Experience parity is **not pursued**. |
 
 ### 3.9 Orchestration, integration, and automation
 

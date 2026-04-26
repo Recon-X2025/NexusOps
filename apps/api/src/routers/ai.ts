@@ -4,10 +4,12 @@
  * Gated by incidents.read permission (agents and above).
  * All AI calls are non-blocking and return null on failure.
  */
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { tickets, ticketComments, kbArticles, eq, and, ne, desc } from "@nexusops/db";
 import { summarizeTicket, suggestResolution, classifyTicket, parseSearchQuery, semanticResolutionSuggestions } from "../services/ai";
+import { invokeAgent } from "../services/ai-agent";
+import { systemRolesForDbUser } from "../lib/rbac-db";
 
 export const aiRouter = router({
   /**
@@ -157,5 +159,50 @@ export const aiRouter = router({
           resolution: c.resolutionNotes ?? undefined,
         })),
       });
+    }),
+
+  /**
+   * Copilot agent — read-only tool-calling assistant.
+   *
+   * RBAC is enforced inside the agent itself (every tool call goes through
+   * hasPermission). This procedure is `protectedProcedure` (any authenticated
+   * user) because the *set of available tools* is filtered by the user's
+   * effective roles. A user with no module reads will simply see "I don't
+   * have a tool for that" answers.
+   */
+  agentInvoke: protectedProcedure
+    .input(
+      z.object({
+        question: z.string().min(2).max(2000),
+        conversationHistory: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant"]),
+              content: z.string().min(1).max(8000),
+            }),
+          )
+          .max(20)
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, user, org } = ctx;
+      const roles = systemRolesForDbUser(user!.role, user!.matrixRole ?? null);
+      try {
+        return await invokeAgent(
+          { db, orgId: org!.id, userId: user!.id, roles },
+          {
+            question: input.question,
+            ...(input.conversationHistory ? { conversationHistory: input.conversationHistory } : {}),
+          },
+        );
+      } catch (e) {
+        return {
+          answer: `I hit an error before I could answer: ${(e as Error).message}. Try a more specific question.`,
+          trace: [],
+          iterations: 0,
+          truncated: false,
+        };
+      }
     }),
 });

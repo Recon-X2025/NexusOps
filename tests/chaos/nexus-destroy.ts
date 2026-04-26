@@ -868,7 +868,6 @@ async function phase9_workflow(): Promise<void> {
     ["surveys.create",       { title:"RBAC_TEST", description:"test" }],
     ["events.list",          {}],
     ["oncall.schedules.list",{}],
-    ["walkup.requests.list", {}],
     ["grc.list",             {}],
     ["legal.contracts.list", {}],
     ["crm.accounts.list",    {}],

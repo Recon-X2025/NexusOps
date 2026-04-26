@@ -480,9 +480,4 @@ test.describe("10-N Legal & CSM — advanced differentiation features", () => {
     expect(res.status).toBe(200);
   });
 
-  test("walk-up queue list API works (in-person service desk)", async ({ page }) => {
-    await page.goto(`${BASE_URL}/app/dashboard`, { waitUntil: "domcontentloaded" });
-    const res = await apiCall(page, "walkup.queue.list");
-    expect(res.status).toBe(200);
-  });
 });

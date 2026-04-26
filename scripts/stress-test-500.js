@@ -310,10 +310,6 @@ const SCENARIOS = [
   { name: "vendors.list",               module: "vendors",      roles: ["admin","finance_manager"], weight: 2,
     fn: (t)    => trpcQuery("vendors.list", { limit: 20 }, t) },
 
-  // ── Walk-Up Experience ───────────────────────────────────────────────────
-  { name: "walkup.queue.list",          module: "walkup",       roles: ["admin","itil_agent"], weight: 2,
-    fn: (t)    => trpcQuery("walkup.queue.list", {}, t) },
-
   // ── On-Call ──────────────────────────────────────────────────────────────
   { name: "oncall.schedules.list",      module: "oncall",       roles: ["admin","itil_agent"], weight: 2,
     fn: (t)    => trpcQuery("oncall.schedules.list", { limit: 20 }, t) },

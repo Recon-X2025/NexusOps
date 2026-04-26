@@ -42,6 +42,12 @@ export default defineConfig({
           process.env.AUTH_SECRET || "test-secret-32-chars-minimum-here",
         ENCRYPTION_KEY:
           process.env.ENCRYPTION_KEY || "test-encryption-32-chars-minimum",
+        // APP_SECRET is the AES-256 KEK used by services/encryption.ts to
+        // wrap integration credentials (eMudhra webhookSecret, AiSensy API
+        // key, etc.). Must match between the API process and any test that
+        // pre-seeds an integration row.
+        APP_SECRET:
+          process.env.APP_SECRET || "test-app-secret-32-chars-minimum-",
         NODE_ENV: process.env.NODE_ENV || "development",
       },
     },

@@ -217,10 +217,6 @@ test.describe("07 — All Buttons & Interactive Elements", () => {
     await testPageInteractivity(page, "/app/apm", "APM");
   });
 
-  test("walk-up page — all buttons & tabs", async ({ page }) => {
-    await testPageInteractivity(page, "/app/walk-up", "WalkUp");
-  });
-
   // ── New Record Form Tests ─────────────────────────────────────────────────
   test.describe("New record forms — open, submit empty, check validation", () => {
     const FORMS = [

@@ -52,12 +52,47 @@ export type OrgItsmSettings = {
   slaPauseReasons?: SlaPauseReasonEntry[];
 };
 
+/**
+ * Per-category caps for expense self-service policy (US-FIN-EXP-001).
+ *
+ * `perDiemCap` covers daily-rate categories (food, accommodation when
+ * org has fixed allowance) — applied as `amount > perDiemCap` ⇒
+ * violation. `perItemCap` is a hard ceiling for one-off line items
+ * regardless of whether per-diem applies (e.g. flagging a single ₹50k
+ * meal even if the trip per-diem would normally allow it).
+ */
+export type ExpenseCategoryPolicy = {
+  perDiemCap?: number;
+  perItemCap?: number;
+  /** Reimbursable rate per kilometer for `transport` / `fuel` claims. */
+  mileageRatePerKm?: number;
+  /** When true, claim must have `receiptUrl` to pass policy. */
+  receiptRequired?: boolean;
+};
+
+export type OrgExpenseSettings = {
+  /** Default currency assumed for amount comparisons (INR by default). */
+  baseCurrency?: string;
+  /** Hard cap applied when no category-specific cap is configured. */
+  defaultPerItemCap?: number;
+  /**
+   * `block` rejects the claim before insert; `warn` accepts and stamps
+   * the violation onto the row so an approver sees it (default `warn`).
+   */
+  enforcement?: "warn" | "block";
+  /** Whether non-managerial categories require a receipt. */
+  defaultReceiptRequired?: boolean;
+  /** Per-category overrides keyed by `expenseCategoryEnum`. */
+  categories?: Record<string, ExpenseCategoryPolicy>;
+};
+
 export type NexusOpsOrgSettings = {
   security?: OrgSecuritySettings;
   procurement?: OrgProcurementSettings;
   financial?: OrgFinancialSettings;
   crm?: OrgCrmSettings;
   itsm?: OrgItsmSettings;
+  expense?: OrgExpenseSettings;
 };
 
 export function parseOrgSettings(raw: unknown): NexusOpsOrgSettings {

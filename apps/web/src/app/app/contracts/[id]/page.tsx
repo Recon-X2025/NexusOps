@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, PermissionGate } from "@/lib/rbac-context";
+import { EsignPanel } from "@/components/esign/EsignPanel";
 
 const STATE_CFG: Record<string, { label: string; color: string; bar: string }> = {
   draft:              { label: "Draft",              color: "text-muted-foreground bg-muted",     bar: "bg-slate-400" },
@@ -237,6 +238,26 @@ export default function ContractDetailPage() {
           </table>
         )}
       </div>
+
+      {!isTerminal && (
+        <PermissionGate module="contracts" action="read">
+          <EsignPanel
+            sourceType="contract"
+            sourceId={id}
+            defaultTitle={`${(contract as any).title} — ${(contract as any).counterparty}`}
+            subject={`${(contract as any).counterparty} · ${(contract as any).contractNumber ?? id.slice(-8)}`}
+            defaultSigners={[
+              ...((contract as any).counterpartyContactName && (contract as any).counterpartyContactEmail
+                ? [{
+                    name: (contract as any).counterpartyContactName,
+                    email: (contract as any).counterpartyContactEmail,
+                    role: "counterparty",
+                  }]
+                : []),
+            ]}
+          />
+        </PermissionGate>
+      )}
 
       <div className="bg-card border border-border rounded px-4 py-3">
         <div className="flex items-center justify-between mb-2">

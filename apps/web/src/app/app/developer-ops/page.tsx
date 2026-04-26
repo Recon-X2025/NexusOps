@@ -2,9 +2,12 @@
 
 export const dynamic = "force-dynamic";
 
+import { notFound } from "next/navigation";
 import { HubCommandCenter } from "@/components/dashboard/hub-command-center-page";
+import { DEVOPS_ENABLED } from "@/lib/feature-flags";
 
 export default function DeveloperOpsHubPage() {
+  if (!DEVOPS_ENABLED) notFound();
   return (
     <HubCommandCenter
       functionKey="devops"

@@ -1171,7 +1171,7 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(typeof strip.onboardingCases).toBe("number");
       const off = await caller.hr.peopleWorkplace.updateIntegrationFlags({ facilitiesLive: false }) as { facilitiesLive: boolean };
       expect(off.facilitiesLive).toBe(false);
-      await caller.hr.peopleWorkplace.updateIntegrationFlags({ facilitiesLive: true, walkupLive: true });
+      await caller.hr.peopleWorkplace.updateIntegrationFlags({ facilitiesLive: true });
     });
   });
 
@@ -2168,13 +2168,6 @@ describe("Layer 8: Module Smoke Tests", () => {
       }) as { id: string };
       const rows = await caller.facilities.buildings.list({ limit: 20 });
       expect(rows.some((r: { id: string }) => r.id === b.id)).toBe(true);
-    });
-
-    it("walkup: joinQueue → list queue", async () => {
-      const caller = await authedCaller(adminToken);
-      const v = await caller.walkup.queue.joinQueue({ issueCategory: "it_support" }) as { id: string };
-      const q = await caller.walkup.queue.list({});
-      expect(q.some((row: { id: string }) => row.id === v.id)).toBe(true);
     });
 
     it("ai.summarizeTicket returns null or string (no key ok)", async () => {

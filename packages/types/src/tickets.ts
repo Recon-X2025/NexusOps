@@ -40,7 +40,19 @@ export const TicketSchema = z.object({
 
 export type Ticket = z.infer<typeof TicketSchema>;
 
-export const IntakeChannelEnum = z.enum(["portal", "email", "api", "chat"]);
+export const IntakeChannelEnum = z.enum([
+  "portal",
+  "email",
+  "api",
+  "chat",
+  /**
+   * Walk-in / in-person request — agent files a ticket on behalf of an employee
+   * who came up to the IT/HR desk in person. Replaces the standalone
+   * "Walk-Up Experience" surface for our segment (0–500 employees).
+   */
+  "walk_in",
+  "phone",
+]);
 
 export const CreateTicketSchema = z.object({
   title: z.string().min(1, "Title is required").max(500),

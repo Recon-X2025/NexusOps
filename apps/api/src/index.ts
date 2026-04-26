@@ -457,6 +457,15 @@ async function bootstrap() {
   const { registerPayrollPayslipPdfRoute } = await import("./http/payroll-payslip-pdf.js");
   registerPayrollPayslipPdfRoute(fastify);
 
+  const { registerPayrollForm16PdfRoute } = await import("./http/payroll-form16-pdf.js");
+  registerPayrollForm16PdfRoute(fastify);
+
+  // External webhook receivers (eMudhra e-sign, AiSensy WhatsApp, Razorpay).
+  // Mounted as a separate Fastify HTTP route group so HMAC verification can
+  // run against the raw body BEFORE the prototype-pollution sanitiser.
+  const { registerWebhookRoutes } = await import("./http/webhooks.js");
+  await registerWebhookRoutes(fastify);
+
   // ── Health Checks ─────────────────────────────────────────────────────────
   fastify.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
 

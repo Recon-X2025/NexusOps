@@ -25,6 +25,10 @@ import {
   isInvoicePeriodClosed,
   parseOrgSettings,
 } from "../lib/org-settings";
+import {
+  enqueueIrnGenerationJob,
+} from "../workflows/irnGenerationWorkflow";
+import { getWorkflowService } from "../services/workflow";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function countDuplicatePayable(db: any, orgId: string, vendorId: string, invoiceNumber: string): Promise<number> {
@@ -559,13 +563,64 @@ export const financialRouter = router({
       const eInvoiceRequired = isEInvoiceRequired(0);
       const eWayBillRequired = isEWayBillRequired({ isGoods: true, consignmentValue: totalTaxableValue });
 
+      // Dual-write hook: enqueue ClearTax IRN generation. Worker is
+      // soft-fail when no integration is connected, so this is safe even
+      // for tenants who haven't onboarded ClearTax yet.
+      let eInvoiceQueued = false;
+      if (eInvoiceRequired && invoice) {
+        try {
+          await db
+            .update(invoices)
+            .set({ eInvoiceStatus: "pending" })
+            .where(eq(invoices.id, invoice.id));
+          await enqueueIrnGenerationJob(getWorkflowService().irnQueue, {
+            invoiceId: invoice.id,
+            orgId: org!.id,
+          });
+          eInvoiceQueued = true;
+        } catch (err) {
+          // Workflow service may not be initialised in unit tests; never
+          // fail the user's save because of an out-of-band queue issue.
+          console.warn("[financial] IRN enqueue skipped:", (err as Error).message);
+        }
+      }
+
       return {
         invoice,
         eInvoiceRequired,
+        eInvoiceQueued,
         eWayBillRequired,
         duplicatePayableWarning: dup > 0 && policy === "warn",
         summary: { totalTaxableValue, totalCgst, totalSgst, totalIgst, totalTax, totalAmount, isInterstate },
       };
+    }),
+
+  /**
+   * Admin-driven retry of a failed IRN generation. Re-enqueues with `force=true`
+   * which bypasses the "already issued" guard so a new IRN is requested.
+   * Use when ClearTax was unreachable during the original save and the
+   * background retries also failed.
+   */
+  retryEInvoiceGeneration: permissionProcedure("financial", "write")
+    .use(mfaGate)
+    .input(z.object({ invoiceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [inv] = await db
+        .select({ id: invoices.id, status: invoices.eInvoiceStatus })
+        .from(invoices)
+        .where(and(eq(invoices.id, input.invoiceId), eq(invoices.orgId, org!.id)));
+      if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+      await db
+        .update(invoices)
+        .set({ eInvoiceStatus: "pending", eInvoiceError: null, updatedAt: new Date() })
+        .where(eq(invoices.id, inv.id));
+      await enqueueIrnGenerationJob(getWorkflowService().irnQueue, {
+        invoiceId: inv.id,
+        orgId: org!.id,
+        force: true,
+      });
+      return { ok: true };
     }),
 
   gstr2bReconcile: permissionProcedure("financial", "write")

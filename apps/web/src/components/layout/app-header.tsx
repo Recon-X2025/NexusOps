@@ -60,7 +60,6 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   recruitment: "Recruitment",
   "people-analytics": "People Analytics",
   facilities: "Facilities",
-  "walk-up": "Walk-Up",
   attendance: "Attendance Management",
   holidays: "Holiday Calendar",
   okr: "OKRs & Goals",
@@ -85,15 +84,18 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "legal-governance": "Legal & Governance",
   legal: "Legal",
   secretarial: "Secretarial & CS",
-  // Strategy & Projects
-  "strategy-projects": "Strategy & Projects",
-  projects: "Projects",
-  apm: "Application Portfolio",
+  // Strategy Center
+  strategy: "Strategy Center",
+  "strategy-projects": "Strategy Center", // legacy slug; route redirects to /app/strategy
+  projects: "Initiatives",
   reports: "Analytics & Reports",
-  // Developer & Ops
+  // Knowledge
+  knowledge: "Knowledge Base",
+  // Settings — App Inventory
+  apm: "App Inventory",
+  // Legacy — preserved for redirects / deep links if DEVOPS_ENABLED is on
   "developer-ops": "Developer & Ops",
   devops: "DevOps",
-  knowledge: "Knowledge Base",
   // Settings
   integrations: "Integrations",
   webhooks: "Webhooks",

@@ -1,7 +1,9 @@
-# NexusOps Strategy & Projects vs Market-Leader Bar — Gap Analysis
+# NexusOps Strategy Center vs Market-Leader Bar — Gap Analysis
+
+> **Naming note:** The hub previously known as *Strategy & Projects* is now the **Strategy Center**, served at `/app/strategy` (legacy `/app/strategy-projects` 308-redirects). Sprint backlog IDs and acceptance criteria below remain valid against the renamed surface.
 
 **Perspective:** **Chief Strategist** lens, using patterns publicly associated with **Amazon-style** operating discipline — **strategy cascade** (long-range outcomes → measurable goals → initiatives → execution), **portfolio and capital allocation**, **input/output metrics**, **weekly operational reviews**, **customer-back** invention narratives (**PR/FAQ-style** clarity), and **high-velocity** program delivery — as the **market-leader reference** (without implying Amazon uses or endorses NexusOps).  
-**Scope:** NexusOps **Strategy & Projects** hub (`/app/strategy-projects`), **`projects`** (portfolio, milestones, tasks, agile board, `portfolioHealth`), **`apm`** (application portfolio), links to **`reports`**, and adjacent **`hr.okr`** (objectives live under HR, not the strategy hub).  
+**Scope:** NexusOps **Strategy Center** hub (`/app/strategy`), **`projects`** (initiatives, portfolio, milestones, `portfolioHealth`), **`apm`** (application portfolio), links to **`reports`**, and adjacent **`hr.okr`** (objectives live under HR, not the strategy hub).  
 **Audience:** Strategy, PMO, product leadership, finance partners, and enterprise portfolio offices  
 **Date:** April 2026  
 
@@ -21,7 +23,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 | Area | Implementation notes |
 |------|------------------------|
-| **Strategy & Projects dashboard** | `apps/web/src/app/app/strategy-projects/page.tsx`: project KPIs, APM app count / retirement alert, module cards; **Analytics & Reporting** module stats show **`"—"`** for Reports. |
+| **Strategy Center dashboard** | `apps/web/src/app/app/strategy/page.tsx`: initiative KPIs, APM app count / retirement alert, module cards; **Analytics & Reporting** module stats show **`"—"`** for Reports. |
 | **Project portfolio** | `apps/api/src/routers/projects.ts`: `list`, `get` (+ milestones, tasks), `create`/`update`, milestone and task CRUD, **`getAgileBoard`**, **`portfolioHealth`** by `health` field. |
 | **Application portfolio** | `apps/api/src/routers/apm.ts`: applications CRUD, lifecycle, cloud readiness, cost, health/tech-debt scores (`analytics` permission). |
 | **OKRs** | `hr.okr` in `apps/api/src/routers/hr.ts` — **not** mounted on Strategy hub. |
@@ -109,7 +111,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 | Topic | Location |
 |-------|----------|
-| Strategy & Projects dashboard | `apps/web/src/app/app/strategy-projects/page.tsx` |
+| Strategy Center dashboard | `apps/web/src/app/app/strategy/page.tsx` |
 | Projects API | `apps/api/src/routers/projects.ts` |
 | APM API | `apps/api/src/routers/apm.ts` |
 | OKRs | `apps/api/src/routers/hr.ts` (`okr` nested router) |
@@ -162,7 +164,7 @@ This section maps **§3 gaps** and **§4 actions** to a **time-boxed backlog** f
 
 ### 6.4 Sprint 2 — `strategyPortfolioSummary` API
 
-**Sprint goal:** *One round-trip for **`strategy-projects/page.tsx`**.*
+**Sprint goal:** *One round-trip for **`strategy/page.tsx`**.*
 
 | ID | Backlog item | Acceptance notes |
 |----|----------------|------------------|

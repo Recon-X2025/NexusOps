@@ -366,8 +366,6 @@ function planAdmin(t, i) {
     () => step("facilities.buildings.list",   "facilities",         "read",  t => get("facilities.buildings.list",{limit:20},t), t, i),
     () => step("facilities.bookings.list",    "facilities",         "read",  t => get("facilities.bookings.list",{limit:20},t), t, i),
     () => step("facilities.moveRequests.list","facilities",         "read",  t => get("facilities.moveRequests.list",{limit:20},t), t, i),
-    () => step("walkup.queue.list",           "walkup",             "read",  t => get("walkup.queue.list",{limit:20},t), t, i),
-    () => step("walkup.analytics",            "walkup",             "read",  t => get("walkup.analytics",{},t), t, i),
     () => step("hr.employees.list",           "hr",                 "read",  t => get("hr.employees.list",{limit:20},t), t, i),
     () => step("hr.cases.list",               "hr",                 "read",  t => get("hr.cases.list",{limit:20},t), t, i),
     () => step("hr.leave.list",               "hr",                 "read",  t => get("hr.leave.list",{limit:20},t), t, i),
