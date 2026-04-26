@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev --port 3003",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "build:html": "next build && node ./scripts/package-html-bundle.mjs",
+    "preview:html": "npx --yes serve -l 3003 html-export"
   },
   "dependencies": {
     "next": "~15.3.4",

@@ -45,6 +45,7 @@
     "db:push": "turbo run db:push --filter=./packages/db",
     "db:migrate": "turbo run db:migrate --filter=./packages/db",
     "db:seed": "turbo run db:seed --filter=./packages/db",
+    "db:seed:smb": "turbo run db:seed:smb --filter=./packages/db",
     "db:studio": "turbo run db:studio --filter=./packages/db",
     "docker:up": "docker compose -f docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f docker-compose.dev.yml down",

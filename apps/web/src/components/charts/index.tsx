@@ -153,15 +153,74 @@ export function BarChart({
 }
 
 // ── AreaChart ─────────────────────────────────────────────────────────────────
+export interface AreaChartAreaConfig {
+  key: string;
+  label?: string;
+  color?: string;
+  /** When set, tooltip shows this payload field (actual value) instead of the scaled `key` value. */
+  valueDataKey?: string;
+  formatValue?: (n: number) => string;
+}
+
 export interface AreaChartProps {
   data: Record<string, unknown>[];
   xKey: string;
-  areas: { key: string; label?: string; color?: string }[];
+  areas: AreaChartAreaConfig[];
   height?: number;
   grid?: boolean;
   legend?: boolean;
   stacked?: boolean;
   yFormatter?: (v: number) => string;
+}
+
+type AreaTooltipEntry = {
+  dataKey?: string | number;
+  name?: string;
+  value?: unknown;
+  color?: string;
+  payload?: Record<string, unknown>;
+};
+
+function AreaChartTooltip({
+  active,
+  payload,
+  label,
+  areas,
+}: {
+  active?: boolean;
+  payload?: AreaTooltipEntry[];
+  label?: string;
+  areas: AreaChartAreaConfig[];
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-xs">
+      {label != null && label !== "" && (
+        <p className="font-semibold text-foreground mb-1">{String(label)}</p>
+      )}
+      {payload.map((entry) => {
+        const key = entry.dataKey != null ? String(entry.dataKey) : "";
+        const cfg = areas.find((a) => a.key === key);
+        const rawKey = cfg?.valueDataKey;
+        const pl = entry.payload;
+        const raw = rawKey && pl && rawKey in pl ? pl[rawKey] : entry.value;
+        const num = typeof raw === "number" ? raw : Number(raw);
+        const text =
+          cfg?.formatValue && Number.isFinite(num)
+            ? cfg.formatValue(num)
+            : Number.isFinite(num)
+              ? num.toLocaleString()
+              : String(raw ?? "—");
+        return (
+          <div key={key} className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full" style={{ background: entry.color }} />
+            <span className="text-muted-foreground">{entry.name ?? key}:</span>
+            <span className="font-medium text-foreground">{text}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function AreaChart({
@@ -179,8 +238,17 @@ export function AreaChart({
       <RAreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         {grid && <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />}
         <XAxis dataKey={xKey} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={yFormatter} width={36} />
-        <Tooltip content={<ChartTooltip />} />
+        <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={yFormatter} width={yFormatter ? 44 : 36} />
+        <Tooltip
+          content={({ active, payload, label }) => (
+            <AreaChartTooltip
+              active={active}
+              payload={payload as AreaTooltipEntry[] | undefined}
+              label={label != null ? String(label) : undefined}
+              areas={areas}
+            />
+          )}
+        />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {areas.map((a, i) => {
           const color = a.color ?? CHART_COLORS[i % CHART_COLORS.length];
@@ -257,12 +325,12 @@ export function DonutChart({
         <Tooltip content={<ChartTooltip />} />
         {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
         {centreValue && (
-          <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" className="fill-foreground">
+          <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" className="fill-slate-900 dark:fill-slate-100">
             <tspan fontSize={20} fontWeight={700}>{centreValue}</tspan>
           </text>
         )}
         {centreLabel && (
-          <text x="50%" y="58%" textAnchor="middle" dominantBaseline="middle" className="fill-muted-foreground">
+          <text x="50%" y="58%" textAnchor="middle" dominantBaseline="middle" className="fill-slate-500 dark:fill-slate-400">
             <tspan fontSize={10}>{centreLabel}</tspan>
           </text>
         )}

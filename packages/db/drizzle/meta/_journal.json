@@ -162,6 +162,20 @@
       "when": 1776873600000,
       "tag": "0024_gap_closure_programme_100pct",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1776960000000,
+      "tag": "0025_attendance_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1777046400000,
+      "tag": "0026_expense_claims",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,15 @@ const CATEGORY_COLOR: Record<string, string> = {
   "Service Catalog": "text-indigo-700 bg-indigo-100",
 };
 
+const TRIGGER_LABELS: Record<string, string> = {
+  ticket_created: "Ticket created",
+  ticket_updated: "Ticket updated",
+  status_changed: "Status changed",
+  scheduled: "Scheduled",
+  manual: "Manual",
+  webhook: "Webhook",
+};
+
 export default function FlowDesignerPage() {
   const [selectedFlow, setSelectedFlow] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "designer">("list");
@@ -42,7 +51,12 @@ export default function FlowDesignerPage() {
 
   if (!canView) return <AccessDenied module="Flow Designer" />;
 
-  const FLOWS: any[] = flowsQuery.data ?? [];
+  const FLOWS: any[] = (flowsQuery.data ?? []).map((f: any) => ({
+    ...f,
+    status: f.isActive ? "active" : "paused",
+    trigger: TRIGGER_LABELS[f.triggerType] ?? f.triggerType ?? "—",
+    category: "—",
+  }));
 
   return (
     <div className="flex flex-col gap-3">
@@ -57,7 +71,13 @@ export default function FlowDesignerPage() {
             <Settings className="w-3 h-3" /> {view === "list" ? "Open Designer" : "Back to List"}
           </button>
           <button
-            onClick={() => createFlowMutation.mutate({ name: "New Flow", trigger: "Manual", category: "Other" } as any)}
+            onClick={() =>
+              createFlowMutation.mutate({
+                name: "New Flow",
+                triggerType: "manual",
+                triggerConfig: {},
+              })
+            }
             className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
           >
             <Plus className="w-3 h-3" /> New Flow

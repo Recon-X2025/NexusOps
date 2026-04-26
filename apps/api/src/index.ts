@@ -441,6 +441,19 @@ async function bootstrap() {
     },
   });
 
+  {
+    const procedures = (appRouter as { _def?: { procedures?: Record<string, unknown> } })._def?.procedures;
+    const hasCommandCenter =
+      procedures != null && typeof procedures === "object" && "commandCenter.getView" in procedures;
+    if (hasCommandCenter) {
+      console.info("[api] tRPC commandCenter router mounted");
+    } else {
+      console.error(
+        "[api] tRPC appRouter missing commandCenter.* — Command Center requests will 404. Rebuild/restart apps/api from current source.",
+      );
+    }
+  }
+
   const { registerPayrollPayslipPdfRoute } = await import("./http/payroll-payslip-pdf.js");
   registerPayrollPayslipPdfRoute(fastify);
 

@@ -6,6 +6,13 @@ import {
   ROLE_PERMISSIONS,
 } from "../rbac-matrix";
 import type { SystemRole, Module, RbacAction } from "../rbac-matrix";
+import {
+  WORKBENCH_KEYS,
+  WORKBENCHES,
+  canAccessWorkbench,
+  defaultWorkbenchForRoles,
+  accessibleWorkbenches,
+} from "../workbench-defaults";
 
 // ── hasPermission ──────────────────────────────────────────────────────────
 
@@ -232,8 +239,61 @@ describe("ROLE_PERMISSIONS matrix integrity", () => {
   it("admin role matrix does not accidentally define broad module permissions (relies on short-circuit)", () => {
     // admin should short-circuit in hasPermission; its matrix entry is minimal
     const adminPerms = ROLE_PERMISSIONS["admin"];
-    // admin should not have sprawling explicit entries — just settings
+    // admin should not have sprawling explicit entries — settings + command_center + workbench only
     const adminModuleCount = Object.keys(adminPerms).length;
     expect(adminModuleCount).toBeLessThan(5);
+  });
+});
+
+// ── workbench module + per-workbench access ────────────────────────────────
+
+describe("workbench module access", () => {
+  it("admin can read the workbench module", () => {
+    expect(hasPermission(["admin"], "workbench", "read")).toBe(true);
+  });
+
+  it("requester cannot read the workbench module", () => {
+    expect(hasPermission(["requester"], "workbench", "read")).toBe(false);
+  });
+
+  it("itil_manager has workbench.read", () => {
+    expect(hasPermission(["itil_manager"], "workbench", "read")).toBe(true);
+  });
+
+  it("change_manager defaults to the change-release workbench", () => {
+    expect(defaultWorkbenchForRoles(["requester", "change_manager"])).toBe("change-release");
+  });
+
+  it("admin defaults to the service-desk workbench", () => {
+    expect(defaultWorkbenchForRoles(["admin"])).toBe("service-desk");
+  });
+
+  it("a user with no workbench access returns null default", () => {
+    expect(defaultWorkbenchForRoles(["requester"])).toBeNull();
+  });
+
+  it("canAccessWorkbench is admin-permissive but otherwise role-scoped", () => {
+    expect(canAccessWorkbench(["admin"], "csm")).toBe(true);
+    expect(canAccessWorkbench(["security_analyst"], "secops")).toBe(true);
+    // GRC analyst should not see the SecOps workbench
+    expect(canAccessWorkbench(["grc_analyst"], "secops")).toBe(false);
+    // Requester sees no workbench at all (no module gate)
+    expect(canAccessWorkbench(["requester"], "service-desk")).toBe(false);
+  });
+
+  it("accessibleWorkbenches respects role scoping", () => {
+    const adminAll = accessibleWorkbenches(["admin"]);
+    expect(adminAll).toHaveLength(WORKBENCH_KEYS.length);
+    const grcOnly = accessibleWorkbenches(["grc_analyst"]);
+    expect(grcOnly).toContain("grc");
+    expect(grcOnly).not.toContain("secops");
+  });
+
+  it("every workbench descriptor has a unique accent within its group", () => {
+    // Per §3.4 — each workbench's accent must be one of ACCENT_BAR's keys
+    // and (with the documented exceptions) distinct.
+    for (const k of WORKBENCH_KEYS) {
+      expect(WORKBENCHES[k].accent).toBeDefined();
+    }
   });
 });

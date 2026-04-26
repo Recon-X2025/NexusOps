@@ -27,6 +27,7 @@
     "@fastify/multipart": "^9.0.0",
     "@fastify/rate-limit": "^10.0.0",
     "@nexusops/db": "workspace:*",
+    "@nexusops/metrics": "workspace:*",
     "@nexusops/types": "workspace:*",
     "@opentelemetry/auto-instrumentations-node": "^0.71.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",

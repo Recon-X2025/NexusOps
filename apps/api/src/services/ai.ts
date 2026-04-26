@@ -406,3 +406,26 @@ Return JSON only — an array of objects, one per candidate, sorted descending b
     return null;
   }
 }
+
+/**
+ * Short plain-text narrative for the Command Center hero. Returns null if AI is unavailable.
+ */
+export async function generateCommandCenterNarrative(prompt: string): Promise<string | null> {
+  try {
+    const client = getClient();
+    const response = await withTimeout(
+      client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 256,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      TIMEOUT_MS,
+    );
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const t = text.trim();
+    return t.length > 0 ? t : null;
+  } catch (err) {
+    console.warn("[ai:generateCommandCenterNarrative] Failed:", (err as Error).message);
+    return null;
+  }
+}

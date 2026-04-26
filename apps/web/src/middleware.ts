@@ -33,6 +33,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (pathname === "/app/dashboard" || pathname === "/app/dashboard/") {
+    return NextResponse.redirect(new URL("/app/command", request.url), 308);
+  }
+
+  // NOTE: Hub URLs (/app/it-services, /app/security-compliance, …) are
+  // first-class **module-level dashboard** pages. The persona workbenches
+  // sit alongside them, not in front of them — do NOT redirect hubs to
+  // workbenches here, that would make the hub Overview rows in the sidebar
+  // unreachable.
+
   return NextResponse.next();
 }
 

@@ -83,6 +83,8 @@ export type Module =
   | "flows"
   | "virtual_agent"
   | "surveys"
+  | "command_center"       // Executive Command Center (default org overview; RBAC read)
+  | "workbench"            // Persona-driven daily workbenches (Service Desk, CSM, …)
   | "admin"
   | "users"
   | "roles"
@@ -93,7 +95,14 @@ export type Module =
   | "workforce_analytics"   // NEW Phase 3C: People & Workforce Analytics
   | "settings";             // Org-level settings: integrations, webhooks, API keys
 
-export type RbacAction = "read" | "write" | "delete" | "admin" | "approve" | "assign" | "close";
+export type RbacAction =
+  | "read"
+  | "write"
+  | "delete"
+  | "admin"
+  | "approve"
+  | "assign"
+  | "close";
 
 type PermissionMatrix = Partial<Record<Module, RbacAction[]>>;
 
@@ -102,6 +111,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
   // Empty = hasPermission() short-circuits to true for any module/action
   admin: {
     settings: ["read", "write", "admin"],
+    command_center: ["read"],
+    workbench: ["read", "admin"],
   },
 
   // ── ITSM ─────────────────────────────────────────────────────────────────
@@ -126,6 +137,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     virtual_agent:["read", "admin"],
     facilities:   ["read"],
     users:        ["read", "write", "delete", "admin"],
+    command_center: ["read"],
+    workbench:    ["read", "admin"],
   },
 
   /**
@@ -170,6 +183,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     analytics:   ["read", "write"],
     facilities:  ["read"],
     users:       ["read"],
+    command_center: ["read"],
+    workbench:   ["read"],
   },
 
   change_manager: {
@@ -180,6 +195,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     cmdb:      ["read", "write"],
     reports:   ["read"],
     knowledge: ["read", "write"],
+    workbench: ["read"],
   },
 
   problem_manager: {
@@ -216,6 +232,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     cmdb:        ["read"],
     knowledge:   ["read"],
     facilities:  ["read"],
+    workbench:   ["read"],
   },
 
   /**
@@ -234,6 +251,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     analytics:   ["read"],
     knowledge:   ["read"],
     cmdb:        ["read"],
+    command_center: ["read"],
+    workbench:   ["read"],
   },
 
   // ── Security ──────────────────────────────────────────────────────────────
@@ -251,6 +270,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     reports:        ["read", "write"],
     analytics:      ["read"],
     flows:          ["read", "write"],
+    workbench:      ["read"],
   },
 
   /**
@@ -267,6 +287,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     cmdb:            ["read"],
     events:          ["read", "write"],
     reports:         ["read"],
+    command_center:  ["read"],
+    workbench:       ["read"],
   },
 
   // ── GRC ───────────────────────────────────────────────────────────────────
@@ -281,6 +303,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     analytics:       ["read"],
     vendors:         ["read", "write"],
     contracts:       ["read", "write"],
+    workbench:       ["read"],
   },
 
   /** Legal counsel — matters / requests / investigations; orthogonal to GRC and secretarial. */
@@ -288,6 +311,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     legal:     ["read", "write", "admin"],
     contracts: ["read", "write"],
     reports:   ["read"],
+    command_center: ["read"],
   },
 
   /** Company secretary — MCA, board, registers, India compliance calendar; orthogonal to legal + GRC. */
@@ -295,6 +319,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     secretarial:     ["read", "write", "admin"],
     contracts:       ["read"],
     reports:         ["read"],
+    command_center:  ["read"],
+    workbench:       ["read"],
   },
 
   // ── HR ────────────────────────────────────────────────────────────────────
@@ -309,6 +335,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     surveys:              ["read", "write", "admin"],
     catalog:              ["read"],
     knowledge:            ["read"],
+    command_center:       ["read"],
+    workbench:            ["read"],
   },
 
   hr_analyst: {
@@ -321,6 +349,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     catalog:              ["read"],
     knowledge:            ["read"],
     reports:              ["read"],
+    workbench:            ["read"],
   },
 
   // ── Procurement ───────────────────────────────────────────────────────────
@@ -335,6 +364,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     approvals:      ["read", "write", "approve", "admin"],
     ham:            ["read", "write"],
     reports:        ["read", "write"],
+    workbench:      ["read"],
   },
 
   procurement_analyst: {
@@ -346,6 +376,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     approvals:       ["read", "approve"],
     ham:             ["read"],
     reports:         ["read"],
+    workbench:       ["read"],
   },
 
   // ── Finance ───────────────────────────────────────────────────────────────
@@ -363,6 +394,8 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     vendors:         ["read", "write"],
     reports:         ["read", "write", "admin"],
     analytics:       ["read", "write"],
+    command_center:  ["read"],
+    workbench:       ["read"],
   },
 
   // ── PMO ───────────────────────────────────────────────────────────────────
@@ -375,6 +408,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     analytics: ["read"],
     financial: ["read"],
     budget:    ["read"],
+    workbench: ["read"],
   },
 
   // ── Platform / Cross-domain ───────────────────────────────────────────────
@@ -413,6 +447,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
     changes:   ["read"],
     problems:  ["read"],
     users:     ["read"],
+    command_center: ["read"],
   },
 
   // ── Asset ─────────────────────────────────────────────────────────────────
@@ -474,8 +509,9 @@ export function getVisibleModules(roles: SystemRole[]): Set<Module> {
       "vendors", "contracts",
       "reports", "analytics",
       "flows", "virtual_agent",
+      "command_center", "workbench",
       "admin", "users", "roles", "system_properties", "audit_log",
-      "facilities",
+      "facilities", "settings", "surveys",
     ]);
   }
   const visible = new Set<Module>();

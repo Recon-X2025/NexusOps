@@ -413,7 +413,8 @@ function SidebarNavContent({
                 <div className="overflow-hidden">
                   <div className="space-y-0.5 pb-1">
                     {group.items.map((item) => {
-                      const itemKey = `${group.id}:${item.label}`;
+                      // href — not label — must be unique: e.g. two "Field Service" entries (workbench vs WO hub)
+                      const itemKey = `${group.id}:${item.href}`;
                       const hasChildren = Boolean(item.children?.length);
                       const itemActive = itemOrChildActive(pathname, item);
                       const nestedOpen = hasChildren && (searchActive || expandedItems.has(itemKey));
@@ -486,6 +487,10 @@ function SidebarNavContent({
                               </button>
                             ) : null}
                           </div>
+
+                          {item.dividerAfter ? (
+                            <div className="my-1 ml-8 mr-2 border-t border-border/60" aria-hidden />
+                          ) : null}
 
                           {hasChildren ? (
                             <div

@@ -9,6 +9,7 @@ dist
 .turbo
 out
 build
+apps/docs/html-export
 
 # Environment files
 .env

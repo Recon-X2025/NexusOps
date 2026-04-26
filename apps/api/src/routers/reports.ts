@@ -266,7 +266,6 @@ export const reportsRouter = router({
           breachRate: total > 0 ? Math.round((breached / total) * 100) : 0,
           mtd,
           target: "8h",
-          prev: Math.max(0, mtd - Math.floor(Math.random() * 5)),
           trend: mtd >= 90 ? "up" : "down",
         };
       });

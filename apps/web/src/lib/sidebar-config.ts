@@ -16,6 +16,12 @@ export type SidebarItem = {
   /** RBAC module — item is hidden when the user cannot read this module */
   module?: Module;
   children?: SidebarChild[];
+  /**
+   * Render a thin visual divider after this item in the rendered sidebar.
+   * Used to separate persona workbenches (entry points) from raw module
+   * routes inside a hub group.
+   */
+  dividerAfter?: boolean;
 };
 
 export type SidebarGroup = {
@@ -35,7 +41,11 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     icon: "LayoutDashboard",
     defaultExpanded: true,
     items: [
-      { label: "Platform Dashboard", href: "/app/dashboard", icon: "LayoutDashboard" },
+      { label: "Command Center", href: "/app/command", icon: "LayoutDashboard", module: "command_center" },
+      // Analytics & Reporting deliberately does NOT live at the Platform
+      // level. Each hub's Overview surfaces an "Analytics & Reporting"
+      // tab scoped to that hub, and (follow-up) workbenches expose their
+      // own reports views — that's where operators actually need it.
       {
         label: "Administration",
         href: "/app/admin",
@@ -53,8 +63,11 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["incidents", "changes", "problems", "work_orders", "cmdb", "ham", "sam"],
     items: [
       { label: "Overview", href: "/app/it-services", icon: "LayoutDashboard", module: "incidents" },
+      { label: "Service Desk", href: "/app/workbench/service-desk", icon: "Headset", module: "workbench" },
+      { label: "Change & Release", href: "/app/workbench/change-release", icon: "GitBranch", module: "workbench" },
+      { label: "Field Service", href: "/app/workbench/field-service", icon: "Wrench", module: "workbench", dividerAfter: true },
       {
-        label: "Service Desk",
+        label: "Tickets",
         href: "/app/tickets",
         icon: "Headset",
         badge: "incidents_open",
@@ -118,6 +131,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["security", "grc", "approvals"],
     items: [
       { label: "Overview", href: "/app/security-compliance", icon: "LayoutDashboard", module: "security" },
+      { label: "SecOps", href: "/app/workbench/secops", icon: "Shield", module: "workbench" },
+      { label: "GRC", href: "/app/workbench/grc", icon: "Scale", module: "workbench", dividerAfter: true },
       {
         label: "Security Operations",
         href: "/app/security",
@@ -148,6 +163,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["hr", "onboarding", "recruitment", "workforce_analytics"],
     items: [
       { label: "Overview", href: "/app/people-workplace", icon: "LayoutDashboard", module: "hr" },
+      { label: "HR Ops", href: "/app/workbench/hr-ops", icon: "UserCheck", module: "workbench" },
+      { label: "Recruiter", href: "/app/workbench/recruiter", icon: "UserPlus", module: "workbench", dividerAfter: true },
       {
         label: "HR Service Delivery",
         href: "/app/hr",
@@ -213,6 +230,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["csm", "accounts", "catalog"],
     items: [
       { label: "Overview", href: "/app/customer-sales", icon: "LayoutDashboard", module: "accounts" },
+      { label: "CSM", href: "/app/workbench/csm", icon: "Headphones", module: "workbench", dividerAfter: true },
       { label: "Customer Service", href: "/app/csm", icon: "Headphones", module: "csm" },
       { label: "CRM & Sales", href: "/app/crm", icon: "TrendingUp", module: "accounts" },
       {
@@ -237,6 +255,8 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["financial", "contracts"],
     items: [
       { label: "Overview", href: "/app/finance-procurement", icon: "LayoutDashboard", module: "financial" },
+      { label: "AP / AR", href: "/app/workbench/finance-ops", icon: "Banknote", module: "workbench" },
+      { label: "Procurement", href: "/app/workbench/procurement", icon: "ShoppingCart", module: "workbench", dividerAfter: true },
       {
         label: "Supply Chain & Finance",
         href: "/app/procurement",
@@ -271,6 +291,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["legal", "contracts", "secretarial"],
     items: [
       { label: "Overview", href: "/app/legal-governance", icon: "LayoutDashboard", module: "contracts" },
+      { label: "Company Secretary", href: "/app/workbench/company-secretary", icon: "Briefcase", module: "workbench", dividerAfter: true },
       { label: "Legal Service Delivery", href: "/app/legal", icon: "Gavel", module: "legal" },
       {
         label: "Secretarial & CS",
@@ -296,9 +317,9 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
     modules: ["projects", "analytics"],   // was ["reports","analytics"] — projects is a separate module
     items: [
       { label: "Overview", href: "/app/strategy-projects", icon: "LayoutDashboard", module: "projects" },
+      { label: "PMO", href: "/app/workbench/pmo", icon: "Target", module: "workbench", dividerAfter: true },
       { label: "Project Portfolio", href: "/app/projects", icon: "FolderKanban", module: "projects" },
       { label: "Application Portfolio", href: "/app/apm", icon: "AppWindow", module: "reports" },
-      { label: "Analytics & Reporting", href: "/app/reports", icon: "BarChart3", module: "analytics" },
     ],
   },
   {
