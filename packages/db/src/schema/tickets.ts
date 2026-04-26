@@ -167,6 +167,8 @@ export const tickets = pgTable(
       onDelete: "set null",
     }),
     isMajorIncident: boolean("is_major_incident").notNull().default(false),
+    /** Skill hint for assignment routing (P1-8). */
+    requiredSkill: text("required_skill"),
     /** Auditable SLA pause reason when status category is pending (US-ITSM-001). */
     slaPauseReasonCode: text("sla_pause_reason_code"),
     /** Parent ticket for major-incident / child incident hierarchy (US-ITSM-004). */

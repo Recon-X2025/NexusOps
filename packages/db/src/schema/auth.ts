@@ -67,6 +67,8 @@ export const users = pgTable(
     role: userRoleEnum("role").notNull().default("member"),
     /** Fine-grained RBAC matrix role (e.g. hr_manager, finance_manager). Falls back to role→SystemRole mapping when null. */
     matrixRole: text("matrix_role"),
+    /** Operator skills for auto-routing (P1-8). */
+    skills: text("skills").array().notNull().default([]),
     status: userStatusEnum("status").notNull().default("invited"),
     /** US-SEC-001: set true after org-verified MFA enrollment (TOTP / IdP); enforced when `settings.security.requireMfaForMatrixRoles` matches. */
     mfaEnrolled: boolean("mfa_enrolled").notNull().default(false),

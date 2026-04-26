@@ -1,7 +1,7 @@
 import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { sendNotification } from "../services/notifications";
 import { runTicketBusinessRules } from "../services/business-rules-engine";
 import { checkDbUserPermission } from "../lib/rbac-db";
@@ -908,6 +908,7 @@ export const ticketsRouter = router({
         const assignment = await resolveAssignment(db, org!.id, {
           entityType: "ticket",
           matchValue: input.categoryId ?? null,
+          requiredSkill: input.requiredSkill ?? null,
         });
         if (assignment) {
           resolvedAssigneeId = assignment.assigneeId ?? undefined;
@@ -969,6 +970,7 @@ export const ticketsRouter = router({
               isMajorIncident: input.isMajorIncident ?? false,
               parentTicketId: input.parentTicketId ?? null,
               intakeChannel: input.intakeChannel ?? "portal",
+              requiredSkill: input.requiredSkill ?? null,
               slaResponseDueAt,
               slaResolveDueAt,
               idempotencyKey,
@@ -1042,6 +1044,20 @@ export const ticketsRouter = router({
       changes: {},
     });
 
+    // Enqueue embedding job (non-fatal). Powers semantic-ish search and AI tools.
+    try {
+      const { getWorkflowService } = await import("../services/workflow.js");
+      const { ticketEmbeddingQueue } = getWorkflowService();
+      const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
+      await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
+        orgId: org!.id,
+        ticketId: ticket!.id,
+        reason: "created",
+      });
+    } catch (err) {
+      console.warn("[tickets.create] Failed to enqueue ticket embedding job:", err);
+    }
+
     // Schedule durable SLA breach detection jobs
     if (slaResponseDueAt || slaResolveDueAt) {
       try {
@@ -1085,10 +1101,14 @@ export const ticketsRouter = router({
 
       const changes: Record<string, { from: unknown; to: unknown }> = {};
       const updateData: Partial<typeof tickets.$inferInsert> = {};
+      let embeddingReason: "updated" | "resolved" | null = null;
+      let shouldTriggerCsat = false;
+      let shouldCreatePir = false;
 
       if (input.data.title !== undefined && input.data.title !== existing.title) {
         changes["title"] = { from: existing.title, to: input.data.title };
         updateData.title = input.data.title;
+        embeddingReason = embeddingReason ?? "updated";
       }
       if (input.data.statusId !== undefined && input.data.statusId !== existing.statusId) {
         changes["statusId"] = { from: existing.statusId, to: input.data.statusId };
@@ -1162,8 +1182,11 @@ export const ticketsRouter = router({
 
         if (newStatus?.category === "resolved") {
           updateData.resolvedAt = new Date();
+          if (oldStatusRow?.category !== "resolved") embeddingReason = "resolved";
+          if (oldStatusRow?.category !== "resolved") shouldTriggerCsat = true;
         } else if (newStatus?.category === "closed") {
           updateData.closedAt = new Date();
+          if (oldStatusRow?.category !== "closed") shouldCreatePir = true;
         }
       }
       if (input.data.assigneeId !== undefined) {
@@ -1326,6 +1349,166 @@ export const ticketsRouter = router({
 
       if (Object.keys(changes).length > 0) {
         bustDashboardIncidentsCache(org!.id);
+      }
+
+      // PIR workflow (P1-11): when a major incident is closed, create a draft KB article
+      // with a PIR template and link it on the ticket customFields.
+      if (shouldCreatePir && (updated as any).isMajorIncident) {
+        try {
+          const base =
+            updated.customFields && typeof updated.customFields === "object" && !Array.isArray(updated.customFields)
+              ? { ...(updated.customFields as Record<string, unknown>) }
+              : {};
+          if (!base["pirKbArticleId"]) {
+            const content = [
+              `# Post-Incident Review — ${updated.number}`,
+              ``,
+              `**Incident:** ${updated.title}`,
+              `**Closed at:** ${updated.closedAt ? new Date(updated.closedAt).toISOString() : new Date().toISOString()}`,
+              ``,
+              `## Summary`,
+              `- What happened?`,
+              `- Customer impact:`,
+              `- Duration:`,
+              ``,
+              `## Timeline (UTC)`,
+              `- T0:`,
+              `- T+15m:`,
+              `- T+1h:`,
+              ``,
+              `## Root cause`,
+              `- Primary cause:`,
+              `- Contributing factors:`,
+              ``,
+              `## Detection & response`,
+              `- How was it detected?`,
+              `- What worked well?`,
+              `- What didn’t?`,
+              ``,
+              `## Corrective actions`,
+              `- [ ] Action item 1 (owner, due date)`,
+              `- [ ] Action item 2 (owner, due date)`,
+              ``,
+              `## Resolution notes`,
+              updated.resolutionNotes ? String(updated.resolutionNotes) : "_(none recorded)_",
+              ``,
+              `---`,
+              `Generated automatically by NexusOps on major-incident close.`,
+              ``,
+            ].join("\n");
+
+            const [article] = await db
+              .insert(kbArticles)
+              .values({
+                orgId: org!.id,
+                title: `PIR: ${updated.number} — ${updated.title}`,
+                content,
+                status: "draft",
+                authorId: user!.id,
+                tags: ["pir", "major_incident"],
+              } as any)
+              .returning({ id: kbArticles.id });
+
+            const nextCustom = { ...base, pirKbArticleId: article.id };
+            await db
+              .update(tickets)
+              .set({ customFields: nextCustom as any, updatedAt: new Date() })
+              .where(and(eq(tickets.id, updated.id), eq(tickets.orgId, org!.id)));
+          }
+        } catch (err) {
+          console.warn("[tickets.update] PIR creation failed (non-fatal):", err);
+        }
+      }
+
+      // CSAT trigger on resolve (P1-10). Best-effort: create/reuse an active CSAT survey,
+      // generate a one-time public invite token, and notify requester via in-app + email.
+      if (shouldTriggerCsat) {
+        try {
+          const { surveys, surveyInvites } = await import("@nexusops/db");
+
+          let [csat] = await db
+            .select()
+            .from(surveys)
+            .where(
+              and(
+                eq(surveys.orgId, org!.id),
+                eq(surveys.type, "csat" as any),
+                eq(surveys.status, "active" as any),
+              ),
+            )
+            .limit(1);
+
+          if (!csat) {
+            const [created] = await db
+              .insert(surveys)
+              .values({
+                orgId: org!.id,
+                title: "Ticket CSAT (auto)",
+                description: "Auto-triggered after ticket resolution.",
+                type: "csat" as any,
+                status: "active" as any,
+                questions: [],
+                triggerEvent: "ticket.resolved",
+                createdById: user!.id,
+              } as any)
+              .returning();
+            csat = created as any;
+          }
+
+          const token = randomBytes(24).toString("hex");
+          const tokenHash = createHash("sha256").update(token).digest("hex");
+          const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+          await db.insert(surveyInvites).values({
+            orgId: org!.id,
+            surveyId: (csat as any).id,
+            ticketId: updated.id,
+            requesterId: updated.requesterId ?? null,
+            tokenHash,
+            status: "sent",
+            expiresAt,
+          } as any);
+
+          const [reqUser] = await db
+            .select({ email: users.email })
+            .from(users)
+            .where(and(eq(users.id, updated.requesterId), eq(users.orgId, org!.id)))
+            .limit(1);
+
+          const link = `/survey/${token}`;
+          await sendNotification(
+            {
+              orgId: org!.id,
+              userId: updated.requesterId,
+              title: `Rate your ticket experience: ${updated.number}`,
+              body: `How was the support you received for “${updated.title}”? It takes 5 seconds.`,
+              link,
+              type: "info",
+              sourceType: "ticket",
+              sourceId: updated.id,
+            },
+            reqUser?.email,
+          );
+        } catch (err) {
+          console.warn("[tickets.update] CSAT trigger failed (non-fatal):", err);
+        }
+      }
+
+      // Enqueue embedding refresh when meaningful content changes or when the
+      // ticket becomes resolved (resolution context improves retrieval).
+      if (embeddingReason) {
+        try {
+          const { getWorkflowService } = await import("../services/workflow.js");
+          const { ticketEmbeddingQueue } = getWorkflowService();
+          const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
+          await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
+            orgId: org!.id,
+            ticketId: updated.id,
+            reason: embeddingReason,
+          });
+        } catch (err) {
+          console.warn("[tickets.update] Failed to enqueue ticket embedding job:", err);
+        }
       }
 
       return updated;

@@ -22,6 +22,7 @@ import {
   assignmentRules,
   userAssignmentStats,
   teamMembers,
+  users,
   tickets,
   workOrders,
   hrCases,
@@ -40,6 +41,11 @@ export interface AssignmentInput {
    *   hr_case    → HR case type string (e.g. "onboarding")
    */
   matchValue?: string | null;
+  /**
+   * Optional skill hint to prefer agents tagged with that skill.
+   * If no eligible agent has the skill, we fall back to the full team.
+   */
+  requiredSkill?: string | null;
 }
 
 export interface AssignmentResult {
@@ -135,7 +141,7 @@ export async function resolveAssignment(
   orgId: string,
   input: AssignmentInput,
 ): Promise<AssignmentResult | null> {
-  const { entityType, matchValue } = input;
+  const { entityType, matchValue, requiredSkill } = input;
 
   // ── 1. Find the best matching rule ─────────────────────────────────────────
   // Prefer specific match (matchValue = input) over catch-all (matchValue IS NULL).
@@ -180,6 +186,25 @@ export async function resolveAssignment(
 
   const userIds = members.map((m) => m.userId);
 
+  // ── 2b. Optional skill filtering ───────────────────────────────────────────
+  // If requiredSkill is provided, restrict candidates to team members that have
+  // that skill. If none match, fall back to the full team to avoid dead-end
+  // routing (a "missing skill mapping" should not block ticket creation).
+  let candidateUserIds = userIds;
+  if (requiredSkill && requiredSkill.trim().length > 0) {
+    const skill = requiredSkill.trim();
+    const rows = await db
+      .select({ id: users.id, skills: users.skills })
+      .from(users)
+      .where(and(eq(users.orgId, orgId), inArray(users.id, userIds)));
+
+    const skilled = rows
+      .filter((r) => (r.skills ?? []).includes(skill))
+      .map((r) => r.id);
+
+    if (skilled.length > 0) candidateUserIds = skilled;
+  }
+
   // ── 3. Load stats (for round-robin tie-breaking / ordering) ─────────────────
   const stats = await db
     .select()
@@ -187,7 +212,7 @@ export async function resolveAssignment(
     .where(
       and(
         eq(userAssignmentStats.orgId, orgId),
-        inArray(userAssignmentStats.userId, userIds),
+        inArray(userAssignmentStats.userId, candidateUserIds),
         eq(userAssignmentStats.entityType, entityType),
       ),
     );
@@ -198,14 +223,14 @@ export async function resolveAssignment(
   const epoch = new Date(0); // Never-assigned users sort first in round-robin
 
   // ── 4. Count open items per member ─────────────────────────────────────────
-  const openCountMap = await countOpenItems(db, orgId, entityType, userIds);
+  const openCountMap = await countOpenItems(db, orgId, entityType, candidateUserIds);
 
   // ── 5. Pick candidate ──────────────────────────────────────────────────────
   let selectedUserId: string | null = null;
 
   if (rule.algorithm === "round_robin") {
     // Pure round-robin: sort by last_assigned_at ASC, pick first
-    const sorted = [...userIds].sort((a, b) => {
+    const sorted = [...candidateUserIds].sort((a, b) => {
       const ta = lastAssignedMap.get(a) ?? epoch;
       const tb = lastAssignedMap.get(b) ?? epoch;
       return ta.getTime() - tb.getTime();
@@ -214,7 +239,7 @@ export async function resolveAssignment(
 
   } else {
     // load_based (default): min open count, tie-break by oldest last_assigned_at
-    const sorted = [...userIds].sort((a, b) => {
+    const sorted = [...candidateUserIds].sort((a, b) => {
       const ca = openCountMap.get(a) ?? 0;
       const cb = openCountMap.get(b) ?? 0;
       if (ca !== cb) return ca - cb;

@@ -36,6 +36,11 @@ import {
   startIrnWorker,
   type IrnJobData,
 } from "../workflows/irnGenerationWorkflow";
+import {
+  createTicketEmbeddingQueue,
+  startTicketEmbeddingWorker,
+  type TicketEmbeddingJobData,
+} from "../workflows/ticketEmbeddingWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -43,6 +48,7 @@ interface WorkflowServiceInstance {
   virusScanQueue: Queue<VirusScanJobData>;
   retentionQueue: Queue<RetentionJobData>;
   irnQueue: Queue<IrnJobData>;
+  ticketEmbeddingQueue: Queue<TicketEmbeddingJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -57,12 +63,14 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const virusScanQueue = createVirusScanQueue();
   const retentionQueue = createRetentionQueue();
   const irnQueue = createIrnQueue();
+  const ticketEmbeddingQueue = createTicketEmbeddingQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
   const virusScanWorker = startVirusScanWorker(db);
   const retentionWorker = startRetentionWorker(db);
   const irnWorker = startIrnWorker(db);
+  const ticketEmbeddingWorker = startTicketEmbeddingWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -92,6 +100,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     virusScanQueue,
     retentionQueue,
     irnQueue,
+    ticketEmbeddingQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -99,11 +108,13 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         virusScanWorker.close(),
         retentionWorker.close(),
         irnWorker.close(),
+        ticketEmbeddingWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
         retentionQueue.close(),
         irnQueue.close(),
+        ticketEmbeddingQueue.close(),
       ]);
       _instance = undefined;
     },

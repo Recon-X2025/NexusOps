@@ -466,6 +466,10 @@ async function bootstrap() {
   const { registerWebhookRoutes } = await import("./http/webhooks.js");
   await registerWebhookRoutes(fastify);
 
+  // Public survey deeplinks (CSAT on ticket resolve).
+  const { registerPublicSurveyRoutes } = await import("./http/public-surveys.js");
+  registerPublicSurveyRoutes(fastify);
+
   // ── Health Checks ─────────────────────────────────────────────────────────
   fastify.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
 

@@ -28,6 +28,7 @@ export const TicketSchema = z.object({
   requesterId: z.string().uuid(),
   assigneeId: z.string().uuid().nullable().optional(),
   teamId: z.string().uuid().nullable().optional(),
+  requiredSkill: z.string().max(128).nullable().optional(),
   dueDate: z.coerce.date().nullable().optional(),
   slaBreached: z.boolean().default(false),
   tags: z.array(z.string()),
@@ -64,6 +65,8 @@ export const CreateTicketSchema = z.object({
   urgency: z.enum(["high", "medium", "low"]).optional(),
   assigneeId: z.string().uuid().optional(),
   teamId: z.string().uuid().optional(),
+  /** Skill hint for auto-routing (P1-8). */
+  requiredSkill: z.string().max(128).optional(),
   dueDate: z.coerce.date().optional(),
   tags: z.array(z.string()).default([]),
   customFields: z.record(z.unknown()).optional(),

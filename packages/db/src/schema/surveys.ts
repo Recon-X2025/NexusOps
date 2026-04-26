@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
+import { tickets } from "./tickets";
 
 export const surveyTypeEnum = pgEnum("survey_type", [
   "csat",
@@ -73,6 +74,28 @@ export const surveyResponses = pgTable(
   (t) => ({
     surveyIdx: index("survey_responses_survey_idx").on(t.surveyId),
     respondentIdx: index("survey_responses_respondent_idx").on(t.respondentId),
+  }),
+);
+
+// ── Survey invites (public CSAT deeplinks) ──────────────────────────────────
+export const surveyInvites = pgTable(
+  "survey_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    surveyId: uuid("survey_id").notNull().references(() => surveys.id, { onDelete: "cascade" }),
+    ticketId: uuid("ticket_id").references(() => tickets.id, { onDelete: "set null" }),
+    requesterId: uuid("requester_id").references(() => users.id, { onDelete: "set null" }),
+    tokenHash: text("token_hash").notNull(),
+    status: text("status").notNull().default("sent"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenUidx: index("survey_invites_token_hash_uidx").on(t.tokenHash),
+    orgIdx: index("survey_invites_org_idx").on(t.orgId, t.createdAt),
+    ticketIdx: index("survey_invites_ticket_idx").on(t.ticketId),
   }),
 );
 

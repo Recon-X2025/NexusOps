@@ -13,7 +13,6 @@
 |---|---|---|---|
 | Platform / multi-tenancy / auth | A− | high | unchanged |
 | ITSM (incidents / requests / problems / changes / KB) | A− | high | unchanged |
-| **Walk-Up Experience** | **N/A — retired 2026-04-26** | n/a | **was Partial → now folded into `tickets.channel = "walk_in"`** |
 | India statutory (TDS / GST / EPFO / MCA / ESOP) | **A** | high | unchanged — still the wedge |
 | India payroll | A− | high | unchanged |
 | Asset / CMDB | B | high | unchanged (no discovery) |
@@ -31,7 +30,6 @@
 | **Contracts / CLM** | **B** *(was B−)* | medium | **eMudhra adapter shipped + DMS hardening + 8-year retention; clause AI / redline still missing** |
 | Cap Table / ESOP / Secretarial | A− | high | unchanged |
 | Strategy / Portfolio | B− | high | unchanged (Layer-A flagged off by default) |
-| DevOps / APM / On-Call | C *(flagged off)* | high | **APM and DevOps now correctly hidden behind feature flags — `NEXT_PUBLIC_ENABLE_*`** |
 | **AI layer** | **B** *(was B−)* | medium | **`ai-agent.ts` introduces an agentic copilot loop on Claude 3.5 Sonnet — see §C2** |
 | **Workflow engine** | **C+** | medium | **8 workflow actions exist in `apps/api/src/workflows/actions/` but are not imported by anything outside the actions folder — see §C3** |
 | **Integrations** | **B−** *(was C+)* | high | **12 catalogued (was 4); Indian wedge stack near complete; long-tail still narrow** |
@@ -45,6 +43,343 @@
 **No verdict in §A moved more than one notch.** The wedge claims are unchanged. The interesting movement is in §B.
 
 ---
+
+## §A.0 Retired / removed / hidden surfaces (explicitly not counted in §A)
+
+This table is here so we stay honest: these surfaces are either **fully removed** from the repo (retired), or **present but intentionally hidden** (feature-flagged off by default).
+
+| Area | Status | What that means | Where / how to verify |
+|---|---|---|---|
+| Walk-Up Experience | **Retired / removed** | Module dropped end-to-end (page, router, schema, RBAC, tests). Walk-ins are now a regular ticket channel (`tickets.channel = "walk_in"`). | See Architecture v2.1 changelog; verify absence of `walkup` router/schema and presence of ticket `walk_in` channel. |
+| DevOps surfaces | **Hidden (feature-flagged)** | UI routes exist but are off by default; should not be used in positioning unless enabled for the tenant. | `NEXT_PUBLIC_ENABLE_DEVOPS` (web flag) controls rendering. |
+| APM expansion surfaces | **Hidden (feature-flagged)** | `/app/apm` defaults to App Inventory; full EA/APM surfaces are additive behind a flag. | `NEXT_PUBLIC_ENABLE_APM` (web flag) controls expanded APM experience. |
+
+## §A.1 Module map (what we are actually selling)
+
+This section exists to prevent “platform soup.” It is the **module-by-module** list used by the deep market assessment in §F.
+
+### A1.1 Primary web hubs (buyer-visible)
+
+- **Platform**
+  - Command Center (`/app/command`) + role views (metrics registry)
+  - Workbenches (`/app/workbench/*`) — 12 persona daily surfaces
+  - Admin (`/app/admin`) + setup (`/app/onboarding-wizard`)
+  - Settings (`/app/settings/*`) — integrations, omnichannel, webhooks, API keys
+- **IT Services**
+  - Tickets/service desk (`/app/tickets`) + major incidents
+  - Change (`/app/changes`) · Problems (`/app/problems`) · Releases (`/app/releases`)
+  - Field service/work orders (`/app/work-orders`)
+  - Events/ops (`/app/events`)
+  - Assets/CMDB (incl. HAM/SAM surfaces) (`/app/cmdb`, `/app/ham`, `/app/sam`)
+- **Security & Compliance**
+  - SecOps (`/app/security`)
+  - GRC/ESG (`/app/grc`, `/app/esg`)
+  - Approvals (`/app/approvals`)
+  - Flow Designer (`/app/flows`)
+- **People & Workplace**
+  - HR (`/app/hr`) including leave, attendance, holidays, OKRs, **expenses** (`/app/hr/expenses`)
+  - Recruitment (`/app/recruitment`)
+  - People analytics/workforce (`/app/people-analytics`)
+  - Performance (`/app/performance`)
+  - Facilities (`/app/facilities`)
+- **Finance & Procurement**
+  - Procurement (`/app/procurement`)
+  - Financial (AP/AR) (`/app/financial`)
+  - Accounting (`/app/accounting`)
+  - Vendors (`/app/vendors`)
+  - Contracts (`/app/contracts`)
+  - Finance expense queue (`/app/finance/expenses`)
+- **Legal & Governance**
+  - Legal (`/app/legal`)
+  - Secretarial/Company Secretary (`/app/secretarial`)
+- **Customer & Sales**
+  - CRM (`/app/crm`)
+  - CSM (`/app/csm`)
+  - Catalog (`/app/catalog`)
+  - Surveys (`/app/surveys`)
+- **Strategy Center**
+  - Strategy hub (`/app/strategy`) + initiatives/projects (`/app/projects`) + reports (`/app/reports`)
+- **Knowledge**
+  - Knowledge base (`/app/knowledge`)
+
+### A1.2 Backend module namespaces (tRPC routers, “what exists”)
+
+This is the authoritative capability index: `auth`, `admin`, `tickets`, `assets`, `workflows`, `hr`, `procurement`, `dashboard`, `workOrders`, `changes`, `security`, `grc`, `financial`, `contracts`, `projects`, `crm`, `legal`, `devops`, `surveys`, `knowledge`, `notifications`, `catalog`, `csm`, `apm`, `oncall`, `events`, `facilities`, `vendors`, `approvals`, `reports`, `search`, `ai`, `indiaCompliance`, `assignmentRules`, `inventory`, `recruitment`, `secretarial`, `workforce`, `integrations`, `mac`, `performance`, `accounting`, `customFields`, `payroll`, `expenseReports`, `esign`, `documents`, `commandCenter`, `workbench`.
+
+---
+
+## §F. Deep market assessment (module-by-module) + explicit gaps
+
+This is the “deep” section: for each shipped module we list the competitive set, buyer expectations (table stakes), NexusOps strengths, and the specific gaps that keep us from “category leader” claims. Where possible, gaps are mapped to the pending-build register in §B.
+
+### F0. How to read this section
+
+- **Competitors** are representative, not exhaustive. For mid-market India, the meaningful shortlists are usually “one global incumbent + one local/price winner.”
+- **Table stakes** are what a buyer assumes will exist without asking; missing them creates surprise churn.
+- **Differentiators** are what can credibly drive a win; if they are not end-to-end, they are not listed as differentiators.
+- **Gaps** are written as “what buyers will ask next” and mapped to **P0/P1/P2** where it already exists; otherwise it becomes a new gap to add to §B in the next revision.
+
+---
+
+### F1. Platform (multi-tenancy, auth, RBAC, admin, settings)
+
+- **Competitors (shortlist)**: ServiceNow Platform, Atlassian (JSM + ecosystem), Freshworks, ManageEngine; for India mid-market: Zoho (ecosystem), Tally/SAP Business One (finance-adjacent suites).
+- **Table stakes**:
+  - tenant isolation, RBAC by module, audit logs, SSO options, admin settings and onboarding, API keys/webhooks, background jobs, attachments/object storage
+- **NexusOps strengths (today)**:
+  - coherent cross-module RBAC model; admin/settings surfaces; webhook hardening posture; multi-hub navigation + persona workbenches that reduce “suite fatigue”
+- **Key gaps / risks**:
+  - **SAML SSO + SCIM** remain missing for buyers migrating from Okta/AzureAD (**P2-11, P2-12**)
+  - “Platform API surface” positioning is risky until integrations/webhooks docs are crisp (**maps to P0-8 README hardening + P0-10 pricing posture**)
+
+---
+
+### F2. ITSM: Tickets / Service Desk (+ Knowledge)
+
+- **Competitors (shortlist)**: ServiceNow ITSM, Jira Service Management, Freshservice, Zendesk (service), ManageEngine ServiceDesk Plus.
+- **Table stakes**:
+  - incident/request lifecycle, SLA timers/escalations, assignment rules, approvals, knowledge linking, notifications, CSAT loop, basic reporting
+- **NexusOps strengths (today)**:
+  - end-to-end ticketing + approvals + workbench surfaces; assignment rules (load/group); strong “ops narrative” framing via Command Center
+- **Key gaps / risks**:
+  - **Skills-based routing** missing (buyers compare to SNOW AWA) (**P1-8**)
+  - **CSAT loop on resolve** missing (buyers expect it) (**P1-10**)
+  - **PIR workflow for major incidents** missing (major incident maturity marker) (**P1-11**)
+  - **Embedding pipeline** missing, so semantic support workflows are weaker than claimed “AI-first” story (**P1-9**)
+
+---
+
+### F3. ITOM-lite: Events / Service health map
+
+- **Competitors (shortlist)**: ServiceNow ITOM, Datadog ITSM integrations, Opsgenie/PagerDuty adjacency, ManageEngine OpManager.
+- **Table stakes**:
+  - event ingestion, routing, suppression/basic correlation, linking events to services/CMDB, on-call escalation hooks
+- **NexusOps strengths (today)**:
+  - credible “operator surface” for service health; ties into tickets/approvals as a unified work surface
+- **Key gaps / risks**:
+  - correlation/suppression depth is not yet a win condition; “ITOM” claims should remain cautious until discovery exists (**see F4/P2-1**)
+
+---
+
+### F4. Assets / CMDB
+
+- **Competitors (shortlist)**: ServiceNow CMDB + Discovery, Device42, Lansweeper, ManageEngine AssetExplorer; India mid-market often “Excel + procurement.”
+- **Table stakes**:
+  - asset register, ownership, lifecycle status, linkage to tickets/changes, basic imports/exports
+- **NexusOps strengths (today)**:
+  - CMDB surfaces exist and are integrated into the broader ops suite narrative
+- **Key gaps / risks**:
+  - **Discovery agent** missing; without it CMDB is “manually maintained,” which limits stickiness (**P2-1**)
+
+---
+
+### F5. Change management / Releases
+
+- **Competitors (shortlist)**: ServiceNow Change, Jira change workflows, BMC Helix; plus internal “calendar in Google.”
+- **Table stakes**:
+  - change requests, approvals, change calendar view, collision awareness, post-change review notes
+- **NexusOps strengths (today)**:
+  - schema depth exists; workbench “change & release” persona surface is the right packaging direction
+- **Key gaps / risks**:
+  - **Visual change calendar / collision UI** is explicitly called out as missing (**P2-5**)
+
+---
+
+### F6. Approvals + Workflow automation (Flow Designer)
+
+- **Competitors (shortlist)**: ServiceNow Flow Designer, Jira Automation, Zapier/Make for SMB, Workato for enterprise, Power Automate (M365).
+- **Table stakes**:
+  - triggers, conditions, action palette, test-run, auditability, basic connectors (email/chat)
+- **NexusOps strengths (today)**:
+  - Flow Designer route exists; workflow actions catalog exists; automation is conceptually first-class across modules
+- **Key gaps / risks**:
+  - action library must be fully wired into real triggers and used by the designer (**P0-2, P2-8**)
+  - connector breadth will be the first procurement objection after the Indian wedge stack (**P2-13**)
+
+---
+
+### F7. Integrations (catalog + adapters) + Webhooks posture
+
+- **Competitors (shortlist)**: ServiceNow IntegrationHub, Atlassian Marketplace, Workato, Zapier, Power Automate; India-specific stacks: ClearTax, Razorpay, WhatsApp BSPs.
+- **Table stakes**:
+  - credential management UI, test connection, retry semantics, webhook security, auditability
+- **NexusOps strengths (today)**:
+  - tenant-managed integrations admin UI; eMudhra + ClearTax + Razorpay + WhatsApp/SMS coverage matches the India-first wedge
+  - webhook hardening order-of-ops is defensible (origin block → allowlist → HMAC)
+- **Key gaps / risks**:
+  - e-sign “test connection” correctness is critical for first deployments (**P0-1**)
+  - webhook e2e coverage must match the hardening posture (eMudhra is covered; WhatsApp/Razorpay need parity) (**P0-7**)
+  - production documentation must be explicit about allowlist defaults (**P0-8**)
+
+---
+
+### F8. Documents / DMS (attachments, retention, legal hold)
+
+- **Competitors (shortlist)**: SharePoint (default), Box, Google Drive, DocuSign CLM stores; for ITSM suites: built-in attachment stores.
+- **Table stakes**:
+  - object storage, versioning, audit logs, retention policies, legal hold, malware scanning (in regulated orgs)
+- **NexusOps strengths (today)**:
+  - malware scan + retention sweep + legal hold are shipped; e-sign audit retention posture aligns with Indian compliance expectations
+- **Key gaps / risks**:
+  - **OCR/search** for documents is missing; only receipt OCR exists today (**future gap; consider pairing with search improvements after P1-9**)
+
+---
+
+### F9. India compliance: Secretarial / Cap table / MCA / ESOP
+
+- **Competitors (shortlist)**: ClearTax (compliance suite), Zoho (books/payroll + addons), local CS tooling, in-house CA/CS workflows.
+- **Table stakes**:
+  - compliance calendar, filings/registers, audit trail, reminders, document packs, role separation (CS vs finance vs legal)
+- **NexusOps strengths (today)**:
+  - credible India-first posture: secretarial + e-sign + retention + compliance calendar framing is a cohesive wedge story
+- **Key gaps / risks**:
+  - reminder workflows must be unquestionably wired and observable (ties back to workflow engine/action wiring) (**P0-2**)
+
+---
+
+### F10. Payroll (India)
+
+- **Competitors (shortlist)**: Darwinbox (HR suite), Keka, Zoho Payroll, RazorpayX payroll adjacency, legacy outsource/CA workflows.
+- **Table stakes**:
+  - runs, payslips, statutory computations, employee self-serve, exports/bank files, year-end forms
+- **NexusOps strengths (today)**:
+  - “last-mile” credibility improved with Form 16 and bank-file exports already shipped (defensible differentiator inside the suite narrative)
+- **Key gaps / risks**:
+  - buyer diligence will ask for “bank format coverage” and “year-end correctness proofs”; keep claims anchored to exact supported formats and test fixtures (process/doc gap more than code gap in this revision)
+
+---
+
+### F11. HR Service Delivery (Core HR, leave, attendance, employee portal)
+
+- **Competitors (shortlist)**: Darwinbox, Keka, Zoho People, BambooHR (global SMB), Workday (upper mid-market).
+- **Table stakes**:
+  - org/employee directory, time off, attendance, HR requests, approvals, basic analytics, role-specific portals
+- **NexusOps strengths (today)**:
+  - HR sits natively beside ITSM/finance/governance; this reduces “another system” friction in mid-market orgs
+- **Key gaps / risks**:
+  - HR suite breadth is credible, but deep HRIS features (benefits, complex payroll integrations, etc.) should not be claimed as category parity
+
+---
+
+### F12. Expenses (employee self-serve + finance queue)
+
+- **Competitors (shortlist)**: SAP Concur, Expensify, Zoho Expense, Rippling/Deel adjacency (global).
+- **Table stakes**:
+  - mobile capture, receipt OCR, policy rules, approvals, reimbursements, auditability, export to accounting
+- **NexusOps strengths (today)**:
+  - split surfaces (employee vs finance) + receipt OCR + policy engine move this to a credible “B/B+” story inside a suite
+- **Key gaps / risks**:
+  - **mobile breadth** is still thin, which matters disproportionately for expenses (**P1-12**)
+  - accounting export/recon loop is the real “finance buyer” gating item (ties to accounting gaps in F14)
+
+---
+
+### F13. Procurement + AP/AR (operational finance)
+
+- **Competitors (shortlist)**: Coupa, SAP Ariba (enterprise), Zoho Books/Inventory (SMB), Tally+add-ons (India), SAP Business One (mid-market).
+- **Table stakes**:
+  - vendor register, PO lifecycle, invoice capture/approval, AP aging, AR aging, payment status, audit trail
+- **NexusOps strengths (today)**:
+  - P2P/AP/AR is sufficiently present to support the “one suite” narrative; ClearTax IRN dual-write makes the India wedge stronger
+- **Key gaps / risks**:
+  - vendor portal is a common Coupa/Ariba-style expectation as orgs scale (**P2-4**)
+
+---
+
+### F14. Accounting / GL
+
+- **Competitors (shortlist)**: NetSuite (upper mid-market), Tally (India default), Zoho Books, QuickBooks; plus “accountant + spreadsheets.”
+- **Table stakes**:
+  - chart of accounts, journal entries, period close basics, exports, audit trail; for maturity: bank recon, fixed assets/depreciation
+- **NexusOps strengths (today)**:
+  - enough accounting surface to connect operational finance modules; not positioned as “NetSuite replacement” (and should not be)
+- **Key gaps / risks**:
+  - **bank reconciliation** missing (**P2-2**)
+  - **depreciation engine** missing (**P2-3**)
+
+---
+
+### F15. Contracts / CLM + e-sign
+
+- **Competitors (shortlist)**: Ironclad, Icertis, DocuSign CLM, SpotDraft (India-friendly), Contractbook (SMB).
+- **Table stakes**:
+  - repository, metadata, reminders, e-sign integration, audit trail; for CLM maturity: clause library, playbooks, redlining, approval workflows
+- **NexusOps strengths (today)**:
+  - eMudhra e-sign + retention/audit makes the “India legal validity” story credible in mid-market
+- **Key gaps / risks**:
+  - **clause library + AI extraction + redline collaboration** missing (**P2-7**)
+
+---
+
+### F16. Security (SecOps) + GRC
+
+- **Competitors (shortlist)**: Vanta/Drata (SMB compliance automation), ServiceNow GRC, Archer (enterprise), Wiz/Snyk adjacency (SecOps).
+- **Table stakes**:
+  - asset/control mapping, evidence collection workflows, risk register, audit plans, remediation tracking
+- **NexusOps strengths (today)**:
+  - integrated GRC + approvals + audit trails inside the suite; this sells well when paired with India governance story
+- **Key gaps / risks**:
+  - continuous control monitoring (CCM) is the typical next ask in SOC2/ISO motions (**P2-15**)
+
+---
+
+### F17. CRM + CSM
+
+- **Competitors (shortlist)**: Salesforce (upmarket), HubSpot/Zoho CRM (mid-market), Freshsales; CSM: Gainsight (upmarket), Totango/Planhat.
+- **Table stakes**:
+  - accounts/contacts/opportunities basics; for CSM: health scoring, renewals, playbooks
+- **NexusOps strengths (today)**:
+  - present enough to support “one customer record” narrative for service + success, but not a dedicated best-in-class CRM win condition
+- **Key gaps / risks**:
+  - connector breadth (Gmail/Outlook, Salesforce) will dominate objections if CRM is used in positioning (**P2-13**)
+
+---
+
+### F18. Strategy / Portfolio (PMO)
+
+- **Competitors (shortlist)**: Jira Align (enterprise), Aha!, Monday/Smartsheet (mid-market), ServiceNow SPM; many mid-market orgs use “PowerPoint + Excel.”
+- **Table stakes**:
+  - initiatives, milestones, dependencies, rollups, reporting
+- **NexusOps strengths (today)**:
+  - strategy center + PMO workbench packaging is a credible exec story inside an ops suite
+- **Key gaps / risks**:
+  - if we lean into “enterprise architecture” narratives, ensure APM/EA features are truly on and not confusingly flag-gated (positioning risk; not a code gap in this doc)
+
+---
+
+### F19. AI layer (copilot/agents) + Search
+
+- **Competitors (shortlist)**: ServiceNow Now Assist, Atlassian Intelligence, Microsoft Copilot (horizontal), bespoke RAG tools.
+- **Table stakes**:
+  - semantic search, summarization, Q&A against tickets/KB, guardrails and auditability
+- **NexusOps strengths (today)**:
+  - agentic loop exists and is an “AI-first ops” narrative anchor when paired with real write tools and auditability
+- **Key gaps / risks**:
+  - **ticket embedding pipeline** is the single biggest functional gap for AI/search quality (**P1-9**)
+
+---
+
+### F20. Mobile
+
+- **Competitors (shortlist)**: every incumbent suite has a mobile app; expenses and approvals are the acid test.
+- **Table stakes**:
+  - approvals, notifications, ticket updates, expense capture
+- **NexusOps strengths (today)**:
+  - a viable starting point exists; the hard part is expanding without fragmenting RBAC/data shape
+- **Key gaps / risks**:
+  - mobile needs the “manager loop” breadth (approve HR + finance, capture receipts) to avoid category penalty (**P1-12**)
+
+---
+
+### F21. Executive surfaces: Command Center + Workbenches
+
+- **Competitors (shortlist)**: ServiceNow dashboards/role-based workspaces, Freshservice analytics, bespoke BI.
+- **Table stakes**:
+  - role views, KPIs, drill-down to work, “today’s priorities” experience, not just charts
+- **NexusOps strengths (today)**:
+  - persona workbenches are a real product decision that can differentiate by reducing navigation and helping adoption
+- **Key gaps / risks**:
+  - the risk is data freshness/latency and trust; this is mitigated by explicit “no_data” fallbacks and source timeouts, but needs consistent “explain why panel is empty” UX over time (ongoing product discipline)
 
 ## §B. Pending-build register — what is left to be built
 
