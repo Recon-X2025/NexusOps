@@ -168,63 +168,59 @@ export default function FinancialPage() {
     .reduce((s, i) => s + Number(i.amount ?? 0), 0);
 
   return (
-    <>
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Coins className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">IT Financial Management</h1>
-          <span className="text-[11px] text-muted-foreground/70">Budget · Chargebacks · CAPEX/OPEX · Invoices · Period close</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => downloadCSV([
-              ...budgetLines.map((b: any) => ({ Type: "Budget", Department: b.department ?? b.costCenter ?? "", Category: b.category ?? "", FY_Budget: b.allocatedAmount ?? b.total ?? "", YTD_Actual: b.actualAmount ?? b.spent ?? "", Variance: ((b.allocatedAmount ?? 0) - (b.actualAmount ?? 0)).toFixed(2), Status: b.status ?? "" })),
-              ...invoices.map((i: any) => ({ Type: "Invoice", Vendor: i.vendorName ?? "", Invoice_No: i.invoiceNumber ?? i.number ?? "", Amount: i.totalAmount ?? "", Status: i.status ?? "", Due_Date: i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "" })),
-            ], "fy_report")}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-          >
-            <Download className="w-3 h-3" /> Export FY Report
-          </button>
-          {can("budget", "write") && (
+    <div className="flex flex-col gap-6 p-6">
+      <PageHeader
+        title="IT Financial Management"
+        subtitle="Budget · Chargebacks · CAPEX/OPEX · Invoices · Period close"
+        icon={Coins}
+        actions={
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowNewBudget(true)}
-              className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+              onClick={() => downloadCSV([
+                ...budgetLines.map((b: any) => ({ Type: "Budget", Department: b.department ?? b.costCenter ?? "", Category: b.category ?? "", FY_Budget: b.allocatedAmount ?? b.total ?? "", YTD_Actual: b.actualAmount ?? b.spent ?? "", Variance: ((b.allocatedAmount ?? 0) - (b.actualAmount ?? 0)).toFixed(2), Status: b.status ?? "" })),
+                ...invoices.map((i: any) => ({ Type: "Invoice", Vendor: i.vendorName ?? "", Invoice_No: i.invoiceNumber ?? i.number ?? "", Amount: i.totalAmount ?? "", Status: i.status ?? "", Due_Date: i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "" })),
+              ], "fy_report")}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 text-muted-foreground"
             >
-              <Plus className="w-3 h-3" /> Add Budget Line
+              <Download className="w-4 h-4" /> Export FY Report
             </button>
-          )}
-          {can("financial", "write") && (
-            <button
-              onClick={() => setShowNewInvoice(true)}
-              className="flex items-center gap-1 px-2 py-1 bg-green-700 text-white text-[11px] rounded hover:bg-green-800"
-            >
-              <Plus className="w-3 h-3" /> New Invoice
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-2">
-        {[
-          { label: "FY2026 IT Budget",         value: `₹${(totalBudget / 10000000).toFixed(1)}Cr`, color: "text-foreground/80" },
-          { label: "YTD Actuals",              value: `₹${(totalActual / 100000).toFixed(0)}L`,    color: "text-blue-700" },
-          { label: "YTD Committed",            value: `₹${(totalCommitted / 100000).toFixed(0)}L`, color: "text-indigo-700" },
-          { label: "Over Budget Lines",        value: overBudget, color: overBudget > 0 ? "text-red-700" : "text-green-700" },
-          { label: "Invoices Pending/Overdue", value: `₹${(totalInvoicePending / 100000).toFixed(0)}L`, color: "text-orange-700" },
-        ].map((k) => (
-          <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
+            {can("budget", "write") && (
+              <button
+                onClick={() => setShowNewBudget(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4" /> Add Budget Line
+              </button>
+            )}
+            {can("financial", "write") && (
+              <button
+                onClick={() => setShowNewInvoice(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800"
+              >
+                <Plus className="w-4 h-4" /> New Invoice
+              </button>
+            )}
           </div>
-        ))}
-      </div>
+        }
+      />
 
-      <div className="flex border-b border-border bg-card rounded-t">
+      <DetailGrid
+        items={[
+          { label: "FY2026 IT Budget", value: `₹${(totalBudget / 10000000).toFixed(1)}Cr`, icon: Coins },
+          { label: "YTD Actuals", value: `₹${(totalActual / 100000).toFixed(0)}L`, icon: TrendingUp, className: "text-blue-700" },
+          { label: "YTD Committed", value: `₹${(totalCommitted / 100000).toFixed(0)}L`, icon: TrendingDown, className: "text-indigo-700" },
+          { label: "Over Budget Lines", value: overBudget, icon: AlertTriangle, className: overBudget > 0 ? "text-red-700" : "text-green-700" },
+          { label: "Invoices Pending", value: `₹${(totalInvoicePending / 100000).toFixed(0)}L`, icon: Clock, className: "text-orange-700" },
+        ]}
+      />
+
+      <div className="flex border-b border-border gap-6">
         {visibleTabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors
-              ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
+            className={cn(
+              "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+              tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}>
             {t.label}
           </button>
         ))}
@@ -442,9 +438,9 @@ export default function FinancialPage() {
                   const invPoRef = inv.poId ?? null;
                   const invDue = inv.dueDate ? new Date(inv.dueDate).toISOString().split("T")[0] : "—";
                   return (
-                    <tr key={inv.id} className={invStatus === "overdue" ? "bg-red-50/30" : invStatus === "disputed" ? "bg-orange-50/20" : ""}>
+                    <tr key={inv.id} className={cn("hover:bg-muted/10 transition-colors cursor-pointer group", invStatus === "overdue" ? "bg-red-50/10" : invStatus === "disputed" ? "bg-orange-50/10" : "")} onClick={() => router.push(`/app/financial/invoices/${inv.id}`)}>
                       <td className="p-0"><div className={`priority-bar ${invStatus === "overdue" ? "bg-red-600" : invStatus === "disputed" ? "bg-orange-500" : invStatus === "paid" ? "bg-green-500" : "bg-blue-400"}`} /></td>
-                      <td className="font-mono text-[11px] text-primary">{inv.id.slice(-8).toUpperCase()}</td>
+                      <td className="font-mono text-[11px] text-primary group-hover:underline">{inv.id.slice(-8).toUpperCase()}</td>
                       <td className="font-medium text-foreground">{invVendor}</td>
                       <td className="font-mono text-[11px] text-muted-foreground">{invRef}</td>
                       <td className="text-muted-foreground text-[11px]">{invDate}</td>
@@ -453,7 +449,7 @@ export default function FinancialPage() {
                       <td className="font-mono text-[10px] text-muted-foreground/70">—</td>
                       <td className="font-mono text-[11px] text-primary">{invPoRef ?? "—"}</td>
                       <td><span className={`status-badge capitalize ${INV_STATUS[invStatus] ?? ""}`}>{invStatus}</span></td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-1.5">
                             {invStatus === "pending" && (
                               <PermissionGate module="financial" action="write">
@@ -461,7 +457,7 @@ export default function FinancialPage() {
                                   disabled={approveInvoiceMutation.isPending}
                                   onClick={() => approveInvoiceMutation.mutate({ id: (inv as any).id })}
                                   className="text-[11px] text-green-700 hover:underline disabled:opacity-50"
-                                >{approveInvoiceMutation.isPending ? "…" : "Approve Payment"}</button>
+                                >{approveInvoiceMutation.isPending ? "…" : "Approve"}</button>
                               </PermissionGate>
                             )}
                             {invStatus === "approved" && (
@@ -470,17 +466,10 @@ export default function FinancialPage() {
                                   disabled={markPaidMutation.isPending}
                                   onClick={() => markPaidMutation.mutate({ id: (inv as any).id, paymentMethod: "bank_transfer" })}
                                   className="text-[11px] text-blue-700 hover:underline font-semibold disabled:opacity-50"
-                                >{markPaidMutation.isPending ? "…" : "Mark Paid"}</button>
+                                >{markPaidMutation.isPending ? "…" : "Pay"}</button>
                               </PermissionGate>
                             )}
-                            {invStatus === "overdue" && (
-                              <button
-                                disabled={approveInvoiceMutation.isPending}
-                                onClick={() => approveInvoiceMutation.mutate({ id: (inv as any).id })}
-                                className="text-[11px] text-red-600 font-semibold hover:underline"
-                              >Approve & Escalate</button>
-                            )}
-                            <button onClick={() => { const i = inv as any; router.push(`/app/procurement?tab=invoices&id=${i.id ?? ""}`); }} className="text-[11px] text-primary hover:underline">View</button>
+                            <button onClick={() => router.push(`/app/financial/invoices/${inv.id}`)} className="text-[11px] text-primary hover:underline font-bold">Details</button>
                           </div>
                         </td>
                     </tr>
@@ -533,9 +522,9 @@ export default function FinancialPage() {
                     </thead>
                     <tbody>
                       {payableInvoices.map((inv: any) => (
-                        <tr key={inv.id} className={inv.status === "overdue" ? "bg-red-50/30" : ""}>
-                          <td><span className="font-mono text-[11px]">{inv.invoiceNumber ?? inv.id.slice(0,8)}</span></td>
-                          <td className="text-[12px]">{inv.vendorName ?? "—"}</td>
+                        <tr key={inv.id} className={cn("hover:bg-muted/10 transition-colors cursor-pointer group", inv.status === "overdue" ? "bg-red-50/10" : "")} onClick={() => router.push(`/app/financial/invoices/${inv.id}`)}>
+                          <td><span className="font-mono text-[11px] text-primary group-hover:underline">{inv.invoiceNumber ?? inv.id.slice(0,8)}</span></td>
+                          <td className="text-[12px] font-medium">{inv.vendorName ?? "—"}</td>
                           <td className="text-[11px] text-muted-foreground">
                             {inv.legalEntityCode ? (
                               <span title={inv.legalEntityName ?? ""} className="font-mono">{inv.legalEntityCode}</span>
@@ -543,16 +532,17 @@ export default function FinancialPage() {
                               "—"
                             )}
                           </td>
-                          <td className="font-semibold text-[12px]">₹{Number(inv.totalAmount ?? 0).toLocaleString()}</td>
+                          <td className="font-bold text-[12px] font-mono">₹{Number(inv.totalAmount ?? 0).toLocaleString()}</td>
                           <td className="text-[11px] text-muted-foreground">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-IN") : "—"}</td>
                           <td><span className={`status-badge capitalize ${INV_STATUS[inv.status] ?? "bg-muted text-muted-foreground"}`}>{inv.status}</span></td>
-                          <td className="flex gap-2">
+                          <td className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             {inv.status === "pending" && can("financial", "write") && (
                               <button onClick={() => approveInvoiceMutation.mutate({ id: inv.id })} disabled={approveInvoiceMutation.isPending} className="text-[10px] text-blue-600 hover:underline disabled:opacity-50">Approve</button>
                             )}
                             {(inv.status === "pending" || inv.status === "overdue") && can("financial", "write") && (
                               <button onClick={() => markPaidMutation.mutate({ id: inv.id })} disabled={markPaidMutation.isPending} className="text-[10px] text-green-600 hover:underline disabled:opacity-50">Mark Paid</button>
                             )}
+                            <button onClick={() => router.push(`/app/financial/invoices/${inv.id}`)} className="text-[10px] text-primary hover:underline font-bold">Details</button>
                           </td>
                         </tr>
                       ))}

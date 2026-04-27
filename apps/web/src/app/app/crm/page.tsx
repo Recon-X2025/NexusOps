@@ -15,14 +15,14 @@ import { downloadCSV } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const CRM_TABS = [
-  { key: "dashboard",  label: "Dashboard",       module: "accounts"  as const, action: "read"  as const },
-  { key: "pipeline",   label: "Pipeline",         module: "accounts"  as const, action: "write" as const },
-  { key: "accounts",   label: "Accounts",         module: "accounts"  as const, action: "read"  as const },
-  { key: "contacts",   label: "Contacts",         module: "accounts"  as const, action: "read"  as const },
-  { key: "leads",      label: "Leads",            module: "accounts"  as const, action: "read"  as const },
-  { key: "activities", label: "Activities",       module: "accounts"  as const, action: "read"  as const },
-  { key: "quotes",     label: "Quotes",           module: "accounts"  as const, action: "write" as const },
-  { key: "analytics",  label: "Sales Analytics",  module: "analytics" as const, action: "read"  as const },
+  { key: "dashboard", label: "Dashboard", module: "accounts" as const, action: "read" as const },
+  { key: "pipeline", label: "Pipeline", module: "accounts" as const, action: "write" as const },
+  { key: "accounts", label: "Accounts", module: "accounts" as const, action: "read" as const },
+  { key: "contacts", label: "Contacts", module: "accounts" as const, action: "read" as const },
+  { key: "leads", label: "Leads", module: "accounts" as const, action: "read" as const },
+  { key: "activities", label: "Activities", module: "accounts" as const, action: "read" as const },
+  { key: "quotes", label: "Quotes", module: "accounts" as const, action: "write" as const },
+  { key: "analytics", label: "Sales Analytics", module: "analytics" as const, action: "read" as const },
 ];
 
 type DealStage = "prospect" | "qualification" | "proposal" | "negotiation" | "verbal_commit" | "closed_won" | "closed_lost";
@@ -154,59 +154,59 @@ interface QuoteLineItem {
 
 
 const STAGE_CFG: Record<DealStage, { label: string; color: string; order: number; icon: string }> = {
-  prospect:      { label: "Prospect",      color: "text-muted-foreground bg-muted",   order: 0, icon: "○" },
-  qualification: { label: "Qualification", color: "text-blue-700 bg-blue-100",     order: 1, icon: "◑" },
-  proposal:      { label: "Proposal",      color: "text-indigo-700 bg-indigo-100", order: 2, icon: "◑" },
-  negotiation:   { label: "Negotiation",   color: "text-purple-700 bg-purple-100", order: 3, icon: "◕" },
+  prospect: { label: "Prospect", color: "text-muted-foreground bg-muted", order: 0, icon: "○" },
+  qualification: { label: "Qualification", color: "text-blue-700 bg-blue-100", order: 1, icon: "◑" },
+  proposal: { label: "Proposal", color: "text-indigo-700 bg-indigo-100", order: 2, icon: "◑" },
+  negotiation: { label: "Negotiation", color: "text-purple-700 bg-purple-100", order: 3, icon: "◕" },
   verbal_commit: { label: "Verbal Commit", color: "text-orange-700 bg-orange-100", order: 4, icon: "◕" },
-  closed_won:    { label: "Closed Won",    color: "text-green-700 bg-green-100",   order: 5, icon: "●" },
-  closed_lost:   { label: "Closed Lost",   color: "text-red-700 bg-red-100",       order: 5, icon: "✕" },
+  closed_won: { label: "Closed Won", color: "text-green-700 bg-green-100", order: 5, icon: "●" },
+  closed_lost: { label: "Closed Lost", color: "text-red-700 bg-red-100", order: 5, icon: "✕" },
 };
 
 const LEAD_STATUS_CFG: Record<LeadStatus, string> = {
-  new:       "text-muted-foreground bg-muted",
+  new: "text-muted-foreground bg-muted",
   contacted: "text-blue-700 bg-blue-100",
   qualified: "text-green-700 bg-green-100",
   nurturing: "text-purple-700 bg-purple-100",
   converted: "text-emerald-700 bg-emerald-100",
-  dead:      "text-red-400 bg-red-50",
+  dead: "text-red-400 bg-red-50",
 };
 
 const ACTIVITY_TYPE_CFG: Record<ActivityType, { color: string; icon: string }> = {
-  call:       { color: "text-blue-600 bg-blue-100",    icon: "📞" },
-  email:      { color: "text-indigo-600 bg-indigo-100",icon: "📧" },
-  meeting:    { color: "text-purple-600 bg-purple-100",icon: "🤝" },
-  demo:       { color: "text-orange-600 bg-orange-100",icon: "🖥" },
-  follow_up:  { color: "text-green-600 bg-green-100",  icon: "🔔" },
-  task:       { color: "text-muted-foreground bg-muted",  icon: "✓" },
+  call: { color: "text-blue-600 bg-blue-100", icon: "📞" },
+  email: { color: "text-indigo-600 bg-indigo-100", icon: "📧" },
+  meeting: { color: "text-purple-600 bg-purple-100", icon: "🤝" },
+  demo: { color: "text-orange-600 bg-orange-100", icon: "🖥" },
+  follow_up: { color: "text-green-600 bg-green-100", icon: "🔔" },
+  task: { color: "text-muted-foreground bg-muted", icon: "✓" },
 };
 
 const QUOTE_STATUS_CFG: Record<string, string> = {
-  draft:    "text-muted-foreground bg-muted",
-  sent:     "text-blue-700 bg-blue-100",
-  viewed:   "text-purple-700 bg-purple-100",
+  draft: "text-muted-foreground bg-muted",
+  sent: "text-blue-700 bg-blue-100",
+  viewed: "text-purple-700 bg-purple-100",
   accepted: "text-green-700 bg-green-100",
   declined: "text-red-700 bg-red-100",
-  expired:  "text-muted-foreground/70 bg-muted/30",
+  expired: "text-muted-foreground/70 bg-muted/30",
 };
 
 const TIER_CFG: Record<string, string> = {
-  enterprise:  "text-purple-700 bg-purple-100",
-  mid_market:  "text-blue-700 bg-blue-100",
-  smb:         "text-muted-foreground bg-muted",
+  enterprise: "text-purple-700 bg-purple-100",
+  mid_market: "text-blue-700 bg-blue-100",
+  smb: "text-muted-foreground bg-muted",
 };
 
 const SENIORITY_CFG: Record<string, string> = {
-  c_level:    "text-red-700 bg-red-100",
-  vp:         "text-orange-700 bg-orange-100",
-  director:   "text-yellow-700 bg-yellow-100",
-  manager:    "text-blue-700 bg-blue-100",
+  c_level: "text-red-700 bg-red-100",
+  vp: "text-orange-700 bg-orange-100",
+  director: "text-yellow-700 bg-yellow-100",
+  manager: "text-blue-700 bg-blue-100",
   individual: "text-muted-foreground bg-muted",
 };
 
 const SCORE_COLOR = (s: number) => s >= 80 ? "text-green-700" : s >= 60 ? "text-yellow-600" : "text-red-600";
 
-const PIPELINE_STAGES: DealStage[] = ["prospect","qualification","proposal","negotiation","verbal_commit"];
+const PIPELINE_STAGES: DealStage[] = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"];
 
 function dealCloseTierClient(
   value: number,
@@ -232,7 +232,7 @@ export default function CRMPage() {
   });
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [showNewAccount, setShowNewAccount] = useState(false);
-  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise"|"mid_market"|"smb", website: "" });
+  const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "" });
   const [showNewContact, setShowNewContact] = useState(false);
   const [contactForm, setContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" });
   const [showNewLead, setShowNewLead] = useState(false);
@@ -360,12 +360,12 @@ export default function CRMPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const QUOTES_LIVE = ((quotesData as any[]) ?? []) as any[];
 
-  const activeDeals = DEALS_LIVE.filter((d: any) => !["closed_won","closed_lost"].includes(d.stage ?? ""));
-  const wonDeals    = DEALS_LIVE.filter((d: any) => d.stage === "closed_won");
-  const lostDeals   = DEALS_LIVE.filter((d: any) => d.stage === "closed_lost");
+  const activeDeals = DEALS_LIVE.filter((d: any) => !["closed_won", "closed_lost"].includes(d.stage ?? ""));
+  const wonDeals = DEALS_LIVE.filter((d: any) => d.stage === "closed_won");
+  const lostDeals = DEALS_LIVE.filter((d: any) => d.stage === "closed_lost");
   const totalPipeline = activeDeals.reduce((s: number, d: any) => s + (Number(d.value) || d.amount || 0) * ((d.probability ?? 50) / 100), 0);
   const totalWon = wonDeals.reduce((s: number, d: any) => s + (Number(d.value) || d.amount || 0), 0);
-  const closedCount = DEALS_LIVE.filter((d: any) => ["closed_won","closed_lost"].includes(d.stage ?? "")).length;
+  const closedCount = DEALS_LIVE.filter((d: any) => ["closed_won", "closed_lost"].includes(d.stage ?? "")).length;
   const winRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : 0;
 
   // Look up account name from loaded accounts (avoids needing a join in listDeals)
@@ -423,7 +423,7 @@ export default function CRMPage() {
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
-                  {(["prospect","qualification","proposal","negotiation","verbal_commit"] as const).map(s => (
+                  {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit"] as const).map(s => (
                     <option key={s} value={s}>{STAGE_CFG[s].label}</option>
                   ))}
                 </select>
@@ -436,7 +436,7 @@ export default function CRMPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.source} onChange={(e) => setDealForm(f => ({ ...f, source: e.target.value }))}>
                   <option value="">— Select source —</option>
-                  {["Inbound / Website","Inbound / Trial","Direct / Outbound","Partner Referral","LinkedIn Outbound","Upsell / Existing Customer","Event / Conference","SDR / Cold Outreach","Webinar Attendee","Other"].map(s => (
+                  {["Inbound / Website", "Inbound / Trial", "Direct / Outbound", "Partner Referral", "LinkedIn Outbound", "Upsell / Existing Customer", "Event / Conference", "SDR / Cold Outreach", "Webinar Attendee", "Other"].map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
@@ -472,62 +472,62 @@ export default function CRMPage() {
         const needTier = dealCloseTierClient(mv, low, execAbove);
         const pendingApproval = needTier !== "none" && !moving?.wonApprovedAt;
         return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-xs p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[13px] font-semibold">Move to Stage</h3>
-              <button onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-            {pendingApproval && (
-              <div className="mb-3 rounded border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 px-2 py-2 text-[10px] text-amber-900 dark:text-amber-100">
-                <div className="font-semibold">Closed-won approval</div>
-                <div className="mt-0.5 opacity-90">
-                  This deal value ({dealThresholdsQ.data?.dealApprovalCurrency ?? "INR"} {mv.toLocaleString()}) requires{" "}
-                  <strong>{needTier === "executive" ? "executive" : "manager"}</strong> approval before <strong>Closed Won</strong>.
-                </div>
-                {isAdmin() && (
-                  <div className="mt-2 flex flex-col gap-1">
-                    {needTier === "manager" && (
-                      <button
-                        type="button"
-                        disabled={approveDealWon.isPending}
-                        onClick={() => approveDealWon.mutate({ id: movingDeal, tier: "manager" })}
-                        className="text-[10px] px-2 py-1 rounded bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-50"
-                      >
-                        Record manager approval
-                      </button>
-                    )}
-                    {needTier === "executive" && (
-                      <button
-                        type="button"
-                        disabled={approveDealWon.isPending}
-                        onClick={() => approveDealWon.mutate({ id: movingDeal, tier: "executive" })}
-                        className="text-[10px] px-2 py-1 rounded bg-amber-800 text-white hover:bg-amber-900 disabled:opacity-50"
-                      >
-                        Record executive approval
-                      </button>
-                    )}
-                  </div>
-                )}
-                {!isAdmin() && (
-                  <div className="mt-1 text-[10px] opacity-80">Ask an organization owner/admin to record approval (Admin → CRM deal thresholds).</div>
-                )}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-xs p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[13px] font-semibold">Move to Stage</h3>
+                <button onClick={() => setMovingDeal(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
               </div>
-            )}
-            <div className="flex flex-col gap-1.5">
-              {(["prospect","qualification","proposal","negotiation","verbal_commit","closed_won","closed_lost"] as const).map(s => (
-                <button
-                  key={s}
-                  onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
-                  disabled={movePipeline.isPending}
-                  className={`px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50 ${STAGE_CFG[s]?.color ?? ""}`}
-                >
-                  {STAGE_CFG[s]?.label ?? s.replace(/_/g, " ")}
-                </button>
-              ))}
+              {pendingApproval && (
+                <div className="mb-3 rounded border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 px-2 py-2 text-[10px] text-amber-900 dark:text-amber-100">
+                  <div className="font-semibold">Closed-won approval</div>
+                  <div className="mt-0.5 opacity-90">
+                    This deal value ({dealThresholdsQ.data?.dealApprovalCurrency ?? "INR"} {mv.toLocaleString()}) requires{" "}
+                    <strong>{needTier === "executive" ? "executive" : "manager"}</strong> approval before <strong>Closed Won</strong>.
+                  </div>
+                  {isAdmin() && (
+                    <div className="mt-2 flex flex-col gap-1">
+                      {needTier === "manager" && (
+                        <button
+                          type="button"
+                          disabled={approveDealWon.isPending}
+                          onClick={() => approveDealWon.mutate({ id: movingDeal, tier: "manager" })}
+                          className="text-[10px] px-2 py-1 rounded bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-50"
+                        >
+                          Record manager approval
+                        </button>
+                      )}
+                      {needTier === "executive" && (
+                        <button
+                          type="button"
+                          disabled={approveDealWon.isPending}
+                          onClick={() => approveDealWon.mutate({ id: movingDeal, tier: "executive" })}
+                          className="text-[10px] px-2 py-1 rounded bg-amber-800 text-white hover:bg-amber-900 disabled:opacity-50"
+                        >
+                          Record executive approval
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!isAdmin() && (
+                    <div className="mt-1 text-[10px] opacity-80">Ask an organization owner/admin to record approval (Admin → CRM deal thresholds).</div>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
+                    disabled={movePipeline.isPending}
+                    className={`px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50 ${STAGE_CFG[s]?.color ?? ""}`}
+                  >
+                    {STAGE_CFG[s]?.label ?? s.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
         );
       })()}
 
@@ -555,12 +555,12 @@ export default function CRMPage() {
       {/* KPIs */}
       <div className="grid grid-cols-6 gap-2">
         {[
-          { label: "Pipeline (Weighted)", value: `₹${(totalPipeline/1000).toFixed(0)}K`, color: "text-blue-700",   sub: `${activeDeals.length} open deals` },
-          { label: "Total Pipeline",      value: `₹${(activeDeals.reduce((s,d)=>s+d.value,0)/1000).toFixed(0)}K`, color: "text-foreground/80", sub: "gross value" },
-          { label: "Closed Won (MTD)",    value: `₹${(totalWon/1000).toFixed(0)}K`, color: "text-green-700", sub: `${wonDeals.length} deals` },
-          { label: "Win Rate",            value: `${winRate}%`,  color: winRate >= 50 ? "text-green-700" : "text-orange-600", sub: "closed deals" },
-          { label: "Open Leads",          value: LEADS_LIVE.filter(l=>!["converted","dead"].includes(l.status)).length, color: "text-indigo-700", sub: "active leads" },
-          { label: "Overdue Activities",  value: ACTIVITIES_LIVE.filter((a: any) => !a.completed && new Date(a.dueDate ?? a.scheduledAt ?? "9999") < new Date()).length, color: "text-red-700", sub: "need action" },
+          { label: "Pipeline (Weighted)", value: `₹${(totalPipeline / 1000).toFixed(0)}K`, color: "text-blue-700", sub: `${activeDeals.length} open deals` },
+          { label: "Total Pipeline", value: `₹${(activeDeals.reduce((s, d) => s + d.value, 0) / 1000).toFixed(0)}K`, color: "text-foreground/80", sub: "gross value" },
+          { label: "Closed Won (MTD)", value: `₹${(totalWon / 1000).toFixed(0)}K`, color: "text-green-700", sub: `${wonDeals.length} deals` },
+          { label: "Win Rate", value: `${winRate}%`, color: winRate >= 50 ? "text-green-700" : "text-orange-600", sub: "closed deals" },
+          { label: "Open Leads", value: LEADS_LIVE.filter(l => !["converted", "dead"].includes(l.status)).length, color: "text-indigo-700", sub: "active leads" },
+          { label: "Overdue Activities", value: ACTIVITIES_LIVE.filter((a: any) => !a.completed && new Date(a.dueDate ?? a.scheduledAt ?? "9999") < new Date()).length, color: "text-red-700", sub: "need action" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -592,17 +592,17 @@ export default function CRMPage() {
                 {PIPELINE_STAGES.map((stage) => {
                   const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
                   const stageValue = stageDeals.reduce((s, d) => s + d.value, 0);
-                  const maxVal = Math.max(...PIPELINE_STAGES.map(s => DEALS_LIVE.filter(d=>d.stage===s).reduce((sum,d)=>sum+d.value,0)), 1);
+                  const maxVal = Math.max(...PIPELINE_STAGES.map(s => DEALS_LIVE.filter(d => d.stage === s).reduce((sum, d) => sum + d.value, 0)), 1);
                   const cfg = STAGE_CFG[stage];
                   return (
                     <div key={stage} className="flex items-center gap-3">
                       <span className="text-[11px] text-muted-foreground w-28">{cfg.label}</span>
                       <div className="flex-1 h-5 bg-muted rounded overflow-hidden flex items-center">
                         <div className="h-full bg-primary/20 border-r-2 border-primary flex items-center px-2"
-                          style={{ width: `${Math.max(5, (stageValue/maxVal)*100)}%` }}>
+                          style={{ width: `${Math.max(5, (stageValue / maxVal) * 100)}%` }}>
                         </div>
                       </div>
-                      <span className="font-mono text-[11px] w-16 text-right text-foreground/80">₹{(stageValue/1000).toFixed(0)}K</span>
+                      <span className="font-mono text-[11px] w-16 text-right text-foreground/80">₹{(stageValue / 1000).toFixed(0)}K</span>
                       <span className="text-[11px] text-muted-foreground/70 w-6">{stageDeals.length}</span>
                     </div>
                   );
@@ -628,7 +628,7 @@ export default function CRMPage() {
                         <p className="text-[11px] text-muted-foreground/70">{deal.owner} · {deal.lastActivity}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="font-mono font-bold text-[12px] text-foreground">₹{(deal.value/1000).toFixed(0)}K</div>
+                        <div className="font-mono font-bold text-[12px] text-foreground">₹{(deal.value / 1000).toFixed(0)}K</div>
                         <div className="text-[10px] text-muted-foreground/70">{deal.probability}% · {daysToClose}d</div>
                       </div>
                     </div>
@@ -670,9 +670,9 @@ export default function CRMPage() {
                   <p className="text-[11px] text-muted-foreground/50 text-center py-2">No closed deals yet this period</p>
                 ) : leaderboard.map((row, i) => (
                   <div key={row.ownerId} className="flex items-center gap-3">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? "bg-yellow-400 text-white" : "bg-muted text-muted-foreground"}`}>{i+1}</span>
-                    <span className="text-[12px] text-foreground/80 flex-1 font-mono">{row.ownerId.slice(0,8)}…</span>
-                    <span className="font-mono font-bold text-[12px] text-foreground">₹{(row.won/1000).toFixed(0)}K</span>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? "bg-yellow-400 text-white" : "bg-muted text-muted-foreground"}`}>{i + 1}</span>
+                    <span className="text-[12px] text-foreground/80 flex-1 font-mono">{row.ownerId.slice(0, 8)}…</span>
+                    <span className="font-mono font-bold text-[12px] text-foreground">₹{(row.won / 1000).toFixed(0)}K</span>
                     <span className="text-[11px] text-muted-foreground/70">{row.deals} deal{row.deals !== 1 ? "s" : ""}</span>
                   </div>
                 ))}
@@ -685,7 +685,7 @@ export default function CRMPage() {
         {tab === "pipeline" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{DEALS_LIVE.filter(d => !["closed_won","closed_lost"].includes(d.stage ?? "")).length} Active Deals</span>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{DEALS_LIVE.filter(d => !["closed_won", "closed_lost"].includes(d.stage ?? "")).length} Active Deals</span>
               <PermissionGate module="accounts" action="write">
                 <button onClick={() => setShowNewDeal(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> Add Deal
@@ -693,18 +693,18 @@ export default function CRMPage() {
               </PermissionGate>
             </div>
             <div className="flex overflow-x-auto p-4 gap-3 min-h-96">
-              {(["prospect","qualification","proposal","negotiation","verbal_commit","closed_won"] as DealStage[]).map((stage) => {
+              {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won"] as DealStage[]).map((stage) => {
                 const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
-                const stageVal = stageDeals.reduce((s,d) => s+d.value, 0);
+                const stageVal = stageDeals.reduce((s, d) => s + d.value, 0);
                 const cfg = STAGE_CFG[stage];
                 return (
                   <div key={stage} className="flex-shrink-0 w-56 flex flex-col gap-2">
                     <div className="flex items-center justify-between mb-1">
                       <span className={`status-badge ${cfg.color}`}>{cfg.label}</span>
-                      <span className="text-[11px] text-muted-foreground/70">₹{(stageVal/1000).toFixed(0)}K</span>
+                      <span className="text-[11px] text-muted-foreground/70">₹{(stageVal / 1000).toFixed(0)}K</span>
                     </div>
                     {stageDeals.map((deal) => (
-                      <div key={deal.id} className="border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border">
+                      <Link key={deal.id} href={`/app/crm/deals/${deal.id}`} className="block border rounded p-3 hover:shadow-sm transition-shadow cursor-pointer bg-card border-border">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-mono text-[10px] text-primary">{deal.number ?? "—"}</span>
                           <span className="text-[11px] text-muted-foreground/70">{deal.probability}%</span>
@@ -715,22 +715,22 @@ export default function CRMPage() {
                           <p className="text-[10px] text-muted-foreground/60 truncate mb-1">{getDealContactName(deal)}</p>
                         )}
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-bold text-[12px] text-primary">₹{(deal.value/1000).toFixed(0)}K</span>
+                          <span className="font-mono font-bold text-[12px] text-primary">₹{(deal.value / 1000).toFixed(0)}K</span>
                           <span className="text-[10px] text-muted-foreground/70">Close: {deal.closeDate?.slice(5) ?? deal.expectedClose?.toString()?.slice(5) ?? "—"}</span>
                         </div>
                         <div className="mt-1.5 flex items-center gap-1">
                           <span className="w-4 h-4 rounded-full bg-primary text-white text-[8px] flex items-center justify-center font-bold">
-                            {(deal.owner ?? "").split(" ").map((n:string)=>n[0]).join("").slice(0,2)}
+                            {(deal.owner ?? "").split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                           </span>
                           <span className="text-[10px] text-muted-foreground/70 truncate flex-1">{deal.lastActivity ?? deal.updatedAt ?? ""}</span>
                           <PermissionGate module="accounts" action="write">
                             <button
-                              onClick={(e) => { e.stopPropagation(); setMovingDeal(deal.id); }}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMovingDeal(deal.id); }}
                               className="text-[9px] px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:bg-muted/50 flex-shrink-0"
                             >Move</button>
                           </PermissionGate>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                     {stageDeals.length === 0 && (
                       <div className="border border-dashed border-slate-200 rounded p-3 text-center text-[11px] text-slate-300">No deals</div>
@@ -753,49 +753,51 @@ export default function CRMPage() {
                 </button>
               </PermissionGate>
             </div>
-          <table className="ent-table w-full">
-            <thead>
-              <tr>
-                <th className="w-4" />
-                <th>Account Name</th>
-                <th>Industry</th>
-                <th>Type</th>
-                <th>Tier</th>
-                <th>Country</th>
-                <th>Employees</th>
-                <th>Annual Revenue</th>
-                <th className="text-center">Open Opps</th>
-                <th>Total Revenue</th>
-                <th>Health</th>
-                <th>Owner</th>
-                <th>Last Contact</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ACCOUNTS_LIVE.map((a) => (
-                <tr key={a.id}>
-                  <td className="p-0"><div className={`priority-bar ${a.healthScore >= 80 ? "bg-green-500" : a.healthScore >= 60 ? "bg-yellow-500" : "bg-red-500"}`} /></td>
-                  <td className="font-semibold text-primary hover:underline cursor-pointer">{a.name}</td>
-                  <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{a.industry}</span></td>
-                  <td><span className={`status-badge capitalize ${a.type === "customer" ? "text-green-700 bg-green-100" : a.type === "prospect" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.type}</span></td>
-                  <td><span className={`status-badge capitalize ${TIER_CFG[a.tier]}`}>{a.tier.replace("_"," ")}</span></td>
-                  <td className="text-muted-foreground">{a.country}</td>
-                  <td className="font-mono text-[11px] text-muted-foreground">{a.employees != null ? a.employees.toLocaleString() : "—"}</td>
-                  <td className="font-mono text-[11px] text-muted-foreground">₹{((a.annualRevenue ?? 0)/10000000).toFixed(0)}Cr</td>
-                  <td className="text-center"><span className={`font-bold ${a.openOpps > 0 ? "text-primary" : "text-slate-300"}`}>{a.openOpps}</span></td>
-                  <td className="font-mono text-[11px] font-bold text-foreground">{a.totalRevenue > 0 ? `₹${(a.totalRevenue/1000).toFixed(0)}K` : "—"}</td>
-                  <td>
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-6 h-1.5 rounded-full ${a.healthScore >= 80 ? "bg-green-500" : a.healthScore >= 60 ? "bg-yellow-500" : "bg-red-500"}`} style={{width: `${a.healthScore * 0.4}px`}} />
-                      <span className={`text-[11px] font-bold ${SCORE_COLOR(a.healthScore)}`}>{a.healthScore}</span>
-                    </div>
-                  </td>
-                  <td className="text-muted-foreground">{a.owner}</td>
-                  <td className="text-[11px] text-muted-foreground/70">{a.lastContact}</td>
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th className="w-4" />
+                  <th>Account Name</th>
+                  <th>Industry</th>
+                  <th>Type</th>
+                  <th>Tier</th>
+                  <th>Country</th>
+                  <th>Employees</th>
+                  <th>Annual Revenue</th>
+                  <th className="text-center">Open Opps</th>
+                  <th>Total Revenue</th>
+                  <th>Health</th>
+                  <th>Owner</th>
+                  <th>Last Contact</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ACCOUNTS_LIVE.map((a) => (
+                  <tr key={a.id}>
+                    <td className="p-0"><div className={`priority-bar ${a.healthScore >= 80 ? "bg-green-500" : a.healthScore >= 60 ? "bg-yellow-500" : "bg-red-500"}`} /></td>
+                    <td className="font-semibold text-primary hover:underline cursor-pointer">
+                      <Link href={`/app/crm/accounts/${a.id}`}>{a.name}</Link>
+                    </td>
+                    <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{a.industry}</span></td>
+                    <td><span className={`status-badge capitalize ${a.type === "customer" ? "text-green-700 bg-green-100" : a.type === "prospect" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.type}</span></td>
+                    <td><span className={`status-badge capitalize ${TIER_CFG[a.tier]}`}>{a.tier.replace("_", " ")}</span></td>
+                    <td className="text-muted-foreground">{a.country}</td>
+                    <td className="font-mono text-[11px] text-muted-foreground">{a.employees != null ? a.employees.toLocaleString() : "—"}</td>
+                    <td className="font-mono text-[11px] text-muted-foreground">₹{((a.annualRevenue ?? 0) / 10000000).toFixed(0)}Cr</td>
+                    <td className="text-center"><span className={`font-bold ${a.openOpps > 0 ? "text-primary" : "text-slate-300"}`}>{a.openOpps}</span></td>
+                    <td className="font-mono text-[11px] font-bold text-foreground">{a.totalRevenue > 0 ? `₹${(a.totalRevenue / 1000).toFixed(0)}K` : "—"}</td>
+                    <td>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-6 h-1.5 rounded-full ${a.healthScore >= 80 ? "bg-green-500" : a.healthScore >= 60 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${a.healthScore * 0.4}px` }} />
+                        <span className={`text-[11px] font-bold ${SCORE_COLOR(a.healthScore)}`}>{a.healthScore}</span>
+                      </div>
+                    </td>
+                    <td className="text-muted-foreground">{a.owner}</td>
+                    <td className="text-[11px] text-muted-foreground/70">{a.lastContact}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -810,54 +812,54 @@ export default function CRMPage() {
                 </button>
               </PermissionGate>
             </div>
-          <table className="ent-table w-full">
-            <thead>
-              <tr>
-                <th className="w-4" />
-                <th>Name</th>
-                <th>Title</th>
-                <th>Seniority</th>
-                <th>Account</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Department</th>
-                <th className="text-center">Open Deals</th>
-                <th>Owner</th>
-                <th>Last Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {CONTACTS_LIVE.map((c) => (
-                <tr key={c.id} className={c.doNotContact ? "opacity-50" : ""}>
-                  <td className="p-0"><div className={`priority-bar ${c.seniority === "c_level" ? "bg-red-500" : c.seniority === "vp" ? "bg-orange-500" : "bg-blue-400"}`} /></td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
-                        {c.firstName?.[0] ?? "?"}{c.lastName?.[0] ?? ""}
-                      </span>
-                      <span className="font-semibold text-primary hover:underline cursor-pointer">{c.firstName} {c.lastName}</span>
-                      {c.doNotContact && <span className="status-badge text-red-600 bg-red-50 text-[9px]">DNC</span>}
-                    </div>
-                  </td>
-                  <td className="text-muted-foreground">{c.title}</td>
-                  <td>
-                    <span
-                      className={`status-badge capitalize ${SENIORITY_CFG[c.seniority ?? ""] ?? "text-muted-foreground bg-muted"}`}
-                    >
-                      {c.seniority ? c.seniority.replace("_", " ") : "—"}
-                    </span>
-                  </td>
-                  <td className="text-primary hover:underline cursor-pointer">{c.account}</td>
-                  <td className="text-muted-foreground text-[11px] font-mono">{c.email}</td>
-                  <td className="text-muted-foreground text-[11px]">{c.phone}</td>
-                  <td className="text-muted-foreground">{c.department}</td>
-                  <td className="text-center"><span className={`font-bold ${c.openDeals > 0 ? "text-primary" : "text-slate-300"}`}>{c.openDeals}</span></td>
-                  <td className="text-muted-foreground">{c.owner}</td>
-                  <td className="text-[11px] text-muted-foreground/70">{c.lastActivity}</td>
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th className="w-4" />
+                  <th>Name</th>
+                  <th>Title</th>
+                  <th>Seniority</th>
+                  <th>Account</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Department</th>
+                  <th className="text-center">Open Deals</th>
+                  <th>Owner</th>
+                  <th>Last Activity</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {CONTACTS_LIVE.map((c) => (
+                  <tr key={c.id} className={c.doNotContact ? "opacity-50" : ""}>
+                    <td className="p-0"><div className={`priority-bar ${c.seniority === "c_level" ? "bg-red-500" : c.seniority === "vp" ? "bg-orange-500" : "bg-blue-400"}`} /></td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-primary text-white text-[9px] flex items-center justify-center font-bold flex-shrink-0">
+                          {c.firstName?.[0] ?? "?"}{c.lastName?.[0] ?? ""}
+                        </span>
+                        <span className="font-semibold text-primary hover:underline cursor-pointer">{c.firstName} {c.lastName}</span>
+                        {c.doNotContact && <span className="status-badge text-red-600 bg-red-50 text-[9px]">DNC</span>}
+                      </div>
+                    </td>
+                    <td className="text-muted-foreground">{c.title}</td>
+                    <td>
+                      <span
+                        className={`status-badge capitalize ${SENIORITY_CFG[c.seniority ?? ""] ?? "text-muted-foreground bg-muted"}`}
+                      >
+                        {c.seniority ? c.seniority.replace("_", " ") : "—"}
+                      </span>
+                    </td>
+                    <td className="text-primary hover:underline cursor-pointer">{c.account}</td>
+                    <td className="text-muted-foreground text-[11px] font-mono">{c.email}</td>
+                    <td className="text-muted-foreground text-[11px]">{c.phone}</td>
+                    <td className="text-muted-foreground">{c.department}</td>
+                    <td className="text-center"><span className={`font-bold ${c.openDeals > 0 ? "text-primary" : "text-slate-300"}`}>{c.openDeals}</span></td>
+                    <td className="text-muted-foreground">{c.owner}</td>
+                    <td className="text-[11px] text-muted-foreground/70">{c.lastActivity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -872,54 +874,54 @@ export default function CRMPage() {
                 </button>
               </PermissionGate>
             </div>
-          <table className="ent-table w-full">
-            <thead>
-              <tr>
-                <th className="w-4" />
-                <th>Lead #</th>
-                <th>Name</th>
-                <th>Company</th>
-                <th>Title</th>
-                <th>Email</th>
-                <th>Source</th>
-                <th>Campaign</th>
-                <th className="text-center">Score</th>
-                <th>Status</th>
-                <th>Owner</th>
-                <th>Last Activity</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {LEADS_LIVE.map((l) => (
-                <tr key={l.id} className={l.status === "dead" ? "opacity-40" : ""}>
-                  <td className="p-0"><div className={`priority-bar ${l.score >= 80 ? "bg-green-500" : l.score >= 60 ? "bg-yellow-500" : "bg-slate-400"}`} /></td>
-                  <td className="font-mono text-[11px] text-primary">{l.number}</td>
-                  <td className="font-semibold text-foreground">{l.firstName} {l.lastName}</td>
-                  <td className="text-muted-foreground">{l.company}</td>
-                  <td className="text-muted-foreground text-[11px]">{l.title}</td>
-                  <td className="text-muted-foreground text-[11px] font-mono">{l.email}</td>
-                  <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{l.source}</span></td>
-                  <td className="text-[11px] text-muted-foreground/70">{l.campaign ?? "—"}</td>
-                  <td className="text-center">
-                    <span className={`font-mono font-bold text-[12px] ${SCORE_COLOR(l.score)}`}>{l.score}</span>
-                  </td>
-                  <td><span className={`status-badge capitalize ${LEAD_STATUS_CFG[l.status as LeadStatus]}`}>{l.status}</span></td>
-                  <td className="text-muted-foreground">{l.owner}</td>
-                  <td className="text-[11px] text-muted-foreground/70">{l.lastActivity}</td>
-                  <td>
-                    <div className="flex gap-1.5">
-                      {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
-                      <button
-                        onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", status: l.status }); }}
-                        className="text-[11px] text-primary hover:underline"
-                      >Edit</button>
-                    </div>
-                  </td>
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th className="w-4" />
+                  <th>Lead #</th>
+                  <th>Name</th>
+                  <th>Company</th>
+                  <th>Title</th>
+                  <th>Email</th>
+                  <th>Source</th>
+                  <th>Campaign</th>
+                  <th className="text-center">Score</th>
+                  <th>Status</th>
+                  <th>Owner</th>
+                  <th>Last Activity</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {LEADS_LIVE.map((l) => (
+                  <tr key={l.id} className={l.status === "dead" ? "opacity-40" : ""}>
+                    <td className="p-0"><div className={`priority-bar ${l.score >= 80 ? "bg-green-500" : l.score >= 60 ? "bg-yellow-500" : "bg-slate-400"}`} /></td>
+                    <td className="font-mono text-[11px] text-primary">{l.number}</td>
+                    <td className="font-semibold text-foreground">{l.firstName} {l.lastName}</td>
+                    <td className="text-muted-foreground">{l.company}</td>
+                    <td className="text-muted-foreground text-[11px]">{l.title}</td>
+                    <td className="text-muted-foreground text-[11px] font-mono">{l.email}</td>
+                    <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{l.source}</span></td>
+                    <td className="text-[11px] text-muted-foreground/70">{l.campaign ?? "—"}</td>
+                    <td className="text-center">
+                      <span className={`font-mono font-bold text-[12px] ${SCORE_COLOR(l.score)}`}>{l.score}</span>
+                    </td>
+                    <td><span className={`status-badge capitalize ${LEAD_STATUS_CFG[l.status as LeadStatus]}`}>{l.status}</span></td>
+                    <td className="text-muted-foreground">{l.owner}</td>
+                    <td className="text-[11px] text-muted-foreground/70">{l.lastActivity}</td>
+                    <td>
+                      <div className="flex gap-1.5">
+                        {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
+                        <button
+                          onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", status: l.status }); }}
+                          className="text-[11px] text-primary hover:underline"
+                        >Edit</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -953,7 +955,7 @@ export default function CRMPage() {
                   return (
                     <tr key={a.id} className={a.completed ? "opacity-60" : ""}>
                       <td className="p-0"><div className={`priority-bar ${a.completed ? "bg-green-500" : "bg-blue-400"}`} /></td>
-                      <td><span className={`status-badge capitalize ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type.replace("_"," ")}</span></td>
+                      <td><span className={`status-badge capitalize ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type.replace("_", " ")}</span></td>
                       <td className="font-medium text-foreground">{a.subject}</td>
                       <td className="text-primary hover:underline cursor-pointer">{a.account}</td>
                       <td className="text-muted-foreground">{a.contact}</td>
@@ -1070,7 +1072,7 @@ export default function CRMPage() {
                         <button
                           onClick={() => {
                             const newStatus = prompt(`Change quote status (current: ${q.status}):\ndraft / sent / viewed / accepted / declined / expired`);
-                            if (newStatus && ["draft","sent","viewed","accepted","declined","expired"].includes(newStatus)) {
+                            if (newStatus && ["draft", "sent", "viewed", "accepted", "declined", "expired"].includes(newStatus)) {
                               updateQuote.mutate({ id: q.id, status: newStatus as any });
                             }
                           }}
@@ -1096,15 +1098,15 @@ export default function CRMPage() {
               <div className="p-3 space-y-2">
                 {PIPELINE_STAGES.map(stage => {
                   const deals = DEALS_LIVE.filter(d => d.stage === stage);
-                  const weighted = deals.reduce((s,d) => s + d.value*(d.probability/100), 0);
+                  const weighted = deals.reduce((s, d) => s + d.value * (d.probability / 100), 0);
                   const cfg = STAGE_CFG[stage];
                   return (
                     <div key={stage} className="flex items-center gap-2 text-[11px]">
                       <span className="text-muted-foreground w-28 flex-shrink-0">{cfg.label}</span>
                       <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full" style={{width: `${Math.min(100,(weighted/500000)*100)}%`}} />
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (weighted / 500000) * 100)}%` }} />
                       </div>
-                      <span className="font-mono text-foreground/80 w-16 text-right">₹{(weighted/1000).toFixed(0)}K</span>
+                      <span className="font-mono text-foreground/80 w-16 text-right">₹{(weighted / 1000).toFixed(0)}K</span>
                     </div>
                   );
                 })}
@@ -1113,14 +1115,14 @@ export default function CRMPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Deals by Source</div>
               <div className="p-3 space-y-2">
-                {["Inbound / Website","Inbound / Trial","Direct / Outbound","Partner Referral","LinkedIn Outbound","Upsell / Existing Customer","Event / Conference"].map((src) => {
+                {["Inbound / Website", "Inbound / Trial", "Direct / Outbound", "Partner Referral", "LinkedIn Outbound", "Upsell / Existing Customer", "Event / Conference"].map((src) => {
                   const srcDeals = DEALS_LIVE.filter(d => d.source === src);
                   if (srcDeals.length === 0) return null;
-                  const srcVal = srcDeals.reduce((s,d)=>s+d.value,0);
+                  const srcVal = srcDeals.reduce((s, d) => s + d.value, 0);
                   return (
                     <div key={src} className="flex items-center gap-2 text-[11px]">
                       <span className="text-muted-foreground flex-1 truncate">{src}</span>
-                      <span className="font-mono text-foreground/80">₹{(srcVal/1000).toFixed(0)}K</span>
+                      <span className="font-mono text-foreground/80">₹{(srcVal / 1000).toFixed(0)}K</span>
                       <span className="text-muted-foreground/70">({srcDeals.length})</span>
                     </div>
                   );
@@ -1157,7 +1159,7 @@ export default function CRMPage() {
                         <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
                         <td className="font-mono font-bold text-foreground">₹{(d.value ?? 0).toLocaleString("en-IN")}</td>
                         <td className="font-mono text-muted-foreground">{d.probability}%</td>
-                        <td className="font-mono font-semibold text-primary">₹{((d.value ?? 0)*((d.probability ?? 0)/100)).toLocaleString("en-IN")}</td>
+                        <td className="font-mono font-semibold text-primary">₹{((d.value ?? 0) * ((d.probability ?? 0) / 100)).toLocaleString("en-IN")}</td>
                         <td className="text-muted-foreground text-[11px]">{d.closeDate}</td>
                         <td className="text-muted-foreground/70 text-[11px]">{d.source}</td>
                         <td className="text-muted-foreground/70 text-[11px]">{d.lastActivity}</td>
@@ -1180,7 +1182,7 @@ export default function CRMPage() {
               <button onClick={() => setEditingLead(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-3">
-              {(["firstName","lastName","email","company","title"] as const).map((f) => (
+              {(["firstName", "lastName", "email", "company", "title"] as const).map((f) => (
                 <div key={f}>
                   <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">{f.replace(/([A-Z])/g, " $1")}</label>
                   <input
@@ -1197,7 +1199,7 @@ export default function CRMPage() {
                   onChange={(e) => setEditLeadForm((prev: any) => ({ ...prev, status: e.target.value }))}
                   className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card"
                 >
-                  {["new","contacted","qualified","disqualified"].map((s) => <option key={s} value={s}>{s}</option>)}
+                  {["new", "contacted", "qualified", "disqualified"].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
@@ -1384,7 +1386,7 @@ export default function CRMPage() {
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source</label>
                 <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.source} onChange={(e) => setLeadForm(f => ({ ...f, source: e.target.value }))}>
-                  {["website","linkedin","partner_referral","event","cold_outreach","webinar","trial","other"].map(s => (
+                  {["website", "linkedin", "partner_referral", "event", "cold_outreach", "webinar", "trial", "other"].map(s => (
                     <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
                   ))}
                 </select>

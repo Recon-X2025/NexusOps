@@ -29,7 +29,7 @@ test.describe("Authentication (Seq 11 C4)", () => {
     await page.fill('[data-testid="login-email"]', "admin@coheron.com");
     await page.fill('[data-testid="login-password"]', "wrongpassword");
     await page.click('[data-testid="login-submit"]');
-    await expect(page).not.toHaveURL("/app/dashboard");
+    await expect(page).not.toHaveURL("/app/command");
   });
 
   test("auth guard: unauthenticated access to /app redirects to login", async ({ page }) => {
@@ -42,7 +42,7 @@ test.describe("Authentication (Seq 11 C4)", () => {
     await page.fill('[data-testid="login-email"]', "admin@coheron.com");
     await page.fill('[data-testid="login-password"]', "demo1234!");
     await page.click('[data-testid="login-submit"]');
-    await expect(page).toHaveURL(/app\/dashboard/, { timeout: 10000 });
+    await expect(page).toHaveURL(/app\/command/, { timeout: 10000 });
   });
 });
 
@@ -52,7 +52,7 @@ test.describe("Create Ticket E2E", () => {
     await page.fill('[data-testid="login-email"]', "admin@coheron.com");
     await page.fill('[data-testid="login-password"]', "demo1234!");
     await page.click('[data-testid="login-submit"]');
-    await page.waitForURL(/app\/dashboard/);
+    await page.waitForURL(/app\/command/);
   });
 
   test("navigate to create ticket form", async ({ page }) => {

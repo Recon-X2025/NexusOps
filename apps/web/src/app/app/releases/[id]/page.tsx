@@ -33,13 +33,18 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   post_deployment: ["complete", "failed"],
 };
 
+import { PageHeader } from "@/components/ui/page-header";
+import { ResourceView } from "@/components/ui/resource-view";
+import { DetailGrid } from "@/components/ui/detail-grid";
+import { cn } from "@/lib/utils";
+
 export default function ReleaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
 
-  const { data: release, isLoading } = trpc.changes.getRelease.useQuery({ id }, mergeTrpcQueryOpts("changes.getRelease", undefined));
+  const releaseQuery = trpc.changes.getRelease.useQuery({ id }, mergeTrpcQueryOpts("changes.getRelease", undefined));
 
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
@@ -55,143 +60,124 @@ export default function ReleaseDetailPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to update release"),
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs">Loading release…</span>
-      </div>
-    );
-  }
-
-  if (!release) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
-        <GitBranch className="w-8 h-8 opacity-30" />
-        <span className="text-sm">Release not found</span>
-        <button onClick={() => router.push("/app/releases")} className="text-xs text-primary hover:underline">Back to Releases</button>
-      </div>
-    );
-  }
-
-  const r = release as any;
-  const rawStatus = r.status ?? "planning";
-  const sCfg = STATE_CFG[rawStatus] ?? STATE_CFG.planning!;
-  const isTerminal = TERMINAL_STATES.includes(rawStatus);
-  const nextStates = STATUS_TRANSITIONS[rawStatus] ?? [];
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <button onClick={() => router.push("/app/releases")}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" /> Releases
-        </button>
-        <ChevronRight className="w-3 h-3 text-muted-foreground/40" />
-        <span className="text-[11px] text-muted-foreground font-mono">{r.name}</span>
-      </div>
+    <div className="flex flex-col gap-6 p-6">
+      <ResourceView
+        query={releaseQuery}
+        resourceName="Release"
+        backHref="/app/releases"
+      >
+        {(r) => {
+          const rawStatus = r.status ?? "planning";
+          const sCfg = STATE_CFG[rawStatus] ?? STATE_CFG.planning!;
+          const isTerminal = TERMINAL_STATES.includes(rawStatus);
+          const nextStates = STATUS_TRANSITIONS[rawStatus] ?? [];
 
-      <div className="bg-card border border-border rounded overflow-hidden">
-        <div className="flex items-start gap-3 px-4 py-4 border-b border-border">
-          <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${sCfg.bar}`} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-mono text-[11px] text-primary">{r.version}</span>
-              <span className={`status-badge ${sCfg.color}`}>{sCfg.label}</span>
-            </div>
-            <h1 className="text-[15px] font-bold text-foreground">{r.name}</h1>
-          </div>
-          {!isTerminal && can("changes", "write") && nextStates.length > 0 && (
-            <div className="flex items-center gap-2">
-              <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}
-                className="text-xs border border-border rounded px-2 py-1 bg-background">
-                <option value="">Advance to…</option>
-                {nextStates.map((s) => (
-                  <option key={s} value={s}>{STATE_CFG[s]?.label ?? s}</option>
-                ))}
-              </select>
-              {newStatus && (
-                <button
-                  onClick={() => updateRelease.mutate({ id, status: newStatus })}
-                  disabled={updateRelease.isPending}
-                  className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50">
-                  {updateRelease.isPending ? "Saving…" : "Confirm"}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+          return (
+            <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <PageHeader
+                title={r.name}
+                subtitle={`Version ${r.version}`}
+                icon={GitBranch}
+                backHref="/app/releases"
+                badge={
+                  <div className="flex items-center gap-2">
+                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", sCfg.color)}>
+                      {sCfg.label}
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground font-mono">
+                      {r.version}
+                    </span>
+                  </div>
+                }
+                actions={
+                  !isTerminal && can("changes", "write") && nextStates.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={newStatus}
+                        onChange={(e) => setNewStatus(e.target.value)}
+                        className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+                      >
+                        <option value="">Advance Status…</option>
+                        {nextStates.map((s) => (
+                          <option key={s} value={s}>{STATE_CFG[s]?.label ?? s}</option>
+                        ))}
+                      </select>
+                      {newStatus && (
+                        <button
+                          onClick={() => updateRelease.mutate({ id, status: newStatus })}
+                          className="px-4 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-all shadow-md"
+                        >
+                          Confirm
+                        </button>
+                      )}
+                    </div>
+                  )
+                }
+              />
 
-        {isTerminal && (
-          <div className="px-4 py-2 bg-muted/40 border-b border-dashed border-border text-[11px] text-muted-foreground/70">
-            This release is {sCfg.label}. No further transitions available.
-          </div>
-        )}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-3 flex flex-col gap-6">
+                  {/* Notes Card */}
+                  <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Release Notes</h3>
+                      {!isTerminal && !editingNotes && can("changes", "write") && (
+                        <button onClick={() => { setNotesDraft(r.notes ?? ""); setEditingNotes(true); }} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                          <Edit2 className="w-3 h-3" /> Edit Notes
+                        </button>
+                      )}
+                    </div>
+                    {editingNotes ? (
+                      <div className="flex flex-col gap-4">
+                        <textarea
+                          className="w-full text-sm border border-border rounded-xl px-4 py-3 bg-background h-32 resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          value={notesDraft}
+                          onChange={(e) => setNotesDraft(e.target.value)}
+                          placeholder="Describe what's included in this release…"
+                        />
+                        <div className="flex gap-3 justify-end">
+                          <button onClick={() => setEditingNotes(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-all">Cancel</button>
+                          <button onClick={() => updateRelease.mutate({ id, notes: notesDraft })} className="px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-md">Save Changes</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{r.notes || "No release notes recorded."}</p>
+                    )}
+                  </div>
 
-        <div className="grid grid-cols-3 gap-0 divide-x divide-border">
-          {[
-            { label: "Version", value: r.version, icon: Package },
-            { label: "Planned Date", value: r.plannedDate ? new Date(r.plannedDate).toLocaleDateString("en-GB") : "—", icon: Calendar },
-            { label: "Actual Date", value: r.actualDate ? new Date(r.actualDate).toLocaleDateString("en-GB") : "—", icon: CheckCircle2 },
-          ].map((f, i) => (
-            <div key={i} className="px-4 py-3">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <f.icon className="w-3 h-3 text-muted-foreground/60" />
-                <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">{f.label}</span>
+                  {rawStatus === "complete" && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 text-sm text-green-700 font-medium">
+                      <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                      Release successfully deployed on {r.actualDate ? new Date(r.actualDate).toLocaleDateString("en-IN") : "—"}.
+                    </div>
+                  )}
+                  {rawStatus === "failed" && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 text-sm text-red-700 font-medium">
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                      This release failed. Review post-mortem and create a follow-up release.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-6">
+                  <DetailGrid
+                    title="Metadata"
+                    icon={Package}
+                    items={[
+                      { label: "Planned Date", value: r.plannedDate ? new Date(r.plannedDate).toLocaleDateString("en-IN") : "—", icon: Calendar },
+                      { label: "Actual Date", value: r.actualDate ? new Date(r.actualDate).toLocaleDateString("en-IN") : "—", icon: CheckCircle2 },
+                      { label: "Created", value: new Date(r.createdAt).toLocaleDateString("en-IN"), icon: Clock },
+                    ]}
+                  />
+                </div>
               </div>
-              <div className="text-[13px] font-semibold text-foreground">{f.value}</div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-card border border-border rounded px-4 py-3">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-[12px] font-semibold text-foreground/80">Release Notes</h3>
-          {!isTerminal && !editingNotes && can("changes", "write") && (
-            <button onClick={() => { setNotesDraft(r.notes ?? ""); setEditingNotes(true); }}
-              className="text-[11px] text-primary hover:underline flex items-center gap-1">
-              <Edit2 className="w-3 h-3" /> Edit
-            </button>
-          )}
-        </div>
-        {editingNotes ? (
-          <div className="space-y-2">
-            <textarea
-              className="w-full text-xs border border-border rounded px-2 py-1.5 bg-background h-24 resize-none"
-              value={notesDraft}
-              onChange={(e) => setNotesDraft(e.target.value)}
-              placeholder="Describe what's included in this release…"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => updateRelease.mutate({ id, notes: notesDraft })}
-                disabled={updateRelease.isPending}
-                className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded disabled:opacity-50">
-                <Save className="w-3 h-3" /> {updateRelease.isPending ? "Saving…" : "Save"}
-              </button>
-              <button onClick={() => setEditingNotes(false)} className="flex items-center gap-1 px-2 py-1.5 border border-border text-[11px] rounded hover:bg-accent">
-                <X className="w-3 h-3" /> Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[12px] text-muted-foreground">{r.notes ?? "No release notes recorded."}</p>
-        )}
-      </div>
-
-      {rawStatus === "complete" && (
-        <div className="bg-green-50 border border-green-200 rounded px-4 py-3 flex items-center gap-2 text-[12px] text-green-700">
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          Release {r.version} successfully deployed on {r.actualDate ? new Date(r.actualDate).toLocaleDateString("en-GB") : "—"}.
-        </div>
-      )}
-      {rawStatus === "failed" && (
-        <div className="bg-red-50 border border-red-200 rounded px-4 py-3 flex items-center gap-2 text-[12px] text-red-700">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          This release failed. Review post-mortem and create a follow-up release.
-        </div>
-      )}
+          );
+        }}
+      </ResourceView>
     </div>
+  );
+}
   );
 }

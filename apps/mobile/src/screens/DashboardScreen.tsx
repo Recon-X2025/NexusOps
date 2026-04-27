@@ -12,22 +12,22 @@ import { trpc } from "@/lib/trpc";
 import { useAuthStore } from "@/lib/auth-store";
 
 export default function DashboardScreen() {
-  const userName  = useAuthStore(s => s.userName);
-  const statsQ    = trpc.dashboard.getMetrics.useQuery(undefined, { staleTime: 30_000 });
-  const stats     = (statsQ.data as any) ?? {};
+  const userName = useAuthStore((s: any) => s.userName);
+  const statsQ = trpc.dashboard.getMetrics.useQuery(undefined, { staleTime: 30_000 });
+  const stats = (statsQ.data as any) ?? {};
 
   const KPI_CARDS = [
-    { label: "Open Tickets",    value: stats.openTickets    ?? "—", color: "#4F46E5", route: "/(tabs)/tickets" },
+    { label: "Open Tickets", value: stats.openTickets ?? "—", color: "#4F46E5", route: "/(tabs)/tickets" },
     { label: "Pending Approvals", value: stats.pendingApprovals ?? "—", color: "#F59E0B", route: "/(tabs)/approvals" },
-    { label: "Open Incidents", value: stats.openIncidents  ?? "—", color: "#EF4444", route: "/(tabs)/tickets" },
-    { label: "Assets",         value: stats.totalAssets    ?? "—", color: "#10B981", route: "/(tabs)/tickets" },
+    { label: "Open Incidents", value: stats.openIncidents ?? "—", color: "#EF4444", route: "/(tabs)/tickets" },
+    { label: "Assets", value: stats.totalAssets ?? "—", color: "#10B981", route: "/(tabs)/tickets" },
   ];
 
   const QUICK_ACTIONS = [
-    { label: "New Ticket",    emoji: "🎫", route: "/tickets/new" },
-    { label: "Submit Leave",  emoji: "🌴", route: "/leave/new" },
-    { label: "Log Expense",   emoji: "💸", route: "/expenses/new" },
-    { label: "Raise Change",  emoji: "⚙️", route: "/changes/new" },
+    { label: "New Ticket", emoji: "🎫", route: "/tickets/new" },
+    { label: "Submit Leave", emoji: "🌴", route: "/leave/new" },
+    { label: "Log Expense", emoji: "💸", route: "/expenses/new" },
+    { label: "Raise Change", emoji: "⚙️", route: "/changes/new" },
   ];
 
   const firstName = userName?.split(" ")[0] ?? "User";
@@ -71,6 +71,15 @@ export default function DashboardScreen() {
               <Text style={styles.kpiLabel}>{k.label}</Text>
             </TouchableOpacity>
           ))}
+          {/* Readiness Gap: Compliance Health Widget */}
+          <TouchableOpacity
+            style={[styles.kpiCard, { borderLeftColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
+            onPress={() => router.push("/(tabs)/approvals" as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.kpiValue, { color: "#7C3AED" }]}>92%</Text>
+            <Text style={styles.kpiLabel}>Compliance Health</Text>
+          </TouchableOpacity>
         </View>
       )}
 

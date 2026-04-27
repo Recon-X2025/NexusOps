@@ -148,53 +148,56 @@ export default function ProcurementPage() {
   const openPRs = requisitions.filter((r) => !["received","closed","rejected"].includes(r.status ?? "")).length;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShoppingCart className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Supply Chain & Procurement</h1>
-          <span className="text-[11px] text-muted-foreground/70">Requisitions · Purchase Orders · Goods Receipt · Inventory</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => downloadCSV(purchaseOrders.map((p: any) => ({
-              PO_Number: p.poNumber ?? p.number,
-              Legal_entity: p.legalEntityCode ?? "",
-              Vendor: p.vendorName ?? p.vendorId ?? "",
-              Status: p.status,
-              Total: p.totalAmount ?? "",
-              Tax: p.gstAmount ?? "",
-              Created: new Date(p.createdAt).toLocaleDateString("en-IN"),
-            })), "purchase_orders")}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-          >
-            <Download className="w-3 h-3" /> Export
-          </button>
-          <PermissionGate module="procurement" action="write">
+    <div className="flex flex-col gap-6 p-6">
+      <PageHeader
+        title="Supply Chain & Procurement"
+        subtitle="Requisitions · Purchase Orders · Goods Receipt · Inventory"
+        icon={ShoppingCart}
+        actions={
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowNewPR((v) => !v)}
-              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+              onClick={() => downloadCSV(purchaseOrders.map((p: any) => ({
+                PO_Number: p.poNumber ?? p.number,
+                Legal_entity: p.legalEntityCode ?? "",
+                Vendor: p.vendorName ?? p.vendorId ?? "",
+                Status: p.status,
+                Total: p.totalAmount ?? "",
+                Tax: p.gstAmount ?? "",
+                Created: new Date(p.createdAt).toLocaleDateString("en-IN"),
+              })), "purchase_orders")}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 text-muted-foreground"
             >
-              <Plus className="w-3 h-3" /> {showNewPR ? "Cancel" : "New Requisition"}
+              <Download className="w-4 h-4" /> Export
             </button>
-          </PermissionGate>
-        </div>
-      </div>
+            <PermissionGate module="procurement" action="write">
+              <button
+                onClick={() => setShowNewPR((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4" /> {showNewPR ? "Cancel" : "New Requisition"}
+              </button>
+            </PermissionGate>
+          </div>
+        }
+      />
 
       {prMsg && (
-        <div className="px-3 py-2 bg-green-50 border border-green-200 rounded text-[12px] text-green-700 font-medium">{prMsg}</div>
+        <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium animate-in fade-in slide-in-from-top-4">
+          {prMsg}
+        </div>
       )}
+
       {showNewPR && (
-        <div className="bg-card border border-primary/30 rounded p-4">
-          <h3 className="text-[12px] font-semibold text-foreground mb-3">New Purchase Requisition</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <label className="text-[11px] text-muted-foreground">Title *</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="What do you need?" value={prForm.title} onChange={(e) => setPrForm((f) => ({ ...f, title: e.target.value }))} />
+        <div className="bg-card border border-primary/20 rounded-xl p-6 shadow-sm animate-in zoom-in-95 duration-200">
+          <h3 className="text-sm font-bold text-foreground mb-4">New Purchase Requisition</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title *</label>
+              <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="What do you need?" value={prForm.title} onChange={(e) => setPrForm((f) => ({ ...f, title: e.target.value }))} />
             </div>
             <div>
-              <label className="text-[11px] text-muted-foreground">Priority</label>
-              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={prForm.priority} onChange={(e) => setPrForm((f) => ({ ...f, priority: e.target.value }))}>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Priority</label>
+              <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" value={prForm.priority} onChange={(e) => setPrForm((f) => ({ ...f, priority: e.target.value }))}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -202,72 +205,70 @@ export default function ProcurementPage() {
               </select>
             </div>
             <div>
-              <label className="text-[11px] text-muted-foreground">Department</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="IT / HR / Finance…" value={prForm.department} onChange={(e) => setPrForm((f) => ({ ...f, department: e.target.value }))} />
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Department</label>
+              <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="IT / HR / Finance…" value={prForm.department} onChange={(e) => setPrForm((f) => ({ ...f, department: e.target.value }))} />
             </div>
-            <div className="col-span-2">
-              <label className="text-[11px] text-muted-foreground">Justification</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Business reason…" value={prForm.justification} onChange={(e) => setPrForm((f) => ({ ...f, justification: e.target.value }))} />
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Justification</label>
+              <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Business reason…" value={prForm.justification} onChange={(e) => setPrForm((f) => ({ ...f, justification: e.target.value }))} />
             </div>
-            <div className="col-span-3 border-t border-border pt-3">
-              <p className="text-[11px] font-medium text-muted-foreground mb-2">Item (at least 1 required)</p>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-1">
-                  <label className="text-[11px] text-muted-foreground">Description *</label>
-                  <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Item name" value={prForm.itemDesc} onChange={(e) => setPrForm((f) => ({ ...f, itemDesc: e.target.value }))} />
+            <div className="md:col-span-3 border-t border-border pt-4 mt-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Item Details</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description *</label>
+                  <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Item name" value={prForm.itemDesc} onChange={(e) => setPrForm((f) => ({ ...f, itemDesc: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-[11px] text-muted-foreground">Qty</label>
-                  <input type="number" min="1" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={prForm.itemQty} onChange={(e) => setPrForm((f) => ({ ...f, itemQty: e.target.value }))} />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Qty</label>
+                  <input type="number" min="1" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" value={prForm.itemQty} onChange={(e) => setPrForm((f) => ({ ...f, itemQty: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-[11px] text-muted-foreground">Unit Price (₹)</label>
-                  <input type="number" min="0" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="0.00" value={prForm.itemPrice} onChange={(e) => setPrForm((f) => ({ ...f, itemPrice: e.target.value }))} />
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Unit Price (₹)</label>
+                  <input type="number" min="0" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="0.00" value={prForm.itemPrice} onChange={(e) => setPrForm((f) => ({ ...f, itemPrice: e.target.value }))} />
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex gap-2 mt-3">
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={() => setShowNewPR(false)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
             <button
               disabled={!prForm.title || !prForm.itemDesc || createPR.isPending}
               onClick={() => createPR.mutate({ title: prForm.title, justification: prForm.justification || undefined, priority: prForm.priority as any, department: prForm.department || undefined, items: [{ description: prForm.itemDesc, quantity: parseInt(prForm.itemQty) || 1, unitPrice: parseFloat(prForm.itemPrice) || 0 }] })}
-              className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              className="px-6 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md"
             >
               {createPR.isPending ? "Submitting…" : "Submit Requisition"}
             </button>
-            <button onClick={() => setShowNewPR(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
-            {createPR.isError && <span className="text-[11px] text-red-600">{(createPR.error as any)?.message}</span>}
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-5 gap-2">
-        {[
-          { label: "Open Purchase Orders",    value: purchaseOrders.filter(po => !["received","invoiced","paid","cancelled"].includes(po.status ?? "")).length, color: "text-blue-700" },
-          { label: "Total PO Value",           value: `₹${(totalPOValue / 1000).toFixed(0)}K`,  color: "text-foreground/80" },
-          { label: "Pending Approval",          value: pendingApproval,    color: pendingApproval > 0 ? "text-orange-700" : "text-green-700" },
-          { label: "Open Requisitions",         value: openPRs,             color: "text-blue-700" },
-          { label: "Low/Out of Stock Items",    value: lowStock,            color: lowStock > 0 ? "text-red-700" : "text-green-700" },
-        ].map((k) => (
-          <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
-          </div>
-        ))}
-      </div>
+      <DetailGrid
+        items={[
+          { label: "Open Purchase Orders", value: purchaseOrders.filter(po => !["received","invoiced","paid","cancelled"].includes(po.status ?? "")).length, icon: Package, className: "text-blue-700" },
+          { label: "Total PO Value", value: `₹${(totalPOValue / 1000).toFixed(0)}K`, icon: ShoppingCart },
+          { label: "Pending Approval", value: pendingApproval, icon: Clock, className: pendingApproval > 0 ? "text-orange-700" : "text-green-700" },
+          { label: "Open Requisitions", value: openPRs, icon: FileText, className: "text-blue-700" },
+          { label: "Low Stock Items", value: lowStock, icon: AlertTriangle, className: lowStock > 0 ? "text-red-700" : "text-green-700" },
+        ]}
+      />
 
       {lowStock > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded px-3 py-2 flex items-center gap-2 text-[12px] text-orange-700">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <strong>{lowStock} inventory items</strong> are low stock or out of stock.
+        <div className="px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3 text-sm text-orange-700">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1">
+            <strong>{lowStock} inventory items</strong> are low stock or out of stock.
+          </div>
         </div>
       )}
 
-      <div className="flex border-b border-border bg-card rounded-t overflow-x-auto">
+      <div className="flex border-b border-border gap-6">
         {visibleTabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 whitespace-nowrap transition-colors
-              ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
+            className={cn(
+              "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+              tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}>
             {t.label}
           </button>
         ))}
@@ -401,23 +402,23 @@ export default function ProcurementPage() {
                     const isExpanded = expandedPR === pr.id;
                     return (
                       <Fragment key={pr.id}>
-                        <tr className={`cursor-pointer ${isExpanded ? "bg-blue-50/40" : ""}`}
-                          onClick={() => setExpandedPR(isExpanded ? null : pr.id)}>
+                        <tr className={cn("hover:bg-muted/10 transition-colors cursor-pointer group", isExpanded ? "bg-blue-50/40" : "")}
+                          onClick={() => router.push(`/app/procurement/requisitions/${pr.id}`)}>
                           <td className="p-0"><div className={`priority-bar ${prPriority === "emergency" ? "bg-red-600" : prPriority === "urgent" ? "bg-orange-500" : "bg-green-500"}`} /></td>
-                          <td className="font-mono text-[11px] text-primary">{pr.number ?? pr.id}</td>
+                          <td className="font-mono text-[11px] text-primary group-hover:underline">{pr.number ?? pr.id}</td>
                           <td className="max-w-xs"><span className="truncate block font-medium text-foreground">{pr.title ?? "—"}</span></td>
                           <td className="text-muted-foreground">{pr.requesterId ? `…${pr.requesterId.slice(-6)}` : "—"}</td>
                           <td><span className="status-badge text-muted-foreground bg-muted">{pr.department ?? "—"}</span></td>
                           <td className="text-center text-muted-foreground">—</td>
-                          <td className="font-mono text-[11px] text-foreground/80">₹${Number(pr.totalAmount ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="font-mono text-[11px] text-foreground/80 font-bold">₹${Number(pr.totalAmount ?? 0).toLocaleString("en-IN")}</td>
                           <td><span className={`status-badge capitalize ${PRIORITY_COLOR[prPriority]}`}>{prPriority}</span></td>
                           <td><span className={`status-badge ${sCfg?.color ?? ""}`}>{sCfg?.label ?? prState}</span></td>
                           <td className="text-[11px] text-muted-foreground">—</td>
                           <td className="font-mono text-[10px] text-muted-foreground/70">{pr.budgetCode ?? "—"}</td>
-                          <td>
+                          <td onClick={(e) => e.stopPropagation()}>
                             {prState === "approved"
-                              ? <button onClick={(e) => { e.stopPropagation(); setExpandedPR(pr.id); setCreatingPO(pr.id); }} className="text-[11px] text-primary hover:underline">+ Create PO</button>
-                              : "—"
+                              ? <button onClick={() => { setExpandedPR(pr.id); setCreatingPO(pr.id); }} className="text-[11px] text-primary hover:underline font-bold">+ PO</button>
+                              : <button onClick={() => router.push(`/app/procurement/requisitions/${pr.id}`)} className="text-[11px] text-primary hover:underline font-bold">Details</button>
                             }
                           </td>
                         </tr>
@@ -554,28 +555,28 @@ export default function ProcurementPage() {
               return (
                 <div key={po.id} className="border-b border-border last:border-0">
                   <div
-                    className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 ${isExpanded ? "bg-blue-50/30" : ""}`}
-                    onClick={() => setExpandedPO(isExpanded ? null : po.id)}
+                    className={cn("flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 group", isExpanded ? "bg-blue-50/30" : "")}
+                    onClick={() => router.push(`/app/procurement/orders/${po.id}`)}
                   >
                     <div className="w-1 self-stretch rounded-full flex-shrink-0 bg-green-500" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="font-mono text-[11px] text-primary">{po.poNumber ?? po.id}</span>
+                            <span className="font-mono text-[11px] text-primary group-hover:underline">{po.poNumber ?? po.id}</span>
                             <span className={`status-badge ${sCfg?.color ?? ""}`}>{sCfg?.label ?? poState}</span>
                             {isLate && <span className="status-badge text-red-700 bg-red-100 font-bold">⚠ Overdue</span>}
                           </div>
-                          <p className="text-[13px] font-semibold text-foreground">{po.notes ?? "Purchase Order"}</p>
+                          <p className="text-[13px] font-bold text-foreground">{po.notes ?? "Purchase Order"}</p>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Vendor ID: <strong>{po.vendorId ? `…${po.vendorId.slice(-8)}` : "—"}</strong>
+                            Vendor: <strong>{po.vendorName || `ID: …${po.vendorId?.slice(-8)}`}</strong>
                             {po.legalEntityCode ? (
                               <> · Legal entity: <strong className="font-mono">{po.legalEntityCode}</strong></>
                             ) : null}
                           </p>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="text-[15px] font-bold text-foreground">{po.currency ?? "INR"} {Number(po.totalAmount ?? 0).toLocaleString("en-IN")}</div>
+                          <div className="text-[15px] font-black text-foreground font-mono">{po.currency ?? "INR"} {Number(po.totalAmount ?? 0).toLocaleString("en-IN")}</div>
                           <div className={`text-[11px] mt-0.5 ${isLate ? "text-red-600 font-semibold" : "text-muted-foreground/70"}`}>Due: {deliveryDate}</div>
                         </div>
                       </div>

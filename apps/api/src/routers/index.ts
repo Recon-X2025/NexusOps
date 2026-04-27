@@ -14,7 +14,7 @@ import { grcRouter } from "./grc";
 import { financialRouter } from "./financial";
 import { contractsRouter } from "./contracts";
 import { projectsRouter } from "./projects";
-import { crmRouter } from "./crm";
+import { crmRouter } from "./crm/index";
 import { legalRouter } from "./legal";
 import { devopsRouter } from "./devops";
 import { surveysRouter } from "./surveys";
@@ -49,6 +49,7 @@ import { workbenchRouter } from "./workbench";
 import { esignRouter } from "./esign";
 import { documentsRouter } from "./documents";
 import { agentRouter } from "./agent";
+import { ingestRouter } from "./ingest";
 
 export const appRouter = router({
   mac: macRouter,
@@ -111,6 +112,8 @@ export const appRouter = router({
   documents: documentsRouter,
   // P1 — multi-turn Copilot agent with conversation memory + write tools
   agent: agentRouter,
+  // Readiness Gap: Bulk Ingest
+  ingest: ingestRouter,
 });
 
 export type AppRouter = typeof appRouter;

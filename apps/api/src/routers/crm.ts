@@ -93,6 +93,24 @@ export const crmRouter = router({
       return account;
     }),
 
+  getAccount: permissionProcedure("accounts", "read")
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [account] = await db.select().from(crmAccounts).where(and(eq(crmAccounts.id, input.id), eq(crmAccounts.orgId, org!.id)));
+      if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Account not found" });
+      return account;
+    }),
+
+  deleteAccount: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [account] = await db.delete(crmAccounts).where(and(eq(crmAccounts.id, input.id), eq(crmAccounts.orgId, org!.id))).returning();
+      if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Account not found" });
+      return { success: true };
+    }),
+
   // ── Contacts ──────────────────────────────────────────────────────────────
   listContacts: permissionProcedure("accounts", "read")
     .input(z.object({ accountId: z.string().uuid().optional(), limit: z.coerce.number().default(50) }))
@@ -109,6 +127,24 @@ export const crmRouter = router({
       const { db, org } = ctx;
       const [contact] = await db.insert(crmContacts).values({ orgId: org!.id, ...input }).returning();
       return contact;
+    }),
+
+  getContact: permissionProcedure("accounts", "read")
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [contact] = await db.select().from(crmContacts).where(and(eq(crmContacts.id, input.id), eq(crmContacts.orgId, org!.id)));
+      if (!contact) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+      return contact;
+    }),
+
+  deleteContact: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [contact] = await db.delete(crmContacts).where(and(eq(crmContacts.id, input.id), eq(crmContacts.orgId, org!.id))).returning();
+      if (!contact) throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
+      return { success: true };
     }),
 
   // ── Deals ─────────────────────────────────────────────────────────────────
@@ -242,6 +278,24 @@ export const crmRouter = router({
       return updated;
     }),
 
+  getDeal: permissionProcedure("accounts", "read")
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [deal] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
+      if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      return deal;
+    }),
+
+  deleteDeal: permissionProcedure("accounts", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [deal] = await db.delete(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      return { success: true };
+    }),
+
   /** DB-backed deal close thresholds (US-CRM-003). */
   dealApprovalThresholds: router({
     get: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
@@ -320,7 +374,7 @@ export const crmRouter = router({
       email: z.string().optional(),
       company: z.string().optional(),
       title: z.string().optional(),
-      status: z.enum(["new","contacted","qualified","disqualified","converted"]).optional(),
+      status: z.enum(["new", "contacted", "qualified", "disqualified", "converted"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -396,7 +450,7 @@ export const crmRouter = router({
     }),
 
   updateQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.enum(["draft","sent","viewed","accepted","declined","expired"]).optional(), notes: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(["draft", "sent", "viewed", "accepted", "declined", "expired"]).optional(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;

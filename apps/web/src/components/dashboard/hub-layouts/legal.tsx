@@ -113,10 +113,11 @@ export function LegalPrimary({ payload, granularity }: HubPrimaryProps) {
             </div>
 
             <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <h4 className="text-xs font-bold text-slate-800 mb-3">Matter Status</h4>
+              <h4 className="text-xs font-bold text-slate-800 mb-3">Matter & Investigation Status</h4>
               <div className="space-y-3">
                 {[
                   { name: "Litigation", count: 12, pct: 45, color: "bg-rose-500" },
+                  { name: "Investigations", count: 3, pct: 20, color: "bg-amber-500" },
                   { name: "Contracts", count: 28, pct: 75, color: "bg-blue-500" },
                   { name: "Advisory", count: 8, pct: 90, color: "bg-emerald-500" },
                 ].map((m) => (
@@ -130,6 +131,16 @@ export function LegalPrimary({ payload, granularity }: HubPrimaryProps) {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-800 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider">Legal Hold Active</h4>
+                <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+              </div>
+              <div className="text-[10px] text-slate-400 leading-relaxed">
+                <span className="text-rose-400 font-bold">4 Documents</span> currently under legal hold across 2 active matters.
               </div>
             </div>
           </div>

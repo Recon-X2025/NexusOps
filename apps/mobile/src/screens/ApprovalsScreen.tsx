@@ -36,14 +36,27 @@ export default function ApprovalsScreen() {
   }
 
   function renderItem({ item }: { item: any }) {
+    const isBoardResolution = item.type === "board_resolution" || item.entityType === "board_resolution";
+
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, isBoardResolution && styles.boardCard]}>
         <View style={styles.cardRow}>
-          <Text style={styles.type}>{(item.type ?? "Request").replace(/_/g, " ")}</Text>
+          <Text style={[styles.type, isBoardResolution && styles.boardType]}>
+            {isBoardResolution ? "🏛️ Board Resolution" : (item.type ?? "Request").replace(/_/g, " ")}
+          </Text>
           <Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString("en-IN")}</Text>
         </View>
-        <Text style={styles.subject} numberOfLines={2}>{item.title ?? item.subject ?? item.entityType ?? "Approval Request"}</Text>
+        <Text style={[styles.subject, isBoardResolution && styles.boardSubject]} numberOfLines={2}>
+          {item.title ?? item.subject ?? item.entityType ?? "Approval Request"}
+        </Text>
         <Text style={styles.meta}>Requested by: {item.requestedBy ?? item.requestedByName ?? "—"}</Text>
+
+        {isBoardResolution && (
+          <View style={styles.boardBadge}>
+            <Text style={styles.boardBadgeText}>Requires Director Sign-off</Text>
+          </View>
+        )}
+
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.btn, styles.approveBtn]}
@@ -149,4 +162,16 @@ const styles = StyleSheet.create({
   btnText: { fontSize: 13, fontWeight: "600" },
   empty: { fontSize: 20 },
   emptySub: { fontSize: 14, color: "#9CA3AF" },
+  boardCard: { borderLeftWidth: 4, borderLeftColor: "#7C3AED", backgroundColor: "#F5F3FF" },
+  boardType: { color: "#5B21B6" },
+  boardSubject: { color: "#1E1B4B" },
+  boardBadge: {
+    backgroundColor: "#DDD6FE",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginBottom: 12,
+  },
+  boardBadgeText: { fontSize: 10, fontWeight: "800", color: "#4C1D95", textTransform: "uppercase" },
 });

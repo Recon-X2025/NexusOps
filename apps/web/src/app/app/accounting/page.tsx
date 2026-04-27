@@ -342,6 +342,8 @@ function GSTRTab() {
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────
+import { PageHeader } from "@/components/ui/page-header";
+
 export default function AccountingPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const [tab, setTab] = useState<Tab>("coa");
@@ -349,29 +351,54 @@ export default function AccountingPage() {
   if (!can("financial", "read")) return <AccessDenied module="Accounting" />;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Accounting</h1>
-          <span className="text-[11px] text-muted-foreground/70">COA · Journal Entries · Trial Balance · P&L · GSTR</span>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6 p-6 animate-in fade-in duration-500">
+      <PageHeader
+        title="Accounting"
+        subtitle="Chart of Accounts · Journal Entries · Trial Balance · P&L · GSTR"
+        icon={BookOpen}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => toast.info("Exporting ledger...", { duration: 2000 })}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-all"
+            >
+              <Download className="w-4 h-4" /> Export All
+            </button>
+            <PermissionGate module="financial" action="write">
+              <button
+                onClick={() => toast.info("New Journal Entry coming soon", { duration: 3000 })}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
+              >
+                <Plus className="w-4 h-4" /> New Journal Entry
+              </button>
+            </PermissionGate>
+          </div>
+        }
+      />
 
-      <div className="flex gap-1 border-b border-border">
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={cn("flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 transition-colors", tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            <t.icon className="w-3.5 h-3.5" />
+      <div className="flex border-b border-border gap-6 overflow-x-auto pb-px">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap flex items-center gap-2",
+              tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <t.icon className="w-4 h-4" />
             {t.label}
           </button>
         ))}
       </div>
 
-      {tab === "coa"           && <CoaTab />}
-      {tab === "journal"       && <JournalTab />}
-      {tab === "trial_balance" && <TrialBalanceTab />}
-      {tab === "pnl"           && <PnLTab />}
-      {tab === "gstr"          && <GSTRTab />}
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {tab === "coa"           && <CoaTab />}
+        {tab === "journal"       && <JournalTab />}
+        {tab === "trial_balance" && <TrialBalanceTab />}
+        {tab === "pnl"           && <PnLTab />}
+        {tab === "gstr"          && <GSTRTab />}
+      </div>
     </div>
   );
 }

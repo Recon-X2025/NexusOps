@@ -10,7 +10,7 @@ async function loginAs(page: Page, email: string, password = "demo1234!") {
   await page.fill('[data-testid="login-email"]', email);
   await page.fill('[data-testid="login-password"]', password);
   await page.click('[data-testid="login-submit"]');
-  await page.waitForURL(/app\/dashboard/, { timeout: 15_000 });
+  await page.waitForURL(/app\/command/, { timeout: 15_000 });
 }
 
 async function logout(page: Page) {
@@ -102,7 +102,7 @@ test.describe("RBAC — Restricted user", () => {
   });
 
   test("employee can access dashboard", async ({ page }) => {
-    await page.goto("/app/dashboard");
+    await page.goto("/app/command");
     await page.waitForLoadState("networkidle");
     const body = await page.textContent("body");
     expect(body).not.toContain("Unhandled Runtime Error");
@@ -135,7 +135,7 @@ test.describe("RBAC — Session & Auth Guard", () => {
   test("session cookie cleared after logout clears access", async ({ page }) => {
     await loginAs(page, "admin@coheron.com");
     // Verify logged in
-    await expect(page).toHaveURL(/app\/dashboard/);
+    await expect(page).toHaveURL(/app\/command/);
     // Clear cookies manually (simulates session expiry)
     await page.context().clearCookies();
     // Navigate and check redirect

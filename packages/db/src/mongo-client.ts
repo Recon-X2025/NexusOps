@@ -1,7 +1,7 @@
-import { MongoClient, type Db } from "mongodb";
+import { MongoClient, type Db as MongoDb } from "mongodb";
 
 let _mongoClient: MongoClient | undefined;
-let _mongoDb: Db | undefined;
+let _mongoDb: MongoDb | undefined;
 
 function mongoDbName(): string {
   return process.env.MONGODB_DB_NAME?.trim() || "nexusops";
@@ -50,7 +50,7 @@ export async function connectMongoOrThrow(): Promise<void> {
  * Returns the default Mongo database after a successful init.
  * @throws If Mongo was not initialized (no URI or init failed).
  */
-export function getMongoDb(): Db {
+export function getMongoDb(): MongoDb {
   if (!_mongoDb) {
     throw new Error(
       "MongoDB is not connected. Set MONGODB_URI and use DATABASE_PROVIDER=hybrid|mongo with API startup, or call connectMongoOrThrow() / initMongoIfConfigured().",

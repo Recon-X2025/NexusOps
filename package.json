@@ -41,6 +41,7 @@
     "test:local-ready": "bash scripts/local-test-ready.sh",
     "lint": "turbo run lint --filter=!@nexusops/mobile",
     "lint:all": "turbo run lint",
+    "check:migrations": "node scripts/verify-migration-journal.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "db:push": "turbo run db:push --filter=./packages/db",
     "db:migrate": "turbo run db:migrate --filter=./packages/db",

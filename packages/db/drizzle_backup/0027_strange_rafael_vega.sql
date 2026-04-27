@@ -1,45 +1,45 @@
-CREATE TYPE "public"."attendance_status" AS ENUM('present', 'absent', 'half_day', 'late', 'on_leave', 'holiday', 'weekend');--> statement-breakpoint
-CREATE TYPE "public"."kr_status" AS ENUM('on_track', 'at_risk', 'behind', 'completed');--> statement-breakpoint
-CREATE TYPE "public"."okr_cycle" AS ENUM('q1', 'q2', 'q3', 'q4', 'annual');--> statement-breakpoint
-CREATE TYPE "public"."okr_status" AS ENUM('draft', 'active', 'completed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."public_holiday_type" AS ENUM('national', 'restricted', 'state', 'company');--> statement-breakpoint
-CREATE TYPE "public"."shift_type" AS ENUM('morning', 'afternoon', 'night', 'flexible', 'remote');--> statement-breakpoint
-CREATE TYPE "public"."expense_category" AS ENUM('travel', 'accommodation', 'food', 'meals', 'fuel', 'transport', 'communication', 'office_supplies', 'software', 'marketing', 'client_entertainment', 'training', 'entertainment', 'medical', 'miscellaneous', 'other');--> statement-breakpoint
-CREATE TYPE "public"."expense_status" AS ENUM('draft', 'submitted', 'under_review', 'approved', 'rejected', 'reimbursed', 'paid', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."goal_status" AS ENUM('draft', 'active', 'at_risk', 'completed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."rating_scale" AS ENUM('1', '2', '3', '4', '5');--> statement-breakpoint
-CREATE TYPE "public"."review_status" AS ENUM('draft', 'self_review', 'peer_review', 'manager_review', 'calibration', 'completed');--> statement-breakpoint
-CREATE TYPE "public"."candidate_source" AS ENUM('linkedin', 'naukri', 'indeed', 'referral', 'agency', 'website', 'campus', 'internal', 'other');--> statement-breakpoint
-CREATE TYPE "public"."candidate_stage" AS ENUM('applied', 'screening', 'phone_screen', 'technical', 'panel', 'hr_round', 'offer', 'hired', 'rejected', 'withdrawn');--> statement-breakpoint
-CREATE TYPE "public"."interview_status" AS ENUM('scheduled', 'completed', 'cancelled', 'no_show');--> statement-breakpoint
-CREATE TYPE "public"."interview_type" AS ENUM('phone', 'video', 'onsite', 'technical', 'case_study', 'hr');--> statement-breakpoint
-CREATE TYPE "public"."job_level" AS ENUM('intern', 'junior', 'mid', 'senior', 'lead', 'manager', 'director', 'vp', 'c_level');--> statement-breakpoint
-CREATE TYPE "public"."job_status" AS ENUM('draft', 'open', 'on_hold', 'closed', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."job_type" AS ENUM('full_time', 'part_time', 'contract', 'internship', 'freelance');--> statement-breakpoint
-CREATE TYPE "public"."offer_status" AS ENUM('draft', 'sent', 'accepted', 'declined', 'expired', 'revoked');--> statement-breakpoint
-CREATE TYPE "public"."esop_event" AS ENUM('grant', 'vest', 'exercise', 'lapse', 'cancel');--> statement-breakpoint
-CREATE TYPE "public"."secretarial_filing_status" AS ENUM('upcoming', 'in_progress', 'filed', 'overdue', 'not_applicable');--> statement-breakpoint
-CREATE TYPE "public"."board_meeting_status" AS ENUM('scheduled', 'in_progress', 'completed', 'cancelled', 'adjourned');--> statement-breakpoint
-CREATE TYPE "public"."board_meeting_type" AS ENUM('board', 'audit_committee', 'nomination_committee', 'compensation_committee', 'agm', 'egm', 'creditors');--> statement-breakpoint
-CREATE TYPE "public"."board_resolution_status" AS ENUM('draft', 'passed', 'rejected', 'withdrawn');--> statement-breakpoint
-CREATE TYPE "public"."board_resolution_type" AS ENUM('ordinary', 'special', 'board', 'circular');--> statement-breakpoint
-CREATE TYPE "public"."share_class" AS ENUM('equity', 'preference', 'esop_pool', 'convertible');--> statement-breakpoint
-CREATE TYPE "public"."account_sub_type" AS ENUM('bank', 'cash', 'accounts_receivable', 'other_current_asset', 'fixed_asset', 'accumulated_depreciation', 'other_asset', 'accounts_payable', 'credit_card', 'other_current_liability', 'long_term_liability', 'owners_equity', 'retained_earnings', 'share_capital', 'income', 'other_income', 'cost_of_goods_sold', 'expense', 'other_expense', 'payroll_expense', 'depreciation');--> statement-breakpoint
-CREATE TYPE "public"."account_type" AS ENUM('asset', 'liability', 'equity', 'income', 'expense', 'contra_asset', 'contra_liability', 'contra_equity', 'contra_income', 'contra_expense');--> statement-breakpoint
-CREATE TYPE "public"."gstr_filing_status" AS ENUM('draft', 'ready', 'filed', 'accepted', 'rejected');--> statement-breakpoint
-CREATE TYPE "public"."journal_entry_status" AS ENUM('draft', 'posted', 'reversed', 'voided');--> statement-breakpoint
-CREATE TYPE "public"."journal_entry_type" AS ENUM('manual', 'invoice', 'payment', 'payroll', 'depreciation', 'closing', 'opening', 'reversal', 'gst_liability', 'tds_deduction');--> statement-breakpoint
-CREATE TYPE "public"."custom_field_entity" AS ENUM('ticket', 'asset', 'employee', 'contract', 'vendor', 'project', 'change_request', 'lead', 'invoice', 'expense_claim', 'okr_objective');--> statement-breakpoint
-CREATE TYPE "public"."custom_field_type" AS ENUM('text', 'textarea', 'number', 'decimal', 'boolean', 'date', 'datetime', 'select', 'multi_select', 'url', 'email', 'phone', 'user_reference', 'file', 'json');--> statement-breakpoint
-CREATE TYPE "public"."esign_provider" AS ENUM('emudhra', 'docusign', 'internal_otp');--> statement-breakpoint
-CREATE TYPE "public"."esign_request_status" AS ENUM('draft', 'sent', 'viewed', 'signed', 'declined', 'expired', 'voided', 'completed');--> statement-breakpoint
-CREATE TYPE "public"."esigner_status" AS ENUM('pending', 'viewed', 'signed', 'declined');--> statement-breakpoint
-CREATE TYPE "public"."document_acl_permission" AS ENUM('read', 'write', 'delete', 'share');--> statement-breakpoint
-CREATE TYPE "public"."document_acl_principal_type" AS ENUM('user', 'role', 'team', 'everyone_in_org');--> statement-breakpoint
-CREATE TYPE "public"."document_classification" AS ENUM('public', 'internal', 'confidential', 'restricted', 'pii');--> statement-breakpoint
-CREATE TYPE "public"."document_scan_status" AS ENUM('pending', 'clean', 'infected', 'skipped', 'failed');--> statement-breakpoint
-ALTER TYPE "public"."ticket_status_category" ADD VALUE 'pending' BEFORE 'resolved';--> statement-breakpoint
-ALTER TYPE "public"."project_status" ADD VALUE 'proposed' BEFORE 'planning';--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."attendance_status" AS ENUM('present', 'absent', 'half_day', 'late', 'on_leave', 'holiday', 'weekend'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."kr_status" AS ENUM('on_track', 'at_risk', 'behind', 'completed'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."okr_cycle" AS ENUM('q1', 'q2', 'q3', 'q4', 'annual'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."okr_status" AS ENUM('draft', 'active', 'completed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."public_holiday_type" AS ENUM('national', 'restricted', 'state', 'company'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."shift_type" AS ENUM('morning', 'afternoon', 'night', 'flexible', 'remote'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."expense_category" AS ENUM('travel', 'accommodation', 'food', 'meals', 'fuel', 'transport', 'communication', 'office_supplies', 'software', 'marketing', 'client_entertainment', 'training', 'entertainment', 'medical', 'miscellaneous', 'other'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."expense_status" AS ENUM('draft', 'submitted', 'under_review', 'approved', 'rejected', 'reimbursed', 'paid', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."goal_status" AS ENUM('draft', 'active', 'at_risk', 'completed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."rating_scale" AS ENUM('1', '2', '3', '4', '5'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."review_status" AS ENUM('draft', 'self_review', 'peer_review', 'manager_review', 'calibration', 'completed'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."candidate_source" AS ENUM('linkedin', 'naukri', 'indeed', 'referral', 'agency', 'website', 'campus', 'internal', 'other'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."candidate_stage" AS ENUM('applied', 'screening', 'phone_screen', 'technical', 'panel', 'hr_round', 'offer', 'hired', 'rejected', 'withdrawn'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."interview_status" AS ENUM('scheduled', 'completed', 'cancelled', 'no_show'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."interview_type" AS ENUM('phone', 'video', 'onsite', 'technical', 'case_study', 'hr'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."job_level" AS ENUM('intern', 'junior', 'mid', 'senior', 'lead', 'manager', 'director', 'vp', 'c_level'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."job_status" AS ENUM('draft', 'open', 'on_hold', 'closed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."job_type" AS ENUM('full_time', 'part_time', 'contract', 'internship', 'freelance'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."offer_status" AS ENUM('draft', 'sent', 'accepted', 'declined', 'expired', 'revoked'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."esop_event" AS ENUM('grant', 'vest', 'exercise', 'lapse', 'cancel'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."secretarial_filing_status" AS ENUM('upcoming', 'in_progress', 'filed', 'overdue', 'not_applicable'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."board_meeting_status" AS ENUM('scheduled', 'in_progress', 'completed', 'cancelled', 'adjourned'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."board_meeting_type" AS ENUM('board', 'audit_committee', 'nomination_committee', 'compensation_committee', 'agm', 'egm', 'creditors'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."board_resolution_status" AS ENUM('draft', 'passed', 'rejected', 'withdrawn'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."board_resolution_type" AS ENUM('ordinary', 'special', 'board', 'circular'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."share_class" AS ENUM('equity', 'preference', 'esop_pool', 'convertible'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."account_sub_type" AS ENUM('bank', 'cash', 'accounts_receivable', 'other_current_asset', 'fixed_asset', 'accumulated_depreciation', 'other_asset', 'accounts_payable', 'credit_card', 'other_current_liability', 'long_term_liability', 'owners_equity', 'retained_earnings', 'share_capital', 'income', 'other_income', 'cost_of_goods_sold', 'expense', 'other_expense', 'payroll_expense', 'depreciation'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."account_type" AS ENUM('asset', 'liability', 'equity', 'income', 'expense', 'contra_asset', 'contra_liability', 'contra_equity', 'contra_income', 'contra_expense'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."gstr_filing_status" AS ENUM('draft', 'ready', 'filed', 'accepted', 'rejected'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."journal_entry_status" AS ENUM('draft', 'posted', 'reversed', 'voided'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."journal_entry_type" AS ENUM('manual', 'invoice', 'payment', 'payroll', 'depreciation', 'closing', 'opening', 'reversal', 'gst_liability', 'tds_deduction'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."custom_field_entity" AS ENUM('ticket', 'asset', 'employee', 'contract', 'vendor', 'project', 'change_request', 'lead', 'invoice', 'expense_claim', 'okr_objective'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."custom_field_type" AS ENUM('text', 'textarea', 'number', 'decimal', 'boolean', 'date', 'datetime', 'select', 'multi_select', 'url', 'email', 'phone', 'user_reference', 'file', 'json'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."esign_provider" AS ENUM('emudhra', 'docusign', 'internal_otp'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."esign_request_status" AS ENUM('draft', 'sent', 'viewed', 'signed', 'declined', 'expired', 'voided', 'completed'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."esigner_status" AS ENUM('pending', 'viewed', 'signed', 'declined'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."document_acl_permission" AS ENUM('read', 'write', 'delete', 'share'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."document_acl_principal_type" AS ENUM('user', 'role', 'team', 'everyone_in_org'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."document_classification" AS ENUM('public', 'internal', 'confidential', 'restricted', 'pii'); EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."document_scan_status" AS ENUM('pending', 'clean', 'infected', 'skipped', 'failed'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- ALTER TYPE "public"."ticket_status_category" ADD VALUE 'pending' BEFORE 'resolved';--> statement-breakpoint
+-- ALTER TYPE "public"."project_status" ADD VALUE 'proposed' BEFORE 'planning';--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "legal_entities" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"org_id" uuid NOT NULL,
@@ -1011,63 +1011,63 @@ CREATE TABLE IF NOT EXISTS "documents" (
 );
 --> statement-breakpoint
 DROP INDEX IF EXISTS "tickets_idempotency_key_idx";--> statement-breakpoint
-ALTER TABLE "users" ADD COLUMN "mfa_enrolled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "configuration_item_id" uuid;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "known_error_id" uuid;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "is_major_incident" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "sla_pause_reason_code" text;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "parent_ticket_id" uuid;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "intake_channel" text DEFAULT 'portal' NOT NULL;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "embedding_vector" text;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "external_id" text;--> statement-breakpoint
-ALTER TABLE "tickets" ADD COLUMN "external_source" text;--> statement-breakpoint
-ALTER TABLE "ci_items" ADD COLUMN "external_key" text;--> statement-breakpoint
-ALTER TABLE "employees" ADD COLUMN "job_grade" text;--> statement-breakpoint
-ALTER TABLE "employees" ADD COLUMN "dotted_line_manager_id" uuid;--> statement-breakpoint
-ALTER TABLE "payroll_runs" ADD COLUMN "pipeline_status" text DEFAULT 'DRAFT' NOT NULL;--> statement-breakpoint
-ALTER TABLE "payroll_runs" ADD COLUMN "run_number" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
-ALTER TABLE "payroll_runs" ADD COLUMN "workflow_metadata" jsonb DEFAULT '{"errors":[],"approvals":[]}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "invoices" ADD COLUMN "invoice_flow" text DEFAULT 'payable' NOT NULL;--> statement-breakpoint
-ALTER TABLE "invoices" ADD COLUMN "legal_entity_id" uuid;--> statement-breakpoint
-ALTER TABLE "invoices" ADD COLUMN "approved_by_id" uuid;--> statement-breakpoint
-ALTER TABLE "invoices" ADD COLUMN "payment_method" text;--> statement-breakpoint
-ALTER TABLE "purchase_orders" ADD COLUMN "legal_entity_id" uuid;--> statement-breakpoint
-ALTER TABLE "kb_articles" ADD COLUMN "content_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
-ALTER TABLE "integrations" ADD COLUMN "kms_key_id" text;--> statement-breakpoint
-ALTER TABLE "integrations" ADD COLUMN "dek_wrapped_b64" text;--> statement-breakpoint
-ALTER TABLE "change_requests" ADD COLUMN "risk_score" integer;--> statement-breakpoint
-ALTER TABLE "change_requests" ADD COLUMN "risk_questionnaire" jsonb;--> statement-breakpoint
-ALTER TABLE "problems" ADD COLUMN "notes" jsonb;--> statement-breakpoint
-ALTER TABLE "security_incidents" ADD COLUMN "ir_playbook_checklist" jsonb DEFAULT '[]'::jsonb;--> statement-breakpoint
-ALTER TABLE "vulnerabilities" ADD COLUMN "external_fingerprint" text;--> statement-breakpoint
-ALTER TABLE "vulnerabilities" ADD COLUMN "scanner_source" text;--> statement-breakpoint
-ALTER TABLE "vulnerabilities" ADD COLUMN "remediation_sla_days" integer;--> statement-breakpoint
-ALTER TABLE "vulnerabilities" ADD COLUMN "remediation_due_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "vendor_risks" ADD COLUMN "attachment_refs" jsonb DEFAULT '[]'::jsonb;--> statement-breakpoint
-ALTER TABLE "vendor_risks" ADD COLUMN "questionnaire_answers" jsonb;--> statement-breakpoint
-ALTER TABLE "contracts" ADD COLUMN "notes" text;--> statement-breakpoint
-ALTER TABLE "contracts" ADD COLUMN "stamp_duty_status" text;--> statement-breakpoint
-ALTER TABLE "contracts" ADD COLUMN "registration_status" text;--> statement-breakpoint
-ALTER TABLE "contracts" ADD COLUMN "registration_due_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "initiative_id" uuid;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "benefit_type" text;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "benefit_target" numeric(14, 2);--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "benefit_actual" numeric(14, 2);--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "linked_application_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "crm_deals" ADD COLUMN "won_approved_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "crm_deals" ADD COLUMN "won_approved_by" uuid;--> statement-breakpoint
-ALTER TABLE "crm_deals" ADD COLUMN "won_approval_tier" text;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "cnr" text;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "court_name" text;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "forum" text;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "next_hearing_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "limitation_deadline_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "arbitration_seat" text;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "arbitration_institution" text;--> statement-breakpoint
-ALTER TABLE "legal_matters" ADD COLUMN "legal_hold" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "catalog_requests" ADD COLUMN "fulfillment_ticket_id" uuid;--> statement-breakpoint
-ALTER TABLE "catalog_requests" ADD COLUMN "batch_id" uuid;--> statement-breakpoint
-ALTER TABLE "catalog_requests" ADD COLUMN "fulfillment_checklist" jsonb DEFAULT '[]'::jsonb;--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "mfa_enrolled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "configuration_item_id" uuid;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "known_error_id" uuid;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "is_major_incident" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "sla_pause_reason_code" text;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "parent_ticket_id" uuid;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "intake_channel" text DEFAULT 'portal' NOT NULL;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "embedding_vector" text;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "external_id" text;--> statement-breakpoint
+ALTER TABLE "tickets" ADD COLUMN IF NOT EXISTS "external_source" text;--> statement-breakpoint
+ALTER TABLE "ci_items" ADD COLUMN IF NOT EXISTS "external_key" text;--> statement-breakpoint
+ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "job_grade" text;--> statement-breakpoint
+ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "dotted_line_manager_id" uuid;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN IF NOT EXISTS "pipeline_status" text DEFAULT 'DRAFT' NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN IF NOT EXISTS "run_number" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_runs" ADD COLUMN IF NOT EXISTS "workflow_metadata" jsonb DEFAULT '{"errors":[],"approvals":[]}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "invoice_flow" text DEFAULT 'payable' NOT NULL;--> statement-breakpoint
+ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "legal_entity_id" uuid;--> statement-breakpoint
+ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "approved_by_id" uuid;--> statement-breakpoint
+ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "payment_method" text;--> statement-breakpoint
+ALTER TABLE "purchase_orders" ADD COLUMN IF NOT EXISTS "legal_entity_id" uuid;--> statement-breakpoint
+ALTER TABLE "kb_articles" ADD COLUMN IF NOT EXISTS "content_version" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "integrations" ADD COLUMN IF NOT EXISTS "kms_key_id" text;--> statement-breakpoint
+ALTER TABLE "integrations" ADD COLUMN IF NOT EXISTS "dek_wrapped_b64" text;--> statement-breakpoint
+ALTER TABLE "change_requests" ADD COLUMN IF NOT EXISTS "risk_score" integer;--> statement-breakpoint
+ALTER TABLE "change_requests" ADD COLUMN IF NOT EXISTS "risk_questionnaire" jsonb;--> statement-breakpoint
+ALTER TABLE "problems" ADD COLUMN IF NOT EXISTS "notes" jsonb;--> statement-breakpoint
+ALTER TABLE "security_incidents" ADD COLUMN IF NOT EXISTS "ir_playbook_checklist" jsonb DEFAULT '[]'::jsonb;--> statement-breakpoint
+ALTER TABLE "vulnerabilities" ADD COLUMN IF NOT EXISTS "external_fingerprint" text;--> statement-breakpoint
+ALTER TABLE "vulnerabilities" ADD COLUMN IF NOT EXISTS "scanner_source" text;--> statement-breakpoint
+ALTER TABLE "vulnerabilities" ADD COLUMN IF NOT EXISTS "remediation_sla_days" integer;--> statement-breakpoint
+ALTER TABLE "vulnerabilities" ADD COLUMN IF NOT EXISTS "remediation_due_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "vendor_risks" ADD COLUMN IF NOT EXISTS "attachment_refs" jsonb DEFAULT '[]'::jsonb;--> statement-breakpoint
+ALTER TABLE "vendor_risks" ADD COLUMN IF NOT EXISTS "questionnaire_answers" jsonb;--> statement-breakpoint
+ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "notes" text;--> statement-breakpoint
+ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "stamp_duty_status" text;--> statement-breakpoint
+ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "registration_status" text;--> statement-breakpoint
+ALTER TABLE "contracts" ADD COLUMN IF NOT EXISTS "registration_due_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "initiative_id" uuid;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "benefit_type" text;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "benefit_target" numeric(14, 2);--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "benefit_actual" numeric(14, 2);--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "linked_application_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "crm_deals" ADD COLUMN IF NOT EXISTS "won_approved_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "crm_deals" ADD COLUMN IF NOT EXISTS "won_approved_by" uuid;--> statement-breakpoint
+ALTER TABLE "crm_deals" ADD COLUMN IF NOT EXISTS "won_approval_tier" text;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "cnr" text;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "court_name" text;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "forum" text;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "next_hearing_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "limitation_deadline_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "arbitration_seat" text;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "arbitration_institution" text;--> statement-breakpoint
+ALTER TABLE "legal_matters" ADD COLUMN IF NOT EXISTS "legal_hold" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "catalog_requests" ADD COLUMN IF NOT EXISTS "fulfillment_ticket_id" uuid;--> statement-breakpoint
+ALTER TABLE "catalog_requests" ADD COLUMN IF NOT EXISTS "batch_id" uuid;--> statement-breakpoint
+ALTER TABLE "catalog_requests" ADD COLUMN IF NOT EXISTS "fulfillment_checklist" jsonb DEFAULT '[]'::jsonb;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "legal_entities" ADD CONSTRAINT "legal_entities_org_id_organizations_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION

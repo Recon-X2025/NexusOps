@@ -1,0 +1,317 @@
+
+> @nexusops/api@0.1.0 predev /Users/kathikiyer/Documents/NexusOps/apps/api
+> pnpm --filter @nexusops/db exec tsup --no-dts
+
+CLI Building entry: src/client.ts, src/index.ts, src/schema/index.ts
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/kathikiyer/Documents/NexusOps/packages/db/tsup.config.ts
+CLI Target: es2022
+CLI Cleaning output folder
+ESM Build start
+CJS Build start
+ESM dist/client.mjs             188.00 B
+ESM dist/index.mjs              20.60 KB
+ESM dist/schema/index.mjs       16.98 KB
+ESM dist/chunk-TQXST3VB.mjs     3.51 KB
+ESM dist/chunk-VFNPSLAO.mjs     273.35 KB
+ESM dist/client.mjs.map         71.00 B
+ESM dist/schema/index.mjs.map   71.00 B
+ESM dist/index.mjs.map          7.58 KB
+ESM dist/chunk-TQXST3VB.mjs.map 9.90 KB
+ESM dist/chunk-VFNPSLAO.mjs.map 487.03 KB
+ESM ⚡️ Build success in 47ms
+CJS dist/schema/index.js     325.13 KB
+CJS dist/index.js            352.59 KB
+CJS dist/client.js           320.90 KB
+CJS dist/schema/index.js.map 475.95 KB
+CJS dist/client.js.map       485.71 KB
+CJS dist/index.js.map        495.21 KB
+CJS ⚡️ Build success in 46ms
+
+> @nexusops/api@0.1.0 dev /Users/kathikiyer/Documents/NexusOps/apps/api
+> tsx watch src/index.ts
+
+[metrics] registered 27 metrics across 8 roles
+[dotenv@17.3.1] injecting env (22) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+[observability] OTEL_EXPORTER_OTLP_ENDPOINT not set — tracing disabled
+(node:3533) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[api] tRPC commandCenter router mounted
+[11:56:39.859] [32mINFO[39m (3533): [36mWorkflow service initialised[39m
+[11:56:39.902] [32mINFO[39m (3533): [36mOIDC not configured — skipping OIDC routes[39m
+[11:56:40.009] [32mINFO[39m (3533): [36m[CLEAN_START] L1 session cache cleared (0 entries evicted)[39m
+[11:56:40.047] [32mINFO[39m (3533): [36m[CLEAN_START] Redis session keys flushed: 0 keys removed[39m
+[11:56:40.080] [32mINFO[39m (3533): [36m[CLEAN_START] org_counters synced: 12 entities checked, 9 rows upserted[39m
+
+════════════════════════════════════════════════════════════════════
+  NexusOps API — STARTUP READY
+════════════════════════════════════════════════════════════════════
+  Host               : http://0.0.0.0:3001
+  Node env           : test
+────────────────────────────────────────────────────────────────────
+  Rate Limiting
+    Per-token max    : 200,000 req / 1 minute
+    Anonymous max    : 1,000 req / 1 minute
+    Burst max        : 33,334 req / 5 seconds
+    Disabled         : false
+    Bucket strategy  : per session token (user:*) or per IP (anon:*)
+────────────────────────────────────────────────────────────────────
+  Session Cache
+    L1 TTL (valid)   : 300,000 ms  (5 min)
+    L1 TTL (null)    : 30,000 ms  (30 s)
+    L2 Redis TTL     : 300 s  (5 min)
+    Coalescing       : enabled (single DB round-trip per token burst)
+────────────────────────────────────────────────────────────────────
+  DB Connection Pool
+    Max connections  : 30
+    Idle timeout     : 30 s
+    Connect timeout  : 15 s
+    Max lifetime     : 1800 s  (30 min)
+────────────────────────────────────────────────────────────────────
+  Database mode
+    DATABASE_PROVIDER : (unset → postgres)
+════════════════════════════════════════════════════════════════════
+
+[11:56:40.082] [32mINFO[39m (3533): [36m[CLEAN_START] Stale idle-in-transaction connections cleared[39m
+[11:56:40.084] [32mINFO[39m (3533): [36mServer listening at http://127.0.0.1:3001[39m
+[11:56:40.084] [32mINFO[39m (3533): [36mServer listening at http://192.168.1.23:3001[39m
+[11:56:40.084] [32mINFO[39m (3533): [36mNexusOps API listening on http://0.0.0.0:3001[39m
+[11:56:54.303] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "8611a255-472a-4d48-9dac-fdd323f711ff"
+    [35mmethod[39m: "POST"
+    [35murl[39m: "/trpc/auth.login"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 268
+[11:56:54.369] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "2a7d3b17-3870-4d15-8929-ae8b85241363"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/auth.me"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 44
+[11:56:54.922] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "ccf37866-3d8d-450e-9cc3-57aca1d8316f"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/notifications.unreadCount"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 6
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[11:56:54.937] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "f23cef47-4428-46cc-9b58-179665bfd206"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/security.openIncidentCount"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 10
+dashboard.getMetrics { duration: 706, orgId: 'f90e3edb-9f5b-486f-9a15-c15ae4c591db' }
+[11:56:55.635] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "9caedd2d-d5c4-4268-93e6-8309cd1404ed"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/dashboard.getMetrics"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 711
+[11:56:55.647] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "4c9bb781-003e-4fc7-a600-d8de75b2c4ba"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/commandCenter.getView?input=%7B%22range%22%3A%7B%22start%22%3A%222026-04-26T18%3A30%3A00.000Z%22%2C%22end%22%3A%222026-04-27T18%3A29%3A59.999Z%22%2C%22granularity%22%3A%22day%22%7D%7D"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 720
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[ai:generateCommandCenterNarrative] Failed: ANTHROPIC_API_KEY not set
+[11:56:55.821] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "33c3f07d-9ebd-4d6f-861b-05870754fa6d"
+    [35mmethod[39m: "POST"
+    [35murl[39m: "/trpc/commandCenter.generateNarrative"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 6
+[11:57:05.225] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "d6b0b9c2-5003-4178-b16b-439d299a9b23"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/notifications.unreadCount"
+    [35mstatus[39m: 401
+    [35mduration_ms[39m: 6
+[11:57:07.263] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "040871e1-61c8-491f-a627-d8413de8b25c"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.slaDefinitions.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 12
+[11:57:07.268] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "c565d345-3e8a-4a76-85db-ad9ebf790a7a"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.notificationRules.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 15
+[11:57:07.268] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "e240d606-1d8d-48ec-a9fb-dd25ec70e5c7"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.systemProperties.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 14
+[11:57:07.271] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "9e3f1dd2-2c6d-4dc4-a7a2-7ce8082c1d91"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.scheduledJobs.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 3
+[11:57:07.289] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "98e0cbc8-8436-4235-b013-f6df0ae88faa"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.users.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 20
+[11:57:07.301] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "249de5cd-3f11-4c27-af20-98af1475c999"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.auditLog.list?input=%7B%22page%22%3A1%2C%22limit%22%3A5%7D"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 29
+[11:57:12.031] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "75906272-f85d-4b9c-9248-84258f022c2e"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/auth.me"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 2
+[11:57:16.741] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "2fa669ad-6e85-4500-a148-d36da93b1189"
+    [35mmethod[39m: "POST"
+    [35murl[39m: "/trpc/auth.login"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 246
+[11:57:19.670] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "06b80fd0-5a2b-4dcf-b19b-1ab4d50daf61"
+    [35mmethod[39m: "POST"
+    [35murl[39m: "/trpc/auth.login"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 252
+[11:57:19.691] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "651b1de1-04dd-4852-84c8-3176331897ad"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/auth.me"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 10
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+dashboard.getMetrics { duration: 2, orgId: 'f90e3edb-9f5b-486f-9a15-c15ae4c591db' }
+[11:57:20.094] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "4170e6bd-65b7-4673-92df-21669eb09778"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/dashboard.getMetrics"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 3
+[11:57:20.095] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "04e1caf3-8458-443d-85d7-130d082bc0f3"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/notifications.unreadCount"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 6
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[11:57:20.097] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "39b369b5-d52b-43b8-9b3e-1289fe6068aa"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/commandCenter.getView?input=%7B%22range%22%3A%7B%22start%22%3A%222026-04-26T18%3A30%3A00.000Z%22%2C%22end%22%3A%222026-04-27T18%3A29%3A59.999Z%22%2C%22granularity%22%3A%22day%22%7D%7D"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 3
+[11:57:20.101] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "f8e7f7ac-df97-4881-af03-9f7d5c160651"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/security.openIncidentCount"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 9
+[11:57:20.755] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "e53da552-5c28-46eb-a024-9b8b6e5e5069"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/auth.me"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 2
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[11:57:20.875] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "53e1686f-e308-4c88-9f98-adbbdfd77d20"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.slaDefinitions.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 3
+dashboard.getMetrics { duration: 1, orgId: 'f90e3edb-9f5b-486f-9a15-c15ae4c591db' }
+[11:57:20.876] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "41a405e1-5a0c-4267-8bb1-ce4306e91089"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.systemProperties.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 3
+[rbac] db_role=owner matrix_role=none → effective=["requester","admin"]
+[11:57:20.877] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "754fbe20-bd4e-423b-ad51-658b9be9fba2"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/dashboard.getMetrics"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 6
+[11:57:20.879] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "6df0bd42-faac-4174-abfd-ed72105bfb34"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.notificationRules.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 2
+[11:57:20.880] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "512ea4f0-f895-49a3-8a68-f924615aa29c"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/notifications.unreadCount"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 11
+[11:57:20.888] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "f22583dd-0331-4035-8f04-a8665d803043"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/security.openIncidentCount"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 13
+[11:57:20.900] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "34efc271-b659-4a7b-816f-583c23b2aac7"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.scheduledJobs.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 3
+[11:57:20.905] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "e6d186a2-fe2a-4c21-83a6-126a8011bcb9"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.users.list"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 11
+[11:57:20.916] [32mINFO[39m (3533):
+    [35mevent[39m: "REQUEST"
+    [35mrequest_id[39m: "989ece1a-08a1-4947-ae05-47e91f948e7b"
+    [35mmethod[39m: "GET"
+    [35murl[39m: "/trpc/admin.auditLog.list?input=%7B%22page%22%3A1%2C%22limit%22%3A5%7D"
+    [35mstatus[39m: 200
+    [35mduration_ms[39m: 20

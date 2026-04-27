@@ -33,7 +33,8 @@
     "db:seed:smb": "tsx src/seed-smb-analytics.ts",
     "backfill:sla": "tsx src/scripts/backfill-sla-deadlines.ts",
     "db:studio": "drizzle-kit studio",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && pnpm run check:migrations",
+    "check:migrations": "node ../../scripts/verify-migration-journal.mjs",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

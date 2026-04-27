@@ -12,7 +12,7 @@ async function loginAs(page: Page, email: string, password = "demo1234!") {
   await page.fill("input[type=email]", email);
   await page.fill("input[type=password]", password);
   await page.click("button[type=submit]");
-  await page.waitForURL(/app\/dashboard/, { timeout: 15000 });
+  await page.waitForURL(/app\/command/, { timeout: 15000 });
 }
 
 test.describe("Layer 10: End-to-End User Journeys", () => {
@@ -25,7 +25,7 @@ test.describe("Layer 10: End-to-End User Journeys", () => {
       await page.fill("input[type=email]", "admin@coheron.com");
       await page.fill("input[type=password]", "demo1234!");
       await page.click("button[type=submit]");
-      await expect(page).toHaveURL(/app\/dashboard/, { timeout: 15000 });
+      await expect(page).toHaveURL(/app\/command/, { timeout: 15000 });
       // Verify some user element is present in layout
       const body = await page.textContent("body");
       expect(body).not.toContain("Unhandled Runtime Error");
@@ -36,13 +36,13 @@ test.describe("Layer 10: End-to-End User Journeys", () => {
       await page.fill("input[type=email]", "admin@coheron.com");
       await page.fill("input[type=password]", "wrong-password");
       await page.click("button[type=submit]");
-      await expect(page).not.toHaveURL(/app\/dashboard/);
+      await expect(page).not.toHaveURL(/app\/command/);
       await expect(page).toHaveURL(/login/);
     });
 
-    test("unauthenticated /app/dashboard → redirected to /login", async ({ page }) => {
+    test("unauthenticated /app/command → redirected to /login", async ({ page }) => {
       await page.context().clearCookies();
-      await page.goto("/app/dashboard");
+      await page.goto("/app/command");
       await expect(page).toHaveURL(/login/, { timeout: 10000 });
     });
 
@@ -128,7 +128,7 @@ test.describe("Layer 10: End-to-End User Journeys", () => {
 
   test.describe("10.8 Every Module Page Loads Without Fatal Error", () => {
     const CORE_ROUTES = [
-      "/app/dashboard",
+      "/app/command",
       "/app/tickets",
       "/app/changes",
       "/app/assets",

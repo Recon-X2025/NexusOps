@@ -6,7 +6,7 @@ async function loginAs(page: Page, email: string, password = "demo1234!") {
   await page.fill('[data-testid="login-email"]', email);
   await page.fill('[data-testid="login-password"]', password);
   await page.click('[data-testid="login-submit"]');
-  await page.waitForURL(/app\/dashboard/, { timeout: 15_000 });
+  await page.waitForURL(/app\/command/, { timeout: 15_000 });
 }
 
 async function expectNoRuntimeCrash(page: Page, path: string) {
