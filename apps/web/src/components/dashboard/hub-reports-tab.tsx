@@ -41,7 +41,7 @@ function formatValue(value: number, unit?: string, state?: string) {
   return formatMetricValue(value, unit, state, { compact: false });
 }
 
-function targetGap(b: Bullet): string {
+function targetGap(b: { current: number; target?: number; state: string; unit?: string }): string {
   if (b.target == null || b.state === "no_data") return "—";
   const delta = b.current - b.target;
   if (Math.abs(delta) < 0.05) return "on target";

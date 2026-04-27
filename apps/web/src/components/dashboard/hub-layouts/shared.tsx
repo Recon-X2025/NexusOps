@@ -33,13 +33,14 @@ export function HubPrimaryCard({
   return (
     <section
       className={cn(
-        "rounded-xl bg-white border border-slate-200/90 shadow-sm overflow-hidden border-t-[3px] dark:bg-slate-900/80 dark:border-slate-700",
-        accent,
+        "rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 overflow-hidden dark:bg-slate-900/80 dark:border-slate-700",
         className,
       )}
     >
+      {/* Full-width gradient accent band — accent prop now provides the gradient classes */}
+      <div className={cn("h-[3px] w-full", accent)} />
       <header className="px-4 md:px-5 pt-4 pb-2">
-        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 tracking-tight">{title}</h2>
+        <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">{title}</h2>
         {subtitle ? (
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
         ) : null}
@@ -60,27 +61,45 @@ export function HubStatTile({
   hint?: string;
   state?: "healthy" | "watch" | "stressed" | "no_data";
 }) {
-  const stateBar: Record<string, string> = {
+  const stateBg: Record<string, string> = {
+    healthy: "bg-emerald-50 border-emerald-200",
+    watch: "bg-amber-50 border-amber-200",
+    stressed: "bg-rose-50 border-rose-200",
+    no_data: "bg-slate-50 border-slate-200",
+  };
+  const stateText: Record<string, string> = {
+    healthy: "text-emerald-600",
+    watch: "text-amber-600",
+    stressed: "text-rose-600",
+    no_data: "text-slate-400",
+  };
+  const stateDot: Record<string, string> = {
     healthy: "bg-emerald-500",
-    watch: "bg-amber-500",
+    watch: "bg-amber-400",
     stressed: "bg-rose-500",
     no_data: "bg-slate-300",
   };
+  const bgCls = state ? (stateBg[state] ?? "bg-slate-50 border-slate-200") : "bg-white border-slate-200";
+  const valCls = state ? (stateText[state] ?? "text-slate-800") : "text-slate-800";
   return (
-    <div className="rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 flex flex-col gap-0.5 min-w-0">
-      <div className="flex items-center gap-2">
-        {state ? <span className={cn("h-1.5 w-1.5 rounded-full", stateBar[state] ?? "bg-slate-300")} aria-hidden /> : null}
-        <span className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 truncate">{label}</span>
+    <div className={cn("rounded-xl border px-3 py-2.5 flex flex-col gap-0.5 min-w-0 shadow-sm", bgCls)}>
+      <div className="flex items-center gap-1.5">
+        {state ? (
+          <span className={cn("h-2 w-2 rounded-full shrink-0", stateDot[state] ?? "bg-slate-300")} aria-hidden />
+        ) : null}
+        <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400 truncate">
+          {label}
+        </span>
       </div>
-      <span className="text-lg font-bold tabular-nums text-slate-800 dark:text-slate-100 leading-tight">{value}</span>
-      {hint ? <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{hint}</span> : null}
+      <span className={cn("text-xl font-black tabular-nums leading-tight", valCls)}>{value}</span>
+      {hint ? <span className="text-[11px] text-slate-400 truncate">{hint}</span> : null}
     </div>
   );
 }
 
 export function HubEmptyState({ message }: { message: string }) {
   return (
-    <div className="text-xs text-slate-400 dark:text-slate-500 text-center py-10 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
+    <div className="text-xs text-slate-400 text-center py-10 border border-dashed border-slate-200 rounded-xl bg-slate-50/60">
       {message}
     </div>
   );

@@ -340,11 +340,11 @@ function HubBody({
         </div>
       ) : tab === "overview" ? (
         <HubSectionBoundary>
-          <HubOverview payload={scoped} hubPayload={qView.data!} functionKey={functionKey} granularity={range.granularity} />
+          <HubOverview payload={scoped!} hubPayload={qView.data!} functionKey={functionKey} granularity={range.granularity} />
         </HubSectionBoundary>
       ) : (
         <HubSectionBoundary>
-          <HubReportsTab payload={qView.data} hubTitle={title} />
+          <HubReportsTab payload={qView.data!} hubTitle={title} />
         </HubSectionBoundary>
       )}
 

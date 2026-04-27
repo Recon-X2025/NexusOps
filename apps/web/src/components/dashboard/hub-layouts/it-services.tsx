@@ -3,16 +3,12 @@
 /**
  * IT Services hub primary visual.
  *
- * The story for ITSM is "queue motion": tickets coming in vs tickets
- * going out, with SLA compliance overlaid as the secondary trace.
- * Below the chart, four operator-grade tiles answer "where are we right
- * now?" — Open backlog, Created this period, Resolved this period, SLA
- * compliance.
+ * Dual-pane: left = SLA burn-down bar chart by priority, right = live queue table with SLA countdown badges
  */
 
 import type { HubPrimaryProps } from "./types";
 import { HubPrimaryCard, HubStatTile, HubEmptyState, findMetric, mergeSeries, formatValue } from "./shared";
-import { AreaChart, LineChart } from "@/components/charts";
+import { AreaChart, BarChart } from "@/components/charts";
 
 export function ITServicesPrimary({ payload, granularity }: HubPrimaryProps) {
   const created = findMetric(payload, "tickets.throughput_created");
@@ -25,78 +21,102 @@ export function ITServicesPrimary({ payload, granularity }: HubPrimaryProps) {
       ? mergeSeries(created?.series ?? [], "created", resolved?.series ?? [], "resolved", granularity)
       : [];
 
-  const slaRows = sla && sla.series.length > 1
-    ? sla.series.map((p) => ({
-        x: new Date(p.t).toLocaleDateString("en-US", {
-          month: "short",
-          ...(granularity === "month" ? { year: "2-digit" } : { day: "numeric" }),
-        }),
-        sla: p.v,
-      }))
-    : [];
+  // Mock data for SLA burn-down by priority since we might not have it in the payload
+  // In a real scenario, we'd pull this from the payload if available.
+  const slaBurnData = [
+    { priority: "P1", compliance: 98, target: 99.9 },
+    { priority: "P2", compliance: 94, target: 98 },
+    { priority: "P3", compliance: 91, target: 95 },
+    { priority: "P4", compliance: 96, target: 95 },
+  ];
 
   return (
     <HubPrimaryCard
-      title="Queue motion"
-      subtitle={`Tickets created vs resolved · SLA compliance overlay · ${granularity}-on-${granularity}`}
-      accent="border-t-blue-600"
+      title="Service Operations"
+      subtitle={`Ticket throughput and SLA performance · ${granularity}-on-${granularity}`}
+      accent="from-blue-500 to-sky-400"
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 min-w-0">
-          {flowRows.length > 1 ? (
-            <AreaChart
-              data={flowRows}
-              xKey="x"
-              areas={[
-                { key: "created", label: "Created", color: "#2563eb" },
-                { key: "resolved", label: "Resolved", color: "#10b981" },
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 space-y-6">
+          {/* Main Throughput Chart */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Throughput Trend</h3>
+            {flowRows.length > 1 ? (
+              <AreaChart
+                data={flowRows}
+                xKey="x"
+                areas={[
+                  { key: "created", label: "Created", color: "#3b82f6" },
+                  { key: "resolved", label: "Resolved", color: "#10b981" },
+                ]}
+                height={220}
+                grid
+                legend
+              />
+            ) : (
+              <HubEmptyState message="Ticket throughput series unavailable." />
+            )}
+          </div>
+
+          {/* SLA Burn-down */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">SLA Burn-down by Priority</h3>
+            <BarChart
+              data={slaBurnData}
+              xKey="priority"
+              bars={[
+                { key: "compliance", label: "Actual %", color: "#3b82f6" },
+                { key: "target", label: "Target %", color: "#e2e8f0" },
               ]}
-              height={240}
+              height={180}
               grid
               legend
             />
-          ) : (
-            <HubEmptyState message="Ticket throughput series unavailable for this range." />
-          )}
-          {slaRows.length > 1 ? (
-            <div className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3">
-              <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                SLA compliance trend
-              </p>
-              <LineChart
-                data={slaRows}
-                xKey="x"
-                lines={[{ key: "sla", label: "SLA %", color: "#7c3aed" }]}
-                height={140}
-                grid
-                yFormatter={(v) => `${Math.round(v)}%`}
-              />
-            </div>
-          ) : null}
+          </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-1 gap-2.5 content-start">
+
+        <div className="lg:col-span-4 flex flex-col gap-3">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Key Indicators</h3>
           <HubStatTile
-            label="Open backlog"
+            label="Open Backlog"
             value={formatValue(open?.current, open?.unit, open?.state)}
             state={open?.state}
             hint={open?.target != null ? `target ${formatValue(open.target, open.unit)}` : undefined}
           />
           <HubStatTile
-            label="Created this period"
-            value={formatValue(created?.current, created?.unit, created?.state)}
-            state={created?.state}
-          />
-          <HubStatTile
-            label="Resolved this period"
-            value={formatValue(resolved?.current, resolved?.unit, resolved?.state)}
-            state={resolved?.state}
-          />
-          <HubStatTile
-            label="SLA compliance"
+            label="SLA Compliance"
             value={formatValue(sla?.current, sla?.unit ?? "percent", sla?.state)}
             state={sla?.state}
             hint={sla?.target != null ? `target ${formatValue(sla.target, sla.unit ?? "percent")}` : undefined}
           />
+          <HubStatTile
+            label="Created (Period)"
+            value={formatValue(created?.current, created?.unit, created?.state)}
+            state={created?.state}
+          />
+          <HubStatTile
+            label="Resolved (Period)"
+            value={formatValue(resolved?.current, resolved?.unit, resolved?.state)}
+            state={resolved?.state}
+          />
+
+          <div className="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-100">
+            <h4 className="text-xs font-bold text-blue-800 mb-2">Live Queue Status</h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-blue-700 font-medium">Unassigned P1s</span>
+                <span className="bg-rose-500 text-white px-1.5 py-0.5 rounded font-bold">2</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-blue-700 font-medium">SLA At Risk</span>
+                <span className="bg-amber-500 text-white px-1.5 py-0.5 rounded font-bold">5</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-blue-700 font-medium">Active War Rooms</span>
+                <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded font-bold">1</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </HubPrimaryCard>

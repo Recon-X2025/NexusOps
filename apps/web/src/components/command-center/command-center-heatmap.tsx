@@ -17,53 +17,62 @@ const DIM_LABEL: Record<(typeof DIMS)[number], string> = {
 };
 
 const LEGEND = [
-  { state: "healthy" as const, label: "Healthy", swatch: "#bbf7d0" },
-  { state: "watch" as const, label: "Watch", swatch: "#fde68a" },
-  { state: "stressed" as const, label: "Stressed", swatch: "#fecaca" },
-  { state: "no_data" as const, label: "No data", swatch: "#e2e8f0" },
+  { state: "healthy" as const, label: "Healthy", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  { state: "watch" as const, label: "Watch", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  { state: "stressed" as const, label: "Stressed", cls: "bg-rose-100 text-rose-700 border-rose-200" },
+  { state: "no_data" as const, label: "No data", cls: "bg-slate-100 text-slate-500 border-slate-200" },
 ];
 
 export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
   return (
-    <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm overflow-hidden border-t-[3px] border-t-indigo-600 h-full">
+    <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 overflow-hidden h-full">
+      {/* Gradient accent band */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-indigo-500 to-violet-500" />
       <div className="p-4 md:p-5">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-800 tracking-tight">Functional heatmap</h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-xl">
-              Cross-functional health by area — darker risk, greener health. Click linked cells to drill into modules.
+            <h2 className="text-base font-bold text-slate-800 tracking-tight">Functional Heatmap</h2>
+            <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
+              Cross-functional health by area. Click linked cells to drill into modules.
             </p>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {LEGEND.map(({ state, label, swatch }) => (
-              <div key={state} className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
-                <span className="h-3 w-3 rounded-sm border border-slate-200 shadow-sm" style={{ background: swatch }} aria-hidden />
+          <div className="flex flex-wrap gap-2">
+            {LEGEND.map(({ state, label, cls }) => (
+              <span
+                key={state}
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${cls}`}
+              >
                 {label}
-              </div>
+              </span>
             ))}
           </div>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2">
-          <div className="grid gap-1.5 min-w-[640px]" style={{ gridTemplateColumns: `152px repeat(${DIMS.length}, minmax(0,1fr))` }}>
+        <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+          <div
+            className="grid gap-1.5 min-w-[640px]"
+            style={{ gridTemplateColumns: `160px repeat(${DIMS.length}, minmax(0,1fr))` }}
+          >
+            {/* Header */}
             <div />
             {DIMS.map((d) => (
               <div
                 key={d}
-                className="text-[10px] font-bold text-center text-slate-600 uppercase tracking-wide py-2.5 bg-white rounded-md border border-slate-100 shadow-sm"
+                className="text-[10px] font-bold text-center text-slate-600 uppercase tracking-widest py-2.5 bg-white rounded-lg border border-slate-200/80 shadow-sm"
               >
                 {DIM_LABEL[d]}
               </div>
             ))}
+
+            {/* Rows */}
             {payload.heatmap.map((row) => (
               <div key={row.function} className="contents">
                 <div
-                  className={`text-xs font-semibold py-2.5 px-2 flex items-center rounded-md border ${
-                    row.inScope
-                      ? "text-slate-800 bg-white border-slate-100 shadow-sm"
+                  className={`text-xs font-bold py-2.5 px-3 flex items-center rounded-lg border ${row.inScope
+                      ? "text-slate-800 bg-white border-slate-200/80 shadow-sm"
                       : "text-slate-400 bg-transparent border-transparent"
-                  }`}
+                    }`}
                 >
-                  {row.function.replace("_", " ")}
+                  <span className="capitalize">{row.function.replace(/_/g, " ")}</span>
                 </div>
                 {DIMS.map((d) => {
                   const cell = row.cells[d];
