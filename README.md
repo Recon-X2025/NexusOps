@@ -109,7 +109,7 @@ make docker-up
 # wait until Postgres is healthy
 
 pnpm db:migrate
-pnpm db:seed    # optional demo data (admin@coheron.com / demo1234!)
+pnpm db:seed    # Rich demo dataset (Faker.js powered; admin@coheron.com / demo1234!)
 
 pnpm check:trpc-parity   # optional: web ↔ API procedure names (no DB)
 

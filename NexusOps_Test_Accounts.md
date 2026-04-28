@@ -17,6 +17,8 @@
 | 6 | `employee@coheron.com` | Casey Brown | `demo1234!` | `member` | `requester` |
 | 7 | `viewer@coheron.com` | Robin White | `demo1234!` | `viewer` | `requester` + `report_viewer` |
 
+> **Note:** The accounts above are deterministic for demo purposes. However, as of v2.2, the platform now seeds **40+ additional unique users** and **hundreds of transactional records** (tickets, assets, deals, etc.) dynamically using Faker.js.
+
 ---
 
 ## Role Descriptions
