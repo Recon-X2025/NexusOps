@@ -24,7 +24,7 @@ Primary interaction is the **web app** (`apps/web`). A **mobile** client (`apps/
 | `apps/docs` | Documentation site (Nextra) — operator/developer docs |
 | `apps/mobile` | Expo / React Native — tRPC consumer |
 | `apps/mac` | Coheron managed-account console (Next.js) — uses `mac` router |
-| `packages/db` | Drizzle schemas, SQL migrations, seeds |
+| `packages/db` | Drizzle schemas, SQL migrations, dynamic seeds (Faker.js) |
 | `packages/types` | Shared types — **RBAC matrix** (`Module`, `SystemRole`, permissions) |
 | `packages/metrics` | Command Center **metric registry** (`MetricDefinition`, contributions, role views) |
 | `packages/ui` | Shared UI primitives / error boundary |
