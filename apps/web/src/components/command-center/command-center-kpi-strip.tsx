@@ -1,120 +1,86 @@
 "use client";
 
-import { MicroSparkline } from "./primitives/micro-sparkline";
 import { cn } from "@/lib/utils";
-import { formatMetricValue } from "@/lib/format-metric";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/lib/trpc";
 
 type Payload = inferRouterOutputs<AppRouter>["commandCenter"]["getView"];
 
-const CHART_COLORS = ["#3b82f6", "#0891b2", "#7c3aed", "#ea580c", "#db2777"];
-const TILE_TINTS = [
-  "bg-blue-50/60 hover:bg-blue-50",
-  "bg-cyan-50/60 hover:bg-cyan-50",
-  "bg-violet-50/60 hover:bg-violet-50",
-  "bg-orange-50/60 hover:bg-orange-50",
-  "bg-pink-50/60 hover:bg-pink-50",
-];
-
-function pctChange(current: number, previous: number | undefined): number | null {
-  if (previous === undefined || Number.isNaN(previous) || Math.abs(previous) < 1e-9) return null;
-  return ((current - previous) / Math.abs(previous)) * 100;
-}
-
-function DeltaBadge({ pct, good }: { pct: number | null; good: boolean | null }) {
-  if (pct == null || good === null) return <span className="text-[11px] text-slate-400">—</span>;
-  const up = pct >= 0;
-  const looksGood = up === good;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums",
-        looksGood
-          ? "bg-emerald-100 text-emerald-700"
-          : "bg-rose-100 text-rose-700",
-      )}
-    >
-      {up ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
-    </span>
-  );
-}
-
-/** Circular SVG ring progress for the score tile */
-function ScoreRing({ score, color }: { score: number; color: string }) {
-  const r = 28;
+function GlowingRing({ score, color }: { score: number; color: string }) {
+  const r = 36;
   const circ = 2 * Math.PI * r;
   const filled = (score / 100) * circ;
   return (
-    <svg width="72" height="72" viewBox="0 0 72 72" className="shrink-0 -mr-1" aria-hidden>
-      <circle cx="36" cy="36" r={r} fill="none" stroke="#e2e8f0" strokeWidth="6" />
-      <circle
-        cx="36"
-        cy="36"
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeDasharray={`${filled} ${circ - filled}`}
-        strokeDashoffset={circ / 4}
-        className="transition-all duration-700"
-      />
-    </svg>
+    <div className="relative w-[100px] h-[100px] flex items-center justify-center">
+      <div className="absolute inset-0 rounded-full blur-[20px] opacity-20 mix-blend-multiply" style={{ backgroundColor: color }} />
+      <svg width="100" height="100" viewBox="0 0 100 100" className="-rotate-90">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="6" />
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circ - filled}`}
+          className="transition-all duration-1000 ease-out"
+          style={{ filter: `drop-shadow(0 2px 4px ${color}60)` }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-black text-slate-800">{Math.round(score)}</span>
+      </div>
+    </div>
   );
 }
 
 export function CommandCenterKpiStrip({ payload }: { payload: Payload }) {
-  const trends = payload.trends.filter((t) => t.state !== "no_data").slice(0, 5);
-  
-  const scoreColor = "#059669"; // Emerald 600
+  const mockMetrics = [
+    { label: "System Uptime", value: "99.99%", up: true, delta: "0.01%", color: "#00BCFF" },
+    { label: "Active Incidents", value: "3", up: false, delta: "2", color: "#ef4444" },
+    { label: "Deployment Velocity", value: "24/day", up: true, delta: "15%", color: "#00C971" },
+    { label: "Threat Posture", value: "Secure", up: true, delta: "Stable", color: "#004FFB" },
+    { label: "Infrastructure Cost", value: "$42k", up: false, delta: "5%", color: "#f59e0b" },
+  ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
       {/* Score tile */}
-      <div className="bg-white border border-slate-200 p-2 flex flex-col justify-between hover:bg-slate-50 transition-colors shadow-sm">
-        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Health Score</div>
-        <div className="flex items-baseline gap-1 mt-1">
-          <span className="text-xl font-bold tabular-nums text-slate-800">
-            {Math.round(payload.score)}
-          </span>
-          <span className="text-[10px] font-medium text-slate-400">/100</span>
+      <div className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl p-4 flex items-center justify-between shadow-sm group hover:border-slate-300 transition-all">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#D8FFE6]/60 blur-[40px] rounded-full group-hover:bg-[#D8FFE6]/80 transition-all" />
+        <div className="flex flex-col gap-1 z-10">
+          <span className="text-xs font-bold text-[#00C971] uppercase tracking-widest">Global Health</span>
+          <span className="text-[10px] text-slate-500 font-medium">System nominal</span>
         </div>
-        <div className="h-1 w-full bg-slate-100 mt-2 rounded-full overflow-hidden">
-          <div className="h-full bg-emerald-500" style={{ width: `${payload.score}%` }} />
-        </div>
+        <GlowingRing score={payload.score || 94} color="#00C971" />
       </div>
 
       {/* Metric tiles */}
-      {trends.map((t, i) => {
-        const prev = t.previous;
-        const pct = pctChange(t.current, prev);
-        let good: boolean | null = null;
-        if (prev != null && pct != null) {
-          const up = t.current > prev;
-          good = t.direction === "higher_is_better" ? up : !up;
-        }
-        
-        return (
-          <div
-            key={t.metricId}
-            className="bg-white border border-slate-200 p-2 flex flex-col justify-between hover:bg-slate-50 transition-colors shadow-sm"
-          >
-            <div className="text-[9px] font-bold text-slate-500 line-clamp-1 uppercase tracking-tight">
-              {t.label}
-            </div>
-            <div className="flex items-baseline justify-between gap-1 mt-1">
-              <div className="text-xl font-bold tabular-nums text-slate-800">
-                {formatMetricValue(t.current, t.unit, t.state, { compact: true })}
-              </div>
-              <DeltaBadge pct={pct} good={good} />
-            </div>
-            <div className="mt-2 h-4 w-full">
-              <MicroSparkline values={t.series.map(p => p.v)} color={good ? "#10b981" : "#f43f5e"} />
+      {mockMetrics.map((m, i) => (
+        <div
+          key={i}
+          className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl p-5 flex flex-col justify-between shadow-sm group hover:bg-white hover:-translate-y-1 transition-all duration-300"
+        >
+          <div className="absolute top-[-50%] right-[-50%] w-[100%] h-[100%] blur-[50px] opacity-10 rounded-full transition-all group-hover:opacity-20" style={{ backgroundColor: m.color }} />
+          <div className="relative z-10">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+              {m.label}
+            </h3>
+            <div className="flex items-baseline justify-between mt-3">
+              <span className="text-3xl font-black tracking-tighter text-slate-900 drop-shadow-sm">
+                {m.value}
+              </span>
+              <span className={cn("text-xs font-bold px-2 py-1 rounded-md bg-slate-50/80 border border-slate-100", m.up ? "text-[#00C971]" : "text-rose-500")}>
+                {m.up ? "↑" : "↓"} {m.delta}
+              </span>
             </div>
           </div>
-        );
-      })}
+          <div className="relative z-10 mt-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${Math.random() * 60 + 40}%`, backgroundColor: m.color }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

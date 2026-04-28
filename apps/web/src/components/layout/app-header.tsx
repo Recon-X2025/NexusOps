@@ -145,11 +145,11 @@ function Breadcrumbs() {
   const visible = crumbs.slice(1);
 
   return (
-    <nav className="flex items-center gap-1 text-xs text-[hsl(var(--header-fg))] opacity-80">
+    <nav className="flex items-center gap-1 text-xs text-slate-600 dark:text-[hsl(var(--header-fg))] opacity-80">
       {visible.map((c, i) => (
         <span key={c.href} className="flex items-center gap-1">
           {i > 0 && <span className="opacity-40">/</span>}
-          <span className={cn(i === visible.length - 1 ? "opacity-100 font-medium" : "opacity-60")}>
+          <span className={cn(i === visible.length - 1 ? "opacity-100 font-medium text-slate-800 dark:text-white" : "opacity-60")}>
             {c.label}
           </span>
         </span>
@@ -283,7 +283,7 @@ function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded p-1.5 text-[hsl(var(--header-fg))] opacity-60 hover:opacity-100 hover:bg-white/10 transition"
+        className="relative rounded p-1.5 text-slate-500 hover:text-slate-800 dark:text-[hsl(var(--header-fg))] dark:opacity-60 dark:hover:opacity-100 hover:bg-slate-100 dark:hover:bg-white/10 transition"
         title="Notifications"
       >
         <Bell className="h-3.5 w-3.5" />
@@ -411,16 +411,16 @@ function UserMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded px-2 py-1 hover:bg-white/10 transition"
+        className="flex items-center gap-2 rounded px-2 py-1 hover:bg-slate-100 dark:hover:bg-white/10 transition"
       >
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[0.6rem] font-bold text-white">
           {initials}
         </div>
         <div className="hidden md:block text-left">
-          <p className="text-xs font-medium text-[hsl(var(--header-fg))] leading-none">{currentUser.name}</p>
-          <p className="text-[0.6rem] text-[hsl(var(--header-fg))] opacity-50 leading-none mt-0.5 font-mono">{getPrimaryRole(currentUser.roles)}</p>
+          <p className="text-xs font-medium text-slate-700 dark:text-[hsl(var(--header-fg))] leading-none">{currentUser.name}</p>
+          <p className="text-[0.6rem] text-slate-500 dark:text-[hsl(var(--header-fg))] dark:opacity-50 leading-none mt-0.5 font-mono">{getPrimaryRole(currentUser.roles)}</p>
         </div>
-        <ChevronDown className={cn("h-3 w-3 text-white/40 transition-transform duration-150", open && "rotate-180")} />
+        <ChevronDown className={cn("h-3 w-3 text-slate-400 dark:text-white/40 transition-transform duration-150", open && "rotate-180")} />
       </button>
 
       {open && (
@@ -578,11 +578,7 @@ export function AppHeader() {
 
   return (
     <header
-      className="flex h-11 items-center justify-between px-4 border-b"
-      style={{
-        background: "hsl(var(--header-bg))",
-        borderColor: "hsl(var(--header-border))",
-      }}
+      className="flex h-11 items-center justify-between px-4 border-b bg-white/80 dark:bg-[hsl(var(--header-bg))] backdrop-blur-xl border-slate-200/60 dark:border-[hsl(var(--header-border))] shadow-sm"
     >
       {/* Left: Logo + Org name + Breadcrumb */}
       <div className="flex items-center gap-4">
@@ -591,15 +587,15 @@ export function AppHeader() {
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="text-sm font-bold text-[hsl(var(--header-fg))]">NexusOps</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-[hsl(var(--header-fg))]">NexusOps</span>
             {currentUser.orgName && (
-              <span className="text-[0.6rem] text-[hsl(var(--header-fg))] opacity-50 truncate max-w-[120px]">
+              <span className="text-[0.6rem] text-slate-500 dark:text-[hsl(var(--header-fg))] dark:opacity-50 truncate max-w-[120px]">
                 {currentUser.orgName}
               </span>
             )}
           </div>
         </Link>
-        <div className="h-4 w-px bg-white/10 hidden md:block" />
+        <div className="h-4 w-px bg-slate-200 dark:bg-white/10 hidden md:block" />
         <Suspense fallback={null}>
           <Breadcrumbs />
         </Suspense>
@@ -608,7 +604,7 @@ export function AppHeader() {
       {/* Center: Global search */}
       <div className="flex-1 max-w-md mx-4 hidden md:block relative" ref={searchContainerRef}>
         <div className="relative flex items-center">
-          <Search className="absolute left-3 h-3.5 w-3.5 text-white/40 pointer-events-none" />
+          <Search className="absolute left-3 h-3.5 w-3.5 text-slate-400 dark:text-white/40 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
@@ -616,9 +612,9 @@ export function AppHeader() {
             onFocus={() => { if (results.length > 0) setSearchOpen(true); }}
             onKeyDown={handleSearchKeyDown}
             placeholder="Search records…"
-            className="w-full rounded border border-white/10 bg-white/5 pl-8 pr-12 py-1.5 text-xs text-white/80 placeholder:text-white/40 hover:bg-white/10 focus:bg-white/10 focus:outline-none focus:border-white/20 transition-colors"
+            className="w-full rounded border border-slate-200 bg-slate-50 pl-8 pr-12 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 hover:bg-slate-100 focus:bg-white focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:placeholder:text-white/40 dark:hover:bg-white/10 dark:focus:bg-white/10 dark:focus:border-white/20 dark:focus:ring-0"
           />
-          <kbd className="absolute right-3 rounded border border-white/15 px-1.5 py-0.5 text-[0.6rem] font-mono text-white/30 pointer-events-none">
+          <kbd className="absolute right-3 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[0.6rem] font-mono text-slate-400 pointer-events-none dark:border-white/15 dark:bg-transparent dark:text-white/30">
             ⌘K
           </kbd>
         </div>
@@ -688,7 +684,7 @@ export function AppHeader() {
         {/* Theme toggle */}
         <button
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="rounded p-1.5 text-[hsl(var(--header-fg))] opacity-60 hover:opacity-100 hover:bg-white/10 transition"
+          className="rounded p-1.5 text-slate-500 hover:text-slate-800 dark:text-[hsl(var(--header-fg))] dark:opacity-60 dark:hover:opacity-100 hover:bg-slate-100 dark:hover:bg-white/10 transition"
           title="Toggle theme"
         >
           {!themeMounted ? (
@@ -701,7 +697,7 @@ export function AppHeader() {
         </button>
 
         {/* Help */}
-        <button className="rounded p-1.5 text-[hsl(var(--header-fg))] opacity-60 hover:opacity-100 hover:bg-white/10 transition">
+        <button className="rounded p-1.5 text-slate-500 hover:text-slate-800 dark:text-[hsl(var(--header-fg))] dark:opacity-60 dark:hover:opacity-100 hover:bg-slate-100 dark:hover:bg-white/10 transition">
           <HelpCircle className="h-3.5 w-3.5" />
         </button>
 
@@ -713,13 +709,13 @@ export function AppHeader() {
 
         {/* Admin console — admins only */}
         {showAdminLink && (
-          <Link href="/app/admin" className="rounded p-1.5 text-[hsl(var(--header-fg))] opacity-60 hover:opacity-100 hover:bg-white/10 transition" title="Admin Console">
+          <Link href="/app/admin" className="rounded p-1.5 text-slate-500 hover:text-slate-800 dark:text-[hsl(var(--header-fg))] dark:opacity-60 dark:hover:opacity-100 hover:bg-slate-100 dark:hover:bg-white/10 transition" title="Admin Console">
             <Settings className="h-3.5 w-3.5" />
           </Link>
         )}
 
         {/* Divider */}
-        <div className="h-5 w-px bg-white/10 mx-1" />
+        <div className="h-5 w-px bg-slate-200 dark:bg-white/10 mx-1" />
 
         {/* User profile dropdown */}
         <UserMenu />

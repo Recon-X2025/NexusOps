@@ -305,14 +305,14 @@ function SidebarNavContent({
   return (
     <>
       <div className="px-3 py-2 border-b border-sidebar-border shrink-0">
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/70 dark:bg-muted/40 rounded">
-          <Search className="w-3 h-3 text-muted-foreground shrink-0" />
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100/80 dark:bg-muted/40 rounded border border-slate-200/60 dark:border-transparent">
+          <Search className="w-3 h-3 text-slate-400 dark:text-muted-foreground shrink-0" />
           <input
             type="text"
             placeholder="Filter navigator..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent text-[12px] text-sidebar-foreground placeholder:text-muted-foreground outline-none flex-1 min-w-0"
+            className="bg-transparent text-[12px] text-slate-700 dark:text-sidebar-foreground placeholder:text-slate-400 dark:placeholder:text-muted-foreground outline-none flex-1 min-w-0"
           />
         </div>
       </div>
@@ -676,7 +676,7 @@ export function AppSidebar() {
   };
 
   const shellClass =
-    "flex h-full min-h-0 w-56 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground";
+    "flex h-full min-h-0 w-56 shrink-0 flex-col overflow-hidden border-r bg-white/80 dark:bg-sidebar text-sidebar-foreground backdrop-blur-xl border-slate-200/60 dark:border-sidebar-border shadow-sm";
 
   return (
     <>
@@ -685,7 +685,7 @@ export function AppSidebar() {
           type="button"
           aria-label="Open navigation"
           onClick={() => setMobileOpen(true)}
-          className="fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-md md:hidden"
+          className="fixed bottom-4 left-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/60 dark:border-sidebar-border bg-white/80 dark:bg-sidebar text-sidebar-foreground backdrop-blur-xl shadow-md md:hidden"
         >
           <Menu className="h-5 w-5" />
         </button>
