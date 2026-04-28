@@ -145,7 +145,7 @@ const DEPT_WEIGHTS: { dept: string; n: number; titles: string[] }[] = [
 
 function flattenDepartments(): { dept: string; title: string }[] {
   const out: { dept: string; title: string }[] = [];
-  const rng = mulberry32(424242);
+  const rng = mulberry32(999999);
   for (const row of DEPT_WEIGHTS) {
     for (let i = 0; i < row.n; i++) {
       const title = row.titles[Math.floor(rng() * row.titles.length)]!;
@@ -153,7 +153,7 @@ function flattenDepartments(): { dept: string; title: string }[] {
     }
   }
   // Fisher–Yates shuffle for realistic dept interleaving
-  const rngShuffle = mulberry32(777);
+  const rngShuffle = mulberry32(111);
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rngShuffle() * (i + 1));
     [out[i], out[j]] = [out[j]!, out[i]!];
@@ -192,9 +192,9 @@ function pickEmploymentMix(rng: () => number): { status: EmpStatus; type: EmpTyp
 
 async function seedSmbAnalytics() {
   const db = getDb();
-  const headcount = envInt("SMB_HEADCOUNT", 400);
+  const headcount = envInt("SMB_HEADCOUNT", 650);
   const force = process.env.SMB_SEED_FORCE === "1";
-  const rng = mulberry32(20260425);
+  const rng = mulberry32(12345678);
   const histStart = historyStartDate();
 
   console.log(

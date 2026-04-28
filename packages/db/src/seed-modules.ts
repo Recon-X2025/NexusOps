@@ -1,5 +1,5 @@
 /**
- * Seed cross-module demo data for NexusOps.
+ * Seed cross-module demo data for NexusOps using Faker.js
  * Assumes the base org, users, and ticket config already exist.
  * Run this AFTER the main seed.ts if org already exists.
  */
@@ -14,6 +14,9 @@ import {
   buildings, rooms, applications,
   eq, and, count,
 } from "./schema";
+import { faker } from "@faker-js/faker";
+
+faker.seed(54321);
 
 const DEMO_ORG_SLUG = "coheron-demo";
 const NOW = new Date();
@@ -25,7 +28,7 @@ function cntFrom(rows: { cnt: unknown }[]): number {
 
 async function seedModules() {
   const db = getDb();
-  console.log("🌱 Seeding module data for NexusOps...\n");
+  console.log("🌱 Seeding dynamic module data for NexusOps...\n");
 
   // ── Get existing org & users ───────────────────────────────────────────────
   const [org] = await db.select().from(organizations).where(eq(organizations.slug, DEMO_ORG_SLUG));
@@ -38,150 +41,267 @@ async function seedModules() {
   const agent2 = agents[1] ?? admin;
   console.log(`✅ Using org: ${org.name}, ${allUsers.length} users`);
 
-  // ── Change Requests ────────────────────────────────────────────────────────
+  // ── Change Requests (20 Generated) ──────────────────────────────────────────
   const chgCnt = cntFrom(await db.select({ cnt: count() }).from(changeRequests).where(eq(changeRequests.orgId, org.id)));
   if (chgCnt === 0) {
-    await db.insert(changeRequests).values([
-      { orgId: org.id, number: "CHG-0001", title: "Upgrade PostgreSQL to v17", type: "normal", risk: "medium", status: "cab_review", requesterId: admin.id, assigneeId: agent1.id, scheduledStart: d(7), scheduledEnd: d(8), rollbackPlan: "Restore from nightly backup" },
-      { orgId: org.id, number: "CHG-0002", title: "Deploy new firewall rules", type: "emergency", risk: "high", status: "approved", requesterId: agent1.id, assigneeId: agent2.id },
-      { orgId: org.id, number: "CHG-0003", title: "Office 365 tenant migration", type: "normal", risk: "high", status: "draft", requesterId: admin.id, scheduledStart: d(30) },
-      { orgId: org.id, number: "CHG-0004", title: "SSL certificate renewal", type: "standard", risk: "low", status: "completed", requesterId: agent2.id },
-      { orgId: org.id, number: "CHG-0005", title: "Kubernetes cluster upgrade", type: "normal", risk: "medium", status: "scheduled", requesterId: admin.id, scheduledStart: d(14) },
-    ]);
-    console.log("✅ Change requests: 5");
+    const changeSeeds = Array.from({ length: 20 }).map((_, i) => ({
+      orgId: org.id,
+      number: `CHG-${String(i + 1).padStart(4, "0")}`,
+      title: `${faker.hacker.verb()} ${faker.hacker.adjective()} ${faker.hacker.noun()}`,
+      type: faker.helpers.arrayElement(["normal", "standard", "emergency"]),
+      risk: faker.helpers.arrayElement(["low", "medium", "high"]),
+      status: faker.helpers.arrayElement(["draft", "cab_review", "approved", "scheduled", "implementing", "completed"]),
+      requesterId: faker.helpers.arrayElement(allUsers).id,
+      assigneeId: faker.datatype.boolean() ? faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]) : undefined,
+      scheduledStart: faker.datatype.boolean() ? d(faker.number.int({ min: -5, max: 30 })) : undefined,
+      scheduledEnd: faker.datatype.boolean() ? d(faker.number.int({ min: 31, max: 60 })) : undefined,
+      rollbackPlan: faker.datatype.boolean() ? "Restore from backup" : null,
+    }));
+    await db.insert(changeRequests).values(changeSeeds);
+    console.log(`✅ Change requests: ${changeSeeds.length}`);
   } else {
     console.log(`ℹ️  Change requests already exist (${String(chgCnt)}), skipping`);
   }
 
-  // ── Problems ───────────────────────────────────────────────────────────────
+  // ── Problems (15 Generated) ───────────────────────────────────────────────
   const prbCnt = cntFrom(await db.select({ cnt: count() }).from(problems).where(eq(problems.orgId, org.id)));
   if (prbCnt === 0) {
-    await db.insert(problems).values([
-      { orgId: org.id, number: "PRB-0001", title: "Recurring email server crashes", status: "investigation", priority: "critical", assigneeId: agent1.id },
-      { orgId: org.id, number: "PRB-0002", title: "DB connection pool exhaustion", status: "root_cause_identified", priority: "high", assigneeId: agent2.id, rootCause: "Missing connection timeout" },
-      { orgId: org.id, number: "PRB-0003", title: "VPN performance under load", status: "known_error", priority: "medium", workaround: "Restart VPN service daily" },
-    ]);
-    console.log("✅ Problems: 3");
+    const problemSeeds = Array.from({ length: 15 }).map((_, i) => ({
+      orgId: org.id,
+      number: `PRB-${String(i + 1).padStart(4, "0")}`,
+      title: `Recurring ${faker.hacker.adjective()} ${faker.hacker.noun()} failures`,
+      status: faker.helpers.arrayElement(["investigation", "root_cause_identified", "known_error", "resolved"]),
+      priority: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
+      assigneeId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+      rootCause: faker.datatype.boolean() ? faker.company.catchPhrase() : null,
+      workaround: faker.datatype.boolean() ? "Restart the service" : null,
+    }));
+    await db.insert(problems).values(problemSeeds);
+    console.log(`✅ Problems: ${problemSeeds.length}`);
   }
 
   // ── Security ───────────────────────────────────────────────────────────────
   const secCnt = cntFrom(await db.select({ cnt: count() }).from(securityIncidents).where(eq(securityIncidents.orgId, org.id)));
   if (secCnt === 0) {
-    await db.insert(securityIncidents).values([
-      { orgId: org.id, number: "SEC-0001", title: "Phishing campaign targeting finance", severity: "high", status: "triage", assigneeId: admin.id, reporterId: agent1.id, attackVector: "Email", mitreTechniques: ["T1566.001"] },
-      { orgId: org.id, number: "SEC-0002", title: "Unauthorized API access attempt", severity: "medium", status: "containment", assigneeId: agent2.id, reporterId: admin.id, attackVector: "API" },
-      { orgId: org.id, number: "SEC-0003", title: "Malware detected on endpoint", severity: "critical", status: "eradication", assigneeId: agent1.id, reporterId: admin.id, attackVector: "USB", mitreTechniques: ["T1091"] },
-    ]);
-    await db.insert(vulnerabilities).values([
-      { orgId: org.id, cveId: "CVE-2024-1234", title: "OpenSSL Memory Corruption", severity: "critical", cvssScore: "9.8", status: "open", assigneeId: agent1.id },
-      { orgId: org.id, title: "Outdated Apache version 2.4.51", severity: "high", status: "in_progress", assigneeId: agent2.id },
-      { orgId: org.id, cveId: "CVE-2024-5678", title: "Log4j RCE Variant", severity: "critical", cvssScore: "10.0", status: "remediated", remediatedAt: d(-5) },
-    ]);
-    console.log("✅ Security: 3 incidents, 3 vulns");
+    const secIncidents = Array.from({ length: 20 }).map((_, i) => ({
+      orgId: org.id,
+      number: `SEC-${String(i + 1).padStart(4, "0")}`,
+      title: `${faker.hacker.ingverb()} attempt on ${faker.hacker.noun()}`,
+      severity: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
+      status: faker.helpers.arrayElement(["triage", "containment", "eradication", "recovery", "closed"]),
+      assigneeId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+      reporterId: faker.helpers.arrayElement(allUsers).id,
+      attackVector: faker.helpers.arrayElement(["Email", "API", "Web", "USB", "Insider"]),
+    }));
+    await db.insert(securityIncidents).values(secIncidents);
+
+    const vulns = Array.from({ length: 20 }).map((_, i) => ({
+      orgId: org.id,
+      cveId: `CVE-202${faker.number.int({ min: 0, max: 4 })}-${faker.number.int({ min: 1000, max: 9999 })}`,
+      title: `${faker.hacker.noun()} Vulnerability`,
+      severity: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
+      cvssScore: faker.finance.amount({ min: 4, max: 10, dec: 1 }),
+      status: faker.helpers.arrayElement(["open", "in_progress", "remediated", "accepted"]),
+      assigneeId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+      remediatedAt: faker.datatype.boolean() ? d(faker.number.int({ min: -30, max: -1 })) : null,
+    }));
+    await db.insert(vulnerabilities).values(vulns);
+    console.log(`✅ Security: ${secIncidents.length} incidents, ${vulns.length} vulns`);
   }
 
   // ── GRC Risks ──────────────────────────────────────────────────────────────
   const rskCnt = cntFrom(await db.select({ cnt: count() }).from(risks).where(eq(risks.orgId, org.id)));
   if (rskCnt === 0) {
-    await db.insert(risks).values([
-      { orgId: org.id, number: "RK-0001", title: "SPOF in primary database", category: "technology", likelihood: 3, impact: 5, riskScore: 15, status: "mitigating", treatment: "mitigate", ownerId: admin.id },
-      { orgId: org.id, number: "RK-0002", title: "GDPR compliance gap", category: "compliance", likelihood: 4, impact: 4, riskScore: 16, status: "identified", treatment: "mitigate", ownerId: agent1.id },
-      { orgId: org.id, number: "RK-0003", title: "Key vendor dependency", category: "operational", likelihood: 2, impact: 5, riskScore: 10, status: "accepted", treatment: "accept", ownerId: admin.id },
-      { orgId: org.id, number: "RK-0004", title: "Insider threat - privileged accounts", category: "strategic", likelihood: 2, impact: 4, riskScore: 8, status: "mitigating", treatment: "mitigate", ownerId: agent2.id },
-      { orgId: org.id, number: "RK-0005", title: "Ransomware on OT systems", category: "technology", likelihood: 3, impact: 5, riskScore: 15, status: "identified", treatment: "transfer", ownerId: admin.id },
-    ]);
-    console.log("✅ GRC risks: 5");
+    const risksSeeds = Array.from({ length: 20 }).map((_, i) => {
+      const likelihood = faker.number.int({ min: 1, max: 5 });
+      const impact = faker.number.int({ min: 1, max: 5 });
+      return {
+        orgId: org.id,
+        number: `RK-${String(i + 1).padStart(4, "0")}`,
+        title: `Risk of ${faker.hacker.ingverb()} ${faker.hacker.noun()}`,
+        category: faker.helpers.arrayElement(["technology", "compliance", "operational", "strategic"]),
+        likelihood,
+        impact,
+        riskScore: likelihood * impact,
+        status: faker.helpers.arrayElement(["identified", "assessed", "mitigating", "accepted", "closed"]),
+        treatment: faker.helpers.arrayElement(["mitigate", "accept", "transfer", "avoid"]),
+        ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+      };
+    });
+    await db.insert(risks).values(risksSeeds);
+    console.log(`✅ GRC risks: ${risksSeeds.length}`);
   }
 
   // ── Budget Lines ───────────────────────────────────────────────────────────
   const budgCnt = cntFrom(await db.select({ cnt: count() }).from(budgetLines).where(eq(budgetLines.orgId, org.id)));
   if (budgCnt === 0) {
-    await db.insert(budgetLines).values([
-      { orgId: org.id, category: "Infrastructure", department: "IT", fiscalYear: 2025, budgeted: "500000", committed: "320000", actual: "298000", forecast: "420000" },
-      { orgId: org.id, category: "Software Licenses", department: "IT", fiscalYear: 2025, budgeted: "150000", committed: "120000", actual: "118000", forecast: "145000" },
-      { orgId: org.id, category: "Personnel", department: "Engineering", fiscalYear: 2025, budgeted: "2000000", committed: "1850000", actual: "1720000", forecast: "1950000" },
-      { orgId: org.id, category: "Marketing", department: "Marketing", fiscalYear: 2025, budgeted: "300000", committed: "200000", actual: "185000", forecast: "270000" },
-      { orgId: org.id, category: "Professional Services", department: "Legal", fiscalYear: 2025, budgeted: "80000", committed: "60000", actual: "52000", forecast: "75000" },
-    ]);
-    console.log("✅ Budget lines: 5");
+    const budgetSeeds = Array.from({ length: 10 }).map(() => {
+      const budgeted = faker.number.int({ min: 50000, max: 2000000 });
+      const committed = faker.number.int({ min: 10000, max: budgeted });
+      const actual = faker.number.int({ min: 10000, max: committed });
+      return {
+        orgId: org.id,
+        category: faker.helpers.arrayElement(["Infrastructure", "Software Licenses", "Personnel", "Marketing", "Professional Services", "Facilities"]),
+        department: faker.helpers.arrayElement(["IT", "Engineering", "Marketing", "Legal", "Sales", "HR"]),
+        fiscalYear: 2025,
+        budgeted: String(budgeted),
+        committed: String(committed),
+        actual: String(actual),
+        forecast: String(faker.number.int({ min: actual, max: budgeted * 1.2 })),
+      };
+    });
+    await db.insert(budgetLines).values(budgetSeeds);
+    console.log(`✅ Budget lines: ${budgetSeeds.length}`);
   }
 
   // ── Contracts ──────────────────────────────────────────────────────────────
   const cntrCnt = cntFrom(await db.select({ cnt: count() }).from(contracts).where(eq(contracts.orgId, org.id)));
   if (cntrCnt === 0) {
-    await db.insert(contracts).values([
-      { orgId: org.id, contractNumber: "CNTR-0001", title: "AWS Enterprise Agreement", counterparty: "Amazon Web Services", type: "vendor", status: "active", value: "240000", startDate: d(-365), endDate: d(365), autoRenew: true, internalOwnerId: admin.id },
-      { orgId: org.id, contractNumber: "CNTR-0002", title: "Microsoft 365 E5 License", counterparty: "Microsoft Corporation", type: "license", status: "active", value: "85000", startDate: d(-180), endDate: d(185), autoRenew: true, internalOwnerId: admin.id },
-      { orgId: org.id, contractNumber: "CNTR-0003", title: "ACME Corp MSA", counterparty: "ACME Corporation", type: "msa", status: "active", value: "120000", startDate: d(-90), endDate: d(275), autoRenew: false, internalOwnerId: agent1.id },
-      { orgId: org.id, contractNumber: "CNTR-0004", title: "Salesforce CRM - NDA", counterparty: "Salesforce Inc", type: "nda", status: "expiring_soon", value: "0", startDate: d(-730), endDate: d(15), autoRenew: false, internalOwnerId: admin.id },
-      { orgId: org.id, contractNumber: "CNTR-0005", title: "Zendesk SaaS Agreement", counterparty: "Zendesk Inc", type: "sla_support", status: "under_review", value: "24000", startDate: d(-30), endDate: d(335), autoRenew: true, internalOwnerId: agent1.id },
-    ]);
-    console.log("✅ Contracts: 5");
+    const contractSeeds = Array.from({ length: 15 }).map((_, i) => ({
+      orgId: org.id,
+      contractNumber: `CNTR-${String(i + 1).padStart(4, "0")}`,
+      title: `${faker.company.name()} Agreement`,
+      counterparty: faker.company.name(),
+      type: faker.helpers.arrayElement(["vendor", "license", "msa", "nda", "sla_support"]),
+      status: faker.helpers.arrayElement(["draft", "under_review", "active", "expiring_soon", "expired", "terminated"]),
+      value: faker.finance.amount({ min: 0, max: 500000, dec: 0 }),
+      startDate: d(faker.number.int({ min: -500, max: 0 })),
+      endDate: d(faker.number.int({ min: 10, max: 1000 })),
+      autoRenew: faker.datatype.boolean(),
+      internalOwnerId: faker.helpers.arrayElement(allUsers).id,
+    }));
+    await db.insert(contracts).values(contractSeeds);
+    console.log(`✅ Contracts: ${contractSeeds.length}`);
   }
 
   // ── Projects ───────────────────────────────────────────────────────────────
   const prjCnt = cntFrom(await db.select({ cnt: count() }).from(projects).where(eq(projects.orgId, org.id)));
   if (prjCnt === 0) {
-    const projectData = await db.insert(projects).values([
-      { orgId: org.id, number: "PRJ-0001", name: "ERP Modernisation", status: "active", health: "amber", budgetTotal: "1200000", budgetSpent: "680000", startDate: d(-90), endDate: d(180), ownerId: admin.id, department: "IT" },
-      { orgId: org.id, number: "PRJ-0002", name: "Zero Trust Security", status: "active", health: "green", budgetTotal: "350000", budgetSpent: "120000", startDate: d(-30), endDate: d(240), ownerId: agent1.id, department: "Security" },
-      { orgId: org.id, number: "PRJ-0003", name: "HR Digital Transformation", status: "planning", health: "green", budgetTotal: "500000", budgetSpent: "0", startDate: d(30), endDate: d(365), ownerId: admin.id, department: "HR" },
-    ]).returning();
-    await db.insert(projectTasks).values([
-      { projectId: projectData[0]!.id, title: "Vendor evaluation", status: "done", priority: "high", assigneeId: admin.id },
-      { projectId: projectData[0]!.id, title: "Data migration strategy", status: "in_progress", priority: "critical", assigneeId: agent1.id },
-      { projectId: projectData[1]!.id, title: "Identity provider integration", status: "in_progress", priority: "high", assigneeId: agent1.id },
-    ]);
-    console.log("✅ Projects: 3 with tasks");
+    const projectData = await db.insert(projects).values(
+      Array.from({ length: 10 }).map((_, i) => ({
+        orgId: org.id,
+        number: `PRJ-${String(i + 1).padStart(4, "0")}`,
+        name: `${faker.company.catchPhrase()} Initiative`,
+        status: faker.helpers.arrayElement(["planning", "active", "on_hold", "completed", "cancelled"]),
+        health: faker.helpers.arrayElement(["green", "amber", "red"]),
+        budgetTotal: faker.finance.amount({ min: 50000, max: 2000000, dec: 0 }),
+        budgetSpent: faker.finance.amount({ min: 0, max: 1000000, dec: 0 }),
+        startDate: d(faker.number.int({ min: -90, max: 30 })),
+        endDate: d(faker.number.int({ min: 31, max: 365 })),
+        ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+        department: faker.helpers.arrayElement(["IT", "Security", "HR", "Finance", "Sales"]),
+      }))
+    ).returning();
+
+    const taskSeeds = projectData.flatMap(p => 
+      Array.from({ length: faker.number.int({ min: 3, max: 8 }) }).map(() => ({
+        projectId: p.id,
+        title: `${faker.hacker.verb()} ${faker.hacker.noun()}`,
+        status: faker.helpers.arrayElement(["todo", "in_progress", "in_review", "done"]),
+        priority: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
+        assigneeId: faker.helpers.arrayElement(allUsers).id,
+      }))
+    );
+    await db.insert(projectTasks).values(taskSeeds);
+    console.log(`✅ Projects: ${projectData.length} with ${taskSeeds.length} tasks`);
   }
 
   // ── CRM ────────────────────────────────────────────────────────────────────
   const crmCnt = cntFrom(await db.select({ cnt: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org.id)));
   if (crmCnt === 0) {
-    const crmAccountData = await db.insert(crmAccounts).values([
-      { orgId: org.id, name: "Techwave Solutions", industry: "Technology", tier: "enterprise", healthScore: 85, annualRevenue: "45000000", ownerId: admin.id },
-      { orgId: org.id, name: "Global Retail Group", industry: "Retail", tier: "mid_market", healthScore: 72, annualRevenue: "12000000", ownerId: agent1.id },
-      { orgId: org.id, name: "FinServ Partners", industry: "Financial Services", tier: "enterprise", healthScore: 90, annualRevenue: "80000000", ownerId: admin.id },
-    ]).returning();
-    await db.insert(crmDeals).values([
-      { orgId: org.id, title: "Techwave Enterprise License", accountId: crmAccountData[0]!.id, stage: "negotiation", value: "250000", probability: 75, weightedValue: "187500", expectedClose: d(30), ownerId: admin.id },
-      { orgId: org.id, title: "Global Retail Implementation", accountId: crmAccountData[1]!.id, stage: "proposal", value: "180000", probability: 50, weightedValue: "90000", expectedClose: d(45), ownerId: agent1.id },
-      { orgId: org.id, title: "FinServ Platform Expansion", accountId: crmAccountData[2]!.id, stage: "verbal_commit", value: "420000", probability: 90, weightedValue: "378000", expectedClose: d(14), ownerId: admin.id },
-      { orgId: org.id, title: "Healthcare Corp Renewal", accountId: crmAccountData[2]!.id, stage: "closed_won", value: "120000", probability: 100, weightedValue: "120000", closedAt: d(-7), ownerId: admin.id },
-    ]);
-    await db.insert(crmLeads).values([
-      { orgId: org.id, firstName: "Jennifer", lastName: "Walsh", email: "j.walsh@infratech.com", company: "InfraTech", source: "referral", score: 85, status: "qualified", ownerId: admin.id },
-      { orgId: org.id, firstName: "Marcus", lastName: "Okonjo", email: "m.okonjo@cloudco.io", company: "CloudCo", source: "website", score: 62, status: "contacted", ownerId: agent1.id },
-      { orgId: org.id, firstName: "Sofia", lastName: "Reyes", email: "sofia@dataplex.net", company: "DataPlex", source: "event", score: 91, status: "qualified", ownerId: admin.id },
-    ]);
-    console.log("✅ CRM: 3 accounts, 4 deals, 3 leads");
+    const crmAccountData = await db.insert(crmAccounts).values(
+      Array.from({ length: 15 }).map(() => ({
+        orgId: org.id,
+        name: faker.company.name(),
+        industry: faker.helpers.arrayElement(["Technology", "Retail", "Financial Services", "Healthcare", "Manufacturing"]),
+        tier: faker.helpers.arrayElement(["enterprise", "mid_market", "smb"]),
+        healthScore: faker.number.int({ min: 10, max: 100 }),
+        annualRevenue: faker.finance.amount({ min: 1000000, max: 1000000000, dec: 0 }),
+        ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+      }))
+    ).returning();
+
+    const dealData = await db.insert(crmDeals).values(
+      Array.from({ length: 30 }).map(() => {
+        const value = faker.number.int({ min: 5000, max: 500000 });
+        const prob = faker.number.int({ min: 0, max: 100 });
+        return {
+          orgId: org.id,
+          title: `${faker.company.catchPhraseAdjective()} Expansion`,
+          accountId: faker.helpers.arrayElement(crmAccountData).id,
+          stage: faker.helpers.arrayElement(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]),
+          value: String(value),
+          probability: prob,
+          weightedValue: String((value * prob) / 100),
+          expectedClose: d(faker.number.int({ min: -30, max: 120 })),
+          ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+        };
+      })
+    ).returning();
+
+    await db.insert(crmLeads).values(
+      Array.from({ length: 25 }).map(() => ({
+        orgId: org.id,
+        firstName: faker.person.firstName(),
+        lastName: faker.person.lastName(),
+        email: faker.internet.email(),
+        company: faker.company.name(),
+        source: faker.helpers.arrayElement(["website", "referral", "event", "cold_outreach", "partner"]),
+        score: faker.number.int({ min: 0, max: 100 }),
+        status: faker.helpers.arrayElement(["new", "contacted", "qualified", "disqualified", "converted"]),
+        ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
+      }))
+    );
+    console.log(`✅ CRM: ${crmAccountData.length} accounts, ${dealData.length} deals`);
   }
 
   // ── Legal ──────────────────────────────────────────────────────────────────
   const legCnt = cntFrom(await db.select({ cnt: count() }).from(legalMatters).where(eq(legalMatters.orgId, org.id)));
   if (legCnt === 0) {
-    await db.insert(legalMatters).values([
-      { orgId: org.id, matterNumber: "MAT-0001", title: "Employment dispute - Q3 2024", type: "employment", status: "active", assignedTo: admin.id, confidential: true, estimatedCost: "45000" },
-      { orgId: org.id, matterNumber: "MAT-0002", title: "GDPR data breach notification", type: "data_privacy", status: "active", assignedTo: admin.id, confidential: false, estimatedCost: "25000" },
-      { orgId: org.id, matterNumber: "MAT-0003", title: "Trademark registration", type: "ip", status: "intake", assignedTo: agent1.id, confidential: false, estimatedCost: "8000" },
-    ]);
-    console.log("✅ Legal: 3 matters");
+    await db.insert(legalMatters).values(
+      Array.from({ length: 10 }).map((_, i) => ({
+        orgId: org.id,
+        matterNumber: `MAT-${String(i + 1).padStart(4, "0")}`,
+        title: `${faker.company.name()} Dispute`,
+        type: faker.helpers.arrayElement(["litigation", "employment", "ip", "data_privacy", "corporate", "commercial"]),
+        status: faker.helpers.arrayElement(["intake", "active", "discovery", "pre_trial", "closed", "settled"]),
+        assignedTo: faker.helpers.arrayElement([admin.id, agent1.id]),
+        confidential: faker.datatype.boolean(),
+        estimatedCost: faker.finance.amount({ min: 5000, max: 100000, dec: 0 }),
+      }))
+    );
+    console.log("✅ Legal matters: 10");
   }
 
   // ── DevOps ─────────────────────────────────────────────────────────────────
   const devCnt = cntFrom(await db.select({ cnt: count() }).from(pipelineRuns).where(eq(pipelineRuns.orgId, org.id)));
   if (devCnt === 0) {
-    const pipelineData = await db.insert(pipelineRuns).values([
-      { orgId: org.id, pipelineName: "nexusops-api", trigger: "push", branch: "main", commitSha: "a3f9b2c", status: "success", durationSeconds: 342, completedAt: d(-0.1) },
-      { orgId: org.id, pipelineName: "nexusops-web", trigger: "push", branch: "main", commitSha: "d8e1f4a", status: "success", durationSeconds: 428, completedAt: d(-0.2) },
-      { orgId: org.id, pipelineName: "nexusops-api", trigger: "push", branch: "feature/crm", commitSha: "b2c7d9e", status: "failed", durationSeconds: 121, completedAt: d(-0.5) },
-    ]).returning();
-    await db.insert(deployments).values([
-      { orgId: org.id, appName: "nexusops-api", environment: "production", version: "v2.4.1", status: "success", deployedById: admin.id, pipelineRunId: pipelineData[0]!.id, durationSeconds: 180 },
-      { orgId: org.id, appName: "nexusops-web", environment: "production", version: "v2.4.1", status: "success", deployedById: admin.id, pipelineRunId: pipelineData[1]!.id, durationSeconds: 95 },
-      { orgId: org.id, appName: "nexusops-api", environment: "staging", version: "v2.5.0-rc1", status: "in_progress", deployedById: agent1.id },
-    ]);
-    console.log("✅ DevOps: 3 pipelines, 3 deployments");
+    const pipelineData = await db.insert(pipelineRuns).values(
+      Array.from({ length: 20 }).map(() => ({
+        orgId: org.id,
+        pipelineName: faker.helpers.arrayElement(["nexusops-api", "nexusops-web", "nexusops-worker"]),
+        trigger: faker.helpers.arrayElement(["push", "pr", "scheduled", "manual"]),
+        branch: faker.helpers.arrayElement(["main", "feature/auth", "fix/bug"]),
+        commitSha: faker.git.commitSha().substring(0, 7),
+        status: faker.helpers.arrayElement(["success", "failed", "running", "cancelled"]),
+        durationSeconds: faker.number.int({ min: 30, max: 600 }),
+        completedAt: faker.datatype.boolean() ? d(faker.number.float({ min: -5, max: 0 })) : null,
+      }))
+    ).returning();
+
+    await db.insert(deployments).values(
+      Array.from({ length: 15 }).map(() => ({
+        orgId: org.id,
+        appName: faker.helpers.arrayElement(["nexusops-api", "nexusops-web", "nexusops-worker"]),
+        environment: faker.helpers.arrayElement(["dev", "qa", "staging", "production"]),
+        version: `v${faker.number.int({ min: 1, max: 5 })}.${faker.number.int({ min: 0, max: 9 })}.${faker.number.int({ min: 0, max: 9 })}`,
+        status: faker.helpers.arrayElement(["pending", "in_progress", "success", "failed", "rolled_back"]),
+        deployedById: faker.helpers.arrayElement(allUsers).id,
+        pipelineRunId: faker.datatype.boolean() ? faker.helpers.arrayElement(pipelineData).id : null,
+        durationSeconds: faker.number.int({ min: 10, max: 300 }),
+      }))
+    );
+    console.log(`✅ DevOps: ${pipelineData.length} pipelines, 15 deployments`);
   }
 
   // ── Surveys ────────────────────────────────────────────────────────────────
@@ -201,14 +321,19 @@ async function seedModules() {
   // ── Knowledge Base ─────────────────────────────────────────────────────────
   const kbCnt = cntFrom(await db.select({ cnt: count() }).from(kbArticles).where(eq(kbArticles.orgId, org.id)));
   if (kbCnt === 0) {
-    await db.insert(kbArticles).values([
-      { orgId: org.id, title: "How to reset your VPN password", content: "Follow these steps to reset your VPN credentials...", categoryId: null, status: "published", authorId: agent1.id, viewCount: 342, helpfulCount: 98 },
-      { orgId: org.id, title: "Requesting new software access", content: "Use the Service Catalog to submit software access requests...", categoryId: null, status: "published", authorId: agent2.id, viewCount: 289, helpfulCount: 74 },
-      { orgId: org.id, title: "Expense reporting guidelines", content: "All expenses must be submitted within 30 days...", categoryId: null, status: "published", authorId: admin.id, viewCount: 156, helpfulCount: 62 },
-      { orgId: org.id, title: "IT Security best practices", content: "Always use strong passwords and enable MFA...", categoryId: null, status: "published", authorId: admin.id, viewCount: 412, helpfulCount: 188 },
-      { orgId: org.id, title: "How to book a meeting room", content: "Use the Facilities portal to reserve rooms...", categoryId: null, status: "published", authorId: agent1.id, viewCount: 201, helpfulCount: 55 },
-    ]);
-    console.log("✅ KB articles: 5");
+    await db.insert(kbArticles).values(
+      Array.from({ length: 15 }).map(() => ({
+        orgId: org.id,
+        title: `How to ${faker.hacker.verb()} your ${faker.hacker.noun()}`,
+        content: `## ${faker.hacker.ingverb()}\n\n${faker.lorem.paragraphs(3)}`,
+        categoryId: null,
+        status: faker.helpers.arrayElement(["draft", "published", "archived"]),
+        authorId: faker.helpers.arrayElement(allUsers).id,
+        viewCount: faker.number.int({ min: 0, max: 1000 }),
+        helpfulCount: faker.number.int({ min: 0, max: 500 }),
+      }))
+    );
+    console.log("✅ KB articles: 15");
   }
 
   // ── On-Call ────────────────────────────────────────────────────────────────
@@ -256,28 +381,51 @@ async function seedModules() {
   // ── APM ─────────────────────────────────────────────────────────────────────
   const apmCnt = cntFrom(await db.select({ cnt: count() }).from(applications).where(eq(applications.orgId, org.id)));
   if (apmCnt === 0) {
-    await db.insert(applications).values([
-      { orgId: org.id, name: "Salesforce CRM", category: "CRM", lifecycle: "sustaining", healthScore: 85, annualCost: "120000", usersCount: 250, cloudReadiness: "cloud_native", techDebtScore: 15, ownerId: admin.id, vendor: "Salesforce" },
-      { orgId: org.id, name: "Legacy ERP (SAP R/3)", category: "ERP", lifecycle: "harvesting", healthScore: 45, annualCost: "350000", usersCount: 180, cloudReadiness: "rearchitect", techDebtScore: 78, ownerId: agent1.id, vendor: "SAP" },
-      { orgId: org.id, name: "Jira Software", category: "Project Mgmt", lifecycle: "investing", healthScore: 92, annualCost: "45000", usersCount: 120, cloudReadiness: "cloud_native", techDebtScore: 5, ownerId: agent2.id, vendor: "Atlassian" },
-      { orgId: org.id, name: "Custom HR Portal", category: "HR", lifecycle: "retiring", healthScore: 30, annualCost: "80000", usersCount: 450, cloudReadiness: "lift_shift", techDebtScore: 87, ownerId: admin.id, vendor: "Internal" },
-    ]);
-    console.log("✅ APM applications: 4");
+    await db.insert(applications).values(
+      Array.from({ length: 15 }).map(() => ({
+        orgId: org.id,
+        name: `${faker.company.name()} System`,
+        category: faker.helpers.arrayElement(["CRM", "ERP", "Project Management", "HR", "Finance", "Internal Tool"]),
+        lifecycle: faker.helpers.arrayElement(["evaluating", "investing", "sustaining", "harvesting", "retiring"]),
+        healthScore: faker.number.int({ min: 20, max: 100 }),
+        annualCost: faker.finance.amount({ min: 10000, max: 500000, dec: 0 }),
+        usersCount: faker.number.int({ min: 10, max: 5000 }),
+        cloudReadiness: faker.helpers.arrayElement(["cloud_native", "lift_shift", "replatform", "rearchitect", "retire"]),
+        techDebtScore: faker.number.int({ min: 0, max: 100 }),
+        ownerId: faker.helpers.arrayElement(allUsers).id,
+        vendor: faker.company.name(),
+      }))
+    );
+    console.log("✅ APM applications: 15");
   }
 
   // ── Vendors (extra check) ──────────────────────────────────────────────────
   const vndCnt = cntFrom(await db.select({ cnt: count() }).from(vendors).where(eq(vendors.orgId, org.id)));
   if (vndCnt === 0) {
-    await db.insert(vendors).values([
-      { orgId: org.id, name: "Dell Technologies", contactEmail: "sales@dell.com", status: "active", rating: "4.5", paymentTerms: "Net 30" },
-      { orgId: org.id, name: "AWS Marketplace", contactEmail: "aws@amazon.com", status: "active", rating: "4.8", paymentTerms: "Monthly" },
-      { orgId: org.id, name: "Office Supplies Co", contactEmail: "orders@officesupplies.com", status: "active", rating: "3.9", paymentTerms: "Net 15" },
-    ]);
-    await db.insert(purchaseRequests).values([
-      { orgId: org.id, number: "PR-0001", title: "15x Laptop replacement", requesterId: admin.id, totalAmount: "37500", status: "approved", priority: "high", department: "IT" },
-      { orgId: org.id, number: "PR-0002", title: "Network switches Q1", requesterId: agent1.id, totalAmount: "24000", status: "pending", priority: "medium", department: "IT" },
-    ]);
-    console.log("✅ Vendors: 3, PRs: 2");
+    const vendorData = await db.insert(vendors).values(
+      Array.from({ length: 10 }).map(() => ({
+        orgId: org.id,
+        name: faker.company.name(),
+        contactEmail: faker.internet.email(),
+        status: faker.helpers.arrayElement(["active", "inactive", "under_review", "blacklisted"]),
+        rating: faker.finance.amount({ min: 1, max: 5, dec: 1 }),
+        paymentTerms: faker.helpers.arrayElement(["Net 15", "Net 30", "Net 60", "Due on receipt"]),
+      }))
+    ).returning();
+
+    await db.insert(purchaseRequests).values(
+      Array.from({ length: 15 }).map((_, i) => ({
+        orgId: org.id,
+        number: `PR-${String(i + 1).padStart(4, "0")}`,
+        title: `${faker.number.int({ min: 1, max: 50 })}x ${faker.commerce.product()}`,
+        requesterId: faker.helpers.arrayElement(allUsers).id,
+        totalAmount: faker.finance.amount({ min: 100, max: 50000, dec: 0 }),
+        status: faker.helpers.arrayElement(["draft", "pending", "approved", "rejected", "ordered", "received"]),
+        priority: faker.helpers.arrayElement(["low", "medium", "high"]),
+        department: faker.helpers.arrayElement(["IT", "HR", "Sales", "Marketing", "Operations"]),
+      }))
+    );
+    console.log(`✅ Vendors: ${vendorData.length}, PRs: 15`);
   }
 
   console.log("\n🎉 Module seed complete!");
