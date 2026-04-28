@@ -6,7 +6,7 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
 import { FilePicker } from "@/components/dms/FilePicker";
-import { PermissionGate } from "@/components/auth/PermissionGate";
+import { PermissionGate } from "@/lib/rbac-context";
 import {
   ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X,
   AlertTriangle, MessageSquare, Activity, Paperclip, User, Megaphone,

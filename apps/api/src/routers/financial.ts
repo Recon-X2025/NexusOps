@@ -228,6 +228,26 @@ export const financialRouter = router({
       };
     }),
 
+  getInvoice: permissionProcedure("financial", "read")
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({
+          ...getTableColumns(invoices),
+          vendorName: vendors.name,
+          legalEntityCode: legalEntities.code,
+          legalEntityName: legalEntities.name,
+        })
+        .from(invoices)
+        .leftJoin(vendors, eq(invoices.vendorId, vendors.id))
+        .leftJoin(legalEntities, eq(invoices.legalEntityId, legalEntities.id))
+        .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)));
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
+    }),
+
   approveInvoice: permissionProcedure("financial", "write")
     .use(mfaGate)
     .use(stepUpGate)

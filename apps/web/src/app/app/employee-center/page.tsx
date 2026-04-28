@@ -224,13 +224,7 @@ export default function EmployeeCenterPage() {
           <div className="bg-card border border-border rounded p-4">
             <div className="text-[12px] font-semibold text-foreground/80 mb-3">Get Help</div>
             <div className="space-y-2">
-              <Link href="/app/virtual-agent" className="flex items-center gap-2 p-2.5 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors">
-                <Bot className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                <div>
-                  <div className="text-[12px] font-medium text-purple-700">Chat with Virtual Agent</div>
-                  <div className="text-[10px] text-purple-500">Instant answers 24/7</div>
-                </div>
-              </Link>
+
               <Link href="/app/tickets/new" className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
                 <TicketIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
                 <div>

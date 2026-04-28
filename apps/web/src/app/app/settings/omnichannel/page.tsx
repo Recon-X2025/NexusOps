@@ -25,9 +25,9 @@ const CHANNELS = [
   },
   {
     id: "virtual_agent",
-    label: "Virtual agent",
-    status: "Live",
-    detail: "Guided flows under IT Services → Virtual Agent (module-gated).",
+    label: "Virtual Agent (AI)",
+    status: "Roadmap",
+    detail: "AI-driven self-service and automated ticket resolution.",
   },
 ] as const;
 

@@ -8,7 +8,7 @@ import { CommandCenterShell, CommandCenterBar } from "@/components/command-cente
 import { CommandCenterKpiStrip } from "@/components/command-center/command-center-kpi-strip";
 import { CommandCenterHeatmap } from "@/components/command-center/command-center-heatmap";
 import { CommandCenterSidebarCharts } from "@/components/command-center/command-center-sidebar-charts";
-import { CommandCenterNarrativePanel } from "@/components/command-center/command-center-narrative-panel";
+
 import { CommandCenterBullets } from "@/components/command-center/command-center-bullets";
 import { CommandCenterTrends } from "@/components/command-center/command-center-trends";
 import { CommandCenterFlow } from "@/components/command-center/command-center-flow";
@@ -124,21 +124,9 @@ function CommandCenterBody({
     return () => window.clearTimeout(id);
   }, [qView.isSuccess, qView.isError, qView.isFetching]);
 
-  const narrative = trpc.commandCenter.generateNarrative.useMutation();
-  const narratedKey = useRef("");
 
-  useEffect(() => {
-    if (!qView.data) return;
-    const key = `${qView.data.asOf}:${qView.data.role}`;
-    if (narratedKey.current === key) return;
-    narratedKey.current = key;
-    narrative.mutate({ role: qView.data.role, payload: qView.data });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot enrichment per payload revision
-  }, [qView.data]);
 
-  const displayPayload = qView.data
-    ? { ...qView.data, narrative: narrative.data?.text ?? qView.data.narrative }
-    : undefined;
+  const displayPayload = qView.data;
 
   const refreshAll = () => {
     setViewTimedOut(false);
@@ -176,42 +164,43 @@ function CommandCenterBody({
       <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching} />
 
       {qView.isLoading || !displayPayload ? (
-        <div className="space-y-4 animate-pulse">
-          <div className="h-24 rounded-xl bg-slate-200/80" />
-          <div className="h-96 rounded-xl bg-slate-200/80" />
-          <div className="h-64 rounded-xl bg-slate-200/80" />
+        <div className="space-y-2 animate-pulse p-2">
+          <div className="h-20 bg-slate-200 rounded" />
+          <div className="h-64 bg-slate-200 rounded" />
+          <div className="h-48 bg-slate-200 rounded" />
         </div>
       ) : (
         <CommandCenterSectionBoundary>
-          <div className="flex flex-col gap-4 md:gap-5">
-            <CommandCenterKpiStrip payload={displayPayload} />
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-5 items-stretch">
+          <div className="flex flex-col gap-2">
+            {/* Top Row: Score + Primary KPIs */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
+               <div className="xl:col-span-12">
+                 <CommandCenterKpiStrip payload={displayPayload} />
+               </div>
+            </div>
+
+            {/* Middle Row: Heatmap + Sidebar Charts */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 items-stretch">
               <div className="xl:col-span-8 min-w-0">
                 <CommandCenterHeatmap payload={displayPayload} />
               </div>
-              <div className="xl:col-span-4 flex flex-col gap-4 min-w-0">
+              <div className="xl:col-span-4 min-w-0">
                 <CommandCenterSidebarCharts payload={displayPayload} />
-                <CommandCenterNarrativePanel payload={displayPayload} />
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+
+            {/* Bottom Row: Detailed Signals */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
+              <CommandCenterBullets payload={displayPayload} />
+              <CommandCenterFlow payload={displayPayload} />
+              <CommandCenterRisks payload={displayPayload} />
               <CommandCenterTrends payload={displayPayload} />
-              <div className="flex flex-col gap-4 md:gap-5">
-                <CommandCenterBullets payload={displayPayload} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 md:gap-5">
-                  <CommandCenterFlow payload={displayPayload} />
-                  <CommandCenterRisks payload={displayPayload} />
-                </div>
-              </div>
             </div>
           </div>
         </CommandCenterSectionBoundary>
       )}
 
-      <ExecutiveHowToStrip />
-      <ExecutiveFooterQuote>
-        Breadth only matters when the signals agree — the Command Center is where NexusOps becomes one platform.
-      </ExecutiveFooterQuote>
+
     </CommandCenterShell>
   );
 }

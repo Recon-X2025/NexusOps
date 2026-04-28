@@ -29,7 +29,7 @@ export function HeatmapCell({
   state: "healthy" | "watch" | "stressed" | "no_data";
   display: string;
   href?: string;
-  ariaLabel: string;
+  ariaLabel?: string;
 }) {
   const inner = (
     <div

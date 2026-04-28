@@ -4,6 +4,7 @@ import { HeatmapCell } from "./primitives/heatmap-cell";
 import { formatMetricValue } from "@/lib/format-metric";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 type Payload = inferRouterOutputs<AppRouter>["commandCenter"]["getView"];
 
@@ -25,39 +26,32 @@ const LEGEND = [
 
 export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
   return (
-    <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 overflow-hidden h-full">
-      {/* Gradient accent band */}
-      <div className="h-[3px] w-full bg-gradient-to-r from-indigo-500 to-violet-500" />
-      <div className="p-4 md:p-5">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 tracking-tight">Functional Heatmap</h2>
-            <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
-              Cross-functional health by area. Click linked cells to drill into modules.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {LEGEND.map(({ state, label, cls }) => (
-              <span
-                key={state}
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${cls}`}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
+    <div className="bg-white border border-slate-200 overflow-hidden h-full shadow-sm flex flex-col">
+      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+        <div>
+          <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Functional Posture</h2>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+        <div className="flex gap-2">
+          {LEGEND.map(({ state, label, cls }) => (
+            <div key={state} className="flex items-center gap-1">
+              <div className={cn("w-2 h-2 rounded-full border", cls.split(" ")[0])} />
+              <span className="text-[9px] text-slate-500 font-medium">{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="p-2 flex-1">
+        <div className="overflow-x-auto">
           <div
-            className="grid gap-1.5 min-w-[640px]"
-            style={{ gridTemplateColumns: `160px repeat(${DIMS.length}, minmax(0,1fr))` }}
+            className="grid gap-px bg-slate-200 border border-slate-200"
+            style={{ gridTemplateColumns: `120px repeat(${DIMS.length}, minmax(0,1fr))` }}
           >
             {/* Header */}
-            <div />
+            <div className="bg-slate-50/80" />
             {DIMS.map((d) => (
               <div
                 key={d}
-                className="text-[10px] font-bold text-center text-slate-600 uppercase tracking-widest py-2.5 bg-white rounded-lg border border-slate-200/80 shadow-sm"
+                className="text-[9px] font-bold text-center text-slate-500 uppercase tracking-tight py-1 bg-slate-50/80"
               >
                 {DIM_LABEL[d]}
               </div>
@@ -66,26 +60,20 @@ export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
             {/* Rows */}
             {payload.heatmap.map((row) => (
               <div key={row.function} className="contents">
-                <div
-                  className={`text-xs font-bold py-2.5 px-3 flex items-center rounded-lg border ${row.inScope
-                      ? "text-slate-800 bg-white border-slate-200/80 shadow-sm"
-                      : "text-slate-400 bg-transparent border-transparent"
-                    }`}
-                >
-                  <span className="capitalize">{row.function.replace(/_/g, " ")}</span>
+                <div className="text-[10px] font-bold py-1.5 px-2 bg-white flex items-center text-slate-600 border-r border-slate-200">
+                  <span className="capitalize truncate">{row.function.replace(/_/g, " ")}</span>
                 </div>
                 {DIMS.map((d) => {
                   const cell = row.cells[d];
-                  const aria = `${row.function} ${DIM_LABEL[d]}: ${cell.state.replace("_", " ")}${cell.drillUrl ? ", drill-down available" : ""}`;
                   return (
-                    <HeatmapCell
-                      key={d}
-                      label={cell.label}
-                      state={cell.state}
-                      display={formatMetricValue(cell.value ?? undefined, cell.unit, cell.state, { compact: true })}
-                      href={row.inScope ? cell.drillUrl : undefined}
-                      ariaLabel={aria}
-                    />
+                    <div key={d} className="bg-white p-0.5">
+                      <HeatmapCell
+                        label={cell.label}
+                        state={cell.state}
+                        display={formatMetricValue(cell.value ?? undefined, cell.unit, cell.state, { compact: true })}
+                        href={row.inScope ? cell.drillUrl : undefined}
+                      />
+                    </div>
                   );
                 })}
               </div>

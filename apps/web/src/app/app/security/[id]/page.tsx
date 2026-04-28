@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Shield, AlertTriangle, ChevronLeft, Clock, Cpu, FileText,
-  Send, Paperclip, Lock,
+  Send, Paperclip, Lock, CalendarDays, CheckCircle2,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
@@ -259,7 +259,5 @@ export default function SecurityIncidentDetailPage() {
         }}
       </ResourceView>
     </div>
-  );
-}
   );
 }

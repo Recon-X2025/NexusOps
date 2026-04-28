@@ -22,51 +22,39 @@ export function CommandCenterSidebarCharts({ payload }: { payload: Payload }) {
   const postureMix = heatmapPostureMix(payload);
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 overflow-hidden flex flex-col h-full">
-      <div className="h-[3px] w-full bg-gradient-to-r from-blue-500 to-indigo-500" />
-      <div className="px-4 pt-4 pb-1 flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800 tracking-tight">Signal Mix</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Heatmap cells by health state</p>
-        </div>
+    <div className="bg-white border border-slate-200 overflow-hidden flex flex-col h-full shadow-sm">
+      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/50">
+        <h3 className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Signal Mix</h3>
       </div>
-      <div className="px-2 pb-3 flex-1 min-h-[220px]">
+      <div className="p-2 flex-1 flex flex-col items-center justify-center min-h-[160px]">
         {postureMix.length > 0 ? (
-          <DonutChart
-            data={postureMix}
-            height={220}
-            innerRadius={56}
-            outerRadius={80}
-            legend
-            centreValue={`${Math.round(payload.score)}`}
-            centreLabel="Score"
-          />
+          <div className="w-full flex items-center gap-4">
+            <div className="w-1/2">
+              <DonutChart
+                data={postureMix}
+                height={140}
+                innerRadius={36}
+                outerRadius={50}
+                centreValue={`${Math.round(payload.score)}`}
+                centreLabel="Avg"
+              />
+            </div>
+            <div className="w-1/2 space-y-1">
+              {postureMix.map((item) => (
+                <div key={item.name} className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 rounded-full" style={{ background: STATE_COLORS[item.name] }} />
+                    <span className="text-slate-500 font-medium">{item.name}</span>
+                  </div>
+                  <span className="font-bold text-slate-700">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
-          <p className="text-xs text-slate-400 text-center py-12">No distribution data</p>
+          <p className="text-[10px] text-slate-400 text-center">No data</p>
         )}
       </div>
-      {/* Pill legend */}
-      {postureMix.length > 0 && (
-        <div className="px-4 pb-4 flex flex-wrap gap-1.5">
-          {postureMix.map((item) => (
-            <span
-              key={item.name}
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border"
-              style={{
-                background: `${STATE_COLORS[item.name] ?? "#94a3b8"}18`,
-                borderColor: `${STATE_COLORS[item.name] ?? "#94a3b8"}40`,
-                color: STATE_COLORS[item.name] ?? "#64748b",
-              }}
-            >
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: STATE_COLORS[item.name] ?? "#94a3b8" }}
-              />
-              {item.name} · {item.value}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

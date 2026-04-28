@@ -4,10 +4,14 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar, X } from "lucide-react";
+import { Coins, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Plus, Download, BarChart2, Loader2, RefreshCw, Calendar, X, Clock } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { PageHeader } from "@/components/ui/page-header";
+import { ResourceView } from "@/components/ui/resource-view";
+import { DetailGrid } from "@/components/ui/detail-grid";
+import { Timeline } from "@/components/ui/timeline";
 
 const FIN_TABS = [
   { key: "budget",      label: "IT Budget",              module: "budget"      as const, action: "read"  as const },
@@ -168,6 +172,7 @@ export default function FinancialPage() {
     .reduce((s, i) => s + Number(i.amount ?? 0), 0);
 
   return (
+    <>
     <div className="flex flex-col gap-6 p-6">
       <PageHeader
         title="IT Financial Management"

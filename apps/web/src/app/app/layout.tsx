@@ -3,7 +3,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { RBACProvider } from "@/lib/rbac-context";
 import { AuthGuard } from "@/components/layout/auth-guard";
-import { VirtualAgentWidget } from "@/components/layout/virtual-agent-widget";
+
 import { CommandPaletteProvider } from "@/components/layout/command-palette-provider";
 import { ErrorBoundary } from "@nexusops/ui/error-boundary";
 
@@ -28,8 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </main>
             </div>
             </div>
-          {/* Global Virtual Agent — available on every page */}
-          <VirtualAgentWidget />
+
         </CommandPaletteProvider>
       </AuthGuard>
     </RBACProvider>

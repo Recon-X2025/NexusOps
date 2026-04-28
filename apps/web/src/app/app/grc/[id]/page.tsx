@@ -4,11 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  Scale, ChevronLeft, Send,
+  Scale, ChevronLeft, Send, Clock, Activity, TrendingUp, TrendingDown, Tag, ArrowLeft,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
+import { ResourceView } from "@/components/ui/resource-view";
+import { DetailGrid } from "@/components/ui/detail-grid";
+import { Timeline } from "@/components/ui/timeline";
 
 const SCORE_COLOR = (score: number) => {
   if (score >= 16) return "text-red-700 bg-red-100 border-red-300";
@@ -41,11 +46,6 @@ const STATUS_CFG: Record<string, string> = {
   closed:     "text-green-700 bg-green-100",
 };
 
-import { PageHeader } from "@/components/ui/page-header";
-import { ResourceView } from "@/components/ui/resource-view";
-import { DetailGrid } from "@/components/ui/detail-grid";
-import { Timeline } from "@/components/ui/timeline";
-import { cn } from "@/lib/utils";
 
 export default function GRCRiskDetailPage() {
   const params = useParams<{ id: string }>();
@@ -207,14 +207,13 @@ export default function GRCRiskDetailPage() {
                   {tab === "reviews" && (
                     <div className="animate-in fade-in slide-in-from-left-4 duration-300">
                       <Timeline
-                        items={[{
-                          id: "last-update",
-                          title: "Last Update",
-                          timestamp: risk.updatedAt,
-                          icon: Clock,
-                          type: "info",
-                          description: "Automated sync"
-                        }]}
+                        items={(risk.logs ?? []).map((l: any) => ({
+                          id: l.id,
+                          title: l.action,
+                          timestamp: l.createdAt,
+                          icon: Scale,
+                          subtitle: l.authorName
+                        }))}
                       />
                     </div>
                   )}
@@ -272,7 +271,5 @@ export default function GRCRiskDetailPage() {
         }}
       </ResourceView>
     </div>
-  );
-}
   );
 }

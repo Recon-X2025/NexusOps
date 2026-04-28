@@ -50,7 +50,9 @@ export type FieldDef = TextFieldDef | ProgressFieldDef | BadgeFieldDef;
 
 interface DetailGridProps {
   title?: string;
-  fields: FieldDef[];
+  icon?: ElementType;
+  items?: FieldDef[];
+  fields?: FieldDef[];
   className?: string;
   footer?: ReactNode;
 }
@@ -126,16 +128,21 @@ function FieldRow({ field }: { field: FieldDef }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function DetailGrid({ title, fields, className, footer }: DetailGridProps) {
+export function DetailGrid({ title, icon: Icon, items, fields, className, footer }: DetailGridProps) {
+  const displayFields = items ?? fields ?? [];
+
   return (
     <div className={cn("bg-card border border-border rounded-xl p-5", className)}>
       {title && (
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">
-          {title}
-        </h3>
+        <div className="flex items-center gap-2 mb-4">
+          {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            {title}
+          </h3>
+        </div>
       )}
       <div className="space-y-3">
-        {fields.map((f, i) => (
+        {displayFields.map((f, i) => (
           <FieldRow key={i} field={f} />
         ))}
       </div>

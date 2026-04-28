@@ -13,7 +13,7 @@ export function BulletBar({
   max: number;
   targetFrac?: number;
   invert?: boolean;
-  ariaLabel: string;
+  ariaLabel?: string;
 }) {
   const cap = max > 0 ? max : 1;
   let frac = value / cap;

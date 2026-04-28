@@ -34,7 +34,7 @@ interface TRPCLike<T = any> {
 interface ResourceViewProps<T> {
   /** The tRPC query result object */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  query: TRPCLike<any>;
+  query: TRPCLike<T>;
   /** Human-readable name for the resource, e.g. "Account" */
   resourceName?: string;
   /** Where the Back button navigates. Defaults to browser history back. */

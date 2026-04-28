@@ -10,7 +10,7 @@ import {
   CalendarDays, Tag, AlertTriangle, Coins,
   Activity, XCircle, ArrowRight, Printer,
   Receipt, Wallet, Landmark, ArrowUpCircle,
-  TrendingDown, TrendingUp
+  TrendingDown, TrendingUp, ShoppingCart
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -180,8 +180,7 @@ export default function InvoiceDetailPage() {
                           title: l.description,
                           timestamp: l.createdAt,
                           icon: Receipt,
-                          type: "info",
-                          description: l.authorName
+                          subtitle: l.authorName
                         }))}
                       />
                     </div>

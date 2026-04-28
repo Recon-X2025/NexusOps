@@ -65,87 +65,56 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
 }
 
 export function CommandCenterKpiStrip({ payload }: { payload: Payload }) {
-  const trends = payload.trends.filter((t) => t.state !== "no_data").slice(0, 4);
-  const trendIds = new Set(trends.map((t) => t.metricId));
-  const bullets = payload.bullets
-    .filter((b) => b.state !== "no_data" && !trendIds.has(b.metricId))
-    .slice(0, 2);
-
-  const trendKpis = trends.map((t, i) => {
-    const prev = t.previous;
-    const pct = pctChange(t.current, prev);
-    let good: boolean | null = null;
-    if (prev != null && pct != null) {
-      const up = t.current > prev;
-      good = t.direction === "higher_is_better" ? up : !up;
-    }
-    const vals = t.series.map((p) => p.v);
-    return {
-      rowKey: `trend:${t.metricId}`,
-      label: t.label.length > 28 ? `${t.label.slice(0, 26)}…` : t.label,
-      display: formatMetricValue(t.current, t.unit, t.state, { compact: true }),
-      pct,
-      good,
-      spark: vals,
-      color: CHART_COLORS[i % CHART_COLORS.length]!,
-      tint: TILE_TINTS[i % TILE_TINTS.length]!,
-    };
-  });
-
-  const bulletKpis = bullets.map((b, i) => ({
-    rowKey: `bullet:${b.metricId}`,
-    label: b.label.length > 28 ? `${b.label.slice(0, 26)}…` : b.label,
-    display: formatMetricValue(b.current, b.unit, b.state, { compact: true }),
-    pct: null as number | null,
-    good: null as boolean | null,
-    spark: [b.current * 0.92, b.current * 0.97, b.current * 0.95, b.current],
-    color: CHART_COLORS[(trendKpis.length + i) % CHART_COLORS.length]!,
-    tint: TILE_TINTS[(trendKpis.length + i) % TILE_TINTS.length]!,
-  }));
-
-  const scoreColor = "#0f766e";
-  const scoreState = payload.scoreState.replace("_", " ");
+  const trends = payload.trends.filter((t) => t.state !== "no_data").slice(0, 5);
+  
+  const scoreColor = "#059669"; // Emerald 600
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
       {/* Score tile */}
-      <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 p-4 flex flex-col justify-between min-h-[128px] hover:shadow-lg transition-shadow">
-        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Health Score</div>
-        <div className="flex items-center justify-between gap-1 mt-1">
-          <div>
-            <span className="text-3xl font-black tabular-nums text-slate-900 tracking-tight leading-none">
-              {Math.round(payload.score)}
-            </span>
-            <span className="text-sm font-semibold text-slate-400 ml-0.5">/100</span>
-            <div className="text-[11px] text-slate-500 capitalize mt-1 font-medium">{scoreState}</div>
-          </div>
-          <ScoreRing score={payload.score} color={scoreColor} />
+      <div className="bg-white border border-slate-200 p-2 flex flex-col justify-between hover:bg-slate-50 transition-colors shadow-sm">
+        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Health Score</div>
+        <div className="flex items-baseline gap-1 mt-1">
+          <span className="text-xl font-bold tabular-nums text-slate-800">
+            {Math.round(payload.score)}
+          </span>
+          <span className="text-[10px] font-medium text-slate-400">/100</span>
+        </div>
+        <div className="h-1 w-full bg-slate-100 mt-2 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-500" style={{ width: `${payload.score}%` }} />
         </div>
       </div>
 
       {/* Metric tiles */}
-      {[...trendKpis, ...bulletKpis].slice(0, 5).map((k) => (
-        <div
-          key={k.rowKey}
-          className={cn(
-            "rounded-2xl border border-slate-200/80 shadow-md ring-1 ring-slate-100 p-4 flex flex-col justify-between min-h-[128px] hover:shadow-lg transition-shadow",
-            k.tint,
-          )}
-        >
-          <div className="text-[10px] font-bold text-slate-500 line-clamp-2 leading-tight uppercase tracking-wider">
-            {k.label}
-          </div>
-          <div className="flex items-end justify-between gap-2 mt-2">
-            <div>
-              <div className="text-3xl font-black tabular-nums text-slate-900 leading-none">{k.display}</div>
-              <div className="mt-1.5">
-                <DeltaBadge pct={k.pct} good={k.good} />
-              </div>
+      {trends.map((t, i) => {
+        const prev = t.previous;
+        const pct = pctChange(t.current, prev);
+        let good: boolean | null = null;
+        if (prev != null && pct != null) {
+          const up = t.current > prev;
+          good = t.direction === "higher_is_better" ? up : !up;
+        }
+        
+        return (
+          <div
+            key={t.metricId}
+            className="bg-white border border-slate-200 p-2 flex flex-col justify-between hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            <div className="text-[9px] font-bold text-slate-500 line-clamp-1 uppercase tracking-tight">
+              {t.label}
             </div>
-            <MicroSparkline values={k.spark} color={k.color} />
+            <div className="flex items-baseline justify-between gap-1 mt-1">
+              <div className="text-xl font-bold tabular-nums text-slate-800">
+                {formatMetricValue(t.current, t.unit, t.state, { compact: true })}
+              </div>
+              <DeltaBadge pct={pct} good={good} />
+            </div>
+            <div className="mt-2 h-4 w-full">
+              <MicroSparkline values={t.series.map(p => p.v)} color={good ? "#10b981" : "#f43f5e"} />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

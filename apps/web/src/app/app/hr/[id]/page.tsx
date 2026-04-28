@@ -10,7 +10,7 @@ import {
   FileText, Send, Calendar, Building2, Shield, Users,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, cn } from "@/lib/utils";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceView } from "@/components/ui/resource-view";

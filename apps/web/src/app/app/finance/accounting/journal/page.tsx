@@ -81,12 +81,12 @@ export default function JournalPage() {
 
         mCreate.mutate({
             date: new Date(date || new Date()),
-            subject,
+            description: subject,
             lines: lines.map(l => ({
                 accountId: l.accountId,
                 description: l.description || subject,
-                debit: l.debit.toString(),
-                credit: l.credit.toString(),
+                debitAmount: Number(l.debit),
+                creditAmount: Number(l.credit),
             })),
         });
     };

@@ -21,56 +21,31 @@ export function CommandCenterTrends({ payload }: { payload: Payload }) {
   }));
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 overflow-hidden">
-      <div className="h-[3px] w-full bg-gradient-to-r from-teal-500 to-emerald-400" />
-      <div className="p-4 md:p-5">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 tracking-tight">Trend Deck</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Each series scaled 0–100% so different units compare on one chart.
-            </p>
-          </div>
-          {/* Inline legend pills */}
-          <div className="flex flex-wrap gap-1.5 justify-end">
-            {lines.slice(0, 4).map((l, i) => (
-              <span
-                key={l.key}
-                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border"
-                style={{
-                  background: `${LINE_COLORS[i % LINE_COLORS.length]}14`,
-                  borderColor: `${LINE_COLORS[i % LINE_COLORS.length]}30`,
-                  color: LINE_COLORS[i % LINE_COLORS.length],
-                }}
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: LINE_COLORS[i % LINE_COLORS.length] }}
-                />
-                {l.label}
-              </span>
-            ))}
-          </div>
-        </div>
-
+    <div className="bg-white border border-slate-200 overflow-hidden h-full shadow-sm">
+      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Performance Trends</h2>
+      </div>
+      <div className="p-2 min-h-[160px]">
         {data.length > 0 && areas.length > 0 ? (
-          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
-            <AreaChart
-              data={data}
-              xKey="x"
-              areas={areas}
-              height={220}
-              grid
-              stacked={false}
-              legend={false}
-              yFormatter={(v) => `${Math.round(v)}%`}
-            />
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-          {payload.trends.map((t) => (
-            <TrendCard key={t.metricId} t={t} href={t.drillUrl} />
+          <AreaChart
+            data={data}
+            xKey="x"
+            areas={areas}
+            height={140}
+            grid
+            stacked={false}
+            legend={false}
+            yFormatter={(v) => `${Math.round(v)}%`}
+          />
+        ) : (
+          <p className="text-[10px] text-slate-400 text-center py-8">No trend data</p>
+        )}
+        <div className="mt-2 flex flex-wrap gap-2 justify-center">
+          {lines.slice(0, 3).map((l, i) => (
+            <div key={l.key} className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
+              <span className="text-[9px] text-slate-500 font-medium">{l.label}</span>
+            </div>
           ))}
         </div>
       </div>

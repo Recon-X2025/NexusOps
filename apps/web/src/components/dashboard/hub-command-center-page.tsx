@@ -35,7 +35,7 @@ import { CommandCenterShell } from "@/components/command-center/command-center-s
 import { CommandCenterKpiStrip } from "@/components/command-center/command-center-kpi-strip";
 import { CommandCenterHeatmap } from "@/components/command-center/command-center-heatmap";
 import { CommandCenterSidebarCharts } from "@/components/command-center/command-center-sidebar-charts";
-import { CommandCenterNarrativePanel } from "@/components/command-center/command-center-narrative-panel";
+
 import { CommandCenterBullets } from "@/components/command-center/command-center-bullets";
 import { CommandCenterTrends } from "@/components/command-center/command-center-trends";
 import { CommandCenterFlow } from "@/components/command-center/command-center-flow";
@@ -266,23 +266,12 @@ function HubBody({
     return () => window.clearTimeout(id);
   }, [qView.isSuccess, qView.isError, qView.isFetching]);
 
-  const narrative = trpc.commandCenter.generateNarrative.useMutation();
-  const narratedKey = useRef("");
-  useEffect(() => {
-    if (!qView.data) return;
-    const key = `${qView.data.asOf}:${qView.data.role}:${functionKey}`;
-    if (narratedKey.current === key) return;
-    narratedKey.current = key;
-    // The hub payload reuses `commandCenter.generateNarrative` (server
-    // checks the role + payload shape, not whether it's hub-scoped).
-    narrative.mutate({ role: qView.data.role, payload: qView.data as Record<string, unknown> });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per payload revision
-  }, [qView.data, functionKey]);
+
 
   const scoped = useMemo<Payload | undefined>(() => {
     if (!qView.data) return undefined;
-    return { ...qView.data, narrative: narrative.data?.text ?? qView.data.narrative } as Payload;
-  }, [qView.data, narrative.data?.text]);
+    return qView.data as unknown as Payload;
+  }, [qView.data]);
 
   const refreshAll = () => {
     setViewTimedOut(false);
@@ -348,8 +337,7 @@ function HubBody({
         </HubSectionBoundary>
       )}
 
-      <ExecutiveHowToStrip />
-      {footerQuote ? <ExecutiveFooterQuote>{footerQuote}</ExecutiveFooterQuote> : null}
+
     </CommandCenterShell>
   );
 }
@@ -384,24 +372,30 @@ function HubOverview({
   const layout = getHubLayout(functionKey);
   const { Primary, showTrendDeck } = layout;
   return (
-    <div className="flex flex-col gap-4 md:gap-5">
-      <CommandCenterKpiStrip payload={payload} />
-      <Primary payload={hubPayload} granularity={granularity} />
-      <CommandCenterHeatmap payload={payload} />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
-        <CommandCenterBullets payload={payload} />
-        <CommandCenterFlow payload={payload} />
-        <CommandCenterRisks payload={payload} />
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
+         <div className="xl:col-span-12">
+           <CommandCenterKpiStrip payload={payload} />
+         </div>
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-5 items-stretch">
+      
+      <Primary payload={hubPayload} granularity={granularity} />
+      
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 items-stretch">
+        <div className="xl:col-span-8 min-w-0">
+          <CommandCenterHeatmap payload={payload} />
+        </div>
         <div className="xl:col-span-4 min-w-0">
           <CommandCenterSidebarCharts payload={payload} />
         </div>
-        <div className="xl:col-span-8 min-w-0">
-          <CommandCenterNarrativePanel payload={payload} />
-        </div>
       </div>
-      {showTrendDeck ? <CommandCenterTrends payload={payload} /> : null}
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
+        <CommandCenterBullets payload={payload} />
+        <CommandCenterFlow payload={payload} />
+        <CommandCenterRisks payload={payload} />
+        {showTrendDeck ? <CommandCenterTrends payload={payload} /> : <div className="bg-white border border-slate-200 p-4 text-[10px] text-slate-400 flex items-center justify-center">Trends restricted</div>}
+      </div>
     </div>
   );
 }

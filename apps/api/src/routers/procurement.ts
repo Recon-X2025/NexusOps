@@ -159,6 +159,24 @@ export const procurementRouter = router({
       return { ...pr, approvalRequired: approvalLevel !== "auto", approvalLevel };
     }),
 
+    get: permissionProcedure("procurement", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [pr] = await db
+          .select()
+          .from(purchaseRequests)
+          .where(and(eq(purchaseRequests.id, input.id), eq(purchaseRequests.orgId, org!.id)));
+        if (!pr) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const items = await db
+          .select()
+          .from(purchaseRequestItems)
+          .where(eq(purchaseRequestItems.prId, pr.id));
+
+        return { ...pr, items };
+      }),
+
     approve: permissionProcedure("approvals", "approve")
       .input(z.object({ id: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
@@ -232,6 +250,32 @@ export const procurementRouter = router({
         .where(eq(purchaseOrders.orgId, org!.id))
         .orderBy(desc(purchaseOrders.createdAt));
     }),
+
+    get: permissionProcedure("purchase_orders", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [po] = await db
+          .select({
+            ...getTableColumns(purchaseOrders),
+            legalEntityCode: legalEntities.code,
+            legalEntityName: legalEntities.name,
+            vendorName: vendors.name,
+          })
+          .from(purchaseOrders)
+          .leftJoin(legalEntities, eq(purchaseOrders.legalEntityId, legalEntities.id))
+          .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
+          .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.orgId, org!.id)));
+
+        if (!po) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const items = await db
+          .select()
+          .from(poLineItems)
+          .where(eq(poLineItems.poId, po.id));
+
+        return { ...po, items };
+      }),
 
     createFromPR: permissionProcedure("purchase_orders", "write")
       .input(

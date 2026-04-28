@@ -10,6 +10,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useRBAC, PermissionGate } from "@/lib/rbac-context";
 import { EsignPanel } from "@/components/esign/EsignPanel";
+import { cn } from "@/lib/utils";
 
 const STATE_CFG: Record<string, { label: string; color: string; bar: string }> = {
   draft:              { label: "Draft",              color: "text-muted-foreground bg-muted",     bar: "bg-slate-400" },

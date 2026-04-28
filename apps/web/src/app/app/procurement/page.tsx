@@ -9,9 +9,11 @@ import {
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { PageHeader } from "@/components/ui/page-header";
+import { DetailGrid } from "@/components/ui/detail-grid";
 
 const PROC_TABS = [
   { key: "dashboard",    label: "Dashboard",             module: "procurement"    as const, action: "read"  as const },

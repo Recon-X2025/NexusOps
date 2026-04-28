@@ -179,5 +179,3 @@ export default function ReleaseDetailPage() {
     </div>
   );
 }
-  );
-}

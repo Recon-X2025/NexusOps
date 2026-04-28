@@ -63,29 +63,41 @@ function RiskPill({ r }: { r: Risk }) {
 
 export function CommandCenterRisks({ payload }: { payload: Payload }) {
   const high = payload.risks.filter((r) => r.severity === "high").length;
-  const watch = payload.risks.filter((r) => r.severity !== "high").length;
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200/80 shadow-md ring-1 ring-slate-100 overflow-hidden h-full">
-      <div className="h-[3px] w-full bg-gradient-to-r from-rose-500 to-orange-400" />
-      <div className="p-4 md:p-5">
-        <div className="flex items-start justify-between gap-2 mb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 tracking-tight">Risk Register</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Ranked signals by severity</p>
-          </div>
-          <div className="flex gap-1.5 flex-shrink-0">
-            {high > 0 && <SeverityBadge severity="high" count={high} />}
-            {watch > 0 && <SeverityBadge severity="watch" count={watch} />}
-          </div>
-        </div>
-        <div className="space-y-2">
-          {payload.risks.length === 0 ? (
-            <p className="text-xs text-slate-400 py-2">No ranked risks in this view.</p>
-          ) : (
-            payload.risks.map((r) => <RiskPill key={r.metricId} r={r} />)
-          )}
-        </div>
+    <div className="bg-white border border-slate-200 overflow-hidden h-full shadow-sm">
+      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+        <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Risk Register</h2>
+        {high > 0 && (
+          <span className="text-[9px] font-bold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full border border-rose-200">
+            {high} Critical
+          </span>
+        )}
+      </div>
+      <div className="p-2 space-y-1.5">
+        {payload.risks.length === 0 ? (
+          <p className="text-[10px] text-slate-400 text-center py-4">No risks detected</p>
+        ) : (
+          payload.risks.slice(0, 4).map((r) => (
+            <div key={r.metricId} className="group">
+              {r.drillUrl ? (
+                <Link href={r.drillUrl} className="block p-1.5 rounded bg-slate-50/50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-1.5 h-1.5 rounded-full", r.severity === "high" ? "bg-rose-500" : "bg-amber-400")} />
+                    <span className="text-[10px] font-bold text-slate-700 line-clamp-1">{r.label}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div className="p-1.5 rounded bg-slate-50/50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-1.5 h-1.5 rounded-full", r.severity === "high" ? "bg-rose-500" : "bg-amber-400")} />
+                    <span className="text-[10px] font-bold text-slate-700 line-clamp-1">{r.label}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
