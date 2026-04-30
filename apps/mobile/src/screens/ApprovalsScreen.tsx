@@ -1,5 +1,5 @@
 /**
- * NexusOps Mobile — Approvals Screen
+ * CoheronConnect Mobile — Approvals Screen
  * Lists pending approvals for the signed-in user.
  */
 

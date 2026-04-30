@@ -1,5 +1,5 @@
 /**
- * Razorpay payment gateway integration for NexusOps.
+ * Razorpay payment gateway integration for CoheronConnect.
  *
  * Supports:
  *  - Creating payment orders (for invoice/expense/other collections)

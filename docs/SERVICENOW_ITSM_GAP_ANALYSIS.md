@@ -1,7 +1,7 @@
-# ServiceNow (SNOW) vs NexusOps — ITSM Gap Analysis
+# ServiceNow (SNOW) vs CoheronConnect — ITSM Gap Analysis
 
-**Audience:** Enterprise ITSM / ServiceNow practitioners evaluating NexusOps  
-**Perspective:** Typical ServiceNow ITSM (ITIL-aligned) capabilities vs what NexusOps implements in-repo  
+**Audience:** Enterprise ITSM / ServiceNow practitioners evaluating CoheronConnect  
+**Perspective:** Typical ServiceNow ITSM (ITIL-aligned) capabilities vs what CoheronConnect implements in-repo  
 **Date:** April 2026  
 
 ---
@@ -10,11 +10,11 @@
 
 > **Status (2026-04-26):** the **Walk-Up Experience** module referenced below was retired in the GA-readiness pass. Walk-in visits are now ordinary `tickets` rows with `channel = "walk_in"` and worked from the Service Desk workbench. Treat the "walk-up" rows in §3.8 and the "Walk-up Experience" parity row in the executive summary as **N/A — folded into the unified `tickets` surface**. (See Architecture Design v2.1 changelog and `docs/MARKET_ASSESSMENT_2026-04-26.md`.)
 
-NexusOps delivers a **unified work-ticket model** (incident, request, problem, change on one `tickets` surface — and as of 2026-04-26 also walk-in visits via `channel = "walk_in"`) with **SLA policy resolution**, **assignment rules**, **business rules**, **catalog-driven request fulfillment**, **change lifecycle** (including CAB/blackout concepts in `changes`), **problem / known error** flows, **knowledge articles**, **CMDB-style configuration items** (via `assets` / CI tables referenced from tickets), **workflows** (Temporal/visual editor), **on-call**, **approvals**, **reports**, and **integrations**. That stack covers the **shape** of core ITSM.
+CoheronConnect delivers a **unified work-ticket model** (incident, request, problem, change on one `tickets` surface — and as of 2026-04-26 also walk-in visits via `channel = "walk_in"`) with **SLA policy resolution**, **assignment rules**, **business rules**, **catalog-driven request fulfillment**, **change lifecycle** (including CAB/blackout concepts in `changes`), **problem / known error** flows, **knowledge articles**, **CMDB-style configuration items** (via `assets` / CI tables referenced from tickets), **workflows** (Temporal/visual editor), **on-call**, **approvals**, **reports**, and **integrations**. That stack covers the **shape** of core ITSM.
 
 ServiceNow remains broader and deeper in **process maturity**, **multi-table ITSM data model**, **enterprise integration and orchestration**, **discovery-driven CMDB**, **Performance Analytics**, **governance at scale** (SoD, audit, platform administration), and **ecosystem** (store, spokes, industry solutions).
 
-**Bottom line:** NexusOps is a credible **modern ITSM backbone** for teams that want one product with tickets + catalog + change + KB + light CMDB. Gaps are largest where SNOW differentiates: **platform depth**, **automated CMDB fidelity**, **advanced SLAs/contracts**, **native ITSM table specialisation**, and **mature analytics / compliance tooling**.
+**Bottom line:** CoheronConnect is a credible **modern ITSM backbone** for teams that want one product with tickets + catalog + change + KB + light CMDB. Gaps are largest where SNOW differentiates: **platform depth**, **automated CMDB fidelity**, **advanced SLAs/contracts**, **native ITSM table specialisation**, and **mature analytics / compliance tooling**.
 
 ---
 
@@ -33,7 +33,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.1 Incident management
 
-| Capability | Typical ServiceNow | NexusOps (observed) | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect (observed) | Assessment |
 |------------|-------------------|---------------------|------------|
 | Incident record & lifecycle | Dedicated `incident` table, states, closure rules, reopen | `tickets` with `type: incident`, status categories, rich lifecycle in `tickets` router | **Partial** — Same idea; SNOW has decades of field-level ITIL defaults and UI specialisation. |
 | Priority / impact / urgency | Standard fields, auto-priority matrix | Present on ticket model (priority-driven SLA minutes + policies) | **Partial** — Matrix depth and UI may differ. |
@@ -45,7 +45,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.2 Problem management
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | Problem record | `problem` table, RCA, workaround | Problems surfaced via `changes` router (`listProblems`, `createProblem`, etc.) | **Partial** — Implemented but not necessarily first-class same as SNOW’s dedicated problem UI/workflow. |
 | Known error | `kb_knowledge` / known error flags, problem linking | `knownErrors`, link from tickets (`knownErrorId`), publish to KB | **Partial** |
@@ -53,7 +53,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.3 Change management
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | Change types | Standard / Normal / Emergency, models | Change requests in `changes` router with CAB, blackout, approvals, reject flows | **Partial** — Strong overlap; SNOW change models/templates ecosystem is larger. |
 | CAB / calendar | Change calendar, conflict detection | Blackout and CAB-related procedures in `changes` | **Partial** |
@@ -61,7 +61,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.4 Request fulfilment & service catalog
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | Catalog items & variables | `sc_cat_item`, variables, UI policies | `catalog` router: items, `submitRequest`, fulfillment ticket creation | **Partial** — Variable/UI policy depth is usually lighter outside SNOW. |
 | RITM / task breakdown | Requested item, catalog tasks, fulfilment groups | Fulfillment linkage to tickets | **Partial** |
@@ -69,7 +69,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.5 CMDB & configuration management
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | CI records & classes | Extensible CMDB classes, CSDM alignment | `assets` router with `ciItems`; tickets reference `configurationItemId` | **Partial** — CMDB-lite vs enterprise class model. |
 | Relationships & service maps | `cmdb_rel_ci`, service mapping, BSM | CI relationships exist in schema usage (`ciRelationships` referenced from tickets domain) | **Partial** — Visual service maps and CSDM governance are SNOW strengths. |
@@ -77,14 +77,14 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.6 Knowledge management
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | KB articles | Workflow, versioning, approvals, categories | `knowledge` router: list/create, categories, feedback, search | **Partial** — SNOW KB workflow and knowledge governance can be heavier. |
 | Deflection / analytics | Knowledge analytics, search insights | View counts, search; full PA-style deflection metrics not assumed | **Gap** at analytics depth. |
 
 ### 3.7 SLAs, OLAs, and contracts
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | SLA definitions | Multiple SLAs, task SLAs, contract SLAs | Org-level `sla_policies` with conditions; priority fallbacks in ticket flow | **Partial** |
 | Business schedules | Global time zones, holidays, on-call overlap | Business calendar helpers referenced in ticket SLA path | **Partial** — Verify parity with your holiday/calendar complexity. |
@@ -92,7 +92,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.8 Portal, channels, and experience
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | Employee / service portal | Service Portal / Workplace | Web app routes (`tickets`, etc.) | **Partial** — Different UX; feature depth varies by module. |
 | Virtual agent | VA, NLU, topic designer | `ai` router and virtual-agent style routes may exist | **Partial** — Ecosystem not SNOW’s VA product. |
@@ -100,14 +100,14 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ### 3.9 Orchestration, integration, and automation
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
-| Integration Hub / spokes | Thousands of actions, Flow Designer | `integrations` router, `workflows` (Temporal), `devops` | **Partial** — SNOW’s packaged integration catalogue is larger; NexusOps is programmable. |
+| Integration Hub / spokes | Thousands of actions, Flow Designer | `integrations` router, `workflows` (Temporal), `devops` | **Partial** — SNOW’s packaged integration catalogue is larger; CoheronConnect is programmable. |
 | Event management | Event rules, ML, alert clustering | `events` router | **Partial** — Compare with ITOM event parity if required. |
 
 ### 3.10 Reporting, analytics, and governance
 
-| Capability | Typical ServiceNow | NexusOps | Assessment |
+| Capability | Typical ServiceNow | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | Dashboards & PA | Performance Analytics, dashboards | `dashboard`, `reports`, `performance` routers | **Gap** vs SNOW PA (formula metrics, cube, enterprise KPI standardisation). |
 | Audit & compliance | Platform audit, GRC plugins | `grc`, audit patterns elsewhere | **Partial** — Depends on regulatory target. |
@@ -117,13 +117,13 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 
 ## 4. Architectural differences (not strictly “missing features”)
 
-1. **Data model:** SNOW centres ITSM on specialised tables (`incident`, `change_request`, `sc_req_item`, …) with `task` inheritance. NexusOps **collapses many work types into `tickets`** plus dedicated routers for change/problem/catalog — faster to build across modules, but migrations from SNOW expect field-level mapping work.
-2. **Extensibility:** SNOW’s scripted business rules, client scripts, and store apps are a different extensibility paradigm than NexusOps’ TypeScript API + workflows + custom fields.
-3. **Multi-tenancy / instances:** SNOW often sells **per-instance** isolation; NexusOps is **product multi-tenant** (org-scoped) — operational and compliance implications differ.
+1. **Data model:** SNOW centres ITSM on specialised tables (`incident`, `change_request`, `sc_req_item`, …) with `task` inheritance. CoheronConnect **collapses many work types into `tickets`** plus dedicated routers for change/problem/catalog — faster to build across modules, but migrations from SNOW expect field-level mapping work.
+2. **Extensibility:** SNOW’s scripted business rules, client scripts, and store apps are a different extensibility paradigm than CoheronConnect’ TypeScript API + workflows + custom fields.
+3. **Multi-tenancy / instances:** SNOW often sells **per-instance** isolation; CoheronConnect is **product multi-tenant** (org-scoped) — operational and compliance implications differ.
 
 ---
 
-## 5. NexusOps differentiators (where it may exceed a “basic” SNOW footprint)
+## 5. CoheronConnect differentiators (where it may exceed a “basic” SNOW footprint)
 
 - **Single product:** Tickets + HR + finance + projects + security + more in one router surface — many SNOW shops assemble this from multiple SKUs or integrations.
 - **Modern workflow engine:** Temporal-backed workflows and visual editor (`workflows`) vs classic SNOW workflow/Flow depending on customer maturity.
@@ -138,7 +138,7 @@ ServiceNow remains broader and deeper in **process maturity**, **multi-table ITS
 3. **Major incident management:** War room, comms templates, child incident hierarchy, timeline if targeting enterprise NOC.
 4. **Catalog depth:** Variables, cart, complex fulfilment task orchestration.
 5. **Analytics:** Executive KPIs, trend, deflection — either native or export to BI with documented data model.
-6. **Migration tooling:** SNOW → NexusOps field mapping for incidents, changes, and CMDB if pursuing displacement deals.
+6. **Migration tooling:** SNOW → CoheronConnect field mapping for incidents, changes, and CMDB if pursuing displacement deals.
 
 ---
 
@@ -310,4 +310,4 @@ This section turns the gap themes above into a **sequenced, time-boxed plan**. I
 
 ## 9. Disclaimer
 
-This document is based on **repository structure and routers** as of the analysis date. ServiceNow capabilities vary by **license, plugins, and version**. NexusOps features vary by **deployment and UI completeness**. Use this as a **starting checklist** for due diligence, not a warranty of either platform.
+This document is based on **repository structure and routers** as of the analysis date. ServiceNow capabilities vary by **license, plugins, and version**. CoheronConnect features vary by **deployment and UI completeness**. Use this as a **starting checklist** for due diligence, not a warranty of either platform.

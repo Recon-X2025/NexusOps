@@ -46,7 +46,7 @@ function printStartupConfig(): void {
   console.log([
     "",
     E,
-    "  NexusOps API — STARTUP READY",
+    "  CoheronConnect API — STARTUP READY",
     E,
     `  Host               : http://${HOST}:${PORT}`,
     `  Node env           : ${process.env["NODE_ENV"] ?? "development"}`,
@@ -175,7 +175,7 @@ async function bootstrap() {
       validateDatabaseEnvAtStartup,
       providerRequiresMongo,
       connectMongoOrThrow,
-    } = await import("@nexusops/db");
+    } = await import("@coheronconnect/db");
     const dbProvider = getDatabaseOltpProvider();
     try {
       validateDatabaseEnvAtStartup(dbProvider);
@@ -236,7 +236,7 @@ async function bootstrap() {
       // Cookie-based session (browser clients)
       const cookies = req.headers.cookie as string | undefined;
       if (cookies) {
-        const match = cookies.match(/nexusops_session=([^;]+)/);
+          const match = cookies.match(/coheronconnect_session=([^;]+)/);
         if (match?.[1]) {
           const endpoint = (req.url ?? "").split("?")[0] ?? "";
           return `user:${match[1]}:${endpoint}`;
@@ -253,7 +253,7 @@ async function bootstrap() {
       const cookies = req.headers.cookie as string | undefined;
       const isAuthenticated =
         auth?.startsWith("Bearer ") ||
-        (typeof cookies === "string" && cookies.includes("nexusops_session="));
+        (typeof cookies === "string" && cookies.includes("coheronconnect_session="));
 
       logRateLimit({
         requestId:  String(req.id ?? ""),
@@ -278,7 +278,7 @@ async function bootstrap() {
 
   // ── Workflow Service (BullMQ) ─────────────────────────────────────────────
   try {
-    const { getDb } = await import("@nexusops/db");
+    const { getDb } = await import("@coheronconnect/db");
     const { initWorkflowService } = await import("./services/workflow.js");
     initWorkflowService(getDb());
     fastify.log.info("Workflow service initialised");
@@ -308,7 +308,7 @@ async function bootstrap() {
         if (auth?.startsWith("Bearer ")) return `rl_burst:user:${auth.slice(7)}`;
         const cookies = req.headers.cookie as string | undefined;
         if (cookies) {
-          const match = cookies.match(/nexusops_session=([^;]+)/);
+          const match = cookies.match(/coheronconnect_session=([^;]+)/);
           if (match?.[1]) return `rl_burst:user:${match[1]}`;
         }
         return `rl_burst:anon:${req.ip ?? "unknown"}`;
@@ -480,7 +480,7 @@ async function bootstrap() {
     const checks: Record<string, "ok" | "error"> = {};
 
     try {
-      const { getDb, sql } = await import("@nexusops/db");
+      const { getDb, sql } = await import("@coheronconnect/db");
       const db = getDb();
       await db.execute(sql`SELECT 1`);
       checks["db"] = "ok";
@@ -511,7 +511,7 @@ async function bootstrap() {
     const { checks, allOk } = await runDetailedChecks();
     // Include live pool stats in the detailed health response so operators
     // can monitor connection pressure without tailing logs.
-    const { getPoolStats } = await import("@nexusops/db");
+    const { getPoolStats } = await import("@coheronconnect/db");
     const pool = getPoolStats();
     reply.status(allOk ? 200 : 503);
     return { status: allOk ? "ok" : "degraded", checks, pool, timestamp: new Date().toISOString() };
@@ -586,7 +586,7 @@ async function bootstrap() {
     fastify.log.info(`Received ${signal}, shutting down...`);
     await fastify.close();
 
-    const { closeDb, closeMongo } = await import("@nexusops/db");
+    const { closeDb, closeMongo } = await import("@coheronconnect/db");
     const { closeRedis } = await import("./lib/redis.js");
     // Shutdown workflow service first (drain queues)
     try {
@@ -646,7 +646,7 @@ async function bootstrap() {
   // 3 + 4. DB checks: sync org_counters to actual DB state, then clean up
   //        any idle-in-transaction connections from a previous aborted run.
   try {
-    const { getDb, sql } = await import("@nexusops/db");
+    const { getDb, sql } = await import("@coheronconnect/db");
     const { syncOrgCounters } = await import("./lib/auto-number.js");
     const db = getDb();
 
@@ -688,7 +688,7 @@ async function bootstrap() {
   // ── Start ─────────────────────────────────────────────────────────────────
   try {
     await fastify.listen({ port: PORT, host: HOST });
-    fastify.log.info(`NexusOps API listening on http://${HOST}:${PORT}`);
+    fastify.log.info(`CoheronConnect API listening on http://${HOST}:${PORT}`);
     printStartupConfig();
   } catch (err) {
     fastify.log.error(err);

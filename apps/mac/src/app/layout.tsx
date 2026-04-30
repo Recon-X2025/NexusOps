@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     default: "Coheron MAC",
     template: "%s | Coheron MAC",
   },
-  description: "Master Admin Console for the NexusOps platform — Coheron operators only.",
+  description: "Master Admin Console for the CoheronConnect platform — Coheron operators only.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

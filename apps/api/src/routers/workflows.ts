@@ -11,7 +11,7 @@ import {
   desc,
   count,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getTemporalClient } from "../lib/temporal";
 import { listWorkflowActions, runWorkflowAction } from "../workflows/actions/runtime";
 
@@ -243,7 +243,7 @@ export const workflowsRouter = router({
         const client = await getTemporalClient();
         temporalWorkflowId = `nexus-${workflow.id}-${runId}`;
         await client.workflow.start("nexusWorkflow", {
-          taskQueue: "nexusops-workflow",
+          taskQueue: "coheronconnect-workflow",
           workflowId: temporalWorkflowId,
           args: [
             {

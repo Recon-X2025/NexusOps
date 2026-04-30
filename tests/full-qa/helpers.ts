@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Shared helpers & constants
+ * CoheronConnect Full-QA — Shared helpers & constants
  */
 import { type Page, type BrowserContext, expect } from "@playwright/test";
 
@@ -133,7 +133,7 @@ export async function apiCall(
   const result = await page.evaluate(
     async ({ method, input, proxyBase, proc, encoded }) => {
       // Read session from localStorage (same as tRPC client does)
-      const session = localStorage.getItem("nexusops_session") ?? "";
+      const session = localStorage.getItem("coheronconnect_session") ?? "";
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };

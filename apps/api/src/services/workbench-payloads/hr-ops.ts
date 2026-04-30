@@ -15,7 +15,7 @@ import {
   hrCases,
   leaveRequests,
   users,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

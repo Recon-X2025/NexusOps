@@ -165,7 +165,7 @@ function makeRetentionDb(state: MockState) {
   //   db.insert(auditLogs).values({...})
   //
   // We discriminate the two select chains by the table reference passed to
-  // .from(). The actual table objects come from @nexusops/db; we match on
+  // .from(). The actual table objects come from @coheronconnect/db; we match on
   // identity using a sentinel attached at the chain root.
   return {
     select: (_cols?: unknown) => ({
@@ -208,9 +208,9 @@ function makeRetentionDb(state: MockState) {
   };
 }
 
-// Patch the @nexusops/db imports the workflow file uses with sentinel objects
+// Patch the @coheronconnect/db imports the workflow file uses with sentinel objects
 // so our mock chain can discriminate them. We intercept at the module level.
-vi.mock("@nexusops/db", async (importOriginal) => {
+vi.mock("@coheronconnect/db", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,

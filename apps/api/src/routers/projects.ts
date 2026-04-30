@@ -17,7 +17,7 @@ import {
   sql,
   isNotNull,
   auditLogs,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 import { getRedis } from "../lib/redis";
 import { rateLimit } from "../lib/rate-limit";
@@ -134,6 +134,12 @@ export const projectsRouter = router({
   update: permissionProcedure("projects", "write")
     .input(z.object({
       id: z.string().uuid(),
+      name: z.string().min(1).optional(),
+      description: z.string().optional(),
+      department: z.string().optional(),
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
+      budgetTotal: z.string().optional(),
       status: z.string().optional(),
       health: z.string().optional(),
       phase: z.string().optional(),
@@ -146,8 +152,12 @@ export const projectsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { id, ...data } = input;
-      const [project] = await db.update(projects).set({ ...data, updatedAt: new Date() } as any)
+      const { id, startDate, endDate, ...data } = input;
+      const updates: Record<string, any> = { ...data, updatedAt: new Date() };
+      if (startDate !== undefined) updates.startDate = startDate ? new Date(startDate) : null;
+      if (endDate !== undefined) updates.endDate = endDate ? new Date(endDate) : null;
+      
+      const [project] = await db.update(projects).set(updates)
         .where(and(eq(projects.id, id), eq(projects.orgId, org!.id))).returning();
       return project;
     }),

@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { nanoid } from "nanoid";
 import { testDb, seedFullOrg, seedUser, authedCaller, cleanupOrg, createSession, initTestEnvironment } from "./helpers";
-import { securityIncidents, contracts, assetTypes } from "@nexusops/db";
+import { securityIncidents, contracts, assetTypes } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
 
@@ -16,7 +16,7 @@ beforeAll(async () => {
     );
   }
 });
-import { eq, and, invoices, invoiceLineItems } from "@nexusops/db";
+import { eq, and, invoices, invoiceLineItems } from "@coheronconnect/db";
 
 function publicCaller() {
   const db = testDb();
@@ -1008,9 +1008,9 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(Array.isArray(props)).toBe(true);
       const propUpd = await caller.admin.systemProperties.update({
         key: "platform.name",
-        value: "NexusOps",
+        value: "CoheronConnect",
       });
-      expect(propUpd).toMatchObject({ key: "platform.name", value: "NexusOps" });
+      expect(propUpd).toMatchObject({ key: "platform.name", value: "CoheronConnect" });
 
       const slas = await caller.admin.slaDefinitions.list();
       expect(Array.isArray(slas)).toBe(true);
@@ -1064,7 +1064,7 @@ describe("Layer 8: Module Smoke Tests", () => {
 
       await expect(
         pub.auth.login({
-          email: "nope@qa.nexusops.io",
+          email: "nope@qa.coheronconnect.io",
           password: "WrongPass1!",
         }),
       ).rejects.toThrow(/Invalid credentials|UNAUTHORIZED/i);
@@ -1084,7 +1084,7 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(await afterLogout.auth.me()).toBeNull();
 
       const adminCaller = await authedCaller(adminToken);
-      const inviteEmail = `invitel8${nanoid(10).toLowerCase()}@qa.nexusops.io`;
+      const inviteEmail = `invitel8${nanoid(10).toLowerCase()}@qa.coheronconnect.io`;
       const inv = (await adminCaller.auth.inviteUser({
         email: inviteEmail,
         role: "member",
@@ -1548,7 +1548,7 @@ describe("Layer 8: Module Smoke Tests", () => {
       // legal_counsel has legal:read + contracts:read but NO secretarial:read,
       // so secretarial section must come back as `null` even though contracts section is populated.
       const { userId: legalCounselId } = await seedUser(orgCtx.orgId, {
-        email: `legal-counsel-${nanoid(4)}@qa.nexusops.io`,
+        email: `legal-counsel-${nanoid(4)}@qa.coheronconnect.io`,
         role: "member",
         matrixRole: "legal_counsel",
         password: orgCtx.password,

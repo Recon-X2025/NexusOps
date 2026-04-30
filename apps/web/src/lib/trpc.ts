@@ -1,6 +1,6 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { httpLink, loggerLink } from "@trpc/client";
-import type { AppRouter } from "@nexusops/api";
+import type { AppRouter } from "@coheronconnect/api";
 
 export { type AppRouter };
 
@@ -32,9 +32,9 @@ function fetchWithTimeout(
   );
 }
 
-function hasNexusopsSessionCookie(): boolean {
+function hasCoheronConnectSessionCookie(): boolean {
   if (typeof document === "undefined") return false;
-  return document.cookie.split(";").some((c) => c.trim().startsWith("nexusops_session="));
+  return document.cookie.split(";").some((c) => c.trim().startsWith("coheronconnect_session="));
 }
 
 /** Public routes where a stale Bearer in localStorage must not override the session cookie (API uses Bearer first). */
@@ -82,10 +82,10 @@ export function getTRPCClient() {
             // uses the cookie token (see apps/api createContext: bearer || cookie).
             // Otherwise a stale localStorage token wins and protected queries 401
             // while DevTools still shows the user on /login.
-            if (isPublicAuthShellPath() && hasNexusopsSessionCookie()) {
+            if (isPublicAuthShellPath() && hasCoheronConnectSessionCookie()) {
               return {};
             }
-            const session = localStorage.getItem("nexusops_session");
+            const session = localStorage.getItem("coheronconnect_session");
             return session ? { authorization: `Bearer ${session}` } : {};
           }
           return {};

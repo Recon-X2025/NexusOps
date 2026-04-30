@@ -1,6 +1,6 @@
 import { router, protectedProcedure, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { notifications, notificationPreferences, eq, and, asc, desc, count } from "@nexusops/db";
+import { notifications, notificationPreferences, eq, and, asc, desc, count } from "@coheronconnect/db";
 
 export const notificationsRouter = router({
   list: protectedProcedure

@@ -5,7 +5,7 @@
 import { createHash } from 'crypto';
 import bcrypt from 'bcrypt';
 import { nanoid } from 'nanoid';
-import { getDb } from '@nexusops/db';
+import { getDb } from '@coheronconnect/db';
 import {
   organizations,
   users,
@@ -13,8 +13,8 @@ import {
   ticketStatuses,
   ticketPriorities,
   ticketCategories,
-} from '@nexusops/db';
-import { eq, and, sql } from '@nexusops/db';
+} from '@coheronconnect/db';
+import { eq, and, sql } from '@coheronconnect/db';
 import { appRouter } from '../routers';
 import type { Context } from '../lib/trpc';
 import { setupTestDb, truncateAllTables } from './setup';
@@ -73,7 +73,7 @@ export async function authedCaller(token: string) {
     headers: {
       authorization: `Bearer ${token}`,
       'x-forwarded-for': '127.0.0.1',
-      'user-agent': 'NexusOps-QA-Test/1.0',
+      'user-agent': 'CoheronConnect-QA-Test/1.0',
     },
     ip: '127.0.0.1',
     // Fastify cookie shim — not used for Bearer auth
@@ -96,7 +96,7 @@ export function makeContext(
     user: {
       id: userId,
       orgId,
-      email: 'test@nexusops.io',
+      email: 'test@coheronconnect.io',
       name: 'Test User',
       role: 'admin',
       matrixRole: 'admin',
@@ -137,7 +137,7 @@ export async function seedUser(
   } = {},
 ) {
   const db = testDb();
-  const email = opts.email ?? `user-${nanoid(6)}@qa.nexusops.io`;
+  const email = opts.email ?? `user-${nanoid(6)}@qa.coheronconnect.io`;
   const password = opts.password ?? 'TestPass123!';
   const passwordHash = await bcrypt.hash(password, 12);
 
@@ -161,43 +161,43 @@ export async function seedFullOrg() {
   const password = 'TestPass123!';
 
   const { userId: adminId } = await seedUser(orgId, {
-    email: `admin-${nanoid(4)}@qa.nexusops.io`,
+    email: `admin-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'admin',
     matrixRole: 'admin',
     password,
   });
   const { userId: agentId } = await seedUser(orgId, {
-    email: `agent-${nanoid(4)}@qa.nexusops.io`,
+    email: `agent-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'member',
     matrixRole: 'itil',
     password,
   });
   const { userId: hrId } = await seedUser(orgId, {
-    email: `hr-${nanoid(4)}@qa.nexusops.io`,
+    email: `hr-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'member',
     matrixRole: 'hr_manager',
     password,
   });
   const { userId: financeId } = await seedUser(orgId, {
-    email: `finance-${nanoid(4)}@qa.nexusops.io`,
+    email: `finance-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'member',
     matrixRole: 'finance_manager',
     password,
   });
   const { userId: requesterId } = await seedUser(orgId, {
-    email: `requester-${nanoid(4)}@qa.nexusops.io`,
+    email: `requester-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'member',
     matrixRole: 'requester',
     password,
   });
   const { userId: viewerId } = await seedUser(orgId, {
-    email: `viewer-${nanoid(4)}@qa.nexusops.io`,
+    email: `viewer-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'viewer',
     matrixRole: 'report_viewer',
     password,
   });
   const { userId: securityAnalystId } = await seedUser(orgId, {
-    email: `security-${nanoid(4)}@qa.nexusops.io`,
+    email: `security-${nanoid(4)}@qa.coheronconnect.io`,
     role: 'member',
     matrixRole: 'security_analyst',
     password,

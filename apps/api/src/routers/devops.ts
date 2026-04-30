@@ -1,6 +1,6 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { pipelineRuns, deployments, eq, and, desc, count, avg, sql } from "@nexusops/db";
+import { pipelineRuns, deployments, eq, and, desc, count, avg, sql } from "@coheronconnect/db";
 
 export const devopsRouter = router({
   // ── Pipeline Runs ──────────────────────────────────────────────────────────

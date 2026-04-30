@@ -22,7 +22,7 @@ import {
   lte,
   max,
   type PayrollWorkflowMeta,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";

@@ -1,6 +1,6 @@
 # Command Center architecture
 
-The **NexusOps Command Center** is the executive front door (`/app/command`) with a **single default organization overview**. Access is gated by `command_center.read`; there is no per-user lens switching in the UI.
+The **CoheronConnect Command Center** is the executive front door (`/app/command`) with a **single default organization overview**. Access is gated by `command_center.read`; there is no per-user lens switching in the UI.
 
 ## Data flow
 

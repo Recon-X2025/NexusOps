@@ -5,11 +5,11 @@ export default async function globalSetup() {
 
   const testDbUrl =
     process.env.DATABASE_URL ||
-    "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test";
+    "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test";
 
   // Migrations only (no `db:push`): `push` can prompt interactively on drift
   // (e.g. rename vs create), which hangs Playwright globalSetup in CI/local.
-  execSync("pnpm --filter @nexusops/db db:migrate", {
+  execSync("pnpm --filter @coheronconnect/db db:migrate", {
     env: {
       ...process.env,
       DATABASE_URL: testDbUrl,
@@ -18,7 +18,7 @@ export default async function globalSetup() {
   });
 
   try {
-    execSync("pnpm --filter @nexusops/db db:seed", {
+    execSync("pnpm --filter @coheronconnect/db db:seed", {
       env: {
         ...process.env,
         DATABASE_URL: testDbUrl,

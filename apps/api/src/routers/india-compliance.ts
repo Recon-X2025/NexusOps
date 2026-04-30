@@ -13,7 +13,7 @@ import {
   gte,
   lte,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const indiaComplianceRouter = router({
   // ── Compliance Calendar ──────────────────────────────────────────────────
@@ -126,6 +126,145 @@ export const indiaComplianceRouter = router({
           updated++;
         }
         return { updated };
+      }),
+
+    seed: permissionProcedure("secretarial", "write")
+      .input(z.object({ financialYear: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const fy = input.financialYear;
+        const parts = fy.split("-");
+        let year = parseInt(parts[1] || (parseInt(parts[0] || "2024") + 1).toString());
+        if (year < 100) year += 2000;
+
+        const standardItems = [
+          {
+            eventName: "DIR-3 KYC (Director KYC)",
+            mcaForm: "DIR-3 KYC",
+            complianceType: "annual",
+            dueDate: new Date(year - 1, 8, 30), // 30th Sep
+            penaltyPerDayInr: "5000",
+            notes: "Annual KYC for directors holding DIN",
+          },
+          {
+            eventName: "Form MSME-1 (H1)",
+            mcaForm: "MSME-1",
+            complianceType: "quarterly",
+            dueDate: new Date(year - 1, 9, 31),
+            penaltyPerDayInr: "100",
+            notes: "Details of outstanding dues to MSME suppliers (Apr-Sep)",
+          },
+          {
+            eventName: "Form MSME-1 (H2)",
+            mcaForm: "MSME-1",
+            complianceType: "quarterly",
+            dueDate: new Date(year, 3, 30),
+            penaltyPerDayInr: "100",
+            notes: "Details of outstanding dues to MSME suppliers (Oct-Mar)",
+          },
+          {
+            eventName: "Form DPT-3 (Return of Deposits)",
+            mcaForm: "DPT-3",
+            complianceType: "annual",
+            dueDate: new Date(year, 5, 30),
+            penaltyPerDayInr: "100",
+            notes: "Return of deposits and particulars of transactions not considered as deposit",
+          },
+          {
+            eventName: "Form AOC-4 (Financial Statements)",
+            mcaForm: "AOC-4",
+            complianceType: "annual",
+            dueDate: new Date(year - 1, 9, 30),
+            penaltyPerDayInr: "100",
+            notes: "Filing of audited financial statements with ROC",
+          },
+          {
+            eventName: "Form MGT-7 (Annual Return)",
+            mcaForm: "MGT-7",
+            complianceType: "annual",
+            dueDate: new Date(year - 1, 10, 29),
+            penaltyPerDayInr: "100",
+            notes: "Filing of annual return with ROC",
+          },
+          {
+            eventName: "Form ADT-1 (Auditor Appointment)",
+            mcaForm: "ADT-1",
+            complianceType: "event_based",
+            dueDate: new Date(year - 1, 9, 15),
+            penaltyPerDayInr: "100",
+            notes: "Notice to ROC for appointment of auditor",
+          },
+          {
+            eventName: "TDS Payment",
+            complianceType: "monthly",
+            dueDate: new Date(year - 1, 3, 7), // 7th of every month
+            penaltyPerDayInr: "100",
+            notes: "Monthly TDS deposit with Income Tax Dept",
+          },
+          {
+            eventName: "GST GSTR-1",
+            complianceType: "monthly",
+            dueDate: new Date(year - 1, 3, 11), // 11th of every month
+            penaltyPerDayInr: "50",
+            notes: "Monthly return for outward supplies",
+          },
+          {
+            eventName: "GST GSTR-3B",
+            complianceType: "monthly",
+            dueDate: new Date(year - 1, 3, 20), // 20th of every month
+            penaltyPerDayInr: "50",
+            notes: "Monthly summary return and tax payment",
+          },
+          {
+            eventName: "EPF & ESI Deposit",
+            complianceType: "monthly",
+            dueDate: new Date(year - 1, 3, 15), // 15th of every month
+            penaltyPerDayInr: "100",
+            notes: "Monthly contribution for EPF and ESI",
+          },
+        ];
+
+        // For monthly items, generate for all 12 months
+        const monthlyItems = standardItems.filter(i => i.complianceType === "monthly");
+        const annualItems = standardItems.filter(i => i.complianceType !== "monthly");
+
+        const allItemsToSeed = [...annualItems];
+        for (const mi of monthlyItems) {
+          for (let m = 0; m < 12; m++) {
+            const itemDate = new Date(year - 1, 3 + m, mi.dueDate.getDate());
+            allItemsToSeed.push({
+              ...mi,
+              eventName: `${mi.eventName} - ${itemDate.toLocaleString('default', { month: 'long' })} ${itemDate.getFullYear()}`,
+              dueDate: itemDate,
+            });
+          }
+        }
+
+        let seeded = 0;
+        for (const item of allItemsToSeed) {
+          // Check if already exists for this org/fy/form
+          const [existing] = await db
+            .select()
+            .from(complianceCalendarItems)
+            .where(
+              and(
+                eq(complianceCalendarItems.orgId, org!.id),
+                eq(complianceCalendarItems.financialYear, fy),
+                eq(complianceCalendarItems.eventName, item.eventName),
+              ),
+            );
+
+          if (!existing) {
+            await db.insert(complianceCalendarItems).values({
+              orgId: org!.id,
+              financialYear: fy,
+              ...item,
+            } as any);
+            seeded++;
+          }
+        }
+
+        return { seeded };
       }),
   }),
 

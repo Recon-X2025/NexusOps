@@ -363,7 +363,8 @@ function BoardTab() {
 
 function FilingsTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
-  const { data: filings = [], refetch } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
+  const [selectedFY, setSelectedFY] = useState("2024-25");
+  const { data: filings = [], refetch } = trpc.secretarial.filings.list.useQuery({ fy: selectedFY }, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
   const [statusFilter, setStatusFilter] = useState("");
   const markFiled = trpc.secretarial.filings.markFiled.useMutation({
     onSuccess: () => { toast.success("Filing marked as filed"); refetch(); },
@@ -373,6 +374,10 @@ function FilingsTab() {
   const [form, setForm] = useState({ formNumber: "", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: "", fees: "", notes: "" });
   const createFiling = trpc.secretarial.filings.create.useMutation({
     onSuccess: () => { toast.success("Filing created"); refetch(); setShowCreate(false); },
+    onError: e => toast.error(e.message),
+  });
+  const seedFilings = trpc.secretarial.filings.seed.useMutation({
+    onSuccess: (data) => { toast.success(`Seeded ${data.seeded} standard filings`); refetch(); },
     onError: e => toast.error(e.message),
   });
 
@@ -385,11 +390,31 @@ function FilingsTab() {
           <option value="">All Status</option>
           {["upcoming","in_progress","filed","overdue","not_applicable"].map(s => <option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
         </select>
-        <PermissionGate module="secretarial" action="write">
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
-            <Plus className="w-3.5 h-3.5" /> Add Filing
-          </button>
-        </PermissionGate>
+        <div className="flex items-center gap-2">
+          <PermissionGate module="secretarial" action="write">
+            <div className="flex items-center border border-border rounded-lg overflow-hidden h-9">
+              <select 
+                value={selectedFY} 
+                onChange={e => setSelectedFY(e.target.value)}
+                className="bg-muted/30 text-[11px] px-2 h-full border-r border-border focus:outline-none"
+              >
+                {["2023-24","2024-25","2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
+              </select>
+              <button 
+                onClick={() => seedFilings.mutate({ financialYear: selectedFY })}
+                disabled={seedFilings.isPending}
+                className="flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 text-[11px] font-medium hover:bg-indigo-100 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${seedFilings.isPending ? "animate-spin" : ""}`} /> Seed Basis Companies Act 2013
+              </button>
+            </div>
+          </PermissionGate>
+          <PermissionGate module="secretarial" action="write">
+            <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 h-9">
+              <Plus className="w-3.5 h-3.5" /> Add Filing
+            </button>
+          </PermissionGate>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -628,27 +653,62 @@ function EsopTab() {
 
 function CalendarTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
-  const { data: filings = [] } = trpc.secretarial.filings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
-  type FilingRow = { status: string; dueDate: string | Date; id: string; title: string; formNumber: string; authority: string; fy?: string | null };
-  const upcoming = filings
-    .filter((f: FilingRow) => ["upcoming", "in_progress", "overdue"].includes(f.status))
-    .sort((a: FilingRow, b: FilingRow) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const [selectedFY, setSelectedFY] = useState("2024-25");
+  const { data: filings = [], refetch: refetchFilings } = trpc.secretarial.filings.list.useQuery({ fy: selectedFY }, mergeTrpcQueryOpts("secretarial.filings.list", undefined));
+  const { data: calendar = [], refetch: refetchCalendar } = trpc.indiaCompliance.calendar.list.useQuery({ financialYear: selectedFY }, mergeTrpcQueryOpts("indiaCompliance.calendar.list", undefined));
+  const seedCalendar = trpc.indiaCompliance.calendar.seed.useMutation({
+    onSuccess: (data) => { toast.success(`Seeded ${data.seeded} items to compliance calendar`); refetchCalendar(); },
+    onError: e => toast.error(e.message),
+  });
+
+  type FilingRow = { status: string; dueDate: string | Date; id: string; title: string; formNumber?: string; authority?: string; fy?: string | null; eventName?: string };
+  
+  const allEvents = [
+    ...filings.map(f => ({ ...f, type: "filing" })),
+    ...calendar.map(c => ({ ...c, title: c.eventName, type: "calendar" }))
+  ];
+
+  const upcoming = allEvents
+    .filter((f) => ["upcoming", "in_progress", "overdue"].includes(f.status))
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-red-700">{filings.filter((f: { status: string }) => f.status === "overdue").length}</p>
-          <p className="text-xs text-red-600">Overdue</p>
+      <div className="flex items-center justify-between">
+        <div className="grid grid-cols-3 gap-4 flex-1">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-red-700">{allEvents.filter((f: { status: string }) => f.status === "overdue").length}</p>
+            <p className="text-xs text-red-600">Overdue</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-amber-700">{allEvents.filter((f: { status: string }) => f.status === "upcoming").length}</p>
+            <p className="text-xs text-amber-600">Upcoming</p>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-green-700">{allEvents.filter((f: { status: string }) => f.status === "filed").length}</p>
+            <p className="text-xs text-green-600">Filed</p>
+          </div>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-amber-700">{filings.filter((f: { status: string }) => f.status === "upcoming").length}</p>
-          <p className="text-xs text-amber-600">Upcoming</p>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-green-700">{filings.filter((f: { status: string }) => f.status === "filed").length}</p>
-          <p className="text-xs text-green-600">Filed</p>
-        </div>
+        <PermissionGate module="secretarial" action="write">
+          <div className="ml-4 flex flex-col gap-2">
+            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+              <select 
+                value={selectedFY} 
+                onChange={e => setSelectedFY(e.target.value)}
+                className="bg-muted/30 text-[10px] px-2 h-8 border-r border-border focus:outline-none"
+              >
+                {["2023-24","2024-25","2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
+              </select>
+              <button 
+                onClick={() => seedCalendar.mutate({ financialYear: selectedFY })}
+                disabled={seedCalendar.isPending}
+                className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-medium h-8 hover:bg-indigo-100 disabled:opacity-50 flex items-center gap-1"
+              >
+                <RefreshCw className={`w-3 h-3 ${seedCalendar.isPending ? "animate-spin" : ""}`} /> Seed Statutory Calendar
+              </button>
+            </div>
+          </div>
+        </PermissionGate>
       </div>
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border">
@@ -666,7 +726,11 @@ function CalendarTab() {
                   </div>
                   <div>
                     <p className="font-medium text-sm">{f.title}</p>
-                    <p className="text-xs text-muted-foreground">{f.formNumber} · {f.authority} · {f.fy ?? ""}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {f.formNumber && `${f.formNumber} · `}
+                      {f.authority && `${f.authority} · `}
+                      {f.fy ?? ""}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">

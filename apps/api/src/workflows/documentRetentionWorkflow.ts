@@ -27,8 +27,8 @@ import {
   documentRetentionPolicies,
   documentVersions,
   auditLogs,
-} from "@nexusops/db";
-import type { Db } from "@nexusops/db";
+} from "@coheronconnect/db";
+import type { Db } from "@coheronconnect/db";
 import { deleteObject } from "../services/storage";
 
 function redisConnection() {
@@ -41,7 +41,7 @@ export interface RetentionJobData {
   batchSize?: number;
 }
 
-export const RETENTION_QUEUE_NAME = "nexusops-doc-retention";
+export const RETENTION_QUEUE_NAME = "coheronconnect-doc-retention";
 const SWEEP_JOB_NAME = "sweep";
 
 let _queue: Queue<RetentionJobData> | null = null;

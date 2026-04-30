@@ -1,7 +1,10 @@
 /**
- * Seed the NexusOps database with the Coheron Demo organization.
+ * Seed the CoheronConnect database with the CoheronConnect HQ organization.
  * Creates all demo data needed for every module to render real content.
  */
+require("dotenv").config({ path: "../../.env" });
+
+
 import { getDb } from "./client";
 import {
   organizations, users, roles, permissions, rolePermissions, userRoles,
@@ -16,7 +19,9 @@ import {
   oncallSchedules, catalogItems,
   buildings, rooms, facilityRequests,
   applications,
+  workflows, workflowVersions,
 } from "./schema";
+import { seedEvents } from "./seed-events";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { faker } from "@faker-js/faker";
@@ -27,14 +32,16 @@ faker.seed(12345);
 const DEMO_ORG_SLUG = "coheron-demo";
 const NOW = new Date();
 const d = (days: number) => new Date(NOW.getTime() + days * 86400000);
+const minutesAgo = (mins: number) => new Date(NOW.getTime() - mins * 60000);
+const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86400000);
 
 async function seed() {
   const db = getDb();
-  console.log("🌱 Seeding NexusOps database with dynamic Faker data...");
+  console.log("🌱 Seeding CoheronConnect database with dynamic Faker data...");
 
   // ── Organization ───────────────────────────────────────────────────────────
   const [org] = await db.insert(organizations).values({
-    name: "Coheron Demo", slug: DEMO_ORG_SLUG, plan: "professional", primaryColor: "#00BCFF",
+    name: "CoheronConnect HQ", slug: DEMO_ORG_SLUG, plan: "professional", primaryColor: "#00BCFF",
   }).onConflictDoNothing().returning();
 
   const isNew = !!org;
@@ -54,7 +61,7 @@ async function seed() {
 
   // Core users required for demo login and specific matrix roles
   const coreUserSeed = [
-    { email: "admin@coheron.com", name: "Alex Chen", role: "owner" as const },
+    { email: "admin@coheron.com", name: "Administrator", role: "owner" as const },
     { email: "agent1@coheron.com", name: "Jordan Smith", role: "member" as const },
     { email: "agent2@coheron.com", name: "Sam Rivera", role: "member" as const },
     { email: "hr@coheron.com", name: "Morgan Lee", role: "member" as const },
@@ -106,7 +113,7 @@ async function seed() {
   const agent2 = allUsers.find((u) => u.email === "agent2@coheron.com") ?? allUsers[2]!;
   console.log(`✅ Users: ${createdUsers.length} (passwords updated)`);
 
-  if (!isNew) {
+  if (!isNew && process.env.FORCE_SEED !== "true") {
     console.log("ℹ️  Skipping module data seed (org already exists). Run against a fresh DB to re-seed everything.");
     console.log("🌱 Seed complete (password update only).");
     return;
@@ -169,8 +176,7 @@ async function seed() {
     { orgId: orgId, name: "Closed", color: "#6b7280", category: "closed", sortOrder: 4 },
   ]).returning();
 
-  // ── Tickets (100 Generated) ─────────────────────────────────────────────────
-  const minutesAgo = (mins: number) => new Date(NOW.getTime() - mins * 60_000);
+  // ── Tickets (350 Generated) ─────────────────────────────────────────────────
   const dueFromCreated = (created: Date, mins: number | null | undefined) =>
     mins != null && mins > 0 ? new Date(created.getTime() + mins * 60_000) : null;
 
@@ -184,7 +190,7 @@ async function seed() {
     "Cannot access shared drive", "Blue screen of death on boot",
   ];
 
-  const ticketSeeds = Array.from({ length: 100 }).map((_, i) => {
+  const ticketSeeds = Array.from({ length: 600 }).map((_, i) => {
     const type = faker.helpers.arrayElement(ticketTypes);
     const category = faker.helpers.arrayElement(cats);
     const priority = faker.helpers.arrayElement(prios);
@@ -196,12 +202,32 @@ async function seed() {
     
     // Requesters can be anyone
     const requester = faker.helpers.arrayElement(allUsers);
-    const ageMins = faker.number.int({ min: 5, max: 60 * 24 * 7 }); // Up to 7 days old
+    const ageDays = faker.number.int({ min: 0, max: 180 });
     
-    const createdAt = minutesAgo(ageMins);
+    const createdAt = daysAgo(ageDays);
     const slaResponseDueAt = dueFromCreated(createdAt, priority.slaResponseMinutes);
     const slaResolveDueAt  = dueFromCreated(createdAt, priority.slaResolveMinutes);
-    const slaBreached = !!slaResolveDueAt && slaResolveDueAt.getTime() < NOW.getTime();
+    
+    const isClosed = status.category === "closed" || status.category === "resolved";
+    const willBreach = faker.number.int({ min: 1, max: 100 }) <= 15; // 85% SLA success rate
+    
+    let slaBreached = false;
+    let updatedAt = createdAt;
+    
+    if (isClosed) {
+      if (willBreach) {
+        slaBreached = true;
+        updatedAt = slaResolveDueAt ? new Date(slaResolveDueAt.getTime() + 3600000) : new Date(createdAt.getTime() + 86400000);
+      } else {
+        slaBreached = false;
+        updatedAt = slaResolveDueAt ? new Date(createdAt.getTime() + (slaResolveDueAt.getTime() - createdAt.getTime()) * 0.5) : new Date(createdAt.getTime() + 3600000);
+      }
+      if (updatedAt > NOW) updatedAt = NOW;
+    } else {
+      if (slaResolveDueAt && NOW > slaResolveDueAt) {
+        slaBreached = true;
+      }
+    }
 
     return {
       orgId,
@@ -214,7 +240,7 @@ async function seed() {
       priorityId: priority.id,
       categoryId: category.id,
       createdAt,
-      updatedAt: createdAt,
+      updatedAt,
       slaResponseDueAt: slaResponseDueAt ?? undefined,
       slaResolveDueAt:  slaResolveDueAt  ?? undefined,
       slaBreached,
@@ -264,12 +290,13 @@ async function seed() {
       orgId,
       number: `CHG-${String(i + 1).padStart(4, "0")}`,
       title: `${faker.hacker.verb()} ${faker.hacker.adjective()} ${faker.hacker.noun()}`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       type: faker.helpers.arrayElement(["normal", "standard", "emergency"]),
       risk: faker.helpers.arrayElement(["low", "medium", "high"]),
       status: faker.helpers.arrayElement(["draft", "cab_review", "approved", "scheduled", "implementing", "completed"]),
       requesterId: faker.helpers.arrayElement(allUsers).id,
       assigneeId: faker.datatype.boolean() ? faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]) : undefined,
-      scheduledStart: faker.datatype.boolean() ? d(faker.number.int({ min: -5, max: 30 })) : undefined,
+      scheduledStart: faker.datatype.boolean() ? d(faker.number.int({ min: -180, max: 30 })) : undefined,
       scheduledEnd: faker.datatype.boolean() ? d(faker.number.int({ min: 31, max: 60 })) : undefined,
       rollbackPlan: faker.datatype.boolean() ? "Restore from backup" : null,
     };
@@ -283,6 +310,7 @@ async function seed() {
       orgId,
       number: `PRB-${String(i + 1).padStart(4, "0")}`,
       title: `Recurring ${faker.hacker.adjective()} ${faker.hacker.noun()} failures`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       status: faker.helpers.arrayElement(["investigation", "root_cause_identified", "known_error", "resolved"]),
       priority: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
       assigneeId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
@@ -297,6 +325,7 @@ async function seed() {
   const secIncidents = Array.from({ length: 20 }).map((_, i) => ({
     orgId,
     number: `SEC-${String(i + 1).padStart(4, "0")}`,
+    createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
     title: `${faker.hacker.ingverb()} attempt on ${faker.hacker.noun()}`,
     severity: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
     status: faker.helpers.arrayElement(["triage", "containment", "eradication", "recovery", "closed"]),
@@ -310,11 +339,12 @@ async function seed() {
     orgId,
     cveId: `CVE-202${faker.number.int({ min: 0, max: 4 })}-${faker.number.int({ min: 1000, max: 9999 })}`,
     title: `${faker.hacker.noun()} Vulnerability`,
+    createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
     severity: faker.helpers.arrayElement(["low", "medium", "high", "critical"]),
     cvssScore: faker.finance.amount({ min: 4, max: 10, dec: 1 }),
     status: faker.helpers.arrayElement(["open", "in_progress", "remediated", "accepted"]),
     assigneeId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
-    remediatedAt: faker.datatype.boolean() ? d(faker.number.int({ min: -30, max: -1 })) : null,
+    remediatedAt: faker.datatype.boolean() ? d(faker.number.int({ min: -180, max: -1 })) : null,
   }));
   await db.insert(vulnerabilities).values(vulns);
   console.log(`✅ Security data: ${secIncidents.length} incidents, ${vulns.length} vulns`);
@@ -327,6 +357,7 @@ async function seed() {
       orgId,
       number: `RK-${String(i + 1).padStart(4, "0")}`,
       title: `Risk of ${faker.hacker.ingverb()} ${faker.hacker.noun()}`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       category: faker.helpers.arrayElement(["technology", "compliance", "operational", "strategic"]),
       likelihood,
       impact,
@@ -359,9 +390,10 @@ async function seed() {
   console.log(`✅ Budget lines: ${budgetSeeds.length}`);
 
   // ── Contracts ──────────────────────────────────────────────────────────────
-  const contractSeeds = Array.from({ length: 15 }).map((_, i) => ({
+  const contractSeeds = Array.from({ length: 60 }).map((_, i) => ({
     orgId,
     contractNumber: `CNTR-${String(i + 1).padStart(4, "0")}`,
+    createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
     title: `${faker.company.name()} Agreement`,
     counterparty: faker.company.name(),
     type: faker.helpers.arrayElement(["vendor", "license", "msa", "nda", "sla_support"]),
@@ -377,15 +409,16 @@ async function seed() {
 
   // ── Projects ───────────────────────────────────────────────────────────────
   const projectData = await db.insert(projects).values(
-    Array.from({ length: 10 }).map((_, i) => ({
+    Array.from({ length: 40 }).map((_, i) => ({
       orgId,
       number: `PRJ-${String(i + 1).padStart(4, "0")}`,
       name: `${faker.company.catchPhrase()} Initiative`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       status: faker.helpers.arrayElement(["planning", "active", "on_hold", "completed", "cancelled"]),
       health: faker.helpers.arrayElement(["green", "amber", "red"]),
       budgetTotal: faker.finance.amount({ min: 50000, max: 2000000, dec: 0 }),
       budgetSpent: faker.finance.amount({ min: 0, max: 1000000, dec: 0 }),
-      startDate: d(faker.number.int({ min: -90, max: 30 })),
+      startDate: d(faker.number.int({ min: -180, max: 30 })),
       endDate: d(faker.number.int({ min: 31, max: 365 })),
       ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
       department: faker.helpers.arrayElement(["IT", "Security", "HR", "Finance", "Sales"]),
@@ -406,9 +439,10 @@ async function seed() {
 
   // ── CRM ────────────────────────────────────────────────────────────────────
   const crmAccountData = await db.insert(crmAccounts).values(
-    Array.from({ length: 15 }).map(() => ({
+    Array.from({ length: 40 }).map(() => ({
       orgId,
       name: faker.company.name(),
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       industry: faker.helpers.arrayElement(["Technology", "Retail", "Financial Services", "Healthcare", "Manufacturing"]),
       tier: faker.helpers.arrayElement(["smb", "mid_market", "enterprise"]),
       healthScore: faker.number.int({ min: 10, max: 100 }),
@@ -418,18 +452,19 @@ async function seed() {
   ).returning();
 
   const dealData = await db.insert(crmDeals).values(
-    Array.from({ length: 30 }).map(() => {
+    Array.from({ length: 100 }).map(() => {
       const value = faker.number.int({ min: 5000, max: 500000 });
       const prob = faker.number.int({ min: 0, max: 100 });
       return {
         orgId,
         title: `${faker.company.catchPhraseAdjective()} License Expansion`,
+        createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
         accountId: faker.helpers.arrayElement(crmAccountData).id,
         stage: faker.helpers.arrayElement(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]),
         value: String(value),
         probability: prob,
         weightedValue: String((value * prob) / 100),
-        expectedClose: d(faker.number.int({ min: -30, max: 120 })),
+        expectedClose: d(faker.number.int({ min: -180, max: 120 })),
         ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
       };
     })
@@ -440,6 +475,7 @@ async function seed() {
       orgId,
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       email: faker.internet.email(),
       company: faker.company.name(),
       source: faker.helpers.arrayElement(["website", "referral", "event", "cold_outreach", "partner"]),
@@ -456,6 +492,7 @@ async function seed() {
       orgId,
       matterNumber: `MAT-${String(i + 1).padStart(4, "0")}`,
       title: `${faker.company.name()} Dispute`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       type: faker.helpers.arrayElement(["litigation", "employment", "ip", "data_privacy", "corporate", "commercial"]),
       status: faker.helpers.arrayElement(["intake", "active", "discovery", "pre_trial", "closed", "settled"]),
       assignedTo: faker.helpers.arrayElement([admin.id, agent1.id]),
@@ -469,20 +506,22 @@ async function seed() {
   const pipelineData = await db.insert(pipelineRuns).values(
     Array.from({ length: 20 }).map(() => ({
       orgId,
-      pipelineName: faker.helpers.arrayElement(["nexusops-api", "nexusops-web", "nexusops-worker"]),
+      pipelineName: faker.helpers.arrayElement(["coheronconnect-api", "coheronconnect-web", "coheronconnect-worker"]),
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       trigger: faker.helpers.arrayElement(["push", "pr", "scheduled", "manual"]),
       branch: faker.helpers.arrayElement(["main", "feature/auth", "fix/bug"]),
       commitSha: faker.git.commitSha().substring(0, 7),
       status: faker.helpers.arrayElement(["success", "failed", "running", "cancelled"]),
       durationSeconds: faker.number.int({ min: 30, max: 600 }),
-      completedAt: faker.datatype.boolean() ? d(faker.number.float({ min: -5, max: 0 })) : null,
+      completedAt: faker.datatype.boolean() ? d(faker.number.float({ min: -180, max: 0 })) : null,
     }))
   ).returning();
 
   await db.insert(deployments).values(
     Array.from({ length: 15 }).map(() => ({
       orgId,
-      appName: faker.helpers.arrayElement(["nexusops-api", "nexusops-web", "nexusops-worker"]),
+      appName: faker.helpers.arrayElement(["coheronconnect-api", "coheronconnect-web", "coheronconnect-worker"]),
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       environment: faker.helpers.arrayElement(["dev", "qa", "staging", "production"]),
       version: `v${faker.number.int({ min: 1, max: 5 })}.${faker.number.int({ min: 0, max: 9 })}.${faker.number.int({ min: 0, max: 9 })}`,
       status: faker.helpers.arrayElement(["pending", "in_progress", "success", "failed", "rolled_back"]),
@@ -498,7 +537,7 @@ async function seed() {
     { orgId: orgId, title: "Q4 Employee Pulse", type: "employee_pulse", status: "active", createdById: admin.id,
       questions: [
         { id: "q1", type: "rating", question: "How satisfied are you with your work environment?", required: true },
-        { id: "q2", type: "nps", question: "How likely are you to recommend NexusOps as an employer?", required: true },
+        { id: "q2", type: "nps", question: "How likely are you to recommend CoheronConnect as an employer?", required: true },
         { id: "q3", type: "text", question: "What one thing would improve your experience?", required: false },
       ]
     },
@@ -516,6 +555,7 @@ async function seed() {
     Array.from({ length: 15 }).map(() => ({
       orgId,
       title: `How to ${faker.hacker.verb()} your ${faker.hacker.noun()}`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       content: `## ${faker.hacker.ingverb()}\n\n${faker.lorem.paragraphs(3)}`,
       categoryId: null,
       status: faker.helpers.arrayElement(["draft", "published", "archived"]),
@@ -543,6 +583,7 @@ async function seed() {
       orgId,
       number: `PR-${String(i + 1).padStart(4, "0")}`,
       title: `${faker.number.int({ min: 1, max: 50 })}x ${faker.commerce.product()}`,
+      createdAt: daysAgo(faker.number.int({ min: 0, max: 180 })),
       requesterId: faker.helpers.arrayElement(allUsers).id,
       totalAmount: faker.finance.amount({ min: 100, max: 50000, dec: 0 }),
       status: faker.helpers.arrayElement(["draft", "pending", "approved", "rejected", "ordered", "received"]),
@@ -605,11 +646,62 @@ async function seed() {
   );
   console.log(`✅ APM applications: 15`);
 
+  // ── Workflows ─────────────────────────────────────────────────────────────
+  const [workflow] = await db.insert(workflows).values([
+    {
+      orgId,
+      name: "Auto-Notify on P1 Incident",
+      description: "Send email and whatsapp notifications when a P1 ticket is created",
+      triggerType: "ticket_created",
+      isActive: true,
+      createdById: admin.id,
+      currentVersion: 1,
+    }
+  ]).returning();
+
+  await db.insert(workflowVersions).values([
+    {
+      workflowId: workflow!.id,
+      version: 1,
+      nodes: [
+        {
+          id: "node-1",
+          type: "workflow",
+          position: { x: 250, y: 50 },
+          data: {
+            label: "Notify via Email",
+            category: "Incident",
+            description: "Send P1 alert to support team",
+            actionName: "notify-via-email",
+          }
+        },
+        {
+          id: "node-2",
+          type: "workflow",
+          position: { x: 250, y: 200 },
+          data: {
+            label: "Notify via WhatsApp",
+            category: "Incident",
+            description: "Alert on-call engineer",
+            actionName: "notify-via-whatsapp",
+          }
+        }
+      ],
+      edges: [
+        { id: "e1-2", source: "node-1", target: "node-2" }
+      ]
+    }
+  ]);
+  console.log(`✅ Workflows: 1 sample flow`);
+
+  // ── IT Operations (Events, Rules, Policies) ───────────────────────────────
+  await seedEvents(db as any);
+
   console.log("\n🎉 Full seed complete!");
-  console.log(`   Organization:  ${org.name}`);
+  console.log(`   Organization:  ${seedOrg.name}`);
   console.log(`   Admin login:   admin@coheron.com / demo1234!`);
   console.log(`   Agent login:   agent1@coheron.com / demo1234!`);
-  console.log(`   Org slug:      ${org.slug}`);
+  console.log(`   Org slug:      ${seedOrg.slug}`);
 
   process.exit(0);
 }

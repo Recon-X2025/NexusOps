@@ -9,7 +9,7 @@ import {
   count,
   sum,
   avg,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const apmRouter = router({
   applications: router({

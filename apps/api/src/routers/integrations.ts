@@ -10,7 +10,7 @@ import {
   eq,
   and,
   desc,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { syncJiraToNexus } from "../services/jira";
 import { syncSapToNexus } from "../services/sap";
 import { encryptIntegrationConfig, decryptIntegrationConfig } from "../services/encryption";
@@ -62,7 +62,7 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     description: "Post ticket notifications, approvals, and SLA alerts to Slack channels.",
     fields: [
       { key: "webhookUrl", label: "Incoming Webhook URL", type: "url", required: true, placeholder: "https://hooks.slack.com/services/…" },
-      { key: "defaultChannel", label: "Default Channel", placeholder: "#nexusops-alerts" },
+      { key: "defaultChannel", label: "Default Channel", placeholder: "#coheronconnect-alerts" },
     ],
   },
   {
@@ -94,7 +94,7 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     displayName: "Jira Cloud",
     category: "itsm",
     testable: false,
-    description: "Bidirectional sync — NexusOps tickets ↔ Jira issues.",
+    description: "Bidirectional sync — CoheronConnect tickets ↔ Jira issues.",
     fields: [
       { key: "baseUrl", label: "Jira Base URL", type: "url", required: true, placeholder: "https://yourco.atlassian.net" },
       { key: "email", label: "Account Email", required: true, placeholder: "admin@yourco.com" },
@@ -298,7 +298,7 @@ export const integrationsRouter = router({
         .from(integrations)
         .where(and(eq(integrations.orgId, org!.id), eq(integrations.provider, input.provider)));
 
-      const kmsKeyId = process.env["INTEGRATIONS_KMS_KEY_ID"] ?? "nexusops:local-dev-kek";
+      const kmsKeyId = process.env["INTEGRATIONS_KMS_KEY_ID"] ?? "coheronconnect:local-dev-kek";
       const dekWrappedB64 = crypto
         .createHash("sha256")
         .update(appSecret + ":" + kmsKeyId)
@@ -734,7 +734,7 @@ export const integrationsRouter = router({
           continue;
         }
         seen.add(k);
-        if (row["__nexusops_existing"] === true) wouldUpdate++;
+        if (row["__coheronconnect_existing"] === true) wouldUpdate++;
         else wouldCreate++;
       }
       return {
@@ -744,7 +744,7 @@ export const integrationsRouter = router({
         skipped,
         duplicateOrInvalid: skipped,
         errorSample: errors.slice(0, 25),
-        note: "Dry-run only — no database writes. Set __nexusops_existing on rows that map to existing NexusOps records.",
+        note: "Dry-run only — no database writes. Set __coheronconnect_existing on rows that map to existing CoheronConnect records.",
       };
     }),
 });

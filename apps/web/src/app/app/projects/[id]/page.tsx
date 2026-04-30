@@ -75,11 +75,20 @@ export default function ProjectDetailPage() {
   );
 
   const [showAddTask, setShowAddTask] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [taskForm, setTaskForm] = useState({
     title: "",
     description: "",
     priority: "medium" as "low" | "medium" | "high" | "critical",
     sprint: "",
+  });
+  
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    status: "",
+    health: "",
+    phase: "",
   });
 
   const [movingTask, setMovingTask] = useState<string | null>(null);
@@ -100,6 +109,15 @@ export default function ProjectDetailPage() {
       setMovingTask(null);
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to update task"),
+  });
+  
+  const updateProject = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      toast.success("Project updated successfully");
+      setIsEditing(false);
+      refetch();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update project"),
   });
 
   if (isLoading) {
@@ -165,6 +183,23 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <PermissionGate module="projects" action="write">
+            <button
+              onClick={() => {
+                setEditForm({
+                  name: project.name,
+                  description: project.description || "",
+                  status: project.status || "planning",
+                  health: project.health || "green",
+                  phase: project.phase || "",
+                });
+                setIsEditing(v => !v);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 border border-border text-[11px] rounded hover:bg-muted font-medium"
+            >
+              <Edit2 className="w-3 h-3" /> Edit Project
+            </button>
+          </PermissionGate>
           {TASK_BOARD_ENABLED && (
             <PermissionGate module="projects" action="write">
               {!isTerminal && (
@@ -202,6 +237,92 @@ export default function ProjectDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Edit Project Form */}
+      {isEditing && (
+        <div className="bg-card border border-primary/30 rounded p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
+            <h3 className="text-[13px] font-bold text-foreground">Edit Project Details</h3>
+            <button onClick={() => setIsEditing(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Project Name *</label>
+              <input
+                className="w-full text-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none"
+                value={editForm.name}
+                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Description</label>
+              <textarea
+                className="w-full text-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none min-h-[80px] resize-y"
+                value={editForm.description}
+                onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Status</label>
+              <select
+                className="w-full text-sm border border-border rounded px-3 py-2 bg-background"
+                value={editForm.status}
+                onChange={(e) => setEditForm(f => ({ ...f, status: e.target.value }))}
+              >
+                <option value="proposed">Proposed</option>
+                <option value="planning">Planning</option>
+                <option value="active">Active</option>
+                <option value="on_hold">On Hold</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Health</label>
+              <select
+                className="w-full text-sm border border-border rounded px-3 py-2 bg-background"
+                value={editForm.health}
+                onChange={(e) => setEditForm(f => ({ ...f, health: e.target.value }))}
+              >
+                <option value="green">Green (Healthy)</option>
+                <option value="amber">Amber (Watch)</option>
+                <option value="red">Red (At Risk)</option>
+              </select>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Phase</label>
+              <input
+                className="w-full text-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none"
+                placeholder="e.g. Discovery, Execution"
+                value={editForm.phase}
+                onChange={(e) => setEditForm(f => ({ ...f, phase: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-5 pt-3 border-t border-border">
+            <button
+              disabled={!editForm.name || updateProject.isPending}
+              onClick={() => updateProject.mutate({
+                id,
+                name: editForm.name,
+                description: editForm.description || undefined,
+                status: editForm.status || undefined,
+                health: editForm.health || undefined,
+                phase: editForm.phase || undefined,
+              })}
+              className="px-4 py-2 rounded bg-primary text-white text-[12px] font-semibold shadow hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {updateProject.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+              {updateProject.isPending ? "Saving..." : "Save Changes"}
+            </button>
+            <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded border border-border text-[12px] font-semibold hover:bg-accent">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Task Form */}
       {TASK_BOARD_ENABLED && showAddTask && (

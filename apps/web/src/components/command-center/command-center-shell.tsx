@@ -38,7 +38,7 @@ export function CommandCenterBar({
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tight text-slate-900">
-              Nexus Command
+              CoheronConnect Control
             </h1>
             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
               Live Organisational Intelligence

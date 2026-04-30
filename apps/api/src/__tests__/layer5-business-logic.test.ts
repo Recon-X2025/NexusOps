@@ -12,8 +12,8 @@ beforeAll(async () => {
     );
   }
 });
-import { tickets, ticketPriorities, securityIncidents, contracts, purchaseRequests } from "@nexusops/db";
-import { eq, and, sql } from "@nexusops/db";
+import { tickets, ticketPriorities, securityIncidents, contracts, purchaseRequests } from "@coheronconnect/db";
+import { eq, and, sql } from "@coheronconnect/db";
 
 describe("Layer 5: Business Logic", () => {
   let orgCtx: Awaited<ReturnType<typeof seedFullOrg>>;
@@ -267,8 +267,8 @@ describe("Layer 5: Business Logic", () => {
     it("creating a ticket generates an audit_log entry", async () => {
       const db = testDb();
       const caller = await authedCaller(adminToken);
-      const { auditLogs } = await import("@nexusops/db");
-      const { count } = await import("@nexusops/db");
+      const { auditLogs } = await import("@coheronconnect/db");
+      const { count } = await import("@coheronconnect/db");
 
       const [before] = await db.select({ cnt: count() }).from(auditLogs).where(eq(auditLogs.orgId, orgCtx.orgId));
       await caller.tickets.create({ title: "Audit log test ticket", type: "incident", priorityId: orgCtx.p2Id! });

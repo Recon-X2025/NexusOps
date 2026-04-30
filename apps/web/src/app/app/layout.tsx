@@ -5,7 +5,7 @@ import { RBACProvider } from "@/lib/rbac-context";
 import { AuthGuard } from "@/components/layout/auth-guard";
 
 import { CommandPaletteProvider } from "@/components/layout/command-palette-provider";
-import { ErrorBoundary } from "@nexusops/ui/error-boundary";
+import { ErrorBoundary } from "@coheronconnect/ui/error-boundary";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

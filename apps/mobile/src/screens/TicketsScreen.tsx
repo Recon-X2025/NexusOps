@@ -1,5 +1,5 @@
 /**
- * NexusOps Mobile — Tickets List Screen
+ * CoheronConnect Mobile — Tickets List Screen
  */
 
 import React, { useState } from "react";

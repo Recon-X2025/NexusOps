@@ -1,9 +1,9 @@
-# NexusOps Strategy Center vs Market-Leader Bar — Gap Analysis
+# CoheronConnect Strategy Center vs Market-Leader Bar — Gap Analysis
 
 > **Naming note:** The hub previously known as *Strategy & Projects* is now the **Strategy Center**, served at `/app/strategy` (legacy `/app/strategy-projects` 308-redirects). Sprint backlog IDs and acceptance criteria below remain valid against the renamed surface.
 
-**Perspective:** **Chief Strategist** lens, using patterns publicly associated with **Amazon-style** operating discipline — **strategy cascade** (long-range outcomes → measurable goals → initiatives → execution), **portfolio and capital allocation**, **input/output metrics**, **weekly operational reviews**, **customer-back** invention narratives (**PR/FAQ-style** clarity), and **high-velocity** program delivery — as the **market-leader reference** (without implying Amazon uses or endorses NexusOps).  
-**Scope:** NexusOps **Strategy Center** hub (`/app/strategy`), **`projects`** (initiatives, portfolio, milestones, `portfolioHealth`), **`apm`** (application portfolio), links to **`reports`**, and adjacent **`hr.okr`** (objectives live under HR, not the strategy hub).  
+**Perspective:** **Chief Strategist** lens, using patterns publicly associated with **Amazon-style** operating discipline — **strategy cascade** (long-range outcomes → measurable goals → initiatives → execution), **portfolio and capital allocation**, **input/output metrics**, **weekly operational reviews**, **customer-back** invention narratives (**PR/FAQ-style** clarity), and **high-velocity** program delivery — as the **market-leader reference** (without implying Amazon uses or endorses CoheronConnect).  
+**Scope:** CoheronConnect **Strategy Center** hub (`/app/strategy`), **`projects`** (initiatives, portfolio, milestones, `portfolioHealth`), **`apm`** (application portfolio), links to **`reports`**, and adjacent **`hr.okr`** (objectives live under HR, not the strategy hub).  
 **Audience:** Strategy, PMO, product leadership, finance partners, and enterprise portfolio offices  
 **Date:** April 2026  
 
@@ -11,15 +11,15 @@
 
 ## 1. Executive summary
 
-NexusOps delivers a **credible execution layer** for **Strategy & Projects**: an **operational dashboard** (active / at-risk project counts, **budget utilization** heuristic, links to **project portfolio**, **application portfolio (APM)**, and **reporting**), a **`projects`** API with **milestones**, **tasks**, **sprint** tags, **`getAgileBoard`** (backlog → done columns), and **`portfolioHealth`** rollups. **APM** supports **application lifecycle**, **cost**, **tech-debt** scores, and **cloud readiness**. **OKRs** exist in the platform under **`hr.okr`**, but are **not** first-class on the **Strategy & Projects** landing.
+CoheronConnect delivers a **credible execution layer** for **Strategy & Projects**: an **operational dashboard** (active / at-risk project counts, **budget utilization** heuristic, links to **project portfolio**, **application portfolio (APM)**, and **reporting**), a **`projects`** API with **milestones**, **tasks**, **sprint** tags, **`getAgileBoard`** (backlog → done columns), and **`portfolioHealth`** rollups. **APM** supports **application lifecycle**, **cost**, **tech-debt** scores, and **cloud readiness**. **OKRs** exist in the platform under **`hr.okr`**, but are **not** first-class on the **Strategy & Projects** landing.
 
-A **market-leader** strategy-to-execution stack (the bar this document uses) typically adds: a **single strategy spine** (themes → bets → initiatives → projects → work) with **traceability**, **outcome and benefit tracking** (not only spend), **capacity and dependency** management across the portfolio, **scenario and prioritization** tooling, **cadenced leadership reviews** (metrics, narratives, exceptions), **experimentation / bet** accounting, and **tight coupling** between **application portfolio** and **change programmes**. NexusOps is **strong as an integrated “business OS”** with ITSM, finance, and HR nearby; it is **not yet** a full **enterprise strategy operating system** without roadmap investment.
+A **market-leader** strategy-to-execution stack (the bar this document uses) typically adds: a **single strategy spine** (themes → bets → initiatives → projects → work) with **traceability**, **outcome and benefit tracking** (not only spend), **capacity and dependency** management across the portfolio, **scenario and prioritization** tooling, **cadenced leadership reviews** (metrics, narratives, exceptions), **experimentation / bet** accounting, and **tight coupling** between **application portfolio** and **change programmes**. CoheronConnect is **strong as an integrated “business OS”** with ITSM, finance, and HR nearby; it is **not yet** a full **enterprise strategy operating system** without roadmap investment.
 
 **Bottom line:** Closing gaps to a **market-leader** position means **unifying strategy artefacts** (OKRs, initiatives, projects), **instrumenting outcomes**, **scaling portfolio governance**, and **replacing hub placeholders** (e.g. **Analytics** tile **`"—"`**) with **live strategic metrics**.
 
 ---
 
-## 2. What NexusOps provides (observed)
+## 2. What CoheronConnect provides (observed)
 
 | Area | Implementation notes |
 |------|------------------------|
@@ -35,7 +35,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ### 3.1 Strategy cascade and alignment
 
-| Market-leader expectation | NexusOps (observed) | Assessment |
+| Market-leader expectation | CoheronConnect (observed) | Assessment |
 |---------------------------|---------------------|------------|
 | **Single hierarchy**: corporate themes → strategic bets → initiatives → projects/epics | **Projects** are **flat** to org; **no** initiative/theme entity on `projects` router | **Gap** |
 | **OKRs / goals visible on strategy home** | OKRs under **HR** module | **Gap** for **CSuite landing** |
@@ -44,7 +44,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ### 3.2 Portfolio governance and capital
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **Stage-gated intake** (ideation → approved → funded) | Project **create** from active user | **Partial** |
 | **Budget envelope** vs **actuals** with **forecast** | `budgetTotal` / `budgetSpent` fields | **Partial** — **no** multi-year **capital curve** |
@@ -53,7 +53,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ### 3.3 Execution agility
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **Kanban / sprint** execution | **`getAgileBoard`**, task `sprint` field | **Partial** — **no** burndown, velocity, WIP limits in API reviewed |
 | **Cross-team dependencies** | Task-level only | **Gap** at **program** level |
@@ -61,7 +61,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ### 3.4 Operating cadence (WBR / QBR analogues)
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **Exception-based review** packs (red/amber, narratives) | Dashboard alerts for at-risk projects | **Partial** |
 | **Metric trees** (input → controllable → output) | **Reports** module generic | **Gap** for **strategy-specific** trees |
@@ -69,7 +69,7 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ### 3.5 Customer-back and invention discipline
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **PR/FAQ or bet doc** artefact per major initiative | Not observed | **Gap** |
 | **Customer-impact** fields on initiatives | Not on projects | **Gap** |
@@ -77,21 +77,21 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ### 3.6 Application portfolio ↔ change programmes
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **App rationalization** tied to **migration projects** | APM + projects **side by side** on hub; **weak FK/link** in review | **Partial** |
 | **Tech debt burn-down** as OKR/KR | Possible manually; **not** productised link | **Gap** |
 
 ### 3.7 Ecosystem and scale
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **Jira / Azure DevOps** depth | **Integrations** catalogue may exist | **Partial** — verify **bi-directional** work item sync |
 | **Multi-region / multi-BU** portfolio slices | Org-scoped; **BU** as string on project | **Partial** |
 
 ### 3.8 Dashboard completeness
 
-| Market-leader expectation | NexusOps | Assessment |
+| Market-leader expectation | CoheronConnect | Assessment |
 |---------------------------|----------|------------|
 | **Trusted executive tile** for analytics | **`"—"`** placeholder on Strategy hub | **Gap** (implementation) |
 | **Unified strategy KPI row** (OKR %, initiative count, benefit YTD) | Not present | **Gap** |
@@ -100,14 +100,14 @@ A **market-leader** strategy-to-execution stack (the bar this document uses) typ
 
 ## 4. Strategic implications (market leadership)
 
-1. **Own the spine:** Position NexusOps as **one spine from strategy to operations** — but **ship** **initiative → project → ticket/change** links to make that true in data, not only in messaging.
+1. **Own the spine:** Position CoheronConnect as **one spine from strategy to operations** — but **ship** **initiative → project → ticket/change** links to make that true in data, not only in messaging.
 2. **Move OKRs to the strategy surface:** Either **surface `hr.okr` on Strategy & Projects** or introduce **`strategy.okr`** read models so executives do not hunt in HR for company goals.
 3. **Instrument outcomes:** Market leadership requires **benefit realization** and **customer / business outcome** fields — budget alone is **necessary not sufficient**.
 4. **Kill placeholders:** Wire **Reports** (or `dashboard` metrics) into the **Analytics** tile — **trust** beats feature count in enterprise sales.
 
 ---
 
-## 5. Code references (for NexusOps maintainers)
+## 5. Code references (for CoheronConnect maintainers)
 
 | Topic | Location |
 |-------|----------|
@@ -272,4 +272,4 @@ This section maps **§3 gaps** and **§4 actions** to a **time-boxed backlog** f
 
 ## 7. Disclaimer
 
-This document is based on **repository review** as of the analysis date. **Amazon** operating models are **publicly discussed patterns**, not proprietary disclosures. NexusOps capabilities vary by **deployment and UI completeness**. This is a **competitive and roadmap checklist**, not an endorsement by any company.
+This document is based on **repository review** as of the analysis date. **Amazon** operating models are **publicly discussed patterns**, not proprietary disclosures. CoheronConnect capabilities vary by **deployment and UI completeness**. This is a **competitive and roadmap checklist**, not an endorsement by any company.

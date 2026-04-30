@@ -1,6 +1,6 @@
-import type { RoleViewKey } from "@nexusops/metrics";
+import type { RoleViewKey } from "@coheronconnect/metrics";
 import { systemRolesForDbUser } from "./rbac-db";
-import type { SystemRole } from "@nexusops/types";
+import type { SystemRole } from "@coheronconnect/types";
 
 function norm(s: string): string {
   return s.trim().toLowerCase();

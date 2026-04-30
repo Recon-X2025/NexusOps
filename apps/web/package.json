@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/web",
+  "name": "@coheronconnect/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
-    "@nexusops/types": "workspace:*",
-    "@nexusops/ui": "workspace:*",
+    "@coheronconnect/types": "workspace:*",
+    "@coheronconnect/ui": "workspace:*",
     "@radix-ui/react-avatar": "^1.1.0",
     "@radix-ui/react-checkbox": "^1.1.0",
     "@radix-ui/react-dialog": "^1.1.0",
@@ -57,8 +57,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
-    "@nexusops/api": "workspace:*",
-    "@nexusops/config": "workspace:*",
+    "@coheronconnect/api": "workspace:*",
+    "@coheronconnect/config": "workspace:*",
     "@playwright/test": "^1.49.0",
     "@types/node": "^22.0.0",
     "@types/dompurify": "^3.0.5",

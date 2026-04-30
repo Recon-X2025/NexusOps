@@ -19,7 +19,7 @@ import {
   gte,
   lt,
   notInArray,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   getDuplicatePayablePolicy,
   isInvoicePeriodClosed,

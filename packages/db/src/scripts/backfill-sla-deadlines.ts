@@ -98,7 +98,7 @@ async function main() {
   const now = new Date();
 
   console.log("─".repeat(72));
-  console.log("  NexusOps — SLA deadline backfill");
+  console.log("  CoheronConnect — SLA deadline backfill");
   console.log("─".repeat(72));
   console.log(`  Mode:  ${APPLY ? "APPLY (will write)" : "DRY-RUN (no writes)"}`);
   console.log(`  Org:   ${ORG_SLUG ?? "(all orgs)"}`);

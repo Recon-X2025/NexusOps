@@ -1,4 +1,4 @@
-import { legalMatters, eq, and, count, ne } from "@nexusops/db";
+import { legalMatters, eq, and, count, ne } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { emptyMetricValue } from "../resolve-helpers";
 import { dbOf } from "./_db";

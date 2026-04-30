@@ -1,4 +1,4 @@
-import { tickets, ticketStatuses, eq, and } from "@nexusops/db";
+import { tickets, ticketStatuses, eq, and } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 /**

@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   employees, leaveRequests, leaveBalances,
   eq, and, desc, count, sql, asc, inArray,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 
 export const workforceRouter = router({

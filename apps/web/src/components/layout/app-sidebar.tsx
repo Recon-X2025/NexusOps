@@ -63,10 +63,10 @@ import type { SidebarBadgeKey, SidebarChild, SidebarGroup, SidebarItem } from "@
 import { SIDEBAR_GROUPS } from "@/lib/sidebar-config";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
-import type { Module, SystemRole } from "@nexusops/types";
+import type { Module, SystemRole } from "@coheronconnect/types";
 
-const STORAGE_KEY = "nexusops_sidebar_state";
-const FAVORITES_KEY = "nexusops_sidebar_favorites";
+const STORAGE_KEY = "coheronconnect_sidebar_state";
+const FAVORITES_KEY = "coheronconnect_sidebar_favorites";
 const MAX_FAVORITES = 8;
 
 const ALERT_BADGES: SidebarBadgeKey[] = [
@@ -216,13 +216,17 @@ function useSidebarBadges(): Partial<Record<SidebarBadgeKey, number>> {
 
   const metricsQ = trpc.dashboard.getMetrics.useQuery(undefined, mergeTrpcQueryOpts("dashboard.getMetrics", {
     enabled: canMetrics,
-    refetchInterval: 60_000,
+    refetchInterval: 120_000,
+    staleTime: 300_000,
+    gcTime: 600_000,
     retry: false,
   }));
 
   const securityQ = trpc.security.openIncidentCount.useQuery(undefined, mergeTrpcQueryOpts("security.openIncidentCount", {
     enabled: canSecurity,
-    refetchInterval: 60_000,
+    refetchInterval: 120_000,
+    staleTime: 300_000,
+    gcTime: 600_000,
     retry: false,
   }));
 
@@ -395,9 +399,6 @@ function SidebarNavContent({
                 <span className="flex-1 truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </span>
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                  {visibleCount}
-                </span>
                 {isOpen ? (
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 ) : (
@@ -534,7 +535,7 @@ function SidebarNavContent({
       </nav>
 
       <div className="border-t border-sidebar-border px-3 py-2 text-[10px] text-muted-foreground flex items-center justify-between shrink-0">
-        <span>NexusOps Platform {process.env.NEXT_PUBLIC_APP_VERSION ?? "v2.0.1"}</span>
+        <span>CoheronConnect Platform {process.env.NEXT_PUBLIC_APP_VERSION ?? "v2.0.1"}</span>
         <span className="text-green-600 dark:text-green-400">● Online</span>
       </div>
     </>

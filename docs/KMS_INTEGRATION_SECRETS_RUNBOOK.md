@@ -4,7 +4,7 @@
 
 - Integration configs are **encrypted at rest** using AES-256-CBC with a key derived from **`APP_SECRET`** (`apps/api/src/services/encryption.ts`).
 - Table `integrations` now stores:
-  - **`kms_key_id`** — logical KMS key identifier (default `nexusops:local-dev-kek` or override via **`INTEGRATIONS_KMS_KEY_ID`**).
+  - **`kms_key_id`** — logical KMS key identifier (default `coheronconnect:local-dev-kek` or override via **`INTEGRATIONS_KMS_KEY_ID`**).
   - **`dek_wrapped_b64`** — placeholder wrapping metadata for future true envelope encryption (today: derived fingerprint for rotation audits).
 
 ## Rotation runbook (legacy APP_SECRET)

@@ -1,5 +1,5 @@
 /**
- * Active health monitor for NexusOps API.
+ * Active health monitor for CoheronConnect API.
  *
  * Watches the in-memory metrics stream and emits a single structured log line
  * whenever the system's health status changes.  No background threads, no

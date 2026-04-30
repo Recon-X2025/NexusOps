@@ -24,15 +24,15 @@
  * All jobs use deterministic jobIds so rescheduling is safe.
  */
 import { Queue, Worker, type Job } from "bullmq";
-import type { Db } from "@nexusops/db";
-import { tickets, eq, and, sql } from "@nexusops/db";
+import type { Db } from "@coheronconnect/db";
+import { tickets, eq, and, sql } from "@coheronconnect/db";
 import { notifyActivity, writeWorkflowAuditLog } from "./activities";
 
 function redisConnection() {
   return { url: process.env["REDIS_URL"] ?? "redis://localhost:6379" };
 }
 
-export const SLA_QUEUE_NAME = "nexusops-sla";
+export const SLA_QUEUE_NAME = "coheronconnect-sla";
 
 /** Job name used by the periodic deadline sweeper (see `scheduleSlaSweep`). */
 export const SLA_SWEEP_JOB_NAME = "sla-sweep";

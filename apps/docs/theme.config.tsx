@@ -28,13 +28,13 @@ const config: DocsThemeConfig = {
       createElement("circle", { cx: 12, cy: 12, r: 10 }),
       createElement("path", { d: "M12 8v4l3 3" }),
     ),
-    "NexusOps",
+    "CoheronConnect",
   ),
   project: {
-    link: "https://github.com/Recon-X2025/NexusOps",
+    link: "https://github.com/Recon-X2025/CoheronConnect",
   },
   docsRepositoryBase:
-    "https://github.com/Recon-X2025/NexusOps/tree/main/apps/docs",
+    "https://github.com/Recon-X2025/CoheronConnect/tree/main/apps/docs",
   footer: {
     content: "© 2026 Coheron. All rights reserved.",
   },
@@ -47,7 +47,7 @@ const config: DocsThemeConfig = {
     }),
     createElement("meta", {
       name: "description",
-      content: "NexusOps — Enterprise ITSM platform documentation",
+      content: "CoheronConnect — Enterprise ITSM platform documentation",
     }),
   ),
   darkMode: true,

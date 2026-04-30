@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA Suite — 01: Auth, RBAC & Session Security
+ * CoheronConnect Full-QA Suite — 01: Auth, RBAC & Session Security
  *
  * Tests:
  *  A) Login: valid, invalid password, invalid email, empty, SQL injection

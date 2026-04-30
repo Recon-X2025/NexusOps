@@ -2,7 +2,7 @@
  * Notification service — sends in-app notifications (always) and email (when SMTP configured).
  * Future: Slack webhook support.
  */
-import { getDb, notifications } from "@nexusops/db";
+import { getDb, notifications } from "@coheronconnect/db";
 import nodemailer from "nodemailer";
 
 export interface NotificationPayload {
@@ -33,7 +33,7 @@ function getTransporter() {
 
 async function sendEmail(to: string, subject: string, html: string) {
   const transporter = getTransporter();
-  const from = process.env["SMTP_FROM"] ?? "NexusOps <noreply@nexusops.coheron.com>";
+  const from = process.env["SMTP_FROM"] ?? "CoheronConnect <noreply@coheronconnect.coheron.com>";
   if (!transporter) {
     console.info(`[EMAIL] Would send to ${to}: ${subject}`);
     return;
@@ -53,15 +53,15 @@ function buildEmailHtml(title: string, body: string, link?: string) {
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e2e8f0;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
       <div style="width:36px;height:36px;background:#6366f1;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-        <span style="color:#fff;font-size:18px;font-weight:700;">N</span>
+        <span style="color:#fff;font-size:18px;font-weight:700;">C</span>
       </div>
-      <span style="font-size:18px;font-weight:700;color:#1e293b;">NexusOps</span>
+      <span style="font-size:18px;font-weight:700;color:#1e293b;">CoheronConnect</span>
     </div>
     <h2 style="font-size:18px;font-weight:600;color:#1e293b;margin:0 0 8px;">${title}</h2>
     <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 24px;">${body}</p>
-    ${link ? `<a href="${link}" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:500;">View in NexusOps →</a>` : ""}
+    ${link ? `<a href="${link}" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:500;">View in CoheronConnect →</a>` : ""}
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
-    <p style="color:#94a3b8;font-size:12px;margin:0;">You received this because you're a NexusOps team member. <a href="#" style="color:#6366f1;">Manage preferences</a></p>
+    <p style="color:#94a3b8;font-size:12px;margin:0;">You received this because you're a CoheronConnect team member. <a href="#" style="color:#6366f1;">Manage preferences</a></p>
   </div>
 </body>
 </html>`;

@@ -85,7 +85,7 @@ export async function deleteObject(key: string): Promise<void> {
 
 /**
  * Enqueue a document for virus scanning. The actual scan runs in the
- * BullMQ "nexusops-doc-virusscan" queue (see workflows/virusScanWorkflow.ts)
+ * BullMQ "coheronconnect-doc-virusscan" queue (see workflows/virusScanWorkflow.ts)
  * which talks to a clamd sidecar over the INSTREAM protocol and writes
  * the result back to `documents.scanStatus` + `scanResult`.
  *

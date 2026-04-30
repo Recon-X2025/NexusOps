@@ -1,26 +1,26 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: nexusops-postgres
+    container_name: coheronconnect-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: nexusops
-      POSTGRES_PASSWORD: nexusops
-      POSTGRES_DB: nexusops
+      POSTGRES_USER: coheronconnect
+      POSTGRES_PASSWORD: coheronconnect
+      POSTGRES_DB: coheronconnect
     # Host 5434 avoids clashing with a local Postgres on 5432 (migrations would hit the wrong DB).
     ports:
       - "5434:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexusops"]
+      test: ["CMD-SHELL", "pg_isready -U coheronconnect"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: nexusops-redis
+    container_name: coheronconnect-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -34,7 +34,7 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.10
-    container_name: nexusops-meilisearch
+    container_name: coheronconnect-meilisearch
     restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: masterKey
@@ -51,7 +51,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: nexusops-minio
+    container_name: coheronconnect-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -67,7 +67,7 @@ services:
 
   temporal:
     image: temporalio/auto-setup:latest
-    container_name: nexusops-temporal
+    container_name: coheronconnect-temporal
     restart: unless-stopped
     depends_on:
       postgres:
@@ -76,8 +76,8 @@ services:
       # temporalio/auto-setup accepts postgres12 (not "postgresql")
       - DB=postgres12
       - DB_PORT=5432
-      - POSTGRES_USER=nexusops
-      - POSTGRES_PWD=nexusops
+      - POSTGRES_USER=coheronconnect
+      - POSTGRES_PWD=coheronconnect
       - POSTGRES_SEEDS=postgres
       - DYNAMIC_CONFIG_FILE_PATH=/etc/temporal/config/dynamicconfig/development.yaml
     ports:
@@ -87,7 +87,7 @@ services:
 
   mailhog:
     image: mailhog/mailhog:latest
-    container_name: nexusops-mailhog
+    container_name: coheronconnect-mailhog
     restart: unless-stopped
     ports:
       - "1025:1025"
@@ -97,7 +97,7 @@ services:
   # docker compose -f docker-compose.dev.yml --profile mongo up -d
   mongodb:
     image: mongo:7
-    container_name: nexusops-mongodb
+    container_name: coheronconnect-mongodb
     restart: unless-stopped
     profiles: [mongo]
     ports:

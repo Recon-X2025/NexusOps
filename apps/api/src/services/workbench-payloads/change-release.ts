@@ -15,7 +15,7 @@ import {
   changeRequests,
   changeApprovals,
   users,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

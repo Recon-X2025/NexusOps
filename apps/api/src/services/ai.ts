@@ -1,5 +1,5 @@
 /**
- * ai.ts — AI service for NexusOps
+ * ai.ts — AI service for CoheronConnect
  *
  * Uses @anthropic-ai/sdk (Claude). Designed for:
  * - summarizeTicket(): condenses description + comments into 2–3 sentences

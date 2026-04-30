@@ -84,7 +84,7 @@ function NewApiKeyModal({
         <div className="p-5 border-b border-border">
           <h2 className="text-lg font-bold">Create API Key</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            API keys grant programmatic access to the NexusOps REST / tRPC API.
+            API keys grant programmatic access to the CoheronConnect REST / tRPC API.
           </p>
         </div>
         <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
@@ -255,7 +255,7 @@ export default function ApiKeysSettingsPage() {
           <div>
             <h1 className="text-2xl font-bold">API Keys</h1>
             <p className="text-sm text-muted-foreground">
-              Manage programmatic access credentials for the NexusOps API.
+              Manage programmatic access credentials for the CoheronConnect API.
             </p>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function ApiKeysSettingsPage() {
       {/* Info */}
       <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">Security notice</p>
-        <p>API keys are shown <strong>once</strong> at creation time. NexusOps only stores a SHA-256 hash.</p>
+        <p>API keys are shown <strong>once</strong> at creation time. CoheronConnect only stores a SHA-256 hash.</p>
         <p>Keys are prefixed <code className="font-mono">nxk_</code> and can be revoked at any time from this page.</p>
         <p>Scope each key to the minimum permissions required for its use case.</p>
       </div>

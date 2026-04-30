@@ -70,8 +70,8 @@ export function DevopsPrimary({ payload, granularity }: HubPrimaryProps) {
 
   return (
     <HubPrimaryCard
-      title="DORA Engineering Metrics"
-      subtitle={`Elite performance indicators · deployment velocity & stability · ${granularity}-on-${granularity}`}
+      title="DevOps Status"
+      subtitle={`Core operational indicators · deployment velocity & stability · ${granularity}-on-${granularity}`}
       accent="from-cyan-500 to-teal-400"
     >
       {haveAny ? (
@@ -111,50 +111,6 @@ export function DevopsPrimary({ payload, granularity }: HubPrimaryProps) {
         <HubEmptyState message="DevOps metrics unavailable." />
       )}
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 rounded-xl bg-slate-900 text-white shadow-xl">
-          <h4 className="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-widest">Deployment Pipeline Status</h4>
-          <div className="space-y-3">
-            {[
-              { name: "nexusops-web", status: "passing", time: "4m ago" },
-              { name: "nexusops-api", status: "passing", time: "12m ago" },
-              { name: "nexusops-worker", status: "failed", time: "1m ago" },
-            ].map((p) => (
-              <div key={p.name} className="flex items-center justify-between text-[11px]">
-                <div className="flex items-center gap-2">
-                  <div className={cn("h-1.5 w-1.5 rounded-full", p.status === "passing" ? "bg-emerald-500" : "bg-rose-500")} />
-                  <span className="font-medium">{p.name}</span>
-                </div>
-                <span className="text-slate-500 font-bold uppercase text-[9px]">{p.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-          <h4 className="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-widest">Infrastructure Health</h4>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 space-y-2">
-              <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                <span>CPU Load</span>
-                <span>42%</span>
-              </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500" style={{ width: '42%' }} />
-              </div>
-              <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                <span>Memory</span>
-                <span>68%</span>
-              </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500" style={{ width: '68%' }} />
-              </div>
-            </div>
-            <div className="h-16 w-16 rounded-full border-4 border-emerald-500 flex items-center justify-center">
-              <span className="text-xs font-black text-emerald-600">99.9%</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </HubPrimaryCard>
   );
 }

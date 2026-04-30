@@ -1,4 +1,4 @@
-import { integrations, eq, and } from "@nexusops/db";
+import { integrations, eq, and } from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "../../services/encryption";
 import { whatsAppAiSensyAdapter } from "../../services/integrations/whatsapp-aisensy";
 import type { WorkflowAction } from "./types";

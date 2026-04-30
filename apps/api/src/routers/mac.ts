@@ -1,7 +1,7 @@
 import { router, publicProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { organizations, users, sessions, eq, desc, count, and, sql } from "@nexusops/db";
+import { organizations, users, sessions, eq, desc, count, and, sql } from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import jwt from "jsonwebtoken";
 

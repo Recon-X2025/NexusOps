@@ -13,8 +13,8 @@ beforeAll(async () => {
     );
   }
 });
-import { auditLogs } from "@nexusops/db";
-import { eq } from "@nexusops/db";
+import { auditLogs } from "@coheronconnect/db";
+import { eq } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 
 describe("Layer 6: Data Integrity", () => {
@@ -136,7 +136,7 @@ describe("Layer 6: Data Integrity", () => {
       // First signup
       const uniqueSlug = `dup-org-${Date.now()}`;
       await caller.auth.signup({
-        email: `dup-org-user1-${Date.now()}@qa.nexusops.io`,
+        email: `dup-org-user1-${Date.now()}@qa.coheronconnect.io`,
         password: "TestPass123!",
         name: "Dup Org User 1",
         orgName: uniqueSlug,
@@ -146,7 +146,7 @@ describe("Layer 6: Data Integrity", () => {
       // — verify the system handles this (no crash)
       await expect(
         caller.auth.signup({
-          email: `dup-org-user2-${Date.now()}@qa.nexusops.io`,
+          email: `dup-org-user2-${Date.now()}@qa.coheronconnect.io`,
           password: "TestPass123!",
           name: "Dup Org User 2",
           orgName: uniqueSlug,
@@ -156,9 +156,9 @@ describe("Layer 6: Data Integrity", () => {
 
     it("duplicate user email in same org → CONFLICT error", async () => {
       const db = testDb();
-      const email = `dup-email-${Date.now()}@qa.nexusops.io`;
+      const email = `dup-email-${Date.now()}@qa.coheronconnect.io`;
 
-      await db.insert((await import("@nexusops/db")).users).values({
+      await db.insert((await import("@coheronconnect/db")).users).values({
         orgId: orgCtx.orgId,
         email,
         name: "First User",
@@ -168,7 +168,7 @@ describe("Layer 6: Data Integrity", () => {
       });
 
       await expect(
-        db.insert((await import("@nexusops/db")).users).values({
+        db.insert((await import("@coheronconnect/db")).users).values({
           orgId: orgCtx.orgId,
           email,
           name: "Duplicate User",

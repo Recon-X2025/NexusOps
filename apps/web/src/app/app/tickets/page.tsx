@@ -871,7 +871,7 @@ export default function TicketsPage() {
           {(filterType || filterSla) && ` · filtered`}
         </p>
         <p className="text-[0.65rem] text-muted-foreground">
-          NexusOps ITSM · Coheron Platform
+          CoheronConnect ITSM · Coheron Platform
         </p>
       </div>
 

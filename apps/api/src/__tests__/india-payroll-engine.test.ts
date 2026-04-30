@@ -1,5 +1,5 @@
 /**
- * NexusOps India Tax Engine — Test Suite
+ * CoheronConnect India Tax Engine — Test Suite
  * ───────────────────────────────────────
  * Validates FY 2025-26 tax computation for both Old and New regimes.
  * Run with: pnpm vitest run india-tax-engine.test.ts

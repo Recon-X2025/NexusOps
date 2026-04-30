@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================="
-echo "NexusOps Full QA Suite — 10 Layer Execution"
+echo "CoheronConnect Full QA Suite — 10 Layer Execution"
 echo "=========================================="
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,12 +15,12 @@ echo "✅ Postgres, Redis, Meilisearch running"
 
 # Step 2–3: Apply versioned migrations (source of truth; avoids db:push / strict-mode quirks)
 echo "📋 Applying database migrations..."
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate
 echo "✅ Migrations applied"
 
 # Step 4: Seed data (for E2E)
 echo "🌱 Seeding demo data..."
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:seed || echo "⚠️  db:seed failed — continuing"
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:seed || echo "⚠️  db:seed failed — continuing"
 echo "✅ Seed step complete"
 
 # Step 5: Run Layer 1-9 (API tests)
@@ -34,7 +34,7 @@ FAILED=false
 
 for i in $(seq 1 9); do
   echo "--- Layer $i ---"
-  pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/api exec vitest run --reporter=verbose "src/__tests__/layer${i}*" || {
+  pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/api exec vitest run --reporter=verbose "src/__tests__/layer${i}*" || {
     echo "❌ Layer $i FAILED"
     FAILED=true
   }
@@ -42,7 +42,7 @@ for i in $(seq 1 9); do
 done
 
 echo "--- tRPC web ↔ API procedure parity (not in layer glob) ---"
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/api exec vitest run --reporter=verbose src/__tests__/trpc-web-parity.test.ts || {
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/api exec vitest run --reporter=verbose src/__tests__/trpc-web-parity.test.ts || {
   echo "❌ tRPC web/API parity FAILED"
   FAILED=true
 }

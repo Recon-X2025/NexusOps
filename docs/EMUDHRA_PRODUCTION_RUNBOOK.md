@@ -16,9 +16,9 @@ production envelope signed" using eMudhra Aadhaar e-Sign as the ASP.
 | `APP_SECRET` set in API env (≥ 64 chars) | `apps/api/.env` |
 | `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` set | `apps/api/.env` |
 | `WEBHOOK_ALLOWLIST_EMUDHRA` env var present (can be empty until step 4) | `apps/api/.env` |
-| Web app reachable on `https://app.nexusops.<tenant>.com` | DNS + reverse proxy |
+| Web app reachable on `https://app.coheronconnect.<tenant>.com` | DNS + reverse proxy |
 | `/webhooks/esign/emudhra` reachable from public internet (no IP filter at LB) | curl from outside corp net |
-| Drizzle migration `0027_*` applied (esign + documents tables) | `pnpm --filter @nexusops/db db:migrate` |
+| Drizzle migration `0027_*` applied (esign + documents tables) | `pnpm --filter @coheronconnect/db db:migrate` |
 
 ---
 
@@ -113,7 +113,7 @@ If any step fails, see the troubleshooting matrix below.
 | `Test connection` returns "INTERNAL_SERVER_ERROR: APP_SECRET is not configured" | API env missing `APP_SECRET` | Set `APP_SECRET`, restart API |
 | `esign.send` returns 401 from eMudhra | Wrong `apiKey` / `apiSecret` / clock skew on API host | Re-paste creds; check `ntpdate` on API host |
 | Webhook never arrives | DNS / firewall blocking inbound from eMudhra IPs, or webhook URL not configured eMudhra-side | curl the URL from outside your VPC; confirm URL in eMudhra console |
-| Webhook arrives but returns `401 Invalid signature` | `webhookSecret` mismatch between NexusOps and eMudhra console | Roll the secret on both sides |
+| Webhook arrives but returns `401 Invalid signature` | `webhookSecret` mismatch between CoheronConnect and eMudhra console | Roll the secret on both sides |
 | Webhook arrives but returns `403 Source IP not permitted` | `WEBHOOK_ALLOWLIST_EMUDHRA` too tight | Add eMudhra's CIDR or empty the env to disable IP gate temporarily |
 | Webhook returns 200 but `signature_requests.status` stays `sent` | Provider sent an unknown event type | Inspect the row in `signature_audit` — extend `parsed.status` mapping if eMudhra added a new event |
 | Signed PDF download 404s | eMudhra hasn't finalised the envelope; some events fire before final stamping | Retry after 1 minute; eventual final state comes via a second webhook |

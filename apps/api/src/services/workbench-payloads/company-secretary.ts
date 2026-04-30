@@ -14,7 +14,7 @@ import {
   secretarialFilings,
   boardMeetings,
   boardResolutions,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

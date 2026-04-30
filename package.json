@@ -1,8 +1,8 @@
 {
-  "name": "nexusops",
+  "name": "coheronconnect",
   "private": true,
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --concurrency 16",
     "dev:stack": "bash scripts/start-dev-stack.sh",
     "build": "turbo run build",
     "test": "turbo run test",
@@ -34,12 +34,12 @@
     "stress:100": "SESSIONS=100 node scripts/stress-test-500.js",
     "stress:5000": "node scripts/stress-test-5000.js",
     "stress:5000:fast": "MAX_CONCURRENT=1000 node scripts/stress-test-5000.js",
-    "check:trpc-parity": "VITEST_SKIP_GLOBAL_MIGRATE=1 pnpm --filter @nexusops/api exec vitest run src/__tests__/trpc-web-parity.test.ts",
+    "check:trpc-parity": "VITEST_SKIP_GLOBAL_MIGRATE=1 pnpm --filter @coheronconnect/api exec vitest run src/__tests__/trpc-web-parity.test.ts",
     "audit:web-routes": "node scripts/audit-web-routes-trpc.mjs",
     "audit:web-routes:json": "node scripts/audit-web-routes-trpc.mjs --json",
     "scorecard": "node scripts/product-scorecard-compute.mjs",
     "test:local-ready": "bash scripts/local-test-ready.sh",
-    "lint": "turbo run lint --filter=!@nexusops/mobile",
+    "lint": "turbo run lint --filter=!@coheronconnect/mobile",
     "lint:all": "turbo run lint",
     "check:migrations": "node scripts/verify-migration-journal.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
@@ -56,8 +56,8 @@
     "docker:test:reset": "docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d --wait"
   },
   "devDependencies": {
-    "@nexusops/db": "workspace:*",
-    "@nexusops/types": "workspace:*",
+    "@coheronconnect/db": "workspace:*",
+    "@coheronconnect/types": "workspace:*",
     "@playwright/test": "^1.58.2",
     "bcryptjs": "^2.4.3",
     "@types/node": "^22.0.0",

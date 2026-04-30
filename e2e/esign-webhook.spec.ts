@@ -25,7 +25,7 @@
  */
 import { test, expect } from "@playwright/test";
 import crypto from "node:crypto";
-import { getDb, signatureRequests, signatureAudit, eq } from "@nexusops/db";
+import { getDb, signatureRequests, signatureAudit, eq } from "@coheronconnect/db";
 
 const API_BASE = "http://localhost:3001";
 const WEB_HOOK_SECRET = "whk-e2e-test-secret-do-not-reuse-in-prod";
@@ -35,7 +35,7 @@ const PROVIDER_ENVELOPE_ID = `EMUD-E2E-${Date.now()}`;
 // outer shell exported DATABASE_URL.
 if (!process.env["DATABASE_URL"]) {
   process.env["DATABASE_URL"] =
-    "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test";
+    "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test";
 }
 // services/encryption.ts requires APP_SECRET when integrations are
 // upserted — keep this in sync with playwright.config.ts.

@@ -7,20 +7,23 @@ import { Zap } from "lucide-react";
 type Payload = inferRouterOutputs<AppRouter>["commandCenter"]["getView"];
 
 export function CommandCenterFlow({ payload }: { payload: Payload }) {
-  // Mock futuristic flow data
-  const mockFlow = [
-    { label: "Incoming Vectors", value: "1,240/s", color: "#00BCFF" },
-    { label: "Processing Nodes", value: "84 Active", color: "#004FFB" },
-    { label: "Resolved Output", value: "1,238/s", color: "#00C971" },
+  const flow = payload.flow || [];
+  const totalCreated = flow.reduce((sum, item) => sum + (item.created || 0), 0);
+  const totalResolved = flow.reduce((sum, item) => sum + (item.resolved || 0), 0);
+
+  const flowItems = [
+    { label: "Throughput (Created)", value: totalCreated.toLocaleString(), color: "#00BCFF" },
+    { label: "Operational Load", value: "Nominal", color: "#004FFB" },
+    { label: "Fulfillment (Resolved)", value: totalResolved.toLocaleString(), color: "#00C971" },
   ];
 
   return (
     <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm rounded-2xl relative">
       <div className="absolute inset-0 bg-gradient-to-tr from-[#00BCFF]/5 to-[#004FFB]/5 pointer-events-none" />
       <div className="px-5 py-4 border-b border-slate-200/60 relative z-10 flex justify-between items-center">
-        <h2 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Throughput Matrix</h2>
-        <div className="animate-pulse bg-[#00BCFF]/10 p-1 rounded-full border border-[#00BCFF]/20">
-          <Zap className="w-3 h-3 text-[#00BCFF]" />
+        <h2 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Volume Throughput</h2>
+        <div className="bg-slate-100 p-1 rounded-full border border-slate-200">
+          <Zap className="w-3 h-3 text-slate-400" />
         </div>
       </div>
       <div className="p-5 min-h-[160px] relative z-10 flex flex-col justify-between">
@@ -50,7 +53,7 @@ export function CommandCenterFlow({ payload }: { payload: Payload }) {
         </div>
 
         <div className="flex justify-between mt-4">
-          {mockFlow.map((f, i) => (
+          {flowItems.map((f, i) => (
             <div key={i} className="flex flex-col gap-1 items-center">
                <span className="text-xl font-black text-slate-900 drop-shadow-sm">{f.value}</span>
                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{f.label}</span>

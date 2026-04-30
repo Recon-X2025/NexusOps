@@ -1,5 +1,5 @@
 /**
- * NexusOps Payroll Run Page
+ * CoheronConnect Payroll Run Page
  * ─────────────────────────
  * Place at: apps/web/src/app/app/payroll/page.tsx
  *

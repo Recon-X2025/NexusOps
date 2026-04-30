@@ -1,5 +1,5 @@
 /**
- * NexusOps — Chaos System Validation (“day in the life”).
+ * CoheronConnect — Chaos System Validation (“day in the life”).
  *
  * Phases:
  *  1. Optional DB seed (org + chaos admin) or skip-seed login
@@ -18,7 +18,7 @@
  *   pnpm exec playwright test -c tests/chaos/playwright.config.ts
  */
 import { test, expect } from "@playwright/test";
-import { CreateTicketSchema } from "@nexusops/types";
+import { CreateTicketSchema } from "@coheronconnect/types";
 import {
   getChaosConfig,
   assertDatabaseUrlMatchesBase,
@@ -29,7 +29,7 @@ import { trpcLoginWithBackoff, installTenPercentApiFailureRoute } from "./chaos-
 
 const RUN_TICKET_COUNT = 5;
 
-test.describe("NexusOps chaos — system validation", () => {
+test.describe("CoheronConnect chaos — system validation", () => {
   test.describe.configure({ mode: "serial" });
 
   test("full vertical: seed → resilient UI stress → screenshot → DB", async ({ page, context }, testInfo) => {

@@ -16,7 +16,7 @@ import {
   desc,
   sum,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 const expenseReportInput = z.object({
   title: z.string().min(1).max(200),

@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Loader2, Zap, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { ForgotPasswordSchema } from "@nexusops/types";
+import { ForgotPasswordSchema } from "@coheronconnect/types";
 import type { z } from "zod";
 import { trpc } from "@/lib/trpc";
 
@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">NexusOps</h1>
+          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
           <p className="text-sm text-slate-400">by Coheron</p>
         </div>
 

@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { kbArticles, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@nexusops/db";
+import { kbArticles, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@coheronconnect/db";
 
 export const knowledgeRouter = router({
   list: permissionProcedure("knowledge", "read")

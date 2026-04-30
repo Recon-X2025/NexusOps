@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, Zap } from "lucide-react";
-import { LoginSchema } from "@nexusops/types";
+import { LoginSchema } from "@coheronconnect/types";
 import type { z } from "zod";
 import { trpc } from "@/lib/trpc";
 
@@ -37,9 +37,9 @@ export default function LoginPage() {
       // Store in both localStorage (for tRPC header) and cookie (for middleware).
       // When "Remember Me" is unchecked the cookie has no max-age (session-scoped);
       // when checked we persist for 30 days.
-      localStorage.setItem("nexusops_session", data.sessionId);
+      localStorage.setItem("coheronconnect_session", data.sessionId);
       const maxAge = rememberMe ? `; max-age=${60 * 60 * 24 * 30}` : "";
-      document.cookie = `nexusops_session=${data.sessionId}; path=/${maxAge}; SameSite=Lax`;
+      document.cookie = `coheronconnect_session=${data.sessionId}; path=/${maxAge}; SameSite=Lax`;
       // Eagerly fetch auth.me with the new session token so the cache holds the
       // correct user before navigation. This prevents stale data from a previous
       // session (e.g. a demo account) from flashing on the dashboard while the
@@ -48,7 +48,10 @@ export default function LoginPage() {
       toast.success("Welcome back!");
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get("redirect") ?? "/app/dashboard";
-      router.push(redirect);
+      // Use window.location.href instead of router.push to force a hard navigation.
+      // This prevents the Next.js App Router from using a stale cached redirect
+      // (from when the user was unauthenticated) and bouncing them back to /login.
+      window.location.href = redirect;
     },
     onError: (err) => {
       const code = err.data?.code;
@@ -76,7 +79,7 @@ export default function LoginPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">NexusOps</h1>
+          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
           <p className="text-sm text-slate-400">by Coheron</p>
         </div>
 
@@ -92,7 +95,7 @@ export default function LoginPage() {
                 {...register("email")}
                 type="email"
                 autoComplete="email"
-                placeholder="you@company.com"
+                placeholder="admin@coheron.com"
                 data-testid="login-email"
                 className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none ring-0 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
               />

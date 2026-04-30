@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 07: Every Button & Interactive Element
+ * CoheronConnect Full-QA — Suite 07: Every Button & Interactive Element
  *
  * For every page:
  *  - Every visible button is present, not disabled (unless it's a terminal-state action)

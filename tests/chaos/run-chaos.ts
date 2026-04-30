@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   const chaosDir = __dirname;
 
   log("══════════════════════════════════════════════");
-  log("  NexusOps FULL SYSTEM DESTRUCTIVE TEST");
+  log("  CoheronConnect FULL SYSTEM DESTRUCTIVE TEST");
   log("  Playwright (UI) + API Chaos — SIMULTANEOUS");
   log(`  Start: ${new Date().toISOString()}`);
   log("══════════════════════════════════════════════");

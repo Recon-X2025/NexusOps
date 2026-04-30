@@ -1,5 +1,5 @@
 /**
- * agent.ts — server-side memory for the NexusOps Copilot agent.
+ * agent.ts — server-side memory for the CoheronConnect Copilot agent.
  *
  * Why server-side (vs round-tripping history from the client like the
  * read-only v1 did):

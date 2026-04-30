@@ -24,14 +24,14 @@ export function PortalNav() {
 
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
-      localStorage.removeItem("nexusops_session");
-      document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+      localStorage.removeItem("coheronconnect_session");
+      document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
       stripNonAuthTrpcCaches(queryClient);
       router.push("/login");
     },
     onError: () => {
-      localStorage.removeItem("nexusops_session");
-      document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+      localStorage.removeItem("coheronconnect_session");
+      document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
       stripNonAuthTrpcCaches(queryClient);
       router.push("/login");
     },
@@ -55,7 +55,7 @@ export function PortalNav() {
           </div>
           <div>
             <p className="text-sm font-bold leading-none text-gray-900">
-              {currentUser.orgName?.trim() ? currentUser.orgName : "NexusOps"}
+              {currentUser.orgName?.trim() ? currentUser.orgName : "CoheronConnect"}
             </p>
             <p className="text-[10px] leading-none text-gray-500">Employee request portal</p>
           </div>

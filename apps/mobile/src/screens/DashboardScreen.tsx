@@ -1,5 +1,5 @@
 /**
- * NexusOps Mobile — Dashboard / Home Screen
+ * CoheronConnect Mobile — Dashboard / Home Screen
  */
 
 import React from "react";

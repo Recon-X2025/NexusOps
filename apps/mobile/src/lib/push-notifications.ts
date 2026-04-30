@@ -1,5 +1,5 @@
 /**
- * NexusOps Mobile — Push Notification setup
+ * CoheronConnect Mobile — Push Notification setup
  * Registers for Expo push notifications and stores the token
  * in the user's profile for server-side delivery.
  */
@@ -35,7 +35,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
-      name: "NexusOps",
+      name: "CoheronConnect",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#4F46E5",
@@ -45,7 +45,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   return tokenResult.data;
 }
 
-/** Parse an inbound push notification payload from NexusOps server. */
+/** Parse an inbound push notification payload from CoheronConnect server. */
 export interface NexusPushNotification {
   type:      "ticket" | "approval" | "incident" | "leave" | "expense" | "general";
   entityId:  string;

@@ -7,7 +7,7 @@ import { Clock, RefreshCw, Download, UserCheck, UserX, AlertTriangle } from "luc
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { EmptyState, TableSkeleton, Pagination } from "@nexusops/ui";
+import { EmptyState, TableSkeleton, Pagination } from "@coheronconnect/ui";
 import { downloadCSV } from "@/lib/utils";
 
 const STATUS_CFG: Record<string, { label: string; color: string }> = {

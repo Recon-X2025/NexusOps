@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NexusOps — redeploy to Vultr (alias for push-to-vultr.sh).
+# CoheronConnect — redeploy to Vultr (alias for push-to-vultr.sh).
 # Requires SSH key access to the server. Never commit passwords.
 
 set -euo pipefail

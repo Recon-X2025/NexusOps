@@ -1,5 +1,5 @@
 /**
- * @nexusops/validators — CRM Zod Schemas
+ * @coheronconnect/validators — CRM Zod Schemas
  *
  * Single source of truth for all CRM-related validation.
  * Shared between:

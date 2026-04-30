@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasPermission } from "@nexusops/types";
+import { hasPermission } from "@coheronconnect/types";
 
 describe("RBAC: Permission Matrix", () => {
   it("admin role can write incidents", () => {

@@ -1,7 +1,7 @@
 # ── Override: GHCR image refs (use with `up --no-build` after `pull`) ────────
 #
-#   export NEXUSOPS_WEB_IMAGE=ghcr.io/<owner>/nexusops/web:latest
-#   export NEXUSOPS_API_IMAGE=ghcr.io/<owner>/nexusops/api:latest
+#   export NEXUSOPS_WEB_IMAGE=ghcr.io/<owner>/coheronconnect/web:latest
+#   export NEXUSOPS_API_IMAGE=ghcr.io/<owner>/coheronconnect/api:latest
 #   docker compose --env-file .env.production \
 #     -f docker-compose.vultr-test.yml -f docker-compose.vultr.images.yml pull web api
 #   docker compose --env-file .env.production \
@@ -12,7 +12,7 @@
 
 services:
   web:
-    image: ${NEXUSOPS_WEB_IMAGE:?Set NEXUSOPS_WEB_IMAGE e.g. ghcr.io/org/nexusops/web:latest}
+    image: ${NEXUSOPS_WEB_IMAGE:?Set NEXUSOPS_WEB_IMAGE e.g. ghcr.io/org/coheronconnect/web:latest}
 
   api:
-    image: ${NEXUSOPS_API_IMAGE:?Set NEXUSOPS_API_IMAGE e.g. ghcr.io/org/nexusops/api:latest}
+    image: ${NEXUSOPS_API_IMAGE:?Set NEXUSOPS_API_IMAGE e.g. ghcr.io/org/coheronconnect/api:latest}

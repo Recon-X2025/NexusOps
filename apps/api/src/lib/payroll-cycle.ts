@@ -1,5 +1,5 @@
 /**
- * NexusOps 12-Step Payroll Cycle Orchestrator
+ * CoheronConnect 12-Step Payroll Cycle Orchestrator
  * ─────────────────────────────────────────────
  * Implements the complete monthly payroll run as defined in US-PAY-01:
  *

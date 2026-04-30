@@ -9,7 +9,7 @@ import {
   and,
   desc,
   isNull,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   putObject,
   signedDownloadUrl,
@@ -18,7 +18,7 @@ import {
 } from "../services/storage";
 
 /**
- * DMS router. All file attachments across NexusOps go through this.
+ * DMS router. All file attachments across CoheronConnect go through this.
  *
  * Upload flow (chunked uploads will follow in v1.1):
  *   1. Client base64-encodes file → uploads via tRPC `upload` (≤ 25 MB).

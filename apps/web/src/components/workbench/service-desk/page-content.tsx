@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { ActionQueue } from "../shared/action-queue";
@@ -10,8 +11,9 @@ import { formatNumber } from "../shared/format";
 import type { ActionQueueItem } from "../shared/action-queue";
 
 export function ServiceDeskContent() {
+  const [page, setPage] = useState(1);
   const { mergeTrpcQueryOpts } = useRBAC();
-  const q = trpc.workbench.serviceDesk.useQuery(undefined, mergeTrpcQueryOpts("workbench.serviceDesk"));
+  const q = trpc.workbench.serviceDesk.useQuery({ page }, mergeTrpcQueryOpts("workbench.serviceDesk", { keepPreviousData: true }));
   const timedOut = useLoadingTimeout(q.isLoading);
   const data = q.data;
 
@@ -19,7 +21,10 @@ export function ServiceDeskContent() {
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-5">
       <div className="xl:col-span-9 min-w-0 flex flex-col gap-4 md:gap-5">
         <QueueTable
-          rows={(data?.queue.data ?? null) as QueueRow[] | null}
+          rows={data?.queue.data?.items ?? null}
+          page={data?.queue.data?.page ?? 1}
+          totalPages={data?.queue.data?.totalPages ?? 1}
+          onPageChange={setPage}
           state={panelUiState({ isLoading: q.isLoading, isError: q.isError, panel: data?.queue, loadingTimedOut: timedOut })}
         />
 

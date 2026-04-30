@@ -15,7 +15,7 @@ import {
   projectMilestones,
   projectDependencies,
   users,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

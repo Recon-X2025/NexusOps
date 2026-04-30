@@ -3,7 +3,7 @@
  *
  * Mirrors the executive dashboard's `ACCENT_BAR` map but kept local so
  * workbenches don't pull from a private (non-exported) constant in the
- * dashboard module. Keys match `WorkbenchAccent` in `@nexusops/types`.
+ * dashboard module. Keys match `WorkbenchAccent` in `@coheronconnect/types`.
  */
 export const ACCENT_BAR: Record<string, string> = {
   blue: "bg-blue-600",

@@ -1,5 +1,5 @@
-import type { Db } from "@nexusops/db";
-import type { SystemRole } from "@nexusops/types";
+import type { Db } from "@coheronconnect/db";
+import type { SystemRole } from "@coheronconnect/types";
 
 /** Permission tuple checked by the agent runtime before invoking a tool. */
 export interface ToolPermission {

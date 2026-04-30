@@ -13,7 +13,7 @@ import {
   chartOfAccounts as chartOfAccountsTbl,
   journalEntries as journalEntriesTbl,
   journalEntryLines as journalEntryLinesTbl,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
 type JeRow = InferSelectModel<typeof journalEntriesTbl>;
@@ -98,7 +98,7 @@ export const accountingRouter = router({
       activeOnly: z.boolean().default(true),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const conds: any[] = [dbEq(chartOfAccounts.orgId, org!.id)];
       if (input.activeOnly) conds.push(dbEq(chartOfAccounts.isActive, true));
       if (input.type) conds.push(dbEq(chartOfAccounts.type, input.type as any));
@@ -116,7 +116,7 @@ export const accountingRouter = router({
       openingBalance: z.number().default(0),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts } = await import("@nexusops/db");
+      const { chartOfAccounts } = await import("@coheronconnect/db");
       const [acct] = await db.insert(chartOfAccounts).values({
         ...input,
         orgId: org!.id,
@@ -134,7 +134,7 @@ export const accountingRouter = router({
       isActive: z.boolean().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const { id, ...updates } = input;
       const [acct] = await db.update(chartOfAccounts).set({ ...updates, updatedAt: new Date() })
         .where(dbAnd(dbEq(chartOfAccounts.id, id), dbEq(chartOfAccounts.orgId, org!.id))).returning();
@@ -144,7 +144,7 @@ export const accountingRouter = router({
     /** Seed standard India COA (idempotent). */
     seed: permissionProcedure("financial", "write").mutation(async ({ ctx }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts, eq: dbEq } = await import("@nexusops/db");
+      const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
       try {
         // Build id map for parent resolution
         const existing = await db
@@ -183,7 +183,7 @@ export const accountingRouter = router({
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
-              "Accounting tables are missing. From the repo root run: pnpm --filter @nexusops/db db:migrate " +
+              "Accounting tables are missing. From the repo root run: pnpm --filter @coheronconnect/db db:migrate " +
               "(or `pnpm db:migrate`). Ensure DATABASE_URL points at your Postgres instance.",
           });
         }
@@ -204,7 +204,7 @@ export const accountingRouter = router({
       offset: z.number().int().min(0).default(0),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, desc: dbDesc, gte, lte } = await import("@nexusops/db");
+      const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, desc: dbDesc, gte, lte } = await import("@coheronconnect/db");
       const conds: any[] = [dbEq(journalEntries.orgId, org!.id)];
       if (input.status) conds.push(dbEq(journalEntries.status, input.status as any));
       if (input.startDate) conds.push(gte(journalEntries.date, input.startDate));
@@ -216,13 +216,13 @@ export const accountingRouter = router({
       if (entries.length === 0) return { items: [], total: 0 };
 
       const ids = entries.map((e: JeRow) => e.id);
-      const { inArray: dbInArray } = await import("@nexusops/db");
+      const { inArray: dbInArray } = await import("@coheronconnect/db");
       const lines = await db.select({ line: journalEntryLines, account: chartOfAccounts })
         .from(journalEntryLines)
         .leftJoin(chartOfAccounts, dbEq(journalEntryLines.accountId, chartOfAccounts.id))
         .where(dbInArray(journalEntryLines.journalEntryId, ids));
 
-      const { count: dbCount } = await import("@nexusops/db");
+      const { count: dbCount } = await import("@coheronconnect/db");
       const [total] = await db.select({ n: dbCount() }).from(journalEntries).where(dbAnd(...conds));
 
       return {
@@ -249,7 +249,7 @@ export const accountingRouter = router({
       })).min(2),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq } = await import("@nexusops/db");
+      const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq } = await import("@coheronconnect/db");
 
       // Validate balanced entry
       const totalDebit  = input.lines.reduce((s, l) => s + l.debitAmount, 0);
@@ -295,7 +295,7 @@ export const accountingRouter = router({
 
     post: permissionProcedure("financial", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, sql } = await import("@nexusops/db");
+      const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, sql } = await import("@coheronconnect/db");
 
       const [je] = await db.select().from(journalEntries)
         .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id))).limit(1);
@@ -326,7 +326,7 @@ export const accountingRouter = router({
       date: z.coerce.date().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
 
       const [je] = await db.select().from(journalEntries)
         .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id))).limit(1);
@@ -384,7 +384,7 @@ export const accountingRouter = router({
     endDate: z.coerce.date().optional(),
   })).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { journalEntryLines, journalEntries, chartOfAccounts, eq: dbEq, and: dbAnd, gte, lte, asc: dbAsc } = await import("@nexusops/db");
+    const { journalEntryLines, journalEntries, chartOfAccounts, eq: dbEq, and: dbAnd, gte, lte, asc: dbAsc } = await import("@coheronconnect/db");
 
     const [acct] = await db.select().from(chartOfAccounts)
       .where(dbAnd(dbEq(chartOfAccounts.id, input.accountId), dbEq(chartOfAccounts.orgId, org!.id))).limit(1);
@@ -417,7 +417,7 @@ export const accountingRouter = router({
     asOfDate: z.coerce.date().optional(),
   })).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { chartOfAccounts, eq: dbEq } = await import("@nexusops/db");
+    const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
 
     const accounts = await db.select().from(chartOfAccounts)
       .where(dbEq(chartOfAccounts.orgId, org!.id));
@@ -448,7 +448,7 @@ export const accountingRouter = router({
     endDate: z.coerce.date().optional(),
   })).query(async ({ ctx }) => {
     const { org, db } = ctx;
-    const { chartOfAccounts, eq: dbEq } = await import("@nexusops/db");
+    const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
 
     const accounts = await db.select().from(chartOfAccounts).where(dbEq(chartOfAccounts.orgId, org!.id));
     const income   = accounts.filter((a: CoaRow) => a.type === "income");
@@ -466,7 +466,7 @@ export const accountingRouter = router({
   gstin: router({
     list: permissionProcedure("financial", "read").query(async ({ ctx }) => {
       const { org, db } = ctx;
-      const { gstinRegistry, eq: dbEq } = await import("@nexusops/db");
+      const { gstinRegistry, eq: dbEq } = await import("@coheronconnect/db");
       return db.select().from(gstinRegistry).where(dbEq(gstinRegistry.orgId, org!.id));
     }),
 
@@ -482,7 +482,7 @@ export const accountingRouter = router({
       invoiceSeriesPrefix: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { gstinRegistry, eq: dbEq } = await import("@nexusops/db");
+      const { gstinRegistry, eq: dbEq } = await import("@coheronconnect/db");
       if (input.isPrimary) {
         // Demote all others
         await db.update(gstinRegistry).set({ isPrimary: false }).where(dbEq(gstinRegistry.orgId, org!.id));
@@ -500,7 +500,7 @@ export const accountingRouter = router({
       invoiceSeriesPrefix: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { gstinRegistry, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { gstinRegistry, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const { id, isPrimary, ...rest } = input;
       if (isPrimary) {
         await db.update(gstinRegistry).set({ isPrimary: false }).where(dbEq(gstinRegistry.orgId, org!.id));
@@ -521,7 +521,7 @@ export const accountingRouter = router({
       year: z.number().int(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { invoices, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte } = await import("@nexusops/db");
+      const { invoices, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte } = await import("@coheronconnect/db");
       const [gstin] = await db.select().from(gstinRegistry)
         .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
       if (!gstin) throw new TRPCError({ code: "NOT_FOUND" });
@@ -583,7 +583,7 @@ export const accountingRouter = router({
       year: z.number().int(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { invoices, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte, sum } = await import("@nexusops/db");
+      const { invoices, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte, sum } = await import("@coheronconnect/db");
       const [gstin] = await db.select().from(gstinRegistry)
         .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
       if (!gstin) throw new TRPCError({ code: "NOT_FOUND" });

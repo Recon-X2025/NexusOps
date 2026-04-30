@@ -1,6 +1,6 @@
-# NexusOps Mobile App
+# CoheronConnect Mobile App
 
-React Native + Expo mobile application for NexusOps — India's leading SMB ERP platform.
+React Native + Expo mobile application for CoheronConnect — India's leading SMB ERP platform.
 
 ## Features
 

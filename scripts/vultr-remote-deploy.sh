@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Run on the Vultr host (e.g. after rsync) from /opt/nexusops.
+# Run on the Vultr host (e.g. after rsync) from /opt/coheronconnect.
 #
 # Env (typical — set in shell or .env.production):
 #   DEPLOY_MODE           pull | build   (default: pull)
@@ -12,10 +12,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-cd /opt/nexusops
+cd /opt/coheronconnect
 
 if [[ ! -f .env.production ]]; then
-  echo "ERROR: .env.production missing in /opt/nexusops" >&2
+  echo "ERROR: .env.production missing in /opt/coheronconnect" >&2
   exit 1
 fi
 

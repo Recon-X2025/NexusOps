@@ -6,6 +6,9 @@ import { gstFilingReminderAction } from "./gst-filing-reminder";
 import { dir3KycReminderAction } from "./dir3-kyc-reminder";
 import { contractRenewalReminderAction } from "./contract-renewal-reminder";
 import { staleLeadNudgeAction } from "./stale-lead-nudge";
+import { httpRequestAction } from "./http-request";
+import { customJsScriptAction } from "./custom-js-script";
+import { blankStepAction } from "./blank-step";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const allActions: WorkflowAction<any>[] = [
@@ -16,6 +19,9 @@ const allActions: WorkflowAction<any>[] = [
   dir3KycReminderAction,
   contractRenewalReminderAction,
   staleLeadNudgeAction,
+  httpRequestAction,
+  customJsScriptAction,
+  blankStepAction,
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,4 +1,4 @@
-import { sql } from "@nexusops/db";
+import { sql } from "@coheronconnect/db";
 
 // ── Entity → table mapping for counter sync ───────────────────────────────────
 //

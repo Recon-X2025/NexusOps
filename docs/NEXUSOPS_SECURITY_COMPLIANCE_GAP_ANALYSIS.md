@@ -1,7 +1,7 @@
-# NexusOps — Security & Compliance Gap Analysis (Enterprise / CISO View)
+# CoheronConnect — Security & Compliance Gap Analysis (Enterprise / CISO View)
 
 **Perspective:** Chief Information Security Officer (e.g., global manufacturing / technology enterprise)  
-**Scope:** NexusOps **Security** (`security`), **GRC** (`grc`), supporting **identity**, **audit**, **integrations**, and related compliance surfaces in-repo  
+**Scope:** CoheronConnect **Security** (`security`), **GRC** (`grc`), supporting **identity**, **audit**, **integrations**, and related compliance surfaces in-repo  
 **Audience:** Security, risk, internal audit, vendor risk, and IT governance teams  
 **Date:** April 2026  
 
@@ -9,15 +9,15 @@
 
 ## 1. Executive summary
 
-NexusOps implements a **foundational security operations and governance layer**: security incidents with a **defined lifecycle**, **vulnerability records** with remediation tracking, **GRC primitives** (enterprise risks, policies, audit plans, vendor risk registers), **org-scoped RBAC** with dedicated **security / GRC matrix roles**, **structured API logging**, **mutation audit trails** with **sensitive-field redaction**, and **encrypted integration configuration** at rest. These capabilities support **early-stage GRC demos** and **lightweight SecOps workflows**.
+CoheronConnect implements a **foundational security operations and governance layer**: security incidents with a **defined lifecycle**, **vulnerability records** with remediation tracking, **GRC primitives** (enterprise risks, policies, audit plans, vendor risk registers), **org-scoped RBAC** with dedicated **security / GRC matrix roles**, **structured API logging**, **mutation audit trails** with **sensitive-field redaction**, and **encrypted integration configuration** at rest. These capabilities support **early-stage GRC demos** and **lightweight SecOps workflows**.
 
 For an enterprise such as **HP Inc.**, typical expectations also include **mature control frameworks** (mapped controls, evidence, continuous monitoring), **enterprise IAM** (SSO/MFA breadth, privileged access, lifecycle), **cryptographic key management** aligned to corporate standards, **comprehensive audit and SIEM export**, **regulated incident and breach workflows**, **deep third-party risk**, and **attestation-ready reporting**. Those areas are **partially or not yet represented** at the depth a Fortune-class security programme usually requires.
 
-**Bottom line:** NexusOps is a **credible modular starting point** for security and compliance inside a broader ERP-style suite, but it is **not a drop-in replacement** for enterprise GRC platforms, full SOC tooling, or regulated security operations without significant roadmap work and surrounding process/tooling.
+**Bottom line:** CoheronConnect is a **credible modular starting point** for security and compliance inside a broader ERP-style suite, but it is **not a drop-in replacement** for enterprise GRC platforms, full SOC tooling, or regulated security operations without significant roadmap work and surrounding process/tooling.
 
 ---
 
-## 2. What NexusOps already provides (observed)
+## 2. What CoheronConnect already provides (observed)
 
 | Area | Implementation notes |
 |------|----------------------|
@@ -37,7 +37,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.1 Identity and access management (IAM)
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | Corporate **SSO** (SAML 2.0 / OIDC) for all workforce apps | OIDC routes exist; **SSO feature-flagged** by plan in MAC (`sso: false` until enterprise) | **Partial** — HP-scale usually mandates **SAML + SCIM** and contractual SLAs, not only OIDC/social patterns. |
 | **MFA** enforced per policy (step-up, risk-based) | Profile UI references admin-managed **TOTP**; RBAC context shows `mfaEnabled` placeholders | **Partial / verify** — CISO needs **enforced MFA**, recovery flows, and **policy by role/group**, not UI-only hints. |
@@ -46,7 +46,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.2 Security operations (SecOps / IR)
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | **IR playbooks**, tasks, war room, comms templates | Linear state machine + containment action list | **Gap** vs **NIST 800-61**-style playbooks, **task orchestration**, and **stakeholder comms** tied to incidents. |
 | **IOC / threat intel**, malware hash, ATT&CK mapping | Not evident in `security` router surface | **Gap**. |
@@ -56,7 +56,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.3 Vulnerability and patch management
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | **Scanner ingestion** (Tenable, Qualys, Wiz, etc.) | Manual `createVulnerability` API | **Gap** for **automated** feed, **asset correlation**, **duplicate merging**. |
 | **Remediation SLAs** by severity, exception workflow | Status + `remediatedAt`; no built-in SLA engine for vulns | **Partial**. |
@@ -64,7 +64,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.4 GRC, audit, and control frameworks
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | **Control library** (NIST 800-53, ISO 27001 Annex A, SOC 2 TSC) | Generic risks/policies/audits | **Gap** — no **control ID taxonomy** or **mapping** in API reviewed. |
 | **Evidence collection** (samples, screenshots, API pulls) with **workflow** | Audit **plans** exist; not a full **evidence locker** + attestation | **Gap** for **Big-4 / SOC** style evidence. |
@@ -74,7 +74,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.5 Data protection and cryptography
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | **Encryption at rest** (DB, blobs) | Deployment-dependent (cloud KMS, disk encryption) — **not** asserted by app code alone | **Clarify** in **customer DPA / architecture**; CISO treats as **infra responsibility** unless product guarantees **application-level** encryption. |
 | **Key management** (per-tenant keys, rotation, HSM) | Integration config uses **APP_SECRET-derived** symmetric key | **Gap** vs **KMS**, **per-tenant** keys, **rotation runbooks** — HP crypto standards usually **exclude** long-lived single-app secrets for all tenants. |
@@ -83,7 +83,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.6 Audit logging and non-repudiation
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | **Immutable** audit log | PostgreSQL `audit_logs`; **admin list** in `admin` router | **Partial** — enterprises often require **append-only** store, **WORM**, or **SIEM** copy with **legal hold**. |
 | **Read access** and **high-risk queries** logged | Mutation middleware audits **writes**; broad **read** audit not universal | **Gap** for **complete** CRUD audit (common for regulated data). |
@@ -91,10 +91,10 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ### 3.7 Platform and secure engineering
 
-| Enterprise expectation | NexusOps (observed) | Gap |
+| Enterprise expectation | CoheronConnect (observed) | Gap |
 |------------------------|---------------------|-----|
 | **Vulnerability disclosure / bug bounty** | Process not in repo | **Org-level** programme expected. |
-| **Penetration test** summaries, **SOC 2 Type II** for vendor NexusOps | Not in codebase | **Commercial / legal** artefacts CISO will request **before** production for HP-scale. |
+| **Penetration test** summaries, **SOC 2 Type II** for vendor CoheronConnect | Not in codebase | **Commercial / legal** artefacts CISO will request **before** production for HP-scale. |
 | **Secure SDLC** (SAST/DAST, dependency SBOM in CI) | Varies by pipeline — **not** fully visible from routers | **Clarify** in **vendor questionnaire**. |
 | **Optional MongoDB** hybrid context | `Context` exposes `mongoDb` / `databaseProvider` | **Risk** — **dual persistence** complicates **data classification**, **backup**, and **audit** unless scope is tightly bounded. |
 
@@ -110,13 +110,13 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 | R4 | **SecOps workflows** vs NIST IR / regulated breach | Medium–High | Playbooks, links to ITSM, notification timers, reporting. |
 | R5 | **Vuln management** without enterprise scanner feeds | Medium | Connectors, normalisation, SLA dashboards. |
 | R6 | **Audit completeness** (reads, integrity) | Medium | Expand audit policy; optional SIEM-first architecture. |
-| R7 | **Vendor assurance** for NexusOps as a supplier | Medium | Customer-facing **trust centre**, pen test, SOC 2, DPIA. |
+| R7 | **Vendor assurance** for CoheronConnect as a supplier | Medium | Customer-facing **trust centre**, pen test, SOC 2, DPIA. |
 
 ---
 
 ## 5. Recommended due diligence questions (for procurement)
 
-1. What **certifications** (SOC 2, ISO 27001) cover the NexusOps SaaS boundary, and what is **in scope**?
+1. What **certifications** (SOC 2, ISO 27001) cover the CoheronConnect SaaS boundary, and what is **in scope**?
 2. How are **encryption keys** managed in production, and is **customer-managed keys** (CMK) available?
 3. What is the **subprocessor** list and **data residency** story per region?
 4. How are **admin** and **break-glass** actions logged and reviewed?
@@ -126,7 +126,7 @@ For an enterprise such as **HP Inc.**, typical expectations also include **matur
 
 ---
 
-## 6. Code and doc references (for NexusOps maintainers)
+## 6. Code and doc references (for CoheronConnect maintainers)
 
 | Topic | Location |
 |-------|----------|
@@ -203,7 +203,7 @@ This section maps **§3 gaps** and **§4 risks (R1–R7)** to a **time-boxed del
 
 ### 8.5 Sprint 3 — Audit and SIEM export
 
-**Sprint goal:** *Security teams can **consume** NexusOps events in their SOC and improve **detective controls**.*
+**Sprint goal:** *Security teams can **consume** CoheronConnect events in their SOC and improve **detective controls**.*
 
 | ID | Backlog item | Acceptance notes |
 |----|----------------|------------------|
@@ -244,7 +244,7 @@ This section maps **§3 gaps** and **§4 risks (R1–R7)** to a **time-boxed del
 
 ### 8.8 Sprint 6 — GRC: control library and evidence
 
-**Sprint goal:** *Internal audit can map **controls → evidence** inside NexusOps.*
+**Sprint goal:** *Internal audit can map **controls → evidence** inside CoheronConnect.*
 
 | ID | Backlog item | Acceptance notes |
 |----|----------------|------------------|
@@ -305,4 +305,4 @@ This section maps **§3 gaps** and **§4 risks (R1–R7)** to a **time-boxed del
 
 ## 9. Disclaimer
 
-This analysis is based on **static review of the repository** and does **not** constitute a penetration test, formal risk assessment, or legal advice. HP Inc. or any other organisation must perform **independent** assurance (architecture review, DPA, compliance mapping) before relying on NexusOps for regulated or high-impact workloads.
+This analysis is based on **static review of the repository** and does **not** constitute a penetration test, formal risk assessment, or legal advice. HP Inc. or any other organisation must perform **independent** assurance (architecture review, DPA, compliance mapping) before relying on CoheronConnect for regulated or high-impact workloads.

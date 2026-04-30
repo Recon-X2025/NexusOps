@@ -1,4 +1,4 @@
-import { contracts, eq, and, ilike, or, desc, inArray, lte, gte, isNotNull } from "@nexusops/db";
+import { contracts, eq, and, ilike, or, desc, inArray, lte, gte, isNotNull } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const searchContractsTool: AgentTool<{

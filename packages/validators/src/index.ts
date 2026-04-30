@@ -1,11 +1,11 @@
 /**
- * @nexusops/validators — Package Entry Point
+ * @coheronconnect/validators — Package Entry Point
  *
  * Re-exports all domain validators from a single import:
  *
- *   import { CreateAccountSchema, DealStageEnum } from "@nexusops/validators";
- *   import { CreateCoaAccountSchema } from "@nexusops/validators/accounting";
- *   import { CreateEmployeeSchema } from "@nexusops/validators/hr";
+ *   import { CreateAccountSchema, DealStageEnum } from "@coheronconnect/validators";
+ *   import { CreateCoaAccountSchema } from "@coheronconnect/validators/accounting";
+ *   import { CreateEmployeeSchema } from "@coheronconnect/validators/hr";
  */
 
 // CRM

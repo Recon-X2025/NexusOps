@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/api",
+  "name": "@coheronconnect/api",
   "version": "0.1.0",
   "private": true,
   "exports": {
@@ -11,9 +11,9 @@
   "main": "./dist/index.js",
   "types": "./dist/types.d.ts",
   "scripts": {
-    "predev": "pnpm --filter @nexusops/db exec tsup --no-dts",
+    "predev": "pnpm --filter @coheronconnect/db exec tsup --no-dts",
     "dev": "tsx watch src/index.ts",
-    "start:dev": "pnpm --filter @nexusops/db db:migrate && tsx src/index.ts",
+    "start:dev": "pnpm --filter @coheronconnect/db db:migrate && tsx src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
@@ -28,9 +28,9 @@
     "@fastify/helmet": "^13.0.0",
     "@fastify/multipart": "^9.0.0",
     "@fastify/rate-limit": "^10.0.0",
-    "@nexusops/db": "workspace:*",
-    "@nexusops/metrics": "workspace:*",
-    "@nexusops/types": "workspace:*",
+    "@coheronconnect/db": "workspace:*",
+    "@coheronconnect/metrics": "workspace:*",
+    "@coheronconnect/types": "workspace:*",
     "@opentelemetry/auto-instrumentations-node": "^0.71.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
     "@opentelemetry/resources": "^2.6.0",
@@ -43,6 +43,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/nodemailer": "^7.0.11",
     "@types/pdfkit": "^0.17.6",
+    "axios": "^1.15.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.0.0",
@@ -62,7 +63,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@nexusops/config": "workspace:*",
+    "@coheronconnect/config": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^22.0.0",

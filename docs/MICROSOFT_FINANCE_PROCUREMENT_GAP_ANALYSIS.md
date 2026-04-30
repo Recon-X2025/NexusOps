@@ -1,7 +1,7 @@
-# Microsoft-scale Finance & Procurement vs NexusOps — Gap Analysis
+# Microsoft-scale Finance & Procurement vs CoheronConnect — Gap Analysis
 
 **Perspective:** Chief Financial Officer and **Chief Procurement Officer** (or VP Procurement) lens, using expectations typical of a **global enterprise** such as **Microsoft** — i.e. depth comparable to **Dynamics 365 Finance & Supply Chain Management** (and adjacent **P2P / source-to-pay** programmes), **SOX-grade controls**, and **multi-country operations** — as the reference bar  
-**Scope:** NexusOps **Finance & Procurement** hub (`/app/finance-procurement`), **`financial`**, **`procurement`**, **`accounting`**, **`vendors`**, **`contracts`**, and related surfaces  
+**Scope:** CoheronConnect **Finance & Procurement** hub (`/app/finance-procurement`), **`financial`**, **`procurement`**, **`accounting`**, **`vendors`**, **`contracts`**, and related surfaces  
 **Audience:** Finance, procurement, internal audit, and ERP strategy teams  
 **Date:** April 2026  
 
@@ -9,15 +9,15 @@
 
 ## 1. Executive summary
 
-NexusOps delivers a **unified finance and procurement layer** inside a broader platform: **budget lines** with **variance**, **AP/AR invoices** (including **aging** for payables, approval and payment marking), **India GST** tooling (computation, GSTIN validation, tax invoices, **GSTR-2B reconciliation**), **chargebacks**, a **procurement** path (**purchase requests** with **idempotency** and **INR-based approval thresholds**, **purchase orders** from approved PRs, **receipts**, **invoice–PO matching** with tolerance), **vendor** records, and **accounting** primitives (**chart of accounts**, journals, statutory India-oriented COA seeds). The **Finance & Procurement dashboard** surfaces **contracts** (including **expiring**), **vendor counts**, and **purchase-request–oriented** alerts.
+CoheronConnect delivers a **unified finance and procurement layer** inside a broader platform: **budget lines** with **variance**, **AP/AR invoices** (including **aging** for payables, approval and payment marking), **India GST** tooling (computation, GSTIN validation, tax invoices, **GSTR-2B reconciliation**), **chargebacks**, a **procurement** path (**purchase requests** with **idempotency** and **INR-based approval thresholds**, **purchase orders** from approved PRs, **receipts**, **invoice–PO matching** with tolerance), **vendor** records, and **accounting** primitives (**chart of accounts**, journals, statutory India-oriented COA seeds). The **Finance & Procurement dashboard** surfaces **contracts** (including **expiring**), **vendor counts**, and **purchase-request–oriented** alerts.
 
-A Microsoft-scale organisation typically expects **multi-entity GL**, **intercompany and consolidation**, **global tax and statutory** coverage (not only one country pattern), **advanced P2P** (catalogues, contracts linkage, **three-way match** at scale, sourcing/RFx), **treasury and cash management**, **revenue recognition** and **project accounting** where applicable, **supplier risk and onboarding** at enterprise depth, and **embedded controls** (SoD, configurable workflows, field-level audit). NexusOps is **strong for mid-market integrated “finance + ops”** and **India GST-centric** scenarios; it is **not** a full **Dynamics / SAP-class global finance** replacement without substantial roadmap and services.
+A Microsoft-scale organisation typically expects **multi-entity GL**, **intercompany and consolidation**, **global tax and statutory** coverage (not only one country pattern), **advanced P2P** (catalogues, contracts linkage, **three-way match** at scale, sourcing/RFx), **treasury and cash management**, **revenue recognition** and **project accounting** where applicable, **supplier risk and onboarding** at enterprise depth, and **embedded controls** (SoD, configurable workflows, field-level audit). CoheronConnect is **strong for mid-market integrated “finance + ops”** and **India GST-centric** scenarios; it is **not** a full **Dynamics / SAP-class global finance** replacement without substantial roadmap and services.
 
-**Bottom line:** NexusOps fits **consolidated SMB / growth-stage** or **India-heavy** operating models well. For **Microsoft CFO/CPO bar**, the largest gaps are **global finance scale** (entities, currency, consolidation), **enterprise procurement** (sourcing, catalogues, supplier lifecycle, risk), **treasury**, **revenue/advanced costing**, and **control maturation** — plus **dashboard data wiring** where tiles still show **placeholders**.
+**Bottom line:** CoheronConnect fits **consolidated SMB / growth-stage** or **India-heavy** operating models well. For **Microsoft CFO/CPO bar**, the largest gaps are **global finance scale** (entities, currency, consolidation), **enterprise procurement** (sourcing, catalogues, supplier lifecycle, risk), **treasury**, **revenue/advanced costing**, and **control maturation** — plus **dashboard data wiring** where tiles still show **placeholders**.
 
 ---
 
-## 2. What NexusOps provides (observed)
+## 2. What CoheronConnect provides (observed)
 
 | Area | Implementation notes |
 |------|----------------------|
@@ -33,7 +33,7 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.1 Record-to-report / general ledger
 
-| Enterprise expectation (Microsoft / D365-class) | NexusOps (observed) | Assessment |
+| Enterprise expectation (Microsoft / D365-class) | CoheronConnect (observed) | Assessment |
 |-------------------------------------------------|---------------------|------------|
 | **Multi-company**, **multi-ledger**, **consolidation** | Org-scoped; **single tenant company model** in review | **Gap** at **holding-company** scale |
 | **Dimensions** (BU, cost centre, project, product) | Department / budget line style fields in places | **Partial** — not full **financial dimensions** engine |
@@ -44,7 +44,7 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.2 Accounts payable and receivable
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **Vendor invoices**, workflow, payment run | Create/approve/pay; **apAging** | **Partial** |
 | **Customer AR**, collections workspace | Receivable flow via **customer as vendor** | **Partial** — **data model** differs from classic **Customer** master |
@@ -54,7 +54,7 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.3 Tax and statutory (global)
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **Global indirect tax** (US sales tax, EU VAT, etc.) | **India GST** well represented in `financial` | **Gap** for **Microsoft-like** multi-country **without** extension |
 | **E-invoicing / statutory filing** integrations | GSTR patterns, e-invoice flags in GST flow | **Partial** — **country-specific** build |
@@ -62,7 +62,7 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.4 Budgeting, FP&A, and management reporting
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **Enterprise budget models** (versions, scenarios, workforce drivers) | **budgetLines** with variance helper | **Partial** |
 | **Consolidated actuals vs budget** | Per-line **actual** field updates | **Partial** |
@@ -70,7 +70,7 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.5 Procurement and source-to-pay
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **Category management**, **commodity** strategy | Not observed | **Gap** |
 | **Sourcing**: RFQ, auctions, awards | **PR → PO** path | **Gap** vs **strategic sourcing** |
@@ -81,14 +81,14 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.6 Treasury, cash, and risk
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **Cash positioning**, **liquidity**, **FX hedging** | Not observed in reviewed finance surface | **Gap** |
 | **Bank connectivity** | Not assumed | **Gap** |
 
 ### 3.7 Controls, audit, and compliance (SOX / IAM)
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **SoD** (e.g. create vendor vs approve payment) | **RBAC** modules (`financial`, `procurement`, `approvals`) | **Partial** — **rule set** must be **designed and tested** |
 | **Immutable audit**, change history on master data | Platform **audit_logs** on mutations | **Partial** — compare **field-level** finance requirements |
@@ -96,7 +96,7 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ### 3.8 Dashboard and operational UX
 
-| Enterprise expectation | NexusOps | Assessment |
+| Enterprise expectation | CoheronConnect | Assessment |
 |------------------------|----------|------------|
 | **Single CFO/CPO landing** with **trusted** KPIs | Hub exists; **invoice tile placeholder**; possible **PR status mismatch** | **Partial** — **implementation hygiene** |
 
@@ -104,14 +104,14 @@ A Microsoft-scale organisation typically expects **multi-entity GL**, **intercom
 
 ## 4. Strategic implications (CFO / CPO talking points)
 
-1. **Positioning:** Sell NexusOps as **integrated finance + procurement + IT/HR** for companies that want **one spine**; avoid implying **Dynamics/SAP replacement** for **multi-entity global** without a **clear entity roadmap**.
+1. **Positioning:** Sell CoheronConnect as **integrated finance + procurement + IT/HR** for companies that want **one spine**; avoid implying **Dynamics/SAP replacement** for **multi-entity global** without a **clear entity roadmap**.
 2. **India:** **GST and India COA** are a **differentiator** for that geography; pair with **local partner** for statutory filing integrations in production.
 3. **Controls:** For **SOX** customers, produce a **control matrix** mapping **RBAC**, **approval thresholds**, and **audit_logs** to key assertions — the **product can support** the narrative but **does not auto-generate** Big-4 evidence.
 4. **Quick win:** Wire **Financial** tile **invoice counts** (AP due, AR outstanding) on **`finance-procurement/page.tsx`** and **align PR status filters** with **`procurement`** API so **CPO metrics** match reality.
 
 ---
 
-## 5. Code references (for NexusOps maintainers)
+## 5. Code references (for CoheronConnect maintainers)
 
 | Topic | Location |
 |-------|----------|
@@ -276,4 +276,4 @@ This section maps **§3 gaps** and **§4 actions** to a **time-boxed backlog** f
 
 ## 7. Disclaimer
 
-This document is based on **repository review** as of the analysis date. **Microsoft** and **Dynamics 365** capabilities vary by **license, modules, and configuration**. NexusOps capabilities vary by **deployment and UI completeness**. Use this as a **due diligence and roadmap checklist**, not a warranty of either platform.
+This document is based on **repository review** as of the analysis date. **Microsoft** and **Dynamics 365** capabilities vary by **license, modules, and configuration**. CoheronConnect capabilities vary by **deployment and UI completeness**. Use this as a **due diligence and roadmap checklist**, not a warranty of either platform.

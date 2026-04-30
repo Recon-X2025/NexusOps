@@ -1,4 +1,4 @@
-import { employees, users, eq, and, ilike, or, desc } from "@nexusops/db";
+import { employees, users, eq, and, ilike, or, desc } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const searchEmployeesTool: AgentTool<{ query: string; limit?: number }> = {

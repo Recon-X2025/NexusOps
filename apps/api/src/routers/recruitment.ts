@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   jobRequisitions, candidates, candidateApplications, interviews, jobOffers,
   eq, and, desc, asc, count, sql, inArray,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 const STAGE_ORDER = [
   "applied", "screening", "phone_screen", "technical", "panel", "hr_round", "offer", "hired",

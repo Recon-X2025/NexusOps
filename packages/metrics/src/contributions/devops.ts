@@ -1,4 +1,4 @@
-import { deployments, eq, and, count, sql } from "@nexusops/db";
+import { deployments, eq, and, count, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { alignSeries, buildTimeBuckets, emptyMetricValue, truncSqlExpression } from "../resolve-helpers";
 import { dbOf } from "./_db";
@@ -74,12 +74,7 @@ registerMetric({
       lastUpdated: new Date(),
     };
   },
-  appearsIn: [
-    { role: "ceo", surface: "heatmap", priority: 100 },
-    { role: "ceo", surface: "trend", priority: 35 },
-    { role: "cio", surface: "heatmap", priority: 9 },
-    { role: "cio", surface: "bullet", priority: 10 },
-  ],
+  appearsIn: [],
 });
 
 registerMetric({
@@ -122,8 +117,5 @@ registerMetric({
       lastUpdated: new Date(),
     };
   },
-  appearsIn: [
-    { role: "cio", surface: "flow", priority: 41 },
-    { role: "ceo", surface: "flow", priority: 50 },
-  ],
+  appearsIn: [],
 });

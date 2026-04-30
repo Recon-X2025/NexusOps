@@ -6,7 +6,7 @@
  */
 import { router, permissionProcedure } from "../../lib/trpc";
 import { z } from "zod";
-import { crmActivities, eq, and, desc } from "@nexusops/db";
+import { crmActivities, eq, and, desc } from "@coheronconnect/db";
 
 export const crmActivitiesRouter = router({
   list: permissionProcedure("accounts", "read")

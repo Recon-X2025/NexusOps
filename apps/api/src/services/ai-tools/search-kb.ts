@@ -1,4 +1,4 @@
-import { kbArticles, eq, and, ilike, or, desc } from "@nexusops/db";
+import { kbArticles, eq, and, ilike, or, desc } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const searchKbTool: AgentTool<{ query: string; limit?: number }> = {

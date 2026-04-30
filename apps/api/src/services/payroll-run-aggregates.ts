@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, eq, and } from "@nexusops/db";
+import { employees, salaryStructures, eq, and } from "@coheronconnect/db";
 import { computeEmployeePayslip, type EmployeePayrollInput } from "../lib/payroll-cycle";
 
 /** India FY month: April = 1 … March = 12 */

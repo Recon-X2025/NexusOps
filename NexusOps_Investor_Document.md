@@ -1,6 +1,6 @@
-# NexusOps — Investor Document
+# CoheronConnect — Investor Document
 
-**Document:** NexusOps_Investor_Document.md
+**Document:** CoheronConnect_Investor_Document.md
 **Date:** April 6, 2026
 **Platform Version:** 4.0 (Production-Live)
 **Company:** Coheron
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-**NexusOps is a unified enterprise operations platform** that replaces the fragmented stack of tools organisations use to manage IT services, HR, finance, compliance, procurement, and customer service — with a single, deeply integrated SaaS product.
+**CoheronConnect is a unified enterprise operations platform** that replaces the fragmented stack of tools organisations use to manage IT services, HR, finance, compliance, procurement, and customer service — with a single, deeply integrated SaaS product.
 
 We are live in production. We have 121 database tables, 299 API procedures, and 53 application modules built and verified. We have passed every test we have thrown at it: 194 automated tests, chaos testing, 300-user concurrent load tests, and security injection suites.
 
@@ -39,7 +39,7 @@ The average mid-market company (50–500 employees) runs **7 to 12 separate soft
 
 ## Our Solution
 
-NexusOps consolidates this entire stack into **one platform, one API, one data model**.
+CoheronConnect consolidates this entire stack into **one platform, one API, one data model**.
 
 When a new employee is onboarded:
 - HR raises the onboarding case (HR module)
@@ -48,7 +48,7 @@ When a new employee is onboarded:
 - The employee gets a portal login on day one (Employee Portal module)
 - Finance is notified for payroll setup (Finance module)
 
-This is not a theoretical integration. This is a native workflow in NexusOps — no APIs to connect, no webhooks to maintain, no data to manually sync.
+This is not a theoretical integration. This is a native workflow in CoheronConnect — no APIs to connect, no webhooks to maintain, no data to manually sync.
 
 ---
 
@@ -72,7 +72,7 @@ This is not a theoretical integration. This is a native workflow in NexusOps —
 
 ## Competitive Landscape
 
-| Competitor | Strength | Weakness vs NexusOps |
+| Competitor | Strength | Weakness vs CoheronConnect |
 |---|---|---|
 | ServiceNow | ITSM depth, enterprise brand | ₹40–80L/yr per org; no HR/Finance/GRC; too complex for SMBs |
 | Freshservice | ITSM usability | ITSM-only; no payroll, GRC, secretarial, or India compliance |
@@ -81,7 +81,7 @@ This is not a theoretical integration. This is a native workflow in NexusOps —
 | Jira Service Management | Engineering teams | No HR, finance, compliance; complex for non-technical orgs |
 | Tally | Finance, India compliance | Finance-only; no operations, ITSM, or people tools |
 
-**NexusOps's differentiated position:**
+**CoheronConnect's differentiated position:**
 1. The only platform with **ITSM + HR + Finance + GRC + Procurement + Secretarial** natively integrated
 2. **India-compliance built in** — GST, TDS, EPFO, ROC filings, ESOP ledger — not an add-on
 3. **Mid-market pricing** — built for companies that cannot afford ServiceNow but have outgrown spreadsheets
@@ -149,7 +149,7 @@ A separate Coheron-operated control plane for fleet management:
 
 - **Containerised:** Docker Compose (5 containers) for self-hosted; Helm chart for Kubernetes
 - **Cloud-native:** Terraform modules for AWS (ECS Fargate + RDS + ElastiCache) and GCP (Cloud Run + Cloud SQL + Memorystore)
-- **CLI:** `nexusops-cli` — migrate, seed, create-admin, backup, health, license commands
+- **CLI:** `coheronconnect-cli` — migrate, seed, create-admin, backup, health, license commands
 - **Observability:** OpenTelemetry traces, structured JSON logging, health endpoint, metrics endpoint
 
 ### Multi-Tenancy
@@ -218,7 +218,7 @@ Onboard 100 high-touch founding customers at reduced pricing in exchange for fee
 
 ### Phase 3 — Channel Partnerships (Q4 2026 onwards)
 - CA firms and accounting practices (natural Secretarial/Finance buyers)
-- IT managed service providers (MSPs) running NexusOps for their clients
+- IT managed service providers (MSPs) running CoheronConnect for their clients
 - System integrators for enterprise deployments
 
 ### Phase 4 — Southeast Asia Expansion (2027)
@@ -248,7 +248,7 @@ Onboard 100 high-touch founding customers at reduced pricing in exchange for fee
 
 ## Team
 
-**Coheron** is the engineering and product company behind NexusOps.
+**Coheron** is the engineering and product company behind CoheronConnect.
 
 The platform was designed, architected, and built with enterprise-grade discipline — full test coverage, structured documentation (Architecture Design Document, Technical Requirements Document, Business Logic Specification, Entity Relationship Diagram, API Specification, QA Reports), and a rigorous quality bar before any customer onboarding.
 
@@ -291,7 +291,7 @@ We are raising a **pre-seed round** to fund:
 
 1. **India's IT and operations software market is at an inflection point.** Post-COVID hybrid work, DPDP Act compliance requirements, and GST maturity have created genuine urgency for integrated operations software in the SMB segment.
 
-2. **The build cycle is behind us.** NexusOps is not a wireframe or an MVP. It is a production-grade, fully tested platform. The risk profile of this investment is fundamentally different from a pre-product seed.
+2. **The build cycle is behind us.** CoheronConnect is not a wireframe or an MVP. It is a production-grade, fully tested platform. The risk profile of this investment is fundamentally different from a pre-product seed.
 
 3. **The AI moment.** Every feature we have built with AI (auto-classification, semantic search, resolution suggestions) is native to the platform — not a wrapper. This means AI improvements compound across the entire product surface, not just one feature.
 
@@ -309,4 +309,4 @@ Product demos: demo@coheron.com
 
 ---
 
-*NexusOps v4.0 · Built by Coheron · April 2026*
+*CoheronConnect v4.0 · Built by Coheron · April 2026*

@@ -5,7 +5,7 @@ import {
   boardMeetings, boardResolutions, secretarialFilings,
   shareCapital, esopGrants, companyDirectors,
   eq, and, desc, asc, count, sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const secretarialRouter = router({
 
@@ -196,6 +196,104 @@ export const secretarialRouter = router({
             sql`${secretarialFilings.status} IN ('upcoming','in_progress')`,
           ))
           .orderBy(asc(secretarialFilings.dueDate));
+      }),
+
+    seed: permissionProcedure("secretarial", "write")
+      .input(z.object({ financialYear: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const fy = input.financialYear;
+        const parts = fy.split("-");
+        let year = parseInt(parts[1] || (parseInt(parts[0] || "2024") + 1).toString());
+        if (year < 100) year += 2000;
+
+        const standardFilings = [
+          {
+            formNumber: "MGT-7",
+            title: "Annual Return",
+            authority: "MCA (ROC)",
+            category: "annual_return",
+            dueDate: new Date(year - 1, 10, 29), // 29th Nov (60 days from Sep 30 AGM)
+            fy,
+            notes: "Filing of annual return by companies as per Section 92(1) of Companies Act, 2013",
+          },
+          {
+            formNumber: "AOC-4",
+            title: "Financial Statements",
+            authority: "MCA (ROC)",
+            category: "financial_statement",
+            dueDate: new Date(year - 1, 9, 30), // 30th Oct (30 days from Sep 30 AGM)
+            fy,
+            notes: "Filing of audited financial statements as per Section 137 of Companies Act, 2013",
+          },
+          {
+            formNumber: "ADT-1",
+            title: "Auditor Appointment",
+            authority: "MCA (ROC)",
+            category: "auditor_appointment",
+            dueDate: new Date(year - 1, 9, 15), // 15th Oct (15 days from Sep 30 AGM)
+            fy,
+            notes: "Intimation of appointment of auditor as per Section 139(1) of Companies Act, 2013",
+          },
+          {
+            formNumber: "DIR-3 KYC",
+            title: "Director KYC",
+            authority: "MCA",
+            category: "director_kyc",
+            dueDate: new Date(year - 1, 8, 30), // 30th Sep
+            fy,
+            notes: "Annual KYC of Directors holding DIN as on 31st March",
+          },
+          {
+            formNumber: "MSME-1",
+            title: "MSME Return (H1)",
+            authority: "MCA",
+            category: "msme_return",
+            dueDate: new Date(year - 1, 9, 31), // 31st Oct
+            fy,
+            notes: "Details of outstanding dues to MSME suppliers (April - Sept)",
+          },
+          {
+            formNumber: "MSME-1",
+            title: "MSME Return (H2)",
+            authority: "MCA",
+            category: "msme_return",
+            dueDate: new Date(year, 3, 30), // 30th April
+            fy,
+            notes: "Details of outstanding dues to MSME suppliers (Oct - March)",
+          },
+          {
+            formNumber: "DPT-3",
+            title: "Return of Deposits",
+            authority: "MCA",
+            category: "deposit_return",
+            dueDate: new Date(year, 5, 30), // 30th June
+            fy,
+            notes: "Return of deposits or information not considered as deposit as per Companies Act, 2013",
+          },
+        ];
+
+        let seeded = 0;
+        for (const f of standardFilings) {
+          const [existing] = await db.select().from(secretarialFilings)
+            .where(and(
+              eq(secretarialFilings.orgId, org!.id),
+              eq(secretarialFilings.formNumber, f.formNumber),
+              eq(secretarialFilings.fy, f.fy),
+              eq(secretarialFilings.title, f.title),
+            ));
+          
+          if (!existing) {
+            await db.insert(secretarialFilings).values({
+              orgId: org!.id,
+              status: "upcoming",
+              ...f,
+            }).returning();
+            seeded++;
+          }
+        }
+
+        return { seeded };
       }),
   }),
 

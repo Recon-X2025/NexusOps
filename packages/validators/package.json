@@ -1,7 +1,7 @@
 {
-  "name": "@nexusops/validators",
+  "name": "@coheronconnect/validators",
   "version": "0.1.0",
-  "description": "Shared Zod validation schemas for NexusOps — single source of truth for data integrity across API and frontend.",
+  "description": "Shared Zod validation schemas for CoheronConnect — single source of truth for data integrity across API and frontend.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

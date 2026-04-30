@@ -1,4 +1,4 @@
-# NexusOps — Test Accounts Reference
+# CoheronConnect — Test Accounts Reference
 
 **Organization:** Coheron Demo (`coheron-demo`)
 **Universal Password:** `demo1234!`

@@ -1,5 +1,5 @@
 /**
- * NexusOps India Statutory Deductions Engine
+ * CoheronConnect India Statutory Deductions Engine
  * ────────────────────────────────────────────
  * Computes EPF, ESI, Professional Tax, and LWF per Indian labour law.
  *

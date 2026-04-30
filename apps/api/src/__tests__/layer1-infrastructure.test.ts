@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { testDb } from "./helpers";
 import { appRouter } from "../routers";
-import { sql } from "@nexusops/db";
+import { sql } from "@coheronconnect/db";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {

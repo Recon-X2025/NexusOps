@@ -1,4 +1,4 @@
-# NexusOps — API Specification
+# CoheronConnect — API Specification
 
 **Version:** 2.0  
 **Date:** April 4, 2026  
@@ -75,7 +75,7 @@
 
 ## 1. Overview
 
-The NexusOps API is a **tRPC 11** API served by a **Fastify 5** server. All application logic is exposed through strongly-typed tRPC procedures — there are no traditional REST endpoints for domain operations.
+The CoheronConnect API is a **tRPC 11** API served by a **Fastify 5** server. All application logic is exposed through strongly-typed tRPC procedures — there are no traditional REST endpoints for domain operations.
 
 ### Transport
 
@@ -85,7 +85,7 @@ The NexusOps API is a **tRPC 11** API served by a **Fastify 5** server. All appl
 
 ### Type Safety
 
-The entire API is defined by the `AppRouter` type exported from `@nexusops/api`. The web client imports this type directly, giving end-to-end compile-time type checking with no code generation step.
+The entire API is defined by the `AppRouter` type exported from `@coheronconnect/api`. The web client imports this type directly, giving end-to-end compile-time type checking with no code generation step.
 
 ---
 
@@ -3574,7 +3574,7 @@ Returns the transaction history for an inventory item.
 
 ## Appendix B — Zod Input Types Reference
 
-Shared schemas from `@nexusops/types`:
+Shared schemas from `@coheronconnect/types`:
 
 | Schema | Used In | Key Fields |
 |--------|---------|-----------|
@@ -3625,7 +3625,7 @@ Audit logs are queryable by org admins via `admin.auditLog.list`.
 
 *End of API Specification*
 
-*For questions, contact the NexusOps platform team at Coheron.*
+*For questions, contact the CoheronConnect platform team at Coheron.*
 
 ---
 
@@ -3775,8 +3775,8 @@ Example signal log:
 |---------|------|--------|---------|
 | 1.0 | 2026-03-26 | Platform Engineering | Initial document |
 | 1.1 | 2026-03-27 | Platform Engineering | Added `inventory` and `indiaCompliance` routers. Documented new procedures. |
-| 1.2 | 2026-03-28 | Platform Engineering | Validated all documented endpoints under 200-VU k6 load. `tickets.list` and `dashboard.getMetrics` confirmed stable at 340 req/s with 0% error rate and p(95) 23ms. API contract corrections applied: `walkup.queue.callNext` (`id`→`locationId`), `walkup.queue.complete` (`id`→`visitId`), `crm.convertLead` (`dealTitle` added), `crm.listQuotes` (removed unsupported `limit` param), `facilities.moveRequests.create` (`toLocation` corrected), `facilities.bookings.create` (full payload documented). See `NexusOps_Load_Test_Report_2026.md`. |
-| 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Added `PRECONDITION_FAILED (412)` to §5 error codes: returned by `tickets.create` when the organisation has no open ticket status configured. Added prototype pollution protection note to §5: `__proto__`, `constructor`, and `prototype` keys are stripped at Fastify `preHandler` before any procedure runs. Fixed `tickets.create` to not propagate `INTERNAL_SERVER_ERROR` for invalid enum inputs — Zod validation failures now correctly surface as `BAD_REQUEST (400)`. Fixed `tickets.update` input schema documentation: update fields must be nested under a `data:` key. k6 security test suite (26 adversarial cases) confirmed 100% correct rejection rate and 0 unhandled 500 errors. See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
+| 1.2 | 2026-03-28 | Platform Engineering | Validated all documented endpoints under 200-VU k6 load. `tickets.list` and `dashboard.getMetrics` confirmed stable at 340 req/s with 0% error rate and p(95) 23ms. API contract corrections applied: `walkup.queue.callNext` (`id`→`locationId`), `walkup.queue.complete` (`id`→`visitId`), `crm.convertLead` (`dealTitle` added), `crm.listQuotes` (removed unsupported `limit` param), `facilities.moveRequests.create` (`toLocation` corrected), `facilities.bookings.create` (full payload documented). See `CoheronConnect_Load_Test_Report_2026.md`. |
+| 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Added `PRECONDITION_FAILED (412)` to §5 error codes: returned by `tickets.create` when the organisation has no open ticket status configured. Added prototype pollution protection note to §5: `__proto__`, `constructor`, and `prototype` keys are stripped at Fastify `preHandler` before any procedure runs. Fixed `tickets.create` to not propagate `INTERNAL_SERVER_ERROR` for invalid enum inputs — Zod validation failures now correctly surface as `BAD_REQUEST (400)`. Fixed `tickets.update` input schema documentation: update fields must be nested under a `data:` key. k6 security test suite (26 adversarial cases) confirmed 100% correct rejection rate and 0 unhandled 500 errors. See `CoheronConnect_K6_Security_and_Load_Test_Report_2026.md`. |
 
-| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added Appendix E (Internal Observability Endpoints) documenting `GET /internal/metrics`, `POST /internal/metrics/reset`, and `GET /internal/health`. Documented `monitor` field added to health response (`last_changed_at`, `eval_every`). Documented active health signals: structured log lines emitted by `healthMonitor.ts` on HEALTHY/DEGRADED/UNHEALTHY transitions only — zero spam guarantee. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
-| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test findings.** 10,000-session stress test (March 27): 271,696 requests at 397 req/s, 92.8% success rate, 0 network errors, 0 timeouts, 0 auth failures. Identified RBAC gaps: `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` schedule reads, `walkup` reads (non-admin). Identified Drizzle `Symbol(drizzle:Columns)` schema-import error on `tickets.create` and `workOrders.create` for non-admin roles. Destructive chaos test Round 2 (April 2): 62,369 requests, **0 HTTP 5xx, 0 crashes, 0 network errors**. Confirmed auth hardening (bcrypt semaphore, in-flight guard, rate limiting) held under 200-worker storm. Identified CRITICAL: `auth.login` avg 4,098ms / p95 5,019ms under concentrated concurrent load (bcrypt semaphore saturation). Identified MAJOR: Bearer token auth returning 401/403 on query-type tRPC routes for some session configurations — `protectedProcedure` and `permissionProcedure` must consistently accept both cookie and Bearer via `createContext`. Active health monitor correctly transitioned to UNHEALTHY and emitted log signals during test. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added Appendix E (Internal Observability Endpoints) documenting `GET /internal/metrics`, `POST /internal/metrics/reset`, and `GET /internal/health`. Documented `monitor` field added to health response (`last_changed_at`, `eval_every`). Documented active health signals: structured log lines emitted by `healthMonitor.ts` on HEALTHY/DEGRADED/UNHEALTHY transitions only — zero spam guarantee. See `CoheronConnect_Active_Health_Signal_Report_2026.md`. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test findings.** 10,000-session stress test (March 27): 271,696 requests at 397 req/s, 92.8% success rate, 0 network errors, 0 timeouts, 0 auth failures. Identified RBAC gaps: `surveys.create` (hr_manager), `events.list` (security_analyst), `oncall` schedule reads, `walkup` reads (non-admin). Identified Drizzle `Symbol(drizzle:Columns)` schema-import error on `tickets.create` and `workOrders.create` for non-admin roles. Destructive chaos test Round 2 (April 2): 62,369 requests, **0 HTTP 5xx, 0 crashes, 0 network errors**. Confirmed auth hardening (bcrypt semaphore, in-flight guard, rate limiting) held under 200-worker storm. Identified CRITICAL: `auth.login` avg 4,098ms / p95 5,019ms under concentrated concurrent load (bcrypt semaphore saturation). Identified MAJOR: Bearer token auth returning 401/403 on query-type tRPC routes for some session configurations — `protectedProcedure` and `permissionProcedure` must consistently accept both cookie and Bearer via `createContext`. Active health monitor correctly transitioned to UNHEALTHY and emitted log signals during test. See `CoheronConnect_Stress_Test_Report.md` and `CoheronConnect_Destructive_Chaos_Test_Report_2026.md`. |

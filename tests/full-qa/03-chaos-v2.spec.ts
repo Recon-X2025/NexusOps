@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA Suite — 03: Destructive Chaos v2
+ * CoheronConnect Full-QA Suite — 03: Destructive Chaos v2
  *
  * Harder than any previous chaos run:
  *  - 30 parallel workers
@@ -364,7 +364,7 @@ async function chaosIteration(
 // ── Test: 30 chaos workers ─────────────────────────────────────────────────────
 test.describe.configure({ mode: "parallel" });
 
-test.describe("Chaos v2 — NexusOps (30 workers)", () => {
+test.describe("Chaos v2 — CoheronConnect (30 workers)", () => {
   test.setTimeout(180_000); // 3 min per worker — 25 iterations under load
   const WORKER_COUNT = 30;
   const ITERATIONS   = 25;

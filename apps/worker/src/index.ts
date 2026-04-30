@@ -12,11 +12,11 @@ async function run() {
   const worker = await Worker.create({
     workflowsPath: require.resolve("./workflows/nexusWorkflow"),
     activities: createActivities(pool),
-    taskQueue: "nexusops-workflow",
+    taskQueue: "coheronconnect-workflow",
     connection,
   });
 
-  console.log(`[worker] Listening on task queue 'nexusops-workflow' → ${address}`);
+  console.log(`[worker] Listening on task queue 'coheronconnect-workflow' → ${address}`);
   await worker.run();
 }
 

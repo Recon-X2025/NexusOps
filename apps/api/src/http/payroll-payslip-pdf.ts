@@ -4,7 +4,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { and, eq, payslips, employees, users } from "@nexusops/db";
+import { and, eq, payslips, employees, users } from "@coheronconnect/db";
 import { createContext } from "../middleware/auth";
 import { generatePayslipPDF, amountInWords, type PayslipPDFInput } from "../services/payslip-pdf";
 

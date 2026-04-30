@@ -17,7 +17,7 @@ import {
   sql,
   asc,
   desc,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import {
   SignupSchema,
@@ -25,7 +25,7 @@ import {
   InviteCreateSchema,
   ForgotPasswordSchema,
   ResetPasswordSchema,
-} from "@nexusops/types";
+} from "@coheronconnect/types";
 import bcrypt from "bcrypt";
 import { randomBytes, createHash } from "crypto";
 import { nanoid } from "nanoid";
@@ -64,7 +64,7 @@ function verifyPassword(password: string, hash: string): Promise<boolean> {
  *  @param rememberMe  When true: 30-day persistent session; when false: 8-hour session-scoped token.
  */
 export async function createSession(
-  db: ReturnType<typeof import("@nexusops/db").getDb>,
+  db: ReturnType<typeof import("@coheronconnect/db").getDb>,
   userId: string,
   ipAddress?: string | null,
   userAgent?: string | null,
@@ -203,7 +203,13 @@ export const authRouter = router({
     const session = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent, input.rememberMe ?? false);
     const tSession = Date.now();
 
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    await db
+      .update(users)
+      .set({ 
+        lastLoginAt: new Date(),
+        status: user.status === "invited" ? "active" : user.status
+      })
+      .where(eq(users.id, user.id));
 
     const [org] = await db
       .select()

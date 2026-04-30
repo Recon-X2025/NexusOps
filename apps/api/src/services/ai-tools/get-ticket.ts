@@ -1,4 +1,4 @@
-import { tickets, ticketComments, eq, and, desc } from "@nexusops/db";
+import { tickets, ticketComments, eq, and, desc } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const getTicketTool: AgentTool<{ id: string }> = {

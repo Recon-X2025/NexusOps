@@ -1,4 +1,4 @@
-import { tickets, ticketStatuses, eq, and, count, sql, gte, lte } from "@nexusops/db";
+import { tickets, ticketStatuses, eq, and, count, sql, gte, lte } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import {
   alignSeries,
@@ -10,7 +10,7 @@ import { dbOf } from "./_db";
 
 registerMetric({
   id: "tickets.open_total",
-  label: "Open tickets",
+  label: "Active requests",
   function: "it_services",
   dimension: "volume",
   direction: "lower_is_better",
@@ -48,7 +48,7 @@ registerMetric({
 
 registerMetric({
   id: "tickets.sla_compliance",
-  label: "SLA compliance",
+  label: "Request SLA compliance",
   function: "it_services",
   dimension: "sla",
   direction: "higher_is_better",
@@ -114,7 +114,7 @@ registerMetric({
 
 registerMetric({
   id: "tickets.throughput_created",
-  label: "Tickets created (period)",
+  label: "Requests opened (period)",
   function: "it_services",
   dimension: "trend",
   direction: "lower_is_better",
@@ -163,7 +163,7 @@ registerMetric({
 
 registerMetric({
   id: "tickets.throughput_resolved",
-  label: "Tickets resolved (period)",
+  label: "Requests resolved (period)",
   function: "it_services",
   dimension: "trend",
   direction: "higher_is_better",

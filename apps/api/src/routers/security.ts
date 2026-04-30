@@ -16,7 +16,7 @@ import {
   desc,
   count,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 
 const STATE_MACHINE: Record<string, string[]> = {
@@ -417,7 +417,7 @@ export const securityRouter = router({
         .orderBy(desc(securityIncidents.updatedAt))
         .limit(50);
       return {
-        schema: "nexusops.security.siem_preview.v1",
+        schema: "coheronconnect.security.siem_preview.v1",
         windowDays: 7,
         auditLogSample: logs,
         securityIncidentSnapshot: incidents,

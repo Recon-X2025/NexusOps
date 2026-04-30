@@ -214,7 +214,7 @@ export default function VendorsPage() {
                     </td>
                     <td><span className="status-badge text-muted-foreground bg-muted">{v.category}</span></td>
                     <td><span className={`status-badge ${TIER_COLOR[v.tier] ?? "text-muted-foreground bg-muted"}`}>{v.tier}</span></td>
-                    <td className="font-mono text-[11px] text-foreground/80">${((v.spend ?? v.annualSpend ?? 0) / 1000).toFixed(0)}K</td>
+                    <td className="font-mono text-[11px] text-foreground/80">₹{((v.spend ?? v.annualSpend ?? 0) / 1000).toFixed(0)}K</td>
                     <td className="text-center text-muted-foreground">{v.contracts ?? v.contractCount ?? 0}</td>
                     <td className="text-center">{(v.activeIssues ?? 0) > 0 ? <span className="text-red-700 font-bold">{v.activeIssues}</span> : <span className="text-green-600">0</span>}</td>
                     <td><ScoreBar value={v.slaScore ?? 0} /></td>

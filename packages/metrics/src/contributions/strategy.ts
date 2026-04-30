@@ -1,4 +1,4 @@
-import { okrObjectives, eq, and, avg } from "@nexusops/db";
+import { okrObjectives, eq, and, avg } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { emptyMetricValue } from "../resolve-helpers";
 import { dbOf } from "./_db";

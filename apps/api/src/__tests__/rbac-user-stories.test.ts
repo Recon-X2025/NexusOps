@@ -15,8 +15,8 @@ import {
   hasPermission,
   canAccessModule,
   ROLE_PERMISSIONS,
-} from "@nexusops/types";
-import type { SystemRole, Module, RbacAction } from "@nexusops/types";
+} from "@coheronconnect/types";
+import type { SystemRole, Module, RbacAction } from "@coheronconnect/types";
 import { systemRolesForDbUser, checkDbUserPermission } from "../lib/rbac-db";
 
 // ─────────────────────────────────────────────────────────────────────────────

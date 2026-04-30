@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { EmptyState, TableSkeleton, Pagination } from "@nexusops/ui";
+import { EmptyState, TableSkeleton, Pagination } from "@coheronconnect/ui";
 import { cn } from "@/lib/utils";
 
 type Tab = "coa" | "journal" | "trial_balance" | "pnl" | "gstr";

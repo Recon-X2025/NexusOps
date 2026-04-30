@@ -62,7 +62,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  transpilePackages: ["@nexusops/ui", "@nexusops/types"],
+  transpilePackages: ["@coheronconnect/ui", "@coheronconnect/types"],
   turbopack: {
     root: monorepoRoot,
   },

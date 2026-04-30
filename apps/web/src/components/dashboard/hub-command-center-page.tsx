@@ -21,7 +21,7 @@ import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 
 // All Command Center components type their `payload` prop off
 // `inferRouterOutputs<AppRouter>["commandCenter"]["getView"]`. Reuse that
-// instead of importing `@nexusops/metrics` directly so the web package's
+// instead of importing `@coheronconnect/metrics` directly so the web package's
 // dependency surface stays unchanged.
 type Payload = inferRouterOutputs<AppRouter>["commandCenter"]["getView"];
 type HubPayload = inferRouterOutputs<AppRouter>["commandCenter"]["getHubView"];
@@ -32,9 +32,7 @@ import {
   ExecutiveHowToStrip,
 } from "@/components/dashboard/executive-dashboard-template";
 import { CommandCenterShell } from "@/components/command-center/command-center-shell";
-import { CommandCenterKpiStrip } from "@/components/command-center/command-center-kpi-strip";
 import { CommandCenterHeatmap } from "@/components/command-center/command-center-heatmap";
-import { CommandCenterSidebarCharts } from "@/components/command-center/command-center-sidebar-charts";
 
 import { CommandCenterBullets } from "@/components/command-center/command-center-bullets";
 import { CommandCenterTrends } from "@/components/command-center/command-center-trends";
@@ -143,8 +141,8 @@ function HubBar({
       <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl overflow-hidden shadow-sm relative group">
         <div className="px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between relative z-10 border-b border-slate-200/50">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#00BCFF]/10 border border-[#00BCFF]/20 rounded-lg">
-              <Radio className="w-5 h-5 text-[#00BCFF] animate-pulse" />
+            <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-lg">
+              <Radio className="w-5 h-5 text-slate-400" />
             </div>
             <div>
               <h1 className="text-xl font-black tracking-tight text-slate-900">
@@ -331,7 +329,7 @@ function HubBody({
         </div>
       ) : tab === "overview" ? (
         <HubSectionBoundary>
-          <HubOverview payload={scoped!} hubPayload={qView.data!} functionKey={functionKey} granularity={range.granularity} />
+          <HubOverview payload={scoped!} hubPayload={qView.data!} functionKey={functionKey} granularity={range.granularity} title={title} />
         </HubSectionBoundary>
       ) : (
         <HubSectionBoundary>
@@ -365,40 +363,45 @@ function HubOverview({
   hubPayload,
   functionKey,
   granularity,
+  title,
 }: {
   payload: Payload;
   hubPayload: HubPayload;
   functionKey: FunctionKey;
   granularity: "day" | "week" | "month";
+  title: string;
 }) {
   const layout = getHubLayout(functionKey);
   const { Primary, showTrendDeck } = layout;
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-         <div className="xl:col-span-12">
-           <CommandCenterKpiStrip payload={payload} />
-         </div>
-      </div>
-      
-      <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden shadow-sm rounded-2xl p-4">
-         <Primary payload={hubPayload} granularity={granularity} />
-      </div>
-      
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
-        <div className="xl:col-span-8 min-w-0">
-          <CommandCenterHeatmap payload={payload} />
-        </div>
-        <div className="xl:col-span-4 min-w-0">
-          <CommandCenterSidebarCharts payload={payload} />
-        </div>
+      {/* Top Band: Diagnostic Posture (Diagnostic Heatmap) */}
+      {/* Diagnostic Heatmap (Primary Band) */}
+      <div className="mb-8">
+        <CommandCenterHeatmap payload={payload} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <CommandCenterBullets payload={payload} />
-        <CommandCenterFlow payload={payload} />
-        <CommandCenterRisks payload={payload} />
-        {showTrendDeck ? <CommandCenterTrends payload={payload} /> : <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl p-4 text-[10px] text-slate-400 flex items-center justify-center uppercase tracking-widest font-black">Trends Restricted</div>}
+      <div className="flex flex-col gap-8">
+        {/* Primary Visual - Scoped to Module */}
+        <div className="w-full bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden shadow-sm rounded-2xl p-4">
+           <Primary payload={hubPayload} granularity={granularity} />
+        </div>
+
+        {/* The "Truth Stack" - Purpose Driven Diagnostics in Parallel */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+           <div className="h-full min-h-[300px]">
+             <CommandCenterBullets payload={payload} />
+           </div>
+           <div className="h-full min-h-[300px]">
+             <CommandCenterFlow payload={payload} />
+           </div>
+           <div className="h-full min-h-[300px]">
+             <CommandCenterRisks payload={payload} />
+           </div>
+           <div className="h-full min-h-[300px]">
+             <CommandCenterTrends payload={payload} />
+           </div>
+        </div>
       </div>
     </div>
   );

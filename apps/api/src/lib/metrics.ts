@@ -1,5 +1,5 @@
 /**
- * Lightweight in-memory metrics store for NexusOps API.
+ * Lightweight in-memory metrics store for CoheronConnect API.
  *
  * Design constraints:
  *  - Zero dependencies — plain JS objects and arithmetic only.

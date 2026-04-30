@@ -20,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "NexusOps by Coheron",
-    template: "%s | NexusOps",
+    default: "CoheronConnect by Coheron",
+    template: "%s | CoheronConnect",
   },
   description:
     "Enterprise workflow orchestration, ITSM, asset management, HR service delivery, and procurement — without the ServiceNow price tag.",
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Coheron" }],
   openGraph: {
     type: "website",
-    title: "NexusOps by Coheron",
+    title: "CoheronConnect by Coheron",
     description: "Enterprise-grade workflow orchestration at startup-friendly pricing.",
-    siteName: "NexusOps",
+    siteName: "CoheronConnect",
   },
 };
 

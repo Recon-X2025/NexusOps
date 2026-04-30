@@ -6,7 +6,7 @@ import { Sparkles, Send, RotateCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * NexusOps Copilot — multi-turn chat with persistent server-side memory.
+ * CoheronConnect Copilot — multi-turn chat with persistent server-side memory.
  *
  * Server-side state of the truth: messages, conversation list, and tool
  * results all live in `agent_conversations` / `agent_messages`. The
@@ -87,7 +87,7 @@ export default function AgentChatPage() {
       <main className="flex flex-1 flex-col rounded-lg border border-border bg-card">
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Sparkles className="h-5 w-5 text-violet-500" />
-          <h1 className="text-base font-semibold">NexusOps Copilot</h1>
+          <h1 className="text-base font-semibold">CoheronConnect Copilot</h1>
           <span className="ml-2 text-xs text-muted-foreground">
             Ask questions or request actions like &quot;file an incident for printer down&quot;.
           </span>
@@ -98,7 +98,7 @@ export default function AgentChatPage() {
             <div className="mx-auto max-w-md py-12 text-center">
               <Sparkles className="mx-auto mb-3 h-8 w-8 text-violet-500" />
               <p className="text-sm text-muted-foreground">
-                Hi — I can answer questions about NexusOps and, when you ask, file
+                Hi — I can answer questions about CoheronConnect and, when you ask, file
                 tickets or update statuses on your behalf. I&apos;ll always read back
                 actions before running them.
               </p>

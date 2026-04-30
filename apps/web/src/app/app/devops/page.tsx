@@ -251,7 +251,7 @@ export default function DevOpsPage() {
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
         <span className="font-medium text-foreground">What this module is: </span>
-        Pipeline runs and deployments are <span className="text-foreground">stored in NexusOps</span> when you use{" "}
+        Pipeline runs and deployments are <span className="text-foreground">stored in CoheronConnect</span> when you use{" "}
         <span className="text-foreground">Trigger Pipeline</span> or <span className="text-foreground">Deploy</span>. There is{" "}
         <span className="text-foreground">no live sync</span> to GitHub Actions, Jenkins, or GitLab yet (see Tool Integrations).{" "}
         DORA numbers are computed from those records only — not from external CI.
@@ -416,7 +416,7 @@ export default function DevOpsPage() {
           <div>
             {pipelines.length === 0 && (
               <div className="px-4 py-12 text-center text-[11px] text-muted-foreground">
-                No pipeline runs yet. Use <span className="font-medium text-foreground">Trigger Pipeline</span> to record a run in NexusOps (this does not call an external CI system).
+                No pipeline runs yet. Use <span className="font-medium text-foreground">Trigger Pipeline</span> to record a run in CoheronConnect (this does not call an external CI system).
               </div>
             )}
             {pipelines.map((p: any) => {
@@ -607,7 +607,7 @@ export default function DevOpsPage() {
                     )}
                     <div className="mt-3 flex gap-2">
                       <button
-                        onClick={() => createDeployment.mutate({ appName: "nexusops-api", environment: env === "production" ? "production" : env as any, version: "latest" })}
+                        onClick={() => createDeployment.mutate({ appName: "coheronconnect-api", environment: env === "production" ? "production" : env as any, version: "latest" })}
                         disabled={createDeployment.isPending}
                         className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-[10px] rounded hover:bg-primary/20 disabled:opacity-50">
                         <Play className="w-3 h-3" /> Deploy

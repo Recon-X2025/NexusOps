@@ -9,7 +9,7 @@ import {
   and,
   desc,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { sendNotification } from "../services/notifications";
 import { enqueueApprovalDecision } from "../workflows/approvalWorkflow";
 import { getWorkflowService } from "../services/workflow";

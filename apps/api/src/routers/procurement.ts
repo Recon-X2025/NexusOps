@@ -16,6 +16,9 @@ import {
   assetTypes,
   organizations,
   legalEntities,
+  budgetLines,
+  journalEntries,
+  journalEntryLines,
   eq,
   and,
   desc,
@@ -23,8 +26,8 @@ import {
   count,
   sum,
   sql,
-} from "@nexusops/db";
-import { CreatePurchaseRequestSchema } from "@nexusops/types";
+} from "@coheronconnect/db";
+import { CreatePurchaseRequestSchema } from "@coheronconnect/types";
 import {
   getProcurementMatchToleranceAbs,
   getProcurementApprovalTiers,
@@ -275,6 +278,104 @@ export const procurementRouter = router({
           .where(eq(poLineItems.poId, po.id));
 
         return { ...po, items };
+      }),
+
+    create: permissionProcedure("purchase_orders", "write")
+      .input(
+        z.object({
+          vendorId: z.string().uuid(),
+          notes: z.string().optional(),
+          totalAmount: z.number().min(0),
+          expectedDelivery: z.coerce.date().optional(),
+          legalEntityId: z.string().uuid().optional(),
+          items: z.array(z.object({
+            description: z.string().min(1),
+            quantity: z.number().min(1),
+            unitPrice: z.number().min(0),
+          })).min(1),
+          department: z.string().optional(),
+          category: z.string().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const poNumber = await getNextNumber(db, org!.id, "PO");
+
+        const [po] = await db
+          .insert(purchaseOrders)
+          .values({
+            orgId: org!.id,
+            poNumber,
+            vendorId: input.vendorId,
+            totalAmount: input.totalAmount.toString(),
+            status: "draft",
+            notes: input.notes,
+            expectedDelivery: input.expectedDelivery,
+            legalEntityId: input.legalEntityId ?? null,
+          })
+          .returning();
+
+        await db.insert(poLineItems).values(
+          input.items.map((item) => ({
+            poId: po!.id,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice.toString(),
+            receivedQuantity: 0,
+          })),
+        );
+
+        // ── Financial Integration: Budget Commitment ───────────────────────
+        if (input.department && input.category) {
+          await db.update(budgetLines)
+            .set({
+              committed: sql`${budgetLines.committed} + ${input.totalAmount}`,
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(budgetLines.orgId, org!.id),
+              eq(budgetLines.department, input.department),
+              eq(budgetLines.category, input.category),
+              eq(budgetLines.fiscalYear, new Date().getFullYear()),
+            ));
+        }
+
+        // ── Financial Integration: Draft Journal Entry ──────────────────────
+        const [je] = await db.insert(journalEntries).values({
+          orgId: org!.id,
+          number: `JE-PO-${po!.poNumber}`,
+          date: new Date(),
+          type: "invoice",
+          status: "draft",
+          description: `Accrual for PO ${po!.poNumber}`,
+          totalDebit: input.totalAmount.toString(),
+          totalCredit: input.totalAmount.toString(),
+          createdById: ctx.user!.id,
+        }).returning();
+
+        if (je) {
+          // Simplified: Debit Expense, Credit Accrued Liability (placeholder accounts)
+          // In a real system, we'd lookup specific COA IDs
+          // For now, we assume standard IDs or just track the link
+          await db.insert(journalEntryLines).values([
+            {
+              journalEntryId: je.id,
+              orgId: org!.id,
+              accountId: "00000000-0000-0000-0000-000000000001", // Placeholder
+              debitAmount: input.totalAmount.toString(),
+              description: `Expense accrual for PO ${po!.poNumber}`,
+            },
+            {
+              journalEntryId: je.id,
+              orgId: org!.id,
+              accountId: "00000000-0000-0000-0000-000000000002", // Placeholder
+              creditAmount: input.totalAmount.toString(),
+              description: `Accrued liability for PO ${po!.poNumber}`,
+            }
+          ]);
+        }
+
+        return po;
       }),
 
     createFromPR: permissionProcedure("purchase_orders", "write")

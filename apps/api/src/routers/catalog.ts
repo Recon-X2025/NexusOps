@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { catalogItems, catalogRequests, eq, and, desc, count, inArray } from "@nexusops/db";
+import { catalogItems, catalogRequests, eq, and, desc, count, inArray } from "@coheronconnect/db";
 import { createCatalogFulfillmentTicket } from "../lib/catalog-fulfillment-ticket";
 
 type CatalogFormField = {

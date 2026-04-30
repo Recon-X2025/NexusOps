@@ -12,7 +12,7 @@ import {
   asc,
   inArray,
   count,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 type AssignmentRuleRow = InferSelectModel<typeof assignmentRules>;
 

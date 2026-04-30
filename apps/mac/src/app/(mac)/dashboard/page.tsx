@@ -122,7 +122,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Platform Overview</h1>
-          <p className="text-sm text-slate-500">NexusOps platform-wide metrics</p>
+          <p className="text-sm text-slate-500">CoheronConnect platform-wide metrics</p>
         </div>
         <button
           onClick={() => void load()}

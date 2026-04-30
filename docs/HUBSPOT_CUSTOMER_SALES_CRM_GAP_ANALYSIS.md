@@ -1,7 +1,7 @@
-# HubSpot vs NexusOps — Customer & Sales / CRM Gap Analysis
+# HubSpot vs CoheronConnect — Customer & Sales / CRM Gap Analysis
 
 **Perspective:** Chief Product Officer lens, using **HubSpot**’s **CRM** and adjacent **Customer Platform** (Marketing, Sales, and Service hubs, shared CRM objects, automation, and reporting) as the reference  
-**Scope:** NexusOps **Customer & Sales Dashboard** (`/app/customer-sales`), **`crm`** API, **`csm`** (customer service cases), and linked surfaces (**catalog**, **surveys**)  
+**Scope:** CoheronConnect **Customer & Sales Dashboard** (`/app/customer-sales`), **`crm`** API, **`csm`** (customer service cases), and linked surfaces (**catalog**, **surveys**)  
 **Audience:** Product strategy, revenue operations, and CRM evaluation teams  
 **Date:** April 2026  
 
@@ -9,15 +9,15 @@
 
 ## 1. Executive summary
 
-NexusOps delivers a **unified operational dashboard** for revenue-adjacent work: **live CRM KPIs** (open pipeline, closed-won, new leads), a **deal list** and **stage-based pipeline summary**, **open catalog requests**, **active surveys**, and deep links into **CRM**, **CSM**, **catalog**, and **surveys**. The **`crm`** router implements **accounts, contacts, deals** (with a **fixed stage enum**), **leads** (lifecycle statuses, convert to deal), **activities**, **quotes**, and **dashboard metrics**.
+CoheronConnect delivers a **unified operational dashboard** for revenue-adjacent work: **live CRM KPIs** (open pipeline, closed-won, new leads), a **deal list** and **stage-based pipeline summary**, **open catalog requests**, **active surveys**, and deep links into **CRM**, **CSM**, **catalog**, and **surveys**. The **`crm`** router implements **accounts, contacts, deals** (with a **fixed stage enum**), **leads** (lifecycle statuses, convert to deal), **activities**, **quotes**, and **dashboard metrics**.
 
-HubSpot’s product story is a **connected customer platform**: a **flexible CRM** (custom properties, multiple pipelines, associations, timeline), **Marketing Hub** (forms, email, automation, ads, content), **Sales Hub** (sequences, playbooks, meetings, forecasting tiers), **Service Hub** (tickets, help desk, knowledge, portal), **Operations** and **data** tooling, **B2B commerce** where relevant, and a large **ecosystem** (App Marketplace, native integrations). NexusOps is **stronger as an ERP / service-management backbone** with CRM **adjacent**; it is **not** a full **HubSpot-class growth stack** out of the box.
+HubSpot’s product story is a **connected customer platform**: a **flexible CRM** (custom properties, multiple pipelines, associations, timeline), **Marketing Hub** (forms, email, automation, ads, content), **Sales Hub** (sequences, playbooks, meetings, forecasting tiers), **Service Hub** (tickets, help desk, knowledge, portal), **Operations** and **data** tooling, **B2B commerce** where relevant, and a large **ecosystem** (App Marketplace, native integrations). CoheronConnect is **stronger as an ERP / service-management backbone** with CRM **adjacent**; it is **not** a full **HubSpot-class growth stack** out of the box.
 
-**Bottom line:** For a HubSpot CPO-style evaluation, NexusOps covers **core CRM record types** and a **credible revenue dashboard**, with the largest gaps in **marketing automation**, **pipeline and property configurability**, **sales engagement** (sequences, meetings), **forecasting and RevOps depth**, **CSM metrics on the hub** (currently **placeholder**), and **platform ecosystem** parity.
+**Bottom line:** For a HubSpot CPO-style evaluation, CoheronConnect covers **core CRM record types** and a **credible revenue dashboard**, with the largest gaps in **marketing automation**, **pipeline and property configurability**, **sales engagement** (sequences, meetings), **forecasting and RevOps depth**, **CSM metrics on the hub** (currently **placeholder**), and **platform ecosystem** parity.
 
 ---
 
-## 2. What NexusOps provides (observed)
+## 2. What CoheronConnect provides (observed)
 
 | Area | Implementation notes |
 |------|------------------------|
@@ -32,7 +32,7 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 
 ### 3.1 Customer & Sales dashboard vs HubSpot “home / reporting”
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **Role-aware CRM home** | Customisable reports, today’s meetings, deal alerts | Dashboard is **aggregate KPI + tables**; no **rep-level task** surface on this page | **Partial** |
 | **Service + sales in one view** | Service Hub + CRM unified timeline | CSM + CRM linked by account; hub **does not show case volume** | **Gap** — **CSM stats placeholder** on dashboard |
@@ -41,7 +41,7 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 
 ### 3.2 CRM data model (companies, contacts, deals)
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **Companies & contacts** | Rich records, dedupe, merge | Accounts + contacts with optional link | **Partial** — **dedupe/merge** not assumed |
 | **Custom properties** | Extensive, per object | Org **custom fields** exist elsewhere in platform; **not enumerated** on CRM objects in this review | **Partial** — verify CRM object coverage |
@@ -52,17 +52,17 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 
 ### 3.3 Marketing Hub (inbound, campaigns, automation)
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **Forms & landing pages** | Drag-drop, GDPR, progressive profiling | **Not in CRM router** | **Gap** |
 | **Email marketing & nurture** | Visual builder, A/B, send-time | **Not observed** as HubSpot-equivalent | **Gap** |
 | **Workflows / automation** | If/then across objects | **Workflows** engine exists platform-wide; **not** positioned as **marketing automation** | **Partial** — different **centre of gravity** |
 | **Lists & segmentation** | Active/static lists | **Filter queries** on entities; **not** full list builder UX | **Partial** |
-| **Ads, social, blog, SEO** | Native or integrated | **Out of scope** for NexusOps CRM surface | **Gap** for **all-in-one** comparison |
+| **Ads, social, blog, SEO** | Native or integrated | **Out of scope** for CoheronConnect CRM surface | **Gap** for **all-in-one** comparison |
 
 ### 3.4 Sales Hub (engagement, productivity, forecasting)
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **Email tracking & sequences** | Opens, clicks, multi-step sequences | **Not observed** in CRM API | **Gap** |
 | **Meetings & calendar** | Booking links, round-robin | **Not observed** | **Gap** |
@@ -70,9 +70,9 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 | **Forecasting** | Team rollup, categories, quota | **Weighted value** on create; **no** forecast workspace | **Partial** |
 | **Mobile CRM** | Native apps | Web-first | **Partial** |
 
-### 3.5 Service Hub (support) vs NexusOps CSM
+### 3.5 Service Hub (support) vs CoheronConnect CSM
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **Tickets & SLAs** | Pipelines, SLAs, help desk | **CSM cases** + **ITSM-style** platform elsewhere | **Partial** — **different** primary model |
 | **Knowledge base & portal** | Customer-facing KB | **Knowledge** module is **internal**-leaning in broader product | **Partial** |
@@ -80,7 +80,7 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 
 ### 3.6 Quotes, CPQ, and revenue operations
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **Quotes & e-sign** | Quote PDF, signatures (tiers) | **Quotes** with items, status lifecycle | **Partial** — **e-sign** not assumed |
 | **Subscriptions & billing** | Commerce / integrations | **Financial** modules separate; **not** quote-to-cash in one HubSpot-like flow | **Partial** |
@@ -88,7 +88,7 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 
 ### 3.7 Platform, AI, and ecosystem
 
-| Capability | HubSpot (typical) | NexusOps | Assessment |
+| Capability | HubSpot (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|------------|
 | **App Marketplace & integrations** | Thousands of connectors | **Integrations** router, curated catalogue | **Partial** at scale |
 | **CRM-powered AI** | Content, insights, agents (e.g. Breeze) | **`ai`** router platform-wide; **not** CRM-scoped in this review | **Partial** |
@@ -98,14 +98,14 @@ HubSpot’s product story is a **connected customer platform**: a **flexible CRM
 
 ## 4. Strategic implications (CPO talking points)
 
-1. **Positioning:** NexusOps should be sold as **“CRM + operations on one spine”** (deals + catalog + service cases + finance adjacent), not as a **replacement for HubSpot Marketing + Sales + Service** without a **clear scope line**.
+1. **Positioning:** CoheronConnect should be sold as **“CRM + operations on one spine”** (deals + catalog + service cases + finance adjacent), not as a **replacement for HubSpot Marketing + Sales + Service** without a **clear scope line**.
 2. **Quick win:** Wire **CSM case counts** (open, high priority) into the Customer & Sales dashboard to remove the **`"—"`** placeholder and align with **unified revenue + service** narrative.
 3. **Pipeline semantics:** Align **UI stage labels** with **`movePipeline` enums** (e.g. `qualification` vs `qualified`) to avoid **RevOps distrust** in demos.
 4. **Partner strategy:** For **marketing automation** and **sales engagement**, a **partner** or **integration-first** story (HubSpot, Salesforce Marketing Cloud, Outreach, etc.) may be more honest than implying **native parity**.
 
 ---
 
-## 5. Code references (for NexusOps maintainers)
+## 5. Code references (for CoheronConnect maintainers)
 
 | Topic | Location |
 |-------|----------|
@@ -269,4 +269,4 @@ This section maps **§3 gaps** and **§4 strategic themes** to a **time-boxed ba
 
 ## 7. Disclaimer
 
-This document is based on **repository review** as of the analysis date. **HubSpot** packaging and features vary by **hub, tier, and add-ons**. NexusOps capabilities vary by **deployment and UI completeness**. Use this as a **competitive positioning and roadmap checklist**, not a warranty of either product.
+This document is based on **repository review** as of the analysis date. **HubSpot** packaging and features vary by **hub, tier, and add-ons**. CoheronConnect capabilities vary by **deployment and UI completeness**. Use this as a **competitive positioning and roadmap checklist**, not a warranty of either product.

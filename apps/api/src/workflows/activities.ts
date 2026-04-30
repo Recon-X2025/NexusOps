@@ -3,7 +3,7 @@
  * These are pure async functions: no side effects beyond the documented action.
  * Each is idempotent-safe: callers must pass a dedupe key.
  */
-import type { Db } from "@nexusops/db";
+import type { Db } from "@coheronconnect/db";
 import { sendNotification } from "../services/notifications";
 
 export interface ActivityContext {
@@ -47,7 +47,7 @@ export async function writeWorkflowAuditLog(
   },
 ): Promise<void> {
   try {
-    const { auditLogs } = await import("@nexusops/db");
+    const { auditLogs } = await import("@coheronconnect/db");
     await ctx.db.insert(auditLogs).values({
       orgId: ctx.orgId,
       userId: ctx.actorId === "system" ? undefined : ctx.actorId,

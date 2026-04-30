@@ -28,9 +28,9 @@ import {
   isNull,
   gte,
   inArray,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
-import { CreateLeaveRequestSchema } from "@nexusops/types";
+import { CreateLeaveRequestSchema } from "@coheronconnect/types";
 
 export const hrRouter = router({
   /** Compact counts for platform home (US-HCM-004). */
@@ -618,7 +618,7 @@ export const hrRouter = router({
       )
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { payslips: payslipsTable, desc: descOp, salaryStructures } = await import("@nexusops/db");
+        const { payslips: payslipsTable, desc: descOp, salaryStructures } = await import("@coheronconnect/db");
         const conditions = [eq(payslipsTable.orgId, org!.id)];
         if (input.employeeId) conditions.push(eq(payslipsTable.employeeId, input.employeeId));
         if (input.year) conditions.push(eq(payslipsTable.year, input.year));
@@ -646,7 +646,7 @@ export const hrRouter = router({
         if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
         if (!emp.salaryStructureId) return null;
 
-        const { salaryStructures } = await import("@nexusops/db");
+        const { salaryStructures } = await import("@coheronconnect/db");
         const [structure] = await db
           .select()
           .from(salaryStructures)
@@ -744,7 +744,7 @@ export const hrRouter = router({
         if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
         if (!emp.salaryStructureId) throw new TRPCError({ code: "BAD_REQUEST", message: "No salary structure assigned" });
 
-        const { salaryStructures } = await import("@nexusops/db");
+        const { salaryStructures } = await import("@coheronconnect/db");
         const [structure] = await db
           .select()
           .from(salaryStructures)
@@ -781,7 +781,7 @@ export const hrRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { payrollRuns, salaryStructures, payslips: payslipsTable } = await import("@nexusops/db");
+        const { payrollRuns, salaryStructures, payslips: payslipsTable } = await import("@coheronconnect/db");
         const { computeMonthlySalarySlip } = await import("../lib/india/payroll-engine.js");
 
         // Check for duplicate run
@@ -901,7 +901,7 @@ export const hrRouter = router({
       .input(z.object({ month: z.number().int().min(1).max(12), year: z.number().int() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { payrollRuns, payslips: payslipsTable } = await import("@nexusops/db");
+        const { payrollRuns, payslips: payslipsTable } = await import("@coheronconnect/db");
         const { formatECRFile } = await import("../lib/india/payroll-engine.js");
 
         const [run] = await db
@@ -959,7 +959,7 @@ export const hrRouter = router({
   holidays: router({
     list: permissionProcedure("hr", "read").input(z.object({ year: z.number().int().optional() })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { publicHolidays, gte, lte, and: dbAnd, eq: dbEq, asc: dbAsc } = await import("@nexusops/db");
+      const { publicHolidays, gte, lte, and: dbAnd, eq: dbEq, asc: dbAsc } = await import("@coheronconnect/db");
       const year = input.year ?? new Date().getFullYear();
       const start = new Date(year, 0, 1);
       const end = new Date(year, 11, 31, 23, 59, 59);
@@ -978,21 +978,21 @@ export const hrRouter = router({
       notes: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { publicHolidays } = await import("@nexusops/db");
+      const { publicHolidays } = await import("@coheronconnect/db");
       const [h] = await db.insert(publicHolidays).values({ ...input, orgId: org!.id }).returning();
       return h!;
     }),
 
     delete: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { publicHolidays, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { publicHolidays, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       await db.delete(publicHolidays).where(dbAnd(dbEq(publicHolidays.id, input.id), dbEq(publicHolidays.orgId, org!.id)));
       return { success: true };
     }),
 
     seedIndiaHolidays: permissionProcedure("hr", "write").input(z.object({ year: z.number().int() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { publicHolidays } = await import("@nexusops/db");
+      const { publicHolidays } = await import("@coheronconnect/db");
       const year = input.year;
       const national = [
         { name: "New Year Day", date: new Date(year, 0, 1) },
@@ -1022,7 +1022,7 @@ export const hrRouter = router({
       year: z.number().int().optional(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { attendanceRecords, employees: emps, gte, lte, and: dbAnd, eq: dbEq, desc: dbDesc } = await import("@nexusops/db");
+      const { attendanceRecords, employees: emps, gte, lte, and: dbAnd, eq: dbEq, desc: dbDesc } = await import("@coheronconnect/db");
       const conds: any[] = [dbEq(attendanceRecords.orgId, org!.id)];
       if (input.employeeId) conds.push(dbEq(attendanceRecords.employeeId, input.employeeId));
       if (input.month && input.year) {
@@ -1041,7 +1041,7 @@ export const hrRouter = router({
       shiftType: z.enum(["morning", "afternoon", "night", "flexible", "remote"]).default("flexible"),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const date = input.date ?? new Date();
       const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const [rec] = await db.insert(attendanceRecords).values({ orgId: org!.id, employeeId: input.employeeId, date: dateStart, status: "present", shiftType: input.shiftType, checkIn: new Date() }).returning();
@@ -1050,7 +1050,7 @@ export const hrRouter = router({
 
     clockOut: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { attendanceRecords, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const [rec] = await db.select().from(attendanceRecords).where(dbAnd(dbEq(attendanceRecords.id, input.id), dbEq(attendanceRecords.orgId, org!.id))).limit(1);
       if (!rec) throw new TRPCError({ code: "NOT_FOUND" });
       const checkOut = new Date();
@@ -1068,7 +1068,7 @@ export const hrRouter = router({
       })),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { attendanceRecords } = await import("@nexusops/db");
+      const { attendanceRecords } = await import("@coheronconnect/db");
       const rows = input.records.map(r => ({ ...r, orgId: org!.id, date: new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate()) }));
       await db.insert(attendanceRecords).values(rows).onConflictDoNothing();
       return { count: rows.length };
@@ -1083,7 +1083,7 @@ export const hrRouter = router({
       limit: z.number().int().min(1).max(100).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { expenseClaims, employees: emps, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@nexusops/db");
+      const { expenseClaims, employees: emps, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
       const conds: any[] = [dbEq(expenseClaims.orgId, org!.id)];
       if (input.employeeId) conds.push(dbEq(expenseClaims.employeeId, input.employeeId));
       if (input.status) conds.push(dbEq(expenseClaims.status, input.status as any));
@@ -1104,7 +1104,7 @@ export const hrRouter = router({
       projectCode: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { expenseClaims, count: dbCount, eq: dbEq } = await import("@nexusops/db");
+      const { expenseClaims, count: dbCount, eq: dbEq } = await import("@coheronconnect/db");
       const [c] = await db.select({ n: dbCount() }).from(expenseClaims).where(dbEq(expenseClaims.orgId, org!.id));
       const seq = (c?.n ?? 0) + 1;
       const number = "EXP-" + new Date().getFullYear() + "-" + String(seq).padStart(4, "0");
@@ -1134,7 +1134,7 @@ export const hrRouter = router({
       ocrConfidence: z.number().min(0).max(1).optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { employees, expenseClaims, count: dbCount, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { employees, expenseClaims, count: dbCount, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
 
       const [emp] = await db
         .select({ id: employees.id })
@@ -1238,7 +1238,7 @@ export const hrRouter = router({
       limit: z.number().int().min(1).max(100).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { employees, expenseClaims, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@nexusops/db");
+      const { employees, expenseClaims, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
       const [emp] = await db
         .select({ id: employees.id })
         .from(employees)
@@ -1257,7 +1257,7 @@ export const hrRouter = router({
 
     submit: permissionProcedure("hr", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const [c] = await db.update(expenseClaims).set({ status: "submitted", updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
       return c!;
     }),
@@ -1275,7 +1275,7 @@ export const hrRouter = router({
       rejectionReason: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const status = input.approved ? "approved" as const : "rejected" as const;
       const [c] = await db.update(expenseClaims).set({ status, approvedById: input.approved ? user!.id : null, approvedAt: input.approved ? new Date() : null, rejectionReason: input.rejectionReason, updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
       return c!;
@@ -1287,7 +1287,7 @@ export const hrRouter = router({
      */
     markReimbursed: permissionProcedure("financial", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const [c] = await db.update(expenseClaims).set({ status: "reimbursed", reimbursedAt: new Date(), updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
       return c!;
     }),
@@ -1300,7 +1300,7 @@ export const hrRouter = router({
       cycle: z.enum(["q1", "q2", "q3", "q4", "annual"]).optional(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { okrObjectives, okrKeyResults, users: usersT, eq: dbEq, and: dbAnd, desc: dbDesc, inArray: dbInArray } = await import("@nexusops/db");
+      const { okrObjectives, okrKeyResults, users: usersT, eq: dbEq, and: dbAnd, desc: dbDesc, inArray: dbInArray } = await import("@coheronconnect/db");
       const conds: any[] = [dbEq(okrObjectives.orgId, org!.id)];
       if (input.year) conds.push(dbEq(okrObjectives.year, input.year));
       if (input.cycle) conds.push(dbEq(okrObjectives.cycle, input.cycle));
@@ -1324,7 +1324,7 @@ export const hrRouter = router({
       year: z.number().int(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { okrObjectives } = await import("@nexusops/db");
+      const { okrObjectives } = await import("@coheronconnect/db");
       const [obj] = await db.insert(okrObjectives).values({ ...input, orgId: org!.id, status: "active" }).returning();
       return obj!;
     }),
@@ -1337,7 +1337,7 @@ export const hrRouter = router({
       dueDate: z.coerce.date().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { okrKeyResults } = await import("@nexusops/db");
+      const { okrKeyResults } = await import("@coheronconnect/db");
       const [kr] = await db.insert(okrKeyResults).values({ ...input, orgId: org!.id, targetValue: String(input.targetValue), status: "on_track" }).returning();
       return kr!;
     }),
@@ -1349,7 +1349,7 @@ export const hrRouter = router({
       notes: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { db } = ctx;
-      const { okrKeyResults, okrObjectives, eq: dbEq } = await import("@nexusops/db");
+      const { okrKeyResults, okrObjectives, eq: dbEq } = await import("@coheronconnect/db");
       const [kr] = await db.update(okrKeyResults).set({ currentValue: String(input.currentValue), status: input.status, notes: input.notes, updatedAt: new Date() }).where(dbEq(okrKeyResults.id, input.id)).returning();
       if (kr) {
         const allKRs = await db.select().from(okrKeyResults).where(dbEq(okrKeyResults.objectiveId, kr.objectiveId));

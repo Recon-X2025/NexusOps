@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { systemRolesForDbUser, checkDbUserPermission } from "../lib/rbac-db";
-import { hasPermission, canAccessModule } from "@nexusops/types";
+import { hasPermission, canAccessModule } from "@coheronconnect/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Basic role mapping

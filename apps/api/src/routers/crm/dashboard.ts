@@ -5,7 +5,7 @@
  * Accessed via `trpc.crm.dashboard.*` on the frontend.
  */
 import { router, permissionProcedure } from "../../lib/trpc";
-import { crmDeals, crmLeads, eq, and, desc, count, sum, inArray, notInArray, lt } from "@nexusops/db";
+import { crmDeals, crmLeads, eq, and, desc, count, sum, inArray, notInArray, lt } from "@coheronconnect/db";
 
 async function getExecutiveSummary(db: any, orgId: string) {
   const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })

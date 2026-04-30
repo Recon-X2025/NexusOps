@@ -1,7 +1,7 @@
 /**
- * NexusOps Full-QA — Suite 10: Module Completeness & Market Benchmark
+ * CoheronConnect Full-QA — Suite 10: Module Completeness & Market Benchmark
  *
- * Benchmarks NexusOps against industry-standard ITSM/ERP platforms:
+ * Benchmarks CoheronConnect against industry-standard ITSM/ERP platforms:
  *   ServiceNow · Jira Service Management · Freshservice · Zoho Desk · SAP/Others
  *
  * Each test asserts that a market-standard capability exists in the platform —

@@ -4,14 +4,15 @@ import { z } from "zod";
 import {
   inventoryItems,
   inventoryTransactions,
+  reorderPolicies,
   eq,
   and,
   desc,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const inventoryRouter = router({
-  list: permissionProcedure("work_orders", "read")
+  list: permissionProcedure("inventory", "read")
     .input(
       z.object({
         search: z.string().optional(),
@@ -42,7 +43,7 @@ export const inventoryRouter = router({
       return { items: filtered, total: filtered.length };
     }),
 
-  create: permissionProcedure("work_orders", "write")
+  create: permissionProcedure("inventory", "write")
     .input(
       z.object({
         partNumber: z.string().min(1),
@@ -77,7 +78,7 @@ export const inventoryRouter = router({
       return item;
     }),
 
-  issueStock: permissionProcedure("work_orders", "write")
+  issueStock: permissionProcedure("inventory", "write")
     .input(
       z.object({
         itemId: z.string().uuid(),
@@ -122,7 +123,7 @@ export const inventoryRouter = router({
       return tx;
     }),
 
-  reorder: permissionProcedure("work_orders", "write")
+  reorder: permissionProcedure("inventory", "write")
     .input(
       z.object({
         itemId: z.string().uuid(),
@@ -154,7 +155,7 @@ export const inventoryRouter = router({
       return tx;
     }),
 
-  intake: permissionProcedure("work_orders", "write")
+  intake: permissionProcedure("inventory", "write")
     .input(
       z.object({
         itemId: z.string().uuid(),
@@ -193,7 +194,7 @@ export const inventoryRouter = router({
       return tx;
     }),
 
-  transactions: permissionProcedure("work_orders", "read")
+  transactions: permissionProcedure("inventory", "read")
     .input(z.object({ itemId: z.string().uuid().optional(), limit: z.number().int().max(100).default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -205,5 +206,31 @@ export const inventoryRouter = router({
         .where(and(...conditions))
         .orderBy(desc(inventoryTransactions.createdAt))
         .limit(input.limit);
+    }),
+
+  listPolicies: permissionProcedure("inventory", "read")
+    .query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(reorderPolicies)
+        .where(eq(reorderPolicies.orgId, org!.id))
+        .orderBy(desc(reorderPolicies.createdAt));
+    }),
+
+  createPolicy: permissionProcedure("inventory", "write")
+    .input(z.object({
+      itemId: z.string().uuid(),
+      thresholdQty: z.number().int().min(0),
+      reorderQty: z.number().int().min(1),
+      isAutomated: z.boolean().default(false),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [policy] = await db
+        .insert(reorderPolicies)
+        .values({ orgId: org!.id, ...input })
+        .returning();
+      return policy;
     }),
 });

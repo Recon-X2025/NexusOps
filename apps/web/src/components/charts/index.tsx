@@ -27,9 +27,14 @@ import {
 
 // ── Shared colour palette (consistent across all charts) ─────────────────────
 export const CHART_COLORS = [
-  "hsl(var(--primary))",
-  "#6366f1", "#10b981", "#f59e0b", "#ef4444",
-  "#8b5cf6", "#06b6d4", "#84cc16", "#f97316",
+  "hsl(196, 100%, 45%)", // CoheronConnect Blue (Purposeful)
+  "hsl(224, 71%, 15%)",  // Deep Executive Navy
+  "hsl(220, 14%, 46%)",  // Slate Professional
+  "hsl(161, 94%, 25%)",  // Emerald Diagnostic (Success)
+  "hsl(38, 92%, 45%)",   // Amber Signal (Warning)
+  "hsl(350, 89%, 55%)",  // Rose Alert (Critical)
+  "hsl(196, 100%, 30%)", // Deep Ocean
+  "hsl(220, 14%, 55%)",  // Muted Grey (Darker for contrast)
 ];
 
 // ── Custom tooltip ────────────────────────────────────────────────────────────
@@ -76,7 +81,7 @@ export function LineChart({
         <XAxis dataKey={xKey} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={yFormatter} width={yFormatter ? 48 : 36} />
         <Tooltip content={<ChartTooltip />} />
-        {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {legend && <Legend wrapperStyle={{ fontSize: 11, color: "hsl(var(--foreground))" }} />}
         {lines.map((l, i) => (
           <Line
             key={l.key}
@@ -136,7 +141,7 @@ export function BarChart({
           </>
         )}
         <Tooltip content={<ChartTooltip />} />
-        {legend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {legend && <Legend wrapperStyle={{ fontSize: 11, color: "hsl(var(--foreground))" }} />}
         {bars.map((b, i) => (
           <Bar
             key={b.key}

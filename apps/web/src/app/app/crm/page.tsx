@@ -390,7 +390,7 @@ export default function CRMPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal Title *</label>
-                <input autoFocus className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. NexusOps Enterprise — Acme Corp" />
+                <input autoFocus className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. CoheronConnect Enterprise — Acme Corp" />
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company (Account)</label>
@@ -1238,7 +1238,7 @@ export default function CRMPage() {
                 <input
                   value={newQuoteDesc}
                   onChange={(e) => setNewQuoteDesc(e.target.value)}
-                  placeholder="e.g. NexusOps Enterprise License"
+                  placeholder="e.g. CoheronConnect Enterprise License"
                   className="w-full border border-border rounded px-3 py-1.5 text-[13px] bg-card outline-none"
                 />
               </div>

@@ -3,7 +3,7 @@
  * v1 DSL: conditions (status category, field changed) + actions (notify_user, notify_assignee).
  */
 import { z } from "zod";
-import { and, asc, eq, businessRules, ticketStatuses } from "@nexusops/db";
+import { and, asc, eq, businessRules, ticketStatuses } from "@coheronconnect/db";
 import { sendNotification } from "./notifications";
 import { runWorkflowAction } from "../workflows/actions/runtime";
 

@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import { AuthLoginOutputSchema, LoginSchema } from "@nexusops/types";
+import { AuthLoginOutputSchema, LoginSchema } from "@coheronconnect/types";
 
 function tryParseLoginPayload(data: unknown): string | null {
   const direct = AuthLoginOutputSchema.safeParse(data);
@@ -67,8 +67,8 @@ export async function trpcLogin(page: Page, baseUrl: string, email: string, pass
 
   await page.evaluate(
     (sid) => {
-      localStorage.setItem("nexusops_session", sid);
-      document.cookie = `nexusops_session=${sid}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      localStorage.setItem("coheronconnect_session", sid);
+      document.cookie = `coheronconnect_session=${sid}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
     },
     sessionId,
   );

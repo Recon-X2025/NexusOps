@@ -43,8 +43,8 @@ export default function AcceptInvitePage() {
 
   const accept = trpc.auth.acceptInvite.useMutation({
     onSuccess: (data) => {
-      localStorage.setItem("nexusops_session", data.sessionId);
-      document.cookie = `nexusops_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      localStorage.setItem("coheronconnect_session", data.sessionId);
+      document.cookie = `coheronconnect_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
       utils.auth.me.invalidate();
       setDone(true);
       setTimeout(() => router.push("/app/dashboard"), 1500);
@@ -65,7 +65,7 @@ export default function AcceptInvitePage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">NexusOps</h1>
+          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
           <p className="text-sm text-slate-400">by Coheron</p>
         </div>
 

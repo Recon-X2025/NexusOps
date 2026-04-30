@@ -9,7 +9,7 @@ export default defineConfig([
     sourcemap: true,
     target: "node20",
     // Bundle internal workspace packages so Docker runner doesn't need their node_modules
-    noExternal: ["@nexusops/db", "@nexusops/types", "@nexusops/metrics", "@nexusops/config"],
+    noExternal: ["@coheronconnect/db", "@coheronconnect/types", "@coheronconnect/metrics", "@coheronconnect/config"],
     banner: {
       js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
     },
@@ -30,6 +30,6 @@ export default defineConfig([
     dts: { only: true },
     outDir: "dist",
     sourcemap: false,
-    external: ["@nexusops/db", "fastify", "@fastify/*", "ioredis", "bullmq", "bcryptjs", "jsonwebtoken", "nanoid", "meilisearch", "@anthropic-ai/sdk"],
+    external: ["@coheronconnect/db", "fastify", "@fastify/*", "ioredis", "bullmq", "bcryptjs", "jsonwebtoken", "nanoid", "meilisearch", "@anthropic-ai/sdk"],
   },
 ]);

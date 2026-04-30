@@ -14,6 +14,7 @@
  */
 
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCENT_BORDER } from "../shared/accent";
 import { WorkbenchSection, WorkbenchEmpty } from "../shared/workbench-section";
@@ -32,9 +33,15 @@ export interface QueueRow {
 
 export function QueueTable({
   rows,
+  page,
+  totalPages,
+  onPageChange,
   state,
 }: {
   rows: QueueRow[] | null;
+  page?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
   state: "loading" | "ok" | "no_data" | "error";
 }) {
   return (
@@ -88,6 +95,31 @@ export function QueueTable({
               ))}
             </tbody>
           </table>
+          {page !== undefined && totalPages !== undefined && onPageChange && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onPageChange(page - 1)}
+                  disabled={page <= 1}
+                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Prev
+                </button>
+                <button
+                  onClick={() => onPageChange(page + 1)}
+                  disabled={page >= totalPages}
+                  className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                >
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </WorkbenchSection>

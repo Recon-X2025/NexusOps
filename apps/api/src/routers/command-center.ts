@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { auditLogs } from "@nexusops/db";
-import { ALL_FUNCTION_KEYS, type RoleViewKey, type CommandCenterPayload } from "@nexusops/metrics";
+import { auditLogs } from "@coheronconnect/db";
+import { ALL_FUNCTION_KEYS, type RoleViewKey, type CommandCenterPayload } from "@coheronconnect/metrics";
 import { getRedis } from "../lib/redis";
 import {
   buildCommandCenterPayload,

@@ -4,7 +4,7 @@
  * Pipeline:
  *   createGSTInvoice (financial.ts)
  *     → enqueueIrnGenerationJob(invoiceId)
- *       → BullMQ "nexusops-irn-generation"
+ *       → BullMQ "coheronconnect-irn-generation"
  *         → worker loads invoice + line items + ClearTax integration config
  *           → builds IrnRequest from invoice columns
  *             → clearTaxGstAdapter.send()
@@ -33,7 +33,7 @@ import {
   integrations,
   vendors,
   type Db,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "../services/encryption";
 import {
   clearTaxGstAdapter,
@@ -52,7 +52,7 @@ export interface IrnJobData {
   force?: boolean;
 }
 
-export const IRN_GENERATION_QUEUE_NAME = "nexusops-irn-generation";
+export const IRN_GENERATION_QUEUE_NAME = "coheronconnect-irn-generation";
 
 let _queue: Queue<IrnJobData> | null = null;
 

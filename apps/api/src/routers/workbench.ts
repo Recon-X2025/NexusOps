@@ -10,7 +10,8 @@
  */
 
 import { router, permissionProcedure } from "../lib/trpc";
-import { canAccessWorkbench, type WorkbenchKey, type SystemRole } from "@nexusops/types";
+import { z } from "zod";
+import { canAccessWorkbench, type WorkbenchKey, type SystemRole } from "@coheronconnect/types";
 import { systemRolesForDbUser } from "../lib/rbac-db";
 import { TRPCError } from "@trpc/server";
 import {
@@ -49,10 +50,12 @@ function assertWorkbenchAccess(
 }
 
 export const workbenchRouter = router({
-  serviceDesk: permissionProcedure("workbench", "read").query(async ({ ctx }) => {
-    assertWorkbenchAccess(ctx.user, "service-desk");
-    return buildServiceDeskPayload({ db: ctx.db, orgId: ctx.org!.id as string });
-  }),
+  serviceDesk: permissionProcedure("workbench", "read")
+    .input(z.object({ page: z.number().optional().default(1) }).optional())
+    .query(async ({ ctx, input }) => {
+      assertWorkbenchAccess(ctx.user, "service-desk");
+      return buildServiceDeskPayload({ db: ctx.db, orgId: ctx.org!.id as string, page: input?.page ?? 1 });
+    }),
 
   changeRelease: permissionProcedure("workbench", "read").query(async ({ ctx }) => {
     assertWorkbenchAccess(ctx.user, "change-release");

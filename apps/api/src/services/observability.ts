@@ -1,5 +1,5 @@
 /**
- * observability.ts — OpenTelemetry instrumentation for NexusOps API
+ * observability.ts — OpenTelemetry instrumentation for CoheronConnect API
  *
  * Traces:
  * - All tRPC requests (via HTTP auto-instrumentation)
@@ -10,7 +10,7 @@
  *
  * Configuration (ENV):
  *   OTEL_EXPORTER_OTLP_ENDPOINT — OTLP receiver URL, e.g. http://otel-collector:4318
- *   OTEL_SERVICE_NAME           — defaults to "nexusops-api"
+ *   OTEL_SERVICE_NAME           — defaults to "coheronconnect-api"
  *   OTEL_TRACES_SAMPLER         — defaults to "always_on"; set "parentbased_traceidratio" + OTEL_TRACES_SAMPLER_ARG for sampling
  *
  * IMPORTANT: This module must be imported BEFORE any other module in the entry point
@@ -23,7 +23,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 
-const SERVICE_NAME = process.env["OTEL_SERVICE_NAME"] ?? "nexusops-api";
+const SERVICE_NAME = process.env["OTEL_SERVICE_NAME"] ?? "coheronconnect-api";
 const OTLP_ENDPOINT = process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
 
 let _sdk: NodeSDK | undefined;

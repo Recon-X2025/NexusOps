@@ -1,11 +1,11 @@
-import { and, eq, inArray, sql, ticketStatuses, type Db } from "@nexusops/db";
+import { and, eq, inArray, sql, ticketStatuses, type Db } from "@coheronconnect/db";
 
 const ORG_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Ensures the organisation has the default ITSM status ladder (open → in_progress → pending → resolved → closed).
- * Lives in the API package so `tsx watch` picks up changes without rebuilding `@nexusops/db` dist.
+ * Lives in the API package so `tsx watch` picks up changes without rebuilding `@coheronconnect/db` dist.
  */
 export async function ensureDefaultTicketStatusesForOrg(db: Db, orgId: string): Promise<void> {
   if (!ORG_UUID_RE.test(orgId)) {

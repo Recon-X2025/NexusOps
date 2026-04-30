@@ -12,7 +12,7 @@
  * cess come from `lib/india-tax-engine.ts`. This module's job is purely to
  * roll up 12 monthly payslips into the annual figures Form 16 expects.
  */
-import type { employees, payslips, organizations } from "@nexusops/db";
+import type { employees, payslips, organizations } from "@coheronconnect/db";
 import type { Form16PDFInput } from "../../services/form16-pdf";
 import { computeTax, type EmployeeTaxProfile } from "../india-tax-engine";
 

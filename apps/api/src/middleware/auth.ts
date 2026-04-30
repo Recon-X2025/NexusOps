@@ -11,7 +11,7 @@ import {
   eq,
   and,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import type { Context } from "../lib/trpc";
 import { getRedis } from "../lib/redis";
 
@@ -298,7 +298,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
 
   let sessionCookie: string | null = null;
   if (cookieHeader) {
-    const match = cookieHeader.match(/nexusops_session=([^;]+)/);
+    const match = cookieHeader.match(/coheronconnect_session=([^;]+)/);
     sessionCookie = match ? match[1]!.trim() : null;
   }
 
@@ -335,7 +335,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
   // ── API key path ─────────────────────────────────────────────────────────
   if (token.startsWith("nxo_")) {
     const keyHash = createHash("sha256").update(token).digest("hex");
-    const { apiKeys } = await import("@nexusops/db");
+    const { apiKeys } = await import("@coheronconnect/db");
     const [apiKey] = await db
       .select()
       .from(apiKeys)

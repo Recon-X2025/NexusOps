@@ -6,7 +6,7 @@ import {
   eq,
   and,
   desc,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const oncallRouter = router({
   schedules: router({

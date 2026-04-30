@@ -1,4 +1,4 @@
-import { directors, complianceCalendarItems, eq, and } from "@nexusops/db";
+import { directors, complianceCalendarItems, eq, and } from "@coheronconnect/db";
 import { sendNotification } from "../../services/notifications";
 import type { WorkflowAction } from "./types";
 

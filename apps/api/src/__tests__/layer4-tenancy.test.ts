@@ -12,8 +12,8 @@ beforeAll(async () => {
     );
   }
 });
-import { tickets, ticketStatuses, ticketPriorities, organizations, users, sessions } from "@nexusops/db";
-import { eq, and, sql } from "@nexusops/db";
+import { tickets, ticketStatuses, ticketPriorities, organizations, users, sessions } from "@coheronconnect/db";
+import { eq, and, sql } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
 
@@ -31,7 +31,7 @@ describe("Layer 4: Multi-Tenancy Isolation", () => {
     // Seed Org A
     const { orgId: aidA } = await seedTestOrg();
     const { user: adminA } = await seedUser(aidA, {
-      email: `admin-a-l4@qa.nexusops.io`,
+      email: `admin-a-l4@qa.coheronconnect.io`,
       role: "admin",
       matrixRole: "admin",
       password: "TestPass123!",
@@ -49,7 +49,7 @@ describe("Layer 4: Multi-Tenancy Isolation", () => {
     // Seed Org B
     const { orgId: aidB } = await seedTestOrg();
     const { user: adminB } = await seedUser(aidB, {
-      email: `admin-b-l4@qa.nexusops.io`,
+      email: `admin-b-l4@qa.coheronconnect.io`,
       role: "admin",
       matrixRole: "admin",
       password: "TestPass123!",

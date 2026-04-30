@@ -1,5 +1,5 @@
 /**
- * Health evaluator for NexusOps API.
+ * Health evaluator for CoheronConnect API.
  *
  * Takes a MetricsSnapshot and applies a fixed rule set to produce one of:
  *

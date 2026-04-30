@@ -1,5 +1,5 @@
 /**
- * NexusOps chaos / system-validation — environment and safety configuration.
+ * CoheronConnect chaos / system-validation — environment and safety configuration.
  *
  * Database URL: `CHAOS_DATABASE_URL` or `DATABASE_URL` (either works; chaos-specific wins if both set).
  */
@@ -8,7 +8,7 @@ import * as path from "node:path";
 
 const DEFAULT_BASE = "http://localhost:3000";
 /** Default includes Playwright project key so parallel projects do not fight one org row. */
-const DEFAULT_ORG_SLUG_PREFIX = "nexusops-chaos-validation";
+const DEFAULT_ORG_SLUG_PREFIX = "coheronconnect-chaos-validation";
 const DEFAULT_SEED_PASSWORD = "ChaosValidation!9";
 
 function parseEnvLine(key: string, line: string): string | undefined {
@@ -106,7 +106,7 @@ export function getChaosConfig(projectKey: string): ChaosConfig {
     `${DEFAULT_ORG_SLUG_PREFIX}-${projectKey.replace(/-+/g, "-").slice(0, 40)}`;
   const seededAdminPassword =
     process.env["CHAOS_ADMIN_PASSWORD"]?.trim() || process.env["CHAOS_SEED_PASSWORD"]?.trim() || DEFAULT_SEED_PASSWORD;
-  const seededAdminEmail = `chaos.admin+${projectKey}@nexusops.test`;
+  const seededAdminEmail = `chaos.admin+${projectKey}@coheronconnect.test`;
 
   const loginEmail = skipSeed
     ? (process.env["CHAOS_LOGIN_EMAIL"] ?? process.env["CHAOS_ADMIN_EMAIL"] ?? "").trim()
@@ -148,7 +148,7 @@ export function assertDatabaseUrlMatchesBase(config: ChaosConfig): void {
   );
 }
 
-/** Ensure @nexusops/db getDb() uses the intended URL for this process. */
+/** Ensure @coheronconnect/db getDb() uses the intended URL for this process. */
 export function applyDatabaseUrlForDrizzle(url: string): void {
   process.env["DATABASE_URL"] = url;
 }

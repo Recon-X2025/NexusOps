@@ -5,7 +5,7 @@ import {
   crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmQuotes,
   organizations,
   eq, and, desc, count, sum, inArray, notInArray, lt,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 import {
   getCrmDealApprovalThresholds,

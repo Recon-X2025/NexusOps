@@ -52,7 +52,7 @@ export default function OmnichannelSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold">Omnichannel intake</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Single view of how work enters NexusOps today and what is on the roadmap for Phase C2-style parity with
+            Single view of how work enters CoheronConnect today and what is on the roadmap for Phase C2-style parity with
             enterprise ITSM consoles.
           </p>
         </div>

@@ -1,4 +1,4 @@
-import { eq } from "@nexusops/db";
+import { eq } from "@coheronconnect/db";
 
 /**
  * Returns a Drizzle `eq` condition scoping a query to a specific org.

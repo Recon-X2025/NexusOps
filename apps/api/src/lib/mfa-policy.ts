@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { organizations, users, auditLogs, eq } from "@nexusops/db";
+import { organizations, users, auditLogs, eq } from "@coheronconnect/db";
 import { parseOrgSettings } from "./org-settings";
 import { sanitizeForAudit } from "./audit-sanitize";
 

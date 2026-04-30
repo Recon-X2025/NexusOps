@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 08: E2E build-plan (outcome-based)
+ * CoheronConnect Full-QA — Suite 08: E2E build-plan (outcome-based)
  *
  * These tests validate that the platform does real work—not only that procedures
  * return HTTP 200. Each test asserts a create→read chain, structured API data,

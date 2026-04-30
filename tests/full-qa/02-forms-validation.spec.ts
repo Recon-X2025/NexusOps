@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA Suite — 02: Form Validation
+ * CoheronConnect Full-QA Suite — 02: Form Validation
  *
  * Tests every major form for:
  *  A) Empty submission → validation errors, no server 500

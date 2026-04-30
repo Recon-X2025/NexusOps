@@ -1,4 +1,4 @@
-NexusOps product scorecard
+CoheronConnect product scorecard
 ==========================
 
 Purpose

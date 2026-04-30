@@ -1,6 +1,6 @@
 /**
  * SMB-scale analytics demo seed (~400 headcount) for coheron-demo.
- * Run after `pnpm --filter @nexusops/db db:seed` (and optionally `db:seed:modules`).
+ * Run after `pnpm --filter @coheronconnect/db db:seed` (and optionally `db:seed:modules`).
  *
  * Idempotent: safe to re-run; fills headcount gaps and skips blocks that already
  * have marker rows unless SMB_SEED_FORCE=1.

@@ -1,5 +1,5 @@
-import { and, desc, eq, slaPolicies } from "@nexusops/db";
-import type { Db } from "@nexusops/db";
+import { and, desc, eq, slaPolicies } from "@coheronconnect/db";
+import type { Db } from "@coheronconnect/db";
 
 export type TicketSlaContext = {
   type: string;

@@ -1,12 +1,12 @@
-import { approvalRequests, eq, and, count, sql } from "@nexusops/db";
+import { approvalRequests, eq, and, count, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { dbOf } from "./_db";
 
 registerMetric({
   id: "approvals.stuck_over_5d",
-  label: "Approvals pending 5+ days",
+  label: "Approval friction (5d+)",
   function: "strategy",
-  dimension: "risk",
+  dimension: "sla",
   direction: "lower_is_better",
   unit: "count",
   target: 0,

@@ -1,5 +1,5 @@
 /**
- * NexusOps Employee Payslip Self-Service Page
+ * CoheronConnect Employee Payslip Self-Service Page
  * ─────────────────────────────────────────────
  * Place at: apps/web/src/app/app/employee-portal/payslips/page.tsx
  *

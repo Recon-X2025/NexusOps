@@ -22,7 +22,7 @@ export async function seedChaosOrganization(config: ChaosConfig): Promise<void> 
     eq,
     and,
     like,
-  } = await import("@nexusops/db");
+  } = await import("@coheronconnect/db");
 
   const db = getDb();
   const passwordHash = await bcrypt.hash(config.seededAdminPassword, 12);
@@ -179,7 +179,7 @@ export async function assertChaosRunTicketCount(config: ChaosConfig, titlePrefix
   if (!url) throw new Error("databaseUrl required for DB assert");
   applyDatabaseUrlForDrizzle(url);
 
-  const { getDb, closeDb, organizations, tickets, eq, and, like, count } = await import("@nexusops/db");
+  const { getDb, closeDb, organizations, tickets, eq, and, like, count } = await import("@coheronconnect/db");
   const db = getDb();
   const [org] = await db.select().from(organizations).where(eq(organizations.slug, config.orgSlug)).limit(1);
   if (!org) {

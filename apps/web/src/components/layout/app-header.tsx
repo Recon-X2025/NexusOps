@@ -16,7 +16,7 @@ import { trpc } from "@/lib/trpc";
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   // Core
-  app: "NexusOps",
+  app: "CoheronConnect",
   dashboard: "Dashboard",
 
   new: "New",
@@ -198,10 +198,10 @@ function RoleSwitcher() {
                 <div className="min-w-0">
                   <div className="text-[12px] text-foreground font-medium truncate">{user.name}</div>
                   <div className="flex flex-wrap gap-0.5 mt-0.5">
-                    {user.roles.slice(0, 2).map((r) => (
-                      <span key={r} className="text-[9px] px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded font-mono">{r}</span>
+                    {Array.from(new Set(user.roles)).slice(0, 2).map((r, i) => (
+                      <span key={`${r}-${i}`} className="text-[9px] px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded font-mono">{r}</span>
                     ))}
-                    {user.roles.length > 2 && <span className="text-[9px] text-muted-foreground/60">+{user.roles.length - 2}</span>}
+                    {Array.from(new Set(user.roles)).length > 2 && <span className="text-[9px] text-muted-foreground/60">+{Array.from(new Set(user.roles)).length - 2}</span>}
                   </div>
                 </div>
                 {currentUser.id === user.id && <span className="ml-auto text-purple-400 text-[11px]">●</span>}
@@ -381,8 +381,8 @@ function UserMenu() {
 
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
-      localStorage.removeItem("nexusops_session");
-      document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+      localStorage.removeItem("coheronconnect_session");
+      document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
       // Global invalidate is intentional on logout: the authenticated user is changing,
       // so all cached data (tickets, approvals, etc.) is stale for the next session.
       utils.invalidate();
@@ -390,8 +390,8 @@ function UserMenu() {
     },
     onError: () => {
       // Navigate away regardless — clear client state even if API call failed
-      localStorage.removeItem("nexusops_session");
-      document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+      localStorage.removeItem("coheronconnect_session");
+      document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
       router.push("/login");
     },
   });
@@ -434,13 +434,13 @@ function UserMenu() {
               <p className="text-sm font-semibold text-foreground truncate">{currentUser.name}</p>
               <p className="text-[11px] text-muted-foreground/80 truncate">{currentUser.email}</p>
               <div className="flex flex-wrap gap-1 mt-1">
-                {currentUser.roles.slice(0, 3).map((r) => (
-                  <span key={r} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-mono">
+                {Array.from(new Set(currentUser.roles)).slice(0, 3).map((r, i) => (
+                  <span key={`${r}-${i}`} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-mono">
                     {r}
                   </span>
                 ))}
-                {currentUser.roles.length > 3 && (
-                  <span className="text-[9px] text-muted-foreground/60">+{currentUser.roles.length - 3}</span>
+                {Array.from(new Set(currentUser.roles)).length > 3 && (
+                  <span className="text-[9px] text-muted-foreground/60">+{Array.from(new Set(currentUser.roles)).length - 3}</span>
                 )}
               </div>
             </div>
@@ -578,7 +578,7 @@ export function AppHeader() {
 
   return (
     <header
-      className="flex h-11 items-center justify-between px-4 border-b bg-white/80 dark:bg-[hsl(var(--header-bg))] backdrop-blur-xl border-slate-200/60 dark:border-[hsl(var(--header-border))] shadow-sm"
+      className="relative z-50 flex h-11 items-center justify-between px-4 border-b bg-white/80 dark:bg-[hsl(var(--header-bg))] backdrop-blur-xl border-slate-200/60 dark:border-[hsl(var(--header-border))] shadow-sm"
     >
       {/* Left: Logo + Org name + Breadcrumb */}
       <div className="flex items-center gap-4">
@@ -587,7 +587,7 @@ export function AppHeader() {
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="text-sm font-bold text-slate-800 dark:text-[hsl(var(--header-fg))]">NexusOps</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-[hsl(var(--header-fg))]">CoheronConnect</span>
             {currentUser.orgName && (
               <span className="text-[0.6rem] text-slate-500 dark:text-[hsl(var(--header-fg))] dark:opacity-50 truncate max-w-[120px]">
                 {currentUser.orgName}

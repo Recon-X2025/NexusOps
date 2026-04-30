@@ -1,4 +1,4 @@
-import { crmDeals, crmLeads, crmAccounts, eq, and, count, sum, notInArray, sql } from "@nexusops/db";
+import { crmDeals, crmLeads, crmAccounts, eq, and, count, sum, notInArray, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import {
   alignSeries,
@@ -13,7 +13,7 @@ import { dbOf } from "./_db";
 
 registerMetric({
   id: "crm.arr_run_rate",
-  label: "Open pipeline value",
+  label: "Pipeline Value (30d Trend)",
   function: "customer",
   dimension: "trend",
   direction: "higher_is_better",

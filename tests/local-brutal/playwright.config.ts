@@ -6,7 +6,7 @@ const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-local.json");
 
 const DATABASE_URL =
   process.env["DATABASE_URL"] ??
-  "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test";
+  "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test";
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6380";
 
 /**
@@ -40,7 +40,7 @@ export default defineConfig({
       ? undefined
       : [
           {
-            command: "pnpm --filter @nexusops/api dev",
+            command: "pnpm --filter @coheronconnect/api dev",
             port: 3001,
             // Localhost suite must never require killing ports or answering prompts; attach if already up.
             reuseExistingServer: true,
@@ -52,7 +52,7 @@ export default defineConfig({
             },
           },
           {
-            command: "pnpm --filter @nexusops/web dev",
+            command: "pnpm --filter @coheronconnect/web dev",
             port: 3000,
             reuseExistingServer: true,
             timeout: 120_000,

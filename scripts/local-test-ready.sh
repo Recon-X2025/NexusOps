@@ -13,11 +13,11 @@ fi
 echo "==> Starting test stack (Postgres :5433, Redis :6380, Meilisearch :7701)…"
 docker compose -f docker-compose.test.yml up -d --wait
 
-echo "==> Applying SQL migrations to nexusops_test…"
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate
+echo "==> Applying SQL migrations to coheronconnect_test…"
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate
 
 echo "==> API smoke: tRPC parity, ticket lifecycle, Layer 1 infrastructure…"
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/api exec vitest run \
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/api exec vitest run \
   src/__tests__/trpc-web-parity.test.ts \
   src/__tests__/ticket-lifecycle.test.ts \
   src/__tests__/layer1-infrastructure.test.ts

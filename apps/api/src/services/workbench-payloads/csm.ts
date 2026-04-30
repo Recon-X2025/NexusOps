@@ -10,7 +10,7 @@
  */
 
 import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
-import { crmAccounts, contracts, users } from "@nexusops/db";
+import { crmAccounts, contracts, users } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

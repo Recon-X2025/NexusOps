@@ -1,9 +1,10 @@
 /**
- * Seed cross-module demo data for NexusOps using Faker.js
+ * Seed cross-module demo data for CoheronConnect using Faker.js
  * Assumes the base org, users, and ticket config already exist.
  * Run this AFTER the main seed.ts if org already exists.
  */
 import { getDb } from "./client";
+require("dotenv").config({ path: "../../.env" });
 import {
   organizations, users,
   changeRequests, problems, risks, securityIncidents, vulnerabilities,
@@ -12,6 +13,9 @@ import {
   legalMatters, pipelineRuns, deployments, surveys, budgetLines,
   kbArticles, vendors, purchaseRequests, oncallSchedules, catalogItems,
   buildings, rooms, applications,
+  employees, okrObjectives, okrKeyResults,
+  chartOfAccounts, journalEntries, journalEntryLines,
+  invoices,
   eq, and, count,
 } from "./schema";
 import { faker } from "@faker-js/faker";
@@ -21,6 +25,7 @@ faker.seed(54321);
 const DEMO_ORG_SLUG = "coheron-demo";
 const NOW = new Date();
 const d = (days: number) => new Date(NOW.getTime() + days * 86400000);
+const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86400000);
 
 function cntFrom(rows: { cnt: unknown }[]): number {
   return Number(rows[0]?.cnt ?? 0);
@@ -28,7 +33,7 @@ function cntFrom(rows: { cnt: unknown }[]): number {
 
 async function seedModules() {
   const db = getDb();
-  console.log("🌱 Seeding dynamic module data for NexusOps...\n");
+  console.log("🌱 Seeding dynamic module data for CoheronConnect...\n");
 
   // ── Get existing org & users ───────────────────────────────────────────────
   const [org] = await db.select().from(organizations).where(eq(organizations.slug, DEMO_ORG_SLUG));
@@ -43,8 +48,8 @@ async function seedModules() {
 
   // ── Change Requests (20 Generated) ──────────────────────────────────────────
   const chgCnt = cntFrom(await db.select({ cnt: count() }).from(changeRequests).where(eq(changeRequests.orgId, org.id)));
-  if (chgCnt === 0) {
-    const changeSeeds = Array.from({ length: 20 }).map((_, i) => ({
+  if (chgCnt === 0 ) {
+    const changeSeeds = Array.from({ length: 40 }).map((_, i) => ({
       orgId: org.id,
       number: `CHG-${String(i + 1).padStart(4, "0")}`,
       title: `${faker.hacker.verb()} ${faker.hacker.adjective()} ${faker.hacker.noun()}`,
@@ -53,7 +58,7 @@ async function seedModules() {
       status: faker.helpers.arrayElement(["draft", "cab_review", "approved", "scheduled", "implementing", "completed"]),
       requesterId: faker.helpers.arrayElement(allUsers).id,
       assigneeId: faker.datatype.boolean() ? faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]) : undefined,
-      scheduledStart: faker.datatype.boolean() ? d(faker.number.int({ min: -5, max: 30 })) : undefined,
+      scheduledStart: faker.datatype.boolean() ? d(faker.number.int({ min: -180, max: 30 })) : undefined,
       scheduledEnd: faker.datatype.boolean() ? d(faker.number.int({ min: 31, max: 60 })) : undefined,
       rollbackPlan: faker.datatype.boolean() ? "Restore from backup" : null,
     }));
@@ -156,8 +161,8 @@ async function seedModules() {
 
   // ── Contracts ──────────────────────────────────────────────────────────────
   const cntrCnt = cntFrom(await db.select({ cnt: count() }).from(contracts).where(eq(contracts.orgId, org.id)));
-  if (cntrCnt === 0) {
-    const contractSeeds = Array.from({ length: 15 }).map((_, i) => ({
+  if (cntrCnt === 0 ) {
+    const contractSeeds = Array.from({ length: 60 }).map((_, i) => ({
       orgId: org.id,
       contractNumber: `CNTR-${String(i + 1).padStart(4, "0")}`,
       title: `${faker.company.name()} Agreement`,
@@ -176,9 +181,9 @@ async function seedModules() {
 
   // ── Projects ───────────────────────────────────────────────────────────────
   const prjCnt = cntFrom(await db.select({ cnt: count() }).from(projects).where(eq(projects.orgId, org.id)));
-  if (prjCnt === 0) {
+  if (prjCnt === 0 ) {
     const projectData = await db.insert(projects).values(
-      Array.from({ length: 10 }).map((_, i) => ({
+      Array.from({ length: 40 }).map((_, i) => ({
         orgId: org.id,
         number: `PRJ-${String(i + 1).padStart(4, "0")}`,
         name: `${faker.company.catchPhrase()} Initiative`,
@@ -186,7 +191,7 @@ async function seedModules() {
         health: faker.helpers.arrayElement(["green", "amber", "red"]),
         budgetTotal: faker.finance.amount({ min: 50000, max: 2000000, dec: 0 }),
         budgetSpent: faker.finance.amount({ min: 0, max: 1000000, dec: 0 }),
-        startDate: d(faker.number.int({ min: -90, max: 30 })),
+        startDate: d(faker.number.int({ min: -180, max: 30 })),
         endDate: d(faker.number.int({ min: 31, max: 365 })),
         ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
         department: faker.helpers.arrayElement(["IT", "Security", "HR", "Finance", "Sales"]),
@@ -208,9 +213,9 @@ async function seedModules() {
 
   // ── CRM ────────────────────────────────────────────────────────────────────
   const crmCnt = cntFrom(await db.select({ cnt: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org.id)));
-  if (crmCnt === 0) {
+  if (crmCnt === 0 ) {
     const crmAccountData = await db.insert(crmAccounts).values(
-      Array.from({ length: 15 }).map(() => ({
+      Array.from({ length: 40 }).map(() => ({
         orgId: org.id,
         name: faker.company.name(),
         industry: faker.helpers.arrayElement(["Technology", "Retail", "Financial Services", "Healthcare", "Manufacturing"]),
@@ -222,7 +227,7 @@ async function seedModules() {
     ).returning();
 
     const dealData = await db.insert(crmDeals).values(
-      Array.from({ length: 30 }).map(() => {
+      Array.from({ length: 100 }).map(() => {
         const value = faker.number.int({ min: 5000, max: 500000 });
         const prob = faker.number.int({ min: 0, max: 100 });
         return {
@@ -233,7 +238,7 @@ async function seedModules() {
           value: String(value),
           probability: prob,
           weightedValue: String((value * prob) / 100),
-          expectedClose: d(faker.number.int({ min: -30, max: 120 })),
+          expectedClose: d(faker.number.int({ min: -180, max: 120 })),
           ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
         };
       })
@@ -279,20 +284,20 @@ async function seedModules() {
     const pipelineData = await db.insert(pipelineRuns).values(
       Array.from({ length: 20 }).map(() => ({
         orgId: org.id,
-        pipelineName: faker.helpers.arrayElement(["nexusops-api", "nexusops-web", "nexusops-worker"]),
+        pipelineName: faker.helpers.arrayElement(["coheronconnect-api", "coheronconnect-web", "coheronconnect-worker"]),
         trigger: faker.helpers.arrayElement(["push", "pr", "scheduled", "manual"]),
         branch: faker.helpers.arrayElement(["main", "feature/auth", "fix/bug"]),
         commitSha: faker.git.commitSha().substring(0, 7),
         status: faker.helpers.arrayElement(["success", "failed", "running", "cancelled"]),
         durationSeconds: faker.number.int({ min: 30, max: 600 }),
-        completedAt: faker.datatype.boolean() ? d(faker.number.float({ min: -5, max: 0 })) : null,
+        completedAt: faker.datatype.boolean() ? d(faker.number.float({ min: -180, max: 0 })) : null,
       }))
     ).returning();
 
     await db.insert(deployments).values(
       Array.from({ length: 15 }).map(() => ({
         orgId: org.id,
-        appName: faker.helpers.arrayElement(["nexusops-api", "nexusops-web", "nexusops-worker"]),
+        appName: faker.helpers.arrayElement(["coheronconnect-api", "coheronconnect-web", "coheronconnect-worker"]),
         environment: faker.helpers.arrayElement(["dev", "qa", "staging", "production"]),
         version: `v${faker.number.int({ min: 1, max: 5 })}.${faker.number.int({ min: 0, max: 9 })}.${faker.number.int({ min: 0, max: 9 })}`,
         status: faker.helpers.arrayElement(["pending", "in_progress", "success", "failed", "rolled_back"]),
@@ -426,6 +431,113 @@ async function seedModules() {
       }))
     );
     console.log(`✅ Vendors: ${vendorData.length}, PRs: 15`);
+  }
+
+  // ── Strategy (OKRs) ────────────────────────────────────────────────────────
+  const okrCnt = cntFrom(await db.select({ cnt: count() }).from(okrObjectives).where(eq(okrObjectives.orgId, org.id)));
+  if (okrCnt === 0) {
+    const objectiveData = await db.insert(okrObjectives).values(
+      ["Increase Revenue by 20%", "Reduce Customer Churn", "Launch v3.0 Platform", "Expand to EU Market", "Achieve 99.99% Uptime"].map((title, i) => ({
+        orgId: org.id,
+        ownerId: admin.id,
+        title,
+        year: 2026,
+        cycle: "q1" as const,
+        status: "active" as const,
+        overallProgress: faker.number.int({ min: 10, max: 80 }),
+        createdAt: daysAgo(faker.number.int({ min: 30, max: 90 })),
+      }))
+    ).returning();
+
+    for (const obj of objectiveData) {
+      await db.insert(okrKeyResults).values(
+        Array.from({ length: 3 }).map(() => ({
+          objectiveId: obj.id,
+          orgId: org.id,
+          title: faker.company.buzzPhrase(),
+          targetValue: "100",
+          currentValue: String(faker.number.int({ min: 0, max: 100 })),
+          unit: "%",
+          status: faker.helpers.arrayElement(["on_track", "at_risk", "behind"]) as any,
+          dueDate: d(faker.number.int({ min: 30, max: 90 })),
+        }))
+      );
+    }
+    console.log(`✅ Strategy: ${objectiveData.length} objectives with KRs`);
+  }
+
+  // ── People (Employees) ─────────────────────────────────────────────────────
+  const empCnt = cntFrom(await db.select({ cnt: count() }).from(employees).where(eq(employees.orgId, org.id)));
+  if (empCnt === 0) {
+    await db.insert(employees).values(
+      allUsers.map((u, i) => ({
+        orgId: org.id,
+        userId: u.id,
+        employeeId: `EMP-${String(i + 1).padStart(4, "0")}`,
+        department: faker.helpers.arrayElement(["Engineering", "Product", "Sales", "HR", "Finance", "Legal"]),
+        title: faker.person.jobTitle(),
+        startDate: daysAgo(faker.number.int({ min: 30, max: 730 })),
+        status: "active" as const,
+      }))
+    );
+    console.log(`✅ Employees: ${allUsers.length}`);
+  }
+
+  // ── Finance (CoA & Journals) ─────────────────────────────────────────────
+  const coaCnt = cntFrom(await db.select({ cnt: count() }).from(chartOfAccounts).where(eq(chartOfAccounts.orgId, org.id)));
+  if (coaCnt === 0) {
+    const coaData = await db.insert(chartOfAccounts).values([
+      { orgId: org.id, code: "1000", name: "Operating Bank Account", type: "asset" as const, subType: "bank" as const, openingBalance: "5000000", currentBalance: "5000000" },
+      { orgId: org.id, code: "2000", name: "Accounts Payable", type: "liability" as const, subType: "accounts_payable" as const, openingBalance: "0", currentBalance: "0" },
+      { orgId: org.id, code: "4000", name: "Sales Revenue", type: "income" as const, subType: "income" as const, openingBalance: "0", currentBalance: "0" },
+      { orgId: org.id, code: "5000", name: "Cost of Goods Sold", type: "expense" as const, subType: "cost_of_goods_sold" as const, openingBalance: "0", currentBalance: "0" },
+      { orgId: org.id, code: "6000", name: "Marketing Expense", type: "expense" as const, subType: "expense" as const, openingBalance: "0", currentBalance: "0" },
+    ]).returning();
+
+    // Generate daily journals for the last 180 days to create a trend
+    const journals = [];
+    for (let i = 0; i < 180; i += 7) { // Weekly entries for 6 months
+      const date = daysAgo(i);
+      journals.push({
+        orgId: org.id,
+        number: `JE-${1000 + i}`,
+        date,
+        type: "manual" as const,
+        status: "posted" as const,
+        description: "Weekly revenue/expense accrual",
+        totalDebit: "10000",
+        totalCredit: "10000",
+        postedAt: date,
+      });
+    }
+    const jeData = await db.insert(journalEntries).values(journals).returning();
+    
+    const lines = jeData.flatMap(je => [
+      { journalEntryId: je.id, orgId: org.id, accountId: coaData[2]!.id, creditAmount: "10000", debitAmount: "0", description: "Revenue" },
+      { journalEntryId: je.id, orgId: org.id, accountId: coaData[0]!.id, debitAmount: "10000", creditAmount: "0", description: "Cash Inflow" },
+    ]);
+    await db.insert(journalEntryLines).values(lines);
+    console.log(`✅ Finance: ${coaData.length} accounts, ${jeData.length} weekly journals`);
+  }
+
+  // ── Invoices ──────────────────────────────────────────────────────────────
+  const invCnt = cntFrom(await db.select({ cnt: count() }).from(invoices).where(eq(invoices.orgId, org.id)));
+  if (invCnt === 0) {
+    const vnds = await db.select().from(vendors).where(eq(vendors.orgId, org.id));
+    if (vnds.length > 0) {
+      await db.insert(invoices).values(
+        Array.from({ length: 30 }).map((_, i) => ({
+          orgId: org.id,
+          invoiceNumber: `INV-2026-${String(i + 1).padStart(4, "0")}`,
+          vendorId: faker.helpers.arrayElement(vnds).id,
+          amount: faker.finance.amount({ min: 500, max: 10000, dec: 2 }),
+          status: faker.helpers.arrayElement(["pending", "approved", "paid", "overdue"]) as any,
+          invoiceDate: daysAgo(faker.number.int({ min: 0, max: 180 })),
+          dueDate: d(faker.number.int({ min: -30, max: 30 })),
+        }))
+      );
+      console.log("✅ Invoices: 30");
+    }
   }
 
   console.log("\n🎉 Module seed complete!");

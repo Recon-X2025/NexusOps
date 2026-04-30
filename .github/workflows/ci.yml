@@ -35,10 +35,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm --filter @nexusops/types --filter @nexusops/db --filter @nexusops/ui build
+        run: pnpm --filter @coheronconnect/types --filter @coheronconnect/db --filter @coheronconnect/ui build
 
       - name: Type check API
-        run: pnpm --filter @nexusops/api lint
+        run: pnpm --filter @coheronconnect/api lint
 
       - name: Type check Web
         run: cd apps/web && npx tsc --noEmit
@@ -51,9 +51,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: nexusops
-          POSTGRES_PASSWORD: nexusops_test
-          POSTGRES_DB: nexusops_test
+          POSTGRES_USER: coheronconnect
+          POSTGRES_PASSWORD: coheronconnect_test
+          POSTGRES_DB: coheronconnect_test
         ports:
           - 5432:5432
         options: >-
@@ -88,16 +88,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm --filter @nexusops/types --filter @nexusops/db --filter @nexusops/ui --filter @nexusops/api build
+        run: pnpm --filter @coheronconnect/types --filter @coheronconnect/db --filter @coheronconnect/ui --filter @coheronconnect/api build
 
       - name: Run DB migrations
         env:
-          DATABASE_URL: postgresql://nexusops:nexusops_test@localhost:5432/nexusops_test
+          DATABASE_URL: postgresql://coheronconnect:coheronconnect_test@localhost:5432/coheronconnect_test
         run: pnpm db:migrate
 
       - name: Run tests
         env:
-          DATABASE_URL: postgresql://nexusops:nexusops_test@localhost:5432/nexusops_test
+          DATABASE_URL: postgresql://coheronconnect:coheronconnect_test@localhost:5432/coheronconnect_test
           REDIS_URL: redis://localhost:6379
           AUTH_SECRET: test-secret-32-chars-minimum-here
           ENCRYPTION_KEY: test-encryption-32-chars-minimum
@@ -114,9 +114,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: nexusops
-          POSTGRES_PASSWORD: nexusops_test
-          POSTGRES_DB: nexusops_test
+          POSTGRES_USER: coheronconnect
+          POSTGRES_PASSWORD: coheronconnect_test
+          POSTGRES_DB: coheronconnect_test
         ports:
           - 5432:5432
         options: >-
@@ -159,7 +159,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages (API + Web + deps)
-        run: pnpm --filter @nexusops/types --filter @nexusops/db --filter @nexusops/ui --filter @nexusops/api --filter @nexusops/web build
+        run: pnpm --filter @coheronconnect/types --filter @coheronconnect/db --filter @coheronconnect/ui --filter @coheronconnect/api --filter @coheronconnect/web build
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
@@ -167,7 +167,7 @@ jobs:
       - name: Run Playwright E2E
         env:
           CI: true
-          DATABASE_URL: postgresql://nexusops:nexusops_test@localhost:5432/nexusops_test
+          DATABASE_URL: postgresql://coheronconnect:coheronconnect_test@localhost:5432/coheronconnect_test
           REDIS_URL: redis://localhost:6379
           MEILISEARCH_URL: http://localhost:7700
           MEILISEARCH_KEY: test_master_key

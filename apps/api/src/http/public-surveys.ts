@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { getDb, surveys, surveyInvites, surveyResponses, tickets, users } from "@nexusops/db";
+import { getDb, surveys, surveyInvites, surveyResponses, tickets, users } from "@coheronconnect/db";
 
 function sha256(raw: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");

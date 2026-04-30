@@ -1,5 +1,5 @@
 /**
- * WhatsApp Business Cloud API integration for NexusOps.
+ * WhatsApp Business Cloud API integration for CoheronConnect.
  *
  * Supports:
  *  - Sending text, template, and interactive messages
@@ -176,7 +176,7 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
   return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
-// ── Notification templates for NexusOps modules ───────────────────────────
+// ── Notification templates for CoheronConnect modules ───────────────────────────
 
 /** Send a ticket assignment notification via WhatsApp. */
 export async function notifyTicketAssignment(params: {

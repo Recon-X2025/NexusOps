@@ -15,8 +15,8 @@ beforeAll(async () => {
 import {
   tickets, ticketComments, ticketStatuses, ticketPriorities,
   users, notifications, investigations,
-} from "@nexusops/db";
-import { eq, and } from "@nexusops/db";
+} from "@coheronconnect/db";
+import { eq, and } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
 
@@ -35,7 +35,7 @@ describe("Layer 7: Row-Level Access", () => {
     const pass = "TestPass123!";
 
     const { userId: aid, user: admin } = await seedUser(orgId, {
-      email: `admin-l7@qa.nexusops.io`,
+      email: `admin-l7@qa.coheronconnect.io`,
       role: "admin",
       matrixRole: "admin",
       password: pass,
@@ -44,7 +44,7 @@ describe("Layer 7: Row-Level Access", () => {
     adminUserId = aid;
 
     const { user: agent } = await seedUser(orgId, {
-      email: `agent-l7@qa.nexusops.io`,
+      email: `agent-l7@qa.coheronconnect.io`,
       role: "member",
       matrixRole: "itil",
       password: pass,
@@ -52,7 +52,7 @@ describe("Layer 7: Row-Level Access", () => {
     });
 
     const { userId: rid, user: req } = await seedUser(orgId, {
-      email: `requester-l7@qa.nexusops.io`,
+      email: `requester-l7@qa.coheronconnect.io`,
       role: "member",
       matrixRole: "requester",
       password: pass,

@@ -4,7 +4,7 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { PortalNav } from "./portal-nav";
 
 export const metadata = {
-  title: "Employee Portal | NexusOps",
+  title: "Employee Portal | CoheronConnect",
   description: "Submit IT requests, track tickets, search knowledge, and manage your assets.",
 };
 

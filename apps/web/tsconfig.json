@@ -1,5 +1,5 @@
 {
-  "extends": "@nexusops/config/tsconfig-nextjs",
+  "extends": "@coheronconnect/config/tsconfig-nextjs",
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,

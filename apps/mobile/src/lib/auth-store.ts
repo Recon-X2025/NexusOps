@@ -1,5 +1,5 @@
 /**
- * Auth store for NexusOps Mobile
+ * Auth store for CoheronConnect Mobile
  * Persists session token via expo-secure-store.
  */
 
@@ -27,21 +27,21 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoaded: false,
 
   setAuth: async (data) => {
-    await SecureStore.setItemAsync("nexusops_token",  data.token);
-    await SecureStore.setItemAsync("nexusops_user",   JSON.stringify({ userId: data.userId, orgId: data.orgId, userName: data.userName, role: data.role }));
+    await SecureStore.setItemAsync("coheronconnect_token",  data.token);
+    await SecureStore.setItemAsync("coheronconnect_user",   JSON.stringify({ userId: data.userId, orgId: data.orgId, userName: data.userName, role: data.role }));
     set({ ...data, isLoaded: true });
   },
 
   clearAuth: async () => {
-    await SecureStore.deleteItemAsync("nexusops_token");
-    await SecureStore.deleteItemAsync("nexusops_user");
+    await SecureStore.deleteItemAsync("coheronconnect_token");
+    await SecureStore.deleteItemAsync("coheronconnect_user");
     set({ token: null, userId: null, orgId: null, userName: null, role: null });
   },
 
   loadAuth: async () => {
     try {
-      const token = await SecureStore.getItemAsync("nexusops_token");
-      const raw   = await SecureStore.getItemAsync("nexusops_user");
+      const token = await SecureStore.getItemAsync("coheronconnect_token");
+      const raw   = await SecureStore.getItemAsync("coheronconnect_user");
       if (token && raw) {
         const user = JSON.parse(raw);
         set({ token, ...user, isLoaded: true });

@@ -4,7 +4,7 @@ import {
   buildDeterministicNarrative,
   buildCommandCenterPayload,
 } from "../services/command-center-payload";
-import type { CommandCenterPayload } from "@nexusops/metrics";
+import type { CommandCenterPayload } from "@coheronconnect/metrics";
 
 describe("command center role detection", () => {
   it("maps admin to CEO lens", () => {

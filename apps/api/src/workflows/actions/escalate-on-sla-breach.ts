@@ -1,4 +1,4 @@
-import { tickets, employees, eq, and } from "@nexusops/db";
+import { tickets, employees, eq, and } from "@coheronconnect/db";
 import { sendNotification } from "../../services/notifications";
 import type { WorkflowAction } from "./types";
 

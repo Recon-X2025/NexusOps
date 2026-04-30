@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * NexusOps Autonomous Chaos Engineering Agent v2
+ * CoheronConnect Autonomous Chaos Engineering Agent v2
  * Agentic loop: DISCOVER → ATTACK → ANALYZE → ADAPT → ESCALATE → REPEAT
  *
  * Wire format (no superjson transformer):

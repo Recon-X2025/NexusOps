@@ -4,7 +4,7 @@ import * as path from "path";
 const QA_BASE = process.env["NEXUS_QA_BASE_URL"] ?? "http://localhost:3000";
 
 /**
- * NexusOps Full-QA Playwright Config
+ * CoheronConnect Full-QA Playwright Config
  * Target: `NEXUS_QA_BASE_URL` or http://localhost:3000 (local dev)
  * Auth: shared storageState from global setup (login once, reuse everywhere)
  */

@@ -1,4 +1,4 @@
-import { invoices, chartOfAccounts, eq, and, sql } from "@nexusops/db";
+import { invoices, chartOfAccounts, eq, and, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { emptyMetricValue } from "../resolve-helpers";
 import { dbOf } from "./_db";
@@ -14,7 +14,28 @@ registerMetric({
   unit: "days",
   description: "// TODO: contribute from treasury / cash ledger when a canonical balance feed exists.",
   drillUrl: "/app/accounting",
-  resolve: async () => emptyMetricValue("no_data"),
+  resolve: async (ctx) => {
+    const db = dbOf(ctx);
+    const accounts = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.orgId, ctx.tenantId));
+    const assets = (accounts as CoaRow[]).filter((a) => a.type === "asset");
+    const expenses = (accounts as CoaRow[]).filter((a) => a.type === "expense");
+    
+    const totalAssets = assets.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
+    const monthlyBurn = expenses.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
+    
+    if (totalAssets === 0 || monthlyBurn === 0) {
+      return emptyMetricValue("no_data");
+    }
+    
+    const runway = Math.round((totalAssets / monthlyBurn) * 10) / 10;
+    
+    return {
+      current: runway,
+      series: [],
+      state: runway > 12 ? "healthy" : runway > 6 ? "watch" : "stressed",
+      lastUpdated: new Date(),
+    };
+  },
   appearsIn: [
     { role: "ceo", surface: "heatmap", priority: 60 },
     { role: "ceo", surface: "trend", priority: 90 },

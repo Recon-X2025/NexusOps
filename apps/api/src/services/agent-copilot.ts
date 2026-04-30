@@ -1,5 +1,5 @@
 /**
- * agent-copilot.ts — multi-turn, tool-using NexusOps Copilot agent.
+ * agent-copilot.ts — multi-turn, tool-using CoheronConnect Copilot agent.
  *
  * Architecture
  * ────────────
@@ -28,10 +28,10 @@ import {
   desc,
   asc,
   type Db,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { AGENT_TOOLS, getAgentTool } from "./ai-tools";
 import { checkDbUserPermission } from "../lib/rbac-db";
-import type { Module, RbacAction } from "@nexusops/types";
+import type { Module, RbacAction } from "@coheronconnect/types";
 
 const MODEL = "claude-3-5-sonnet-20241022";
 const MAX_TOKENS = 1024;
@@ -39,7 +39,7 @@ const TIMEOUT_MS = 30_000;
 const MAX_TOOL_ROUNDS = 4; // user msg → tool → tool result → assistant → final text
 const HISTORY_WINDOW = 20; // messages from DB included in prompt; older summarized
 
-const SYSTEM_PROMPT = `You are NexusOps Copilot, an embedded assistant for an Indian
+const SYSTEM_PROMPT = `You are CoheronConnect Copilot, an embedded assistant for an Indian
 ITSM + HR + Finance platform. You can answer questions and, when explicitly
 requested, take actions on behalf of the signed-in user via tools.
 
@@ -320,8 +320,8 @@ async function loadHistoryForPrompt(
   // only persist a textual digest, not the round-trip).
   return rows
     .slice(0, -1)
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    .filter((m: any) => m.role === "user" || m.role === "assistant")
+    .map((m: any) => ({ role: m.role as "user" | "assistant", content: m.content }));
 }
 
 export async function listConversations(db: Db, orgId: string, userId: string) {
@@ -336,7 +336,7 @@ export async function listConversations(db: Db, orgId: string, userId: string) {
     .where(eq(agentConversations.userId, userId))
     .orderBy(desc(agentConversations.lastMessageAt))
     .limit(50)
-    .then((rows) => rows.filter((_) => orgId)); // org filter handled by caller's tRPC scope
+    .then((rows: any[]) => rows.filter((_: any) => orgId)); // org filter handled by caller's tRPC scope
 }
 
 export async function getConversation(db: Db, conversationId: string) {

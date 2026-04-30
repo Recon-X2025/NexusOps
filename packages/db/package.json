@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/db",
+  "name": "@coheronconnect/db",
   "version": "0.1.0",
   "private": true,
   "exports": {
@@ -31,6 +31,7 @@
     "db:seed": "tsx src/seed.ts",
     "db:seed:modules": "tsx src/seed-modules.ts",
     "db:seed:smb": "tsx src/seed-smb-analytics.ts",
+    "db:clean": "tsx src/clean.ts",
     "backfill:sla": "tsx src/scripts/backfill-sla-deadlines.ts",
     "db:studio": "drizzle-kit studio",
     "lint": "tsc --noEmit && pnpm run check:migrations",
@@ -47,8 +48,8 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^10.4.0",
-    "@nexusops/config": "workspace:*",
-    "@nexusops/types": "workspace:*",
+    "@coheronconnect/config": "workspace:*",
+    "@coheronconnect/types": "workspace:*",
     "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.28.0",
     "tsup": "^8.3.0",

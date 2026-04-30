@@ -50,9 +50,9 @@ interface CommandItem {
 
 const COMMAND_ITEMS: CommandItem[] = [
   // Platform
-  { id: "dashboard",   label: "Platform Dashboard",      group: "Platform",            href: "/app/dashboard",          icon: LayoutDashboard },
+  { id: "dashboard",   label: "Command Center",      group: "Platform",            href: "/app/command",          icon: LayoutDashboard },
   { id: "admin",       label: "Administration",           group: "Platform",            href: "/app/admin",              icon: SlidersHorizontal },
-  { id: "copilot",     label: "Ask NexusOps Copilot",     group: "Platform",            href: "/app/agent",              icon: Sparkles,        keywords: ["agent", "copilot", "ai", "assistant", "chat", "ask"] },
+  { id: "copilot",     label: "Ask CoheronConnect Copilot",     group: "Platform",            href: "/app/agent",              icon: Sparkles,        keywords: ["agent", "copilot", "ai", "assistant", "chat", "ask"] },
 
   // IT Services
   { id: "tickets",     label: "Service Desk",             group: "IT Services",         href: "/app/tickets",            icon: Headset,        keywords: ["incidents", "requests", "itsm", "tickets"] },
@@ -255,7 +255,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">Esc</kbd>
           close
         </span>
-        <span className="ml-auto text-[10px] text-muted-foreground/50">NexusOps</span>
+        <span className="ml-auto text-[10px] text-muted-foreground/50">CoheronConnect</span>
       </div>
     </Command.Dialog>
   );

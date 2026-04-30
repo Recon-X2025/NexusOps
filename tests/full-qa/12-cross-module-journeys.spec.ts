@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 12: Cross-Module End-to-End Journeys
+ * CoheronConnect Full-QA — Suite 12: Cross-Module End-to-End Journeys
  *
  * Tests complete business workflows that span multiple modules.
  * Each journey:

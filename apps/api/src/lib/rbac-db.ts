@@ -4,7 +4,7 @@ import {
   type Module,
   type RbacAction,
   type SystemRole,
-} from "@nexusops/types";
+} from "@coheronconnect/types";
 
 /** Maps org user.role (DB coarse enum) to fine-grained system roles.
  *

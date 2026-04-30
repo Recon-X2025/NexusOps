@@ -1,4 +1,4 @@
-import { chartOfAccounts, eq } from "@nexusops/db";
+import { chartOfAccounts, eq } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { deriveStateFromTarget, emptyMetricValue } from "../resolve-helpers";
 import { dbOf } from "./_db";

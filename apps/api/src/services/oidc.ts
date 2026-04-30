@@ -10,7 +10,7 @@
  *   OIDC_ISSUER          — e.g. https://accounts.google.com or https://login.microsoftonline.com/{tenant}/v2.0
  *   OIDC_CLIENT_ID       — client ID from your IdP
  *   OIDC_CLIENT_SECRET   — client secret
- *   OIDC_REDIRECT_URI    — must match registered callback URL, e.g. https://api.nexusops.io/auth/oidc/callback
+ *   OIDC_REDIRECT_URI    — must match registered callback URL, e.g. https://api.coheronconnect.io/auth/oidc/callback
  *   OIDC_SCOPES          — space-separated, defaults to "openid email profile"
  *
  * The returned sessionId is identical to the one from the password-based login flow.
@@ -18,7 +18,7 @@
  */
 import * as openidClient from "openid-client";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { getDb, users, accounts, organizations, eq, and } from "@nexusops/db";
+import { getDb, users, accounts, organizations, eq, and } from "@coheronconnect/db";
 import { createSession } from "../routers/auth";
 
 const SCOPES = (process.env["OIDC_SCOPES"] ?? "openid email profile").split(" ");
@@ -168,7 +168,7 @@ export async function registerOidcRoutes(fastify: FastifyInstance): Promise<void
           },
         });
 
-      // Create a NexusOps session (reuses identical logic to password login)
+      // Create a CoheronConnect session (reuses identical logic to password login)
       const session = await createSession(
         db,
         user!.id,
@@ -193,11 +193,11 @@ export async function registerOidcRoutes(fastify: FastifyInstance): Promise<void
   fastify.get("/auth/oidc/logout", async (req: FastifyRequest, reply: FastifyReply) => {
     const sessionCookie = (req.headers["cookie"] ?? "").split(";")
       .map((c: string) => c.trim().split("="))
-      .find(([k]: string[]) => k === "nexusops_session");
+      .find(([k]: string[]) => k === "coheronconnect_session");
 
     if (sessionCookie && sessionCookie[1]) {
       try {
-        const { sessions } = await import("@nexusops/db");
+        const { sessions } = await import("@coheronconnect/db");
         const db = getDb();
         await db.delete(sessions).where(eq(sessions.id, sessionCookie[1]));
       } catch { /* non-fatal */ }

@@ -5,7 +5,7 @@ import {
     contracts,
     eq,
     and,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getNextNumber, syncOrgCounters } from "../lib/auto-number";
 
 const MatterIngestSchema = z.object({

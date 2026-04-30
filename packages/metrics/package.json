@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/metrics",
+  "name": "@coheronconnect/metrics",
   "version": "0.1.0",
   "private": true,
   "exports": {
@@ -19,11 +19,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nexusops/db": "workspace:*",
+    "@coheronconnect/db": "workspace:*",
     "drizzle-orm": "^0.36.0"
   },
   "devDependencies": {
-    "@nexusops/config": "workspace:*",
+    "@coheronconnect/config": "workspace:*",
     "tsup": "^8.3.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

@@ -25,7 +25,7 @@ export const DATABASE_URL =
     console.warn(
       "\x1b[33m⚠️  DATABASE_URL not set — falling back to default local credentials. Do not use in production.\x1b[0m"
     );
-    return "postgresql://postgres:postgres@localhost:5434/nexusops";
+    return "postgresql://postgres:postgres@localhost:5434/coheronconnect";
   })();
 
 export const REDIS_URL = process.env.REDIS_URL || "";

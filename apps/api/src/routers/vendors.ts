@@ -10,7 +10,7 @@ import {
   count,
   sum,
   ilike,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const vendorsRouter = router({
   list: permissionProcedure("procurement", "read")

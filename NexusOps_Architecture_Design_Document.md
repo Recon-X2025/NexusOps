@@ -1,4 +1,4 @@
-# NexusOps — Architecture Design Document
+# CoheronConnect — Architecture Design Document
 
 **Version:** 2.0  
 **Date:** April 4, 2026  
@@ -52,7 +52,7 @@
 
 ## 1. Executive Summary
 
-NexusOps is a full-stack, enterprise-grade IT Service Management (ITSM) and operations platform built by Coheron. It is a **multi-tenant SaaS application** that consolidates IT services, security & compliance, people & workplace, finance, legal, strategy, and developer operations into a single unified interface.
+CoheronConnect is a full-stack, enterprise-grade IT Service Management (ITSM) and operations platform built by Coheron. It is a **multi-tenant SaaS application** that consolidates IT services, security & compliance, people & workplace, finance, legal, strategy, and developer operations into a single unified interface.
 
 The platform is built as a **TypeScript monorepo** using pnpm workspaces and Turborepo, with a **Next.js 15 frontend**, a **Fastify 5 / tRPC 11 API**, and a **PostgreSQL** database managed via **Drizzle ORM**. All inter-service communication between the browser and the API uses **end-to-end typed tRPC** procedures, eliminating entire classes of type mismatch and API contract bugs.
 
@@ -117,16 +117,16 @@ The platform is built as a **TypeScript monorepo** using pnpm workspaces and Tur
 The repository uses **pnpm workspaces** (`pnpm-workspace.yaml`) and **Turborepo** (`turbo.json`) for orchestrated, cached builds across all packages and apps.
 
 ```
-NexusOps/
+CoheronConnect/
 ├── apps/
-│   ├── web/               # @nexusops/web   — Next.js 15 frontend
-│   └── api/               # @nexusops/api   — Fastify 5 + tRPC 11 backend
+│   ├── web/               # @coheronconnect/web   — Next.js 15 frontend
+│   └── api/               # @coheronconnect/api   — Fastify 5 + tRPC 11 backend
 │
 ├── packages/
-│   ├── db/                # @nexusops/db    — Drizzle ORM schemas + client
-│   ├── types/             # @nexusops/types — Shared types, Zod schemas, RBAC matrix
-│   ├── ui/                # @nexusops/ui    — Shared Radix-based UI primitives
-│   └── config/            # @nexusops/config — ESLint, Prettier, TSConfig presets
+│   ├── db/                # @coheronconnect/db    — Drizzle ORM schemas + client
+│   ├── types/             # @coheronconnect/types — Shared types, Zod schemas, RBAC matrix
+│   ├── ui/                # @coheronconnect/ui    — Shared Radix-based UI primitives
+│   └── config/            # @coheronconnect/config — ESLint, Prettier, TSConfig presets
 │
 ├── e2e/                   # Playwright end-to-end tests
 ├── scripts/               # Utility scripts (seed, populate, etc.)
@@ -144,25 +144,25 @@ NexusOps/
 ### Dependency Graph
 
 ```
-@nexusops/web
-   ├── @nexusops/types
-   ├── @nexusops/ui
-   └── @nexusops/api (for AppRouter type only — dev dep)
+@coheronconnect/web
+   ├── @coheronconnect/types
+   ├── @coheronconnect/ui
+   └── @coheronconnect/api (for AppRouter type only — dev dep)
 
-@nexusops/api
-   ├── @nexusops/db
-   └── @nexusops/types
+@coheronconnect/api
+   ├── @coheronconnect/db
+   └── @coheronconnect/types
 
-@nexusops/db
+@coheronconnect/db
    └── (postgres-js, drizzle-orm)
 
-@nexusops/types
+@coheronconnect/types
    └── (zod)
 
-@nexusops/ui
+@coheronconnect/ui
    └── (radix-ui, tailwind)
 
-@nexusops/config
+@coheronconnect/config
    └── (eslint, prettier, typescript)
 ```
 
@@ -215,8 +215,8 @@ src/
 ### 4.2 State Management
 
 - **Server state:** All server data is fetched via **tRPC + React Query**. No Redux or Zustand is used for remote data.
-- **UI state:** Local `useState` / `useReducer` in component. Sidebar open/collapsed state is persisted to `localStorage` (`nexusops_sidebar_state`).
-- **Form state:** `react-hook-form` for all forms, validated with **Zod** schemas shared from `@nexusops/types`.
+- **UI state:** Local `useState` / `useReducer` in component. Sidebar open/collapsed state is persisted to `localStorage` (`coheronconnect_sidebar_state`).
+- **Form state:** `react-hook-form` for all forms, validated with **Zod** schemas shared from `@coheronconnect/types`.
 - **Auth state:** RBAC context (`RBACProvider`) hydrates from `trpc.auth.me` on mount; uses a deny-all `LOADING_USER` sentinel while in-flight.
 
 ### 4.3 tRPC Client
@@ -231,20 +231,20 @@ const client = trpc.createClient({
       url: `${NEXT_PUBLIC_API_URL}/trpc`,
       timeout: 12000,
       headers: () => ({
-        Authorization: `Bearer ${localStorage.getItem("nexusops_session")}`,
+        Authorization: `Bearer ${localStorage.getItem("coheronconnect_session")}`,
       }),
     }),
   ],
 });
 ```
 
-All API calls are **end-to-end typed** — the `AppRouter` type is imported directly from `@nexusops/api` as a dev dependency, meaning TypeScript validates every query and mutation call, input shape, and output shape at build time.
+All API calls are **end-to-end typed** — the `AppRouter` type is imported directly from `@coheronconnect/api` as a dev dependency, meaning TypeScript validates every query and mutation call, input shape, and output shape at build time.
 
 ### 4.4 UI Component Library
 
 - **Radix UI** primitives for accessible interactive components (dialogs, dropdowns, tooltips, etc.)
 - **Tailwind CSS** for utility-based styling with a consistent design token system
-- **`@nexusops/ui`** shared package for cross-app primitives (Button, Card, Badge, Input, Dialog, Tabs, etc.)
+- **`@coheronconnect/ui`** shared package for cross-app primitives (Button, Card, Badge, Input, Dialog, Tabs, etc.)
 - **Lucide React** for iconography
 - **Recharts** for charts and analytics visualisations
 - **React Flow** for workflow builder canvas
@@ -402,7 +402,7 @@ All domain tables include an **`orgId`** foreign key referencing `organizations.
 
 ## 7. Shared Packages
 
-### 7.1 `@nexusops/types`
+### 7.1 `@coheronconnect/types`
 
 The canonical shared type library. Both the frontend and the backend import from it, ensuring types are never duplicated.
 
@@ -411,7 +411,7 @@ The canonical shared type library. Both the frontend and the backend import from
 - **`rbac-matrix.ts`** — The authoritative RBAC definition: `SystemRole`, `Module`, `RbacAction`, `ROLE_PERMISSIONS`, `hasPermission`, `canAccessModule`, `getVisibleModules`
 - **Domain types** — `tickets`, `assets`, `hr`, `procurement`, `currencies`, and more
 
-### 7.2 `@nexusops/ui`
+### 7.2 `@coheronconnect/ui`
 
 Shared Radix-based UI primitive library, built with `tsup`.
 
@@ -419,7 +419,7 @@ Shared Radix-based UI primitive library, built with `tsup`.
 
 Used by `apps/web` to maintain visual consistency and avoid duplication.
 
-### 7.3 `@nexusops/db`
+### 7.3 `@coheronconnect/db`
 
 The shared database package consumed exclusively by `apps/api`.
 
@@ -429,7 +429,7 @@ The shared database package consumed exclusively by `apps/api`.
 - All Drizzle operators re-exported for convenience (`eq`, `and`, `or`, `desc`, `asc`, `sql`, etc.)
 - Migration scripts via `drizzle-kit`
 
-### 7.4 `@nexusops/config`
+### 7.4 `@coheronconnect/config`
 
 Developer tooling configurations shared across all packages and apps:
 - **ESLint** config (`./eslint`)
@@ -455,7 +455,7 @@ Browser                          API                          Database / Redis
   │                               │  tokenHash = SHA-256(token)   │
   │                               │──SET redis:session:<hash> ───►│
   │◄── { token } ─────────────────│                               │
-  │  localStorage("nexusops_session", token)                      │
+  │  localStorage("coheronconnect_session", token)                      │
   │                               │                               │
   │──GET /trpc/auth.me ──────────►│                               │
   │  Authorization: Bearer <token>│  hash = SHA-256(token)       │
@@ -468,7 +468,7 @@ Browser                          API                          Database / Redis
 
 | Layer | Storage | TTL | Purpose |
 |-------|---------|-----|---------|
-| Client | `localStorage` key `nexusops_session` | Browser session | Holds plaintext token |
+| Client | `localStorage` key `coheronconnect_session` | Browser session | Holds plaintext token |
 | L1 Cache | In-process `Map` | ~60s | Avoids Redis round-trip within single pod |
 | L2 Cache | Redis key `session:<hash>` | Configurable | Distributed cache |
 | Persistent | `sessions` table (PostgreSQL) | Until explicit logout | Source of truth |
@@ -489,7 +489,7 @@ The `apiKeys` table supports machine-to-machine authentication for programmatic 
 
 ### 9.1 Design Philosophy
 
-NexusOps uses a **role-based, module-scoped permission system** defined in `@nexusops/types/rbac-matrix.ts`. The matrix is the single source of truth used by both the frontend (to show/hide UI) and the backend (to enforce procedure access).
+CoheronConnect uses a **role-based, module-scoped permission system** defined in `@coheronconnect/types/rbac-matrix.ts`. The matrix is the single source of truth used by both the frontend (to show/hide UI) and the backend (to enforce procedure access).
 
 There are **no implicit permissions** — every role is explicitly granted the exact set of actions it may perform on each module. The `admin` role is the sole exception and bypasses all module checks.
 
@@ -623,7 +623,7 @@ Services:
   mailhog     — MailHog SMTP/UI          (ports 1025/8025)
 ```
 
-Developers run the **Next.js dev server** (`pnpm --filter @nexusops/web dev`) and the **Fastify API** (`pnpm --filter @nexusops/api dev`) locally, pointing to these Docker-managed backing services.
+Developers run the **Next.js dev server** (`pnpm --filter @coheronconnect/web dev`) and the **Fastify API** (`pnpm --filter @coheronconnect/api dev`) locally, pointing to these Docker-managed backing services.
 
 #### Test (`docker-compose.test.yml`)
 
@@ -640,8 +640,8 @@ Used exclusively by CI/CD and the Playwright E2E suite.
 
 ```
 Services:
-  web        — @nexusops/web     (Next.js standalone, Traefik TLS)
-  api        — @nexusops/api     (Fastify, Traefik TLS)
+  web        — @coheronconnect/web     (Next.js standalone, Traefik TLS)
+  api        — @coheronconnect/api     (Fastify, Traefik TLS)
   migrator   — One-shot DB migration runner
   postgres   — PostgreSQL 16     (named volume, password auth)
   redis      — Redis 7           (named volume, requirepass)
@@ -674,12 +674,12 @@ The Next.js `output: 'standalone'` configuration is used to produce a minimal ru
 
 ```
 turbo build
-  └─ @nexusops/config    (no build step — configs only)
-  └─ @nexusops/types     (tsup → dist/)
-  └─ @nexusops/ui        (tsup → dist/)
-  └─ @nexusops/db        (tsup → dist/)
-  └─ @nexusops/api       (tsup → dist/)
-  └─ @nexusops/web       (next build → .next/)
+  └─ @coheronconnect/config    (no build step — configs only)
+  └─ @coheronconnect/types     (tsup → dist/)
+  └─ @coheronconnect/ui        (tsup → dist/)
+  └─ @coheronconnect/db        (tsup → dist/)
+  └─ @coheronconnect/api       (tsup → dist/)
+  └─ @coheronconnect/web       (next build → .next/)
 ```
 
 Turborepo caches build outputs, so unchanged packages are not rebuilt.
@@ -707,7 +707,7 @@ Turborepo caches build outputs, so unchanged packages are not rebuilt.
 
 5. createContext() resolves session
    └─ SHA-256(token) → L1 Map cache check
-   └─ miss → Redis GET nexusops:session:<hash>
+   └─ miss → Redis GET coheronconnect:session:<hash>
    └─ miss → SELECT from sessions + users + organizations
    └─ Writes back to Redis + L1 cache
    └─ ctx = { db, user, org, session, requestId, ip, ua }
@@ -736,7 +736,7 @@ Logout → trpc.auth.logout.mutate()
   └─ DELETE FROM sessions WHERE tokenHash = hash
   └─ DEL redis:session:<hash>
   └─ L1 cache entry removed
-  └─ Client: localStorage.removeItem("nexusops_session")
+  └─ Client: localStorage.removeItem("coheronconnect_session")
   └─ Router redirect to /login
 ```
 
@@ -860,7 +860,7 @@ Every **mutation** through `protectedProcedure` writes an entry to the `auditLog
 
 ### 14.5 Input Validation
 
-All tRPC procedure inputs are validated with **Zod** schemas before reaching the handler. Shared schemas from `@nexusops/types` ensure front-end and back-end validation are identical.
+All tRPC procedure inputs are validated with **Zod** schemas before reaching the handler. Shared schemas from `@coheronconnect/types` ensure front-end and back-end validation are identical.
 
 **Prototype Pollution Protection:** A Fastify `preHandler` hook applies `sanitizeInput()` recursively to every incoming JSON body before tRPC or Zod processing. The keys `__proto__`, `constructor`, and `prototype` are stripped from all objects (including nested ones) and arrays. This prevents prototype pollution attacks from ever reaching application code.
 
@@ -936,7 +936,7 @@ A purpose-built k6 test suite in `tests/k6/` continuously validates system secur
 - 1,655 complete end-to-end workflows with zero failures
 - Optimistic locking confirmed: 9,151 concurrent writes → 2,004 clean 409 conflicts, 0 data corruptions
 
-See `NexusOps_K6_Security_and_Load_Test_Report_2026.md` for full results.
+See `CoheronConnect_K6_Security_and_Load_Test_Report_2026.md` for full results.
 
 ### 15.6 Active Health Signaling
 
@@ -1027,7 +1027,7 @@ Variables prefixed with `NEXT_PUBLIC_` are embedded at build time and exposed to
 
 ### ADR-005: RBAC Matrix as Shared Package
 
-**Decision:** The RBAC permission matrix lives in `@nexusops/types`, shared between frontend and backend.  
+**Decision:** The RBAC permission matrix lives in `@coheronconnect/types`, shared between frontend and backend.  
 **Rationale:** Ensures the UI never shows actions the API will reject, and the API never permits actions the UI wouldn't expose — the single matrix is the contract.  
 **Trade-off:** Adding a new module requires updating the types package and rebuilding dependents.
 
@@ -1047,7 +1047,7 @@ Variables prefixed with `NEXT_PUBLIC_` are embedded at build time and exposed to
 
 ## 18. India Compliance Architecture
 
-This section documents the India-specific compliance systems embedded within NexusOps. All components described here are fully integrated into the existing module architecture; no separate service is required.
+This section documents the India-specific compliance systems embedded within CoheronConnect. All components described here are fully integrated into the existing module architecture; no separate service is required.
 
 ### 18.1 India Compliance Layer Overview
 
@@ -1099,7 +1099,7 @@ The `financial.createGSTInvoice` tRPC procedure calls this engine and, for compa
 
 ### 18.4 Statutory Filing Outputs
 
-The following reports are generated by the payroll and finance modules and must be submitted to government portals. NexusOps generates the data files; actual portal submission is manual.
+The following reports are generated by the payroll and finance modules and must be submitted to government portals. CoheronConnect generates the data files; actual portal submission is manual.
 
 | Output | Format | Frequency | Due Date | Submitted To |
 |--------|--------|-----------|----------|-------------|
@@ -1138,7 +1138,7 @@ The customer portal enforces DPDP Act 2023 compliance at the API gateway layer:
 
 The authoritative source for all India-specific business rules, computation formulas, slab rates, state-wise tax tables, and workflow definitions is:
 
-**`NexusOps_Complete_Business_Logic_v1.md`**
+**`CoheronConnect_Complete_Business_Logic_v1.md`**
 
 That document takes precedence over any other document in cases of conflict. It defines:
 - All 9 module workflows with step-by-step states
@@ -1151,7 +1151,7 @@ That document takes precedence over any other document in cases of conflict. It 
 
 *End of Architecture Design Document*
 
-*For questions about this document, contact the NexusOps platform team at Coheron.*
+*For questions about this document, contact the CoheronConnect platform team at Coheron.*
 
 ---
 
@@ -1161,7 +1161,7 @@ That document takes precedence over any other document in cases of conflict. It 
 |---------|------|--------|---------|
 | 1.0 | 2026-03-26 | Platform Engineering | Initial document |
 | 1.1 | 2026-03-27 | Platform Engineering | Added India Compliance architecture (§18). Updated router count. |
-| 1.2 | 2026-03-28 | Platform Engineering | Added k6 load testing results to §15 (Observability). Confirmed system sustains 200 concurrent users at 340 req/s with p(95) 23ms and 0% error rate. Browser Core Web Vitals: FCP 450ms avg, LCP 450ms avg, CLS 0.001. See `NexusOps_Load_Test_Report_2026.md`. |
-| 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Expanded §14.5 (Input Validation) to document prototype pollution protection: `sanitizeInput()` Fastify `preHandler` strips `__proto__`/`constructor`/`prototype` keys recursively. Added `PRECONDITION_FAILED` and `CONFLICT` error codes to security error catalogue. Added §15.5 (k6 Security & Reliability Testing): documents all 6 test scenarios, their VU counts and durations, and the March 28 baseline (0 unhandled 500s, 100% bad-input rejection, p95 271ms). See `NexusOps_K6_Security_and_Load_Test_Report_2026.md`. |
-| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added §15.6 (Active Health Signaling) documenting `healthMonitor.ts`: counter-based trigger (every `EVAL_EVERY` requests, default 50), status-change detection, and structured log emission (`SYSTEM_DEGRADED` / `SYSTEM_UNHEALTHY` / `SYSTEM_RECOVERED`) with zero-spam guarantee. Added `HEALTH_EVAL_EVERY` to §16.2 optional env vars. See `NexusOps_Active_Health_Signal_Report_2026.md`. |
-| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test validation.** 10,000-session stress test: infrastructure layer fully solid (0 network errors, 0 timeouts, 100% login success, 0 concurrency conflicts at 397 req/s). Application-layer failures identified: Drizzle `Symbol(drizzle:Columns)` schema-import error on ticket/work-order creates for non-admin roles; RBAC permission gaps on `surveys`, `events`, `oncall`, `walkup` modules. Destructive chaos test Round 2: 62,369 requests with **0 HTTP 5xx and 0 server crashes** on Vultr production. Auth architecture bottleneck confirmed: `BCRYPT_CONCURRENCY=8` caps login throughput to ~8 logins/s; under 200 concurrent login workers queue depth reaches 4s avg. Updated §15.5 with chaos test baseline metrics. Active health monitor architecture validated — correctly self-diagnosed UNHEALTHY state and emitted structured logs without operator intervention. Bearer token auth path confirmed inconsistent on some query-type procedures. See `NexusOps_Stress_Test_Report.md` and `NexusOps_Destructive_Chaos_Test_Report_2026.md`. |
+| 1.2 | 2026-03-28 | Platform Engineering | Added k6 load testing results to §15 (Observability). Confirmed system sustains 200 concurrent users at 340 req/s with p(95) 23ms and 0% error rate. Browser Core Web Vitals: FCP 450ms avg, LCP 450ms avg, CLS 0.001. See `CoheronConnect_Load_Test_Report_2026.md`. |
+| 1.3 | 2026-03-28 | Platform Engineering | **Security hardening.** Expanded §14.5 (Input Validation) to document prototype pollution protection: `sanitizeInput()` Fastify `preHandler` strips `__proto__`/`constructor`/`prototype` keys recursively. Added `PRECONDITION_FAILED` and `CONFLICT` error codes to security error catalogue. Added §15.5 (k6 Security & Reliability Testing): documents all 6 test scenarios, their VU counts and durations, and the March 28 baseline (0 unhandled 500s, 100% bad-input rejection, p95 271ms). See `CoheronConnect_K6_Security_and_Load_Test_Report_2026.md`. |
+| 1.4 | 2026-03-29 | Platform Engineering | **Observability stack.** Added §15.6 (Active Health Signaling) documenting `healthMonitor.ts`: counter-based trigger (every `EVAL_EVERY` requests, default 50), status-change detection, and structured log emission (`SYSTEM_DEGRADED` / `SYSTEM_UNHEALTHY` / `SYSTEM_RECOVERED`) with zero-spam guarantee. Added `HEALTH_EVAL_EVERY` to §16.2 optional env vars. See `CoheronConnect_Active_Health_Signal_Report_2026.md`. |
+| 1.5 | 2026-04-02 | Platform Engineering | **Stress & chaos test validation.** 10,000-session stress test: infrastructure layer fully solid (0 network errors, 0 timeouts, 100% login success, 0 concurrency conflicts at 397 req/s). Application-layer failures identified: Drizzle `Symbol(drizzle:Columns)` schema-import error on ticket/work-order creates for non-admin roles; RBAC permission gaps on `surveys`, `events`, `oncall`, `walkup` modules. Destructive chaos test Round 2: 62,369 requests with **0 HTTP 5xx and 0 server crashes** on Vultr production. Auth architecture bottleneck confirmed: `BCRYPT_CONCURRENCY=8` caps login throughput to ~8 logins/s; under 200 concurrent login workers queue depth reaches 4s avg. Updated §15.5 with chaos test baseline metrics. Active health monitor architecture validated — correctly self-diagnosed UNHEALTHY state and emitted structured logs without operator intervention. Bearer token auth path confirmed inconsistent on some query-type procedures. See `CoheronConnect_Stress_Test_Report.md` and `CoheronConnect_Destructive_Chaos_Test_Report_2026.md`. |

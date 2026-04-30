@@ -13,7 +13,7 @@ export function registerCommand(program: Command): void {
       if (opts.dryRun) {
         console.log(
           chalk.yellow(
-            "[dry-run] Would run: pnpm --filter @nexusops/db db:migrate"
+            "[dry-run] Would run: pnpm --filter @coheronconnect/db db:migrate"
           )
         );
         process.exit(0);
@@ -30,7 +30,7 @@ export function registerCommand(program: Command): void {
 
       const spinner = ora("Running database migrations…").start();
       try {
-        execSync("pnpm --filter @nexusops/db db:migrate", {
+        execSync("pnpm --filter @coheronconnect/db db:migrate", {
           stdio: "inherit",
           cwd: process.cwd(),
         });

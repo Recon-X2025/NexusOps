@@ -9,7 +9,7 @@ import {
   desc,
   count,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 
 export const csmRouter = router({

@@ -28,6 +28,7 @@ export * from "./approvals";
 export * from "./notifications";
 export * from "./apm";
 export * from "./oncall";
+export * from "./events";
 // Phase 4 schemas
 export * from "./expenses";
 export * from "./performance";

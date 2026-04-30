@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# NexusOps Off-Site Database Backup
+# CoheronConnect Off-Site Database Backup
 # Infra A-2 — pg_dump + rsync to off-site location
-# Run via cron: 0 2 * * * /opt/nexusops/scripts/backup.sh >> /var/log/nexusops-backup.log 2>&1
+# Run via cron: 0 2 * * * /opt/coheronconnect/scripts/backup.sh >> /var/log/coheronconnect-backup.log 2>&1
 
 set -euo pipefail
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/opt/nexusops/backups"
-BACKUP_FILE="${BACKUP_DIR}/nexusops_${TIMESTAMP}.sql.gz"
+BACKUP_DIR="/opt/coheronconnect/backups"
+BACKUP_FILE="${BACKUP_DIR}/coheronconnect_${TIMESTAMP}.sql.gz"
 RETAIN_DAYS=7
 
 # ── Configuration (override via environment or .env.production) ────────────
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-nexusops-postgres-1}"
-POSTGRES_DB="${POSTGRES_DB:-nexusops}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-coheronconnect-postgres-1}"
+POSTGRES_DB="${POSTGRES_DB:-coheronconnect}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 
 # Off-site rsync target — set BACKUP_REMOTE to enable off-site sync
-# Example: BACKUP_REMOTE="user@backup-server.example.com:/backups/nexusops"
+# Example: BACKUP_REMOTE="user@backup-server.example.com:/backups/coheronconnect"
 BACKUP_REMOTE="${BACKUP_REMOTE:-}"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
@@ -53,8 +53,8 @@ fi
 
 # ── Rotate old backups (keep last N days) ─────────────────────────────────
 log "Rotating backups older than ${RETAIN_DAYS} days"
-find "$BACKUP_DIR" -name "nexusops_*.sql.gz" -mtime +${RETAIN_DAYS} -delete
-REMAINING=$(find "$BACKUP_DIR" -name "nexusops_*.sql.gz" | wc -l | tr -d ' ')
+find "$BACKUP_DIR" -name "coheronconnect_*.sql.gz" -mtime +${RETAIN_DAYS} -delete
+REMAINING=$(find "$BACKUP_DIR" -name "coheronconnect_*.sql.gz" | wc -l | tr -d ' ')
 log "Retained ${REMAINING} backup(s) in ${BACKUP_DIR}"
 
 log "Backup job finished successfully"

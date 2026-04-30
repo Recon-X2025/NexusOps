@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
-import type { Module, RbacAction } from "@nexusops/types";
-import { auditLogs } from "@nexusops/db";
+import type { Module, RbacAction } from "@coheronconnect/types";
+import { auditLogs } from "@coheronconnect/db";
 import { checkDbUserPermission } from "./rbac-db";
 import { isRetryableTrpcResult, retryDelay, MAX_ATTEMPTS, extractPgCode } from "./db-retry";
 import {

@@ -15,7 +15,7 @@ import {
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
 
-const loginEmail = `auth-file-${nanoid(8)}@qa.nexusops.io`;
+const loginEmail = `auth-file-${nanoid(8)}@qa.coheronconnect.io`;
 const password = "TestPass123!";
 
 function publicCaller() {

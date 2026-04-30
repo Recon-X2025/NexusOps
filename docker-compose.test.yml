@@ -2,13 +2,13 @@ services:
   postgres-test:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: nexusops_test
-      POSTGRES_PASSWORD: nexusops_test
-      POSTGRES_DB: nexusops_test
+      POSTGRES_USER: coheronconnect_test
+      POSTGRES_PASSWORD: coheronconnect_test
+      POSTGRES_DB: coheronconnect_test
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexusops_test"]
+      test: ["CMD-SHELL", "pg_isready -U coheronconnect_test"]
       interval: 2s
       timeout: 5s
       retries: 10

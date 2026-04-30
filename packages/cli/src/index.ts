@@ -10,8 +10,8 @@ import { registerCommand as registerLicense } from "./commands/license.js";
 const program = new Command();
 
 program
-  .name("nexusops")
-  .description("Operational CLI for NexusOps ITSM")
+  .name("coheronconnect")
+  .description("Operational CLI for CoheronConnect ITSM")
   .version("1.0.0");
 
 registerMigrate(program);

@@ -4,7 +4,7 @@ let _mongoClient: MongoClient | undefined;
 let _mongoDb: MongoDb | undefined;
 
 function mongoDbName(): string {
-  return process.env.MONGODB_DB_NAME?.trim() || "nexusops";
+  return process.env.MONGODB_DB_NAME?.trim() || "coheronconnect";
 }
 
 /** True when `MONGODB_URI` is non-empty (Mongo may still be disconnected). */

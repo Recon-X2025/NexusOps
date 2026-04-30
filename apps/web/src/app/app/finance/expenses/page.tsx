@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { downloadCSV } from "@/lib/utils";
-import { EmptyState, Pagination, TableSkeleton, ConfirmDialog } from "@nexusops/ui";
+import { EmptyState, Pagination, TableSkeleton, ConfirmDialog } from "@coheronconnect/ui";
 
 const STATUS_CFG: Record<string, { label: string; color: string; icon: ElementType }> = {
   draft:        { label: "Draft",        color: "text-muted-foreground bg-muted",     icon: FileText },

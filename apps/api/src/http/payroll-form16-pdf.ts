@@ -8,7 +8,7 @@
  * other employees by guessing UUIDs.
  */
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, or, payslips, employees, users } from "@nexusops/db";
+import { and, eq, gte, lte, or, payslips, employees, users } from "@coheronconnect/db";
 import { createContext } from "../middleware/auth";
 import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";

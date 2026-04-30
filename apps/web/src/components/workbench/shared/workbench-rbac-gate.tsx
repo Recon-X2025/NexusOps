@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRBAC } from "@/lib/rbac-context";
-import { canAccessWorkbench, defaultWorkbenchForRoles, type WorkbenchKey } from "@nexusops/types";
+import { canAccessWorkbench, defaultWorkbenchForRoles, type WorkbenchKey } from "@coheronconnect/types";
 import type { ReactNode } from "react";
 
 /**

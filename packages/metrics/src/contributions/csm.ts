@@ -1,6 +1,6 @@
 import { registerMetric } from "../registry";
 import { alignSeries, buildTimeBuckets, emptyMetricValue, truncSqlExpression } from "../resolve-helpers";
-import { crmAccounts, surveys, surveyResponses, eq, and, count, avg, sql } from "@nexusops/db";
+import { crmAccounts, surveys, surveyResponses, eq, and, count, avg, sql } from "@coheronconnect/db";
 import { dbOf } from "./_db";
 
 registerMetric({

@@ -1,11 +1,11 @@
-# NexusOps by Coheron
+# CoheronConnect by Coheron
 
 > Enterprise-grade workflow orchestration, ITSM, asset management, HR service delivery, and procurement — without the $100–$200/user/month ServiceNow price tag.
 
 ## Architecture
 
 ```
-nexusops/
+coheronconnect/
 ├── apps/
 │   ├── web/              # Next.js 15 App Router (React 19, TypeScript, Tailwind) — primary product UI
 │   ├── api/              # Fastify + tRPC API (TypeScript, Drizzle ORM)
@@ -18,8 +18,8 @@ nexusops/
 │   ├── types/            # Shared Zod schemas + TypeScript types
 │   ├── ui/               # Shared component library (shadcn/ui style)
 │   ├── config/           # ESLint, Prettier, TSConfig shared configs
-│   └── cli/              # NexusOps CLI
-├── charts/nexusops/      # Helm chart for Kubernetes deployment
+│   └── cli/              # CoheronConnect CLI
+├── charts/coheronconnect/      # Helm chart for Kubernetes deployment
 ├── infra/
 │   ├── terraform/        # IaC for AWS/GCP/Azure (Coheron-managed)
 │   └── temporal/         # Temporal.io dynamic config
@@ -75,7 +75,7 @@ nexusops/
 | **Payroll run pipeline** | `payroll.runs.lockPeriod` (draft → period locked + run totals), `advanceComputationStep` (gross → TDS), `computePayslips` (persist `payslips` rows), then HR / Finance / CFO approvals. |
 | **AP / AR invoices** | `invoices.invoice_flow` is **`payable`** or **`receivable`**. **`financial.listInvoices`** supports optional **`direction`**, joins vendor for display names, and returns **`totalAmount`** / **`direction`** for each row. **`financial.createReceivableInvoice`** creates AR rows (customer as a `vendors` row). Web **Financial** area includes AP + AR flows; **`financial.apAging`** is **payable** outstanding only. |
 | **Dashboard metrics** | **`dashboard.getMetrics`** includes org KPIs such as open incidents, AP/AR outstanding, and asset counts (consumers: web dashboard, mobile). |
-| **Workflow publish + Temporal** | By default, **`workflows.publish`** tolerates a missing Temporal worker (degraded run metadata). Set **`NEXUSOPS_WORKFLOW_ENGINE_REQUIRED=true`** (or **`WORKFLOW_ENGINE_REQUIRED`**) in `.env` to **fail publish** with **`PRECONDITION_FAILED`** and roll back activation if Temporal cannot start the run. See `.env.example` near **`TEMPORAL_*`**. |
+| **Workflow publish + Temporal** | By default, **`workflows.publish`** tolerates a missing Temporal worker (degraded run metadata). Set **`COHERONCONNECT_WORKFLOW_ENGINE_REQUIRED=true`** (or **`WORKFLOW_ENGINE_REQUIRED`**) in `.env` to **fail publish** with **`PRECONDITION_FAILED`** and roll back activation if Temporal cannot start the run. See `.env.example` near **`TEMPORAL_*`**. |
 | **Audit logs** | Successful mutations write **`audit_logs`** with **redacted** sensitive keys (passwords, tokens, API keys, etc.) via shared sanitization in the API. **`admin.auditLog.list`** paginates entries for admins. |
 
 ## Run everything locally
@@ -88,8 +88,8 @@ Use this as a **checklist**. You need **two** Docker Compose files: **`docker-co
 ### A. One-time / after `git pull`
 
 ```bash
-git clone https://github.com/coheron/nexusops   # first time only
-cd nexusops
+git clone https://github.com/coheron/coheronconnect   # first time only
+cd coheronconnect
 pnpm install
 
 # Dev app env (API + web + worker against dev DB)
@@ -98,7 +98,7 @@ cp .env.example .env
 #   AUTH_SECRET=$(openssl rand -hex 32)
 #   ENCRYPTION_KEY=$(openssl rand -hex 32)
 
-# Test env — use committed .env.test (DATABASE_URL must point at test Postgres, e.g. localhost:5433/nexusops_test)
+# Test env — use committed .env.test (DATABASE_URL must point at test Postgres, e.g. localhost:5433/coheronconnect_test)
 ```
 
 ### B. Run the product (development stack)
@@ -123,8 +123,8 @@ Open **http://localhost:3000** (web), **http://localhost:3001/health** (API). Ot
 | App | Typical command | Notes |
 |-----|-----------------|--------|
 | **Mobile** | `cd apps/mobile && pnpm start` | Expo; point API URL at your machine. |
-| **Docs** | `pnpm --filter @nexusops/docs dev` | Local docs site. |
-| **MAC console** | `pnpm --filter @nexusops/mac dev` | Managed-account UI. |
+| **Docs** | `pnpm --filter @coheronconnect/docs dev` | Local docs site. |
+| **MAC console** | `pnpm --filter @coheronconnect/mac dev` | Managed-account UI. |
 | **Worker** | Often included in **`make dev`** / Turbo | Needs Redis + same `.env` as API. |
 
 ### C. Run all automated tests (isolated test DB)
@@ -133,7 +133,7 @@ Uses **`.env.test`** + **`docker-compose.test.yml`** (Postgres **5433**, Redis *
 
 ```bash
 pnpm docker:test:up
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate
 pnpm exec dotenv -e .env.test -- pnpm test    # Turbo: all package tests (API Vitest is the bulk)
 ```
 
@@ -147,7 +147,7 @@ pnpm exec dotenv -e .env.test -- pnpm test    # Turbo: all package tests (API Vi
 
 ```bash
 pnpm docker:test:up
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate
 pnpm build
 pnpm exec dotenv -e .env.test -- pnpm test
 pnpm check:trpc-parity
@@ -194,7 +194,7 @@ Isolated stack: **`docker-compose.test.yml`** (Postgres **5433**, Redis **6380**
 | **Class L rows** (closure register Seq **1–12 · 17–23 · 38** — Layer 8 + L `*-rbac` Vitest + hero Playwright only) | With test stack up and **`.env.test`**: `pnpm test:class-l` (`scripts/run-class-l-tests.sh`) |
 | **Class P rows** (Seq **13–16 · 24–37 · 39–44** — L8 smoke + P RBAC + `module-routes` + GRC/CSM/HR/CRM specs) | With test stack up and **`.env.test`**: `pnpm test:class-p` (`scripts/run-class-p-tests.sh`) |
 | **CI-equivalent (Turbo + all Playwright)** | With test stack up and **`.env.test`**: `pnpm exec dotenv -e .env.test -- pnpm test` then `pnpm exec dotenv -e .env.test -- pnpm exec playwright test` (same split as **`.github/workflows/ci.yml`** jobs **`test`** + **`e2e`**) |
-| **Full monorepo build + API tests** | With test stack up: `pnpm docker:test:up` → `pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate` → **`pnpm build`** → **`pnpm exec dotenv -e .env.test -- pnpm test`**. This matches a typical local “green” run; **`pnpm lint`** may still report known gaps (e.g. mobile ESLint not wired, `packages/db` seed scripts under strict `tsc`). |
+| **Full monorepo build + API tests** | With test stack up: `pnpm docker:test:up` → `pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate` → **`pnpm build`** → **`pnpm exec dotenv -e .env.test -- pnpm test`**. This matches a typical local “green” run; **`pnpm lint`** may still report known gaps (e.g. mobile ESLint not wired, `packages/db` seed scripts under strict `tsc`). |
 
 **Vitest** applies **`pnpm db:migrate`** once before workers (`apps/api/src/__tests__/global-setup.ts`) whenever **`.env.test`** defines `DATABASE_URL`, so schema-based tests see migrated tables. **`pnpm check:trpc-parity`** skips that migrate step (no DB required).
 
@@ -216,12 +216,12 @@ Default credentials (after `pnpm db:seed`): **`admin@coheron.com`** / **`demo123
 | Symptom | What to check |
 |--------|----------------|
 | `ECONNREFUSED` on Postgres | `docker compose -f docker-compose.dev.yml ps` — Postgres should be **healthy** on `localhost:5434`. |
-| API exits on startup | `DATABASE_URL` must match Docker (`postgresql://nexusops:nexusops@localhost:5434/nexusops`). |
+| API exits on startup | `DATABASE_URL` must match Docker (`postgresql://coheronconnect:coheronconnect@localhost:5434/coheronconnect`). |
 | Login fails after fresh `.env` | Regenerate `AUTH_SECRET` and restart API; existing cookies were signed with the old secret. |
 | `No procedure found on path …` | Run `pnpm check:trpc-parity` and align web calls with `apps/api/src/routers`. |
-| Layer tests fail on missing tables | Run `pnpm docker:test:up` then `pnpm test:local-ready` or `pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/db db:migrate`. |
+| Layer tests fail on missing tables | Run `pnpm docker:test:up` then `pnpm test:local-ready` or `pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate`. |
 | Temporal / BullMQ warnings | Optional for basic UI; ensure `TEMPORAL_ADDRESS` and `REDIS_URL` match compose if you use workflows. See **`docs/TEMPORAL_LOCAL_RUNBOOK.md`**. |
-| Workflow publish returns **412 / PRECONDITION_FAILED** | You set **`NEXUSOPS_WORKFLOW_ENGINE_REQUIRED=true`** but Temporal is not reachable; fix Temporal or unset the flag for degraded publish. |
+| Workflow publish returns **412 / PRECONDITION_FAILED** | You set **`COHERONCONNECT_WORKFLOW_ENGINE_REQUIRED=true`** but Temporal is not reachable; fix Temporal or unset the flag for degraded publish. |
 | Security / SoD reviews | **`docs/SECURITY_SENSITIVE_MUTATIONS.md`** — API write procedure inventory. |
 
 ## Self-Hosted Production Deployment
@@ -231,10 +231,10 @@ Default credentials (after `pnpm db:seed`): **`admin@coheron.com`** / **`demo123
 docker compose -f docker-compose.prod.yml up -d
 
 # Or with Kubernetes (Helm)
-helm upgrade --install nexusops charts/nexusops \
-  --namespace nexusops \
+helm upgrade --install coheronconnect charts/coheronconnect \
+  --namespace coheronconnect \
   --create-namespace \
-  --values charts/nexusops/values.yaml \
+  --values charts/coheronconnect/values.yaml \
   --set secret.authSecret=$(openssl rand -hex 32) \
   --set secret.encryptionKey=$(openssl rand -hex 32)
 ```

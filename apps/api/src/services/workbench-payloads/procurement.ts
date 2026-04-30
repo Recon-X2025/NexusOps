@@ -10,7 +10,7 @@
  */
 
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
-import { purchaseOrders, vendors, contracts } from "@nexusops/db";
+import { purchaseOrders, vendors, contracts } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

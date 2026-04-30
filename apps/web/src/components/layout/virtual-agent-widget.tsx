@@ -28,7 +28,7 @@ const INITIAL_MESSAGES: Message[] = [
     id: "m0",
     role: "assistant",
     content:
-      "Hi! I'm the **NexusOps Copilot** — grounded in your live tenant data.\n\nI can search your tickets, KB, employees, payslips, invoices, contracts, and statutory calendar — and tell you exactly which tool I used to answer.\n\nWhat would you like to know?",
+      "Hi! I'm the **CoheronConnect Copilot** — grounded in your live tenant data.\n\nI can search your tickets, KB, employees, payslips, invoices, contracts, and statutory calendar — and tell you exactly which tool I used to answer.\n\nWhat would you like to know?",
     time: "Now",
     suggestions: [
       "Show open P1 incidents",
@@ -178,7 +178,7 @@ export function VirtualAgentWidget() {
         <button
           onClick={() => setOpen(true)}
           className="fixed bottom-6 right-6 w-10 h-10 rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 transition-all hover:scale-105 flex items-center justify-center z-30 group"
-          title="NexusOps Virtual Agent"
+          title="CoheronConnect Virtual Agent"
         >
           <Bot className="w-4 h-4" />
           <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-background" />
@@ -195,7 +195,7 @@ export function VirtualAgentWidget() {
                 <Bot className="w-3.5 h-3.5" />
               </div>
               <div>
-                <p className="text-[12px] font-semibold leading-none">NexusOps Assistant</p>
+                <p className="text-[12px] font-semibold leading-none">CoheronConnect Assistant</p>
                 <p className="text-[10px] text-white/70 leading-none mt-0.5">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1" />
                   Online · AI-powered

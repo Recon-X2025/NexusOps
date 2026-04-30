@@ -7,7 +7,7 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmDeals, crmQuotes, organizations, eq, and, desc, notInArray } from "@nexusops/db";
+import { crmDeals, crmQuotes, organizations, eq, and, desc, notInArray } from "@coheronconnect/db";
 import { getNextNumber } from "../../lib/auto-number";
 import {
   getCrmDealApprovalThresholds,

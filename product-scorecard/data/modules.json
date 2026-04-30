@@ -15,7 +15,7 @@
       "module_name": "Change, Problem, Release",
       "specialist_owner": "Change enablement / release manager",
       "scores": { "process_depth": 2, "admin_config": 2, "integrations": 1, "analytics": 1, "compliance_audit": 2, "ai_automation": 1, "mobile_offline": 1, "tco_implementation": 2 },
-      "evidence_refs": ["apps/api/src/routers/changes.ts", "NexusOps_Architecture_Design_Document.md §13"],
+      "evidence_refs": ["apps/api/src/routers/changes.ts", "CoheronConnect_Architecture_Design_Document.md §13"],
       "notes": "Lifecycle present; leaders ahead on collision/risk intelligence and deep DevOps-linked change analytics."
     },
     {
@@ -79,7 +79,7 @@
       "module_name": "Recruitment",
       "specialist_owner": "TA operations",
       "scores": { "process_depth": 1, "admin_config": 1, "integrations": 1, "analytics": 1, "compliance_audit": 1, "ai_automation": 0, "mobile_offline": 1, "tco_implementation": 2 },
-      "evidence_refs": ["apps/api/src/routers/recruitment.ts", "NexusOps_Architecture_Design_Document.md changelog Phase 3"],
+      "evidence_refs": ["apps/api/src/routers/recruitment.ts", "CoheronConnect_Architecture_Design_Document.md changelog Phase 3"],
       "notes": "Requisitions-to-offers track; sourcing marketplaces, scheduling depth, and agency workflows behind Greenhouse/Lever."
     },
     {

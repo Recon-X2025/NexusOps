@@ -7,7 +7,7 @@
 import { router, permissionProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmContacts, eq, and } from "@nexusops/db";
+import { crmContacts, eq, and } from "@coheronconnect/db";
 
 export const crmContactsRouter = router({
   list: permissionProcedure("accounts", "read")

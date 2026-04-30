@@ -58,10 +58,10 @@ interface Application {
 
 const APPS_DEFAULT: Application[] = [
   {
-    id: "app-001", name: "NexusOps Platform", alias: "NexusOps",
+    id: "app-001", name: "CoheronConnect Platform", alias: "CoheronConnect",
     description: "Core enterprise service management platform — ITSM, HRSD, SecOps, GRC, PPM, CRM",
     category: "Enterprise Platform", businessOwner: "CTO", technicalOwner: "Jordan Chen (IT Ops)",
-    vendor: "Internal (NexusOps)", version: "v2.1.0-rc4",
+    vendor: "Internal (CoheronConnect)", version: "v2.1.0-rc4",
     lifecycle: "investing", deployModel: "cloud_hosted",
     users: 850, annualCost: 0, healthScore: 92,
     businessValue: "critical", techDebt: "low", cloudReadiness: "cloud_native",
@@ -79,26 +79,26 @@ const APPS_DEFAULT: Application[] = [
     users: 420, annualCost: 1840000, healthScore: 71,
     businessValue: "critical", techDebt: "high", cloudReadiness: "re_platform",
     capabilities: ["Finance (FI/CO)", "HR Payroll", "MM (Materials Management)", "SD (Sales)"],
-    integrations: ["NexusOps", "Coupa", "Concur", "ADP"],
+    integrations: ["CoheronConnect", "Coupa", "Concur", "ADP"],
     compliance: ["IND AS 116", "Companies Act 2013", "DPDP Act"],
     slaUptime: 99.5, nextRenewal: "2026-09-01",
   },
   {
     id: "app-003", name: "Salesforce Sales Cloud", alias: "SFDC",
-    description: "Legacy CRM — leads, opportunities, accounts. Being phased out in favour of NexusOps CRM.",
+    description: "Legacy CRM — leads, opportunities, accounts. Being phased out in favour of CoheronConnect CRM.",
     category: "CRM", businessOwner: "CRO", technicalOwner: "Morgan Lee",
     vendor: "Salesforce Inc.", version: "Spring '26",
     lifecycle: "harvesting", deployModel: "saas",
     users: 120, annualCost: 285000, healthScore: 58,
     businessValue: "medium", techDebt: "medium", cloudReadiness: "cloud_native",
     capabilities: ["Lead Management", "Opportunity Tracking", "Reporting"],
-    integrations: ["NexusOps CRM", "Marketing Hub", "DocuSign"],
+    integrations: ["CoheronConnect CRM", "Marketing Hub", "DocuSign"],
     compliance: ["SOC2 Type II"],
     slaUptime: 99.9, nextRenewal: "2026-11-30",
   },
   {
     id: "app-005", name: "Legacy Invoicing System (LIMS)", alias: "LIMS",
-    description: "On-premise legacy invoicing application built in 2009. EOL announced. Migration to NexusOps Financial underway.",
+    description: "On-premise legacy invoicing application built in 2009. EOL announced. Migration to CoheronConnect Financial underway.",
     category: "Finance", businessOwner: "Finance Controller", technicalOwner: "IT Operations",
     vendor: "Internal (Legacy)", version: "v3.4.2 (EOL)",
     lifecycle: "retiring", deployModel: "on_premise",
@@ -153,15 +153,15 @@ const BIZ_VALUE_CFG: Record<string, string> = {
 };
 
 const CAPABILITY_MAP = [
-  { capability: "Finance & Accounting",      apps: ["SAP S/4HANA", "NexusOps Platform", "Legacy Invoicing System (LIMS)"],   gap: false },
-  { capability: "Human Resources",           apps: ["Workday HCM", "NexusOps Platform"],                                       gap: false },
-  { capability: "IT Service Management",     apps: ["NexusOps Platform"],                                                       gap: false },
-  { capability: "CRM / Sales",              apps: ["NexusOps Platform", "Salesforce Sales Cloud"],                            gap: true, gapNote: "Salesforce retiring — consolidate to NexusOps CRM" },
-  { capability: "Security Operations",      apps: ["NexusOps Platform", "CrowdStrike Falcon"],                                gap: false },
-  { capability: "Strategy & Initiatives",   apps: ["NexusOps Platform"],                                                       gap: false },
-  { capability: "Knowledge Management",     apps: ["NexusOps Platform", "Jira Software + Confluence"],                        gap: true, gapNote: "Dual system — standardise on one platform" },
+  { capability: "Finance & Accounting",      apps: ["SAP S/4HANA", "CoheronConnect Platform", "Legacy Invoicing System (LIMS)"],   gap: false },
+  { capability: "Human Resources",           apps: ["Workday HCM", "CoheronConnect Platform"],                                       gap: false },
+  { capability: "IT Service Management",     apps: ["CoheronConnect Platform"],                                                       gap: false },
+  { capability: "CRM / Sales",              apps: ["CoheronConnect Platform", "Salesforce Sales Cloud"],                            gap: true, gapNote: "Salesforce retiring — consolidate to CoheronConnect CRM" },
+  { capability: "Security Operations",      apps: ["CoheronConnect Platform", "CrowdStrike Falcon"],                                gap: false },
+  { capability: "Strategy & Initiatives",   apps: ["CoheronConnect Platform"],                                                       gap: false },
+  { capability: "Knowledge Management",     apps: ["CoheronConnect Platform", "Jira Software + Confluence"],                        gap: true, gapNote: "Dual system — standardise on one platform" },
   { capability: "Collaboration & Comms",    apps: ["Microsoft 365 Suite"],                                                    gap: false },
-  { capability: "Accounts Payable",         apps: ["SAP S/4HANA", "NexusOps Platform"],                                       gap: true, gapNote: "Legacy LIMS overlap — retire LIMS after migration" },
+  { capability: "Accounts Payable",         apps: ["SAP S/4HANA", "CoheronConnect Platform"],                                       gap: true, gapNote: "Legacy LIMS overlap — retire LIMS after migration" },
 ];
 
 function SkeletonRows({ count = 4 }: { count?: number }) {
@@ -378,7 +378,7 @@ export default function APMPage() {
                       <span className="font-bold text-foreground">{count}</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground/70">{cfg.desc}</p>
-                    {cost > 0 && <p className="text-[11px] font-mono text-muted-foreground mt-1">${(cost/1000).toFixed(0)}K / yr</p>}
+                    {cost > 0 && <p className="text-[11px] font-mono text-muted-foreground mt-1">₹{(cost/1000).toFixed(0)}K / yr</p>}
                   </div>
                 );
               })}
@@ -427,7 +427,7 @@ export default function APMPage() {
                   <div key={level} className="bg-card border border-border rounded px-3 py-2">
                     <div className={`text-xl font-bold ${cfg.color.split(" ")[0]}`}>{count}</div>
                     <div className="text-[10px] text-muted-foreground uppercase capitalize">{level} debt</div>
-                    {cost > 0 && <div className="text-[10px] text-muted-foreground/70">${(cost/1000).toFixed(0)}K spend</div>}
+                    {cost > 0 && <div className="text-[10px] text-muted-foreground/70">₹{(cost/1000).toFixed(0)}K spend</div>}
                   </div>
                 );
               })}

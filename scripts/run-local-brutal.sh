@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# NexusOps — localhost brutal Playwright run (full platform UI smoke)
+# CoheronConnect — localhost brutal Playwright run (full platform UI smoke)
 # =============================================================================
 set -euo pipefail
 
@@ -12,7 +12,7 @@ unset CI || true
 export CI=""
 
 export NEXUS_LOCAL_BASE_URL="${NEXUS_LOCAL_BASE_URL:-http://localhost:3000}"
-export DATABASE_URL="${DATABASE_URL:-postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:6380}"
 
 if [[ "${DOCKER_TEST_UP:-}" == "1" ]]; then

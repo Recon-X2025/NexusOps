@@ -8,7 +8,7 @@
  *   import { WorkflowService } from "./services/workflow";
  *   WorkflowService.approvalQueue.add(...)
  */
-import type { Db } from "@nexusops/db";
+import type { Db } from "@coheronconnect/db";
 import {
   createApprovalQueue,
   startApprovalWorker,

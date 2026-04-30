@@ -1,5 +1,5 @@
 /**
- * Shared NexusOps RBAC matrix — used by web UI and API (tRPC permissionProcedure).
+ * Shared CoheronConnect RBAC matrix — used by web UI and API (tRPC permissionProcedure).
  *
  * v3.1 changes:
  *  - Added `operator_field` role (replaces over-broad use of `field_service` as a catch-all)

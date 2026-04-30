@@ -29,58 +29,18 @@ export function FinancePrimary({ payload, granularity }: HubPrimaryProps) {
     }))
     : [];
 
-  // Mock data for AP vs AR opposing area chart
-  const cashflowData = [
-    { x: "Jan", ap: -120, ar: 150 },
-    { x: "Feb", ap: -140, ar: 180 },
-    { x: "Mar", ap: -110, ar: 160 },
-    { x: "Apr", ap: -130, ar: 190 },
-    { x: "May", ap: -150, ar: 210 },
-  ];
-
-  const tail = arOver60?.current ?? 0;
-  const aging = [
-    { bucket: "0–30 d", value: Math.round(tail * 2.2) || 450000 },
-    { bucket: "30–60 d", value: Math.round(tail * 1.5) || 280000 },
-    { bucket: "60–90 d", value: Math.round(tail * 0.6) || 120000 },
-    { bucket: "90+ d", value: tail || 45000 },
-  ];
-
   return (
     <HubPrimaryCard
-      title="Financial Health & Cashflow"
+      title="Finance Status"
       subtitle={`Cashflow dynamics and AR aging · ${granularity}-on-${granularity}`}
       accent="from-slate-600 to-slate-400"
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
-          {/* Cashflow Opposing Area Chart */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Cashflow Dynamics (AP vs AR)</h3>
-            <AreaChart
-              data={cashflowData}
-              xKey="x"
-              areas={[
-                { key: "ar", label: "Receivables (AR)", color: "#10b981" },
-                { key: "ap", label: "Payables (AP)", color: "#f43f5e" },
-              ]}
-              height={220}
-              grid
-              legend
-            />
-          </div>
-
           {/* AR Aging Bar */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">AR Aging Distribution</h3>
-            <BarChart
-              data={aging}
-              xKey="bucket"
-              bars={[{ key: "value", label: "Amount", color: "#64748b" }]}
-              height={180}
-              grid
-              yFormatter={(v) => v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${(v / 1000).toFixed(0)}k`}
-            />
+            <HubEmptyState message="AR aging data unavailable." />
           </div>
         </div>
 
@@ -105,25 +65,6 @@ export function FinancePrimary({ payload, granularity }: HubPrimaryProps) {
             value={formatValue(margin?.current, margin?.unit ?? "percent", margin?.state)}
             state={margin?.state}
           />
-
-          <div className="mt-4 p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-            <h4 className="text-xs font-bold text-slate-800 mb-3">Top Payables</h4>
-            <div className="space-y-2">
-              {[
-                { name: "AWS Infrastructure", amount: "₹4.2L", due: "3 days" },
-                { name: "Office Lease", amount: "₹2.8L", due: "Overdue" },
-                { name: "Employee Benefits", amount: "₹1.5L", due: "7 days" },
-              ].map((p) => (
-                <div key={p.name} className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-600 font-medium">{p.name}</span>
-                  <div className="text-right">
-                    <div className="font-bold text-slate-800">{p.amount}</div>
-                    <div className={cn("text-[9px] font-bold uppercase", p.due === "Overdue" ? "text-rose-500" : "text-slate-400")}>{p.due}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </HubPrimaryCard>

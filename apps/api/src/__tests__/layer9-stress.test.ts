@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession } from "./helpers";
-import { tickets } from "@nexusops/db";
+import { tickets } from "@coheronconnect/db";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {
@@ -13,7 +13,7 @@ beforeAll(async () => {
     );
   }
 });
-import { eq } from "@nexusops/db";
+import { eq } from "@coheronconnect/db";
 import { sanitizeHtml, sanitizeText } from "../lib/sanitize";
 
 describe("Layer 9: Concurrency & Edge Cases", () => {
@@ -205,7 +205,7 @@ describe("Layer 9: Concurrency & Edge Cases", () => {
   describe("9.5 Deletion Cascades and Orphans", () => {
     it("disabling a user does not break their existing ticket assignments", async () => {
       const db = testDb();
-      const { users } = await import("@nexusops/db");
+      const { users } = await import("@coheronconnect/db");
       const caller = await authedCaller(adminToken);
 
       const ticket = await caller.tickets.create({

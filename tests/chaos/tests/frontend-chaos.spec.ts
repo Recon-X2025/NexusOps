@@ -1,5 +1,5 @@
 /**
- * NexusOps Frontend Chaos Test
+ * CoheronConnect Frontend Chaos Test
  *
  * 20 parallel workers. Each worker:
  *   1. Logs in as admin@coheron.com
@@ -274,7 +274,7 @@ async function runChaosIteration(
 // ── Main test ─────────────────────────────────────────────────────────────────
 test.describe.configure({ mode: "parallel" });
 
-test.describe("Frontend Chaos — NexusOps", () => {
+test.describe("Frontend Chaos — CoheronConnect", () => {
   // Generate 20 separate test instances so all 20 Playwright workers are used
   for (let workerIdx = 0; workerIdx < 20; workerIdx++) {
     test(`chaos worker ${workerIdx}`, async ({ page, context }) => {

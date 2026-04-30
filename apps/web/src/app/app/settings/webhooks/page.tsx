@@ -114,7 +114,7 @@ function NewWebhookModal({ onClose, onCreated }: { onClose: () => void; onCreate
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://your-endpoint.example.com/hooks/nexusops"
+              placeholder="https://your-endpoint.example.com/hooks/coheronconnect"
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -193,7 +193,7 @@ function SecretModal({ secret, onClose }: { secret: string; onClose: () => void 
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Use this secret to verify the <code className="font-mono">X-NexusOps-Signature</code> header
+            Use this secret to verify the <code className="font-mono">X-CoheronConnect-Signature</code> header
             on incoming webhook deliveries (HMAC-SHA256).
           </p>
         </div>
@@ -377,8 +377,8 @@ export default function WebhooksSettingsPage() {
       {/* Info box */}
       <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">How it works</p>
-        <p>NexusOps sends a <code className="font-mono">POST</code> request to your URL for each subscribed event.</p>
-        <p>Each request includes an <code className="font-mono">X-NexusOps-Signature</code> HMAC-SHA256 header so you can verify authenticity.</p>
+        <p>CoheronConnect sends a <code className="font-mono">POST</code> request to your URL for each subscribed event.</p>
+        <p>Each request includes an <code className="font-mono">X-CoheronConnect-Signature</code> HMAC-SHA256 header so you can verify authenticity.</p>
         <p>Deliveries are retried up to 3× with exponential back-off on non-2xx responses.</p>
       </div>
 

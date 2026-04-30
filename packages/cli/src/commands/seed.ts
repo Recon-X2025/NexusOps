@@ -106,8 +106,8 @@ export function registerCommand(program: Command): void {
                 randomUUID(),
                 orgId,
                 adminId,
-                "Getting Started with NexusOps",
-                "Welcome to NexusOps! This article covers the basics of ticket management and knowledge base usage.",
+                "Getting Started with CoheronConnect",
+                "Welcome to CoheronConnect! This article covers the basics of ticket management and knowledge base usage.",
               ]
             );
 

@@ -1,5 +1,5 @@
 /**
- * NexusOps India Tax Computation Engine
+ * CoheronConnect India Tax Computation Engine
  * ─────────────────────────────────────
  * Handles FY 2025-26 (AY 2026-27) tax computation for both Old and New regimes.
  * Surcharge, Section 87A rebate, Health & Education Cess all included.

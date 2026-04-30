@@ -309,7 +309,7 @@ export default function CSMPage() {
                         </div>
                       </td>
                       <td><span className={`status-badge ${a.tier === "Enterprise" ? "text-purple-700 bg-purple-100" : a.tier === "Professional" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>{a.tier}</span></td>
-                      <td className="font-mono text-[11px] text-foreground/80">${(a.mrr ?? 0).toLocaleString()}</td>
+                      <td className="font-mono text-[11px] text-foreground/80">₹{(a.mrr ?? 0).toLocaleString()}</td>
                       <td>
                         <div className="flex items-center gap-2">
                           <div className="w-12 h-1.5 bg-border rounded-full overflow-hidden">

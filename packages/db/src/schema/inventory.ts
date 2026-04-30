@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   numeric,
+  boolean,
   index,
 } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
@@ -60,5 +61,27 @@ export const inventoryTransactions = pgTable(
   (t) => ({
     orgIdx: index("inventory_tx_org_idx").on(t.orgId),
     itemIdx: index("inventory_tx_item_idx").on(t.itemId),
+  }),
+);
+// ── Reorder Policies ─────────────────────────────────────────────────────────
+export const reorderPolicies = pgTable(
+  "reorder_policies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "cascade" }),
+    thresholdQty: integer("threshold_qty").notNull().default(5),
+    reorderQty: integer("reorder_qty").notNull().default(20),
+    isAutomated: boolean("is_automated").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("reorder_policies_org_idx").on(t.orgId),
+    itemIdx: index("reorder_policies_item_idx").on(t.itemId),
   }),
 );

@@ -1,10 +1,10 @@
-# NexusOps Command Center — build spec (reference)
+# CoheronConnect Command Center — build spec (reference)
 
 This file captures the **acceptance checklist**, **build order**, and **PR template** for the Command Center vertical slice. Product behavior and operator notes live in `docs/COMMAND_CENTER.md`, `apps/docs/src/pages/command-center.mdx`, and `docs/PRODUCT_REFERENCE.md` §4.1.
 
 ## Acceptance (11 points)
 
-1. `pnpm install` resolves cleanly with `@nexusops/metrics`.
+1. `pnpm install` resolves cleanly with `@coheronconnect/metrics`.
 2. `pnpm -w lint` / package `lint` scripts pass for affected packages.
 3. Typecheck passes (`tsc --noEmit` / package lint) for `packages/metrics`, `apps/api`, `apps/web`.
 4. Tests: registry unit tests; integration test for `commandCenter.getView` (CEO payload, mocked DB).

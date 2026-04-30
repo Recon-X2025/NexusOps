@@ -10,7 +10,7 @@
  */
 
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { workOrders, users } from "@nexusops/db";
+import { workOrders, users } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

@@ -24,7 +24,7 @@ import {
   lte,
   or,
   isNotNull,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { getNextNumber } from "../lib/auto-number";
 import { getRedis } from "../lib/redis";

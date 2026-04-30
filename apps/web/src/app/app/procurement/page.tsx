@@ -92,10 +92,12 @@ export default function ProcurementPage() {
   }, [visibleTabs, tab]);
 
 
-  // Correct tRPC paths: procurement.purchaseRequests.list / purchaseOrders.list / vendors.list
   const { data: prData, isLoading: prLoading, refetch: refetchPRs } = trpc.procurement.purchaseRequests.list.useQuery({}, mergeTrpcQueryOpts("procurement.purchaseRequests.list", { refetchOnWindowFocus: false },));
   const { data: poData, isLoading: poLoading, refetch: refetchPOs } = trpc.procurement.purchaseOrders.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.purchaseOrders.list", { refetchOnWindowFocus: false },));
   const { data: vendorsData } = trpc.procurement.vendors.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.vendors.list", { refetchOnWindowFocus: false },));
+  const { data: invData, isLoading: invLoading, refetch: refetchInv } = trpc.inventory.list.useQuery({}, mergeTrpcQueryOpts("inventory.list", { enabled: tab === "inventory" || tab === "catalog" }));
+  const { data: policiesData, refetch: refetchPolicies } = trpc.inventory.listPolicies.useQuery(undefined, mergeTrpcQueryOpts("inventory.listPolicies", { enabled: tab === "reorder" }));
+  
   const { data: legalEntityOptions } = trpc.procurement.legalEntityOptions.useQuery(
     undefined,
     mergeTrpcQueryOpts("procurement.legalEntityOptions", { refetchOnWindowFocus: false }),
@@ -103,19 +105,31 @@ export default function ProcurementPage() {
 
   const approvePR  = trpc.procurement.purchaseRequests.approve.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const rejectPR   = trpc.procurement.purchaseRequests.reject.useMutation({ onSuccess: () => refetchPRs(), onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
-  const createPO   = trpc.procurement.purchaseOrders.createFromPR.useMutation({ onSuccess: () => { refetchPRs(); refetchPOs(); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const createPOFromPR   = trpc.procurement.purchaseOrders.createFromPR.useMutation({ onSuccess: () => { refetchPRs(); refetchPOs(); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const createDirectPO = trpc.procurement.purchaseOrders.create.useMutation({ onSuccess: () => { refetchPOs(); setShowNewPO(false); toast.success("Purchase Order created"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  
+  const createInventoryItem = trpc.inventory.create.useMutation({ onSuccess: () => { refetchInv(); setShowNewItem(false); toast.success("Item added to catalog"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const createPolicy = trpc.inventory.createPolicy.useMutation({ onSuccess: () => { refetchPolicies(); setShowNewPolicy(false); toast.success("Reorder policy created"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const recordIntake = trpc.inventory.intake.useMutation({ onSuccess: () => { refetchInv(); setShowIntake(false); toast.success("Stock intake recorded"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+
   const [rejectingPR, setRejectingPR]  = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [creatingPO, setCreatingPO]    = useState<string | null>(null);
   const [poVendorId, setPOVendorId]    = useState("");
   const [poLegalEntityId, setPoLegalEntityId] = useState("");
 
-  useEffect(() => {
-    setPoLegalEntityId("");
-  }, [creatingPO]);
-
   const [showNewPR, setShowNewPR] = useState(false);
+  const [showNewPO, setShowNewPO] = useState(false);
+  const [showNewItem, setShowNewItem] = useState(false);
+  const [showNewPolicy, setShowNewPolicy] = useState(false);
+  const [showIntake, setShowIntake] = useState(false);
+
   const [prForm, setPrForm] = useState({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
+  const [poForm, setPoForm] = useState({ vendorId: "", notes: "", expectedDelivery: "", items: [{ desc: "", qty: "1", price: "" }] });
+  const [invForm, setInvForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", qty: "0", minQty: "5", unitCost: "" });
+  const [policyForm, setPolicyForm] = useState({ itemId: "", thresholdQty: "5", reorderQty: "20", isAutomated: false });
+  const [intakeForm, setIntakeForm] = useState({ itemId: "", qty: "1", reference: "", notes: "" });
+
   const [prMsg, setPrMsg] = useState<string | null>(null);
 
   const createPR = trpc.procurement.purchaseRequests.create.useMutation({
@@ -174,9 +188,17 @@ export default function ProcurementPage() {
             <PermissionGate module="procurement" action="write">
               <button
                 onClick={() => setShowNewPR((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-primary/20 bg-primary/5 text-primary text-sm font-medium rounded-lg hover:bg-primary/10"
               >
                 <Plus className="w-4 h-4" /> {showNewPR ? "Cancel" : "New Requisition"}
+              </button>
+            </PermissionGate>
+            <PermissionGate module="purchase_orders" action="write">
+              <button
+                onClick={() => setShowNewPO((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> {showNewPO ? "Cancel" : "New Purchase Order"}
               </button>
             </PermissionGate>
           </div>
@@ -240,6 +262,92 @@ export default function ProcurementPage() {
               className="px-6 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md"
             >
               {createPR.isPending ? "Submitting…" : "Submit Requisition"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showNewPO && (
+        <div className="bg-card border border-primary/20 rounded-xl p-6 shadow-md animate-in zoom-in-95 duration-200">
+          <h3 className="text-sm font-bold text-foreground mb-4">Direct Purchase Order</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Vendor *</label>
+              <select 
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
+                value={poForm.vendorId} 
+                onChange={(e) => setPoForm((f) => ({ ...f, vendorId: e.target.value }))}
+              >
+                <option value="">Select Vendor</option>
+                {((vendorsData as any[]) ?? []).map((v: any) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Expected Delivery</label>
+              <input 
+                type="date" 
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none" 
+                value={poForm.expectedDelivery} 
+                onChange={(e) => setPoForm((f) => ({ ...f, expectedDelivery: e.target.value }))} 
+              />
+            </div>
+            <div className="md:col-span-3">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Details</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input 
+                  className="md:col-span-1 text-sm border border-border rounded-lg px-3 py-2 bg-background" 
+                  placeholder="Description" 
+                  value={poForm.items[0]?.desc} 
+                  onChange={(e) => {
+                    const newItems = [...poForm.items];
+                    newItems[0]!.desc = e.target.value;
+                    setPoForm({...poForm, items: newItems});
+                  }}
+                />
+                <input 
+                  type="number" 
+                  className="text-sm border border-border rounded-lg px-3 py-2 bg-background" 
+                  placeholder="Qty" 
+                  value={poForm.items[0]?.qty}
+                  onChange={(e) => {
+                    const newItems = [...poForm.items];
+                    newItems[0]!.qty = e.target.value;
+                    setPoForm({...poForm, items: newItems});
+                  }}
+                />
+                <input 
+                  type="number" 
+                  className="text-sm border border-border rounded-lg px-3 py-2 bg-background" 
+                  placeholder="Price" 
+                  value={poForm.items[0]?.price}
+                  onChange={(e) => {
+                    const newItems = [...poForm.items];
+                    newItems[0]!.price = e.target.value;
+                    setPoForm({...poForm, items: newItems});
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={() => setShowNewPO(false)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
+            <button
+              disabled={!poForm.vendorId || !poForm.items[0]?.desc || createDirectPO.isPending}
+              onClick={() => {
+                const total = Number(poForm.items[0]!.qty) * Number(poForm.items[0]!.price);
+                createDirectPO.mutate({
+                  vendorId: poForm.vendorId,
+                  totalAmount: total,
+                  notes: "Direct PO",
+                  expectedDelivery: poForm.expectedDelivery ? new Date(poForm.expectedDelivery) : undefined,
+                  items: [{ description: poForm.items[0]!.desc, quantity: Number(poForm.items[0]!.qty), unitPrice: Number(poForm.items[0]!.price) }]
+                });
+              }}
+              className="px-6 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 shadow-md"
+            >
+              {createDirectPO.isPending ? "Creating…" : "Create Purchase Order"}
             </button>
           </div>
         </div>
@@ -501,16 +609,18 @@ export default function ProcurementPage() {
                                           ))}
                                         </select>
                                         <button
-                                          disabled={!poVendorId || createPO.isPending}
+                                          disabled={!poVendorId || createPOFromPR.isPending}
                                           onClick={() =>
-                                            createPO.mutate({
+                                            createPOFromPR.mutate({
                                               prId: pr.id,
                                               vendorId: poVendorId,
                                               legalEntityId: poLegalEntityId || undefined,
                                             })}
                                           className="px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
-                                        >{createPO.isPending ? "…" : "Create PO"}</button>
-                                        {createPO.isError && <span className="text-[11px] text-red-600">{(createPO.error as any)?.message}</span>}
+                                        >
+                                          {createPOFromPR.isPending ? "…" : "Create PO"}
+                                        </button>
+                                        {createPOFromPR.isError && <span className="text-[11px] text-red-600">{(createPOFromPR.error as any)?.message}</span>}
                                       </div>
                                       <p className="text-[10px] text-muted-foreground">
                                         Manage entities under{" "}
@@ -703,28 +813,287 @@ export default function ProcurementPage() {
 
         {/* INVENTORY */}
         {tab === "inventory" && (
-          <div className="p-8 text-center">
-            <Package className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-[12px] text-muted-foreground/50">No inventory items found</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-1">Add parts and stock items to the inventory to track availability and reorder levels</p>
+          <div className="p-4">
+            <div className="flex justify-between items-center mb-4">
+              <div className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Current Stock Levels</div>
+              <button onClick={() => setShowNewItem(true)} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] font-bold rounded hover:bg-primary/90">
+                <Plus className="w-3 h-3" /> New Inventory Item
+              </button>
+            </div>
+            {invLoading ? (
+              <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto opacity-20" /></div>
+            ) : (invData?.items.length ?? 0) === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-xs italic">No inventory items found.</div>
+            ) : (
+              <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th>Part #</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>In Stock</th>
+                    <th>Min Qty</th>
+                    <th>Unit Cost</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(invData?.items ?? []).map((item) => {
+                    const isLow = item.qty <= item.minQty;
+                    const status = item.qty === 0 ? "out_of_stock" : isLow ? "low_stock" : "in_stock";
+                    const cfg = INV_STATUS_CFG[status]!;
+                    return (
+                      <tr key={item.id}>
+                        <td className="font-mono text-[11px] text-primary">{item.partNumber}</td>
+                        <td className="font-bold text-foreground">{item.name}</td>
+                        <td><span className="status-badge text-muted-foreground bg-muted">{item.category}</span></td>
+                        <td className="text-muted-foreground">{item.location ?? "—"}</td>
+                        <td className="font-bold">{item.qty} {item.unit}</td>
+                        <td className="text-muted-foreground">{item.minQty}</td>
+                        <td className="font-mono text-[11px]">₹{Number(item.unitCost ?? 0).toLocaleString("en-IN")}</td>
+                        <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
+                        <td>
+                          <button onClick={() => { setIntakeForm({...intakeForm, itemId: item.id}); setShowIntake(true); }} className="text-primary hover:underline text-[11px] font-bold">Add Stock</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
         {/* PARTS CATALOG */}
         {tab === "catalog" && (
-          <div className="p-8 text-center">
-            <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-[12px] text-muted-foreground/50">No catalog items configured yet</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-1">Add approved parts with preferred suppliers and pricing to the catalog</p>
+          <div className="p-4">
+             <div className="flex justify-between items-center mb-4">
+              <div className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Approved Parts Catalog</div>
+              <button onClick={() => setShowNewItem(true)} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] font-bold rounded hover:bg-primary/90">
+                <Plus className="w-3 h-3" /> Add Part to Catalog
+              </button>
+            </div>
+            <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th>Part #</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Unit Cost</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(invData?.items ?? []).map((item) => (
+                    <tr key={item.id}>
+                      <td className="font-mono text-[11px] text-primary">{item.partNumber}</td>
+                      <td className="font-bold text-foreground">{item.name}</td>
+                      <td><span className="status-badge text-muted-foreground bg-muted">{item.category}</span></td>
+                      <td className="font-mono text-[11px]">₹{Number(item.unitCost ?? 0).toLocaleString("en-IN")}</td>
+                      <td className="text-muted-foreground max-w-xs truncate">{item.description ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
           </div>
         )}
 
         {/* REORDER POLICIES */}
         {tab === "reorder" && (
-          <div className="p-8 text-center">
-            <AlertTriangle className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-[12px] text-muted-foreground/50">No reorder policies configured yet</p>
-            <p className="text-[11px] text-muted-foreground/40 mt-1">Set up automated reorder rules to maintain optimal stock levels</p>
+          <div className="p-4">
+            <div className="flex justify-between items-center mb-4">
+              <div className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Automated Reorder Rules</div>
+              <button onClick={() => setShowNewPolicy(true)} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] font-bold rounded hover:bg-primary/90">
+                <Plus className="w-3 h-3" /> New Reorder Policy
+              </button>
+            </div>
+            {(!policiesData || policiesData.length === 0) ? (
+              <div className="p-12 text-center border border-dashed border-border rounded">
+                <AlertTriangle className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No reorder policies configured yet.</p>
+                <button onClick={() => setShowNewPolicy(true)} className="mt-3 text-primary text-xs font-bold hover:underline">Set up your first rule →</button>
+              </div>
+            ) : (
+              <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Threshold</th>
+                    <th>Reorder Qty</th>
+                    <th>Automation</th>
+                    <th>Last Check</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {policiesData.map((p) => {
+                    const item = invData?.items.find(it => it.id === p.itemId);
+                    return (
+                      <tr key={p.id}>
+                        <td className="font-bold">{item?.name ?? "Unknown Item"}</td>
+                        <td>Below {p.thresholdQty} units</td>
+                        <td>Order {p.reorderQty} units</td>
+                        <td>
+                          <span className={`status-badge ${p.isAutomated ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                            {p.isAutomated ? "Auto-Raise PO" : "Manual Trigger"}
+                          </span>
+                        </td>
+                        <td className="text-[11px] text-muted-foreground">{new Date(p.updatedAt).toLocaleDateString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* MODALS */}
+        {showNewItem && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Add Inventory Item / Part</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Part Number *</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.partNumber} onChange={e => setInvForm({...invForm, partNumber: e.target.value})} placeholder="e.g. SRV-FAN-120" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Name *</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.name} onChange={e => setInvForm({...invForm, name: e.target.value})} placeholder="e.g. 120mm Server Chassis Fan" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Category</label>
+                    <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.category} onChange={e => setInvForm({...invForm, category: e.target.value})}>
+                      <option value="spare">Spare Parts</option>
+                      <option value="it_hardware">IT Hardware</option>
+                      <option value="consumable">Consumables</option>
+                      <option value="asset">Fixed Asset</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Unit</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.unit} onChange={e => setInvForm({...invForm, unit: e.target.value})} placeholder="each / box / kg" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Current Stock</label>
+                    <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.qty} onChange={e => setInvForm({...invForm, qty: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min Qty (Safety)</label>
+                    <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.minQty} onChange={e => setInvForm({...invForm, minQty: e.target.value})} />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-8">
+                  <button onClick={() => setShowNewItem(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+                  <button 
+                    disabled={!invForm.partNumber || !invForm.name || createInventoryItem.isPending}
+                    onClick={() => createInventoryItem.mutate({
+                      ...invForm,
+                      qty: parseInt(invForm.qty) || 0,
+                      minQty: parseInt(invForm.minQty) || 5,
+                    })}
+                    className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
+                  >
+                    {createInventoryItem.isPending ? "Saving…" : "Save Item"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showNewPolicy && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Create Reorder Policy</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Select Item *</label>
+                    <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.itemId} onChange={e => setPolicyForm({...policyForm, itemId: e.target.value})}>
+                      <option value="">Choose item…</option>
+                      {(invData?.items ?? []).map(it => (
+                        <option key={it.id} value={it.id}>{it.name} ({it.partNumber})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Low Stock Threshold</label>
+                      <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.thresholdQty} onChange={e => setPolicyForm({...policyForm, thresholdQty: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reorder Quantity</label>
+                      <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.reorderQty} onChange={e => setPolicyForm({...policyForm, reorderQty: e.target.value})} />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-3 p-3 border border-border rounded-lg cursor-pointer hover:bg-muted/30">
+                    <input type="checkbox" checked={policyForm.isAutomated} onChange={e => setPolicyForm({...policyForm, isAutomated: e.target.checked})} className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Auto-raise Purchase Order</p>
+                      <p className="text-[10px] text-muted-foreground">Automatically create a draft PO when stock hits threshold</p>
+                    </div>
+                  </label>
+                </div>
+                <div className="flex justify-end gap-3 mt-8">
+                  <button onClick={() => setShowNewPolicy(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg">Cancel</button>
+                  <button 
+                    disabled={!policyForm.itemId || createPolicy.isPending}
+                    onClick={() => createPolicy.mutate({
+                      itemId: policyForm.itemId,
+                      thresholdQty: parseInt(policyForm.thresholdQty) || 5,
+                      reorderQty: parseInt(policyForm.reorderQty) || 20,
+                      isAutomated: policyForm.isAutomated,
+                    })}
+                    className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-lg"
+                  >
+                    {createPolicy.isPending ? "Saving…" : "Save Policy"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showIntake && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-sm rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4">Stock Intake / Goods Receipt</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Quantity to Add *</label>
+                    <input type="number" min="1" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background font-bold text-lg" value={intakeForm.qty} onChange={e => setIntakeForm({...intakeForm, qty: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reference (PO / Invoice #)</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={intakeForm.reference} onChange={e => setIntakeForm({...intakeForm, reference: e.target.value})} placeholder="e.g. PO-12345" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Notes</label>
+                    <textarea className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background h-20 resize-none" value={intakeForm.notes} onChange={e => setIntakeForm({...intakeForm, notes: e.target.value})} placeholder="Reason for intake..." />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-8">
+                  <button onClick={() => setShowIntake(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg">Cancel</button>
+                  <button 
+                    disabled={!intakeForm.qty || recordIntake.isPending}
+                    onClick={() => recordIntake.mutate({
+                      itemId: intakeForm.itemId,
+                      qty: parseInt(intakeForm.qty) || 1,
+                      reference: intakeForm.reference || undefined,
+                      notes: intakeForm.notes || undefined,
+                    })}
+                    className="px-6 py-2 bg-green-600 text-white text-sm font-bold rounded-lg shadow-lg"
+                  >
+                    {recordIntake.isPending ? "Saving…" : "Add to Stock"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

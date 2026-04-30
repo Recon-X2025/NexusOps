@@ -7,7 +7,7 @@ import { CalendarDays, Plus, RefreshCw, Download, Loader2, X } from "lucide-reac
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { EmptyState, TableSkeleton, ConfirmDialog } from "@nexusops/ui";
+import { EmptyState, TableSkeleton, ConfirmDialog } from "@coheronconnect/ui";
 
 const TYPE_CFG: Record<string, { label: string; color: string }> = {
   national:   { label: "National",   color: "text-blue-700 bg-blue-100" },

@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/ui",
+  "name": "@coheronconnect/ui",
   "version": "0.1.0",
   "private": true,
   "exports": {
@@ -42,7 +42,7 @@
     "tailwind-merge": "^2.5.0"
   },
   "devDependencies": {
-    "@nexusops/config": "workspace:*",
+    "@coheronconnect/config": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tsup": "^8.3.0",

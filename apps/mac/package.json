@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/mac",
+  "name": "@coheronconnect/mac",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@nexusops/types": "workspace:*",
+    "@coheronconnect/types": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.1.0",
     "@radix-ui/react-select": "^2.1.0",
@@ -34,7 +34,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@nexusops/api": "workspace:*",
+    "@coheronconnect/api": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

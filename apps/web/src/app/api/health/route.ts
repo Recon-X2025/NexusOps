@@ -3,5 +3,5 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ status: "ok", service: "nexusops-web" });
+  return NextResponse.json({ status: "ok", service: "coheronconnect-web" });
 }

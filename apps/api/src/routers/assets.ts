@@ -15,12 +15,12 @@ import {
   desc,
   asc,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 type CIItem = typeof ciItems.$inferSelect;
 type CIRelationship = typeof ciRelationships.$inferSelect;
 type SoftwareLicense = typeof softwareLicenses.$inferSelect;
-import { CreateAssetSchema } from "@nexusops/types";
+import { CreateAssetSchema } from "@coheronconnect/types";
 
 export const assetsRouter = router({
   list: permissionProcedure("cmdb", "read")

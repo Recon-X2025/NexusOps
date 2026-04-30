@@ -1,4 +1,4 @@
-# NexusOps — User Story Backlog (Gap-Closure Programme)
+# CoheronConnect — User Story Backlog (Gap-Closure Programme)
 
 **Purpose:** Consolidate **user stories** derived from module **gap analyses** and **sprint plans** in `docs/`. Use this for backlog refinement, PI planning, and traceability to source documents.  
 **Living status:** Implementation truth lives in the **Status rollup** and **Changelog** near the end of this file — update them when stories ship.  

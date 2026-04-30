@@ -7,7 +7,7 @@ import ora from "ora";
 import { API_URL } from "../lib/env.js";
 
 const LICENSE_KEY_REGEX = /^NXS-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-const CONFIG_DIR = path.join(os.homedir(), ".nexusops");
+const CONFIG_DIR = path.join(os.homedir(), ".coheronconnect");
 const LICENSE_FILE = path.join(CONFIG_DIR, "license.json");
 
 function saveLocalLicense(key: string, response: unknown): void {
@@ -25,7 +25,7 @@ export function registerCommand(program: Command): void {
 
   license
     .command("activate")
-    .description("Activate a NexusOps license key")
+    .description("Activate a CoheronConnect license key")
     .requiredOption("--key <license-key>", "License key (format: NXS-XXXX-XXXX-XXXX)")
     .action(async (opts: { key: string }) => {
       if (!LICENSE_KEY_REGEX.test(opts.key)) {

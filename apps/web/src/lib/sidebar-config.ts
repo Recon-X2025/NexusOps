@@ -1,4 +1,4 @@
-import type { Module, SystemRole } from "@nexusops/types";
+import type { Module, SystemRole } from "@coheronconnect/types";
 import { DEVOPS_ENABLED, APM_ENABLED } from "@/lib/feature-flags";
 
 export type SidebarChild = { label: string; href: string };
@@ -68,7 +68,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
       { label: "Change & Release", href: "/app/workbench/change-release", icon: "GitBranch", module: "workbench" },
       { label: "Field Service", href: "/app/workbench/field-service", icon: "Wrench", module: "workbench", dividerAfter: true },
       {
-        label: "Tickets",
+        label: "Service Requests",
         href: "/app/tickets",
         icon: "Headset",
         badge: "incidents_open",
@@ -106,7 +106,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         label: "IT Operations",
         href: "/app/events",
         icon: "Activity",
-        module: "cmdb",
+        module: "events",
         children: [
           { label: "Event Management", href: "/app/events" },
           { label: "CMDB", href: "/app/cmdb" },

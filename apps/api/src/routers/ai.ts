@@ -6,7 +6,7 @@
  */
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { tickets, ticketComments, kbArticles, eq, and, ne, desc } from "@nexusops/db";
+import { tickets, ticketComments, kbArticles, eq, and, ne, desc } from "@coheronconnect/db";
 import { summarizeTicket, suggestResolution, classifyTicket, parseSearchQuery, semanticResolutionSuggestions } from "../services/ai";
 import { invokeAgent } from "../services/ai-agent";
 import { systemRolesForDbUser } from "../lib/rbac-db";

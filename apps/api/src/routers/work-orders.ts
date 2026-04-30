@@ -15,7 +15,7 @@ import {
   ilike,
   inArray,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 const WOStateEnum = z.enum([
   "draft", "open", "pending_dispatch", "dispatched",

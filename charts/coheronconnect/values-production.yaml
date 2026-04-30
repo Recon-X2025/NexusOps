@@ -1,4 +1,4 @@
-# Production values for NexusOps Helm chart
+# Production values for CoheronConnect Helm chart
 # Deploy with: helm upgrade --install nexusops ./charts/nexusops -f values-production.yaml
 
 web:

@@ -57,7 +57,7 @@ if [[ -z "$KEY_PATH" || ! -f "$KEY_PATH" ]]; then
   exit 1
 fi
 
-echo "Repository: $(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo '(run from NexusOps clone)')"
+echo "Repository: $(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo '(run from CoheronConnect clone)')"
 echo "Setting secret VULTR_HOST=$HOST"
 echo "$HOST" | gh secret set VULTR_HOST
 

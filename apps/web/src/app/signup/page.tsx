@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, Zap, CheckCircle2 } from "lucide-react";
-import { SignupSchema } from "@nexusops/types";
+import { SignupSchema } from "@coheronconnect/types";
 import type { z } from "zod";
 import { trpc } from "@/lib/trpc";
 
@@ -31,11 +31,11 @@ export default function SignupPage() {
 
   const signup = trpc.auth.signup.useMutation({
     onSuccess: async (data) => {
-      localStorage.setItem("nexusops_session", data.sessionId);
-      document.cookie = `nexusops_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      localStorage.setItem("coheronconnect_session", data.sessionId);
+      document.cookie = `coheronconnect_session=${data.sessionId}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
       await utils.auth.me.fetch().catch(() => {});
-      toast.success("Account created! Welcome to NexusOps.");
-      router.push("/app/dashboard");
+      toast.success("Account created! Welcome to CoheronConnect.");
+      window.location.href = "/app/dashboard";
     },
     onError: (err) => {
       if (err.data?.code === "CONFLICT") {
@@ -61,7 +61,7 @@ export default function SignupPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">NexusOps</h1>
+          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
           <p className="text-sm text-slate-400">by Coheron</p>
         </div>
 

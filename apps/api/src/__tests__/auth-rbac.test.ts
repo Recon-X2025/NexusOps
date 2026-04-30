@@ -34,7 +34,7 @@ describe("Auth router RBAC (Seq 11 C6)", () => {
     const caller = await authedCaller(requesterToken);
     await expect(
       caller.auth.inviteUser({
-        email: `x-${Date.now()}@qa.nexusops.io`,
+        email: `x-${Date.now()}@qa.coheronconnect.io`,
         role: "member",
       }),
     ).rejects.toThrow(/FORBIDDEN|permission/i);
@@ -52,7 +52,7 @@ describe("Auth router RBAC (Seq 11 C6)", () => {
     const list = (await caller.auth.listUsers()) as { id: string }[];
     expect(list.length).toBeGreaterThan(0);
     const inv = await caller.auth.inviteUser({
-      email: `rbac-inv-${Date.now()}@qa.nexusops.io`,
+      email: `rbac-inv-${Date.now()}@qa.coheronconnect.io`,
       role: "viewer",
     });
     expect(inv).toHaveProperty("inviteUrl");

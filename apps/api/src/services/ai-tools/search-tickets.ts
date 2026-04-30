@@ -1,4 +1,4 @@
-import { tickets, eq, and, desc, ilike, or, inArray } from "@nexusops/db";
+import { tickets, eq, and, desc, ilike, or, inArray } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const searchTicketsTool: AgentTool<{

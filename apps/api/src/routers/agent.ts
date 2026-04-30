@@ -6,10 +6,10 @@ import {
   listConversations,
   getConversation,
 } from "../services/agent-copilot";
-import { agentConversations, eq, and } from "@nexusops/db";
+import { agentConversations, eq, and } from "@coheronconnect/db";
 
 /**
- * agentRouter — single tRPC surface for the NexusOps Copilot.
+ * agentRouter — single tRPC surface for the CoheronConnect Copilot.
  *
  * All procedures are `protectedProcedure`: any authenticated user may use
  * the chat interface, but the agent-copilot service still enforces

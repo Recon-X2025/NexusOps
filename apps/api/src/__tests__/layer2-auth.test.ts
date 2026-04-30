@@ -13,8 +13,8 @@ beforeAll(async () => {
     );
   }
 });
-import { sessions, users, verificationTokens } from "@nexusops/db";
-import { eq, and, sql } from "@nexusops/db";
+import { sessions, users, verificationTokens } from "@coheronconnect/db";
+import { eq, and, sql } from "@coheronconnect/db";
 import { appRouter } from "../routers";
 import type { Context } from "../lib/trpc";
 
@@ -48,7 +48,7 @@ describe("Layer 2: Authentication", () => {
     orgId = oid;
     password = "TestPass123!";
     const { userId, user } = await seedUser(orgId, {
-      email: `admin-l2@qa.nexusops.io`,
+      email: `admin-l2@qa.coheronconnect.io`,
       role: "admin",
       matrixRole: "admin",
       password,
@@ -57,7 +57,7 @@ describe("Layer 2: Authentication", () => {
     adminId = userId;
     adminEmail = user.email;
     const { user: agent } = await seedUser(orgId, {
-      email: `agent-l2@qa.nexusops.io`,
+      email: `agent-l2@qa.coheronconnect.io`,
       role: "member",
       matrixRole: "itil",
       password,
@@ -126,7 +126,7 @@ describe("Layer 2: Authentication", () => {
 
     it("user with status=disabled → FORBIDDEN", async () => {
       const { user: disabledUser } = await seedUser(orgId, {
-        email: `disabled-l2@qa.nexusops.io`,
+        email: `disabled-l2@qa.coheronconnect.io`,
         password,
         status: "disabled",
       });
@@ -283,7 +283,7 @@ describe("Layer 2: Authentication", () => {
 
   describe("2.6 Registration", () => {
     it("signup creates new org + user as owner", async () => {
-      const email = `signup-l2-${Date.now()}@qa.nexusops.io`;
+      const email = `signup-l2-${Date.now()}@qa.coheronconnect.io`;
       const result = await publicCaller().auth.signup({
         email,
         password: "SignupTest123!",
@@ -305,7 +305,7 @@ describe("Layer 2: Authentication", () => {
     });
 
     it("created user has password_hash starting with $2b$ (bcrypt)", async () => {
-      const email = `bcrypt-check-${Date.now()}@qa.nexusops.io`;
+      const email = `bcrypt-check-${Date.now()}@qa.coheronconnect.io`;
       await publicCaller().auth.signup({
         email,
         password: "BcryptCheck123!",

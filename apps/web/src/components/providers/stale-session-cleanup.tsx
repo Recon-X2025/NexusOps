@@ -36,8 +36,8 @@ export function StaleSessionCleanup() {
     if (ranForPath.current === pathname) return;
     ranForPath.current = pathname;
 
-    const hasLocal = !!localStorage.getItem("nexusops_session");
-    const hasCookie = document.cookie.split(";").some((c) => c.trim().startsWith("nexusops_session="));
+    const hasLocal = !!localStorage.getItem("coheronconnect_session");
+    const hasCookie = document.cookie.split(";").some((c) => c.trim().startsWith("coheronconnect_session="));
     if (!hasLocal && !hasCookie) return;
 
     let cancelled = false;
@@ -46,15 +46,15 @@ export function StaleSessionCleanup() {
       .then((me) => {
         if (cancelled) return;
         if (!me) {
-          localStorage.removeItem("nexusops_session");
-          document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+          localStorage.removeItem("coheronconnect_session");
+          document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
           stripNonAuthTrpcCaches(queryClient);
         }
       })
       .catch(() => {
         if (cancelled) return;
-        localStorage.removeItem("nexusops_session");
-        document.cookie = "nexusops_session=; path=/; max-age=0; SameSite=Lax";
+        localStorage.removeItem("coheronconnect_session");
+        document.cookie = "coheronconnect_session=; path=/; max-age=0; SameSite=Lax";
         stripNonAuthTrpcCaches(queryClient);
       });
 

@@ -25,7 +25,7 @@ export type ExecutiveQuickRangeDef = {
 };
 
 /**
- * Quick ranges aligned with NexusOps / Kibana-style date math.
+ * Quick ranges aligned with CoheronConnect / Kibana-style date math.
  * IDs are stable; `from`/`to` store the original expression strings for docs/API parity.
  */
 export const EXECUTIVE_QUICK_RANGES: ExecutiveQuickRangeDef[] = [
@@ -35,6 +35,7 @@ export const EXECUTIVE_QUICK_RANGES: ExecutiveQuickRangeDef[] = [
   { id: "span_7d", from: "now-7d/d", to: "now/d", display: "Last 7 days", group: "Recent" },
   { id: "span_30d", from: "now-30d/d", to: "now/d", display: "Last 30 days", group: "Recent" },
   { id: "span_90d", from: "now-90d/d", to: "now/d", display: "Last 90 days", group: "Recent" },
+  { id: "span_180d", from: "now-180d/d", to: "now/d", display: "Last 6 months", group: "Recent" },
   // Year ranges (calendar)
   { id: "yr_this", from: "now/y", to: "now", display: "This year", group: "Year ranges" },
   { id: "yr_last", from: "now-1y/y", to: "now-1y/y", display: "Last year", group: "Year ranges" },
@@ -187,6 +188,10 @@ export function resolveExecutiveQuickRange(id: string, now = new Date()): Execut
       fromDate = startOfDay(subDays(now, 89));
       toDate = endOfDay(now);
       break;
+    case "span_180d":
+      fromDate = startOfDay(subDays(now, 179));
+      toDate = endOfDay(now);
+      break;
     case "yr_this":
       fromDate = startOfYear(now);
       toDate = now;
@@ -271,7 +276,7 @@ export function resolveExecutiveQuickRange(id: string, now = new Date()): Execut
 }
 
 export function executiveDefaultQuickRangeId(): string {
-  return "today";
+  return "span_180d";
 }
 
 /** Human-friendly label for a custom date interval, e.g. "Apr 1 – Apr 26, 2026". */

@@ -1,9 +1,9 @@
 /**
- * NexusOps Role-Based Access Control (UI)
+ * CoheronConnect Role-Based Access Control (UI)
  *
- * Matrix and helpers live in @nexusops/types (rbac-matrix) for parity with API checks.
+ * Matrix and helpers live in @coheronconnect/types (rbac-matrix) for parity with API checks.
  */
-import type { SystemRole, Module, RbacAction } from "@nexusops/types";
+import type { SystemRole, Module, RbacAction } from "@coheronconnect/types";
 
 export type { SystemRole, Module, RbacAction };
 export {
@@ -11,7 +11,7 @@ export {
   hasPermission,
   canAccessModule,
   getVisibleModules,
-} from "@nexusops/types";
+} from "@coheronconnect/types";
 
 /** User definition */
 export interface SystemUser {
@@ -29,184 +29,8 @@ export interface SystemUser {
   orgName?: string;
 }
 
-/** Mock session user — in production this comes from the auth token / session */
-export const MOCK_USERS: SystemUser[] = [
-  {
-    id: "usr-001",
-    name: "Admin User",
-    email: "admin@nexusops.corp",
-    username: "admin",
-    roles: ["requester", "admin"],
-    department: "IT Operations",
-    active: true,
-    lastLogin: "2026-03-24 18:51",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-002",
-    name: "Jordan Chen",
-    email: "j.chen@nexusops.corp",
-    username: "j.chen",
-    roles: ["requester", "itil", "field_service"],
-    department: "Infrastructure",
-    manager: "usr-008",
-    active: true,
-    lastLogin: "2026-03-24 08:00",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-003",
-    name: "Alex Rivera",
-    email: "a.rivera@nexusops.corp",
-    username: "a.rivera",
-    roles: ["requester", "security_analyst", "itil"],
-    department: "Security",
-    manager: "usr-009",
-    active: true,
-    lastLogin: "2026-03-24 07:30",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-004",
-    name: "Sam Okafor",
-    email: "s.okafor@nexusops.corp",
-    username: "s.okafor",
-    roles: ["requester", "itil", "cmdb_admin"],
-    department: "ERP",
-    manager: "usr-008",
-    active: true,
-    lastLogin: "2026-03-24 09:15",
-    mfaEnabled: false,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-005",
-    name: "Taylor Patel",
-    email: "t.patel@nexusops.corp",
-    username: "t.patel",
-    roles: ["requester", "itil", "project_manager"],
-    department: "Platform Engineering",
-    manager: "usr-008",
-    active: true,
-    lastLogin: "2026-03-23 17:00",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-006",
-    name: "Morgan Lee",
-    email: "m.lee@nexusops.corp",
-    username: "m.lee",
-    roles: ["requester", "itil_manager", "change_manager"],
-    department: "IT Service Desk",
-    manager: "usr-010",
-    active: true,
-    lastLogin: "2026-03-24 07:00",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-007",
-    name: "Riley Brown",
-    email: "r.brown@nexusops.corp",
-    username: "r.brown",
-    roles: ["requester", "itil", "cmdb_admin"],
-    department: "Database Administration",
-    manager: "usr-008",
-    active: true,
-    lastLogin: "2026-03-24 06:00",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-008",
-    name: "Chris Wallace",
-    email: "c.wallace@nexusops.corp",
-    username: "c.wallace",
-    roles: ["requester", "itil_admin", "itil_manager"],
-    department: "IT Operations",
-    active: true,
-    lastLogin: "2026-03-24 08:30",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-009",
-    name: "Dana Kim",
-    email: "d.kim@nexusops.corp",
-    username: "d.kim",
-    roles: ["requester", "security_admin", "grc_analyst"],
-    department: "Security",
-    active: true,
-    lastLogin: "2026-03-24 07:45",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-010",
-    name: "Pat Murphy",
-    email: "p.murphy@nexusops.corp",
-    username: "p.murphy",
-    roles: ["requester", "itil_admin", "approver"],
-    department: "IT Service Management",
-    active: true,
-    lastLogin: "2026-03-24 09:00",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-011",
-    name: "Finance Controller",
-    email: "finance@nexusops.corp",
-    username: "finance",
-    roles: ["requester", "finance_manager", "approver"],
-    department: "Finance",
-    active: true,
-    lastLogin: "2026-03-23 14:00",
-    mfaEnabled: true,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-012",
-    name: "Priya HR",
-    email: "p.hr@nexusops.corp",
-    username: "p.hr",
-    roles: ["requester", "hr_manager"],
-    department: "Human Resources",
-    active: true,
-    lastLogin: "2026-03-24 09:30",
-    mfaEnabled: false,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-013",
-    name: "Service Account — Tenable",
-    email: "svc-tenable@nexusops.corp",
-    username: "svc-tenable",
-    roles: ["requester", "security_analyst"],
-    department: "Automation",
-    active: true,
-    lastLogin: "2026-03-24 02:00",
-    mfaEnabled: false,
-    orgId: "org-001",
-  },
-  {
-    id: "usr-014",
-    name: "End User Sample",
-    email: "user@nexusops.corp",
-    username: "user",
-    roles: ["requester"],
-    department: "Marketing",
-    manager: "usr-010",
-    active: true,
-    lastLogin: "2026-03-20 10:00",
-    mfaEnabled: false,
-    orgId: "org-001",
-  },
-];
+/** Mock session user — empty in production to ensure total data fidelity */
+export const MOCK_USERS: SystemUser[] = [];
 
 export const SYSTEM_ROLES_CATALOG: Array<{
   role: SystemRole;

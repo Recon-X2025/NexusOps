@@ -18,7 +18,7 @@ export const customFieldsRouter = router({
     activeOnly: z.boolean().default(true),
   })).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { customFieldDefinitions, eq: dbEq, and: dbAnd, asc: dbAsc } = await import("@nexusops/db");
+    const { customFieldDefinitions, eq: dbEq, and: dbAnd, asc: dbAsc } = await import("@coheronconnect/db");
     const conds: any[] = [dbEq(customFieldDefinitions.orgId, org!.id), dbEq(customFieldDefinitions.entity, input.entity)];
     if (input.activeOnly) conds.push(dbEq(customFieldDefinitions.isActive, true));
     return db.select().from(customFieldDefinitions).where(dbAnd(...conds)).orderBy(dbAsc(customFieldDefinitions.sortOrder));
@@ -39,7 +39,7 @@ export const customFieldsRouter = router({
     sortOrder:    z.number().int().default(0),
   })).mutation(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { customFieldDefinitions } = await import("@nexusops/db");
+    const { customFieldDefinitions } = await import("@coheronconnect/db");
     const [field] = await db.insert(customFieldDefinitions).values({
       ...input,
       orgId: org!.id,
@@ -60,7 +60,7 @@ export const customFieldsRouter = router({
     options:      z.array(z.object({ value: z.string(), label: z.string() })).optional(),
   })).mutation(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { customFieldDefinitions, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+    const { customFieldDefinitions, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
     const { id, options, ...rest } = input;
     const [field] = await db.update(customFieldDefinitions)
       .set({ ...rest, ...(options !== undefined ? { options: JSON.stringify(options) } : {}), updatedAt: new Date() })
@@ -71,7 +71,7 @@ export const customFieldsRouter = router({
 
   deleteDefinition: permissionProcedure("admin", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { customFieldDefinitions, customFieldValues, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+    const { customFieldDefinitions, customFieldValues, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
     // Soft-delete: mark inactive instead of hard delete to preserve history
     const [field] = await db.update(customFieldDefinitions)
       .set({ isActive: false, updatedAt: new Date() })
@@ -87,7 +87,7 @@ export const customFieldsRouter = router({
     entityId: z.string().uuid(),
   })).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { customFieldValues, customFieldDefinitions, eq: dbEq, and: dbAnd } = await import("@nexusops/db");
+    const { customFieldValues, customFieldDefinitions, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
     const values = await db.select({ value: customFieldValues, field: customFieldDefinitions })
       .from(customFieldValues)
       .innerJoin(customFieldDefinitions, dbEq(customFieldValues.fieldId, customFieldDefinitions.id))
@@ -105,7 +105,7 @@ export const customFieldsRouter = router({
     values:   z.array(z.object({ fieldId: z.string().uuid(), value: z.unknown() })),
   })).mutation(async ({ ctx, input }) => {
     const { org, db } = ctx;
-    const { customFieldValues } = await import("@nexusops/db");
+    const { customFieldValues } = await import("@coheronconnect/db");
     const rows = input.values.map(v => ({
       orgId:    org!.id,
       fieldId:  v.fieldId,
@@ -116,7 +116,7 @@ export const customFieldsRouter = router({
 
     if (rows.length === 0) return { count: 0 };
 
-    const { sql } = await import("@nexusops/db");
+    const { sql } = await import("@coheronconnect/db");
     await db.insert(customFieldValues).values(rows)
       .onConflictDoUpdate({
         target: ["field_id", "entity_id"],

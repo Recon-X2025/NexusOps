@@ -16,7 +16,7 @@ import {
   count,
   inArray,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { sendNotification } from "../services/notifications";
 import { getNextNumber } from "../lib/auto-number";
 import { getRedis } from "../lib/redis";

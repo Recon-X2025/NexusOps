@@ -18,7 +18,7 @@ import {
   oncallSchedules,
   approvalRequests,
   users,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   envelope,
   noData,
@@ -51,7 +51,7 @@ export interface OnShiftRow {
 }
 
 export interface ServiceDeskPayload extends WorkbenchEnvelope {
-  queue: Panel<QueueRow[]>;
+  queue: Panel<{ items: QueueRow[]; totalCount: number; page: number; totalPages: number }>;
   shift: Panel<OnShiftRow[]>;
   /** Capacity snapshot — open by status. */
   capacity: Panel<{ status: string; count: number }[]>;
@@ -70,16 +70,34 @@ function bucketForSla(slaInMs: number | null): QueueRow["slaBucket"] {
 export async function buildServiceDeskPayload({
   db,
   orgId,
+  page = 1,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any;
   orgId: string;
+  page?: number;
 }): Promise<ServiceDeskPayload> {
   const now = new Date();
 
   // ── Queue: open tickets, prioritised by SLA breach risk ──────────────────
-  const queue = await runPanel<QueueRow[]>("service-desk.queue", async () => {
+  const queue = await runPanel<{ items: QueueRow[]; totalCount: number; page: number; totalPages: number }>("service-desk.queue", async () => {
     try {
+      const condition = and(
+        eq(tickets.orgId, orgId),
+        // exclude resolved/closed tickets
+        or(isNull(tickets.resolvedAt), isNull(tickets.closedAt)),
+      );
+
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tickets)
+        .where(condition);
+      
+      const totalCount = countResult?.count ?? 0;
+      const totalPages = Math.ceil(totalCount / QUEUE_LIMIT) || 1;
+      const safePage = Math.max(1, Math.min(page, totalPages));
+      const offset = (safePage - 1) * QUEUE_LIMIT;
+
       const rows = await db
         .select({
           id: tickets.id,
@@ -98,21 +116,16 @@ export async function buildServiceDeskPayload({
         .leftJoin(ticketPriorities, eq(ticketPriorities.id, tickets.priorityId))
         .leftJoin(ticketStatuses, eq(ticketStatuses.id, tickets.statusId))
         .leftJoin(users, eq(users.id, tickets.assigneeId))
-        .where(
-          and(
-            eq(tickets.orgId, orgId),
-            // exclude resolved/closed tickets
-            or(isNull(tickets.resolvedAt), isNull(tickets.closedAt)),
-          ),
-        )
+        .where(condition)
         .orderBy(
           // null SLA dates sort to the end via NULLS LAST default in PG
           asc(tickets.slaResolveDueAt),
           desc(tickets.createdAt),
         )
-        .limit(QUEUE_LIMIT);
+        .limit(QUEUE_LIMIT)
+        .offset(offset);
 
-      return rows.map((r: {
+      const items = rows.map((r: {
         id: string; number: string; title: string;
         priorityName: string | null; impact: string;
         slaResolveDueAt: Date | null; slaBreached: boolean;
@@ -133,6 +146,8 @@ export async function buildServiceDeskPayload({
           channel: r.intakeChannel,
         };
       });
+      
+      return { items, totalCount, page: safePage, totalPages };
     } catch (e) {
       throw e;
     }
@@ -178,7 +193,7 @@ export async function buildServiceDeskPayload({
   // ── Action queue: SLA breach risks + unassigned + VIP escalations ────────
   const actions: ActionQueueItem[] = [];
   if (queue.state === "ok" && queue.data) {
-    const breach = queue.data.filter((q) => q.slaBucket === "breach").slice(0, 3);
+    const breach = queue.data.items.filter((q) => q.slaBucket === "breach").slice(0, 3);
     for (const q of breach) {
       actions.push({
         id: `sla:${q.id}`,
@@ -188,7 +203,7 @@ export async function buildServiceDeskPayload({
         href: `/app/tickets/${q.id}`,
       });
     }
-    const warn = queue.data.filter((q) => q.slaBucket === "warn").slice(0, 3);
+    const warn = queue.data.items.filter((q) => q.slaBucket === "warn").slice(0, 3);
     for (const q of warn) {
       actions.push({
         id: `warn:${q.id}`,
@@ -198,7 +213,7 @@ export async function buildServiceDeskPayload({
         href: `/app/tickets/${q.id}`,
       });
     }
-    const unassigned = queue.data.filter((q) => !q.assignee).slice(0, 3);
+    const unassigned = queue.data.items.filter((q) => !q.assignee).slice(0, 3);
     for (const q of unassigned) {
       actions.push({
         id: `assign:${q.id}`,

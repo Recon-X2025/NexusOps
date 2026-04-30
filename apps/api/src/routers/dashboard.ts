@@ -14,7 +14,7 @@ import {
   sum,
   sql,
   gte,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getRedis } from "../lib/redis";
 import { rateLimit } from "../lib/rate-limit";
 

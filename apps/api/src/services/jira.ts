@@ -1,5 +1,5 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and } from "@nexusops/db";
+import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and } from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "./encryption";
 
 export { decryptIntegrationConfig };

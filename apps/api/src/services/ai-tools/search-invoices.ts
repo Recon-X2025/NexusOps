@@ -1,4 +1,4 @@
-import { invoices, vendors, eq, and, ilike, or, desc, inArray } from "@nexusops/db";
+import { invoices, vendors, eq, and, ilike, or, desc, inArray } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const searchInvoicesTool: AgentTool<{

@@ -7,7 +7,7 @@ import { Target, Plus, RefreshCw, Loader2, ChevronDown, ChevronRight } from "luc
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { EmptyState, TableSkeleton } from "@nexusops/ui";
+import { EmptyState, TableSkeleton } from "@coheronconnect/ui";
 import { cn } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {

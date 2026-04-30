@@ -87,7 +87,7 @@ export const signatureSigners = pgTable(
     signedAt: timestamp("signed_at", { withTimezone: true }),
     aadhaarMaskedHash: text("aadhaar_masked_hash"), // SHA256 of last 4 digits — never raw Aadhaar
     certificateHash: text("certificate_hash"),
-    /** User in this NexusOps tenant if this signer is internal. */
+    /** User in this CoheronConnect tenant if this signer is internal. */
     internalUserId: uuid("internal_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

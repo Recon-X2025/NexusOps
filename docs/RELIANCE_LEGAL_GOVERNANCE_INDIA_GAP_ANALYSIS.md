@@ -1,7 +1,7 @@
-# NexusOps Legal & Governance — India Market Gap Analysis (Large Corporate Lens)
+# CoheronConnect Legal & Governance — India Market Gap Analysis (Large Corporate Lens)
 
 **Perspective:** **General Counsel / Legal Head** and company secretary–adjacent governance expectations, benchmarked against operating a **large Indian conglomerate** (e.g. **Reliance-scale**: multiple listed and unlisted entities, heavy **Companies Act 2013** and, where applicable, **SEBI** / **LODOR** obligations, **MCA** compliance, and cross-border **FEMA** touchpoints)  
-**Scope:** NexusOps **Legal & Governance** hub (`/app/legal-governance`), **`legal`**, **`contracts`**, **`grc`**, **`secretarial`**, **`indiaCompliance`** (calendar, directors, portal/TDS/EPFO patterns), and related RBAC  
+**Scope:** CoheronConnect **Legal & Governance** hub (`/app/legal-governance`), **`legal`**, **`contracts`**, **`grc`**, **`secretarial`**, **`indiaCompliance`** (calendar, directors, portal/TDS/EPFO patterns), and related RBAC  
 **Audience:** Legal, company secretarial, compliance, and board-facing teams in India  
 **Date:** April 2026  
 
@@ -9,17 +9,17 @@
 
 ## 1. Executive summary
 
-NexusOps provides a **practical legal and governance spine**: **legal matters** and **requests**, **investigations** (with **confidentiality** filtering for GRC admins), **contract lifecycle** (status machine, obligations, wizard, **expiring** contracts), **GRC** (risks, policies, audits, vendor risks), **secretarial** primitives (**board/committee/AGM** meetings, **resolutions**, **filings**, **share capital**, **ESOP**, **company directors** linkage), and **India-specific** tooling (**compliance calendar** with MCA-style events, **directors** with **DIN/PAN** validation, **DIR-3 KYC** reminder logic, penalties for overdue filings, TDS/EPFO-style records in the same compliance area).
+CoheronConnect provides a **practical legal and governance spine**: **legal matters** and **requests**, **investigations** (with **confidentiality** filtering for GRC admins), **contract lifecycle** (status machine, obligations, wizard, **expiring** contracts), **GRC** (risks, policies, audits, vendor risks), **secretarial** primitives (**board/committee/AGM** meetings, **resolutions**, **filings**, **share capital**, **ESOP**, **company directors** linkage), and **India-specific** tooling (**compliance calendar** with MCA-style events, **directors** with **DIN/PAN** validation, **DIR-3 KYC** reminder logic, penalties for overdue filings, TDS/EPFO-style records in the same compliance area).
 
 For a **Reliance Group–class** legal and governance operating model, buyers typically expect **deep MCA and stock-exchange integration**, **LODOR / SEBI** programme management (including **related-party transactions**, **materiality**, **disclosures**, **voting results**), **enterprise CLM** with **Indian stamp and registration** workflow, **litigation** tied to **Indian courts** and limitation tracking, **group structure** (many legal entities, inter-company guarantees), **data protection** (DPDP) **records of processing** and **breach** playbooks wired to legal, and **dashboards** that mirror **secretarial** reality—not only **GRC** metrics.
 
-**Bottom line:** NexusOps is **strong as an integrated platform anchor** for **mid-market and growth** Indian corporates and **group SSC** pilots, with **notable India secretarial and director hygiene** features. Gaps versus **top-tier listed conglomerate** expectations are largest in **exchange-grade governance**, **MCA/e-governance automation**, **group and RPT**, **India-specific contract compliance**, and **unified Legal & Governance hub UX** (including **contracts** and **pure secretarial** KPIs).
+**Bottom line:** CoheronConnect is **strong as an integrated platform anchor** for **mid-market and growth** Indian corporates and **group SSC** pilots, with **notable India secretarial and director hygiene** features. Gaps versus **top-tier listed conglomerate** expectations are largest in **exchange-grade governance**, **MCA/e-governance automation**, **group and RPT**, **India-specific contract compliance**, and **unified Legal & Governance hub UX** (including **contracts** and **pure secretarial** KPIs).
 
 **100% gap closure (this document):** §3.9 defines **target state** and **closure criteria** so that every domain in §3 can reach **Parity** with the reference enterprise bar. §6 lays out a **full programme** (~**36 two-week sprints**, ~**18 months** with one mature squad — faster with parallel teams) covering **secretarial, MCA, SEBI/issuer, CLM India, litigation, DPDP, FEMA/CCI**, and **hub/RBAC**. **100% product closure** still requires **ongoing regulatory content updates**, **certified third-party integrations** (MCA, e-sign, e-Courts, exchanges), and **customer legal sign-off** — the software alone does not replace professionals.
 
 ---
 
-## 2. What NexusOps provides (observed)
+## 2. What CoheronConnect provides (observed)
 
 | Area | Implementation notes |
 |------|------------------------|
@@ -36,7 +36,7 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.1 Companies Act 2013 & MCA / ROC
 
-| Typical large-corporate expectation | NexusOps (observed) | Assessment |
+| Typical large-corporate expectation | CoheronConnect (observed) | Assessment |
 |-------------------------------------|---------------------|------------|
 | **Statutory registers**, minute books, **digital signing** workflows | Meetings/resolutions models; **not** full register suite in review | **Partial** |
 | **MCA21 V3** forms: **MGT-7, AOC-4, PAS-3, CHG-1**, etc. — prep, validation, **prefill** from ledger | Calendar + filing tracking patterns; **no** native MCA API integration assumed | **Gap** for **straight-through** filing |
@@ -45,7 +45,7 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.2 Listed company / SEBI (when applicable)
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | **LODOR** compliance calendar: **RPT**, **material subsidiaries**, **disclosure** events | Generic risks/policies; **not** SEBI-specific **event library** | **Gap** for **listed** issuers |
 | **Related-party transactions** — identification, approval, disclosure | Not first-class object model | **Gap** |
@@ -54,7 +54,7 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.3 Board, committees, and AGM/EGM
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | **Meeting lifecycle**: notice period, quorum, attendance, signed minutes | **Board meetings** CRUD, agenda JSON, status; **strong start** | **Partial** |
 | **Director interest disclosures**, **independence** tracking | Director types in **india-compliance**; **not** full **Form MBP-1** workflow | **Partial** |
@@ -62,7 +62,7 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.4 Contracting & commercial (India)
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | **Stamp duty**, **e-stamp**, **registration** (immovable / long leases) | **Governing law** field; **no** stamp/registration workflow | **Gap** |
 | **Indian standard clauses** (arbitration: institutional, seat, TDS, indemnity caps) | Wizard **clauses** array — **content** is customer-driven | **Partial** |
@@ -71,7 +71,7 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.5 Litigation & disputes (India)
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | **Court hierarchy**, **CNR**, **e-Courts** sync | **Jurisdiction** string on matters | **Gap** |
 | **Limitation** dates, **hearing** calendar | Not specialised | **Gap** |
@@ -79,14 +79,14 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.6 Privacy, data, and whistleblowing (India)
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | **DPDP Act** — RoPA, consent records, **DPO** tasks, **breach** notification | **data_privacy** matter type; platform security docs elsewhere | **Partial** — **programme** not **productised** as DPDP suite |
 | **Companies Act / SEBI** whistleblower & vigil mechanism | **Investigations** + whistleblower **type** | **Partial** — map to **policy** and **independence** rules in process |
 
 ### 3.7 Cross-border & sector regulation
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | **FEMA**, **RBI** reporting (ECB, ODI, FLA returns) | Not observed as legal module | **Gap** |
 | **CCI** filings for combinations | Not observed | **Gap** |
@@ -94,7 +94,7 @@ For a **Reliance Group–class** legal and governance operating model, buyers ty
 
 ### 3.8 Permissions, audit, and hub completeness
 
-| Expectation | NexusOps | Assessment |
+| Expectation | CoheronConnect | Assessment |
 |-------------|----------|------------|
 | Dedicated **legal** RBAC vs **GRC** | **`legal.*` uses `grc`** permissions in API | **Partial** — may **over-couple** legal ops to GRC roles |
 | **Legal hold** linkage to documents | Platform patterns elsewhere | **Partial** |
@@ -143,7 +143,7 @@ Each row is **closed** when the **closure criterion** is met in product (and, wh
 
 ---
 
-## 5. Code references (for NexusOps maintainers)
+## 5. Code references (for CoheronConnect maintainers)
 
 | Topic | Location |
 |-------|----------|
@@ -172,7 +172,7 @@ This section implements **§3.9**: every row has **planned delivery** in **six p
 | **Definition of Done** | Tests + **audit_logs**; regulatory **content version**; SME sign-off on **MCA/issuer** flows |
 | **100% programme exit** | All **§3.9** rows **Done** + integration **SLAs** agreed + **content pack** v1 + pilot **UAT** sign-off |
 
-**Product goal (100%):** *Legal, company secretarial, **listed issuer**, privacy, and **cross-border** compliance run on NexusOps with **evidence**, **integrations**, and **segregated access** appropriate for **large Indian corporate** operations.*
+**Product goal (100%):** *Legal, company secretarial, **listed issuer**, privacy, and **cross-border** compliance run on CoheronConnect with **evidence**, **integrations**, and **segregated access** appropriate for **large Indian corporate** operations.*
 
 **Workstreams:** **Squad A** — core product; **Squad B** — MCA, e-sign, e-Courts, exchange feeds; **Content Pod** — LODOR/forms/clauses; **Customer** — SOPs and training.
 
@@ -286,4 +286,4 @@ This section implements **§3.9**: every row has **planned delivery** in **six p
 
 ## 7. Disclaimer
 
-This document is based on **repository review** as of the analysis date. **Reliance Group** is used only as a **shorthand for large, complex Indian corporate governance** — not as an endorsement or statement about any specific company’s systems. **Indian law and SEBI/MCA practice** change; verify with **qualified professionals**. NexusOps capabilities vary by **deployment and configuration**. This is a **due diligence checklist**, not legal advice.
+This document is based on **repository review** as of the analysis date. **Reliance Group** is used only as a **shorthand for large, complex Indian corporate governance** — not as an endorsement or statement about any specific company’s systems. **Indian law and SEBI/MCA practice** change; verify with **qualified professionals**. CoheronConnect capabilities vary by **deployment and configuration**. This is a **due diligence checklist**, not legal advice.

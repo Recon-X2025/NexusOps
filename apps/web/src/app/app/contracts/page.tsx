@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
-import { SUPPORTED_CURRENCY_CODES } from "@nexusops/types";
+import { SUPPORTED_CURRENCY_CODES } from "@coheronconnect/types";
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -572,7 +572,7 @@ function ContractsPageInner() {
     : []) as Contract[];
 
   const expiringContracts = allContracts.filter(c => c.state === "expiring_soon" || (c.renewalDeadline && new Date(c.renewalDeadline) < new Date(Date.now() + 90 * 86400000)));
-  const totalContractValue = allContracts.reduce((s, c) => s + (c.value ?? 0), 0);
+  const totalContractValue = allContracts.reduce((s, c) => s + (Number(c.value) || 0), 0);
   const activeContracts = allContracts.filter(c => c.state === "active").length;
   const allObligations = allContracts.flatMap(c => c.obligations ?? []);
 

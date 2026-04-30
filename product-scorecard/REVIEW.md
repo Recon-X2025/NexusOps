@@ -1,4 +1,4 @@
-# NexusOps module scorecard — review guide
+# CoheronConnect module scorecard — review guide
 
 This folder holds a **qualitative** module-by-module comparison vs market leaders (0–3 scores on eight dimensions) and two **ICP weight profiles**.
 

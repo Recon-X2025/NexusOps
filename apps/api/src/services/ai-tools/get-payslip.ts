@@ -1,4 +1,4 @@
-import { payslips, employees, eq, and, desc } from "@nexusops/db";
+import { payslips, employees, eq, and, desc } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const getPayslipTool: AgentTool<{

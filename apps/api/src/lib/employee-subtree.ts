@@ -1,4 +1,4 @@
-import { employees, eq, and, inArray } from "@nexusops/db";
+import { employees, eq, and, inArray } from "@coheronconnect/db";
 import type { Context } from "./trpc";
 
 /** All employee IDs in the primary reporting tree under `managerEmployeeId` (excludes the manager). */

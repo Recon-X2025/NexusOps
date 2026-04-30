@@ -14,7 +14,7 @@ import {
   gte,
   lte,
   count,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 import { parseOrgSettings } from "../lib/org-settings";
 import { sanitizeForAudit } from "../lib/audit-sanitize";
@@ -261,10 +261,10 @@ export const adminRouter = router({
   systemProperties: router({
     list: adminProcedure.query(async () => {
       return [
-        { key: "platform.name", value: "NexusOps", description: "Platform display name", environment: "all" },
+        { key: "platform.name", value: "CoheronConnect", description: "Platform display name", environment: "all" },
         { key: "session.timeout_hours", value: "24", description: "Session sliding window hours", environment: "all" },
         { key: "rate_limit.login_attempts", value: "10", description: "Max failed login attempts before lockout", environment: "all" },
-        { key: "email.from_address", value: process.env.SMTP_FROM ?? "noreply@nexusops.io", description: "Email from address", environment: "all" },
+        { key: "email.from_address", value: process.env.SMTP_FROM ?? "noreply@coheronconnect.io", description: "Email from address", environment: "all" },
         { key: "meilisearch.enabled", value: process.env.MEILISEARCH_URL ? "true" : "false", description: "Global search enabled", environment: "all" },
       ];
     }),

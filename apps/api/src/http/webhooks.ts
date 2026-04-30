@@ -7,7 +7,7 @@ import {
   invoices,
   eq,
   and,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "../services/encryption";
 import { getEsignProvider } from "../services/esign";
 import { getIntegrationAdapter } from "../services/integrations/registry";

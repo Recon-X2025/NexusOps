@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA Suite — 00: Smoke + CRUD
+ * CoheronConnect Full-QA Suite — 00: Smoke + CRUD
  *
  * Tests:
  *  A) Every route loads without React crash

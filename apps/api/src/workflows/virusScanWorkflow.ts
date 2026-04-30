@@ -4,7 +4,7 @@
  * Pipeline:
  *   uploadDocument()
  *     → enqueueVirusScan(documentId)            ← producer (storage.ts)
- *       → BullMQ "nexusops-doc-virusscan"
+ *       → BullMQ "coheronconnect-doc-virusscan"
  *         → scanWorker pulls object from S3
  *           → streams it to ClamAV (`clamd` TCP)
  *             → updates documents.scanStatus    ← clean | infected | failed
@@ -21,8 +21,8 @@ import { eq } from "drizzle-orm";
 import net from "node:net";
 import { Readable } from "node:stream";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { documents, documentVersions } from "@nexusops/db";
-import type { Db } from "@nexusops/db";
+import { documents, documentVersions } from "@coheronconnect/db";
+import type { Db } from "@coheronconnect/db";
 
 function redisConnection() {
   const url = process.env["REDIS_URL"] ?? "redis://localhost:6379";
@@ -35,7 +35,7 @@ export interface VirusScanJobData {
   versionNumber?: number;
 }
 
-export const VIRUS_SCAN_QUEUE_NAME = "nexusops-doc-virusscan";
+export const VIRUS_SCAN_QUEUE_NAME = "coheronconnect-doc-virusscan";
 
 let _queue: Queue<VirusScanJobData> | null = null;
 

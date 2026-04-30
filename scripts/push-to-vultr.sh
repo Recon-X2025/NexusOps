@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# NexusOps → Vultr — rsync + deploy (pull from GHCR by default).
+# CoheronConnect → Vultr — rsync + deploy (pull from GHCR by default).
 #
 # Env (laptop):
 #   VULTR_HOST              required — server IP or hostname (no default)
 #   VULTR_USER              default root
 #   DEPLOY_MODE             pull | build   (default: pull)
-#   NEXUSOPS_IMAGE_REPO     default ghcr.io/recon-x2025/nexusops  (lowercase)
+#   NEXUSOPS_IMAGE_REPO     default ghcr.io/recon-x2025/coheronconnect  (lowercase)
 #   NEXUSOPS_IMAGE_TAG      default latest  (use short SHA from CI when pinning)
 #   NEXUSOPS_WEB_IMAGE      optional full override
 #   NEXUSOPS_API_IMAGE      optional full override
@@ -21,10 +21,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SERVER_IP="${VULTR_HOST:-}"
 SERVER="${VULTR_USER:-root}@${SERVER_IP}"
-SOCK="/tmp/nexusops-deploy-$$"
+SOCK="/tmp/coheronconnect-deploy-$$"
 
 DEPLOY_MODE="${DEPLOY_MODE:-pull}"
-IMG_REPO="${NEXUSOPS_IMAGE_REPO:-ghcr.io/recon-x2025/nexusops}"
+IMG_REPO="${NEXUSOPS_IMAGE_REPO:-ghcr.io/recon-x2025/coheronconnect}"
 IMG_TAG="${NEXUSOPS_IMAGE_TAG:-latest}"
 WEB_IMAGE="${NEXUSOPS_WEB_IMAGE:-${IMG_REPO}/web:${IMG_TAG}}"
 API_IMAGE="${NEXUSOPS_API_IMAGE:-${IMG_REPO}/api:${IMG_TAG}}"
@@ -41,7 +41,7 @@ if [[ -z "$SERVER_IP" ]]; then
 fi
 
 echo ""
-echo -e "${BOLD}NexusOps → Vultr${RESET}"
+echo -e "${BOLD}CoheronConnect → Vultr${RESET}"
 echo -e "Server: ${SERVER}"
 echo -e "Mode:   ${DEPLOY_MODE}"
 if [[ "$DEPLOY_MODE" == "pull" ]]; then
@@ -72,7 +72,7 @@ rsync -az \
   --exclude='.env.local' \
   --exclude='test-results' \
   --exclude='playwright-report' \
-  "${ROOT}/" "${SERVER}:/opt/nexusops/"
+  "${ROOT}/" "${SERVER}:/opt/coheronconnect/"
 ok "Files synced"
 
 info "Remote: scripts/vultr-remote-deploy.sh (${DEPLOY_MODE})…"
@@ -87,13 +87,13 @@ ssh -S "$SOCK" -o BatchMode=yes "$SERVER" \
    NO_CACHE=$(printf '%q' "${NO_CACHE:-}") \
    NEXUSOPS_WEB_IMAGE=$(printf '%q' "$WEB_IMAGE") \
    NEXUSOPS_API_IMAGE=$(printf '%q' "$API_IMAGE") \
-   bash /opt/nexusops/scripts/vultr-remote-deploy.sh"
+   bash /opt/coheronconnect/scripts/vultr-remote-deploy.sh"
 
 ssh -S "$SOCK" -O exit "$SERVER" 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}${BOLD}║   NexusOps deployed on Vultr                ║${RESET}"
+echo -e "${GREEN}${BOLD}║   CoheronConnect deployed on Vultr                ║${RESET}"
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════╝${RESET}"
 echo ""
 echo -e "  ${BOLD}Web:${RESET}   http://${SERVER_IP}"

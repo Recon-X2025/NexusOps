@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ingestRouter } from "../routers/ingest";
 import { createMockContext } from "./helpers";
-import { legalMatters, contracts, eq, and } from "@nexusops/db";
+import { legalMatters, contracts, eq, and } from "@coheronconnect/db";
 
 describe("ingestRouter", () => {
     let ctx: any;

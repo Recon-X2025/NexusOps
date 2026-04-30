@@ -1,11 +1,11 @@
 
-> @nexusops/api@0.1.0 predev /Users/kathikiyer/Documents/NexusOps/apps/api
+> @nexusops/api@0.1.0 predev /Users/kathikiyer/Documents/CoheronConnect/apps/api
 > pnpm --filter @nexusops/db exec tsup --no-dts
 
 CLI Building entry: src/client.ts, src/index.ts, src/schema/index.ts
 CLI Using tsconfig: tsconfig.json
 CLI tsup v8.5.1
-CLI Using tsup config: /Users/kathikiyer/Documents/NexusOps/packages/db/tsup.config.ts
+CLI Using tsup config: /Users/kathikiyer/Documents/CoheronConnect/packages/db/tsup.config.ts
 CLI Target: es2022
 CLI Cleaning output folder
 ESM Build start
@@ -29,7 +29,7 @@ CJS dist/client.js.map       485.71 KB
 CJS dist/index.js.map        495.21 KB
 CJS ⚡️ Build success in 46ms
 
-> @nexusops/api@0.1.0 dev /Users/kathikiyer/Documents/NexusOps/apps/api
+> @nexusops/api@0.1.0 dev /Users/kathikiyer/Documents/CoheronConnect/apps/api
 > tsx watch src/index.ts
 
 [metrics] registered 27 metrics across 8 roles
@@ -46,7 +46,7 @@ CJS ⚡️ Build success in 46ms
 [11:56:40.080] [32mINFO[39m (3533): [36m[CLEAN_START] org_counters synced: 12 entities checked, 9 rows upserted[39m
 
 ════════════════════════════════════════════════════════════════════
-  NexusOps API — STARTUP READY
+  CoheronConnect API — STARTUP READY
 ════════════════════════════════════════════════════════════════════
   Host               : http://0.0.0.0:3001
   Node env           : test
@@ -77,7 +77,7 @@ CJS ⚡️ Build success in 46ms
 [11:56:40.082] [32mINFO[39m (3533): [36m[CLEAN_START] Stale idle-in-transaction connections cleared[39m
 [11:56:40.084] [32mINFO[39m (3533): [36mServer listening at http://127.0.0.1:3001[39m
 [11:56:40.084] [32mINFO[39m (3533): [36mServer listening at http://192.168.1.23:3001[39m
-[11:56:40.084] [32mINFO[39m (3533): [36mNexusOps API listening on http://0.0.0.0:3001[39m
+[11:56:40.084] [32mINFO[39m (3533): [36mCoheronConnect API listening on http://0.0.0.0:3001[39m
 [11:56:54.303] [32mINFO[39m (3533):
     [35mevent[39m: "REQUEST"
     [35mrequest_id[39m: "8611a255-472a-4d48-9dac-fdd323f711ff"

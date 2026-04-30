@@ -20,9 +20,20 @@ import {
   type TrendMetric,
   type FlowItem,
   type RiskItem,
-} from "@nexusops/metrics";
+} from "@coheronconnect/metrics";
 
 const RESOLVER_TIMEOUT_MS = 3000;
+
+function dedupedAppend(acc: MetricDefinition[], add: MetricDefinition[], cap: number): MetricDefinition[] {
+  const seen = new Set(acc.map((d) => d.id));
+  for (const d of add) {
+    if (acc.length >= cap) break;
+    if (seen.has(d.id)) continue;
+    seen.add(d.id);
+    acc.push(d);
+  }
+  return acc;
+}
 
 function withResolverTimeout(def: MetricDefinition, ctx: MetricResolveCtx): Promise<MetricValue> {
   return new Promise((resolve, reject) => {
@@ -58,21 +69,41 @@ async function resolveMetricsSafe(defs: MetricDefinition[], ctx: MetricResolveCt
 
 const STATE_SCORE: Record<MetricValue["state"], number> = {
   healthy: 100,
-  watch: 62,
-  stressed: 28,
-  no_data: 48,
+  watch: 50,
+  stressed: 0,
+  no_data: 0, // No data doesn't contribute positively
 };
+
+function toCellState(def: MetricDefinition, value: MetricValue): MetricCellState {
+  if (value.state === "no_data") return { kind: "no_data" };
+  const val = value.current;
+  const target = def.target ?? value.target;
+  const kind = value.state === "stressed" ? "unhealthy" : value.state === "watch" ? "watch" : "healthy";
+  return { kind, value: val, target };
+}
 
 function drillForMetric(def: MetricDefinition, tenantId: string): string | undefined {
   if (!def.drillUrl) return undefined;
   return typeof def.drillUrl === "function" ? def.drillUrl({ tenantId } as never) : def.drillUrl;
 }
 
-function compositeScore(values: MetricValue[]): { score: number; scoreState: CommandCenterPayload["scoreState"] } {
-  if (values.length === 0) return { score: 55, scoreState: "watch" };
-  const s = Math.round(values.reduce((a, v) => a + STATE_SCORE[v.state], 0) / values.length);
-  const scoreState = s >= 75 ? "healthy" : s >= 48 ? "watch" : "stressed";
-  return { score: Math.min(100, Math.max(0, s)), scoreState };
+function compositeScore(values: MetricValue[]): { 
+  score: number; 
+  scoreState: CommandCenterPayload["scoreState"];
+  domainsReporting: number;
+  totalDomains: number;
+} {
+  const dataPoints = values.filter(v => v.state !== 'no_data');
+  const totalDomains = ALL_FUNCTION_KEYS.length;
+  // We'll calculate domainsReporting later in buildCommandCenterPayload
+  
+  if (dataPoints.length === 0) {
+    return { score: 0, scoreState: "awaiting_data", domainsReporting: 0, totalDomains };
+  }
+
+  const s = Math.round(dataPoints.reduce((a, v) => a + STATE_SCORE[v.state], 0) / dataPoints.length);
+  const scoreState = s >= 90 ? "healthy" : s >= 40 ? "watch" : "stressed";
+  return { score: Math.min(100, Math.max(0, s)), scoreState, domainsReporting: 0, totalDomains };
 }
 
 /**
@@ -185,7 +216,8 @@ function buildAttention(
         label: m.label,
         severity: v.state === "stressed" ? "high" : "watch",
         message: `${m.label} is ${v.state.replace("_", " ")}.`,
-        drillUrl: drillForMetric(m, tenantId),
+        displayValue: formatMetricNumber(v.current, m.unit, v.state),
+      drillUrl: drillForMetric(m, tenantId),
       });
       seen.add(m.id);
     }
@@ -238,7 +270,7 @@ function worstFunctionFromHeatmap(
     }
   }
   const state: CommandCenterPayload["scoreState"] =
-    worstScore <= 28 ? "stressed" : worstScore <= 62 ? "watch" : "healthy";
+    worstScore <= 40 ? "stressed" : worstScore < 90 ? "watch" : "healthy";
   return { fn: worstFn, state };
 }
 
@@ -250,6 +282,12 @@ export function buildDeterministicNarrative(
 ): string {
   const view = getRoleView(role);
   const { fn, state: fnState } = worstFunctionFromHeatmap(heatmap);
+  const isDataEmpty = score === 0 && heatmap.every(r => Object.values(r.cells).every(c => c.state === 'no_data'));
+  
+  if (isDataEmpty) {
+    return "The command center is currently awaiting data. Please ingest records into your modules to begin generating live operational and financial insights.";
+  }
+
   const intro =
     view?.narrativeTemplate ??
     "This lens summarizes operational and financial signals for your organization.";
@@ -280,7 +318,8 @@ export async function buildCommandCenterPayload(input: {
     byId[d.id] = resolvedList[i]!;
   });
 
-  const { score, scoreState } = compositeScore(resolvedList);
+  const { score: rawScore, scoreState: rawScoreState } = compositeScore(resolvedList);
+  const totalDomains = ALL_FUNCTION_KEYS.length;
 
   const view = getRoleView(role);
   const heatmap: CommandCenterPayload["heatmap"] = ALL_FUNCTION_KEYS.map((fn) => {
@@ -288,25 +327,51 @@ export async function buildCommandCenterPayload(input: {
     const cells = {} as CommandCenterPayload["heatmap"][number]["cells"];
     for (const dim of ALL_METRIC_DIMENSIONS) {
       if (!inScope) {
-        cells[dim] = { state: "no_data", value: null, label: "—" };
+        cells[dim] = { state: "no_data", value: null, label: "—", cellState: { kind: "not_applicable" } };
         continue;
       }
       const m = pickHeatmapMetric(role, fn, dim, uniqueDefs);
       if (!m) {
-        cells[dim] = { state: "no_data", value: null, label: "—" };
+        cells[dim] = { state: "no_data", value: null, label: "—", cellState: { kind: "not_applicable" } };
         continue;
       }
       const v = byId[m.id]!;
       cells[dim] = {
         state: v.state,
+        cellState: toCellState(m, v),
         value: v.state === "no_data" ? null : v.current,
         label: m.label,
         unit: m.unit,
+        displayValue: formatMetricNumber(v.current, m.unit, v.state),
         drillUrl: drillForMetric(m, tenantId),
       };
     }
     return { function: fn, cells, inScope };
   });
+
+  const domainsReporting = heatmap.filter(row => {
+    if (!row.inScope) return false;
+    const fn = row.function;
+    const metricsForFn = uniqueDefs.filter(d => d.function === fn);
+    return metricsForFn.some(d => {
+      const v = byId[d.id];
+      if (!v || v.state === 'no_data') return false;
+      // If it's a "Healthy 0", check if there's any non-zero history in the series
+      if (v.state === 'healthy' && (v.current === 0 || v.current === null)) {
+        return (v.series && v.series.length > 0 && v.series.some(s => (s.value ?? 0) > 0)) ?? false;
+      }
+      return true;
+    });
+  }).length;
+
+  const scoreState = domainsReporting === 0 ? 'awaiting_data' : rawScoreState;
+  const score = domainsReporting === 0 ? 0 : rawScore;
+
+  const scoreSubtext = scoreState === 'awaiting_data' 
+    ? "Awaiting module data"
+    : domainsReporting < totalDomains
+    ? `Composite of ${domainsReporting} of ${totalDomains} domains`
+    : undefined;
 
   const bulletDefs = getMetricsForSurface(role, "bullet").slice(0, 5);
   const bullets: BulletMetric[] = bulletDefs.map((m) => {
@@ -320,65 +385,100 @@ export async function buildCommandCenterPayload(input: {
       current: v.current,
       target: m.target ?? v.target,
       state: v.state,
+      cellState: toCellState(m, v),
       direction: m.direction,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };
   });
 
-  const trendDefs = getMetricsForSurface(role, "trend").slice(0, 6);
+  // Trend selection: Prioritize alerting metrics that carry timeseries data
+  const explicitTrends = getMetricsForSurface(role, "trend");
+  const alertingTrends = uniqueDefs.filter(
+    (d) => (byId[d.id]?.series.length ?? 0) >= 1 && (byId[d.id]?.state === "stressed" || byId[d.id]?.state === "watch")
+  );
+  const seriesCarriers = uniqueDefs.filter((d) => (byId[d.id]?.series.length ?? 0) >= 1);
+
+  const trendDefs = dedupedAppend(
+    dedupedAppend(dedupedAppend([], explicitTrends, 6), alertingTrends, 6),
+    seriesCarriers,
+    6
+  );
+
   const trends: TrendMetric[] = trendDefs.map((m) => {
     const v = byId[m.id]!;
     return {
       metricId: m.id,
       function: m.function,
-      dimension: m.dimension,
       label: m.label,
       current: v.current,
       previous: v.previous,
       unit: m.unit,
       state: v.state,
+      cellState: toCellState(m, v),
       direction: m.direction,
       series: v.series,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };
   });
 
-  const riskDefs = getMetricsForSurface(role, "risk").slice(0, 8);
-  const risks: RiskItem[] = riskDefs.map((m) => {
-    const v = byId[m.id]!;
-    return {
+  // Risk register selection: Prioritize live alerting states (stressed/watch) from the heatmap pool
+  const explicitRisks = getMetricsForSurface(role, "risk");
+  const liveStress = uniqueDefs.filter(
+    (d) => byId[d.id]?.state === "stressed" || byId[d.id]?.state === "watch",
+  );
+  const worstByPenalty = [...uniqueDefs]
+    .map((d) => ({ d, p: riskPenalty(d, byId[d.id]!) }))
+    .filter((x) => x.p > 0)
+    .sort((a, b) => b.p - a.p)
+    .map((x) => x.d);
+
+  const riskDefs = dedupedAppend(
+    dedupedAppend(dedupedAppend([], explicitRisks, 8), liveStress, 8),
+    worstByPenalty,
+    8,
+  );
+
+  const risks: RiskItem[] = riskDefs
+    .map((m) => ({ m, v: byId[m.id]! }))
+    .filter(({ v }) => v.state === "stressed" || v.state === "watch")
+    .map(({ m, v }) => ({
       metricId: m.id,
       function: m.function,
       label: m.label,
       severity: v.state === "stressed" ? "high" : "watch",
       detail: `${m.label}: ${formatMetricNumber(v.current, m.unit, v.state)}`,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
-    };
-  });
+    }));
 
-  const flow: FlowItem[] = [
-    {
-      function: "it_services",
-      label: "IT services",
-      created: byId["tickets.throughput_created"]?.current ?? 0,
-      resolved: byId["tickets.throughput_resolved"]?.current ?? 0,
-    },
-    {
-      function: "customer",
-      label: "Customer success",
-      created: byId["csm.cases_created_period"]?.current ?? 0,
-      resolved: byId["csm.cases_resolved_period"]?.current ?? 0,
-    },
-    {
-      function: "devops",
-      label: "Engineering",
-      created: byId["devops.deploys_production_30d"]?.current ?? 0,
-      resolved: Math.round(
-        (byId["devops.deploys_production_30d"]?.current ?? 0) *
-          ((byId["devops.deploy_success_rate"]?.current ?? 0) / 100),
-      ),
-    },
-  ];
+  const flow: FlowItem[] = [];
+  const globalFlowFunctions: FunctionKey[] = ["it_services", "customer", "devops"];
+  
+  for (const fn of globalFlowFunctions) {
+    const seeds = HUB_FLOW_SEEDS[fn] ?? [];
+    if (seeds.length === 0) continue;
+    const seed = seeds[0]!; // Take the primary flow for the global view
+    const createdVal = byId[seed.createdId];
+    if (!createdVal) continue;
+
+    const created = createdVal.current ?? 0;
+    let resolved = 0;
+    if (seed.resolvedRateId) {
+      const rate = byId[seed.resolvedRateId]?.current ?? 0;
+      resolved = Math.round(created * (rate / 100));
+    } else if (seed.resolvedId) {
+      resolved = byId[seed.resolvedId]?.current ?? 0;
+    }
+    
+    flow.push({ 
+      function: fn, 
+      label: seed.label, 
+      created, 
+      resolved 
+    });
+  }
 
   const attention = buildAttention(role, view, byId, uniqueDefs, tenantId);
 
@@ -391,6 +491,9 @@ export async function buildCommandCenterPayload(input: {
     asOf: new Date().toISOString(),
     score,
     scoreState,
+    scoreSubtext,
+    domainsReporting,
+    totalDomains,
     narrative,
     attention,
     heatmap,
@@ -500,7 +603,8 @@ export async function buildHubPayload(input: {
   });
 
   // Score / posture from the hub's own metrics — not the org composite.
-  const { score, scoreState } = compositeScore(resolvedList);
+  const { score: rawScore, scoreState: rawScoreState } = compositeScore(resolvedList);
+  const totalDomains = 1;
 
   // Single-row heatmap with a cell per dimension. We pick the
   // best-priority metric registered on **any** role's heatmap surface so
@@ -514,12 +618,13 @@ export async function buildHubPayload(input: {
       // Fall back to any metric in this dim — a value is more useful than "—".
       const fallback = uniqueDefs.find((d) => d.dimension === dim);
       if (!fallback) {
-        cells[dim] = { state: "no_data", value: null, label: "—" };
+        cells[dim] = { state: "no_data", value: null, label: "—", cellState: { kind: "not_applicable" } };
         continue;
       }
       const v = byId[fallback.id]!;
       cells[dim] = {
         state: v.state,
+        cellState: toCellState(fallback, v),
         value: v.state === "no_data" ? null : v.current,
         label: fallback.label,
         unit: fallback.unit,
@@ -530,13 +635,34 @@ export async function buildHubPayload(input: {
     const v = byId[m.id]!;
     cells[dim] = {
       state: v.state,
+      cellState: toCellState(m, v),
       value: v.state === "no_data" ? null : v.current,
       label: m.label,
       unit: m.unit,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };
   }
   const heatmap: CommandCenterPayload["heatmap"] = [{ function: fn, cells, inScope: true }];
+
+  const domainsReporting = heatmap.filter(row => {
+    const metricsForFn = uniqueDefs.filter(d => d.function === fn);
+    return metricsForFn.some(d => {
+      const v = byId[d.id];
+      if (!v || v.state === 'no_data') return false;
+      if (v.state === 'healthy' && (v.current === 0 || v.current === null)) {
+        return (v.series && v.series.length > 0 && v.series.some(s => (s.value ?? 0) > 0)) ?? false;
+      }
+      return true;
+    });
+  }).length;
+
+  const scoreState = domainsReporting === 0 ? 'awaiting_data' : rawScoreState;
+  const score = domainsReporting === 0 ? 0 : rawScore;
+
+  const scoreSubtext = scoreState === 'awaiting_data' 
+    ? "Awaiting data"
+    : undefined;
 
   // Bullets / trends / risks come from this hub's own surface assignments
   // (any role). The metrics registry was tuned for the org rollup so most
@@ -549,16 +675,7 @@ export async function buildHubPayload(input: {
   };
   const sortByOwnPriority = (defs: MetricDefinition[]) =>
     [...defs].sort((a, b) => bestPriority(a) - bestPriority(b));
-  const dedupedAppend = (acc: MetricDefinition[], add: MetricDefinition[], cap: number): MetricDefinition[] => {
-    const seen = new Set(acc.map((d) => d.id));
-    for (const d of add) {
-      if (acc.length >= cap) break;
-      if (seen.has(d.id)) continue;
-      seen.add(d.id);
-      acc.push(d);
-    }
-    return acc;
-  };
+
 
   const explicitBullets = getMetricsForFunction(fn, "bullet");
   // Bullets benefit from a target. Backfill with any hub metric that has a
@@ -585,7 +702,9 @@ export async function buildHubPayload(input: {
       current: v.current,
       target,
       state: v.state,
+      cellState: toCellState(m, v),
       direction: m.direction,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };
   });
@@ -593,7 +712,7 @@ export async function buildHubPayload(input: {
   const explicitTrends = getMetricsForFunction(fn, "trend");
   // Trends need timeseries — any hub metric whose resolver returned a
   // non-trivial series is a valid trend card.
-  const seriesCarriers = sortByOwnPriority(uniqueDefs.filter((d) => (byId[d.id]?.series.length ?? 0) > 1));
+  const seriesCarriers = sortByOwnPriority(uniqueDefs.filter((d) => (byId[d.id]?.series.length ?? 0) >= 1));
   const trendDefs = dedupedAppend(dedupedAppend([], explicitTrends, 6), seriesCarriers, 6);
   const trends: TrendMetric[] = trendDefs.map((m) => {
     const v = byId[m.id]!;
@@ -606,8 +725,10 @@ export async function buildHubPayload(input: {
       previous: v.previous,
       unit: m.unit,
       state: v.state,
+      cellState: toCellState(m, v),
       direction: m.direction,
       series: v.series,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };
   });
@@ -632,17 +753,18 @@ export async function buildHubPayload(input: {
     worstByPenalty,
     8,
   );
-  const risks: RiskItem[] = riskDefs.map((m) => {
-    const v = byId[m.id]!;
-    return {
+  const risks: RiskItem[] = riskDefs
+    .map((m) => ({ m, v: byId[m.id]! }))
+    .filter(({ v }) => v.state === "stressed" || v.state === "watch")
+    .map(({ m, v }) => ({
       metricId: m.id,
       function: m.function,
       label: m.label,
       severity: v.state === "stressed" ? "high" : "watch",
       detail: `${m.label}: ${formatMetricNumber(v.current, m.unit, v.state)}`,
+      displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
-    };
-  });
+    }));
 
   // Attention rail: any hub metric currently in stressed/watch state.
   const attention: AttentionItem[] = uniqueDefs
@@ -709,6 +831,9 @@ export async function buildHubPayload(input: {
     asOf: new Date().toISOString(),
     score,
     scoreState,
+    scoreSubtext,
+    domainsReporting,
+    totalDomains,
     narrative,
     attention,
     heatmap,
@@ -733,7 +858,7 @@ export function narrativePromptForAi(input: {
     return `${b.label}: ${b.current} ${unit} (target ${tgt}, state ${st})`;
   });
   return [
-    `You are summarizing a ${input.role} executive dashboard for NexusOps.`,
+    `You are summarizing a ${input.role} executive dashboard for CoheronConnect.`,
     `Health score: ${input.score}/100 (${input.scoreState}).`,
     "Top metrics:",
     ...lines,

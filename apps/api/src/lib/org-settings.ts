@@ -86,7 +86,7 @@ export type OrgExpenseSettings = {
   categories?: Record<string, ExpenseCategoryPolicy>;
 };
 
-export type NexusOpsOrgSettings = {
+export type CoheronConnectOrgSettings = {
   security?: OrgSecuritySettings;
   procurement?: OrgProcurementSettings;
   financial?: OrgFinancialSettings;
@@ -95,9 +95,9 @@ export type NexusOpsOrgSettings = {
   expense?: OrgExpenseSettings;
 };
 
-export function parseOrgSettings(raw: unknown): NexusOpsOrgSettings {
+export function parseOrgSettings(raw: unknown): CoheronConnectOrgSettings {
   if (!raw || typeof raw !== "object") return {};
-  return raw as NexusOpsOrgSettings;
+  return raw as CoheronConnectOrgSettings;
 }
 
 /** Normalized catalog: non-empty codes, trimmed; invalid entries dropped. */

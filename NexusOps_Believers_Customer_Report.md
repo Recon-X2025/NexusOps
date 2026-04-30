@@ -1,6 +1,6 @@
-# NexusOps — Platform Report for Our First 100 Believers
+# CoheronConnect — Platform Report for Our First 100 Believers
 
-**Document:** NexusOps_Believers_Customer_Report.md
+**Document:** CoheronConnect_Believers_Customer_Report.md
 **Date:** April 6, 2026
 **Platform Version:** 4.0 (Production-Live)
 **Built by:** Coheron
@@ -12,17 +12,17 @@
 
 ---
 
-## Welcome to NexusOps
+## Welcome to CoheronConnect
 
-You are one of the first 100 people to join NexusOps — and that means something real to us. This document is a transparent, no-fluff look at exactly what we have built, what it can do for your team today, what we are still working on, and what comes next.
+You are one of the first 100 people to join CoheronConnect — and that means something real to us. This document is a transparent, no-fluff look at exactly what we have built, what it can do for your team today, what we are still working on, and what comes next.
 
 We believe the people who trust us earliest deserve the most honesty.
 
 ---
 
-## What Is NexusOps?
+## What Is CoheronConnect?
 
-NexusOps is a **unified operations platform** for modern organisations. Instead of running six or seven separate tools for IT support, HR operations, finance, compliance, procurement, and customer service — NexusOps brings all of it into one place, with one login, one search bar, and one source of truth.
+CoheronConnect is a **unified operations platform** for modern organisations. Instead of running six or seven separate tools for IT support, HR operations, finance, compliance, procurement, and customer service — CoheronConnect brings all of it into one place, with one login, one search bar, and one source of truth.
 
 Think of it as the operating system for your company's internal operations.
 
@@ -143,7 +143,7 @@ Smart suggestions built in, not bolted on.
 For teams that handle external customer issues.
 
 - **Case Management:** Log, triage, escalate, and resolve customer cases with SLA tracking.
-- **Customer Portal:** An external-facing portal where customers can submit and track their own cases without needing a NexusOps login.
+- **Customer Portal:** An external-facing portal where customers can submit and track their own cases without needing a CoheronConnect login.
 - **CSAT Surveys:** Automated satisfaction surveys after case closure, with live analytics.
 
 ---
@@ -159,11 +159,11 @@ Empower employees to help themselves.
 ---
 
 ### 🔗 Integrations
-Connect NexusOps to the tools you already use.
+Connect CoheronConnect to the tools you already use.
 
 - **Slack:** Receive ticket and approval notifications in your Slack channels.
 - **Microsoft Teams:** Adaptive card notifications for ticket events directly in Teams.
-- **Jira:** Bidirectional sync — tickets created in NexusOps appear in Jira and vice versa.
+- **Jira:** Bidirectional sync — tickets created in CoheronConnect appear in Jira and vice versa.
 - **SAP:** REST adapter for syncing finance and procurement data.
 - **Outgoing Webhooks:** Send any platform event to any external URL — build your own integrations.
 - **API Keys:** Full REST API access with scoped API keys for any integration or automation.
@@ -220,7 +220,7 @@ None of these block your core workflows. Everything in the module list above wor
 
 ## Your Deployment
 
-Your NexusOps instance runs on dedicated infrastructure:
+Your CoheronConnect instance runs on dedicated infrastructure:
 
 - **Server:** Vultr cloud (Bangalore region), 8 vCPUs, 16 GB RAM
 - **Stack:** 5 Docker containers (web, API, PostgreSQL, Redis, worker)
@@ -270,5 +270,5 @@ contact@coheron.com | support@coheron.com
 
 ---
 
-*NexusOps v4.0 · Built by Coheron · April 2026*
-*This document is prepared for founding customers of the NexusOps platform.*
+*CoheronConnect v4.0 · Built by Coheron · April 2026*
+*This document is prepared for founding customers of the CoheronConnect platform.*

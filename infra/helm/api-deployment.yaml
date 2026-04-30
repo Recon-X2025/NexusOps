@@ -1,4 +1,4 @@
-# NexusOps API — Kubernetes Deployment
+# CoheronConnect API — Kubernetes Deployment
 # Requires: secrets/nexusops-api-env (create with kubectl create secret generic)
 ---
 apiVersion: apps/v1

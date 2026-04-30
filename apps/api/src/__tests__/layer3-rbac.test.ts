@@ -3,8 +3,8 @@
  * Mathematically verifies the permission matrix.
  */
 import { describe, it, expect, beforeAll } from "vitest";
-import { hasPermission, ROLE_PERMISSIONS } from "@nexusops/types";
-import type { SystemRole, Module, RbacAction } from "@nexusops/types";
+import { hasPermission, ROLE_PERMISSIONS } from "@coheronconnect/types";
+import type { SystemRole, Module, RbacAction } from "@coheronconnect/types";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {

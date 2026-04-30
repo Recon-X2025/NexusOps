@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "== Class L — Vitest (Layer 8 + RBAC) =="
-pnpm exec dotenv -e .env.test -- pnpm --filter @nexusops/api exec vitest run \
+pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/api exec vitest run \
   src/__tests__/layer8-module-smoke.test.ts \
   src/__tests__/changes-rbac.test.ts \
   src/__tests__/work-orders-rbac.test.ts \

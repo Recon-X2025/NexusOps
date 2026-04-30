@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 06: ALL tRPC Endpoints
+ * CoheronConnect Full-QA — Suite 06: ALL tRPC Endpoints
  *
  * Tests EVERY procedure across all 37 routers.
  * Query procedures (no required input) → GET, expect 200.
@@ -21,7 +21,7 @@ async function api(
 ): Promise<{ status: number; data: unknown }> {
   return page.evaluate(
     async ({ proc, input, method, base }) => {
-      const session = localStorage.getItem("nexusops_session") ?? "";
+      const session = localStorage.getItem("coheronconnect_session") ?? "";
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (session) headers["Authorization"] = `Bearer ${session}`;
       try {

@@ -25,7 +25,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Check session cookie or Authorization header
-  const sessionCookie = request.cookies.get("nexusops_session")?.value;
+  const sessionCookie = request.cookies.get("coheronconnect_session")?.value;
 
   if (!sessionCookie) {
     const loginUrl = new URL("/login", request.url);

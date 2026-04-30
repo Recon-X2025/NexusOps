@@ -1,8 +1,8 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { contracts, contractObligations, eq, and, desc, count, sql } from "@nexusops/db";
-import { supportedCurrencyCodeSchema } from "@nexusops/types";
+import { contracts, contractObligations, eq, and, desc, count, sql } from "@coheronconnect/db";
+import { supportedCurrencyCodeSchema } from "@coheronconnect/types";
 import { getNextNumber } from "../lib/auto-number";
 
 const CONTRACT_STATE_MACHINE: Record<string, string[]> = {

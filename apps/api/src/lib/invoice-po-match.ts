@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import type { Db } from "@nexusops/db";
+import type { Db } from "@coheronconnect/db";
 import {
   invoices,
   purchaseOrders,
@@ -10,7 +10,7 @@ import {
   eq,
   and,
   inArray,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getProcurementMatchToleranceAbs } from "./org-settings";
 
 /** Normalize descriptions for looser three-way line pairing (US-CRM-005 / US-FIN-005). */

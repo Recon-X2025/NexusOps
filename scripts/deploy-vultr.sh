@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# NexusOps · Vultr Test Server Bootstrap
+# CoheronConnect · Vultr Test Server Bootstrap
 #
 # Run this ONCE on a fresh Ubuntu 24.04 Vultr VPS as root:
-#   curl -fsSL https://raw.githubusercontent.com/Recon-X2025/NexusOps/main/scripts/deploy-vultr.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Recon-X2025/CoheronConnect/main/scripts/deploy-vultr.sh | bash
 #
 # What it does:
 #   1. Installs Docker + Docker Compose plugin
@@ -14,8 +14,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-REPO="https://github.com/Recon-X2025/NexusOps.git"
-APP_DIR="/opt/nexusops"
+REPO="https://github.com/Recon-X2025/CoheronConnect.git"
+APP_DIR="/opt/coheronconnect"
 COMPOSE_FILE="docker-compose.vultr-test.yml"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
@@ -84,12 +84,12 @@ elif [[ -d "$APP_DIR/.git" ]]; then
   info "Repo already cloned — pulling latest..."
   git -C "$APP_DIR" pull --ff-only
 else
-  info "Cloning NexusOps repo..."
+  info "Cloning CoheronConnect repo..."
   git clone "$REPO" "$APP_DIR" || {
     die "Git clone failed. The repo may be private. Run from your Mac first:
   rsync -az --exclude='node_modules' --exclude='.git' --exclude='.next' \\
     --exclude='dist' --exclude='.turbo' --exclude='*.pdf' --exclude='.pnpm-store' \\
-    /Users/kathikiyer/Documents/NexusOps/ root@${SERVER_IP}:/opt/nexusops/
+    /Users/kathikiyer/Documents/CoheronConnect/ root@${SERVER_IP}:/opt/coheronconnect/
 Then re-run this script."
   }
 fi
@@ -116,7 +116,7 @@ else
   S3_SECRET=$(gen_secret)
 
   cat > "$ENV_FILE" <<EOF
-# ── NexusOps Production Environment ──────────────────────────────────────────
+# ── CoheronConnect Production Environment ──────────────────────────────────────────
 # Auto-generated on $(date -u +"%Y-%m-%d %H:%M UTC") by deploy-vultr.sh
 # KEEP THIS FILE PRIVATE — never commit it.
 
@@ -124,10 +124,10 @@ NODE_ENV=production
 SERVER_IP=${SERVER_IP}
 
 # Database
-DATABASE_URL=postgresql://nexusops:${POSTGRES_PASS}@postgres:5432/nexusops
+DATABASE_URL=postgresql://coheronconnect:${POSTGRES_PASS}@postgres:5432/coheronconnect
 POSTGRES_PASSWORD=${POSTGRES_PASS}
-POSTGRES_USER=nexusops
-POSTGRES_DB=nexusops
+POSTGRES_USER=coheronconnect
+POSTGRES_DB=coheronconnect
 
 # Redis
 REDIS_URL=redis://:${REDIS_PASS}@redis:6379
@@ -151,7 +151,7 @@ MEILISEARCH_KEY=${MEILI_KEY}
 S3_ENDPOINT=http://minio:9000
 S3_ACCESS_KEY=${S3_ACCESS}
 S3_SECRET_KEY=${S3_SECRET}
-S3_BUCKET=nexusops
+S3_BUCKET=coheronconnect
 
 # Session cache
 FLUSH_REDIS_SESSION_ON_START=true
@@ -195,7 +195,7 @@ docker compose -f "$COMPOSE_FILE" exec -T api \
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}${BOLD}║        NexusOps is live on Vultr!                   ║${RESET}"
+echo -e "${GREEN}${BOLD}║        CoheronConnect is live on Vultr!                   ║${RESET}"
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════╝${RESET}"
 echo ""
 echo -e "  ${BOLD}Web app:${RESET}  http://${SERVER_IP}"

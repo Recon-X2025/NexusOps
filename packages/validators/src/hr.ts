@@ -1,5 +1,5 @@
 /**
- * @nexusops/validators — HR Zod Schemas
+ * @coheronconnect/validators — HR Zod Schemas
  *
  * Single source of truth for Human Resources validation.
  */

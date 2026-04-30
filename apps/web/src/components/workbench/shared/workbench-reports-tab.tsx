@@ -25,7 +25,7 @@ import { HubReportsTab } from "@/components/dashboard/hub-reports-tab";
 import { ExecutivePeriodSelect } from "@/components/dashboard/executive-dashboard-template";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { WorkbenchKey } from "@nexusops/types";
+import type { WorkbenchKey } from "@coheronconnect/types";
 
 type HubPayload = inferRouterOutputs<AppRouter>["commandCenter"]["getHubView"];
 type FunctionKey = HubPayload["heatmap"][number]["function"];
@@ -33,7 +33,7 @@ type FunctionKey = HubPayload["heatmap"][number]["function"];
 /**
  * Workbench → parent function. Workbench reports pull from this hub's
  * metric pool. The mapping mirrors `HUB_TO_DEFAULT_WORKBENCH` (in
- * `@nexusops/types/workbench-defaults.ts`) but inverted — and adds
+ * `@coheronconnect/types/workbench-defaults.ts`) but inverted — and adds
  * entries for workbenches whose hub doesn't have a default workbench
  * (change-release, field-service, recruiter, procurement, grc).
  */

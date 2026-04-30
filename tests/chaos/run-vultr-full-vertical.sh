@@ -3,7 +3,7 @@
 #
 # Requires CHAOS_DATABASE_URL to be the SAME PostgreSQL the deployment uses (public host:port or SSH tunnel).
 # Do not commit secrets. Example:
-#   export CHAOS_DATABASE_URL='postgresql://USER:PASS@localhost:5434/nexusops'
+#   export CHAOS_DATABASE_URL='postgresql://USER:PASS@localhost:5434/coheronconnect'
 #   export CHAOS_BASE_URL='http://localhost:3000'   # optional; localhost is the default in chaos-config
 #
 set -euo pipefail
@@ -16,5 +16,5 @@ if [[ -z "${CHAOS_DATABASE_URL:-}" && -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
-pnpm --filter @nexusops/types build
+pnpm --filter @coheronconnect/types build
 exec pnpm exec playwright test -c tests/chaos/playwright.config.ts "$@"

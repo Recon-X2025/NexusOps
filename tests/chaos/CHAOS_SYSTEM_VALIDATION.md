@@ -1,4 +1,4 @@
-# NexusOps — Chaos System Validation (Playwright)
+# CoheronConnect — Chaos System Validation (Playwright)
 
 This document explains what the **system validation** suite under `tests/chaos/` does, how to run it safely against local or remote deployments, and where outputs land. It is meant to replace informal “trust me” summaries with something you can hand to another engineer or your future self.
 
@@ -6,7 +6,7 @@ This document explains what the **system validation** suite under `tests/chaos/`
 
 ## What problem does this suite solve?
 
-You want a **repeatable vertical check** that NexusOps still works end-to-end when the UI is under mild stress: intermittent API failures, concurrent actions, and both desktop and narrow (mobile) viewports. The spec does **not** replace unit tests or load tests; it is a **smoke + resilience** layer that catches regressions in login, tickets, HAM, dashboard approvals, and basic admin flows.
+You want a **repeatable vertical check** that CoheronConnect still works end-to-end when the UI is under mild stress: intermittent API failures, concurrent actions, and both desktop and narrow (mobile) viewports. The spec does **not** replace unit tests or load tests; it is a **smoke + resilience** layer that catches regressions in login, tickets, HAM, dashboard approvals, and basic admin flows.
 
 ---
 
@@ -20,14 +20,14 @@ You want a **repeatable vertical check** that NexusOps still works end-to-end wh
 | `tests/chaos/chaos-seed.ts` | Drizzle seed (org, admin user, ticket scaffolding) and optional DB row count assert |
 | `tests/chaos/chaos-auth.ts` | tRPC login (multiple response shapes), rate-limit backoff, **10% POST-only failure** route |
 
-Run Playwright **from the monorepo root** so dependencies and `@nexusops/db` resolve like the rest of the repo. The `tests/chaos/package.json` script `playwright` does exactly that.
+Run Playwright **from the monorepo root** so dependencies and `@coheronconnect/db` resolve like the rest of the repo. The `tests/chaos/package.json` script `playwright` does exactly that.
 
 ---
 
 ## Phases inside the test (in order)
 
 1. **Seed (optional)**  
-   If `CHAOS_SKIP_SEED` is not set: requires `CHAOS_DATABASE_URL` or `DATABASE_URL`, runs `assertDatabaseUrlMatchesBase` (see Safety), then seeds an org and a deterministic admin email `chaos.admin+{project}@nexusops.test` plus scaffolding used by the run.
+   If `CHAOS_SKIP_SEED` is not set: requires `CHAOS_DATABASE_URL` or `DATABASE_URL`, runs `assertDatabaseUrlMatchesBase` (see Safety), then seeds an org and a deterministic admin email `chaos.admin+{project}@coheronconnect.test` plus scaffolding used by the run.
 
 2. **Login**  
    Uses `trpcLoginWithBackoff` so transient rate limits do not flake the suite.
@@ -89,7 +89,7 @@ Run Playwright **from the monorepo root** so dependencies and `@nexusops/db` res
 
 | Variable | Notes |
 |----------|--------|
-| `CHAOS_ORG_SLUG` | Override; default prefix is `nexusops-chaos-validation-{projectKey}` so parallel Playwright projects do not fight the same org row |
+| `CHAOS_ORG_SLUG` | Override; default prefix is `coheronconnect-chaos-validation-{projectKey}` so parallel Playwright projects do not fight the same org row |
 | `CHAOS_SEED_PASSWORD` / `CHAOS_ADMIN_PASSWORD` | Seeded admin password (default in code: `ChaosValidation!9`) |
 
 ### Skip-seed login
@@ -112,7 +112,7 @@ Run Playwright **from the monorepo root** so dependencies and `@nexusops/db` res
 
 If `CHAOS_BASE_URL` is **not** localhost and `DATABASE_URL` / `CHAOS_DATABASE_URL` points at **localhost** (or similar), seeding would write rows your remote API never reads—logins would fail or asserts would lie. `assertDatabaseUrlMatchesBase` throws unless you set `CHAOS_ALLOW_DB_MISMATCH=1` or use skip-seed with explicit login credentials.
 
-**Postgres on loopback only (recommended on Vultr):** production compose binds Postgres to `127.0.0.1:5432`. For a full vertical from your laptop, open a tunnel then point `CHAOS_DATABASE_URL` at `127.0.0.1` and the local tunnel port, e.g. `ssh -L 5433:127.0.0.1:5432 root@<vps>` → `postgresql://…@127.0.0.1:5433/nexusops`.
+**Postgres on loopback only (recommended on Vultr):** production compose binds Postgres to `127.0.0.1:5432`. For a full vertical from your laptop, open a tunnel then point `CHAOS_DATABASE_URL` at `127.0.0.1` and the local tunnel port, e.g. `ssh -L 5433:127.0.0.1:5432 root@<vps>` → `postgresql://…@127.0.0.1:5433/coheronconnect`.
 
 ---
 

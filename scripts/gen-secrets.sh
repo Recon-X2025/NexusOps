@@ -31,7 +31,7 @@ S3_ACCESS=$(gen_password)
 S3_SECRET=$(gen_secret)
 
 cat > "$ENV_FILE" <<EOF
-# ── NexusOps Production Environment ──────────────────────────────────────────
+# ── CoheronConnect Production Environment ──────────────────────────────────────────
 # Generated on $(date -u +"%Y-%m-%d %H:%M UTC")
 # KEEP THIS FILE PRIVATE — it is gitignored and must never be committed.
 
@@ -39,10 +39,10 @@ NODE_ENV=production
 SERVER_IP=${SERVER_IP}
 
 # Database
-DATABASE_URL=postgresql://nexusops:${POSTGRES_PASS}@postgres:5432/nexusops
+DATABASE_URL=postgresql://coheronconnect:${POSTGRES_PASS}@postgres:5432/coheronconnect
 POSTGRES_PASSWORD=${POSTGRES_PASS}
-POSTGRES_USER=nexusops
-POSTGRES_DB=nexusops
+POSTGRES_USER=coheronconnect
+POSTGRES_DB=coheronconnect
 
 # Redis
 REDIS_URL=redis://:${REDIS_PASS}@redis:6379
@@ -66,7 +66,7 @@ MEILISEARCH_KEY=${MEILI_KEY}
 S3_ENDPOINT=http://minio:9000
 S3_ACCESS_KEY=${S3_ACCESS}
 S3_SECRET_KEY=${S3_SECRET}
-S3_BUCKET=nexusops
+S3_BUCKET=coheronconnect
 
 # Session cache
 FLUSH_REDIS_SESSION_ON_START=true
@@ -76,4 +76,4 @@ chmod 600 "$ENV_FILE"
 echo "✓ $ENV_FILE created"
 echo ""
 echo "Next: copy this file to your server:"
-echo "  scp .env.production root@${SERVER_IP}:/opt/nexusops/.env.production"
+echo "  scp .env.production root@${SERVER_IP}:/opt/coheronconnect/.env.production"

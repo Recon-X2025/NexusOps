@@ -20,7 +20,7 @@ const INITIAL_MESSAGES: Message[] = [
   {
     id: "1",
     role: "bot",
-    text: "👋 Hi! I'm the NexusOps Virtual Agent. I can help you with IT support, service requests, password resets, and more.\n\nWhat can I help you with today?",
+    text: "👋 Hi! I'm the CoheronConnect Virtual Agent. I can help you with IT support, service requests, password resets, and more.\n\nWhat can I help you with today?",
     time: "now",
     options: [
       "🔐 Reset my password",
@@ -270,7 +270,7 @@ export default function VirtualAgentPage() {
                 <Bot className="w-4 h-4 text-white" />
               </div>
               <div>
-                <div className="text-[12px] font-semibold text-white">NexusOps Virtual Agent</div>
+                <div className="text-[12px] font-semibold text-white">CoheronConnect Virtual Agent</div>
                 <div className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   <span className="text-[10px] text-white/80">Online · Powered by Now Intelligence</span>

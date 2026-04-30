@@ -12,7 +12,7 @@ export const AUTH_STATE_FILE = path.join(__dirname, "results", ".auth-local.json
 
 const DATABASE_URL =
   process.env["DATABASE_URL"] ??
-  "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test";
+  "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test";
 
 const ADMIN_EMAIL = process.env["NEXUS_ADMIN_EMAIL"] ?? "admin@coheron.com";
 const ADMIN_PASSWORD = process.env["NEXUS_ADMIN_PASSWORD"] ?? "demo1234!";
@@ -26,7 +26,7 @@ export default async function globalSetup(_config: FullConfig) {
       env: { ...process.env, DATABASE_URL },
       stdio: "inherit",
     });
-    execSync("pnpm --filter @nexusops/db db:seed", {
+    execSync("pnpm --filter @coheronconnect/db db:seed", {
       env: { ...process.env, DATABASE_URL },
       stdio: "inherit",
     });

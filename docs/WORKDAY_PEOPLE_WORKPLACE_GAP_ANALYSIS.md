@@ -1,7 +1,7 @@
-# Workday vs NexusOps — People & Workplace / HCM Gap Analysis
+# Workday vs CoheronConnect — People & Workplace / HCM Gap Analysis
 
 **Perspective:** Chief Human Resources Officer lens, using **Workday HCM** (Core, Talent, Absence, Payroll adjacent products, and **people analytics** experiences such as Workday People Analytics / manager insights) as the reference bar  
-**Scope:** NexusOps **People & Workplace** entry (`/app/people-workplace`), **platform home** (`/app/dashboard`), **People Analytics** (`/app/people-analytics`), and supporting **HR / workforce / performance / recruitment** APIs  
+**Scope:** CoheronConnect **People & Workplace** entry (`/app/people-workplace`), **platform home** (`/app/dashboard`), **People Analytics** (`/app/people-analytics`), and supporting **HR / workforce / performance / recruitment** APIs  
 **Audience:** HR technology strategy, people analytics, and workplace operations leaders  
 **Date:** April 2026  
 
@@ -13,15 +13,15 @@
 
 ## 1. Executive summary
 
-NexusOps offers a **modular People & Workplace hub**: a **dashboard** summarising HR cases, onboarding/offboarding counts, and links into **HR service delivery**, **employee portal**, **facilities**, and **walk-up**; a separate **People Analytics** experience powered by **`workforce`** APIs (headcount, tenure, leave, attrition, department/location splits); and a broad **`hr`** surface (employees, cases, leave, onboarding templates, payroll-related procedures, holidays, attendance, expenses, OKRs) plus **`performance`** (review cycles, reviews, goals) and **`recruitment`**.
+CoheronConnect offers a **modular People & Workplace hub**: a **dashboard** summarising HR cases, onboarding/offboarding counts, and links into **HR service delivery**, **employee portal**, **facilities**, and **walk-up**; a separate **People Analytics** experience powered by **`workforce`** APIs (headcount, tenure, leave, attrition, department/location splits); and a broad **`hr`** surface (employees, cases, leave, onboarding templates, payroll-related procedures, holidays, attendance, expenses, OKRs) plus **`performance`** (review cycles, reviews, goals) and **`recruitment`**.
 
-Workday’s value proposition for global enterprises is **unified HCM on a single object model**: **effective-dated** worker and position data, deep **organisational** and **compensation** structures, **configurable business processes**, **global payroll and benefits** ecosystems, **enterprise talent** (learning, skills, succession), and **analytics** with governance (storyboards, benchmarks, hierarchy-aware security). NexusOps is **stronger as an integrated “business OS”** with ITSM, finance, and security adjacent to HR; it is **not yet equivalent** to Workday’s depth in **core HCM data semantics**, **global scale**, **manager/employee experience polish**, or **analytics productisation**.
+Workday’s value proposition for global enterprises is **unified HCM on a single object model**: **effective-dated** worker and position data, deep **organisational** and **compensation** structures, **configurable business processes**, **global payroll and benefits** ecosystems, **enterprise talent** (learning, skills, succession), and **analytics** with governance (storyboards, benchmarks, hierarchy-aware security). CoheronConnect is **stronger as an integrated “business OS”** with ITSM, finance, and security adjacent to HR; it is **not yet equivalent** to Workday’s depth in **core HCM data semantics**, **global scale**, **manager/employee experience polish**, or **analytics productisation**.
 
-**Bottom line:** For a Workday-calibre CHRO evaluation, NexusOps reads as a **capable mid-market people operations layer** with **analytics snapshots** and **growing talent/payroll features**, with the largest gaps in **core HCM richness**, **people analytics depth**, **benefits and global payroll**, and **dashboard completeness** (several workplace tiles still **placeholder**).
+**Bottom line:** For a Workday-calibre CHRO evaluation, CoheronConnect reads as a **capable mid-market people operations layer** with **analytics snapshots** and **growing talent/payroll features**, with the largest gaps in **core HCM richness**, **people analytics depth**, **benefits and global payroll**, and **dashboard completeness** (several workplace tiles still **placeholder**).
 
 ---
 
-## 2. What NexusOps provides (observed)
+## 2. What CoheronConnect provides (observed)
 
 | Area | Implementation notes |
 |------|----------------------|
@@ -40,7 +40,7 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ### 3.1 People & Workplace dashboard vs Workday “home / today”
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | Role-aware **home** (tasks, approvals, team insights) | My Workday, inbox-driven processes, prompts | People hub is **case- and count-centric**; platform home is **IT/finance heavy** | **Gap** for a **single CHRO landing** mirroring Workday Today. |
 | **Manager** dashboard (team health, time off, goals) | Manager hub, team calendar | Not a first-class consolidated manager view in People hub | **Gap**. |
@@ -49,7 +49,7 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ### 3.2 Core HCM (worker, job, organisation)
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Worker / employment model** | Multiple employments, contracts, global IDs | Employee linked to **one user**, `employeeId`, manager, dept, title, type, location | **Partial** — simpler **1:1 user–employee** model. |
 | **Position management** | Position vs job, vacancy, FTE | Not observed as first-class | **Gap** for position‑centric orgs. |
@@ -60,21 +60,21 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ### 3.3 Time, absence, and labour
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Absence policies & accruals** | Complex eligibility, calendars, carryover | Leave requests, balances, holidays | **Partial** — policy engine depth **not equivalent**. |
 | **Time tracking / scheduling** | Time clocks, labour allocation | **Attendance** surface in HR | **Partial** — enterprise T&A **unlikely parity**. |
 
 ### 3.4 Payroll and benefits
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Global payroll** | Country payroll, gross-net, integrations | Payroll procedures under **`hr.payroll`** (e.g. regional flows) | **Partial** — scope **narrower** than Workday Payroll network. |
 | **Benefits administration** | Plans, enrolment, life events | Not surfaced as dedicated benefits module in this review | **Gap** for US-style benefits **admin** experiences. |
 
 ### 3.5 Talent (recruiting, learning, performance, skills)
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Recruiting ATS** | Full requisition-to-offer | **Recruitment** module present | **Partial** — feature depth **case-by-case**. |
 | **Learning** | LMS, compliance training assignments | Knowledge/HR adjacent; **no Workday Learning equivalent** called out | **Gap** at LMS parity. |
@@ -84,7 +84,7 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ### 3.6 People analytics vs Workday People Analytics
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Metric catalogue** | Large standard library, governed definitions | **Custom aggregates** (headcount, leave, attrition, tenure) | **Partial**. |
 | **Hierarchy-aware security** | Row-level by supervisory org | Org-scoped **RBAC**; analytics via **`workforce_analytics`** | **Partial** — **not** hierarchy-scoped drill-down like Prism. |
@@ -94,7 +94,7 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ### 3.7 Configuration, workflow, and governance
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Business process definition** | No-code process builder | **Code-first** routers + workflows engine elsewhere | **Different** — faster for devs, **less** business-owned config. |
 | **Security / segmentation** | Domain-level security groups | Module RBAC + matrix roles | **Partial** for **field-level** and **segmented security** expectations. |
@@ -102,7 +102,7 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ### 3.8 Employee experience and mobile
 
-| Capability | Workday (typical) | NexusOps | Assessment |
+| Capability | Workday (typical) | CoheronConnect | Assessment |
 |------------|-------------------|----------|--------------|
 | **Mobile-first ESS/MSS** | Native apps | Web employee portal; **mobile app** stack separate | **Partial** — depends on **mobile** roadmap. |
 | **Listening / engagement** | Pulse, lifecycle surveys | **Surveys** API exists | **Partial** until wired to **HR insights**. |
@@ -111,13 +111,13 @@ Workday’s value proposition for global enterprises is **unified HCM on a singl
 
 ## 4. Strategic implications (CHRO talking points)
 
-1. **Operating model:** NexusOps fits organisations that want **HR plus operations on one stack**; Workday fits organisations optimising for **HCM depth and partner ecosystem**. The **People & Workplace dashboard** should be positioned honestly as a **command centre**, not a full **Workday Home** replacement until manager insights, journey metrics, and facilities/walk-up KPIs are **live**.
+1. **Operating model:** CoheronConnect fits organisations that want **HR plus operations on one stack**; Workday fits organisations optimising for **HCM depth and partner ecosystem**. The **People & Workplace dashboard** should be positioned honestly as a **command centre**, not a full **Workday Home** replacement until manager insights, journey metrics, and facilities/walk-up KPIs are **live**.
 2. **Analytics credibility:** Rename or fix **`gradeDistribution`** semantics (currently **department‑based**) before selling to buyers who **equate “grade” with compensation band**—a CHRO will flag that immediately.
 3. **Global narrative:** Lead with **modules you ship** (cases, leave, performance, recruitment, payroll slices); avoid implying **benefits admin** or **global payroll parity** without a roadmap slide.
 
 ---
 
-## 5. Code and UX references (for NexusOps maintainers)
+## 5. Code and UX references (for CoheronConnect maintainers)
 
 | Topic | Location |
 |-------|----------|
@@ -285,4 +285,4 @@ This section maps **§3 gaps** and **§4 strategic themes** to a **time-boxed ba
 
 ## 7. Disclaimer
 
-This document is based on **repository review** as of the analysis date. **Workday** capabilities vary by **product SKU, tenant configuration, and release**. NexusOps capabilities vary by **deployment and UI completeness**. Use this as a **competitive and architecture checklist**, not a warranty of either vendor.
+This document is based on **repository review** as of the analysis date. **Workday** capabilities vary by **product SKU, tenant configuration, and release**. CoheronConnect capabilities vary by **deployment and UI completeness**. Use this as a **competitive and architecture checklist**, not a warranty of either vendor.

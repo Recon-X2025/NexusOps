@@ -16,8 +16,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tool = AgentTool<any>;
-import type { Module, RbacAction, SystemRole } from "@nexusops/types";
-import { hasPermission } from "@nexusops/types";
+import type { Module, RbacAction, SystemRole } from "@coheronconnect/types";
+import { hasPermission } from "@coheronconnect/types";
 import { allTools } from "./ai-tools";
 import type { AgentTool } from "./ai-tools/types";
 
@@ -64,7 +64,7 @@ function getClient(): Anthropic {
 
 function buildSystemPrompt(ctx: AgentContext): string {
   return [
-    "You are NexusOps Copilot, an executive assistant for an Indian mid-market company.",
+    "You are CoheronConnect Copilot, an executive assistant for an Indian mid-market company.",
     "You help with ITSM, HR & payroll, finance, statutory compliance, contracts, and CRM questions.",
     "",
     "RULES:",

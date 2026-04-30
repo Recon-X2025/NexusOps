@@ -20,7 +20,7 @@ import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 const ADMIN_TABS = [
   { key: "overview",         label: "Overview",            icon: Settings,  module: "admin"             as const, action: "read"  as const },
   { key: "users",            label: "User Management",     icon: Users,     module: "users"             as const, action: "read"  as const },
-  { key: "roles",            label: "Roles & Permissions", icon: Shield,    module: "roles"             as const, action: "read"  as const },
+  { key: "roles",            label: "Role Library", icon: Shield,    module: "roles"             as const, action: "read"  as const },
   { key: "rbac",             label: "RBAC Matrix",         icon: Key,       module: "roles"             as const, action: "admin" as const },
   { key: "groups",           label: "Groups & Teams",      icon: Users,     module: "users"             as const, action: "read"  as const },
   { key: "sla_defs",         label: "SLA Definitions",     icon: Clock,     module: "admin"             as const, action: "read"  as const },
@@ -224,10 +224,10 @@ export default function AdminConsolePage() {
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-4 gap-3">
                 {[
-                  { label: "Total Users",      value: allUsers.length,                                       color: "text-foreground/80" },
                   { label: "Active Users",     value: allUsers.filter(u => u.status === "active").length,   color: "text-green-700" },
-                  { label: "Roles Defined",    value: SYSTEM_ROLES_CATALOG.length,                          color: "text-blue-700" },
-                  { label: "Inactive Users",   value: allUsers.filter(u => u.status !== "active").length,   color: "text-red-700" },
+                  { label: "Role Library",     value: SYSTEM_ROLES_CATALOG.length,                          color: "text-blue-700" },
+                  { label: "Pending Invites",  value: allUsers.filter(u => u.status === "invited").length,  color: "text-orange-600" },
+                  { label: "Suspended",        value: allUsers.filter(u => u.status === "disabled").length, color: "text-red-700" },
                 ].map((k) => (
                   <div key={k.label} className="border border-border rounded p-3">
                     <div className={`text-2xl font-bold ${k.color}`}>{k.value}</div>
@@ -236,13 +236,13 @@ export default function AdminConsolePage() {
                 ))}
               </div>
 
-              {allUsers.filter(u => u.status !== "active").length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+              {allUsers.filter(u => u.status === "disabled").length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded p-3 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[12px] font-semibold text-yellow-700">Inactive Accounts</p>
-                    <p className="text-[11px] text-yellow-600 mt-0.5">
-                      {allUsers.filter(u => u.status !== "active").map(u => u.name).join(", ")} — review and archive if appropriate.
+                    <p className="text-[12px] font-semibold text-red-700">Suspended Accounts</p>
+                    <p className="text-[11px] text-red-600 mt-0.5">
+                      {allUsers.filter(u => u.status === "disabled").map(u => u.name).join(", ")} — these users cannot access the platform.
                     </p>
                   </div>
                 </div>
@@ -327,7 +327,7 @@ export default function AdminConsolePage() {
                 >
                   <Plus className="w-3 h-3" /> New User
                 </button>
-                <button onClick={() => { const csv = ["Name,Email,Role,Matrix Role,MFA enrolled,Status", ...(allUsers as any[]).map((u: any) => `${u.name},${u.email},${u.role},${u.matrixRole ?? ""},${u.mfaEnrolled === true ? "yes" : "no"},${u.status ?? "active"}`)].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "nexusops-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
+                <button onClick={() => { const csv = ["Name,Email,Role,Matrix Role,MFA enrolled,Status", ...(allUsers as any[]).map((u: any) => `${u.name},${u.email},${u.role},${u.matrixRole ?? ""},${u.mfaEnrolled === true ? "yes" : "no"},${u.status ?? "active"}`)].join("\n"); const a = document.createElement("a"); a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv); a.download = "coheronconnect-users.csv"; a.click(); toast.success("Users exported to CSV"); }} className="flex items-center gap-1 px-2 py-1.5 border border-border rounded text-[11px] text-muted-foreground hover:bg-muted/30">
                   <Download className="w-3 h-3" /> Export
                 </button>
               </div>
@@ -433,7 +433,7 @@ export default function AdminConsolePage() {
           {tab === "roles" && (
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[12px] font-semibold text-foreground/80">{SYSTEM_ROLES_CATALOG.length} system roles defined</span>
+                <span className="text-[12px] font-semibold text-foreground/80">{SYSTEM_ROLES_CATALOG.length} roles available in library</span>
                 <button onClick={() => toast.info("Custom role creation is coming in a future release. For now, assign one of the 23 built-in system roles to users via the Users tab → Edit Role.", { duration: 6000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> Create Custom Role
                 </button>
@@ -904,8 +904,8 @@ export default function AdminConsolePage() {
                 <span className="text-[12px] font-semibold text-foreground/80">Integration Hub</span>
                 <button
                   onClick={() => toast.message("Add Integration", {
-                    description: "Connect external tools to NexusOps. Supported integrations: PagerDuty, Jira, Splunk, Azure AD, Tenable, Slack, MS Teams, ServiceNow, AWS, GitHub.",
-                    action: { label: "Contact Support", onClick: () => window.open("mailto:support@nexusops.io?subject=Integration Setup", "_blank") },
+                    description: "Connect external tools to CoheronConnect. Supported integrations: PagerDuty, Jira, Splunk, Azure AD, Tenable, Slack, MS Teams, ServiceNow, AWS, GitHub.",
+                    action: { label: "Contact Support", onClick: () => window.open("mailto:support@coheron.com?subject=Integration Setup", "_blank") },
                     cancel: { label: "Close", onClick: () => {} },
                     duration: 8000,
                   })}
@@ -1267,7 +1267,7 @@ function LegalEntitiesTab() {
           <input
             type="text"
             className="border border-border rounded px-2 py-1.5 text-[12px] bg-background w-full"
-            placeholder="Coheron Technologies Private Limited"
+            placeholder="CoheronConnect Global Inc"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={200}

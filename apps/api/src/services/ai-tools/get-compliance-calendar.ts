@@ -1,4 +1,4 @@
-import { complianceCalendarItems, eq, and, gte, lte, asc } from "@nexusops/db";
+import { complianceCalendarItems, eq, and, gte, lte, asc } from "@coheronconnect/db";
 import type { AgentTool } from "./types";
 
 export const getComplianceCalendarTool: AgentTool<{

@@ -1,4 +1,4 @@
-# NexusOps — Production Readiness Plan (locked)
+# CoheronConnect — Production Readiness Plan (locked)
 
 **Date:** 2026-04-26
 **Owner:** Product
@@ -9,7 +9,7 @@
 
 ## 0. Positioning (locked)
 
-**NexusOps is the India-first all-in-one operations platform for mid-market (0–500 employees).** ITSM + HR + Payroll + Finance + Statutory Compliance in a single system, replacing 6–8 SaaS tools.
+**CoheronConnect is the India-first all-in-one operations platform for mid-market (0–500 employees).** ITSM + HR + Payroll + Finance + Statutory Compliance in a single system, replacing 6–8 SaaS tools.
 
 We do **not** market against ServiceNow / Workday / Salesforce as a global ITSM/HCM/CRM. We market against the *combination* of: ClearTax + RazorpayX Payroll + Keka + Freshservice + Zoho Books + DocuSign — bundled, India-tax-aware, and on a single data spine.
 

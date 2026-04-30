@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { surveys, surveyResponses, eq, and, desc, count, avg } from "@nexusops/db";
+import { surveys, surveyResponses, eq, and, desc, count, avg } from "@coheronconnect/db";
 
 export const surveysRouter = router({
   list: permissionProcedure("surveys", "read")

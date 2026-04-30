@@ -31,7 +31,7 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { key: "welcome",     label: "Welcome",        icon: Zap,       description: "Get started with NexusOps" },
+  { key: "welcome",     label: "Welcome",        icon: Zap,       description: "Get started with CoheronConnect" },
   { key: "org_profile", label: "Organisation",   icon: Building2, description: "Company profile & branding" },
   { key: "india_setup", label: "India Setup",    icon: Globe,     description: "GSTIN, PAN, and compliance" },
   { key: "team",        label: "Invite Team",    icon: Users,     description: "Add your first colleagues" },
@@ -49,7 +49,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         <Zap className="h-8 w-8 text-white" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Welcome to NexusOps</h2>
+        <h2 className="text-2xl font-bold text-foreground">Welcome to CoheronConnect</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-md">
           This wizard will help you set up your workspace in under 5 minutes. You can always change these settings later.
         </p>
@@ -295,7 +295,7 @@ function DoneStep() {
       <div>
         <h2 className="text-2xl font-bold text-foreground">You're all set! 🎉</h2>
         <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Your NexusOps workspace is configured. Head to the dashboard to start managing your operations.
+          Your CoheronConnect workspace is configured. Head to the dashboard to start managing your operations.
         </p>
       </div>
       <div className="flex items-center gap-3">

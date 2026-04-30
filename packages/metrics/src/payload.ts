@@ -10,6 +10,14 @@ export interface AttentionItem {
   drillUrl?: string;
 }
 
+export type MetricCellState =
+  | { kind: "healthy"; value: string | number; target?: string | number }
+  | { kind: "watch"; value: string | number; target?: string | number }
+  | { kind: "stressed"; value: string | number; target?: string | number }
+  | { kind: "no_data" }
+  | { kind: "not_applicable" }
+  | { kind: "stale"; value: string | number; lastSyncedAt: Date };
+
 export interface BulletMetric {
   metricId: string;
   function: FunctionKey;
@@ -21,7 +29,9 @@ export interface BulletMetric {
   current: number;
   target?: number;
   state: "healthy" | "watch" | "stressed" | "no_data";
+  cellState: MetricCellState;
   direction: "higher_is_better" | "lower_is_better";
+  displayValue?: string;
   drillUrl?: string;
 }
 
@@ -34,8 +44,10 @@ export interface TrendMetric {
   previous?: number;
   unit?: string;
   state: "healthy" | "watch" | "stressed" | "no_data";
+  cellState: MetricCellState;
   direction: "higher_is_better" | "lower_is_better";
   series: Array<{ t: string; v: number }>;
+  displayValue?: string;
   drillUrl?: string;
 }
 
@@ -52,6 +64,7 @@ export interface RiskItem {
   label: string;
   severity: "high" | "watch";
   detail: string;
+  displayValue?: string;
   drillUrl?: string;
 }
 
@@ -61,7 +74,12 @@ export interface CommandCenterPayload {
   canOverride: boolean;
   asOf: string;
   score: number;
-  scoreState: "healthy" | "watch" | "stressed";
+  scoreState: "healthy" | "watch" | "stressed" | "awaiting_data";
+  /** Optional subtext for the health score (e.g. "Composite of 3 of 8 domains") */
+  scoreSubtext?: string;
+  /** Count of functional domains actually reporting data. */
+  domainsReporting: number;
+  totalDomains: number;
   narrative: string;
   attention: AttentionItem[];
   heatmap: Array<{
@@ -70,9 +88,11 @@ export interface CommandCenterPayload {
       MetricDimension,
       {
         state: "healthy" | "watch" | "stressed" | "no_data";
+        cellState: MetricCellState;
         value: number | null;
         label: string;
         unit?: MetricDefinition["unit"];
+        displayValue?: string;
         drillUrl?: string;
       }
     >;

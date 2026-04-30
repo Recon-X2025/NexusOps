@@ -13,8 +13,8 @@
  */
 import { Queue, Worker, type Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
-import type { Db } from "@nexusops/db";
-import { tickets } from "@nexusops/db";
+import type { Db } from "@coheronconnect/db";
+import { tickets } from "@coheronconnect/db";
 import { embedTextHashing } from "../services/embeddings";
 
 function redisConnection() {
@@ -28,7 +28,7 @@ export interface TicketEmbeddingJobData {
   reason: "created" | "resolved" | "updated";
 }
 
-export const TICKET_EMBEDDING_QUEUE_NAME = "nexusops-ticket-embedding";
+export const TICKET_EMBEDDING_QUEUE_NAME = "coheronconnect-ticket-embedding";
 
 let _queue: Queue<TicketEmbeddingJobData> | null = null;
 

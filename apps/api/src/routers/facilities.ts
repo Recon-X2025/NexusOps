@@ -13,7 +13,7 @@ import {
   asc,
   sql,
   count,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 export const facilitiesRouter = router({
   hubSnapshot: permissionProcedure("facilities", "read").query(async ({ ctx }) => {

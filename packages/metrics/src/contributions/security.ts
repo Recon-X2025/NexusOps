@@ -1,4 +1,4 @@
-import { securityIncidents, eq, and, count, sql } from "@nexusops/db";
+import { securityIncidents, eq, and, count, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
 import { alignSeries, buildTimeBuckets, truncSqlExpression } from "../resolve-helpers";
 import { dbOf } from "./_db";

@@ -1,5 +1,5 @@
 /**
- * @nexusops/validators — Accounting Zod Schemas
+ * @coheronconnect/validators — Accounting Zod Schemas
  *
  * Single source of truth for all Accounting/Finance-related validation.
  */

@@ -1,5 +1,5 @@
 {
-  "name": "@nexusops/worker",
+  "name": "@coheronconnect/worker",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@nexusops/db": "workspace:*",
+    "@coheronconnect/db": "workspace:*",
     "@temporalio/activity": "^1.11.0",
     "@temporalio/client": "^1.11.0",
     "@temporalio/worker": "^1.11.0",

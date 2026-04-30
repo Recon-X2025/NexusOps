@@ -1,5 +1,5 @@
 /**
- * NexusOps — non-interactive "Day in the Life" chaos / vertical validation.
+ * CoheronConnect — non-interactive "Day in the Life" chaos / vertical validation.
  *
  * Full vertical (seed + UI + DB counts): Postgres for Drizzle **must be the same DB the API uses**.
  *
@@ -154,8 +154,8 @@ async function trpcLogin(page: Page, email: string, password: string): Promise<s
 
   await page.evaluate(
     (sid) => {
-      localStorage.setItem("nexusops_session", sid);
-      document.cookie = `nexusops_session=${sid}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+      localStorage.setItem("coheronconnect_session", sid);
+      document.cookie = `coheronconnect_session=${sid}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
     },
     sessionId,
   );
@@ -182,7 +182,7 @@ async function seedChaosTenant(orgSlug: string, adminEmail: string, passwordPlai
     and,
     like,
     count,
-  } = await import("@nexusops/db");
+  } = await import("@coheronconnect/db");
 
   const db = getDb();
   const passwordHash = await bcrypt.hash(passwordPlain, 12);
@@ -336,7 +336,7 @@ async function assertDbCounts(orgSlug: string, expectSeedTickets: number, runPre
   if (!dbUrl) throw new Error("CHAOS_DATABASE_URL or DATABASE_URL missing for assertDbCounts");
   process.env["DATABASE_URL"] = dbUrl;
 
-  const { getDb, closeDb, organizations, tickets, assets, eq, and, like, count } = await import("@nexusops/db");
+  const { getDb, closeDb, organizations, tickets, assets, eq, and, like, count } = await import("@coheronconnect/db");
   const db = getDb();
   const [org] = await db.select().from(organizations).where(eq(organizations.slug, orgSlug)).limit(1);
   if (!org) throw new Error(`assertDbCounts: org slug not found: ${orgSlug}`);
@@ -369,7 +369,7 @@ async function assertDbRunTicketsOnly(orgSlug: string, runPrefix: string, expect
   if (!dbUrl) throw new Error("CHAOS_DATABASE_URL or DATABASE_URL required for DB assertions");
   process.env["DATABASE_URL"] = dbUrl;
 
-  const { getDb, closeDb, organizations, tickets, eq, and, like, count } = await import("@nexusops/db");
+  const { getDb, closeDb, organizations, tickets, eq, and, like, count } = await import("@coheronconnect/db");
   const db = getDb();
   const [org] = await db.select().from(organizations).where(eq(organizations.slug, orgSlug)).limit(1);
   if (!org) {
@@ -388,7 +388,7 @@ async function assertDbRunTicketsOnly(orgSlug: string, runPrefix: string, expect
   expect(runCount, "UI-created CHAOS-RUN tickets in DB").toBe(expectedRun);
 }
 
-test.describe("NexusOps chaos — vertical day-in-the-life", () => {
+test.describe("CoheronConnect chaos — vertical day-in-the-life", () => {
   test.describe.configure({ mode: "serial" });
 
   test("stress auth, tickets, HAM, routes, concurrency, screenshots, DB integrity", async ({ page }, testInfo) => {
@@ -404,7 +404,7 @@ test.describe("NexusOps chaos — vertical day-in-the-life", () => {
     const orgSlugForDbAssert = skipSeed
       ? (process.env["CHAOS_ORG_SLUG"]?.trim() || "coheron-demo")
       : chaosTenantSlug;
-    const adminEmail = `chaos.admin+${projectKey}@nexusops.test`;
+    const adminEmail = `chaos.admin+${projectKey}@coheronconnect.test`;
     const password = process.env["CHAOS_ADMIN_PASSWORD"] ?? DEFAULT_ADMIN_PASSWORD;
     const runId = `${Date.now()}-${testInfo.workerIndex}`;
     const runTitlePrefix = `CHAOS-RUN-${runId}`;

@@ -71,7 +71,7 @@ export default function PublicSurveyPage({ params }: { params: { token: string }
           </div>
           <div>
             <div className="text-sm font-semibold text-slate-900">{title}</div>
-            <div className="text-xs text-slate-500">NexusOps</div>
+            <div className="text-xs text-slate-500">CoheronConnect</div>
           </div>
         </div>
 

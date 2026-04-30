@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * NexusOps API Chaos Abuser
+ * CoheronConnect API Chaos Abuser
  *
  * 200 concurrent async loops hammering:
  *   - tickets.list      (GET query)
@@ -309,7 +309,7 @@ function startProgressTicker(deadline: number): NodeJS.Timeout {
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log("═══════════════════════════════════════════════════════");
-  console.log("  NexusOps API CHAOS ABUSER — 200 concurrent workers");
+  console.log("  CoheronConnect API CHAOS ABUSER — 200 concurrent workers");
   console.log(`  Target: ${API_URL}`);
   console.log(`  Duration: ${DURATION_MS / 60000} minutes`);
   console.log("═══════════════════════════════════════════════════════");

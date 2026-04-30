@@ -1,7 +1,7 @@
 import { ServiceDeskContent } from "@/components/workbench/service-desk/page-content";
 import { WorkbenchShell } from "@/components/workbench/shared/workbench-shell";
 import { WorkbenchRBACGate } from "@/components/workbench/shared/workbench-rbac-gate";
-import { WORKBENCHES } from "@nexusops/types";
+import { WORKBENCHES } from "@coheronconnect/types";
 
 export const dynamic = "force-dynamic";
 

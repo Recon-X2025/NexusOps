@@ -13,7 +13,7 @@ function envFlag(key: string): boolean {
 /**
  * Task board / sprint / story-point UI.
  *
- * NexusOps positions Strategy Center as an executive PPM surface, not a
+ * CoheronConnect positions Strategy Center as an executive PPM surface, not a
  * Linear/Jira competitor. The agile board, sprint field, and story points
  * exist in the schema and tRPC layer but are hidden from the UI by default.
  * Customers who want them can flip the flag; the default product surface
@@ -24,7 +24,7 @@ export const TASK_BOARD_ENABLED: boolean = envFlag("NEXT_PUBLIC_ENABLE_TASK_BOAR
 /**
  * DevOps / CI-CD / pipelines / DORA telemetry surface.
  *
- * The default NexusOps surface stops at the change-management boundary —
+ * The default CoheronConnect surface stops at the change-management boundary —
  * pipeline / deployment telemetry belongs in GitHub / GitLab / Jenkins /
  * Azure DevOps, and tenants in our segment do not buy a separate dashboard
  * for it. The router and schema remain available; the UI is hidden until

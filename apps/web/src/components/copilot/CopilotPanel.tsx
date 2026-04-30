@@ -31,7 +31,7 @@ interface CopilotMessage {
 }
 
 const SUGGESTIONS = [
-  "Show me my open P1 tickets",
+  "Show me my open P1 requests",
   "Contracts expiring in the next 60 days",
   "What's due this month for compliance?",
   "Last month's payslip for me",
@@ -85,7 +85,7 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
     >
       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
         <Bot className="w-5 h-5 text-slate-600" />
-        <div className="font-semibold text-sm text-slate-900">NexusOps Copilot</div>
+        <div className="font-semibold text-sm text-slate-900">CoheronConnect Copilot</div>
         <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-400 px-2 py-0.5 bg-slate-100 rounded">
           Read-only · v1
         </span>
@@ -94,7 +94,7 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
           <div className="text-sm text-slate-500 space-y-2">
-            <p>Ask anything across tickets, HR, finance, contracts, or compliance.</p>
+            <p>Ask anything across requests, HR, finance, contracts, or compliance.</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {SUGGESTIONS.map((s) => (
                 <button

@@ -8,7 +8,7 @@
  * - Notifications sent on each decision + final outcome
  */
 import { Queue, Worker, type Job } from "bullmq";
-import type { Db } from "@nexusops/db";
+import type { Db } from "@coheronconnect/db";
 import { notifyActivity, writeWorkflowAuditLog } from "./activities";
 
 /** BullMQ-compatible Redis connection config derived from REDIS_URL env var. */
@@ -29,7 +29,7 @@ export interface ApprovalJobData {
   resourceTitle: string;
 }
 
-export const APPROVAL_QUEUE_NAME = "nexusops-approvals";
+export const APPROVAL_QUEUE_NAME = "coheronconnect-approvals";
 
 /** Create the approval BullMQ queue (caller is responsible for the Redis connection). */
 export function createApprovalQueue(): Queue<ApprovalJobData> {

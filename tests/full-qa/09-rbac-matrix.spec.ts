@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 09: RBAC Matrix Validation
+ * CoheronConnect Full-QA — Suite 09: RBAC Matrix Validation
  *
  * Tests all 7 platform roles against protected API procedures.
  * Each role's session is obtained via login; the shared admin auth state

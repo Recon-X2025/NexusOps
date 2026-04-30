@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState } from "react";
 import { Leaf, Sun, Droplets, Users2, Shield, TrendingDown, BarChart3, Download, RefreshCw } from "lucide-react";
-import { EmptyState } from "@nexusops/ui";
+import { EmptyState } from "@coheronconnect/ui";
 import { cn } from "@/lib/utils";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 

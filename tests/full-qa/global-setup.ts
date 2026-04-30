@@ -1,5 +1,5 @@
 /**
- * NexusOps QA — Global Setup
+ * CoheronConnect QA — Global Setup
  * Logs in ONCE, saves auth state to disk.
  * All test files reuse this state via storageState — no per-test login.
  * If auth state file exists and is < 55 minutes old, skips the login.

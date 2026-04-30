@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { nanoid } from "nanoid";
 import { testDb, seedFullOrg, authedCaller, cleanupOrg, createSession, initTestEnvironment, seedUser } from "./helpers";
-import { boardMeetings, boardResolutions, securityIncidents, vulnerabilities, directors, complianceCalendarItems, investigations, companyDirectors } from "@nexusops/db";
-import { eq, and, sql } from "@nexusops/db";
+import { boardMeetings, boardResolutions, securityIncidents, vulnerabilities, directors, complianceCalendarItems, investigations, companyDirectors } from "@coheronconnect/db";
+import { eq, and, sql } from "@coheronconnect/db";
 
 describe("Differentiating Modules — Deep Integration Tests", () => {
     let orgCtx: Awaited<ReturnType<typeof seedFullOrg>>;
@@ -201,7 +201,7 @@ describe("Differentiating Modules — Deep Integration Tests", () => {
         it("SIEM Export: schema validation", async () => {
             const caller = await authedCaller(adminToken);
             const preview = await caller.security.siemExportPreview({ limit: 10 });
-            expect(preview.schema).toBe("nexusops.security.siem_preview.v1");
+            expect(preview.schema).toBe("coheronconnect.security.siem_preview.v1");
             expect(Array.isArray(preview.auditLogSample)).toBe(true);
             expect(Array.isArray(preview.securityIncidentSnapshot)).toBe(true);
         });

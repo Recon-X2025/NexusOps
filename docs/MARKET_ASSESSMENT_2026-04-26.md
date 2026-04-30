@@ -1,4 +1,4 @@
-# NexusOps — Market Assessment (Redo) & Pending-Build Register
+# CoheronConnect — Market Assessment (Redo) & Pending-Build Register
 
 **Date:** 2026-04-26 · **Revision:** redone end-of-day after the GA-readiness pass and a fresh disk-level survey.
 **Method:** Direct codebase walk of `apps/api/src/routers/`, `packages/db/src/schema/`, `apps/api/src/services/`, `apps/api/src/workflows/`, `apps/api/src/http/`, `apps/web/src/app/app/`, and `e2e/`. Inventory artefact: `MARKET_ASSESSMENT_REDO_INVENTORY.md` (in-line below in §B). No marketing copy or older docs read.
@@ -110,7 +110,7 @@ This is the authoritative capability index: `auth`, `admin`, `tickets`, `assets`
 
 ## §F. Deep market assessment (module-by-module) + explicit gaps
 
-This is the “deep” section: for each shipped module we list the competitive set, buyer expectations (table stakes), NexusOps strengths, and the specific gaps that keep us from “category leader” claims. Where possible, gaps are mapped to the pending-build register in §B.
+This is the “deep” section: for each shipped module we list the competitive set, buyer expectations (table stakes), CoheronConnect strengths, and the specific gaps that keep us from “category leader” claims. Where possible, gaps are mapped to the pending-build register in §B.
 
 ### F0. How to read this section
 
@@ -126,7 +126,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow Platform, Atlassian (JSM + ecosystem), Freshworks, ManageEngine; for India mid-market: Zoho (ecosystem), Tally/SAP Business One (finance-adjacent suites).
 - **Table stakes**:
   - tenant isolation, RBAC by module, audit logs, SSO options, admin settings and onboarding, API keys/webhooks, background jobs, attachments/object storage
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - coherent cross-module RBAC model; admin/settings surfaces; webhook hardening posture; multi-hub navigation + persona workbenches that reduce “suite fatigue”
 - **Key gaps / risks**:
   - **SAML SSO + SCIM** remain missing for buyers migrating from Okta/AzureAD (**P2-11, P2-12**)
@@ -139,7 +139,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow ITSM, Jira Service Management, Freshservice, Zendesk (service), ManageEngine ServiceDesk Plus.
 - **Table stakes**:
   - incident/request lifecycle, SLA timers/escalations, assignment rules, approvals, knowledge linking, notifications, CSAT loop, basic reporting
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - end-to-end ticketing + approvals + workbench surfaces; assignment rules (load/group); strong “ops narrative” framing via Command Center
 - **Key gaps / risks**:
   - **Skills-based routing** missing (buyers compare to SNOW AWA) (**P1-8**)
@@ -154,7 +154,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow ITOM, Datadog ITSM integrations, Opsgenie/PagerDuty adjacency, ManageEngine OpManager.
 - **Table stakes**:
   - event ingestion, routing, suppression/basic correlation, linking events to services/CMDB, on-call escalation hooks
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - credible “operator surface” for service health; ties into tickets/approvals as a unified work surface
 - **Key gaps / risks**:
   - correlation/suppression depth is not yet a win condition; “ITOM” claims should remain cautious until discovery exists (**see F4/P2-1**)
@@ -166,7 +166,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow CMDB + Discovery, Device42, Lansweeper, ManageEngine AssetExplorer; India mid-market often “Excel + procurement.”
 - **Table stakes**:
   - asset register, ownership, lifecycle status, linkage to tickets/changes, basic imports/exports
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - CMDB surfaces exist and are integrated into the broader ops suite narrative
 - **Key gaps / risks**:
   - **Discovery agent** missing; without it CMDB is “manually maintained,” which limits stickiness (**P2-1**)
@@ -178,7 +178,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow Change, Jira change workflows, BMC Helix; plus internal “calendar in Google.”
 - **Table stakes**:
   - change requests, approvals, change calendar view, collision awareness, post-change review notes
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - schema depth exists; workbench “change & release” persona surface is the right packaging direction
 - **Key gaps / risks**:
   - **Visual change calendar / collision UI** is explicitly called out as missing (**P2-5**)
@@ -190,7 +190,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow Flow Designer, Jira Automation, Zapier/Make for SMB, Workato for enterprise, Power Automate (M365).
 - **Table stakes**:
   - triggers, conditions, action palette, test-run, auditability, basic connectors (email/chat)
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - Flow Designer route exists; workflow actions catalog exists; automation is conceptually first-class across modules
 - **Key gaps / risks**:
   - action library must be fully wired into real triggers and used by the designer (**P0-2, P2-8**)
@@ -203,7 +203,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow IntegrationHub, Atlassian Marketplace, Workato, Zapier, Power Automate; India-specific stacks: ClearTax, Razorpay, WhatsApp BSPs.
 - **Table stakes**:
   - credential management UI, test connection, retry semantics, webhook security, auditability
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - tenant-managed integrations admin UI; eMudhra + ClearTax + Razorpay + WhatsApp/SMS coverage matches the India-first wedge
   - webhook hardening order-of-ops is defensible (origin block → allowlist → HMAC)
 - **Key gaps / risks**:
@@ -218,7 +218,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: SharePoint (default), Box, Google Drive, DocuSign CLM stores; for ITSM suites: built-in attachment stores.
 - **Table stakes**:
   - object storage, versioning, audit logs, retention policies, legal hold, malware scanning (in regulated orgs)
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - malware scan + retention sweep + legal hold are shipped; e-sign audit retention posture aligns with Indian compliance expectations
 - **Key gaps / risks**:
   - **OCR/search** for documents is missing; only receipt OCR exists today (**future gap; consider pairing with search improvements after P1-9**)
@@ -230,7 +230,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ClearTax (compliance suite), Zoho (books/payroll + addons), local CS tooling, in-house CA/CS workflows.
 - **Table stakes**:
   - compliance calendar, filings/registers, audit trail, reminders, document packs, role separation (CS vs finance vs legal)
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - credible India-first posture: secretarial + e-sign + retention + compliance calendar framing is a cohesive wedge story
 - **Key gaps / risks**:
   - reminder workflows must be unquestionably wired and observable (ties back to workflow engine/action wiring) (**P0-2**)
@@ -242,7 +242,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Darwinbox (HR suite), Keka, Zoho Payroll, RazorpayX payroll adjacency, legacy outsource/CA workflows.
 - **Table stakes**:
   - runs, payslips, statutory computations, employee self-serve, exports/bank files, year-end forms
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - “last-mile” credibility improved with Form 16 and bank-file exports already shipped (defensible differentiator inside the suite narrative)
 - **Key gaps / risks**:
   - buyer diligence will ask for “bank format coverage” and “year-end correctness proofs”; keep claims anchored to exact supported formats and test fixtures (process/doc gap more than code gap in this revision)
@@ -254,7 +254,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Darwinbox, Keka, Zoho People, BambooHR (global SMB), Workday (upper mid-market).
 - **Table stakes**:
   - org/employee directory, time off, attendance, HR requests, approvals, basic analytics, role-specific portals
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - HR sits natively beside ITSM/finance/governance; this reduces “another system” friction in mid-market orgs
 - **Key gaps / risks**:
   - HR suite breadth is credible, but deep HRIS features (benefits, complex payroll integrations, etc.) should not be claimed as category parity
@@ -266,7 +266,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: SAP Concur, Expensify, Zoho Expense, Rippling/Deel adjacency (global).
 - **Table stakes**:
   - mobile capture, receipt OCR, policy rules, approvals, reimbursements, auditability, export to accounting
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - split surfaces (employee vs finance) + receipt OCR + policy engine move this to a credible “B/B+” story inside a suite
 - **Key gaps / risks**:
   - **mobile breadth** is still thin, which matters disproportionately for expenses (**P1-12**)
@@ -279,7 +279,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Coupa, SAP Ariba (enterprise), Zoho Books/Inventory (SMB), Tally+add-ons (India), SAP Business One (mid-market).
 - **Table stakes**:
   - vendor register, PO lifecycle, invoice capture/approval, AP aging, AR aging, payment status, audit trail
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - P2P/AP/AR is sufficiently present to support the “one suite” narrative; ClearTax IRN dual-write makes the India wedge stronger
 - **Key gaps / risks**:
   - vendor portal is a common Coupa/Ariba-style expectation as orgs scale (**P2-4**)
@@ -291,7 +291,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: NetSuite (upper mid-market), Tally (India default), Zoho Books, QuickBooks; plus “accountant + spreadsheets.”
 - **Table stakes**:
   - chart of accounts, journal entries, period close basics, exports, audit trail; for maturity: bank recon, fixed assets/depreciation
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - enough accounting surface to connect operational finance modules; not positioned as “NetSuite replacement” (and should not be)
 - **Key gaps / risks**:
   - **bank reconciliation** missing (**P2-2**)
@@ -304,7 +304,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Ironclad, Icertis, DocuSign CLM, SpotDraft (India-friendly), Contractbook (SMB).
 - **Table stakes**:
   - repository, metadata, reminders, e-sign integration, audit trail; for CLM maturity: clause library, playbooks, redlining, approval workflows
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - eMudhra e-sign + retention/audit makes the “India legal validity” story credible in mid-market
 - **Key gaps / risks**:
   - **clause library + AI extraction + redline collaboration** missing (**P2-7**)
@@ -316,7 +316,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Vanta/Drata (SMB compliance automation), ServiceNow GRC, Archer (enterprise), Wiz/Snyk adjacency (SecOps).
 - **Table stakes**:
   - asset/control mapping, evidence collection workflows, risk register, audit plans, remediation tracking
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - integrated GRC + approvals + audit trails inside the suite; this sells well when paired with India governance story
 - **Key gaps / risks**:
   - continuous control monitoring (CCM) is the typical next ask in SOC2/ISO motions (**P2-15**)
@@ -328,7 +328,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Salesforce (upmarket), HubSpot/Zoho CRM (mid-market), Freshsales; CSM: Gainsight (upmarket), Totango/Planhat.
 - **Table stakes**:
   - accounts/contacts/opportunities basics; for CSM: health scoring, renewals, playbooks
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - present enough to support “one customer record” narrative for service + success, but not a dedicated best-in-class CRM win condition
 - **Key gaps / risks**:
   - connector breadth (Gmail/Outlook, Salesforce) will dominate objections if CRM is used in positioning (**P2-13**)
@@ -340,7 +340,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: Jira Align (enterprise), Aha!, Monday/Smartsheet (mid-market), ServiceNow SPM; many mid-market orgs use “PowerPoint + Excel.”
 - **Table stakes**:
   - initiatives, milestones, dependencies, rollups, reporting
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - strategy center + PMO workbench packaging is a credible exec story inside an ops suite
 - **Key gaps / risks**:
   - if we lean into “enterprise architecture” narratives, ensure APM/EA features are truly on and not confusingly flag-gated (positioning risk; not a code gap in this doc)
@@ -352,7 +352,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow Now Assist, Atlassian Intelligence, Microsoft Copilot (horizontal), bespoke RAG tools.
 - **Table stakes**:
   - semantic search, summarization, Q&A against tickets/KB, guardrails and auditability
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - agentic loop exists and is an “AI-first ops” narrative anchor when paired with real write tools and auditability
 - **Key gaps / risks**:
   - **ticket embedding pipeline** is the single biggest functional gap for AI/search quality (**P1-9**)
@@ -364,7 +364,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: every incumbent suite has a mobile app; expenses and approvals are the acid test.
 - **Table stakes**:
   - approvals, notifications, ticket updates, expense capture
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - a viable starting point exists; the hard part is expanding without fragmenting RBAC/data shape
 - **Key gaps / risks**:
   - mobile needs the “manager loop” breadth (approve HR + finance, capture receipts) to avoid category penalty (**P1-12**)
@@ -376,7 +376,7 @@ This is the “deep” section: for each shipped module we list the competitive 
 - **Competitors (shortlist)**: ServiceNow dashboards/role-based workspaces, Freshservice analytics, bespoke BI.
 - **Table stakes**:
   - role views, KPIs, drill-down to work, “today’s priorities” experience, not just charts
-- **NexusOps strengths (today)**:
+- **CoheronConnect strengths (today)**:
   - persona workbenches are a real product decision that can differentiate by reducing navigation and helping adoption
 - **Key gaps / risks**:
   - the risk is data freshness/latency and trust; this is mitigated by explicit “no_data” fallbacks and source timeouts, but needs consistent “explain why panel is empty” UX over time (ongoing product discipline)
@@ -466,7 +466,7 @@ The four highest-ROI rows from §D landed in a single execution pass. Each block
 - Write tools `apps/api/src/services/ai-tools/create-ticket.ts` + `update-ticket-status.ts` (RBAC-checked at runtime; system prompt requires explicit user confirmation).
 - New `agent` tRPC router `apps/api/src/routers/agent.ts` exposing `chat`, `listConversations`, `getConversation`, `deleteConversation`.
 - New chat UI `apps/web/src/app/app/agent/page.tsx` with conversation sidebar.
-- Command Palette entry **Ask NexusOps Copilot** in `apps/web/src/components/layout/command-palette.tsx`.
+- Command Palette entry **Ask CoheronConnect Copilot** in `apps/web/src/components/layout/command-palette.tsx`.
 
 ### B2. P2 — next quarter (widen the moat / adjacent segments)
 

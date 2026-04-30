@@ -169,7 +169,9 @@ const MUTUAL_NDA: ContractTemplate = {
           helperText: "Describe why confidential information will be shared",
         },
       ],
-      body: `"Confidential Information" means any and all non-public information disclosed by either party (the "Disclosing Party") to the other party (the "Receiving Party"), whether orally, in writing, electronically, or by inspection of tangible objects, that is designated as confidential or that reasonably should be understood to be confidential given the nature of the information and the circumstances of disclosure. Confidential Information includes, without limitation: trade secrets, business plans, financial data, customer and supplier lists, product designs and roadmaps, technical specifications, source code, algorithms, pricing structures, marketing strategies, personnel information, and any analysis, compilations, or derivative works that contain or reflect such information.
+      body: `"Confidential Information" means any and all non-public technical, business, financial, or other information disclosed by one party (the "Disclosing Party") to the other party (the "Receiving Party"), whether orally, in writing, electronically, or by inspection of tangible objects, that is designated as "confidential" or "proprietary" at the time of disclosure or that reasonably should be understood to be confidential given the nature of the information and the circumstances of disclosure. 
+
+Confidential Information includes, without limitation: (a) trade secrets, inventions, ideas, processes, formulas, source and object code, data, programs, and other works of authorship; (b) business plans, strategies, financial data, and budgets; (c) customer, vendor, and partner lists and information; (d) product designs, specifications, roadmaps, and technical data; (e) personnel information; and (f) any analysis, compilations, studies, or derivative works prepared by the Receiving Party that contain or reflect such information.
 
 The purpose of disclosing Confidential Information under this Agreement is: {{nda_purpose}}.`,
     },
@@ -438,9 +440,11 @@ Client represents and warrants that: (a) it has the right and authority to enter
       isEnabled: true,
       category: "legal",
       fields: [],
-      body: `Service Provider shall indemnify, defend, and hold harmless Client from and against any third-party claims, damages, losses, and expenses (including reasonable attorneys' fees) arising from: (a) Service Provider's breach of this Agreement; (b) Service Provider's gross negligence or wilful misconduct; or (c) any claim that the Services or deliverables infringe a third party's intellectual property rights.
+      body: `Indemnification by Service Provider. Service Provider shall indemnify, defend, and hold harmless Client and its officers, directors, and employees from and against any third-party claims, damages, losses, liabilities, and expenses (including reasonable attorneys' fees) arising from: (a) Service Provider's material breach of any representation or warranty made herein; (b) the gross negligence, fraud, or wilful misconduct of Service Provider or its personnel; or (c) any claim that the Services or deliverables, as provided by Service Provider and used by Client in accordance with this Agreement, infringe or misappropriate any patent, copyright, trademark, or trade secret of a third party.
 
-Client shall indemnify, defend, and hold harmless Service Provider from and against any third-party claims arising from: (a) Client's breach of this Agreement; (b) Client's use of the deliverables in a manner not authorized by this Agreement; or (c) Client's gross negligence or wilful misconduct.`,
+Indemnification by Client. Client shall indemnify, defend, and hold harmless Service Provider and its officers, directors, and employees from and against any third-party claims arising from: (a) Client's material breach of this Agreement; (b) Client's use of the deliverables in a manner not authorized by this Agreement or the applicable SOW; (c) the gross negligence, fraud, or wilful misconduct of Client or its personnel; or (d) any claim that materials provided by Client to Service Provider for use in performing the Services infringe the intellectual property rights of a third party.
+
+Indemnification Procedure. The indemnified party shall: (i) promptly notify the indemnifying party in writing of the claim; (ii) grant the indemnifying party sole control over the defense and settlement of the claim (provided that no settlement shall be entered into without the indemnified party's prior written consent, such consent not to be unreasonably withheld); and (iii) provide reasonable cooperation at the indemnifying party's expense.`,
     },
     {
       id: "msa_liability",
@@ -462,7 +466,9 @@ Client shall indemnify, defend, and hold harmless Service Provider from and agai
           ],
         },
       ],
-      body: `EXCEPT FOR EACH PARTY'S INDEMNIFICATION OBLIGATIONS, BREACH OF CONFIDENTIALITY, OR WILFUL MISCONDUCT: (A) NEITHER PARTY SHALL BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES; AND (B) EACH PARTY'S TOTAL AGGREGATE LIABILITY UNDER THIS AGREEMENT SHALL NOT EXCEED {{msa_liability_cap}}.`,
+      body: `LIMITATION OF DAMAGES. EXCEPT FOR EACH PARTY'S INDEMNIFICATION OBLIGATIONS UNDER SECTION 6, BREACH OF CONFIDENTIALITY UNDER SECTION 4, OR ACTS OF GROSS NEGLIGENCE, FRAUD, OR WILFUL MISCONDUCT: (A) NEITHER PARTY SHALL BE LIABLE TO THE OTHER FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, OR BUSINESS OPPORTUNITY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES; AND (B) EACH PARTY'S TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT, WHETHER IN CONTRACT, TORT, OR OTHERWISE, SHALL NOT EXCEED {{msa_liability_cap}}.
+
+The parties acknowledge and agree that the fees set forth in the applicable SOW reflect the allocation of risk set forth in this Agreement and that neither party would enter into this Agreement without these limitations on its liability.`,
     },
     {
       id: "msa_term",

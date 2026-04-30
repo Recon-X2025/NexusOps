@@ -50,7 +50,9 @@ const TABS = [
   { key: "all",      label: "All Events", module: "events" as const, action: "read" as const },
   { key: "open",     label: "Active",     module: "events" as const, action: "read" as const },
   { key: "critical", label: "Critical",   module: "events" as const, action: "read" as const },
-  { key: "flapping", label: "Flapping", module: "events" as const, action: "read" as const },
+  { key: "rules",    label: "Suppression Rules", module: "events" as const, action: "read" as const },
+  { key: "policies", label: "Correlation Policies", module: "events" as const, action: "read" as const },
+  { key: "sources",  label: "Alert Sources", module: "events" as const, action: "read" as const },
   { key: "resolved", label: "Resolved", module: "events" as const, action: "read" as const },
 ];
 
@@ -70,6 +72,12 @@ export default function EventManagementPage() {
 
   // @ts-ignore
   const eventsQuery = trpc.events.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("events.list", undefined));
+  // @ts-ignore
+  const rulesQuery = trpc.events.listSuppressionRules.useQuery(undefined, mergeTrpcQueryOpts("events.listSuppressionRules", undefined));
+  // @ts-ignore
+  const policiesQuery = trpc.events.listCorrelationPolicies.useQuery(undefined, mergeTrpcQueryOpts("events.listCorrelationPolicies", undefined));
+  // @ts-ignore
+  const integrationsQuery = trpc.events.listIntegrations.useQuery(undefined, mergeTrpcQueryOpts("events.listIntegrations", undefined));
 
   // All mutations declared BEFORE the access-denied guard — Rules of Hooks compliance
   // @ts-ignore
@@ -132,20 +140,20 @@ export default function EventManagementPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push("/app/admin?tab=notifications")}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+            onClick={() => setTab("rules")}
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] border rounded transition-colors ${tab === "rules" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
           >
             <BellOff className="w-3 h-3" /> Suppression Rules
           </button>
           <button
-            onClick={() => router.push("/app/admin?tab=system")}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground border border-border rounded hover:bg-muted/30"
+            onClick={() => setTab("policies")}
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] border rounded transition-colors ${tab === "policies" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
           >
             <GitMerge className="w-3 h-3" /> Correlation Policies
           </button>
           <button
-            onClick={() => router.push("/app/admin?tab=integrations")}
-            className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            onClick={() => setTab("sources")}
+            className={`flex items-center gap-1 px-2 py-1 text-[11px] border rounded transition-colors ${tab === "sources" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
           >
             <Bell className="w-3 h-3" /> Alert Sources
           </button>
@@ -232,7 +240,97 @@ export default function EventManagementPage() {
       </div>
 
       <div className="bg-card border border-border rounded-b overflow-hidden">
-        {eventsQuery.isLoading ? (
+        {tab === "rules" ? (
+          <div className="p-0">
+             <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th>Rule Name</th>
+                  <th>Condition</th>
+                  <th>Suppress Until</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rulesQuery.data?.map((rule: any) => (
+                  <tr key={rule.id}>
+                    <td className="font-medium">{rule.name}</td>
+                    <td className="font-mono text-[11px] text-primary">{rule.condition}</td>
+                    <td className="text-muted-foreground text-[11px]">{rule.suppressUntil ? new Date(rule.suppressUntil).toLocaleString() : "Indefinite"}</td>
+                    <td><span className={`status-badge ${rule.active ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{rule.active ? "Active" : "Inactive"}</span></td>
+                    <td><button className="text-[11px] text-primary hover:underline">Edit</button></td>
+                  </tr>
+                ))}
+                {(!rulesQuery.data || rulesQuery.data.length === 0) && (
+                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-[11px]">No suppression rules found</td></tr>
+                )}
+              </tbody>
+             </table>
+          </div>
+        ) : tab === "policies" ? (
+          <div className="p-0">
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th>Policy Name</th>
+                  <th>Condition</th>
+                  <th>Action</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {policiesQuery.data?.map((policy: any) => (
+                  <tr key={policy.id}>
+                    <td className="font-medium">{policy.name}</td>
+                    <td className="font-mono text-[11px] text-primary">{policy.condition}</td>
+                    <td><span className="status-badge text-blue-700 bg-blue-100">{policy.action}</span></td>
+                    <td><span className={`status-badge ${policy.active ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{policy.active ? "Active" : "Inactive"}</span></td>
+                    <td><button className="text-[11px] text-primary hover:underline">Edit</button></td>
+                  </tr>
+                ))}
+                {(!policiesQuery.data || policiesQuery.data.length === 0) && (
+                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-[11px]">No correlation policies found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : tab === "sources" ? (
+          <div className="p-0">
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>Last Sync</th>
+                  <th>Last Error</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {integrationsQuery.data?.map((integ: any) => (
+                  <tr key={integ.id}>
+                    <td className="font-medium capitalize">{integ.provider}</td>
+                    <td>
+                      <span className={`status-badge ${integ.status === "connected" ? "text-green-700 bg-green-100" : integ.status === "error" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>
+                        {integ.status}
+                      </span>
+                    </td>
+                    <td className="text-muted-foreground text-[11px]">{integ.lastSyncAt ? new Date(integ.lastSyncAt).toLocaleString() : "Never"}</td>
+                    <td className="text-red-600 text-[10px] max-w-xs truncate">{integ.lastError || "—"}</td>
+                    <td>
+                      <button className="text-[11px] text-primary hover:underline" onClick={() => router.push("/app/admin?tab=integrations")}>Manage</button>
+                    </td>
+                  </tr>
+                ))}
+                {(!integrationsQuery.data || integrationsQuery.data.length === 0) && (
+                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-[11px]">No active alert integrations found. Connect one in Admin Settings.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : eventsQuery.isLoading ? (
           <div className="animate-pulse p-4 space-y-2">
             {[...Array(5)].map((_, i) => <div key={i} className="h-8 bg-muted rounded" />)}
           </div>
@@ -296,7 +394,7 @@ export default function EventManagementPage() {
                         </span>
                       </td>
                       <td className="text-muted-foreground text-[11px]">{evt.source}</td>
-                      <td className="text-muted-foreground text-[11px]">{evt.lastOccurrence ? ago(evt.lastOccurrence) : "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{evt.lastOccurrence ? ago(new Date(evt.lastOccurrence).toISOString()) : "—"}</td>
                       <td>
                         {evt.linkedIncident ? (
                           <Link href={`/app/tickets`} className="text-primary text-[11px] hover:underline font-mono">
@@ -325,8 +423,8 @@ export default function EventManagementPage() {
                               </div>
                             </div>
                             <div className="flex flex-col gap-1 text-[11px]">
-                              <div className="text-muted-foreground">First: {evt.firstOccurrence ?? "—"}</div>
-                              <div className="text-muted-foreground">Last: {evt.lastOccurrence ?? "—"}</div>
+                              <div className="text-muted-foreground">First: {evt.firstOccurrence ? new Date(evt.firstOccurrence).toLocaleString() : "—"}</div>
+                              <div className="text-muted-foreground">Last: {evt.lastOccurrence ? new Date(evt.lastOccurrence).toLocaleString() : "—"}</div>
                               <div className="text-muted-foreground">Event count: {evt.count ?? 0}</div>
                             </div>
                             <div className="flex flex-col gap-1.5">
@@ -360,7 +458,7 @@ export default function EventManagementPage() {
           </table>
         )}
         <div className="px-3 py-2 border-t border-border text-[11px] text-muted-foreground">
-          {displayed.length} events · {eventsQuery.dataUpdatedAt ? `Last polled ${ago(new Date(eventsQuery.dataUpdatedAt).toISOString().replace("T", " ").slice(0, 19))}` : "Loading…"}
+          {tab === "rules" ? rulesQuery.data?.length ?? 0 : tab === "policies" ? policiesQuery.data?.length ?? 0 : displayed.length} items · {eventsQuery.dataUpdatedAt ? `Last polled ${ago(new Date(eventsQuery.dataUpdatedAt).toISOString())}` : "Loading…"}
         </div>
       </div>
     </div>

@@ -1,14 +1,14 @@
-# NexusOps — Product reference (what is built end-to-end)
+# CoheronConnect — Product reference (what is built end-to-end)
 
 **Audience:** Product, engineering, solutions, and anyone who needs a single map of shipped capabilities — not a marketing pitch.
 
-**Scope:** This document reflects the **NexusOps monorepo** as of the repo layout: web app, API, workers, packages, and documented surfaces. Feature depth varies by module; items listed here have **code + routing** (UI and/or tRPC) unless noted as infra-only.
+**Scope:** This document reflects the **CoheronConnect monorepo** as of the repo layout: web app, API, workers, packages, and documented surfaces. Feature depth varies by module; items listed here have **code + routing** (UI and/or tRPC) unless noted as infra-only.
 
 ---
 
-## 1. What NexusOps is
+## 1. What CoheronConnect is
 
-**NexusOps** is an enterprise operations platform from **Coheron**: ITSM (service desk, change, problems, events), assets and CMDB, HR service delivery, procurement and finance touchpoints, security and GRC, legal and secretarial (incl. India compliance patterns), CRM/CSM, the **Strategy Center** (initiatives, portfolio shape, application landscape), knowledge, DevOps telemetry, workflows with an optional **Temporal** backend, AI-assisted features, and self-hostable deployment (Docker / Helm).
+**CoheronConnect** is an enterprise operations platform from **Coheron**: ITSM (service desk, change, problems, events), assets and CMDB, HR service delivery, procurement and finance touchpoints, security and GRC, legal and secretarial (incl. India compliance patterns), CRM/CSM, the **Strategy Center** (initiatives, portfolio shape, application landscape), knowledge, DevOps telemetry, workflows with an optional **Temporal** backend, AI-assisted features, and self-hostable deployment (Docker / Helm).
 
 Primary interaction is the **web app** (`apps/web`). A **mobile** client (`apps/mobile`) and **managed-account console** (`apps/mac`) also exist.
 
@@ -29,8 +29,8 @@ Primary interaction is the **web app** (`apps/web`). A **mobile** client (`apps/
 | `packages/metrics` | Command Center **metric registry** (`MetricDefinition`, contributions, role views) |
 | `packages/ui` | Shared UI primitives / error boundary |
 | `packages/config` | Shared ESLint / TS / Prettier |
-| `packages/cli` | NexusOps CLI |
-| `infra/`, `charts/nexusops/` | Terraform, Temporal config, Helm |
+| `packages/cli` | CoheronConnect CLI |
+| `infra/`, `charts/coheronconnect/` | Terraform, Temporal config, Helm |
 | `docker-compose.*.yml` | Dev, test, prod compose stacks |
 
 **Local dev (typical):** Web `http://localhost:3000`, API `http://localhost:3001`, docs dev server often `3003`. Full bootstrap: `pnpm dev:stack` / `make dev-stack` (see root `README.md`).
@@ -264,11 +264,11 @@ Production credentialing and the design-partner sandbox dry-run procedure are do
 
 ### 8a.3 Document virus scanning
 
-`apps/api/src/workflows/virusScanWorkflow.ts` runs a BullMQ consumer (`nexusops-doc-virusscan`) that streams every uploaded document to a ClamAV `clamd` sidecar via the INSTREAM TCP protocol. Outcomes (`clean | infected | skipped | failed`) are written to `documents.scanStatus` + `documents.scanResult` (JSONB). When ClamAV is not configured the worker emits `skipped` rather than blocking uploads — set `VIRUS_SCAN_DISABLED=true` to opt out entirely.
+`apps/api/src/workflows/virusScanWorkflow.ts` runs a BullMQ consumer (`coheronconnect-doc-virusscan`) that streams every uploaded document to a ClamAV `clamd` sidecar via the INSTREAM TCP protocol. Outcomes (`clean | infected | skipped | failed`) are written to `documents.scanStatus` + `documents.scanResult` (JSONB). When ClamAV is not configured the worker emits `skipped` rather than blocking uploads — set `VIRUS_SCAN_DISABLED=true` to opt out entirely.
 
 ### 8a.4 Document retention sweeper
 
-`apps/api/src/workflows/documentRetentionWorkflow.ts` runs a daily BullMQ cron (`nexusops-doc-retention`) that hard-deletes soft-deleted documents past their per-policy retention window. Documents on `legalHold` are **never** swept. The S3 object is removed first, then the DB rows (`documents` + `document_versions`), then an `audit_logs` entry is appended. Admins can trigger an out-of-band sweep via `documents.runRetentionSweepNow` (admin-only).
+`apps/api/src/workflows/documentRetentionWorkflow.ts` runs a daily BullMQ cron (`coheronconnect-doc-retention`) that hard-deletes soft-deleted documents past their per-policy retention window. Documents on `legalHold` are **never** swept. The S3 object is removed first, then the DB rows (`documents` + `document_versions`), then an `audit_logs` entry is appended. Admins can trigger an out-of-band sweep via `documents.runRetentionSweepNow` (admin-only).
 
 ### 8a.5 Webhook hardening
 
@@ -310,7 +310,7 @@ Flags are intentionally additive: turning a flag off restores the canonical defa
 |--------|---------|
 | Root `README.md` | Runbooks, ports, env, API notes (expenses vs expense reports, payroll PDF, etc.) |
 | `apps/docs` | Nextra docs site; build/static export scripts where configured |
-| `NexusOps_API_Specification.md` | API/procedure documentation (if maintained alongside code) |
+| `CoheronConnect_API_Specification.md` | API/procedure documentation (if maintained alongside code) |
 | `docs/USER_STORIES_GAP_CLOSURE_BACKLOG.md` | Backlog / gap tracking |
 | `docs/PRODUCT_REFERENCE.md` | **This file** — end-to-end product map |
 

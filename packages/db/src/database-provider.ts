@@ -1,5 +1,5 @@
 /**
- * OLTP / data-store deployment mode for NexusOps.
+ * OLTP / data-store deployment mode for CoheronConnect.
  *
  * - **postgres** — PostgreSQL only (Drizzle). `MONGODB_URI` is ignored (warn if set).
  * - **hybrid** — PostgreSQL + MongoDB both required and connected at startup.

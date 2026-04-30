@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 11: Deep Click / Interaction Testing
+ * CoheronConnect Full-QA — Suite 11: Deep Click / Interaction Testing
  *
  * Systematically exercises every visible interactive element on every major
  * module page:

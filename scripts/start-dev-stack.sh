@@ -22,9 +22,9 @@ fi
 echo "==> Starting docker-compose.dev.yml (Postgres :5434, Redis, Temporal :7233, …)"
 docker compose -f docker-compose.dev.yml up -d
 
-echo "==> Waiting for Postgres (nexusops@postgres:5432 inside container)…"
+echo "==> Waiting for Postgres (coheronconnect@postgres:5432 inside container)…"
 for i in $(seq 1 60); do
-  if docker compose -f docker-compose.dev.yml exec -T postgres pg_isready -U nexusops >/dev/null 2>&1; then
+  if docker compose -f docker-compose.dev.yml exec -T postgres pg_isready -U coheronconnect >/dev/null 2>&1; then
     echo "    Postgres is accepting connections."
     break
   fi

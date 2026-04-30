@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 13: Database Integrity Checks
+ * CoheronConnect Full-QA — Suite 13: Database Integrity Checks
  *
  * Tests that the database enforces integrity through the API layer:
  *   - Duplicate unique records → 409 or validation error (NOT 500)

@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  external: ["@nexusops/db", "drizzle-orm"],
+  external: ["@coheronconnect/db", "drizzle-orm"],
 });

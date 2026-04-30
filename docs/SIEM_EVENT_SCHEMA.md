@@ -9,7 +9,7 @@
 
 ```json
 {
-  "schema": "nexusops.security.event.v1",
+  "schema": "coheronconnect.security.event.v1",
   "emittedAt": "2026-04-25T12:00:00.000Z",
   "orgId": "uuid",
   "kind": "audit_log | security_incident | read_audit",

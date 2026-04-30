@@ -7,7 +7,7 @@ import {
   eq,
   and,
   asc,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { getNextSeq } from "./auto-number";
 import { ensureDefaultTicketStatusesForOrg } from "./ensure-ticket-workflow";
 import { resolveAssignment } from "../services/assignment";

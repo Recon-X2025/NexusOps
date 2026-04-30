@@ -16,7 +16,7 @@ import {
   interviews,
   jobOffers,
   jobRequisitions,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

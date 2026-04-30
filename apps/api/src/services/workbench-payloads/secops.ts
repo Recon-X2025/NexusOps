@@ -10,7 +10,7 @@
  */
 
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { securityIncidents, vulnerabilities, users } from "@nexusops/db";
+import { securityIncidents, vulnerabilities, users } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

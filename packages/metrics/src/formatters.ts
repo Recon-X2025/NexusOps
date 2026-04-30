@@ -7,9 +7,16 @@ export function formatMetricNumber(
 ): string {
   if (state === "no_data" && value === 0) return "—";
   if (unit === "currency_inr") {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
-      value,
-    );
+    const abs = Math.abs(value);
+    let formatted = "";
+    if (abs >= 10000000) {
+      formatted = (value / 10000000).toFixed(2) + " Cr";
+    } else if (abs >= 100000) {
+      formatted = (value / 100000).toFixed(2) + " Lac";
+    } else {
+      formatted = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(value);
+    }
+    return `₹${formatted}`;
   }
   if (unit === "percent" || unit === "ratio") {
     return `${value.toFixed(unit === "ratio" ? 2 : 1)}${unit === "percent" ? "%" : ""}`;

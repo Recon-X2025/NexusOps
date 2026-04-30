@@ -1,5 +1,5 @@
 /**
- * NexusOps Full-QA — Suite 05: Page Data Loading
+ * CoheronConnect Full-QA — Suite 05: Page Data Loading
  *
  * EVERY page must:
  *  1. Load without JS crash

@@ -79,7 +79,7 @@ import {
   notInArray,
   ilike,
   sql,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import { assertTicketTransition } from "../lib/ticket-lifecycle";
 import { resolveSlaPolicyMinutes } from "../services/ticket-sla-policy";
@@ -92,7 +92,7 @@ import {
   UpdateTicketSchema,
   AddCommentSchema,
   TicketListFiltersSchema,
-} from "@nexusops/types";
+} from "@coheronconnect/types";
 import { getSlaPauseReasonsCatalog } from "../lib/org-settings";
 
 function generateTicketNumber(orgSlug: string, seq: number): string {
@@ -1393,7 +1393,7 @@ export const ticketsRouter = router({
               updated.resolutionNotes ? String(updated.resolutionNotes) : "_(none recorded)_",
               ``,
               `---`,
-              `Generated automatically by NexusOps on major-incident close.`,
+              `Generated automatically by CoheronConnect on major-incident close.`,
               ``,
             ].join("\n");
 
@@ -1424,7 +1424,7 @@ export const ticketsRouter = router({
       // generate a one-time public invite token, and notify requester via in-app + email.
       if (shouldTriggerCsat) {
         try {
-          const { surveys, surveyInvites } = await import("@nexusops/db");
+          const { surveys, surveyInvites } = await import("@coheronconnect/db");
 
           let [csat] = await db
             .select()

@@ -18,7 +18,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { ACCENT_BAR } from "./accent";
 import { WorkbenchReportsTab } from "./workbench-reports-tab";
-import type { WorkbenchAccent, WorkbenchKey } from "@nexusops/types";
+import type { WorkbenchAccent, WorkbenchKey } from "@coheronconnect/types";
 
 interface WorkbenchContextValue {
   accent: WorkbenchAccent;

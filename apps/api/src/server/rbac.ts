@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../lib/trpc";
 
 /**
- * NexusOps server-side RBAC.
+ * CoheronConnect server-side RBAC.
  * Maps module → action → allowed roles.
  * Mirrors the client-side ROLE_PERMISSIONS matrix in apps/web/src/lib/rbac.ts.
  */

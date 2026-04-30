@@ -26,7 +26,7 @@ import {
   avg,
   isNotNull,
   isNull,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 import {
   adjustSlaDeadlineForBusinessCalendar,
   parseOrgSlaCalendarSettings,

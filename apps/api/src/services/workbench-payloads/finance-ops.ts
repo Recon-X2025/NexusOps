@@ -10,7 +10,7 @@
  */
 
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { invoices } from "@nexusops/db";
+import { invoices } from "@coheronconnect/db";
 import {
   envelope,
   runPanel,

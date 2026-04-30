@@ -1,9 +1,9 @@
 {
-  "name": "@nexusops/cli",
+  "name": "@coheronconnect/cli",
   "version": "1.0.0",
-  "description": "nexusops — operational CLI for NexusOps ITSM",
+  "description": "coheronconnect — operational CLI for CoheronConnect ITSM",
   "bin": {
-    "nexusops": "./dist/index.js"
+    "coheronconnect": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "scripts": {
@@ -11,7 +11,7 @@
     "dev": "tsup src/index.ts --format esm --target node18 --dts --watch"
   },
   "dependencies": {
-    "@nexusops/db": "workspace:*",
+    "@coheronconnect/db": "workspace:*",
     "bcryptjs": "^2.4.3",
     "chalk": "^5.3.0",
     "commander": "^12.0.0",

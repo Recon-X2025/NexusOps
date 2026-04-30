@@ -26,14 +26,14 @@ export default defineConfig({
   // Auto-start the dev server before E2E tests
   webServer: [
     {
-      command: "pnpm --filter @nexusops/api dev",
+      command: "pnpm --filter @coheronconnect/api dev",
       port: 3001,
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
       env: {
         DATABASE_URL:
           process.env.DATABASE_URL ||
-          "postgresql://nexusops_test:nexusops_test@localhost:5433/nexusops_test",
+          "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test",
         REDIS_URL: process.env.REDIS_URL || "redis://localhost:6380",
         MEILISEARCH_URL:
           process.env.MEILISEARCH_URL || "http://localhost:7701",
@@ -52,7 +52,7 @@ export default defineConfig({
       },
     },
     {
-      command: "pnpm --filter @nexusops/web dev",
+      command: "pnpm --filter @coheronconnect/web dev",
       port: 3000,
       reuseExistingServer: !process.env.CI,
       timeout: 60000,

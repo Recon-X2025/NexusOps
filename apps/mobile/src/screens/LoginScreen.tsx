@@ -1,5 +1,5 @@
 /**
- * NexusOps Mobile — Login Screen
+ * CoheronConnect Mobile — Login Screen
  */
 
 import React, { useState } from "react";
@@ -62,7 +62,7 @@ export default function LoginScreen() {
         <View style={styles.logoBox}>
           <Text style={styles.logoText}>N</Text>
         </View>
-        <Text style={styles.title}>NexusOps</Text>
+        <Text style={styles.title}>CoheronConnect</Text>
         <Text style={styles.subtitle}>Sign in to your workspace</Text>
 
         <View style={styles.form}>

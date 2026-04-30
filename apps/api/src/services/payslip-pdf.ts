@@ -1,5 +1,5 @@
 /**
- * NexusOps Payslip PDF Generator
+ * CoheronConnect Payslip PDF Generator
  * ────────────────────────────────
  * Place at: apps/api/src/services/payslip-pdf.ts
  *

@@ -5,7 +5,7 @@ export default {
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env["DATABASE_URL"] ?? "postgresql://nexusops:nexusops@localhost:5434/nexusops",
+    url: process.env["DATABASE_URL"] ?? "postgresql://coheronconnect:coheronconnect@localhost:5434/coheronconnect",
   },
   verbose: true,
   strict: true,

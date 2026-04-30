@@ -7,7 +7,6 @@ import { ExecutiveFooterQuote, ExecutiveHowToStrip } from "@/components/dashboar
 import { CommandCenterShell, CommandCenterBar } from "@/components/command-center/command-center-shell";
 import { CommandCenterKpiStrip } from "@/components/command-center/command-center-kpi-strip";
 import { CommandCenterHeatmap } from "@/components/command-center/command-center-heatmap";
-import { CommandCenterSidebarCharts } from "@/components/command-center/command-center-sidebar-charts";
 
 import { CommandCenterBullets } from "@/components/command-center/command-center-bullets";
 import { CommandCenterTrends } from "@/components/command-center/command-center-trends";
@@ -171,30 +170,31 @@ function CommandCenterBody({
         </div>
       ) : (
         <CommandCenterSectionBoundary>
-          <div className="flex flex-col gap-2">
-            {/* Top Row: Score + Primary KPIs */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
-               <div className="xl:col-span-12">
-                 <CommandCenterKpiStrip payload={displayPayload} />
-               </div>
+          <div className="flex flex-col gap-8">
+            {/* Top Band: KPI Strip */}
+            <div className="w-full">
+              <CommandCenterKpiStrip payload={displayPayload} />
             </div>
 
-            {/* Middle Row: Heatmap + Sidebar Charts */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 items-stretch">
-              <div className="xl:col-span-8 min-w-0">
-                <CommandCenterHeatmap payload={displayPayload} />
-              </div>
-              <div className="xl:col-span-4 min-w-0">
-                <CommandCenterSidebarCharts payload={displayPayload} />
-              </div>
+            {/* Diagnostic Heatmap (Full Width) */}
+            <div className="w-full">
+              <CommandCenterHeatmap payload={displayPayload} />
             </div>
 
-            {/* Bottom Row: Detailed Signals */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
-              <CommandCenterBullets payload={displayPayload} />
-              <CommandCenterFlow payload={displayPayload} />
-              <CommandCenterRisks payload={displayPayload} />
-              <CommandCenterTrends payload={displayPayload} />
+            {/* The "Truth Stack" - Purpose Driven Diagnostics in Parallel */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="h-full min-h-[300px]">
+                <CommandCenterBullets payload={displayPayload} />
+              </div>
+              <div className="h-full min-h-[300px]">
+                <CommandCenterFlow payload={displayPayload} />
+              </div>
+              <div className="h-full min-h-[300px]">
+                <CommandCenterRisks payload={displayPayload} />
+              </div>
+              <div className="h-full min-h-[300px]">
+                <CommandCenterTrends payload={displayPayload} />
+              </div>
             </div>
           </div>
         </CommandCenterSectionBoundary>

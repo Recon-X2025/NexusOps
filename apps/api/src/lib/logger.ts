@@ -1,5 +1,5 @@
 /**
- * Structured event logger for NexusOps API.
+ * Structured event logger for CoheronConnect API.
  *
  * Backed by the Fastify pino instance, wired via `initLogger()` once at
  * startup.  Every log entry is emitted as JSON so that log aggregators

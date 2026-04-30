@@ -360,7 +360,7 @@ export default function IntegrationsSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold">Integrations</h1>
           <p className="text-sm text-muted-foreground">
-            Connect NexusOps to external systems. Credentials are stored encrypted at rest and
+            Connect CoheronConnect to external systems. Credentials are stored encrypted at rest and
             tested live before they go into rotation.
           </p>
         </div>

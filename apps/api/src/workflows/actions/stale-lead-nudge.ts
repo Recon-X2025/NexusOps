@@ -1,4 +1,4 @@
-import { crmLeads, eq, and, lte, isNotNull, ne } from "@nexusops/db";
+import { crmLeads, eq, and, lte, isNotNull, ne } from "@coheronconnect/db";
 import { sendNotification } from "../../services/notifications";
 import type { WorkflowAction } from "./types";
 

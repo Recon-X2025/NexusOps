@@ -24,7 +24,7 @@ export default async function globalSetup(): Promise<void> {
     return;
   }
 
-  execSync("pnpm --filter @nexusops/db db:migrate", {
+  execSync("pnpm --filter @coheronconnect/db db:migrate", {
     env: { ...process.env, DATABASE_URL: url },
     stdio: "inherit",
   });

@@ -16,8 +16,8 @@
  */
 
 import { type PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import * as schema from "@nexusops/db";
-import { and, eq, inArray, isNull, sql, asc, count } from "@nexusops/db";
+import * as schema from "@coheronconnect/db";
+import { and, eq, inArray, isNull, sql, asc, count } from "@coheronconnect/db";
 import {
   assignmentRules,
   userAssignmentStats,
@@ -26,7 +26,7 @@ import {
   tickets,
   workOrders,
   hrCases,
-} from "@nexusops/db";
+} from "@coheronconnect/db";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
