@@ -14,7 +14,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-REPO="https://github.com/Recon-X2025/CoheronConnect.git"
+REPO="https://github.com/Recon-X2025/NexusOps.git"
 APP_DIR="/opt/coheronconnect"
 COMPOSE_FILE="docker-compose.vultr-test.yml"
 
@@ -164,12 +164,16 @@ fi
 # Export SERVER_IP for docker compose interpolation
 export SERVER_IP
 
+# ── 4.5 Patch Dockerfiles (Fix @nexusops -> @coheronconnect) ──────────────────
+info "Patching Dockerfiles for correct package naming..."
+find "$APP_DIR" -name "Dockerfile" -exec sed -i 's/@nexusops/@coheronconnect/g' {} +
+
 # ── 5. Build images & start services ─────────────────────────────────────────
 info "Building Docker images (this takes ~5 minutes on first run)..."
-docker compose -f "$COMPOSE_FILE" build --parallel
+docker compose --env-file .env.production -f "$COMPOSE_FILE" build --parallel
 
 info "Starting all services..."
-docker compose -f "$COMPOSE_FILE" up -d
+docker compose --env-file .env.production -f "$COMPOSE_FILE" up -d
 
 # ── 6. Wait for API health ────────────────────────────────────────────────────
 info "Waiting for API to become healthy..."

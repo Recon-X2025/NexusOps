@@ -11,6 +11,8 @@ COPY packages/config/package.json ./packages/config/
 COPY packages/types/package.json ./packages/types/
 COPY packages/db/package.json ./packages/db/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/metrics/package.json ./packages/metrics/
+COPY packages/validators/package.json ./packages/validators/
 RUN pnpm install --frozen-lockfile --prod=false
 
 # ── Build ─────────────────────────────────────────────────────────────────────
@@ -20,11 +22,12 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY . .
-RUN pnpm --filter @nexusops/types build
-RUN pnpm --filter @nexusops/ui build
-RUN pnpm --filter @nexusops/db build
-RUN pnpm --filter @nexusops/api build
-RUN pnpm --filter @nexusops/web build
+RUN pnpm --filter @coheronconnect/types build
+RUN pnpm --filter @coheronconnect/ui build
+RUN pnpm --filter @coheronconnect/db build
+RUN pnpm --filter @coheronconnect/metrics build
+RUN pnpm --filter @coheronconnect/api build
+RUN pnpm --filter @coheronconnect/web build
 
 # ── Production image ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner

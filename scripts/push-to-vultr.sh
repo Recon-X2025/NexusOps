@@ -24,7 +24,7 @@ SERVER="${VULTR_USER:-root}@${SERVER_IP}"
 SOCK="/tmp/coheronconnect-deploy-$$"
 
 DEPLOY_MODE="${DEPLOY_MODE:-pull}"
-IMG_REPO="${NEXUSOPS_IMAGE_REPO:-ghcr.io/recon-x2025/coheronconnect}"
+IMG_REPO="${NEXUSOPS_IMAGE_REPO:-ghcr.io/recon-x2025/nexusops}"
 IMG_TAG="${NEXUSOPS_IMAGE_TAG:-latest}"
 WEB_IMAGE="${NEXUSOPS_WEB_IMAGE:-${IMG_REPO}/web:${IMG_TAG}}"
 API_IMAGE="${NEXUSOPS_API_IMAGE:-${IMG_REPO}/api:${IMG_TAG}}"
@@ -34,7 +34,7 @@ info() { echo -e "${CYAN}▶ $*${RESET}"; }
 ok()   { echo -e "${GREEN}✓ $*${RESET}"; }
 die()  { echo -e "${RED}✗ $*${RESET}" >&2; exit 1; }
 
-SSH_BASE=(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
+SSH_BASE=(ssh -o BatchMode=no -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
 
 if [[ -z "$SERVER_IP" ]]; then
   die "Set VULTR_HOST to your VPS IP or hostname (example: export VULTR_HOST=203.0.113.10)"
@@ -55,7 +55,7 @@ info "Testing SSH (BatchMode)…"
 "${SSH_BASE[@]}" "$SERVER" "echo connected" >/dev/null || die "SSH failed — add a key for ${SERVER} or use ssh-agent."
 
 info "Opening SSH control socket…"
-ssh -M -S "$SOCK" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ControlPersist=600 -f -N "$SERVER"
+ssh -M -S "$SOCK" -o BatchMode=no -o StrictHostKeyChecking=accept-new -o ControlPersist=600 -f -N "$SERVER"
 ok "Connected"
 
 info "Syncing project (excluding secrets & build artifacts)…"
