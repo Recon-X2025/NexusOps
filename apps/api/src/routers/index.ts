@@ -50,6 +50,7 @@ import { esignRouter } from "./esign";
 import { documentsRouter } from "./documents";
 import { agentRouter } from "./agent";
 import { ingestRouter } from "./ingest";
+import { teamsRouter } from "./teams";
 
 export const appRouter = router({
   mac: macRouter,
@@ -114,6 +115,7 @@ export const appRouter = router({
   agent: agentRouter,
   // Readiness Gap: Bulk Ingest
   ingest: ingestRouter,
+  teams: teamsRouter,
 });
 
 export type AppRouter = typeof appRouter;

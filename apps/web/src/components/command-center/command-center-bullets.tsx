@@ -30,7 +30,7 @@ export function CommandCenterBullets({ payload }: { payload: Payload }) {
           
           const colorClass = isNoData 
             ? "bg-slate-100" 
-            : cellState.kind === "unhealthy" 
+            : cellState.kind === "stressed" 
             ? "bg-rose-500" 
             : cellState.kind === "watch" 
             ? "bg-amber-500" 

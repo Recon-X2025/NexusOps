@@ -27,7 +27,7 @@ export const httpRequestAction: WorkflowAction<Input> = {
         headers: input.headers,
         data: input.body,
       });
-      return { status: response.status, data: response.data };
+      return { ok: true, status: response.status, data: response.data };
     } catch (err: any) {
       return { 
         ok: false, 

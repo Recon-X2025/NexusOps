@@ -2,7 +2,6 @@
  * Seed the CoheronConnect database with the CoheronConnect HQ organization.
  * Creates all demo data needed for every module to render real content.
  */
-require("dotenv").config({ path: "../../.env" });
 
 
 import { getDb } from "./client";
@@ -35,7 +34,7 @@ const d = (days: number) => new Date(NOW.getTime() + days * 86400000);
 const minutesAgo = (mins: number) => new Date(NOW.getTime() - mins * 60000);
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86400000);
 
-async function seed() {
+export async function seed() {
   const db = getDb();
   console.log("🌱 Seeding CoheronConnect database with dynamic Faker data...");
 
@@ -703,11 +702,6 @@ async function seed() {
   console.log(`   Agent login:   agent1@coheron.com / demo1234!`);
   console.log(`   Org slug:      ${seedOrg.slug}`);
 
-  process.exit(0);
 }
 
-seed().catch((err) => {
-  console.error("❌ Seed failed:", err);
-  console.error(err.stack);
-  process.exit(1);
-});
+

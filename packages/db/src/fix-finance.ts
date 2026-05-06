@@ -1,4 +1,4 @@
-require("dotenv").config({ path: "../../.env" });
+// require("dotenv").config({ path: "../../.env" });
 import { getDb } from "./client";
 import { chartOfAccounts, invoices, eq, sql } from "./schema";
 

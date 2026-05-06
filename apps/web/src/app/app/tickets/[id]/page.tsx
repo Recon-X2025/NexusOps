@@ -8,7 +8,7 @@ import { useRBAC } from "@/lib/rbac-context";
 import { FilePicker } from "@/components/dms/FilePicker";
 import { PermissionGate } from "@/lib/rbac-context";
 import {
-  ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X,
+  ChevronRight, Flame, Clock, Lock, Globe, Edit2, Check, X, Search,
   AlertTriangle, MessageSquare, Activity, Paperclip, User, Megaphone,
   Tag, RefreshCw, CheckCircle2, XCircle, ArrowUpCircle,
   Printer, Copy, MoreHorizontal, Star, Eye, CalendarDays, Sparkles, Loader2,
@@ -218,7 +218,7 @@ export default function TicketDetailPage() {
                   </div>
                 }
                 actions={
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 relative">
                     <button
                       disabled={isTerminal}
                       onClick={() => { setEditingField("title"); setEditValues({ title: ticket.title }); }}
@@ -226,17 +226,73 @@ export default function TicketDetailPage() {
                     >
                       <Edit2 className="w-4 h-4" /> Edit
                     </button>
-                    <button
-                      disabled={isTerminal}
-                      onClick={() => setShowAssignPanel(!showAssignPanel)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40"
-                    >
-                      <User className="w-4 h-4" /> Assign
-                    </button>
+                    
+                    <div className="relative">
+                      <button
+                        disabled={isTerminal}
+                        onClick={() => setShowAssignPanel(!showAssignPanel)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40",
+                          showAssignPanel && "bg-muted border-primary/50"
+                        )}
+                      >
+                        <User className="w-4 h-4" /> Assign
+                      </button>
+                      
+                      {showAssignPanel && (
+                        <div className="absolute top-10 right-0 z-50 w-64 bg-card border border-border rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Assign to Agent</span>
+                            <button onClick={() => setShowAssignPanel(false)}><X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                              <input 
+                                autoFocus
+                                placeholder="Search agents..."
+                                className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted/30 border border-border rounded-lg outline-none focus:border-primary"
+                                onChange={(e) => setAssigneeId(e.target.value)} // Local search could go here
+                              />
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-1 py-1">
+                              {usersData?.map((user: any) => (
+                                <button
+                                  key={user.id}
+                                  onClick={() => assignTicket.mutate({ id, assigneeId: user.id })}
+                                  className="w-full text-left px-2 py-1.5 text-xs rounded-lg hover:bg-muted flex items-center gap-2 transition-colors"
+                                >
+                                  <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px]">
+                                    {user.name.charAt(0)}
+                                  </div>
+                                  <div className="flex-1 truncate">
+                                    <div className="font-medium">{user.name}</div>
+                                    <div className="text-[10px] text-muted-foreground truncate">{user.email}</div>
+                                  </div>
+                                  {ticket.assigneeId === user.id && <Check className="w-3 h-3 text-primary" />}
+                                </button>
+                              ))}
+                              {assignTicket.isPending && (
+                                <div className="flex items-center justify-center py-2">
+                                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => assignTicket.mutate({ id, assigneeId: null })}
+                              className="w-full py-1.5 text-[10px] font-bold uppercase text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-dashed border-red-200"
+                            >
+                              Unassign Ticket
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {!isTerminal && (
                       <button
                         onClick={() => setShowResolvePanel(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-500/20"
                       >
                         <CheckCircle2 className="w-4 h-4" /> Resolve
                       </button>
@@ -244,6 +300,95 @@ export default function TicketDetailPage() {
                   </div>
                 }
               />
+
+              {/* Edit Title Inline */}
+              {editingField === "title" && (
+                <div className="flex items-center gap-3 p-4 bg-muted/30 border border-primary/30 rounded-xl animate-in slide-in-from-top-2 duration-200">
+                  <input
+                    autoFocus
+                    value={editValues.title}
+                    onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") updateTicket.mutate({ id, data: { title: editValues.title } });
+                      if (e.key === "Escape") setEditingField(null);
+                    }}
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-primary"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => updateTicket.mutate({ id, data: { title: editValues.title } })}
+                      className="p-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingField(null)}
+                      className="p-2 bg-background border border-border rounded-lg hover:bg-muted"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Resolve Modal Overlay */}
+              {showResolvePanel && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                  <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        <h3 className="text-lg font-bold">Resolve Ticket</h3>
+                      </div>
+                      <button onClick={() => setShowResolvePanel(false)} className="text-muted-foreground hover:text-foreground">
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Provide a resolution note before closing this ticket. This will be visible to the requester.
+                      </p>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 block">Resolution Note *</label>
+                        <textarea
+                          autoFocus
+                          value={resolveNote}
+                          onChange={(e) => setResolveNote(e.target.value)}
+                          placeholder="What was the solution?"
+                          className="w-full min-h-[120px] p-3 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600/20 transition-all resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button 
+                        onClick={() => setShowResolvePanel(false)}
+                        className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        disabled={!resolveNote.trim() || updateTicket.isPending}
+                        onClick={() => {
+                          const statusId = statusCounts?.find(s => s.name.toLowerCase() === "resolved")?.statusId;
+                          updateTicket.mutate({ 
+                            id, 
+                            data: { 
+                              statusId,
+                              resolvedAt: new Date().toISOString()
+                            },
+                            comment: resolveNote
+                          });
+                        }}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 shadow-lg shadow-green-500/20 disabled:opacity-50"
+                      >
+                        {updateTicket.isPending ? "Resolving..." : "Confirm Resolution"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {ticket.slaBreached && !isTerminal && (
                 <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-3">
@@ -470,7 +615,7 @@ function TicketAttachments({ ticketId, disabled }: { ticketId: string; disabled:
           </div>
         ) : (
           <ul className="space-y-1">
-            {list.map((d) => (
+            {list.map((d: any) => (
               <li
                 key={d.id}
                 className="flex items-center gap-2 text-[11px] border border-border rounded px-2 py-1 bg-background"

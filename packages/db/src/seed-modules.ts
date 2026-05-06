@@ -4,7 +4,7 @@
  * Run this AFTER the main seed.ts if org already exists.
  */
 import { getDb } from "./client";
-require("dotenv").config({ path: "../../.env" });
+// require("dotenv").config({ path: "../../.env" });
 import {
   organizations, users,
   changeRequests, problems, risks, securityIncidents, vulnerabilities,

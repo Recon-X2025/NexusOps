@@ -56,7 +56,7 @@ export function EsignPanel(props: EsignPanelProps) {
 
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const selectedDoc = useMemo(
-    () => docList.find((d) => d.id === selectedDocId) ?? docList[0] ?? null,
+    () => docList.find((d: any) => d.id === selectedDocId) ?? docList[0] ?? null,
     [docList, selectedDocId],
   );
 
@@ -76,7 +76,7 @@ export function EsignPanel(props: EsignPanelProps) {
         {/* Existing signature requests */}
         {reqList.length > 0 && (
           <ul className="space-y-1">
-            {reqList.map((r) => (
+            {reqList.map((r: any) => (
               <li
                 key={r.id}
                 className="flex items-center gap-2 text-[12px] border border-border rounded px-2 py-1.5 bg-background"
@@ -112,7 +112,7 @@ export function EsignPanel(props: EsignPanelProps) {
               onChange={(e) => setSelectedDocId(e.target.value)}
               className="w-full text-[12px] border border-border rounded px-2 py-1.5 bg-background"
             >
-              {docList.map((d) => (
+              {docList.map((d: any) => (
                 <option key={d.id} value={d.id}>
                   {d.name} · v{d.currentVersion} · {(d.sizeBytes / 1024).toFixed(0)}KB
                   {d.scanStatus === "infected" ? " · INFECTED" : ""}

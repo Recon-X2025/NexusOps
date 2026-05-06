@@ -1,3 +1,4 @@
+
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -37,7 +38,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+  adduser --system --uid 1001 nextjs
 
 # Copy standalone output (includes server.js at apps/web/server.js)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./

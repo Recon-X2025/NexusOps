@@ -1,6 +1,6 @@
 import { Client } from "pg";
 import { faker } from "@faker-js/faker";
-require("dotenv").config({ path: "../../.env" });
+// require("dotenv").config({ path: "../../.env" });
 
 const NOW = new Date().getTime();
 const daysAgo = (days: number) => new Date(NOW - days * 86400000);

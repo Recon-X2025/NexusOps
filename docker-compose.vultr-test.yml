@@ -1,13 +1,8 @@
-# ── CoheronConnect · Vultr Test Deployment ─────────────────────────────────────────
-# Single-server, HTTP-only, no domain required.
-# Access via http://<server-ip>
-#
-# Usage:
-#   docker compose -f docker-compose.vultr-test.yml up -d
+# ── CoheronConnect · Vultr Secured Deployment ──────────────────────────────────
+# Managed by Caddy (Reverse Proxy + Auto HTTPS)
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
-
   # ── Web frontend (Next.js) ──────────────────────────────────────────────────
   web:
     image: coheronconnect/web:latest
@@ -15,29 +10,19 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        # SERVER_IP is resolved at build time. If unset, the frontend now
-        # derives the API host from window.location at runtime (see trpc.ts),
-        # so leaving this blank is safe and works on any host.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-    restart: unless-stopped
-    ports:
-      - "0.0.0.0:80:3000"
+        NEXT_PUBLIC_API_URL: https://connect.coheron.tech/api
+    restart: always
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-      # Used server-side (SSR + /api/trpc proxy) to reach the API container
-      # over the Docker internal network — never exposed to the browser.
       API_INTERNAL_URL: http://api:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+    env_file:
+      - .env.production
+    networks:
+      - nexusops-network
     depends_on:
       api:
         condition: service_healthy
-    healthcheck:
-      # Use wget exit code directly — BusyBox wget --spider exits 0 on any 2xx/3xx,
-      # no need to pipe through grep (which was broken in Alpine).
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # ── API (Fastify / tRPC) ────────────────────────────────────────────────────
   api:
@@ -45,16 +30,15 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    env_file: .env.production
+    restart: always
     environment:
-      # Raise bcrypt concurrency so login throughput scales with the thread pool.
-      # At BCRYPT_CONCURRENCY=8 (default) we cap at ~8 logins/s; 32 matches
-      # a 4-core server running 8 threads each.
+      NODE_ENV: production
       BCRYPT_CONCURRENCY: "32"
       LIBUV_THREADPOOL_SIZE: "32"
+    env_file:
+      - .env.production
+    networks:
+      - nexusops-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +53,23 @@ services:
       start_period: 40s
       retries: 3
 
+  # ── Caddy (Reverse Proxy) ───────────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - nexusops-network
+    depends_on:
+      - web
+      - api
+
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
@@ -78,11 +79,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: coheronconnect
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-    # Bind to loopback only — API still reaches postgres via Docker DNS `postgres:5432`.
-    # For admin/chaos DB access from your laptop, use SSH: ssh -L 5433:127.0.0.1:5432 root@<host>
-    ports:
-      - "127.0.0.1:5432:5432"
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nexusops-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U coheronconnect"]
       interval: 10s
@@ -100,7 +99,9 @@ services:
         redis-server --save 60 1;
       fi'
     volumes:
-      - redis-data:/data
+      - redis_data:/data
+    networks:
+      - nexusops-network
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -122,16 +123,26 @@ services:
       MEILI_MASTER_KEY: ${MEILISEARCH_KEY}
       MEILI_ENV: production
     volumes:
-      - meilisearch-data:/meili_data
-    # Image has wget; curl is often missing (healthcheck was failing and blocking the whole stack).
+      - meili_data:/meili_data
+    networks:
+      - nexusops-network
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:7700/health | grep -q available || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 20s
 
+networks:
+  nexusops-network:
+    driver: bridge
+
+# ⚠️  NEVER run `docker compose down -v` — it will wipe all data!
+# Use `docker compose up -d --build` to rebuild safely.
 volumes:
-  postgres-data:
-  redis-data:
-  meilisearch-data:
+  postgres_data:
+    external: true
+    name: coheronconnect_postgres_data
+  redis_data:
+  meili_data:
+  caddy_data:
+  caddy_config:

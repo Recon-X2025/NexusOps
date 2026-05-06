@@ -385,8 +385,8 @@ export default function SurveysPage() {
                     <td className="font-medium text-foreground">{sv.title}</td>
                     <td><span className={`status-badge ${tCfg.color}`}>{tCfg.icon} {tCfg.label}</span></td>
                     <td className="text-[11px] text-muted-foreground/70 max-w-32 truncate">{sv.trigger}</td>
-                    <td className="text-center font-mono text-[11px]">{sv.sent.toLocaleString()}</td>
-                    <td className="text-center font-mono font-bold text-foreground">{sv.responses.toLocaleString()}</td>
+                    <td className="text-center font-mono text-[11px]">{(sv.sent ?? 0).toLocaleString()}</td>
+                    <td className="text-center font-mono font-bold text-foreground">{(sv.responses ?? 0).toLocaleString()}</td>
                     <td className="text-center">
                       <span className={`text-[11px] font-bold ${rate >= 60 ? "text-green-700" : rate >= 40 ? "text-yellow-600" : "text-red-600"}`}>{rate}%</span>
                     </td>

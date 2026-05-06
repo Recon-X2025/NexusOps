@@ -1,6 +1,6 @@
 import { getDb } from "./client";
 import * as schema from "./schema";
-require("dotenv").config({ path: "../../.env" });
+// require("dotenv").config({ path: "../../.env" });
 
 async function clean() {
   const db = getDb();

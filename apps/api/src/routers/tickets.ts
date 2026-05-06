@@ -523,8 +523,37 @@ export const ticketsRouter = router({
     .query(async ({ ctx, input }) => {
     const { db, org } = ctx;
     const [ticket] = await db
-      .select()
+      .select({
+        id: tickets.id,
+        orgId: tickets.orgId,
+        number: tickets.number,
+        title: tickets.title,
+        description: tickets.description,
+        categoryId: tickets.categoryId,
+        priorityId: tickets.priorityId,
+        statusId: tickets.statusId,
+        type: tickets.type,
+        requesterId: tickets.requesterId,
+        assigneeId: tickets.assigneeId,
+        assigneeName: users.name,
+        assigneeEmail: users.email,
+        teamId: tickets.teamId,
+        dueDate: tickets.dueDate,
+        slaBreached: tickets.slaBreached,
+        tags: tickets.tags,
+        customFields: tickets.customFields,
+        resolvedAt: tickets.resolvedAt,
+        closedAt: tickets.closedAt,
+        createdAt: tickets.createdAt,
+        updatedAt: tickets.updatedAt,
+        isMajorIncident: tickets.isMajorIncident,
+        parentTicketId: tickets.parentTicketId,
+        configurationItemId: tickets.configurationItemId,
+        knownErrorId: tickets.knownErrorId,
+        idempotencyKey: tickets.idempotencyKey,
+      })
       .from(tickets)
+      .leftJoin(users, eq(tickets.assigneeId, users.id))
       .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
 
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });

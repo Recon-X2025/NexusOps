@@ -183,6 +183,187 @@ export default function AdminConsolePage() {
 
   return (
     <>
+      {/* Invite User Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold">Invite New User</h3>
+              <button onClick={() => setShowInviteModal(false)} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {!inviteResult ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email Address *</label>
+                  <input
+                    autoFocus
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="agent@coheron.tech"
+                    className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">System Role</label>
+                    <select
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as any)}
+                      className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                    >
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                      <option value="viewer">Viewer</option>
+                      <option value="owner">Owner</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Matrix Role</label>
+                    <select
+                      value={inviteMatrixRole}
+                      onChange={(e) => setInviteMatrixRole(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                    >
+                      <option value="">None</option>
+                      {SYSTEM_ROLES_CATALOG.filter(r => !["admin","owner","member","viewer"].includes(r.role)).map(r => (
+                        <option key={r.role} value={r.role}>{r.displayName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+                  <button
+                    disabled={!inviteEmail.includes("@") || inviteUserMutation.isPending}
+                    onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined })}
+                    className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {inviteUserMutation.isPending ? "Sending..." : "Send Invite"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 py-4 text-center">
+                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold">Invite Generated!</h4>
+                <p className="text-xs text-muted-foreground">Share this link with the user to complete their registration:</p>
+                <div className="p-3 bg-muted rounded-xl break-all font-mono text-[10px] select-all border border-border">
+                  {inviteResult}
+                </div>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(inviteResult); toast.success("Link copied!"); }}
+                  className="w-full py-2 bg-muted border border-border rounded-lg text-xs font-bold hover:bg-accent"
+                >
+                  Copy to Clipboard
+                </button>
+                <button onClick={() => setShowInviteModal(false)} className="w-full text-xs text-primary hover:underline">Close</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold">Edit User</h3>
+                <p className="text-xs text-muted-foreground">{editUser.name} ({editUser.id})</p>
+              </div>
+              <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Base Role</label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as any)}
+                    className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                    <option value="viewer">Viewer</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Matrix Role</label>
+                  <select
+                    value={editMatrixRole}
+                    onChange={(e) => setEditMatrixRole(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                  >
+                    <option value="">None</option>
+                    {SYSTEM_ROLES_CATALOG.filter(r => !["admin","owner","member","viewer"].includes(r.role)).map(r => (
+                      <option key={r.role} value={r.role}>{r.displayName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-muted/20 border border-border rounded-xl">
+                <input
+                  type="checkbox"
+                  id="mfa-status"
+                  checked={editMfaEnrolled}
+                  onChange={(e) => setEditMfaEnrolled(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary"
+                />
+                <label htmlFor="mfa-status" className="text-xs font-medium">MFA Enrolled (read-only in this version)</label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setEditUser(null)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+                <button
+                  disabled={updateUserMutation.isPending}
+                  onClick={() => updateUserMutation.mutate({ userId: editUser.id, role: editRole, matrixRole: editMatrixRole || null })}
+                  className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {confirmDeleteUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h3 className="text-lg font-bold">Delete User?</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete <strong>{confirmDeleteUser.name}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setConfirmDeleteUser(null)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+              <button
+                disabled={deleteUserMutation.isPending}
+                onClick={() => deleteUserMutation.mutate({ userId: confirmDeleteUser.id })}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-500/20 disabled:opacity-50"
+              >
+                {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -550,21 +731,7 @@ export default function AdminConsolePage() {
           )}
 
           {/* GROUPS */}
-          {tab === "groups" && (
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[12px] font-semibold text-foreground/80">Groups &amp; Teams</span>
-                <button onClick={() => toast.info("Group management is coming in a future release. Groups will allow you to configure assignment groups, escalation chains and approval groups.", { duration: 5000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
-                  <Plus className="w-3 h-3" /> New Group
-                </button>
-              </div>
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-                <Users className="w-8 h-8 opacity-30" />
-                <p className="text-[13px]">No groups configured</p>
-                <p className="text-[11px] text-muted-foreground/60">Create assignment groups, escalation groups and approval groups.</p>
-              </div>
-            </div>
-          )}
+          {tab === "groups" && <GroupsTab />}
 
           {/* SLA DEFINITIONS */}
           {tab === "sla_pause_reasons" && <SlaPauseReasonsTab />}
@@ -2567,3 +2734,302 @@ function AssignmentRulesTab() {
     </div>
   );
 }
+function GroupsTab() {
+  const { mergeTrpcQueryOpts } = useRBAC();
+  const utils = trpc.useUtils();
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+
+  // Member management state
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+
+  const listQuery = trpc.teams.list.useQuery(undefined, mergeTrpcQueryOpts("teams.list", undefined));
+  const usersQuery = trpc.admin.users.list.useQuery(undefined, mergeTrpcQueryOpts("admin.users.list", undefined));
+  
+  // Only fetch members if a group is selected
+  const membersQuery = trpc.teams.listMembers.useQuery(
+    { teamId: selectedGroupId! },
+    { ...mergeTrpcQueryOpts("teams.listMembers", undefined), enabled: !!selectedGroupId }
+  );
+
+  const createMutation = trpc.teams.create.useMutation({
+    onSuccess: () => {
+      toast.success("Group created");
+      listQuery.refetch();
+      setShowForm(false);
+      resetForm();
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create group"),
+  });
+
+  const updateMutation = trpc.teams.update.useMutation({
+    onSuccess: () => {
+      toast.success("Group updated");
+      listQuery.refetch();
+      setShowForm(false);
+      setEditId(null);
+      resetForm();
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update group"),
+  });
+
+  const deleteMutation = trpc.teams.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Group deleted");
+      listQuery.refetch();
+      if (selectedGroupId === editId) setSelectedGroupId(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete group"),
+  });
+
+  const addMemberMutation = trpc.teams.addMember.useMutation({
+    onSuccess: () => {
+      toast.success("Member added");
+      membersQuery.refetch();
+      listQuery.refetch();
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to add member"),
+  });
+
+  const removeMemberMutation = trpc.teams.removeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Member removed");
+      membersQuery.refetch();
+      listQuery.refetch();
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to remove member"),
+  });
+
+  function resetForm() {
+    setName("");
+    setDescription("");
+  }
+
+  function handleEdit(group: any) {
+    setEditId(group.id);
+    setName(group.name);
+    setDescription(group.description || "");
+    setShowForm(true);
+  }
+
+  function handleSubmit() {
+    if (editId) {
+      updateMutation.mutate({ id: editId, name, description });
+    } else {
+      createMutation.mutate({ name, description });
+    }
+  }
+
+  const groups = listQuery.data || [];
+  const allUsers = usersQuery.data || [];
+  const currentMembers = membersQuery.data || [];
+
+  // Filter users for search (exclude those already in the group)
+  const memberIds = new Set(currentMembers.map(m => m.id));
+  const availableUsers = allUsers.filter(u => 
+    !memberIds.has(u.id) && 
+    (u.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) || 
+     u.email?.toLowerCase().includes(userSearchTerm.toLowerCase()))
+  ).slice(0, 5); // Limit search results
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b border-border bg-muted/10 flex items-center justify-between">
+        <div>
+          <span className="text-[12px] font-semibold text-foreground/80">Groups & Teams</span>
+          <p className="text-[11px] text-muted-foreground/70">Manage assignment groups and member rosters.</p>
+        </div>
+        <button
+          onClick={() => { resetForm(); setEditId(null); setShowForm(true); }}
+          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+        >
+          <Plus className="w-3 h-3" /> New Group
+        </button>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Pane: Groups List */}
+        <div className="w-1/3 border-r border-border overflow-y-auto">
+          {listQuery.isLoading ? (
+            <div className="p-8 text-center text-[11px] text-muted-foreground animate-pulse">Loading groups...</div>
+          ) : groups.length === 0 ? (
+            <div className="p-8 text-center text-[11px] text-muted-foreground italic">No groups found.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {groups.map((g: any) => (
+                <div 
+                  key={g.id} 
+                  onClick={() => setSelectedGroupId(g.id)}
+                  className={`p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedGroupId === g.id ? 'bg-primary/5 border-l-2 border-primary' : ''}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[12px] font-medium text-foreground">{g.name}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-bold">
+                      {g.memberCount}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{g.description || "No description"}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right Pane: Member Management */}
+        <div className="flex-1 bg-card overflow-y-auto">
+          {selectedGroupId ? (
+            <div className="p-4 space-y-6">
+              {/* Group Header Actions */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-foreground">
+                  {groups.find(g => g.id === selectedGroupId)?.name} roster
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleEdit(groups.find(g => g.id === selectedGroupId))}
+                    className="text-[11px] text-primary hover:underline"
+                  >Edit Details</button>
+                  <button 
+                    onClick={() => { if(confirm("Delete this group?")) deleteMutation.mutate({ id: selectedGroupId }); }}
+                    className="text-[11px] text-red-500 hover:underline"
+                  >Delete Group</button>
+                </div>
+              </div>
+
+              {/* Add Member Search */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Add Member</label>
+                <div className="relative">
+                  <div className="flex items-center gap-2 p-1.5 bg-muted/30 border border-border rounded focus-within:border-primary transition-colors">
+                    <Search className="w-3.5 h-3.5 text-muted-foreground" />
+                    <input 
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      placeholder="Search users by name or email..."
+                      className="bg-transparent text-[12px] outline-none flex-1"
+                    />
+                  </div>
+                  
+                  {userSearchTerm.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded shadow-lg z-10 divide-y divide-border overflow-hidden">
+                      {availableUsers.length > 0 ? (
+                        availableUsers.map(user => (
+                          <div 
+                            key={user.id} 
+                            onClick={() => {
+                              addMemberMutation.mutate({ teamId: selectedGroupId, userId: user.id });
+                              setUserSearchTerm("");
+                            }}
+                            className="p-2 hover:bg-primary/5 cursor-pointer flex items-center justify-between group"
+                          >
+                            <div>
+                              <div className="text-[11px] font-medium text-foreground">{user.name}</div>
+                              <div className="text-[10px] text-muted-foreground">{user.email}</div>
+                            </div>
+                            <Plus className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-3 text-[11px] text-muted-foreground text-center">No matching users found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Member List */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Current Members</label>
+                {membersQuery.isLoading ? (
+                  <div className="py-4 text-center text-[11px] text-muted-foreground animate-pulse">Loading roster...</div>
+                ) : currentMembers.length === 0 ? (
+                  <div className="py-8 text-center text-[11px] text-muted-foreground bg-muted/10 border border-dashed border-border rounded">
+                    No members in this group yet.
+                  </div>
+                ) : (
+                  <div className="border border-border rounded divide-y divide-border">
+                    {currentMembers.map((member: any) => (
+                      <div key={member.id} className="p-3 flex items-center justify-between group hover:bg-muted/10 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center font-bold">
+                            {member.name?.split(" ").map((n: string) => n[0]).join("")}
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-medium text-foreground">{member.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{member.email}</div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => { if(confirm(`Remove ${member.name}?`)) removeMemberMutation.mutate({ teamId: selectedGroupId, userId: member.id }); }}
+                          className="p-1 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-40 p-8 text-center gap-3">
+              <Users className="w-12 h-12" />
+              <div>
+                <p className="text-[13px] font-medium">Select a group to manage</p>
+                <p className="text-[11px]">Select a team from the left sidebar to view and edit its member roster.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Group Create/Edit Modal Overlay */}
+      {showForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-[400px] p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">{editId ? "Edit Group Details" : "Create New Group"}</h3>
+              <button onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Name *</label>
+                <input 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-background outline-none focus:border-primary" 
+                  placeholder="e.g. IT Support L2" 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Description</label>
+                <textarea 
+                  value={description} 
+                  onChange={(e) => setDescription(e.target.value)} 
+                  className="w-full px-2 py-1.5 text-[12px] border border-border rounded bg-background outline-none focus:border-primary min-h-[80px]" 
+                  placeholder="What is this group responsible for?"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
+              <button 
+                disabled={!name.trim() || createMutation.isPending || updateMutation.isPending} 
+                onClick={handleSubmit} 
+                className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >
+                {editId ? "Save Changes" : "Create Group"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

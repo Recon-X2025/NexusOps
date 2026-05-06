@@ -1,14 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, use } from "react";
 
 function apiBase(): string {
+  // Use relative path in production to avoid CSP/CORS issues when accessing via IP
+  if (typeof window !== "undefined") return "/api";
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 }
 
-export default function PublicSurveyPage({ params }: { params: { token: string } }) {
-  const token = params.token;
+export default function PublicSurveyPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params);
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
