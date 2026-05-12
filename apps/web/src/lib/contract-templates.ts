@@ -499,8 +499,8 @@ Effect of Termination. Upon termination: (a) all outstanding SOWs shall terminat
       isEnabled: true,
       category: "operational",
       fields: [
-        { id: "msa_gl_coverage", label: "General liability coverage minimum", type: "currency", defaultValue: "1000000" },
-        { id: "msa_pi_coverage", label: "Professional indemnity coverage minimum", type: "currency", defaultValue: "2000000" },
+        { id: "msa_gl_coverage", label: "General liability coverage minimum (₹)", type: "currency", defaultValue: "10000000", helperText: "Default: ₹1,00,00,000 (One Crore INR)" },
+        { id: "msa_pi_coverage", label: "Professional indemnity coverage minimum (₹)", type: "currency", defaultValue: "20000000", helperText: "Default: ₹2,00,00,000 (Two Crore INR)" },
       ],
       body: `Service Provider shall maintain throughout the Term: (a) Commercial General Liability insurance with minimum coverage of {{msa_gl_coverage}}; (b) Professional Indemnity (Errors & Omissions) insurance with minimum coverage of {{msa_pi_coverage}}; and (c) Workers' Compensation insurance as required by applicable law.
 
@@ -518,8 +518,8 @@ Service Provider shall provide certificates of insurance upon Client's request.`
           id: "msa_dp_regime",
           label: "Data protection regime",
           type: "select",
-          defaultValue: "DPDP Act (India)",
-          options: ["DPDP Act (India)", "GDPR (EU/UK)", "CCPA (California)", "PDPA (Singapore)", "Multiple / Custom"],
+          defaultValue: "DPDP Act 2023 (India)",
+          options: ["DPDP Act 2023 (India)", "GDPR (EU/UK)", "CCPA (California)", "PDPA (Singapore)", "Multiple / Custom"],
         },
       ],
       body: `To the extent Service Provider processes personal data on behalf of Client, Service Provider shall: (a) process such data only in accordance with Client's documented instructions; (b) implement appropriate technical and organisational measures to protect personal data; (c) notify Client without undue delay upon becoming aware of a personal data breach; (d) assist Client in responding to data subject requests; and (e) delete or return all personal data upon termination of the relevant SOW.
@@ -539,13 +539,14 @@ The parties shall execute a Data Processing Agreement ("DPA") as required under 
           id: "msa_dispute_method",
           label: "Dispute resolution",
           type: "select",
-          defaultValue: "Courts of the governing jurisdiction",
+          defaultValue: "Binding arbitration — Arbitration and Conciliation Act, 1996; seat: Bengaluru, Karnataka, India",
           options: [
-            "Courts of the governing jurisdiction",
+            "Binding arbitration — Arbitration and Conciliation Act, 1996; seat: Bengaluru, Karnataka, India",
             "Binding arbitration (Mumbai Centre for International Arbitration)",
             "Binding arbitration (ICC Rules)",
             "Binding arbitration (LCIA Rules)",
             "Mediation then arbitration",
+            "Courts at Bengaluru, Karnataka, India",
           ],
         },
       ],
