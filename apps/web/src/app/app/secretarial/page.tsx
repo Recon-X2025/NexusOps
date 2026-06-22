@@ -18,27 +18,27 @@ import { EsignPanel } from "@/components/esign/EsignPanel";
 // ── Shared style maps ─────────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<string, string> = {
-  filed:          "text-green-700 bg-green-100 border-green-200",
-  pending:        "text-orange-700 bg-orange-100 border-orange-200",
-  overdue:        "text-red-700 bg-red-100 border-red-200",
-  upcoming:       "text-blue-700 bg-blue-100 border-blue-200",
-  in_progress:    "text-indigo-700 bg-indigo-100 border-indigo-200",
+  filed: "text-green-700 bg-green-100 border-green-200",
+  pending: "text-orange-700 bg-orange-100 border-orange-200",
+  overdue: "text-red-700 bg-red-100 border-red-200",
+  upcoming: "text-blue-700 bg-blue-100 border-blue-200",
+  in_progress: "text-indigo-700 bg-indigo-100 border-indigo-200",
   not_applicable: "text-muted-foreground bg-muted",
-  scheduled:      "text-blue-700 bg-blue-100 border-blue-200",
-  completed:      "text-green-700 bg-green-100 border-green-200",
-  cancelled:      "text-red-700 bg-red-100 border-red-200",
-  draft:          "text-slate-600 bg-slate-100",
-  passed:         "text-green-700 bg-green-100",
-  rejected:       "text-red-700 bg-red-100",
+  scheduled: "text-blue-700 bg-blue-100 border-blue-200",
+  completed: "text-green-700 bg-green-100 border-green-200",
+  cancelled: "text-red-700 bg-red-100 border-red-200",
+  draft: "text-slate-600 bg-slate-100",
+  passed: "text-green-700 bg-green-100",
+  rejected: "text-red-700 bg-red-100",
 };
 
 const TABS = [
-  { key: "overview",   label: "Overview",           icon: Building2 },
-  { key: "board",      label: "Board & Directors",  icon: Users },
-  { key: "filings",    label: "MCA / ROC Filings",  icon: FileText },
-  { key: "share",      label: "Share Capital",      icon: Scale },
-  { key: "esop",       label: "ESOP",               icon: Award },
-  { key: "calendar",   label: "Compliance Calendar", icon: Calendar },
+  { key: "overview", label: "Overview", icon: Building2 },
+  { key: "board", label: "Board & Directors", icon: Users },
+  { key: "filings", label: "MCA / ROC Filings", icon: FileText },
+  { key: "share", label: "Share Capital", icon: Scale },
+  { key: "esop", label: "ESOP", icon: Award },
+  { key: "calendar", label: "Compliance Calendar", icon: Calendar },
 ] as const;
 
 const TAB_KEYS = new Set<string>(TABS.map((t) => t.key));
@@ -56,12 +56,12 @@ function OverviewTab() {
   const { data: upcomingFilings = [] } = trpc.secretarial.filings.upcomingAlerts.useQuery(undefined, mergeTrpcQueryOpts("secretarial.filings.upcomingAlerts", undefined));
 
   const kpis = [
-    { label: "Upcoming Meetings",    value: overview?.upcomingMeetings ?? 0,   icon: Calendar,      color: "text-blue-600 bg-blue-50" },
-    { label: "Pending Resolutions",  value: overview?.pendingResolutions ?? 0, icon: FileText,      color: "text-amber-600 bg-amber-50" },
-    { label: "Overdue Filings",      value: overview?.overdueFilings ?? 0,     icon: AlertTriangle, color: "text-red-600 bg-red-50" },
-    { label: "Due in 30 Days",       value: overview?.upcomingFilings ?? 0,    icon: Clock,         color: "text-orange-600 bg-orange-50" },
-    { label: "Active Directors",     value: overview?.totalDirectors ?? 0,     icon: Users,         color: "text-green-600 bg-green-50" },
-    { label: "KYC Expiring Soon",    value: overview?.kycExpiring ?? 0,        icon: Shield,        color: "text-purple-600 bg-purple-50" },
+    { label: "Upcoming Meetings", value: overview?.upcomingMeetings ?? 0, icon: Calendar, color: "text-blue-600 bg-blue-50" },
+    { label: "Pending Resolutions", value: overview?.pendingResolutions ?? 0, icon: FileText, color: "text-amber-600 bg-amber-50" },
+    { label: "Overdue Filings", value: overview?.overdueFilings ?? 0, icon: AlertTriangle, color: "text-red-600 bg-red-50" },
+    { label: "Due in 30 Days", value: overview?.upcomingFilings ?? 0, icon: Clock, color: "text-orange-600 bg-orange-50" },
+    { label: "Active Directors", value: overview?.totalDirectors ?? 0, icon: Users, color: "text-green-600 bg-green-50" },
+    { label: "KYC Expiring Soon", value: overview?.kycExpiring ?? 0, icon: Shield, color: "text-purple-600 bg-purple-50" },
   ];
 
   return (
@@ -144,7 +144,7 @@ function BoardTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
   const { data: meetings = [], refetch: refetchMeetings } = trpc.secretarial.meetings.list.useQuery({}, mergeTrpcQueryOpts("secretarial.meetings.list", undefined));
   const { data: directors = [], refetch: refetchDirectors } = trpc.secretarial.directors.list.useQuery({ activeOnly: true }, mergeTrpcQueryOpts("secretarial.directors.list", undefined));
-  const { data: resolutions = [] } = trpc.secretarial.resolutions.list.useQuery({}, mergeTrpcQueryOpts("secretarial.resolutions.list", undefined));
+  const { data: resolutions = [], refetch: refetchResolutions } = trpc.secretarial.resolutions.list.useQuery({}, mergeTrpcQueryOpts("secretarial.resolutions.list", undefined));
   const updateKyc = trpc.secretarial.directors.updateKyc.useMutation({
     onSuccess: () => { toast.success("KYC status updated"); refetchDirectors(); },
     onError: e => toast.error(e.message),
@@ -158,10 +158,22 @@ function BoardTab() {
     onError: e => toast.error(e.message),
   });
   const [showNewMeeting, setShowNewMeeting] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<string | null>(null);
+  const [markDoneMeeting, setMarkDoneMeeting] = useState<any | null>(null);
+  const [resolutionText, setResolutionText] = useState("");
   const [esignFor, setEsignFor] = useState<{ id: string; title: string } | null>(null);
   const [mtgForm, setMtgForm] = useState({ type: "board" as const, title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" });
+
+  const createResolution = trpc.secretarial.resolutions.create.useMutation({
+    onSuccess: () => refetchResolutions(),
+    onError: e => toast.error(e.message),
+  });
   const createMeeting = trpc.secretarial.meetings.create.useMutation({
     onSuccess: () => { toast.success("Meeting scheduled"); refetchMeetings(); setShowNewMeeting(false); },
+    onError: e => toast.error(e.message),
+  });
+  const updateMeeting = trpc.secretarial.meetings.update.useMutation({
+    onSuccess: () => { toast.success("Meeting updated"); refetchMeetings(); setShowNewMeeting(false); setEditingMeeting(null); },
     onError: e => toast.error(e.message),
   });
 
@@ -172,31 +184,49 @@ function BoardTab() {
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Board Meetings</h3>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => setShowNewMeeting(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
+            <button onClick={() => { setEditingMeeting(null); setMtgForm({ type: "board", title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" }); setShowNewMeeting(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
               <Plus className="w-3.5 h-3.5" /> Schedule Meeting
             </button>
           </PermissionGate>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Number","Title","Type","Date","Duration","Status","Quorum","Actions"].map(h => (
+            <tr>{["Number", "Title", "Type", "Date", "Duration", "Status", "Quorum", "Actions"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
           <tbody>
             {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
-            {meetings.map((m: { id: string; number: string; title: string; type?: string; scheduledAt: string | Date; duration: number; status?: string; quorumMet?: boolean | null }) => (
+            {meetings.map((m: { id: string; number: string; title: string; type?: string; scheduledAt: string | Date; duration: number; status?: string; quorumMet?: boolean | null; venue?: string; videoLink?: string }) => (
               <tr key={m.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
                 <td className="px-4 py-3 font-medium">{m.title}</td>
-                <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_", " ")}</td>
                 <td className="px-4 py-3 text-xs">{new Date(m.scheduledAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{m.duration}min</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status ?? "—").replace("_", " ")}</span></td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status === "scheduled" ? "upcoming" : m.status ?? "—").replace("_", " ")}</span></td>
                 <td className="px-4 py-3 text-xs">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 space-x-2">
                   {m.status === "scheduled" && (
-                    <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "completed", quorumMet: true })} className="text-xs text-green-600 hover:underline">Mark Done</button>
+                    <>
+                      <button onClick={() => {
+                        setMtgForm({
+                          type: (m.type as any) || "board",
+                          title: m.title,
+                          scheduledAt: new Date(m.scheduledAt).toISOString().slice(0, 16),
+                          duration: m.duration,
+                          venue: m.venue || "",
+                          videoLink: m.videoLink || ""
+                        });
+                        setEditingMeeting(m.id);
+                        setShowNewMeeting(true);
+                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => {
+                        setMarkDoneMeeting(m);
+                        setResolutionText("");
+                      }} className="text-xs text-green-600 hover:underline">Mark Done</button>
+                      <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "cancelled" })} className="text-xs text-red-600 hover:underline">Cancel</button>
+                    </>
                   )}
                 </td>
               </tr>
@@ -212,7 +242,7 @@ function BoardTab() {
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Name","DIN","Designation","Category","Pan","Appointed","KYC Status","Actions"].map(h => (
+            <tr>{["Name", "DIN", "Designation", "Category", "Pan", "Appointed", "KYC Status", "Actions"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
@@ -223,7 +253,7 @@ function BoardTab() {
                 <td className="px-4 py-3 font-medium">{d.name}</td>
                 <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
                 <td className="px-4 py-3 text-xs">{d.designation}</td>
-                <td className="px-4 py-3 text-xs capitalize">{d.category?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs capitalize">{d.category?.replace("_", " ")}</td>
                 <td className="px-4 py-3 text-xs font-mono">{d.pan ?? "—"}</td>
                 <td className="px-4 py-3 text-xs">{d.appointedAt ? new Date(d.appointedAt).toLocaleDateString() : "—"}</td>
                 <td className="px-4 py-3">
@@ -251,7 +281,7 @@ function BoardTab() {
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Number","Title","Type","Status","Passed","For","Against","Abstain","Actions"].map(h => (
+            <tr>{["Number", "Title", "Type", "Status", "Passed", "For", "Against", "Abstain", "Actions"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
@@ -310,19 +340,72 @@ function BoardTab() {
         </div>
       )}
 
+      {/* Mark Done / Resolution Modal */}
+      {markDoneMeeting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="font-bold text-lg">Complete Board Meeting</h2>
+              <button onClick={() => setMarkDoneMeeting(null)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-muted/30 p-4 rounded-lg border border-border">
+                <p className="text-sm font-medium">{markDoneMeeting.title}</p>
+                <p className="text-xs text-muted-foreground">{new Date(markDoneMeeting.scheduledAt).toLocaleString()} · {markDoneMeeting.duration} min</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Board Resolutions</label>
+                <textarea
+                  value={resolutionText}
+                  onChange={(e) => setResolutionText(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background min-h-[120px]"
+                  placeholder="Enter resolution details passed during this meeting..."
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setMarkDoneMeeting(null)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button
+                disabled={updateMtgStatus.isPending || createResolution.isPending}
+                onClick={async () => {
+                  try {
+                    if (resolutionText.trim()) {
+                      await createResolution.mutateAsync({
+                        meetingId: markDoneMeeting.id,
+                        title: `Resolution from ${markDoneMeeting.title}`,
+                        body: resolutionText,
+                        type: markDoneMeeting.type === "board" ? "board" : "ordinary"
+                      });
+                    }
+                    updateMtgStatus.mutate({ id: markDoneMeeting.id, status: "completed", quorumMet: true }, {
+                      onSuccess: () => {
+                        setMarkDoneMeeting(null);
+                      }
+                    });
+                  } catch (e: any) {
+                    // toast error is already handled by useMutation, but we prevent marking done if resolution fails
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              >{updateMtgStatus.isPending || createResolution.isPending ? "Saving..." : "Mark as Done"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* New Meeting Modal */}
       {showNewMeeting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">Schedule Board Meeting</h2>
-              <button onClick={() => setShowNewMeeting(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+              <h2 className="font-bold text-lg">{editingMeeting ? "Edit Board Meeting" : "Schedule Board Meeting"}</h2>
+              <button onClick={() => { setShowNewMeeting(false); setEditingMeeting(null); }} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Meeting Type</label>
                 <select value={mtgForm.type} onChange={e => setMtgForm(p => ({ ...p, type: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                  {["board","audit_committee","nomination_committee","compensation_committee","agm","egm","creditors"].map(t => <option key={t} value={t}>{t.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+                  {["board", "audit_committee", "nomination_committee", "compensation_committee", "agm", "egm", "creditors"].map(t => <option key={t} value={t}>{t.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
                 </select>
               </div>
               <div>
@@ -345,12 +428,18 @@ function BoardTab() {
               </div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => setShowNewMeeting(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button onClick={() => { setShowNewMeeting(false); setEditingMeeting(null); }} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
               <button
-                disabled={!mtgForm.title || !mtgForm.scheduledAt || createMeeting.isPending}
-                onClick={() => createMeeting.mutate({ ...mtgForm, scheduledAt: mtgForm.scheduledAt })}
+                disabled={!mtgForm.title || !mtgForm.scheduledAt || createMeeting.isPending || updateMeeting.isPending}
+                onClick={() => {
+                  if (editingMeeting) {
+                    updateMeeting.mutate({ id: editingMeeting, ...mtgForm, scheduledAt: mtgForm.scheduledAt });
+                  } else {
+                    createMeeting.mutate({ ...mtgForm, scheduledAt: mtgForm.scheduledAt });
+                  }
+                }}
                 className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-              >{createMeeting.isPending ? "Scheduling..." : "Schedule"}</button>
+              >{createMeeting.isPending || updateMeeting.isPending ? "Saving..." : (editingMeeting ? "Save Changes" : "Schedule")}</button>
             </div>
           </div>
         </div>
@@ -371,9 +460,14 @@ function FilingsTab() {
     onError: e => toast.error(e.message),
   });
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ formNumber: "", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: "", fees: "", notes: "" });
+  const [editingFiling, setEditingFiling] = useState<string | null>(null);
+  const [form, setForm] = useState({ formNumber: "MGT-7", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: "2024-25", fees: "", notes: "" });
   const createFiling = trpc.secretarial.filings.create.useMutation({
     onSuccess: () => { toast.success("Filing created"); refetch(); setShowCreate(false); },
+    onError: e => toast.error(e.message),
+  });
+  const updateFiling = trpc.secretarial.filings.update.useMutation({
+    onSuccess: () => { toast.success("Filing updated"); refetch(); setShowCreate(false); setEditingFiling(null); },
     onError: e => toast.error(e.message),
   });
   const seedFilings = trpc.secretarial.filings.seed.useMutation({
@@ -388,19 +482,19 @@ function FilingsTab() {
       <div className="flex items-center justify-between">
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-background">
           <option value="">All Status</option>
-          {["upcoming","in_progress","filed","overdue","not_applicable"].map(s => <option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+          {["upcoming", "in_progress", "filed", "overdue", "not_applicable"].map(s => <option key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
         </select>
         <div className="flex items-center gap-2">
           <PermissionGate module="secretarial" action="write">
             <div className="flex items-center border border-border rounded-lg overflow-hidden h-9">
-              <select 
-                value={selectedFY} 
+              <select
+                value={selectedFY}
                 onChange={e => setSelectedFY(e.target.value)}
                 className="bg-muted/30 text-[11px] px-2 h-full border-r border-border focus:outline-none"
               >
-                {["2023-24","2024-25","2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
+                {["2023-24", "2024-25", "2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
               </select>
-              <button 
+              <button
                 onClick={() => seedFilings.mutate({ financialYear: selectedFY })}
                 disabled={seedFilings.isPending}
                 className="flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 text-[11px] font-medium hover:bg-indigo-100 disabled:opacity-50"
@@ -410,7 +504,7 @@ function FilingsTab() {
             </div>
           </PermissionGate>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 h-9">
+            <button onClick={() => { setEditingFiling(null); setForm({ formNumber: "MGT-7", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: selectedFY, fees: "", notes: "" }); setShowCreate(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 h-9">
               <Plus className="w-3.5 h-3.5" /> Add Filing
             </button>
           </PermissionGate>
@@ -420,7 +514,7 @@ function FilingsTab() {
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Form","Title","Authority","Category","FY","Due Date","Status","SRN","Actions"].map(h => (
+            <tr>{["Form", "Title", "Authority", "Category", "FY", "Due Date", "Status", "SRN", "Actions"].map(h => (
               <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
@@ -431,15 +525,31 @@ function FilingsTab() {
                 <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
                 <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
                 <td className="px-3 py-3 text-xs">{f.authority}</td>
-                <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_"," ")}</td>
+                <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_", " ")}</td>
                 <td className="px-3 py-3 text-xs">{f.fy ?? "—"}</td>
                 <td className="px-3 py-3 text-xs">{f.dueDate ? new Date(f.dueDate).toLocaleDateString() : "—"}</td>
                 <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(f.status ?? "—").replace("_", " ")}</span></td>
                 <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{f.srn ?? "—"}</td>
-                <td className="px-3 py-3">
-                  {f.status !== "filed" && (
+                <td className="px-3 py-3 space-x-2 whitespace-nowrap">
+                  {f.status !== "filed" && f.status !== "cancelled" && (
                     <PermissionGate module="secretarial" action="write">
-                      <button onClick={() => markFiled.mutate({ id: f.id })} className="text-xs text-primary hover:underline font-medium">Mark Filed</button>
+                      <button onClick={() => {
+                        setForm({ formNumber: f.formNumber, title: f.title, authority: f.authority, category: f.category || "annual_return", dueDate: f.dueDate ? new Date(f.dueDate).toISOString().split('T')[0] : "", fy: f.fy || "", fees: "", notes: "" });
+                        setEditingFiling(f.id);
+                        setShowCreate(true);
+                      }} className="text-xs text-blue-600 hover:underline font-medium">Edit</button>
+                      <button onClick={() => {
+                        const notes = prompt("Please provide comments for marking this filing as Done:");
+                        if (notes !== null) {
+                          markFiled.mutate({ id: f.id, notes: notes });
+                        }
+                      }} className="text-xs text-green-600 hover:underline font-medium">Mark as Done</button>
+                      <button onClick={() => {
+                        const notes = prompt("Please provide comments for cancelling this filing:");
+                        if (notes !== null) {
+                          updateFiling.mutate({ id: f.id, status: "cancelled", notes: notes });
+                        }
+                      }} className="text-xs text-red-600 hover:underline font-medium">Cancel</button>
                     </PermissionGate>
                   )}
                 </td>
@@ -453,22 +563,44 @@ function FilingsTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">Add Compliance Filing</h2>
-              <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+              <h2 className="font-bold text-lg">{editingFiling ? "Edit Compliance Filing" : "Add Compliance Filing"}</h2>
+              <button onClick={() => { setShowCreate(false); setEditingFiling(null); }} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              <div><label className="block text-sm font-medium mb-1">Form Number *</label><input value={form.formNumber} onChange={e => setForm(p => ({...p, formNumber: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="MGT-7" /></div>
-              <div><label className="block text-sm font-medium mb-1">Authority</label><input value={form.authority} onChange={e => setForm(p => ({...p, authority: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Category</label><input value={form.category} onChange={e => setForm(p => ({...p, category: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Financial Year</label><input value={form.fy} onChange={e => setForm(p => ({...p, fy: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="2024-25" /></div>
-              <div><label className="block text-sm font-medium mb-1">Due Date *</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({...p, dueDate: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Filing Fees (₹)</label><input type="number" value={form.fees} onChange={e => setForm(p => ({...p, fees: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Notes</label><textarea rows={2} value={form.notes} onChange={e => setForm(p => ({...p, notes: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" /></div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Form Number *</label>
+                <select value={form.formNumber} onChange={e => setForm(p => ({ ...p, formNumber: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                  {["MGT-7", "DIR-3 KYC", "ADT-1", "AOC-4", "MSME-1", "MSME-1 Return H1/H2", "DPT-3"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Authority *</label>
+                <select value={form.authority} onChange={e => setForm(p => ({ ...p, authority: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                  <option value="MCA">MCA</option>
+                  <option value="MCA (ROC)">MCA (ROC)</option>
+                </select>
+              </div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Category *</label><input value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Financial Year *</label>
+                <select value={form.fy} onChange={e => setForm(p => ({ ...p, fy: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                  {["2023-24", "2024-25", "2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
+                </select>
+              </div>
+              <div><label className="block text-sm font-medium mb-1">Due Date *</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Filing Fees (₹) *</label><input type="number" value={form.fees} onChange={e => setForm(p => ({ ...p, fees: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Notes *</label><textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
-              <button disabled={!form.formNumber || !form.title || !form.dueDate || createFiling.isPending} onClick={() => createFiling.mutate({...form, fees: form.fees ? +form.fees : undefined, dueDate: form.dueDate, fy: form.fy || undefined})} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{createFiling.isPending ? "Creating..." : "Create Filing"}</button>
+              <button onClick={() => { setShowCreate(false); setEditingFiling(null); }} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button disabled={!form.formNumber || !form.title || !form.authority || !form.category || !form.fy || !form.dueDate || !form.fees || !form.notes || createFiling.isPending || updateFiling.isPending} onClick={() => {
+                if (editingFiling) {
+                  updateFiling.mutate({ id: editingFiling, ...form, fees: form.fees ? +form.fees : undefined, dueDate: form.dueDate, fy: form.fy || undefined });
+                } else {
+                  createFiling.mutate({ ...form, fees: form.fees ? +form.fees : undefined, dueDate: form.dueDate, fy: form.fy || undefined });
+                }
+              }} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{createFiling.isPending || updateFiling.isPending ? "Saving..." : (editingFiling ? "Save Changes" : "Create Filing")}</button>
             </div>
           </div>
         </div>
@@ -496,7 +628,7 @@ function ShareCapitalTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summary.map((s: { shareClass?: string; totalQty?: unknown; holders: number }) => (
           <div key={s.shareClass} className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-xs text-muted-foreground capitalize mb-1">{s.shareClass?.replace("_"," ")} Shares</p>
+            <p className="text-xs text-muted-foreground capitalize mb-1">{s.shareClass?.replace("_", " ")} Shares</p>
             <p className="text-2xl font-bold">{Number(s.totalQty ?? 0).toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">{s.holders} holders</p>
           </div>
@@ -515,7 +647,7 @@ function ShareCapitalTab() {
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Folio","Holder Name","Type","Class","Nominal Value","Quantity","Paid Up","PAN"].map(h => (
+            <tr>{["Folio", "Holder Name", "Type", "Class", "Nominal Value", "Quantity", "Paid Up", "PAN"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
@@ -526,7 +658,7 @@ function ShareCapitalTab() {
                 <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
                 <td className="px-4 py-3 font-medium">{s.holderName}</td>
                 <td className="px-4 py-3 text-xs capitalize">{s.holderType}</td>
-                <td className="px-4 py-3 text-xs capitalize">{s.shareClass?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs capitalize">{s.shareClass?.replace("_", " ")}</td>
                 <td className="px-4 py-3 text-xs">₹{s.nominalValue}</td>
                 <td className="px-4 py-3 font-medium">{s.quantity?.toLocaleString()}</td>
                 <td className="px-4 py-3 text-xs">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
@@ -545,13 +677,13 @@ function ShareCapitalTab() {
               <button onClick={() => setShowAdd(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Holder Name *</label><input value={form.holderName} onChange={e => setForm(p => ({...p, holderName: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Holder Type</label><select value={form.holderType} onChange={e => setForm(p => ({...p, holderType: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["individual","institution","promoter","trust"].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}</select></div>
-              <div><label className="block text-sm font-medium mb-1">Share Class</label><select value={form.shareClass} onChange={e => setForm(p => ({...p, shareClass: e.target.value as any}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["equity","preference","esop_pool","convertible"].map(t => <option key={t} value={t}>{t.replace("_"," ")}</option>)}</select></div>
-              <div><label className="block text-sm font-medium mb-1">Nominal Value (₹)</label><input type="number" value={form.nominalValue} onChange={e => setForm(p => ({...p, nominalValue: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Quantity *</label><input type="number" min={1} value={form.quantity} onChange={e => setForm(p => ({...p, quantity: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">PAN</label><input value={form.pan} onChange={e => setForm(p => ({...p, pan: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Address</label><input value={form.address} onChange={e => setForm(p => ({...p, address: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Holder Name *</label><input value={form.holderName} onChange={e => setForm(p => ({ ...p, holderName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Holder Type</label><select value={form.holderType} onChange={e => setForm(p => ({ ...p, holderType: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["individual", "institution", "promoter", "trust"].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}</select></div>
+              <div><label className="block text-sm font-medium mb-1">Share Class</label><select value={form.shareClass} onChange={e => setForm(p => ({ ...p, shareClass: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["equity", "preference", "esop_pool", "convertible"].map(t => <option key={t} value={t}>{t.replace("_", " ")}</option>)}</select></div>
+              <div><label className="block text-sm font-medium mb-1">Nominal Value (₹)</label><input type="number" value={form.nominalValue} onChange={e => setForm(p => ({ ...p, nominalValue: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Quantity *</label><input type="number" min={1} value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">PAN</label><input value={form.pan} onChange={e => setForm(p => ({ ...p, pan: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Address</label><input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
               <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
@@ -577,6 +709,26 @@ function EsopTab() {
     onError: e => toast.error(e.message),
   });
 
+  const handleCreateGrant = () => {
+    if (!form.grantDate) return;
+    const gDate = new Date(form.grantDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const gDateCompare = new Date(gDate);
+    gDateCompare.setHours(0, 0, 0, 0);
+
+    if (gDateCompare > today) {
+      toast.error("Grant date cannot be in the future");
+      return;
+    }
+
+    grantEsop.mutate({
+      ...form,
+      vestingStart: form.vestingStart || undefined,
+      vestingEnd: form.vestingEnd || undefined,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -601,7 +753,7 @@ function EsopTab() {
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Grant #","Employee","Options","Exercise Price","Grant Date","Vesting Start","Vesting End","Event"].map(h => (
+            <tr>{["Grant #", "Employee", "Options", "Exercise Price", "Grant Date", "Vesting Start", "Vesting End", "Event"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
@@ -631,16 +783,16 @@ function EsopTab() {
               <button onClick={() => setShowGrant(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Employee Name *</label><input value={form.employeeName} onChange={e => setForm(p => ({...p, employeeName: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Options *</label><input type="number" min={1} value={form.options} onChange={e => setForm(p => ({...p, options: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Exercise Price (paise) *</label><input type="number" min={0} value={form.exercisePrice} onChange={e => setForm(p => ({...p, exercisePrice: +e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="100000 = ₹1000" /></div>
-              <div><label className="block text-sm font-medium mb-1">Grant Date *</label><input type="date" value={form.grantDate} onChange={e => setForm(p => ({...p, grantDate: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Vesting Start</label><input type="date" value={form.vestingStart} onChange={e => setForm(p => ({...p, vestingStart: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Vesting End</label><input type="date" value={form.vestingEnd} onChange={e => setForm(p => ({...p, vestingEnd: e.target.value}))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Employee Name *</label><input value={form.employeeName} onChange={e => setForm(p => ({ ...p, employeeName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Options *</label><input type="number" min={1} value={form.options} onChange={e => setForm(p => ({ ...p, options: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Exercise Price (paise) *</label><input type="number" min={0} value={form.exercisePrice} onChange={e => setForm(p => ({ ...p, exercisePrice: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="100000 = ₹1000" /></div>
+              <div><label className="block text-sm font-medium mb-1">Grant Date *</label><input type="date" value={form.grantDate} onChange={e => setForm(p => ({ ...p, grantDate: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div><label className="block text-sm font-medium mb-1">Vesting Start</label><input type="date" value={form.vestingStart} onChange={e => setForm(p => ({ ...p, vestingStart: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Vesting End</label><input type="date" value={form.vestingEnd} onChange={e => setForm(p => ({ ...p, vestingEnd: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
               <button onClick={() => setShowGrant(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
-              <button disabled={!form.employeeName || !form.grantDate || grantEsop.isPending} onClick={() => grantEsop.mutate({ ...form, vestingStart: form.vestingStart || undefined, vestingEnd: form.vestingEnd || undefined })} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{grantEsop.isPending ? "Creating..." : "Create Grant"}</button>
+              <button disabled={!form.employeeName || !form.grantDate || grantEsop.isPending} onClick={handleCreateGrant} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{grantEsop.isPending ? "Creating..." : "Create Grant"}</button>
             </div>
           </div>
         </div>
@@ -662,7 +814,7 @@ function CalendarTab() {
   });
 
   type FilingRow = { status: string; dueDate: string | Date; id: string; title: string; formNumber?: string; authority?: string; fy?: string | null; eventName?: string };
-  
+
   const allEvents = [
     ...filings.map(f => ({ ...f, type: "filing" })),
     ...calendar.map(c => ({ ...c, title: c.eventName, type: "calendar" }))
@@ -692,14 +844,14 @@ function CalendarTab() {
         <PermissionGate module="secretarial" action="write">
           <div className="ml-4 flex flex-col gap-2">
             <div className="flex items-center border border-border rounded-lg overflow-hidden">
-              <select 
-                value={selectedFY} 
+              <select
+                value={selectedFY}
                 onChange={e => setSelectedFY(e.target.value)}
                 className="bg-muted/30 text-[10px] px-2 h-8 border-r border-border focus:outline-none"
               >
-                {["2023-24","2024-25","2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
+                {["2023-24", "2024-25", "2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
               </select>
-              <button 
+              <button
                 onClick={() => seedCalendar.mutate({ financialYear: selectedFY })}
                 disabled={seedCalendar.isPending}
                 className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-medium h-8 hover:bg-indigo-100 disabled:opacity-50 flex items-center gap-1"
@@ -722,7 +874,7 @@ function CalendarTab() {
               <div key={f.id} className="flex items-center justify-between p-4 hover:bg-muted/30">
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold ${f.status === "overdue" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
-                    {daysLeft < 0 ? "OD" : daysLeft < 7 ? `${daysLeft}d` : new Date(f.dueDate).toLocaleDateString("en", {month:"short", day:"2-digit"})}
+                    {daysLeft < 0 ? "OD" : daysLeft < 7 ? `${daysLeft}d` : new Date(f.dueDate).toLocaleDateString("en", { month: "short", day: "2-digit" })}
                   </div>
                   <div>
                     <p className="font-medium text-sm">{f.title}</p>
@@ -783,11 +935,10 @@ function SecretarialContent() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === t.key
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-              }`}
+                }`}
             >
               <t.icon className="w-4 h-4" />
               {t.label}
@@ -796,12 +947,12 @@ function SecretarialContent() {
         </nav>
       </div>
 
-      {activeTab === "overview"  && <OverviewTab />}
-      {activeTab === "board"     && <BoardTab />}
-      {activeTab === "filings"   && <FilingsTab />}
-      {activeTab === "share"     && <ShareCapitalTab />}
-      {activeTab === "esop"      && <EsopTab />}
-      {activeTab === "calendar"  && <CalendarTab />}
+      {activeTab === "overview" && <OverviewTab />}
+      {activeTab === "board" && <BoardTab />}
+      {activeTab === "filings" && <FilingsTab />}
+      {activeTab === "share" && <ShareCapitalTab />}
+      {activeTab === "esop" && <EsopTab />}
+      {activeTab === "calendar" && <CalendarTab />}
     </div>
   );
 }

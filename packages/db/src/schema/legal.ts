@@ -162,6 +162,13 @@ export const investigations = pgTable(
     investigatorId: uuid("investigator_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    reporterId: uuid("reporter_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    priority: text("priority").notNull().default("medium"),
+    linkedMatterId: uuid("linked_matter_id").references(() => legalMatters.id, {
+      onDelete: "set null",
+    }),
     findings: text("findings"),
     recommendation: text("recommendation"),
     closedAt: timestamp("closed_at", { withTimezone: true }),

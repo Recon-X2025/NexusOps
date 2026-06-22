@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -31,14 +31,19 @@ export default function KnowledgeArticlePage() {
     mergeTrpcQueryOpts("legal.listMatters", { enabled: editing } as any)
   );
 
-  const { data: article, isLoading, isError } = trpc.knowledge.get.useQuery({ id }, mergeTrpcQueryOpts("knowledge.get", {
-      onSuccess: (a: any) => {
-        if (!editTitle) setEditTitle(a.title);
-        if (!editContent) setEditContent(a.content ?? "");
-        if (!editTags) setEditTags((a.tags as string[]).join(", "));
-        if (!editMatterId) setEditMatterId(a.matterId ?? "");
-      },
-    } as any,));
+  const { data: article, isLoading, isError } = trpc.knowledge.get.useQuery(
+    { id },
+    mergeTrpcQueryOpts("knowledge.get")
+  );
+
+  useEffect(() => {
+    if (article && editing && !editTitle) {
+      setEditTitle(article.title);
+      setEditContent(article.content ?? "");
+      setEditTags((article.tags as string[]).join(", "));
+      setEditMatterId(article.matterId ?? "");
+    }
+  }, [article, editing, editTitle]);
 
   const updateMutation = trpc.knowledge.update.useMutation({
     onSuccess: () => {

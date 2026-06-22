@@ -164,9 +164,10 @@ export default function LegalPage() {
 
   const { data: mattersData, isLoading: loadingMatters, refetch: refetchMatters } = trpc.legal.listMatters.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listMatters", { refetchOnWindowFocus: false },));
   const { data: legalRequestsData, isLoading: loadingRequests } = trpc.legal.listRequests.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listRequests", { refetchOnWindowFocus: false },));
-  const { data: investigationsData, isLoading: loadingInvestigations } = trpc.legal.listInvestigations.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listInvestigations", { refetchOnWindowFocus: false },));
+  const { data: investigationsData, isLoading: loadingInvestigations, refetch: refetchInvestigations } = trpc.legal.listInvestigations.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listInvestigations", { refetchOnWindowFocus: false },));
   const { data: contractsData, isLoading: loadingContracts } = trpc.contracts.list.useQuery({ limit: 20 }, mergeTrpcQueryOpts("contracts.list", { refetchOnWindowFocus: false },));
   const { data: kbData, isLoading: loadingKb, refetch: refetchKb } = trpc.knowledge.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("knowledge.list", { refetchOnWindowFocus: false },));
+  const { data: usersData } = trpc.auth.listUsers.useQuery(undefined, mergeTrpcQueryOpts("auth.listUsers", { refetchOnWindowFocus: false } as any));
 
   const [selectedMatterForDetail, setSelectedMatterForDetail] = useState<any | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, { name: string; url: string }>>({});
@@ -207,6 +208,22 @@ export default function LegalPage() {
   const createRequest = trpc.legal.createRequest.useMutation({
     onSuccess: () => { toast.success("Legal request submitted"); setShowNewRequest(false); setRequestForm({ title: "", description: "", type: "advisory", priority: "medium" }); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create request"),
+  });
+
+  const [showNewInvestigation, setShowNewInvestigation] = useState(false);
+  const [editingInvestigation, setEditingInvestigation] = useState<string | null>(null);
+  const [investigationForm, setInvestigationForm] = useState({ title: "", type: "ethics", anonymousReport: false, linkedMatterId: "", reporterId: "", investigatorId: "", priority: "medium" });
+  const createInvestigation = trpc.legal.createInvestigation.useMutation({
+    onSuccess: () => { toast.success("Investigation created"); setShowNewInvestigation(false); setInvestigationForm({ title: "", type: "ethics", anonymousReport: false, linkedMatterId: "", reporterId: "", investigatorId: "", priority: "medium" }); refetchInvestigations(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create investigation"),
+  });
+  const updateInvestigation = trpc.legal.updateInvestigation.useMutation({
+    onSuccess: () => { toast.success("Investigation updated"); setShowNewInvestigation(false); setEditingInvestigation(null); setInvestigationForm({ title: "", type: "ethics", anonymousReport: false, linkedMatterId: "", reporterId: "", investigatorId: "", priority: "medium" }); refetchInvestigations(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update investigation"),
+  });
+  const deleteInvestigation = trpc.legal.deleteInvestigation.useMutation({
+    onSuccess: () => { toast.success("Investigation deleted"); refetchInvestigations(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to delete investigation"),
   });
 
   const updateKbArticle = trpc.knowledge.update.useMutation({
@@ -265,15 +282,15 @@ export default function LegalPage() {
                 onClick={() => router.push("/app/knowledge")}
                 className="flex items-center gap-1 px-3 py-1 bg-[#10B981] text-white text-[11px] rounded hover:bg-[#10B981]/90"
               >
-                <BookOpen className="w-3 h-3" /> Knowledge Base
+                <Plus className="w-3 h-3" /> Knowledge Base
               </button>
             </PermissionGate>
             <PermissionGate module="legal" action="write">
               <button
-                // onClick={() => router.push("/app/investigation")}
+                onClick={() => setShowNewInvestigation(true)}
                 className="flex items-center gap-1 px-3 py-1 bg-[#F59E0B] text-white text-[11px] rounded hover:bg-[#F59E0B]/90"
               >
-                <BookOpen className="w-3 h-3" /> Investigation
+                <Plus className="w-3 h-3" /> Investigation
               </button>
             </PermissionGate>
             <PermissionGate module="legal" action="write">
@@ -281,7 +298,7 @@ export default function LegalPage() {
                 // onClick={() => router.push("/app/contract")}
                 className="flex items-center gap-1 px-3 py-1 bg-[#06B6D4] text-white text-[11px] rounded hover:bg-[#06B6D4]/90"
               >
-                <BookOpen className="w-3 h-3" /> Contract Review
+                <Plus className="w-3 h-3" /> Contract Review
               </button>
             </PermissionGate>
           </div>
@@ -584,6 +601,7 @@ export default function LegalPage() {
                     <th className="w-4" />
                     <th>Inv. #</th>
                     <th>Type</th>
+                    <th>Matter ID</th>
                     <th>Summary</th>
                     <th>Anonymous</th>
                     <th>Reporter</th>
@@ -592,6 +610,7 @@ export default function LegalPage() {
                     <th>Priority</th>
                     <th>Status</th>
                     <th>Outcome</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -603,17 +622,34 @@ export default function LegalPage() {
                     const cfg = INV_TYPE_CFG[inv.type as InvestigationType] ?? { label: inv.type, color: "text-muted-foreground bg-muted" };
                     return (
                       <tr key={inv.id} className={inv.status === "closed" ? "opacity-50" : ""}>
-                        <td className="p-0"><div className="priority-bar bg-muted" /></td>
+                        <td className="p-0"><div className={`priority-bar ${PRIORITY_BAR[inv.priority ?? "medium"] ?? "bg-muted"}`} /></td>
                         <td className="font-mono text-[11px] text-primary">{investigationDisplayId(inv)}</td>
                         <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
+                        <td className="font-mono text-[11px] text-muted-foreground">{inv.linkedMatterId ? matters.find((m: any) => m.id === inv.linkedMatterId)?.matterNumber || "—" : "—"}</td>
                         <td className="font-medium text-foreground max-w-xs truncate">{inv.title}</td>
                         <td className="text-center">{inv.anonymousReport ? <span className="status-badge text-muted-foreground bg-muted text-[10px]">Anonymous</span> : "—"}</td>
-                        <td className="text-muted-foreground">{inv.anonymousReport ? "Withheld" : "—"}</td>
-                        <td className="text-muted-foreground">{inv.investigatorId ?? "—"}</td>
+                        <td className="text-muted-foreground">{inv.anonymousReport ? "Withheld" : (usersData?.find((u: any) => u.id === inv.reporterId)?.name || "—")}</td>
+                        <td className="text-muted-foreground">{usersData?.find((u: any) => u.id === inv.investigatorId)?.name || "—"}</td>
                         <td className="text-[11px] text-muted-foreground/70">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}</td>
-                        <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">—</span></td>
+                        <td><span className={`status-badge capitalize ${PRIORITY_BAR[inv.priority ?? "medium"] === "bg-red-600" ? "text-red-700 bg-red-100" : PRIORITY_BAR[inv.priority ?? "medium"] === "bg-orange-500" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{inv.priority ?? "—"}</span></td>
                         <td><span className={`status-badge capitalize ${INVESTIGATION_STATUS_CFG[inv.status as InvestigationStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(inv.status))}</span></td>
                         <td className="text-[11px] text-muted-foreground max-w-xs truncate">{inv.findings ?? inv.recommendation ?? "—"}</td>
+                        <td className="space-x-2 whitespace-nowrap">
+                          {inv.status !== "closed" && (
+                            <button onClick={() => {
+                              setInvestigationForm({
+                                title: inv.title, type: inv.type, anonymousReport: inv.anonymousReport, linkedMatterId: inv.linkedMatterId || "", reporterId: inv.reporterId || "", investigatorId: inv.investigatorId || "", priority: inv.priority || "medium"
+                              });
+                              setEditingInvestigation(inv.id);
+                              setShowNewInvestigation(true);
+                            }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                          )}
+                          <button onClick={() => {
+                            if (confirm("Are you sure you want to delete this investigation?")) {
+                              deleteInvestigation.mutate({ id: inv.id });
+                            }
+                          }} className="text-xs text-red-600 hover:underline">Delete</button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -689,7 +725,7 @@ export default function LegalPage() {
                       </span>
                     </td>
                     <td>
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-2 items-center">
                         <button
                           onClick={() => router.push(`/app/knowledge/${kb.id}`)}
                           className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
@@ -699,6 +735,29 @@ export default function LegalPage() {
                             onClick={() => router.push(`/app/knowledge/${kb.id}?edit=1`)}
                             className="text-[11px] text-muted-foreground/70 hover:underline"
                           >Edit</button>
+                        </PermissionGate>
+                        <PermissionGate module="knowledge" action="read">
+                          <button
+                            onClick={() => {
+                              const blob = new Blob([kb.content ?? ""], { type: "text/markdown" });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `${kb.title}.md`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                              toast.success("Article exported to markdown");
+                            }}
+                            className="text-[11px] text-muted-foreground/70 hover:underline"
+                          >Export</button>
+                        </PermissionGate>
+                        <PermissionGate module="knowledge" action="write">
+                          <button
+                            onClick={() => {
+                              toast.info("Archive functionality coming soon");
+                            }}
+                            className="text-[11px] text-red-600/70 hover:text-red-600 hover:underline"
+                          >Archive</button>
                         </PermissionGate>
                       </div>
                     </td>
@@ -810,6 +869,103 @@ export default function LegalPage() {
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >
                 {createRequest.isPending ? "Submitting…" : "Submit Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewInvestigation && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">{editingInvestigation ? "Edit Investigation" : "New Investigation"}</h2>
+              <button onClick={() => { setShowNewInvestigation(false); setEditingInvestigation(null); }}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Summary / Title *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Code of Conduct Violation" value={investigationForm.title} onChange={(e) => setInvestigationForm((f) => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+                  <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={investigationForm.type} onChange={(e) => setInvestigationForm((f) => ({ ...f, type: e.target.value }))}>
+                    {["ethics", "harassment", "fraud", "data_breach", "whistleblower", "discrimination"].map((t) => (
+                      <option key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Linked Matter *</label>
+                  <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={investigationForm.linkedMatterId} onChange={(e) => setInvestigationForm((f) => ({ ...f, linkedMatterId: e.target.value }))}>
+                    <option value="">None</option>
+                    {matters?.map((m: any) => (
+                      <option key={m.id} value={m.id}>{m.matterNumber} - {m.title}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Reporter *</label>
+                  <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={investigationForm.reporterId} onChange={(e) => setInvestigationForm((f) => ({ ...f, reporterId: e.target.value }))} disabled={investigationForm.anonymousReport}>
+                    <option value="">None</option>
+                    {usersData?.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Assigned To *</label>
+                  <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={investigationForm.investigatorId} onChange={(e) => setInvestigationForm((f) => ({ ...f, investigatorId: e.target.value }))}>
+                    <option value="">Unassigned</option>
+                    {usersData?.map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Priority *</label>
+                  <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={investigationForm.priority} onChange={(e) => setInvestigationForm((f) => ({ ...f, priority: e.target.value }))}>
+                    {["low", "medium", "high", "critical"].map((t) => (
+                      <option key={t} value={t}>{t.replace(/\b\w/g, (c) => c.toUpperCase())}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input type="checkbox" id="anonReport" className="rounded border-border" checked={investigationForm.anonymousReport} onChange={(e) => setInvestigationForm((f) => ({ ...f, anonymousReport: e.target.checked, reporterId: e.target.checked ? "" : f.reporterId }))} />
+                <label htmlFor="anonReport" className="text-[12px] text-muted-foreground">Anonymous Report</label>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setShowNewInvestigation(false); setEditingInvestigation(null); }} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => {
+                  if (!investigationForm.title.trim()) { toast.error("Investigation summary is required"); return; }
+                  if (!investigationForm.anonymousReport && !investigationForm.reporterId) { toast.error("Reporter is required for non-anonymous reports"); return; }
+                  
+                  const payload = { 
+                    title: investigationForm.title.trim(), 
+                    type: investigationForm.type as any, 
+                    anonymousReport: investigationForm.anonymousReport, 
+                    linkedMatterId: investigationForm.linkedMatterId || undefined,
+                    reporterId: investigationForm.reporterId || undefined,
+                    investigatorId: investigationForm.investigatorId || undefined,
+                    priority: investigationForm.priority
+                  };
+
+                  if (editingInvestigation) {
+                    updateInvestigation.mutate({ id: editingInvestigation, ...payload });
+                  } else {
+                    createInvestigation.mutate(payload);
+                  }
+                }}
+                disabled={createInvestigation.isPending || updateInvestigation.isPending}
+                className="flex-1 px-3 py-1.5 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+              >
+                {createInvestigation.isPending || updateInvestigation.isPending ? "Saving…" : (editingInvestigation ? "Save Changes" : "Create Investigation")}
               </button>
             </div>
           </div>

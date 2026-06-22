@@ -84,6 +84,27 @@ export const secretarialRouter = router({
           .where(and(eq(boardMeetings.id, id), eq(boardMeetings.orgId, org!.id))).returning();
         return row;
       }),
+
+    update: permissionProcedure("secretarial", "write")
+      .input(z.object({
+        id:           z.string().uuid(),
+        type:         z.enum(["board","audit_committee","nomination_committee","compensation_committee","agm","egm","creditors"]).optional(),
+        title:        z.string().min(2).optional(),
+        scheduledAt:  z.string().optional(),
+        duration:     z.number().optional(),
+        venue:        z.string().optional(),
+        videoLink:    z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, scheduledAt, ...rest } = input;
+        const updates: any = { ...rest, updatedAt: new Date() };
+        if (scheduledAt) updates.scheduledAt = new Date(scheduledAt);
+        const [row] = await db.update(boardMeetings)
+          .set(updates)
+          .where(and(eq(boardMeetings.id, id), eq(boardMeetings.orgId, org!.id))).returning();
+        return row;
+      }),
   }),
 
   // ── Resolutions ─────────────────────────────────────────────────────────────
@@ -104,7 +125,7 @@ export const secretarialRouter = router({
         meetingId: z.string().uuid().optional(),
         type:      z.enum(["ordinary","special","board","circular"]).default("board"),
         title:     z.string().min(2),
-        body:      z.string().min(5),
+        body:      z.string().min(1),
         tags:      z.array(z.string()).default([]),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -182,6 +203,37 @@ export const secretarialRouter = router({
         const [row] = await db.update(secretarialFilings)
           .set({ status: "filed", filedAt: new Date(), srn: input.srn, notes: input.notes, updatedAt: new Date() })
           .where(and(eq(secretarialFilings.id, input.id), eq(secretarialFilings.orgId, org!.id))).returning();
+
+        if (row && row.formNumber === "DIR-3 KYC" && row.title.startsWith("Director KYC: ")) {
+          const name = row.title.replace("Director KYC: ", "");
+          await db.update(companyDirectors)
+            .set({ kyc: "filed", updatedAt: new Date() })
+            .where(and(eq(companyDirectors.name, name), eq(companyDirectors.orgId, org!.id)));
+        }
+
+        return row;
+      }),
+
+    update: permissionProcedure("secretarial", "write")
+      .input(z.object({ id: z.string().uuid(), formNumber: z.string().optional(), title: z.string().optional(), authority: z.string().optional(), category: z.string().optional(), dueDate: z.string().optional(), fy: z.string().optional(), fees: z.number().optional(), notes: z.string().optional(), status: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, dueDate, ...rest } = input;
+        
+        const updateData: any = { ...rest, updatedAt: new Date() };
+        if (dueDate) updateData.dueDate = new Date(dueDate);
+
+        const [row] = await db.update(secretarialFilings)
+          .set(updateData)
+          .where(and(eq(secretarialFilings.id, id), eq(secretarialFilings.orgId, org!.id))).returning();
+
+        if (row && row.status === "filed" && row.formNumber === "DIR-3 KYC" && row.title.startsWith("Director KYC: ")) {
+          const name = row.title.replace("Director KYC: ", "");
+          await db.update(companyDirectors)
+            .set({ kyc: "filed", updatedAt: new Date() })
+            .where(and(eq(companyDirectors.name, name), eq(companyDirectors.orgId, org!.id)));
+        }
+
         return row;
       }),
 
@@ -379,6 +431,20 @@ export const secretarialRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+
+        const grantDate = new Date(input.grantDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const grantDateCompare = new Date(grantDate);
+        grantDateCompare.setHours(0, 0, 0, 0);
+
+        if (grantDateCompare > today) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Grant date cannot be in the future",
+          });
+        }
+
         const [last] = await db.select({ n: count() }).from(esopGrants).where(eq(esopGrants.orgId, org!.id));
         const num = `ESOP-${String((last?.n ?? 0) + 1).padStart(4, "0")}`;
         const [row] = await db.insert(esopGrants).values({
@@ -386,7 +452,7 @@ export const secretarialRouter = router({
           orgId: org!.id,
           event: "grant",
           grantNumber: num,
-          grantDate: new Date(input.grantDate),
+          grantDate: grantDate,
           vestingStart: input.vestingStart ? new Date(input.vestingStart) : undefined,
           vestingEnd: input.vestingEnd ? new Date(input.vestingEnd) : undefined,
         }).returning();
@@ -424,8 +490,24 @@ export const secretarialRouter = router({
           ...input,
           orgId: org!.id,
           isActive: true,
+          kyc: "pending",
           appointedAt: input.appointedAt ? new Date(input.appointedAt) : undefined,
         }).returning();
+
+        const year = new Date().getFullYear();
+        const fy = `${year}-${(year + 1).toString().slice(-2)}`;
+        await db.insert(secretarialFilings).values({
+          orgId: org!.id,
+          formNumber: "DIR-3 KYC",
+          title: `Director KYC: ${input.name}`,
+          authority: "MCA (ROC)",
+          category: "kyc",
+          dueDate: new Date(year, 8, 30),
+          fy,
+          status: "upcoming",
+          notes: `Automated filing created for newly added director: ${input.name} (DIN: ${input.din})`,
+        });
+
         return row;
       }),
 

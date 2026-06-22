@@ -235,10 +235,40 @@ export const legalRouter = router({
       title: z.string(),
       type: z.enum(["ethics", "harassment", "fraud", "data_breach", "whistleblower", "discrimination"]).default("ethics"),
       anonymousReport: z.boolean().default(false),
+      linkedMatterId: z.string().uuid().optional(),
+      reporterId: z.string().uuid().optional(),
+      investigatorId: z.string().uuid().optional(),
+      priority: z.string().default("medium"),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [inv] = await db.insert(investigations).values({ orgId: org!.id, ...input, investigatorId: user!.id }).returning();
+      const { investigatorId, ...rest } = input;
+      const [inv] = await db.insert(investigations).values({ 
+        orgId: org!.id, 
+        ...rest, 
+        investigatorId: investigatorId ?? user!.id 
+      }).returning();
+      return inv;
+    }),
+
+  updateInvestigation: permissionProcedure("legal", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      type: z.enum(["ethics", "harassment", "fraud", "data_breach", "whistleblower", "discrimination"]).optional(),
+      anonymousReport: z.boolean().optional(),
+      linkedMatterId: z.string().uuid().optional(),
+      reporterId: z.string().uuid().optional(),
+      investigatorId: z.string().uuid().optional(),
+      priority: z.string().optional(),
+      status: z.enum(["reported", "under_review", "investigating", "closed"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...rest } = input;
+      const [inv] = await db.update(investigations)
+        .set({ ...rest, updatedAt: new Date() })
+        .where(and(eq(investigations.id, id), eq(investigations.orgId, org!.id))).returning();
       return inv;
     }),
 
@@ -248,6 +278,15 @@ export const legalRouter = router({
       const { db, org } = ctx;
       const [inv] = await db.update(investigations)
         .set({ status: "closed", findings: input.findings, recommendation: input.recommendation, closedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(investigations.id, input.id), eq(investigations.orgId, org!.id))).returning();
+      return inv;
+    }),
+
+  deleteInvestigation: permissionProcedure("legal", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [inv] = await db.delete(investigations)
         .where(and(eq(investigations.id, input.id), eq(investigations.orgId, org!.id))).returning();
       return inv;
     }),
