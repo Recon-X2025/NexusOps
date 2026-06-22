@@ -1,0 +1,53 @@
+🌱 Seeding test database for E2E tests...
+
+> @nexusops/db@0.1.0 db:migrate /Users/kathikiyer/Documents/NexusOps/packages/db
+> drizzle-kit migrate
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/Users/kathikiyer/Documents/NexusOps/packages/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] applying migrations...[2K[1G[✓] migrations applied successfully!
+> @nexusops/db@0.1.0 db:seed /Users/kathikiyer/Documents/NexusOps/packages/db
+> tsx src/seed.ts
+
+🌱 Seeding NexusOps database...
+ℹ️  Org already exists: Coheron Demo (98414620-fc64-4eb9-80b0-183e94e07e0f)
+✅ Users: 9 (passwords updated)
+ℹ️  Skipping module data seed (org already exists). Run against a fresh DB to re-seed everything.
+🌱 Seed complete (password update only).
+✅ Seed complete
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium] › e2e/admin.spec.ts:25:7 › Admin (Seq 10 C4) › P1 admin: /app/admin loads (16.0s)
+
+
+  1) [chromium] › e2e/admin.spec.ts:25:7 › Admin (Seq 10 C4) › P1 admin: /app/admin loads ──────────
+
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+       7 |   await page.fill('[data-testid="login-password"]', password);
+       8 |   await page.click('[data-testid="login-submit"]');
+    >  9 |   await page.waitForURL(/app\/dashboard/, { timeout: 15_000 });
+         |              ^
+      10 | }
+      11 |
+      12 | async function expectNoRuntimeCrash(page: Page, path: string) {
+        at loginAs (/Users/kathikiyer/Documents/NexusOps/e2e/admin.spec.ts:9:14)
+        at /Users/kathikiyer/Documents/NexusOps/e2e/admin.spec.ts:26:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/admin-Admin-Seq-10-C4-P1-admin-app-admin-loads-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/admin-Admin-Seq-10-C4-P1-admin-app-admin-loads-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/admin-Admin-Seq-10-C4-P1-admin-app-admin-loads-chromium/error-context.md
+
+  1 failed
+    [chromium] › e2e/admin.spec.ts:25:7 › Admin (Seq 10 C4) › P1 admin: /app/admin loads ───────────

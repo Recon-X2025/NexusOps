@@ -1,0 +1,6 @@
+export default {
+  index: "Overview",
+  "docker-compose": "Docker Compose",
+  kubernetes: "Kubernetes",
+  "backup-restore": "Backup & Restore",
+};

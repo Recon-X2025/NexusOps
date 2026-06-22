@@ -1,0 +1,155 @@
+# Integrations
+
+NexusOps can push and pull data to and from popular enterprise tools. All integrations are configured under **Admin → Integrations**.
+
+## Slack
+
+Send ticket notifications, SLA breach alerts, and assignment updates directly to Slack channels.
+
+### Setup
+
+1. In your Slack workspace, go to **Apps → Manage → Build → Create New App → From Scratch**.
+2. Under **Incoming Webhooks**, activate and create a webhook for your chosen channel.
+3. Copy the webhook URL (format: `https://hooks.slack.com/services/T.../B.../...`).
+4. In NexusOps, navigate to **Admin → Integrations → Slack**.
+5. Paste the webhook URL and click **Test**. You should see a test message in your Slack channel.
+6. Configure which events trigger notifications:
+   - Ticket created
+   - Ticket assigned to team
+   - SLA breach warning (configurable threshold, default 80%)
+   - Ticket resolved
+
+### Per-Team Channels
+
+You can configure different Slack channels per team. Go to **Admin → Teams → [Team] → Notifications → Slack Channel** and enter a separate webhook URL or channel name.
+
+## Microsoft Teams
+
+Similar to Slack, NexusOps can post adaptive card messages to Microsoft Teams channels.
+
+### Setup
+
+1. In Teams, navigate to the channel where you want notifications.
+2. Click **⋯ → Connectors → Incoming Webhook → Configure**.
+3. Name the webhook "NexusOps" and upload the NexusOps logo if desired.
+4. Copy the webhook URL.
+5. In NexusOps, go to **Admin → Integrations → Microsoft Teams**.
+6. Paste the webhook URL and click **Test**.
+
+Teams notifications use Adaptive Cards and include ticket number, title, priority, and a **View Ticket** deep-link button.
+
+## Jira Bidirectional Sync
+
+NexusOps can sync tickets with Jira issues in both directions — useful for bridging IT support with engineering teams.
+
+### Prerequisites
+
+- A Jira Cloud or Jira Server instance
+- A Jira user account with **Create Issue** and **Edit Issue** permissions in the target project
+- A Jira API token (Cloud) or Personal Access Token (Server)
+
+### Setup
+
+1. Generate a Jira API token at [id.atlassian.com/manage/api-tokens](https://id.atlassian.com/manage/api-tokens).
+2. In NexusOps, navigate to **Admin → Integrations → Jira**.
+3. Fill in the connection details:
+
+| Field | Example |
+|-------|---------|
+| **Jira Base URL** | `https://yourcompany.atlassian.net` |
+| **API Token** | `ATATT3xFfGF0...` |
+| **Email / Username** | `jira-user@yourcompany.com` |
+| **Project Key** | `OPS` |
+
+4. Click **Test Connection**.
+5. Configure sync direction:
+   - **NexusOps → Jira**: Creates a Jira issue when a NexusOps ticket is created with a configured category.
+   - **Jira → NexusOps**: Webhooks from Jira update the linked NexusOps ticket status.
+6. Map NexusOps priority to Jira priority and NexusOps status to Jira workflow transitions.
+
+### Field Mapping
+
+| NexusOps Field | Jira Field |
+|----------------|-----------|
+| Title | Summary |
+| Description | Description |
+| Priority | Priority |
+| Assignee email | Assignee |
+| Category | Label |
+| Ticket URL | Remote link |
+
+## SAP REST Adapter
+
+NexusOps can create and retrieve service entries from SAP systems via the SAP REST API (SAP Gateway or SAP BTP Integration Suite).
+
+### Setup
+
+1. Obtain the following from your SAP Basis team:
+   - SAP system hostname and port
+   - Service path (e.g., `/sap/opu/odata/sap/ZNX_INCIDENT_SRV`)
+   - Credentials (basic auth or OAuth2 client credentials)
+   - System ID (SID, e.g., `PRD`)
+
+2. Navigate to **Admin → Integrations → SAP**.
+3. Enter the connection details:
+
+| Field | Description |
+|-------|-------------|
+| **System ID** | SAP System ID (SID) |
+| **Base URL** | Full URL to the SAP Gateway endpoint |
+| **Auth Type** | `Basic` or `OAuth2` |
+| **Username / Client ID** | SAP user or OAuth2 client ID |
+| **Password / Client Secret** | SAP password or OAuth2 secret |
+
+4. Click **Test Connection**. NexusOps will perform a `GET $metadata` request.
+5. Select which NexusOps ticket categories trigger SAP notifications.
+
+## Outgoing Webhooks
+
+For custom integrations, NexusOps supports generic outgoing webhooks. Configure webhooks under **Admin → Integrations → Webhooks → New Webhook**.
+
+### Configuration
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Display name for this webhook |
+| **URL** | Target URL that will receive POST requests |
+| **Secret** | Optional HMAC-SHA256 signing secret (sent in `X-NexusOps-Signature` header) |
+| **Events** | Select which events trigger this webhook |
+| **Active** | Enable or disable without deleting |
+
+### Payload Format
+
+```json
+{
+  "event": "ticket.created",
+  "timestamp": "2026-01-15T10:30:00Z",
+  "organization_id": "org_abc123",
+  "data": {
+    "id": "tkt_xyz789",
+    "title": "VPN connection dropping for remote users",
+    "priority": "high",
+    "status": "open",
+    "created_by": "user@example.com"
+  }
+}
+```
+
+### Verifying Signatures
+
+To verify the webhook signature in your receiver:
+
+```js
+import { createHmac } from "crypto";
+
+function verify(secret, body, signature) {
+  const expected = createHmac("sha256", secret)
+    .update(body)
+    .digest("hex");
+  return `sha256=${expected}` === signature;
+}
+```
+
+### Retries
+
+Failed deliveries (non-2xx responses or timeouts) are retried up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s). Delivery history is visible under **Admin → Integrations → Webhooks → [Webhook] → Delivery Log**.

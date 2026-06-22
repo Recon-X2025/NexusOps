@@ -1,0 +1,98 @@
+# Modules Overview
+
+NexusOps is composed of distinct, interconnected modules. Each module can be used independently, but they are designed to work together to provide a unified IT service management experience.
+
+## Module Summary
+
+| Module | Status | Description |
+|--------|--------|-------------|
+| [Tickets](/modules/tickets) | ✅ GA | ITSM ticketing — incidents, requests, problems, changes |
+| [Workflows](/modules/workflows) | ✅ GA | Visual no-code automation engine |
+| Assets | ✅ GA | Hardware and software asset lifecycle tracking |
+| CMDB | ✅ GA | Configuration item database with dependency graphs |
+| Knowledge Base | ✅ GA | Rich-text articles with versioning and AI search |
+| HR | ✅ GA | Employee onboarding, offboarding, and HR requests |
+| Procurement | ✅ GA | Purchase requests and vendor management |
+| Reports | ✅ GA | Dashboards, SLA metrics, and trend analysis |
+| AI Assistant | ✅ GA | Claude-powered chat and smart suggestions |
+| Change Management | 🔄 Beta | RFC process with CAB approvals and rollback tracking |
+| Problem Management | 🔄 Beta | Root cause analysis and known error database |
+
+## Tickets
+
+The Tickets module is the core of NexusOps. It supports the full ITIL ticket lifecycle for incidents, service requests, problems, and change requests. Key capabilities include SLA tracking, AI auto-classification, multi-channel inbound (email, web portal, API), and full audit history.
+
+[Read the Tickets module docs →](/modules/tickets)
+
+## Workflows
+
+The Workflows module provides a visual, node-based automation canvas. Administrators and power users can build automations that respond to ticket events, apply conditions, send notifications, create tasks, and integrate with external systems — all without writing code.
+
+[Read the Workflows module docs →](/modules/workflows)
+
+## Assets
+
+Track the full lifecycle of physical and virtual assets across your organization:
+
+- **Discovery**: Import assets via CSV, SNMP scan, or API
+- **Inventory**: Serial number, model, location, assigned user, purchase date, warranty expiry
+- **Relationships**: Link assets to CMDB configuration items and tickets
+- **Depreciation**: Track asset value over time using straight-line or declining balance methods
+- **Disposals**: Record decommissioning with disposal certificates
+
+## CMDB (Configuration Management Database)
+
+The CMDB stores **Configuration Items (CIs)** and the relationships between them. Use it to understand the impact of changes and trace the root cause of incidents.
+
+- CI types: Server, Virtual Machine, Database, Application, Network Device, Service
+- Relationship types: Depends On, Hosts, Connects To, Runs On, Owned By
+- **Impact graph**: Visualize upstream/downstream dependencies in an interactive graph view
+- **Change impact analysis**: When creating a change ticket, the CMDB shows potentially affected services
+
+## Knowledge Base
+
+A searchable library of articles, runbooks, and how-to guides:
+
+- Rich-text editor with Markdown support, code blocks, images, and tables
+- **Article versioning** — diff view between published versions
+- **AI search**: Semantic search powered by Claude embeddings finds articles even when keywords don't match exactly
+- **Suggested articles**: Automatically surfaced to agents when a new ticket is created, based on similarity
+- **Public portal**: Optionally expose articles to end users to reduce ticket volume
+
+## HR Module
+
+Automate common HR processes through integrated ticket workflows:
+
+- **Onboarding workflows**: Automatically create provisioning tasks (AD account, laptop, access badges) when a new employee is added
+- **Offboarding workflows**: Trigger deprovisioning tasks across all connected systems
+- **Leave requests**: Employees submit requests via the portal; managers approve directly in NexusOps
+- **Equipment requests**: Linked to the Procurement module for hardware approval and tracking
+
+## Procurement
+
+Manage the purchase lifecycle from request to receipt:
+
+- **Purchase Requests (PRs)**: Any user can submit a request; budget holders approve
+- **Vendors**: Maintain a vendor catalog with contact info and SLA terms
+- **PO tracking**: Generate purchase order numbers and track delivery status
+- **Budget controls**: Set department budgets; the system warns on overspend
+
+## Reports and Dashboards
+
+Get visibility into IT operations with built-in analytics:
+
+- **SLA compliance report**: Percentage of tickets meeting first response and resolution targets by team and time period
+- **Volume trends**: Ticket inflow/outflow by day, week, or month; identify seasonal patterns
+- **Agent performance**: Resolution rates, average handle time, CSAT scores
+- **Asset lifecycle**: Assets by age, warranty status, and total cost of ownership
+- **Custom dashboards**: Drag-and-drop widget builder; export to PDF or CSV
+
+## AI Assistant
+
+NexusOps integrates Anthropic Claude to add intelligence across the platform:
+
+- **Auto-classification**: Incoming tickets are automatically assigned a category, priority, and suggested team
+- **Ticket summarization**: Long ticket threads are summarized for fast agent context
+- **AI chat assistant**: Agents and end users can chat with an AI that has context of the current ticket and the knowledge base
+- **Smart suggestions**: As an agent types a response, Claude suggests completions based on similar resolved tickets
+- **Anomaly detection**: Flags unusual ticket spikes that may indicate an ongoing incident

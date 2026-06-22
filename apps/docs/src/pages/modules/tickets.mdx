@@ -1,0 +1,135 @@
+# Tickets
+
+The Tickets module is the operational heart of NexusOps. It handles the end-to-end lifecycle of every IT service interaction — from initial submission through resolution, closure, and post-incident review.
+
+## Ticket Types
+
+NexusOps supports four ITIL-aligned ticket types:
+
+| Type | Icon | Description |
+|------|------|-------------|
+| **Incident** | 🔴 | Unplanned interruption to a service or reduction in quality |
+| **Service Request** | 🔵 | Request for a standard, pre-approved service (e.g., software install) |
+| **Problem** | 🟠 | Root cause investigation for recurring incidents |
+| **Change Request** | 🟣 | Planned modification to infrastructure, software, or process |
+
+When creating a ticket, users select the type. The system applies the appropriate workflow and SLA policy automatically.
+
+## Ticket Lifecycle
+
+**Default status categories** (per organisation) shipped with seed and bootstrap:
+
+```
+open ⇄ in_progress ⇄ pending → resolved → closed
+  ↑                              ↑
+  └──────────────────────────────┘  (reopen paths per lifecycle rules)
+```
+
+| Category | Typical label | Description |
+|----------|---------------|-------------|
+| `open` | Open | Ticket submitted, not yet assigned or worked |
+| `in_progress` | In Progress | An agent is actively working the ticket |
+| `pending` | Pending | Awaiting customer, vendor, or other third party; **SLA clocks pause** |
+| `resolved` | Resolved | Agent has applied a fix; awaiting confirmation |
+| `closed` | Closed | Ticket complete; no further action required |
+
+Additional **named** statuses (e.g. “Cancelled”) can exist as long as their **category** maps to one of the five values above.
+
+### `pending` and SLA pause
+
+The **`pending`** category is a first-class enum value. Migration **`0013_ticket_status_pending_enum_and_rows`** extends the enum (via a safe type swap) and inserts one default “Pending” row per organisation.
+
+When a ticket’s status category is **`pending`**, the API **does not schedule** BullMQ SLA breach jobs, sets **`sla_paused_at`**, and **reschedules** SLA jobs when leaving `pending`, accumulating minutes into **`sla_pause_duration_mins`**.
+
+Operational notes: **`docs/ITSM_STAGING_RUNBOOK.md`** §7.
+
+### `cancelled` in UI copy
+
+Some screens mention **cancelled**; unless your org defines a status whose category maps to closed (or a dedicated workflow), treat “cancelled” as a **business label** aligned with your admin configuration.
+
+## Priorities
+
+| Priority | Response SLA | Resolution SLA | Use When |
+|----------|------------:|---------------:|----------|
+| **Critical** | 15 min | 4 hours | Business-critical system down; revenue or safety impact |
+| **High** | 1 hour | 8 hours | Significant degradation; key users affected |
+| **Medium** | 4 hours | 24 hours | Partial degradation; workaround available |
+| **Low** | 8 hours | 72 hours | Minor issue; no business impact |
+
+Priority can be set manually or auto-suggested by the AI classification engine.
+
+## Creating a Ticket
+
+**Via the Web Portal:**
+1. Click **New Ticket** in the top navigation.
+2. Select the ticket type.
+3. Fill in the title (required), description, category, and priority.
+4. Attach files if needed (up to 25 MB per file, up to 10 files).
+5. Click **Submit**.
+
+**Via Email:**
+Configure an inbound email address in **Admin → Channels → Email**. Emails to that address are automatically converted to tickets. The email subject becomes the ticket title; the body becomes the description.
+
+**Via API:**
+```bash
+curl -X POST https://your-instance/api/trpc/tickets.create \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"VPN down for remote users","type":"incident","priority":"high"}'
+```
+
+## SLA Tracking
+
+NexusOps tracks two SLA targets per ticket:
+
+1. **First Response Time (FRT)**: Time from ticket creation until the first agent response.
+2. **Resolution Time**: Time from ticket creation until status changes to `resolved`.
+
+**Targets** come from the ticket’s **priority** tier (response / resolve minutes) unless an **active `sla_policies`** row matches the ticket (`conditions` JSON: optional `ticketTypes`, `categoryIds`, or `{}` for match‑all). See the staging runbook §6 for the condition schema.
+
+SLA status is shown as a color-coded indicator on every ticket:
+
+- 🟢 **On track** — more than 20% of time remaining
+- 🟡 **At risk** — less than 20% of time remaining
+- 🔴 **Breached** — deadline passed
+
+When a ticket approaches SLA breach, NexusOps sends alerts via the configured notification channel (email, Slack, or Teams).
+
+## AI Auto-Classification
+
+When `ANTHROPIC_API_KEY` is configured, NexusOps uses Claude to analyze new ticket content and:
+
+- **Suggest a category** (e.g., "Network → VPN")
+- **Suggest a priority** based on urgency language in the description
+- **Suggest the best team** based on historical routing patterns
+- **Surface related Knowledge Base articles** that may help the agent resolve the ticket faster
+
+The AI suggestions appear as a collapsible panel on the ticket detail page. Agents can accept or override any suggestion with one click.
+
+## AI Summarization
+
+For long-running tickets with many comments and status changes, agents can click **Summarize** to generate a concise Claude-powered summary including:
+
+- What the user reported
+- Steps taken so far
+- Current status and blockers
+- Recommended next actions
+
+## Ticket Relations
+
+Tickets can be linked to each other from the ticket detail page (**Related** tab → **Linked tickets**): enter the **target ticket UUID**, choose a relation type, and **Add link**.
+
+| Relation type | Description |
+|---------------|-------------|
+| **related** | General association |
+| **duplicate** | Same underlying work as another ticket |
+| **blocks** | Source blocks the target |
+| **blocked_by** | Source is blocked by the target |
+
+Links are stored in `ticket_relations` and returned on `tickets.get` as `relations` (with direction **outgoing** / **incoming**).
+
+Formal **problem** and **change** records continue to live in their own modules; the Related tab also surfaces shortcuts to those lists where configured.
+
+## Custom Fields
+
+Administrators can add custom fields to tickets at **Admin → Custom Fields**. Supported field types: text, number, date, dropdown, checkbox, and multi-select. Custom fields can be made required for specific ticket types or categories.

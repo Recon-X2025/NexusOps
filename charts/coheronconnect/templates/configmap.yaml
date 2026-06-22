@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nexusops.fullname" . }}-config
+  labels:
+    {{- include "nexusops.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.env.NODE_ENV | quote }}
+  NEXT_TELEMETRY_DISABLED: {{ .Values.env.NEXT_TELEMETRY_DISABLED | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "nexusops.fullname" . }}-secret
+  labels:
+    {{- include "nexusops.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  AUTH_SECRET: {{ .Values.secret.authSecret | quote }}
+  ENCRYPTION_KEY: {{ .Values.secret.encryptionKey | quote }}
+  ANTHROPIC_API_KEY: {{ .Values.secret.anthropicApiKey | quote }}

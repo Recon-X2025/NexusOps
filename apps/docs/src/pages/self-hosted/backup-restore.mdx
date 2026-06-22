@@ -1,0 +1,195 @@
+# Backup & Restore
+
+Regular backups are critical for protecting your NexusOps data. This guide covers both the built-in CLI backup tool and manual approaches.
+
+## What to Back Up
+
+NexusOps stores data in two places:
+
+| Data Store | Contains | Backup Method |
+|------------|---------|--------------|
+| PostgreSQL | All application data (tickets, assets, users, workflows, etc.) | pg_dump / NexusOps CLI |
+| File storage | Ticket attachments, KB article images | Volume snapshot / S3 versioning |
+| Redis | Sessions and job queues (ephemeral) | Not required — reconstructed automatically |
+
+## Using the NexusOps Backup CLI
+
+NexusOps includes a `nexusops backup` CLI command that automates the full backup process.
+
+### Create a Backup
+
+```bash
+# Docker Compose
+docker compose exec api nexusops backup create --output /backups/nexusops-$(date +%Y%m%d).tar.gz
+
+# Kubernetes
+kubectl exec -it deployment/nexusops-api -n nexusops -- \
+  nexusops backup create --output /tmp/nexusops-$(date +%Y%m%d).tar.gz
+```
+
+The backup archive contains:
+
+- A `pg_dump` of the PostgreSQL database (in custom format)
+- All uploaded files from the local storage directory
+- A `manifest.json` with the backup timestamp, NexusOps version, and checksums
+
+### Backup Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--output` | `./nexusops-backup-{timestamp}.tar.gz` | Output archive path |
+| `--no-files` | false | Skip file attachment backup (database only) |
+| `--compress` | `gzip` | Compression algorithm: `gzip`, `zstd`, `none` |
+
+### Automated Backups
+
+Schedule daily backups with cron (Docker Compose example):
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add: run backup daily at 2 AM, keep last 30 days
+0 2 * * * docker compose -f /opt/nexusops/docker-compose.yml exec -T api \
+  nexusops backup create --output /opt/nexusops/backups/nexusops-$(date +\%Y\%m\%d).tar.gz \
+  && find /opt/nexusops/backups -name "nexusops-*.tar.gz" -mtime +30 -delete
+```
+
+For Kubernetes, use a CronJob:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nexusops-backup
+  namespace: nexusops
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: ghcr.io/recon-x2025/nexusops-api:latest
+            command: ["nexusops", "backup", "create", "--output", "/backups/nexusops-backup.tar.gz"]
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          restartPolicy: OnFailure
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: nexusops-backup-pvc
+```
+
+## Manual pg_dump Approach
+
+For more control, or when the CLI is unavailable, use `pg_dump` directly.
+
+### Dump the Database
+
+```bash
+# From the host (requires psql client tools)
+pg_dump \
+  --host=localhost \
+  --port=5432 \
+  --username=nexusops \
+  --dbname=nexusops \
+  --format=custom \
+  --file=nexusops-$(date +%Y%m%d-%H%M%S).dump
+
+# From a Docker container
+docker compose exec -T postgres \
+  pg_dump -U nexusops -Fc nexusops > nexusops-$(date +%Y%m%d).dump
+```
+
+The `--format=custom` (`-Fc`) format is compressed and supports parallel restore. Use `--format=plain` for a human-readable SQL file.
+
+### Back Up File Attachments
+
+```bash
+# Docker Compose — copy from volume to host
+docker compose cp api:/app/uploads ./uploads-backup-$(date +%Y%m%d)
+
+# Or use rsync for large attachment directories
+rsync -avz --progress nexusops-server:/opt/nexusops/uploads ./backups/uploads/
+```
+
+## Restoring from Backup
+
+### Using the NexusOps CLI
+
+```bash
+# Docker Compose
+docker compose exec api nexusops backup restore --input /backups/nexusops-20260115.tar.gz
+
+# Kubernetes
+kubectl cp nexusops-20260115.tar.gz nexusops/nexusops-api-pod:/tmp/
+kubectl exec -it deployment/nexusops-api -n nexusops -- \
+  nexusops backup restore --input /tmp/nexusops-20260115.tar.gz
+```
+
+The restore command will:
+1. Verify the archive checksum
+2. Drop and recreate the target database
+3. Restore the pg_dump
+4. Extract file attachments
+5. Run any pending migrations
+
+> **Warning**: Restore is destructive — it **replaces** the current database contents.
+
+### Manual pg_restore
+
+```bash
+# Stop the API to prevent writes during restore
+docker compose stop api
+
+# Drop and recreate the database
+docker compose exec -T postgres psql -U nexusops postgres \
+  -c "DROP DATABASE nexusops;" \
+  -c "CREATE DATABASE nexusops;"
+
+# Restore
+docker compose exec -T postgres \
+  pg_restore -U nexusops -d nexusops --no-owner < nexusops-20260115.dump
+
+# Restart the API
+docker compose start api
+
+# Run migrations (in case backup is from an older version)
+docker compose exec api pnpm --filter @nexusops/db db:migrate
+```
+
+## Disaster Recovery
+
+### Recovery Time Objective (RTO) and Recovery Point Objective (RPO)
+
+| Backup Frequency | RPO | Estimated RTO |
+|-----------------|-----|--------------|
+| Hourly | ~1 hour | 30–60 minutes |
+| Daily | ~24 hours | 30–60 minutes |
+| Continuous replication | Near-zero | Minutes |
+
+For near-zero RPO, configure **PostgreSQL streaming replication** to a standby server. NexusOps supports read-only replicas; set `DATABASE_REPLICA_URL` to route read queries to the replica.
+
+### Disaster Recovery Runbook
+
+1. **Provision a new server** with Docker, Docker Compose, and the NexusOps `docker-compose.yml`
+2. **Copy `.env`** from your secrets store (1Password, HashiCorp Vault, AWS Secrets Manager)
+3. **Start services**: `docker compose up -d postgres redis`
+4. **Restore the latest backup**: `docker compose exec api nexusops backup restore --input /backups/latest.tar.gz`
+5. **Start remaining services**: `docker compose up -d`
+6. **Verify health**: `curl http://localhost:3001/api/health`
+7. **Update DNS** to point to the new server
+
+### Backup Verification
+
+Periodically verify your backups are restorable by performing a test restore to a non-production environment. A backup that has never been tested is not a reliable backup.
+
+```bash
+# List contents of a backup archive without restoring
+docker compose exec api nexusops backup inspect --input /backups/nexusops-20260115.tar.gz
+```
+
+The `inspect` command outputs the manifest including creation timestamp, NexusOps version, database row counts, and file counts — without touching the live database.

@@ -1,0 +1,2028 @@
+import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { createHash, randomBytes } from "node:crypto";
+import { sendNotification } from "../services/notifications";
+import { runTicketBusinessRules } from "../services/business-rules-engine";
+import { checkDbUserPermission } from "../lib/rbac-db";
+import { getNextSeq } from "../lib/auto-number";
+import { resolveAssignment } from "../services/assignment";
+import { getRedis } from "../lib/redis";
+import { rateLimit } from "../lib/rate-limit";
+import { logInfo } from "../lib/logger";
+
+// ── Idempotency helpers ───────────────────────────────────────────────────────
+//
+// Response snapshots are stored in Redis under idempotent:{orgId}:{key} with a
+// 24-hour TTL.  On a duplicate request the exact same JSON is returned without
+// touching the DB — guaranteeing response identity even if the return shape
+// changes in future code.  The TTL matches typical client retry windows.
+
+const IDEMPOTENT_CACHE_TTL_SECS = 86_400; // 24 hours
+
+function idempotentRedisKey(orgId: string, key: string) {
+  return `idempotent:${orgId}:${key}`;
+}
+
+async function getCachedIdempotentResponse(
+  orgId: string,
+  key: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await getRedis().get(idempotentRedisKey(orgId, key));
+    if (!raw) return null;
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedIdempotentResponse(
+  orgId: string,
+  key: string,
+  ticket: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getRedis().setex(
+      idempotentRedisKey(orgId, key),
+      IDEMPOTENT_CACHE_TTL_SECS,
+      JSON.stringify(ticket),
+    );
+  } catch {
+    // Non-fatal — the DB still holds the idempotency_key column as the source of truth
+  }
+}
+import {
+  tickets,
+  ticketComments,
+  ticketWatchers,
+  ticketActivityLogs,
+  ticketStatuses,
+  ticketPriorities,
+  ticketCategories,
+  ticketRelations,
+  ticketHandoffs,
+  kbArticles,
+  ciItems,
+  ciRelationships,
+  knownErrors,
+  organizations,
+  users,
+  eq,
+  and,
+  or,
+  desc,
+  asc,
+  count,
+  isNull,
+  inArray,
+  notInArray,
+  ilike,
+  sql,
+} from "@coheronconnect/db";
+import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
+import { assertTicketTransition } from "../lib/ticket-lifecycle";
+import { resolveSlaPolicyMinutes } from "../services/ticket-sla-policy";
+import {
+  adjustSlaDeadlineForBusinessCalendar,
+  parseOrgSlaCalendarSettings,
+} from "../lib/sla-business-calendar";
+import {
+  CreateTicketSchema,
+  UpdateTicketSchema,
+  AddCommentSchema,
+  TicketListFiltersSchema,
+} from "@coheronconnect/types";
+import { getSlaPauseReasonsCatalog } from "../lib/org-settings";
+
+function generateTicketNumber(orgSlug: string, seq: number): string {
+  const prefix = orgSlug.toUpperCase().replace(/-/g, "").slice(0, 4);
+  return `${prefix}-${String(seq).padStart(4, "0")}`;
+}
+
+/**
+ * Derive a stable idempotency key from caller context when the client does not
+ * supply one.  The 5-second window means concurrent requests within the same
+ * window for the same org/user/title will share a key and deduplicate.
+ * Requests more than 5 s apart get different keys and are accepted normally.
+ */
+function readLinkedKbArticleIds(customFields: unknown): string[] {
+  if (!customFields || typeof customFields !== "object" || Array.isArray(customFields)) return [];
+  const raw = (customFields as Record<string, unknown>)["linkedKbArticleIds"];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x): x is string => typeof x === "string");
+}
+
+function kbSearchTermsFromTicketTitle(title: string): string[] {
+  return title
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length >= 3)
+    .slice(0, 5)
+    .map((w) => w.replace(/%/g, "").replace(/_/g, ""))
+    .filter((w) => w.length > 0);
+}
+
+function autoIdempotencyKey(orgId: string, userId: string, title: string): string {
+  const window5s = Math.floor(Date.now() / 5_000);
+  return createHash("sha256")
+    .update(`${orgId}:${userId}:${title.toLowerCase().trim().slice(0, 200)}:${window5s}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+/** War-room comms for major incidents — stored in `ticket_activity_logs` (US-ITSM-004). */
+const MAJOR_INCIDENT_COMMS_ACTION = "major_incident_comms";
+
+/**
+ * Drop the dashboard "Active Incidents" preview cache so that newly-created
+ * or recently-updated tickets (especially status changes such as resolve/close)
+ * are reflected on the next dashboard load instead of waiting for the 60-second
+ * TTL to expire.
+ */
+function bustDashboardIncidentsCache(orgId: string): void {
+  try {
+    const redis = getRedis();
+    redis.del(`tickets:dashboard:incidents:${orgId}:active=0`).catch(() => {});
+    redis.del(`tickets:dashboard:incidents:${orgId}:active=1`).catch(() => {});
+  } catch {
+    // Redis unavailable — cached entry will expire on its own
+  }
+}
+
+async function syncTicketSlaJobs(args: {
+  ticketId: string;
+  orgId: string;
+  ticketNumber: string;
+  assigneeId: string | null | undefined;
+  slaResponseDueAt: Date | null | undefined;
+  slaResolveDueAt: Date | null | undefined;
+  statusCategory: string | null | undefined;
+}): Promise<void> {
+  try {
+    const { getWorkflowService } = await import("../services/workflow.js");
+    const { slaQueue } = getWorkflowService();
+    const { scheduleSlaBreach, cancelSlaJobs } = await import("../workflows/ticketLifecycleWorkflow.js");
+    await cancelSlaJobs(slaQueue, args.ticketId);
+    // Pause SLA clocks when status category is pending (requires DB enum + status row — see docs/ITSM_STAGING_RUNBOOK.md).
+    if (args.statusCategory === "pending") return;
+    if (args.slaResponseDueAt || args.slaResolveDueAt) {
+      await scheduleSlaBreach(slaQueue, {
+        ticketId: args.ticketId,
+        orgId: args.orgId,
+        ticketNumber: args.ticketNumber,
+        assigneeId: args.assigneeId ?? undefined,
+        slaResponseDueAt: args.slaResponseDueAt ?? undefined,
+        slaResolveDueAt: args.slaResolveDueAt ?? undefined,
+      });
+    }
+  } catch (err) {
+    console.warn("[tickets] SLA job sync skipped:", err);
+  }
+}
+
+export const ticketsRouter = router({
+  list: permissionProcedure("incidents", "read")
+    .input(TicketListFiltersSchema)
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await rateLimit(ctx.user?.id, org?.id, "tickets.list");
+      const start = Date.now();
+
+      // Input guardrails — applied before any query or cache logic
+      input.limit = input.limit < 1 ? 25 : input.limit > 50 ? 50 : input.limit;
+      if (input.search) input.search = input.search.trim().slice(0, 100);
+      if (input.tags) input.tags = input.tags.slice(0, 10).map((t) => t.slice(0, 30));
+      if (input.cursor && input.cursor.length > 500) input.cursor = undefined;
+
+      // Short-lived cache for the dashboard incidents preview widget.
+      // Only active when called with the exact dashboard parameters.
+      // All other tickets.list calls are unaffected.
+      const cacheKey =
+        input.type === "incident" && input.limit === 5
+          ? `tickets:dashboard:incidents:${org!.id}:active=${input.activeOnly ? 1 : 0}`
+          : null;
+      if (cacheKey) {
+        try {
+          const hit = await getRedis().get(cacheKey);
+          if (hit) return JSON.parse(hit);
+        } catch {
+          // Redis unavailable — proceed to DB
+        }
+      }
+
+      const conditions = [eq(tickets.orgId, org!.id)];
+
+      if (input.ticketScope === "mine") {
+        conditions.push(eq(tickets.requesterId, ctx.user!.id));
+      }
+
+      if (input.problemId) {
+        const keRows = await db
+          .select({ id: knownErrors.id })
+          .from(knownErrors)
+          .where(and(eq(knownErrors.orgId, org!.id), eq(knownErrors.problemId, input.problemId)));
+        if (keRows.length === 0) {
+          conditions.push(sql`1 = 0`);
+        } else {
+          conditions.push(
+            inArray(
+              tickets.knownErrorId,
+              keRows.map((r: { id: string }) => r.id),
+            ),
+          );
+        }
+      }
+
+      if (input.knownErrorId) conditions.push(eq(tickets.knownErrorId, input.knownErrorId));
+      if (input.isMajorIncident === true) conditions.push(eq(tickets.isMajorIncident, true));
+
+      if (input.statusId) conditions.push(eq(tickets.statusId, input.statusId));
+      if (input.priorityId) conditions.push(eq(tickets.priorityId, input.priorityId));
+      if (input.categoryId) conditions.push(eq(tickets.categoryId, input.categoryId));
+      if (input.assigneeId) conditions.push(eq(tickets.assigneeId, input.assigneeId));
+      if (input.type) conditions.push(eq(tickets.type, input.type));
+      if (input.slaBreached !== undefined)
+        conditions.push(eq(tickets.slaBreached, input.slaBreached));
+      if (input.statusCategory)
+        conditions.push(
+          inArray(
+            tickets.statusId,
+            db.select({ id: ticketStatuses.id })
+              .from(ticketStatuses)
+              .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, input.statusCategory))),
+          ),
+        );
+      if (input.activeOnly)
+        conditions.push(
+          notInArray(
+            tickets.statusId,
+            db.select({ id: ticketStatuses.id })
+              .from(ticketStatuses)
+              .where(
+                and(
+                  eq(ticketStatuses.orgId, org!.id),
+                  inArray(ticketStatuses.category, ["resolved", "closed"]),
+                ),
+              ),
+          ),
+        );
+      if (input.search && input.search.length >= 2)
+        conditions.push(
+          or(
+            sql`${tickets.title} ILIKE ${"%" + input.search + "%"}`,
+            sql`COALESCE(${tickets.description}, '') ILIKE ${"%" + input.search + "%"}`,
+          )!,
+        );
+      if (input.tags && input.tags.length > 0)
+        conditions.push(
+          sql`${tickets.tags} && ARRAY[${sql.join(
+            input.tags.map((t) => sql`${t}`),
+            sql`, `,
+          )}]::text[]`,
+        );
+
+      // Cursor format detection:
+      //   numeric string (e.g. "25") → legacy OFFSET cursor (backward compat)
+      //   anything else              → new keyset cursor
+      const isOffsetCursor = input.cursor !== undefined && /^\d+$/.test(input.cursor);
+      if (isOffsetCursor)
+        console.warn("tickets.list using legacy offset cursor", { cursor: input.cursor });
+      const useKeyset =
+        (input.orderBy === "createdAt" || input.orderBy === "updatedAt" || input.orderBy === "priority") &&
+        input.order === "desc" &&
+        !isOffsetCursor;
+
+      // Parse keyset cursor when present — absent on page 1, populated on subsequent pages
+      // Keep createdAt/updatedAt as ISO strings — postgres.js 3.x does not accept Date objects
+      // in raw sql`` template parameters; the ::timestamptz cast handles the conversion.
+      let parsedCursor: { createdAt: string; id: string } | null = null;
+      if (useKeyset && input.orderBy === "createdAt" && input.cursor) {
+        try {
+          const raw = JSON.parse(
+            Buffer.from(input.cursor, "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          if (
+            raw.v === 1 &&
+            raw.mode === "createdAt" &&
+            raw.dir === "desc" &&
+            typeof raw.createdAt === "string" &&
+            typeof raw.id === "string"
+          ) {
+            parsedCursor = { createdAt: raw.createdAt, id: raw.id };
+          }
+        } catch {
+          // malformed cursor — treat as first page (parsedCursor stays null)
+        }
+      }
+
+      // Keyset seek condition replaces OFFSET in the new path
+      if (parsedCursor)
+        conditions.push(
+          sql`(${tickets.createdAt} < ${parsedCursor.createdAt}::timestamptz OR (${tickets.createdAt} = ${parsedCursor.createdAt}::timestamptz AND ${tickets.id} < ${parsedCursor.id}))`,
+        );
+
+      let parsedUpdatedAtCursor: { updatedAt: string; id: string } | null = null;
+      if (useKeyset && input.orderBy === "updatedAt" && input.cursor) {
+        try {
+          const raw = JSON.parse(
+            Buffer.from(input.cursor, "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          if (
+            raw.v === 1 &&
+            raw.mode === "updatedAt" &&
+            raw.dir === "desc" &&
+            typeof raw.updatedAt === "string" &&
+            typeof raw.id === "string"
+          ) {
+            parsedUpdatedAtCursor = { updatedAt: raw.updatedAt, id: raw.id };
+          }
+        } catch {
+          // malformed cursor — treat as first page (parsedUpdatedAtCursor stays null)
+        }
+      }
+
+      if (parsedUpdatedAtCursor)
+        conditions.push(
+          sql`(${tickets.updatedAt} < ${parsedUpdatedAtCursor.updatedAt}::timestamptz OR (${tickets.updatedAt} = ${parsedUpdatedAtCursor.updatedAt}::timestamptz AND ${tickets.id} < ${parsedUpdatedAtCursor.id}))`,
+        );
+
+      let parsedPriorityCursor: {
+        sortOrder: number | null;
+        createdAt: string;
+        id: string;
+      } | null = null;
+      if (useKeyset && input.orderBy === "priority" && input.cursor) {
+        try {
+          const raw = JSON.parse(
+            Buffer.from(input.cursor, "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          if (
+            raw.v === 1 &&
+            raw.mode === "priority" &&
+            raw.dir === "desc" &&
+            (typeof raw.sortOrder === "number" || raw.sortOrder === null) &&
+            typeof raw.createdAt === "string" &&
+            typeof raw.id === "string"
+          ) {
+            parsedPriorityCursor = {
+              sortOrder: raw.sortOrder as number | null,
+              createdAt: raw.createdAt,
+              id: raw.id,
+            };
+          }
+        } catch {
+          // malformed cursor — treat as first page (parsedPriorityCursor stays null)
+        }
+      }
+
+      if (parsedPriorityCursor) {
+        const S = parsedPriorityCursor.sortOrder;
+        const C = parsedPriorityCursor.createdAt;
+        const I = parsedPriorityCursor.id;
+        if (S !== null) {
+          // Case A: cursor row had a non-null sort_order
+          // Rows after it: lower sort_order (non-null) OR same sort_order with later tiebreaker OR any NULL sort_order
+          conditions.push(
+            sql`(
+              (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) < ${S}
+              OR (
+                (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) = ${S}
+                AND (${tickets.createdAt} < ${C}::timestamptz OR (${tickets.createdAt} = ${C}::timestamptz AND ${tickets.id} < ${I}))
+              )
+              OR (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) IS NULL
+            )`,
+          );
+        } else {
+          // Case B: cursor row had no priority (NULLS LAST segment)
+          // Only other NULL sort_order rows can follow; advance through their (createdAt, id) tiebreaker
+          conditions.push(
+            sql`(
+              (SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) IS NULL
+              AND (${tickets.createdAt} < ${C}::timestamptz OR (${tickets.createdAt} = ${C}::timestamptz AND ${tickets.id} < ${I}))
+            )`,
+          );
+        }
+      }
+
+      // offsetValue used only in the legacy OFFSET path
+      const offsetValue = isOffsetCursor ? parseInt(input.cursor!) : 0;
+
+      const orderDir = input.order === "asc" ? asc : desc;
+      const orderCol =
+        input.orderBy === "createdAt"
+          ? tickets.createdAt
+          : input.orderBy === "updatedAt"
+            ? tickets.updatedAt
+            : tickets.createdAt;
+
+      const qb = db
+        .select({
+          id: tickets.id,
+          orgId: tickets.orgId,
+          number: tickets.number,
+          title: tickets.title,
+          categoryId: tickets.categoryId,
+          priorityId: tickets.priorityId,
+          statusId: tickets.statusId,
+          type: tickets.type,
+          requesterId: tickets.requesterId,
+          assigneeId: tickets.assigneeId,
+          assigneeName: users.name,
+          assigneeEmail: users.email,
+          teamId: tickets.teamId,
+          dueDate: tickets.dueDate,
+          slaBreached: tickets.slaBreached,
+          tags: tickets.tags,
+          customFields: tickets.customFields,
+          resolvedAt: tickets.resolvedAt,
+          closedAt: tickets.closedAt,
+          createdAt: tickets.createdAt,
+          updatedAt: tickets.updatedAt,
+          isMajorIncident: tickets.isMajorIncident,
+          parentTicketId: tickets.parentTicketId,
+        })
+        .from(tickets)
+        .leftJoin(users, eq(tickets.assigneeId, users.id))
+        .where(and(...conditions))
+        .orderBy(
+          ...(input.orderBy === "priority"
+            ? input.order === "asc"
+              ? [
+                  sql`(SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) ASC NULLS LAST`,
+                  desc(tickets.createdAt),
+                ]
+              : [
+                  // DESC path — id tiebreaker required for deterministic keyset seek
+                  sql`(SELECT sort_order FROM ticket_priorities WHERE id = ${tickets.priorityId}) DESC NULLS LAST`,
+                  desc(tickets.createdAt),
+                  desc(tickets.id),
+                ]
+            : useKeyset && input.orderBy === "updatedAt"
+              ? [desc(tickets.updatedAt), desc(tickets.id)]
+              : useKeyset
+                ? [desc(tickets.createdAt), desc(tickets.id)]
+                : [orderDir(orderCol)]),
+        )
+        .limit(input.limit + 1);
+
+      // New keyset path: no OFFSET — the seek condition in WHERE handles positioning.
+      // Legacy OFFSET path: used when cursor is numeric or sort mode is not createdAt DESC.
+      try {
+        const rows = await (useKeyset ? qb : qb.offset(offsetValue));
+
+        const hasMore = rows.length > input.limit;
+        const items = hasMore ? rows.slice(0, -1) : rows;
+
+        // Priority keyset cursor needs the resolved sort_order of the last item.
+        // Fetched via PK lookup — O(1), no join, only executed when a next page exists.
+        let prioritySortOrder: number | null = null;
+        if (useKeyset && input.orderBy === "priority" && hasMore && items.length > 0) {
+          const last = items[items.length - 1]!;
+          if (last.priorityId) {
+            const [prio] = await db
+              .select({ sortOrder: ticketPriorities.sortOrder })
+              .from(ticketPriorities)
+              .where(eq(ticketPriorities.id, last.priorityId));
+            prioritySortOrder = prio?.sortOrder ?? null;
+          }
+          // last.priorityId === null → prioritySortOrder stays null (NULLS LAST segment)
+        }
+
+        let nextCursor: string | null = null;
+        if (hasMore) {
+          if (useKeyset) {
+            const last = items[items.length - 1]!;
+            nextCursor = Buffer.from(
+              JSON.stringify(
+                input.orderBy === "updatedAt"
+                  ? { v: 1, mode: "updatedAt", dir: "desc", updatedAt: last.updatedAt.toISOString(), id: last.id }
+                  : input.orderBy === "priority"
+                    ? { v: 1, mode: "priority", dir: "desc", sortOrder: prioritySortOrder, createdAt: last.createdAt.toISOString(), id: last.id }
+                    : { v: 1, mode: "createdAt", dir: "desc", createdAt: last.createdAt.toISOString(), id: last.id },
+              ),
+            ).toString("base64url");
+          } else {
+            nextCursor = String(offsetValue + items.length);
+          }
+        }
+
+        const result = { items, nextCursor };
+        if (cacheKey)
+          getRedis().setex(cacheKey, 60, JSON.stringify(result)).catch(() => {});
+        console.info("tickets.list", { duration: Date.now() - start, orgId: org?.id });
+        return result;
+      } catch (err) {
+        console.error("tickets.list error", { err });
+        throw err;
+      }
+    }),
+
+  get: permissionProcedure("incidents", "read")
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+    const { db, org } = ctx;
+    const [ticket] = await db
+      .select({
+        id: tickets.id,
+        orgId: tickets.orgId,
+        number: tickets.number,
+        title: tickets.title,
+        description: tickets.description,
+        categoryId: tickets.categoryId,
+        priorityId: tickets.priorityId,
+        statusId: tickets.statusId,
+        type: tickets.type,
+        requesterId: tickets.requesterId,
+        assigneeId: tickets.assigneeId,
+        assigneeName: users.name,
+        assigneeEmail: users.email,
+        teamId: tickets.teamId,
+        dueDate: tickets.dueDate,
+        slaBreached: tickets.slaBreached,
+        tags: tickets.tags,
+        customFields: tickets.customFields,
+        resolvedAt: tickets.resolvedAt,
+        closedAt: tickets.closedAt,
+        createdAt: tickets.createdAt,
+        updatedAt: tickets.updatedAt,
+        isMajorIncident: tickets.isMajorIncident,
+        parentTicketId: tickets.parentTicketId,
+        configurationItemId: tickets.configurationItemId,
+        knownErrorId: tickets.knownErrorId,
+        idempotencyKey: tickets.idempotencyKey,
+      })
+      .from(tickets)
+      .leftJoin(users, eq(tickets.assigneeId, users.id))
+      .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
+
+    if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+    const rawComments = await db
+      .select({
+        id: ticketComments.id,
+        ticketId: ticketComments.ticketId,
+        authorId: ticketComments.authorId,
+        authorName: users.name,
+        body: ticketComments.body,
+        isInternal: ticketComments.isInternal,
+        createdAt: ticketComments.createdAt,
+        updatedAt: ticketComments.updatedAt,
+      })
+      .from(ticketComments)
+      .leftJoin(users, eq(ticketComments.authorId, users.id))
+      .where(eq(ticketComments.ticketId, ticket.id))
+      .orderBy(asc(ticketComments.createdAt));
+
+    const comments = rawComments;
+
+    const activityLog = await db
+      .select({
+        id: ticketActivityLogs.id,
+        ticketId: ticketActivityLogs.ticketId,
+        userId: ticketActivityLogs.userId,
+        userName: users.name,
+        action: ticketActivityLogs.action,
+        changes: ticketActivityLogs.changes,
+        createdAt: ticketActivityLogs.createdAt,
+      })
+      .from(ticketActivityLogs)
+      .leftJoin(users, eq(ticketActivityLogs.userId, users.id))
+      .where(eq(ticketActivityLogs.ticketId, ticket.id))
+      .orderBy(desc(ticketActivityLogs.createdAt))
+      .limit(50);
+
+    const isAgent = checkDbUserPermission(ctx.user!.role, "incidents", "assign", ctx.user!.matrixRole as string | undefined);
+    const visibleComments = isAgent
+      ? comments
+      : comments.filter((c: any) => !c.isInternal);
+
+    const relRows: (typeof ticketRelations.$inferSelect)[] = await db
+      .select()
+      .from(ticketRelations)
+      .where(
+        or(eq(ticketRelations.sourceId, ticket.id), eq(ticketRelations.targetId, ticket.id)),
+      )
+      .orderBy(desc(ticketRelations.createdAt));
+
+    const peerIds: string[] = [
+      ...new Set(relRows.map((r) => (r.sourceId === ticket.id ? r.targetId : r.sourceId))),
+    ];
+    const peerMeta = new Map<string, { number: string; title: string }>();
+    if (peerIds.length > 0) {
+      const peerRows = await db
+        .select({ id: tickets.id, number: tickets.number, title: tickets.title })
+        .from(tickets)
+        .where(and(eq(tickets.orgId, org!.id), inArray(tickets.id, peerIds)));
+      for (const t of peerRows) {
+        peerMeta.set(t.id, { number: t.number, title: t.title });
+      }
+    }
+
+    const relations = relRows.map((r) => {
+      const outgoing = r.sourceId === ticket.id;
+      const relatedTicketId = outgoing ? r.targetId : r.sourceId;
+      const meta = peerMeta.get(relatedTicketId);
+      return {
+        id: r.id,
+        type: r.type,
+        direction: outgoing ? ("outgoing" as const) : ("incoming" as const),
+        relatedTicketId,
+        relatedNumber: meta?.number ?? "",
+        relatedTitle: meta?.title ?? "",
+        createdAt: r.createdAt,
+      };
+    });
+
+    const linkedKbArticleIds = readLinkedKbArticleIds(ticket.customFields);
+    let suggestedKbArticles: Array<{
+      id: string;
+      title: string;
+      viewCount: number;
+      helpfulCount: number;
+    }> = [];
+
+    const canSuggestKb = checkDbUserPermission(
+      ctx.user!.role,
+      "knowledge",
+      "read",
+      ctx.user!.matrixRole as string | undefined,
+    );
+    if (canSuggestKb) {
+      const terms = kbSearchTermsFromTicketTitle(ticket.title);
+      if (terms.length > 0) {
+        const kwOr = or(...terms.map((t) => ilike(kbArticles.title, `%${t}%`)));
+        const kbConds = [
+          eq(kbArticles.orgId, org!.id),
+          eq(kbArticles.status, "published"),
+          kwOr!,
+        ];
+        if (linkedKbArticleIds.length > 0) kbConds.push(notInArray(kbArticles.id, linkedKbArticleIds));
+        suggestedKbArticles = await db
+          .select({
+            id: kbArticles.id,
+            title: kbArticles.title,
+            viewCount: kbArticles.viewCount,
+            helpfulCount: kbArticles.helpfulCount,
+          })
+          .from(kbArticles)
+          .where(and(...kbConds))
+          .orderBy(desc(kbArticles.viewCount))
+          .limit(8);
+      }
+    }
+
+    const linkedKbArticles =
+      linkedKbArticleIds.length === 0
+        ? []
+        : await db
+            .select({
+              id: kbArticles.id,
+              title: kbArticles.title,
+              viewCount: kbArticles.viewCount,
+              helpfulCount: kbArticles.helpfulCount,
+            })
+            .from(kbArticles)
+            .where(
+              and(eq(kbArticles.orgId, org!.id), inArray(kbArticles.id, linkedKbArticleIds)),
+            );
+
+    let configurationItem: { id: string; name: string; ciType: string; status: string } | null = null;
+    if (ticket.configurationItemId) {
+      const [ci] = await db
+        .select({
+          id: ciItems.id,
+          name: ciItems.name,
+          ciType: ciItems.ciType,
+          status: ciItems.status,
+        })
+        .from(ciItems)
+        .where(and(eq(ciItems.id, ticket.configurationItemId), eq(ciItems.orgId, org!.id)));
+      configurationItem = ci ?? null;
+    }
+
+    let knownError: { id: string; title: string } | null = null;
+    if (ticket.knownErrorId) {
+      const [ke] = await db
+        .select({ id: knownErrors.id, title: knownErrors.title })
+        .from(knownErrors)
+        .where(and(eq(knownErrors.id, ticket.knownErrorId), eq(knownErrors.orgId, org!.id)));
+      knownError = ke ?? null;
+    }
+
+    let ciDownstreamCount = 0;
+    if (ticket.configurationItemId) {
+      const [{ n }] = await db
+        .select({ n: count() })
+        .from(ciRelationships)
+        .where(eq(ciRelationships.targetId, ticket.configurationItemId));
+      ciDownstreamCount = Number(n ?? 0);
+    }
+
+    let parentTicket: { id: string; number: string; title: string; isMajorIncident: boolean } | null = null;
+    if (ticket.parentTicketId) {
+      const [p] = await db
+        .select({
+          id: tickets.id,
+          number: tickets.number,
+          title: tickets.title,
+          isMajorIncident: tickets.isMajorIncident,
+        })
+        .from(tickets)
+        .where(and(eq(tickets.id, ticket.parentTicketId), eq(tickets.orgId, org!.id)));
+      parentTicket = p ?? null;
+    }
+
+    const childTickets = await db
+      .select({
+        id: tickets.id,
+        number: tickets.number,
+        title: tickets.title,
+        isMajorIncident: tickets.isMajorIncident,
+      })
+      .from(tickets)
+      .where(and(eq(tickets.parentTicketId, ticket.id), eq(tickets.orgId, org!.id)))
+      .orderBy(desc(tickets.updatedAt))
+      .limit(50);
+
+    return {
+      ticket,
+      comments: visibleComments,
+      activityLog,
+      relations,
+      suggestedKbArticles,
+      linkedKbArticles,
+      configurationItem,
+      knownError,
+      ciDownstreamCount,
+      parentTicket,
+      childTickets,
+    };
+  }),
+
+  create: permissionProcedure("incidents", "write")
+    .input(CreateTicketSchema)
+    .mutation(async ({ ctx, input }) => {
+    const { db, org, user } = ctx;
+
+    // Resolve idempotency key: header > input > auto-generated 5s window hash.
+    // A client that sends X-Idempotency-Key OR input.idempotencyKey gets exact
+    // deduplication.  A client that sends neither gets deduplication within a
+    // 5-second window for the same org/user/title combination.
+    const idempotencyKey: string =
+      ctx.idempotencyKey ??
+      input.idempotencyKey ??
+      autoIdempotencyKey(org!.id, user!.id, input.title);
+
+    // ── Fast path: Redis snapshot hit ────────────────────────────────────────
+    // Check Redis before touching the DB.  If we have a stored snapshot from a
+    // previous successful create with this key, return it immediately.  This
+    // guarantees identical response shape across all retries.
+    const cached = await getCachedIdempotentResponse(org!.id, idempotencyKey);
+    if (cached) {
+      logInfo("TICKET_IDEMPOTENT_CACHE_HIT", {
+        request_id:      ctx.requestId,
+        idempotency_key: idempotencyKey.slice(0, 8) + "…",
+        ticket_id:       cached["id"],
+      });
+      return cached as ReturnType<typeof Object.assign>;
+    }
+
+    logInfo("TICKET_CREATE", {
+      request_id: ctx.requestId,
+      user_id:    user!.id,
+      org_id:     org!.id,
+      title:      input.title,
+      type:       input.type,
+      idempotency_key: idempotencyKey.slice(0, 8) + "…",
+    });
+
+    // Default open status (bootstrap workflow if org was created without seed data)
+    let [defaultStatus] = await db
+      .select()
+      .from(ticketStatuses)
+      .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, "open")))
+      .limit(1);
+
+    if (!defaultStatus) {
+      logInfo("TICKET_WORKFLOW_BOOTSTRAP", { org_id: org!.id, request_id: ctx.requestId });
+      await ensureDefaultTicketStatusesForOrg(db, org!.id);
+      [defaultStatus] = await db
+        .select()
+        .from(ticketStatuses)
+        .where(and(eq(ticketStatuses.orgId, org!.id), eq(ticketStatuses.category, "open")))
+        .limit(1);
+    }
+
+    if (!defaultStatus) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message:
+          "Ticket workflow not configured: no 'open' status found for this organisation after bootstrap. Contact your administrator.",
+      });
+    }
+
+    // ── Resolve impact/urgency → priorityId ─────────────────────────────────
+    // Map the ITIL impact × urgency matrix to a numeric priority level (1=critical … 4=low),
+    // then look up the org's matching priority tier by sort_order so SLA targets apply.
+    const impactLevel  = input.impact  === "high" ? 1 : input.impact  === "low" ? 3 : 2;
+    const urgencyLevel = input.urgency === "high" ? 1 : input.urgency === "low" ? 3 : 2;
+    const priorityLevel = Math.min(Math.round((impactLevel + urgencyLevel) / 2), 4);
+
+    let resolvedPriorityId = input.priorityId ?? null;
+    if (!resolvedPriorityId && (input.impact || input.urgency)) {
+      // Fetch all org priorities ordered by sort_order ascending (lower = higher severity)
+      const orgPriorities = await db
+        .select()
+        .from(ticketPriorities)
+        .where(eq(ticketPriorities.orgId, org!.id))
+        .orderBy(asc(ticketPriorities.sortOrder));
+
+      if (orgPriorities.length > 0) {
+        // Clamp priorityLevel index to the number of tiers available
+        const idx = Math.min(priorityLevel - 1, orgPriorities.length - 1);
+        resolvedPriorityId = orgPriorities[idx]?.id ?? orgPriorities[orgPriorities.length - 1]!.id;
+      }
+    }
+
+    // SLA: active `sla_policies` (conditions match) override per-field; else priority tier minutes.
+    let slaResponseDueAt: Date | undefined;
+    let slaResolveDueAt: Date | undefined;
+    const policyMins = await resolveSlaPolicyMinutes(db, org!.id, {
+      type: input.type ?? "request",
+      categoryId: input.categoryId ?? null,
+    });
+    let respMin: number | null | undefined;
+    let resMin: number | null | undefined;
+    if (resolvedPriorityId) {
+      const [priority] = await db
+        .select()
+        .from(ticketPriorities)
+        .where(eq(ticketPriorities.id, resolvedPriorityId));
+      if (priority) {
+        respMin = policyMins?.response ?? priority.slaResponseMinutes ?? null;
+        resMin = policyMins?.resolve ?? priority.slaResolveMinutes ?? null;
+      }
+    } else if (policyMins && (policyMins.response != null || policyMins.resolve != null)) {
+      respMin = policyMins.response ?? undefined;
+      resMin = policyMins.resolve ?? undefined;
+    }
+
+    const [orgRow] = await db
+      .select({ settings: organizations.settings })
+      .from(organizations)
+      .where(eq(organizations.id, org!.id))
+      .limit(1);
+    const slaCal = parseOrgSlaCalendarSettings(orgRow?.settings);
+    if (respMin != null || resMin != null) {
+      const now = new Date();
+      if (respMin != null && respMin > 0) {
+        slaResponseDueAt = adjustSlaDeadlineForBusinessCalendar(
+          new Date(now.getTime() + respMin * 60 * 1000),
+          slaCal,
+        );
+      }
+      if (resMin != null && resMin > 0) {
+        slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(
+          new Date(now.getTime() + resMin * 60 * 1000),
+          slaCal,
+        );
+      }
+    }
+
+    if (input.configurationItemId) {
+      const [ci] = await db
+        .select({ id: ciItems.id })
+        .from(ciItems)
+        .where(and(eq(ciItems.id, input.configurationItemId), eq(ciItems.orgId, org!.id)));
+      if (!ci) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Configuration item not found for this organisation" });
+      }
+    }
+    if (input.knownErrorId) {
+      const [ke] = await db
+        .select({ id: knownErrors.id })
+        .from(knownErrors)
+        .where(and(eq(knownErrors.id, input.knownErrorId), eq(knownErrors.orgId, org!.id)));
+      if (!ke) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Known error not found for this organisation" });
+      }
+    }
+    if (input.parentTicketId) {
+      const [parent] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.parentTicketId), eq(tickets.orgId, org!.id)));
+      if (!parent) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Parent ticket not found for this organisation" });
+      }
+    }
+
+    // getNextSeq uses an atomic INSERT ... ON CONFLICT DO UPDATE on org_counters,
+    // which is serialised at the Postgres row level — safe under 800+ concurrent requests.
+    const seq = await getNextSeq(db, org!.id, "TKT");
+    const number = generateTicketNumber(org!.slug, seq);
+
+    // Auto-assignment is resolved BEFORE the transaction so that a DB error
+    // (e.g. assignment_rules table not yet migrated) cannot abort the
+    // transaction and block ticket creation entirely.  A Postgres transaction
+    // that encounters an error enters an aborted state; any query issued
+    // afterward — even in a separate try/catch — will fail until the
+    // transaction is rolled back.  Moving this call outside the transaction
+    // ensures failures are isolated and non-fatal.
+    let resolvedAssigneeId = input.assigneeId;
+    let resolvedTeamId = input.teamId;
+    if (!resolvedAssigneeId) {
+      try {
+        const assignment = await resolveAssignment(db, org!.id, {
+          entityType: "ticket",
+          matchValue: input.categoryId ?? null,
+          requiredSkill: input.requiredSkill ?? null,
+        });
+        if (assignment) {
+          resolvedAssigneeId = assignment.assigneeId ?? undefined;
+          resolvedTeamId = resolvedTeamId ?? assignment.teamId;
+          if (assignment.parkedAtCapacity) {
+            console.info("[assignment] Ticket parked at capacity — team queue:", assignment.teamId);
+          }
+        }
+      } catch (assignErr) {
+        // Non-fatal: ticket is created without auto-assignment and can be
+        // assigned manually.  Common cause: assignment_rules table not yet
+        // migrated in this environment.
+        console.warn("[tickets.create] Auto-assignment skipped:", assignErr instanceof Error ? assignErr.message : String(assignErr));
+      }
+    }
+
+    const [ticket] = await (async () => {
+        try {
+        return await db.transaction(async (tx: any) => {
+          // Optimistic check: if the key is already in use, return the existing ticket
+          // immediately without consuming a sequence number or doing any writes.
+          const [existing] = await tx
+            .select()
+            .from(tickets)
+            .where(and(eq(tickets.orgId, org!.id), eq(tickets.idempotencyKey, idempotencyKey)))
+            .limit(1);
+          if (existing) {
+            logInfo("TICKET_IDEMPOTENT", {
+              request_id:      ctx.requestId,
+              idempotency_key: idempotencyKey.slice(0, 8) + "…",
+              ticket_id:       existing.id,
+            });
+            // Backfill Redis so future duplicates never reach the DB.
+            setCachedIdempotentResponse(org!.id, idempotencyKey, existing as Record<string, unknown>).catch(() => {});
+            return [existing];
+          }
+
+          return tx
+            .insert(tickets)
+            .values({
+              orgId: org!.id,
+              number,
+              title: input.title,
+              description: input.description,
+              categoryId: input.categoryId,
+              priorityId: resolvedPriorityId,
+              statusId: defaultStatus.id,
+              type: input.type ?? "request",
+              impact: (input.impact ?? "medium") as "high" | "medium" | "low",
+              urgency: (input.urgency ?? "medium") as "high" | "medium" | "low",
+              requesterId: user!.id,
+              assigneeId: resolvedAssigneeId,
+              teamId: resolvedTeamId,
+              dueDate: input.dueDate,
+              tags: input.tags ?? [],
+              customFields: input.customFields,
+              configurationItemId: input.configurationItemId ?? null,
+              knownErrorId: input.knownErrorId ?? null,
+              isMajorIncident: input.isMajorIncident ?? false,
+              parentTicketId: input.parentTicketId ?? null,
+              intakeChannel: input.intakeChannel ?? "portal",
+              requiredSkill: input.requiredSkill ?? null,
+              slaResponseDueAt,
+              slaResolveDueAt,
+              idempotencyKey,
+            })
+            .returning();
+        });
+      } catch (err: unknown) {
+        // 23505 = unique_violation — another concurrent request won the race and
+        // already inserted with this idempotency key.  Fetch and return that
+        // existing ticket so the caller gets a consistent response.
+        const pgCode = (err as { code?: string })?.code;
+        if (pgCode === "23505") {
+          // Try Redis snapshot first — fastest and most consistent path.
+          const snapshot = await getCachedIdempotentResponse(org!.id, idempotencyKey);
+          if (snapshot) {
+            logInfo("TICKET_IDEMPOTENT_RACE_CACHE", {
+              request_id:      ctx.requestId,
+              idempotency_key: idempotencyKey.slice(0, 8) + "…",
+              ticket_id:       snapshot["id"],
+            });
+            return [snapshot as Record<string, unknown>];
+          }
+          // Redis miss (cache not yet populated by the winner) — fall back to DB.
+          const [existing] = await db
+            .select()
+            .from(tickets)
+            .where(and(eq(tickets.orgId, org!.id), eq(tickets.idempotencyKey, idempotencyKey)))
+            .limit(1);
+          if (existing) {
+            logInfo("TICKET_IDEMPOTENT_RACE", {
+              request_id:      ctx.requestId,
+              idempotency_key: idempotencyKey.slice(0, 8) + "…",
+              ticket_id:       existing.id,
+            });
+            // Backfill Redis for next retry.
+            setCachedIdempotentResponse(org!.id, idempotencyKey, existing as Record<string, unknown>).catch(() => {});
+            return [existing];
+          }
+        }
+        throw err;
+      }
+    })();
+
+    // Log creation
+    await db.insert(ticketActivityLogs).values({
+      ticketId: ticket!.id,
+      userId: user!.id,
+      action: "created",
+      changes: {},
+    });
+
+    // Notify assignee (fire-and-forget)
+    const finalAssigneeId = (ticket as any).assigneeId;
+    if (finalAssigneeId && finalAssigneeId !== user!.id) {
+      sendNotification({
+        orgId: org!.id,
+        userId: finalAssigneeId,
+        title: `Ticket assigned: ${ticket!.number}`,
+        body: input.title,
+        link: `/app/tickets/${ticket!.id}`,
+        type: "info",
+        sourceType: "ticket",
+        sourceId: ticket!.id,
+      }).catch(() => {});
+    }
+
+    void runTicketBusinessRules(db, {
+      orgId: org!.id,
+      event: "created",
+      ticket: ticket as unknown as Record<string, unknown>,
+      changes: {},
+    });
+
+    // Enqueue embedding job (non-fatal). Powers semantic-ish search and AI tools.
+    try {
+      const { getWorkflowService } = await import("../services/workflow.js");
+      const { ticketEmbeddingQueue } = getWorkflowService();
+      const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
+      await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
+        orgId: org!.id,
+        ticketId: ticket!.id,
+        reason: "created",
+      });
+    } catch (err) {
+      console.warn("[tickets.create] Failed to enqueue ticket embedding job:", err);
+    }
+
+    // Schedule durable SLA breach detection jobs
+    if (slaResponseDueAt || slaResolveDueAt) {
+      try {
+        const { getWorkflowService } = await import("../services/workflow.js");
+        const { slaQueue } = getWorkflowService();
+        const { scheduleSlaBreach } = await import("../workflows/ticketLifecycleWorkflow.js");
+        await scheduleSlaBreach(slaQueue, {
+          ticketId: ticket!.id,
+          orgId: org!.id,
+          ticketNumber: ticket!.number,
+          assigneeId: input.assigneeId,
+          slaResponseDueAt,
+          slaResolveDueAt,
+        });
+      } catch (err) {
+        // SLA scheduling failure is non-fatal — ticket is already created
+        console.warn("[tickets.create] Failed to schedule SLA jobs:", err);
+      }
+    }
+
+    // Cache the response snapshot in Redis so all retries with the same
+    // idempotency key receive the exact same response without any DB reads.
+    setCachedIdempotentResponse(org!.id, idempotencyKey, ticket as unknown as Record<string, unknown>).catch(() => {});
+
+    bustDashboardIncidentsCache(org!.id);
+
+    return ticket;
+  }),
+
+  update: permissionProcedure("incidents", "write")
+    .input(z.object({ id: z.string().uuid(), data: UpdateTicketSchema }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+
+      const [existing] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
+
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      const updateData: Partial<typeof tickets.$inferInsert> = {};
+      let embeddingReason: "updated" | "resolved" | null = null;
+      let shouldTriggerCsat = false;
+      let shouldCreatePir = false;
+
+      if (input.data.title !== undefined && input.data.title !== existing.title) {
+        changes["title"] = { from: existing.title, to: input.data.title };
+        updateData.title = input.data.title;
+        embeddingReason = embeddingReason ?? "updated";
+      }
+      if (input.data.statusId !== undefined && input.data.statusId !== existing.statusId) {
+        changes["statusId"] = { from: existing.statusId, to: input.data.statusId };
+        updateData.statusId = input.data.statusId;
+
+        const [oldStatusRow] = existing.statusId
+          ? await db
+              .select({ category: ticketStatuses.category })
+              .from(ticketStatuses)
+              .where(eq(ticketStatuses.id, existing.statusId))
+          : [];
+        const [newStatus] = await db
+          .select()
+          .from(ticketStatuses)
+          .where(eq(ticketStatuses.id, input.data.statusId));
+
+        if (oldStatusRow?.category && newStatus?.category) {
+          assertTicketTransition(oldStatusRow.category, newStatus.category);
+        }
+
+        if (newStatus?.category === "pending") {
+          const pauseCatalog = getSlaPauseReasonsCatalog(org!.settings);
+          if (pauseCatalog.length > 0) {
+            const code = input.data.slaPauseReasonCode?.trim();
+            if (!code || !pauseCatalog.some((r) => r.code === code)) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: !code
+                  ? "Choose an SLA pause reason before putting this ticket on hold."
+                  : "Invalid SLA pause reason.",
+              });
+            }
+          }
+          const nextPaused = new Date();
+          updateData.slaPausedAt = nextPaused;
+          const prevPausedMs = existing.slaPausedAt
+            ? new Date(existing.slaPausedAt as Date).getTime()
+            : null;
+          if (prevPausedMs !== nextPaused.getTime()) {
+            changes["slaPausedAt"] = { from: existing.slaPausedAt ?? null, to: nextPaused };
+          }
+          if (input.data.slaPauseReasonCode?.trim()) {
+            const trimmed = input.data.slaPauseReasonCode.trim();
+            updateData.slaPauseReasonCode = trimmed;
+            changes["slaPauseReasonCode"] = {
+              from: existing.slaPauseReasonCode ?? null,
+              to: trimmed,
+            };
+          }
+        } else if (oldStatusRow?.category === "pending" && newStatus?.category && newStatus.category !== "pending") {
+          const pausedAt = existing.slaPausedAt;
+          let nextDuration = existing.slaPauseDurationMins ?? 0;
+          if (pausedAt) {
+            const extraMins = Math.max(
+              0,
+              Math.round((Date.now() - new Date(pausedAt).getTime()) / 60_000),
+            );
+            nextDuration += extraMins;
+            updateData.slaPauseDurationMins = nextDuration;
+            changes["slaPauseDurationMins"] = { from: existing.slaPauseDurationMins ?? 0, to: nextDuration };
+          }
+          updateData.slaPausedAt = null;
+          updateData.slaPauseReasonCode = null;
+          if (existing.slaPausedAt != null) {
+            changes["slaPausedAt"] = { from: existing.slaPausedAt, to: null };
+          }
+          if (existing.slaPauseReasonCode != null) {
+            changes["slaPauseReasonCode"] = { from: existing.slaPauseReasonCode, to: null };
+          }
+        }
+
+        if (newStatus?.category === "resolved") {
+          updateData.resolvedAt = new Date();
+          if (oldStatusRow?.category !== "resolved") embeddingReason = "resolved";
+          if (oldStatusRow?.category !== "resolved") shouldTriggerCsat = true;
+        } else if (newStatus?.category === "closed") {
+          updateData.closedAt = new Date();
+          if (oldStatusRow?.category !== "closed") shouldCreatePir = true;
+        }
+      }
+      if (input.data.assigneeId !== undefined) {
+        changes["assigneeId"] = { from: existing.assigneeId, to: input.data.assigneeId };
+        updateData.assigneeId = input.data.assigneeId;
+      }
+      if (input.data.priorityId !== undefined) {
+        changes["priorityId"] = { from: existing.priorityId, to: input.data.priorityId };
+        updateData.priorityId = input.data.priorityId;
+      }
+      if (input.data.configurationItemId !== undefined) {
+        const nextCi = input.data.configurationItemId;
+        if (nextCi) {
+          const [ci] = await db
+            .select({ id: ciItems.id })
+            .from(ciItems)
+            .where(and(eq(ciItems.id, nextCi), eq(ciItems.orgId, org!.id)));
+          if (!ci) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Configuration item not found" });
+          }
+        }
+        changes["configurationItemId"] = { from: existing.configurationItemId, to: nextCi };
+        updateData.configurationItemId = nextCi;
+      }
+      if (input.data.knownErrorId !== undefined) {
+        const nextKe = input.data.knownErrorId;
+        if (nextKe) {
+          const [ke] = await db
+            .select({ id: knownErrors.id })
+            .from(knownErrors)
+            .where(and(eq(knownErrors.id, nextKe), eq(knownErrors.orgId, org!.id)));
+          if (!ke) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Known error not found" });
+          }
+        }
+        changes["knownErrorId"] = { from: existing.knownErrorId, to: nextKe };
+        updateData.knownErrorId = nextKe;
+      }
+      if (input.data.isMajorIncident !== undefined && input.data.isMajorIncident !== existing.isMajorIncident) {
+        changes["isMajorIncident"] = { from: existing.isMajorIncident, to: input.data.isMajorIncident };
+        updateData.isMajorIncident = input.data.isMajorIncident;
+      }
+      if (input.data.intakeChannel !== undefined && input.data.intakeChannel !== existing.intakeChannel) {
+        changes["intakeChannel"] = { from: existing.intakeChannel, to: input.data.intakeChannel };
+        updateData.intakeChannel = input.data.intakeChannel;
+      }
+      if (input.data.parentTicketId !== undefined) {
+        const pid = input.data.parentTicketId;
+        if (pid) {
+          if (pid === input.id) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket cannot be its own parent" });
+          }
+          const [p] = await db
+            .select({ id: tickets.id })
+            .from(tickets)
+            .where(and(eq(tickets.id, pid), eq(tickets.orgId, org!.id)));
+          if (!p) throw new TRPCError({ code: "BAD_REQUEST", message: "Parent ticket not found" });
+          let walk: string | null = p.id;
+          for (let i = 0; i < 48; i++) {
+            const [row] = await db
+              .select({ parentTicketId: tickets.parentTicketId })
+              .from(tickets)
+              .where(eq(tickets.id, walk!));
+            if (!row?.parentTicketId) break;
+            if (row.parentTicketId === input.id) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Circular parent ticket chain" });
+            }
+            walk = row.parentTicketId;
+          }
+        }
+        changes["parentTicketId"] = { from: existing.parentTicketId ?? null, to: pid ?? null };
+        updateData.parentTicketId = pid ?? null;
+      }
+      if (input.data.slaPauseReasonCode !== undefined && input.data.statusId === undefined) {
+        const pauseCatalog = getSlaPauseReasonsCatalog(org!.settings);
+        const raw = input.data.slaPauseReasonCode;
+        const trimmed = raw == null || raw === "" ? null : String(raw).trim();
+
+        const [curStForPause] = existing.statusId
+          ? await db
+              .select({ category: ticketStatuses.category })
+              .from(ticketStatuses)
+              .where(eq(ticketStatuses.id, existing.statusId))
+          : [];
+
+        if (pauseCatalog.length > 0) {
+          if (trimmed === null) {
+            if (curStForPause?.category === "pending") {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Pause reason cannot be cleared while the ticket is on hold.",
+              });
+            }
+          } else if (!pauseCatalog.some((r) => r.code === trimmed)) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid SLA pause reason." });
+          }
+        }
+
+        const nextPause = trimmed;
+        if ((existing.slaPauseReasonCode ?? null) !== nextPause) {
+          changes["slaPauseReasonCode"] = {
+            from: existing.slaPauseReasonCode ?? null,
+            to: nextPause,
+          };
+        }
+        updateData.slaPauseReasonCode = nextPause;
+      }
+
+      updateData.updatedAt = new Date();
+      (updateData as any).version = sql`${tickets.version} + 1`;
+
+      const [updated] = await db
+        .update(tickets)
+        .set(updateData)
+        .where(and(
+          eq(tickets.id, input.id),
+          eq(tickets.orgId, org!.id),
+          eq(tickets.version, existing.version),
+        ))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Record was modified by another user. Please refresh and try again.",
+        });
+      }
+
+      if (Object.keys(changes).length > 0) {
+        await db.insert(ticketActivityLogs).values({
+          ticketId: input.id,
+          userId: user!.id,
+          action: "updated",
+          changes: changes as Record<string, { from: unknown; to: unknown }>,
+        });
+        const merged = { ...existing, ...updated } as Record<string, unknown>;
+        void runTicketBusinessRules(db, {
+          orgId: org!.id,
+          event: "updated",
+          ticket: merged,
+          changes: changes as Record<string, { from: unknown; to: unknown }>,
+        });
+      }
+
+      if (input.data.statusId !== undefined && input.data.statusId !== existing.statusId) {
+        const [st] = await db
+          .select({ category: ticketStatuses.category })
+          .from(ticketStatuses)
+          .where(eq(ticketStatuses.id, updated.statusId));
+        await syncTicketSlaJobs({
+          ticketId: updated.id,
+          orgId: org!.id,
+          ticketNumber: updated.number,
+          assigneeId: updated.assigneeId,
+          slaResponseDueAt: updated.slaResponseDueAt,
+          slaResolveDueAt: updated.slaResolveDueAt,
+          statusCategory: st?.category ?? null,
+        });
+      }
+
+      if (Object.keys(changes).length > 0) {
+        bustDashboardIncidentsCache(org!.id);
+      }
+
+      // PIR workflow (P1-11): when a major incident is closed, create a draft KB article
+      // with a PIR template and link it on the ticket customFields.
+      if (shouldCreatePir && (updated as any).isMajorIncident) {
+        try {
+          const base =
+            updated.customFields && typeof updated.customFields === "object" && !Array.isArray(updated.customFields)
+              ? { ...(updated.customFields as Record<string, unknown>) }
+              : {};
+          if (!base["pirKbArticleId"]) {
+            const content = [
+              `# Post-Incident Review — ${updated.number}`,
+              ``,
+              `**Incident:** ${updated.title}`,
+              `**Closed at:** ${updated.closedAt ? new Date(updated.closedAt).toISOString() : new Date().toISOString()}`,
+              ``,
+              `## Summary`,
+              `- What happened?`,
+              `- Customer impact:`,
+              `- Duration:`,
+              ``,
+              `## Timeline (UTC)`,
+              `- T0:`,
+              `- T+15m:`,
+              `- T+1h:`,
+              ``,
+              `## Root cause`,
+              `- Primary cause:`,
+              `- Contributing factors:`,
+              ``,
+              `## Detection & response`,
+              `- How was it detected?`,
+              `- What worked well?`,
+              `- What didn’t?`,
+              ``,
+              `## Corrective actions`,
+              `- [ ] Action item 1 (owner, due date)`,
+              `- [ ] Action item 2 (owner, due date)`,
+              ``,
+              `## Resolution notes`,
+              updated.resolutionNotes ? String(updated.resolutionNotes) : "_(none recorded)_",
+              ``,
+              `---`,
+              `Generated automatically by CoheronConnect on major-incident close.`,
+              ``,
+            ].join("\n");
+
+            const [article] = await db
+              .insert(kbArticles)
+              .values({
+                orgId: org!.id,
+                title: `PIR: ${updated.number} — ${updated.title}`,
+                content,
+                status: "draft",
+                authorId: user!.id,
+                tags: ["pir", "major_incident"],
+              } as any)
+              .returning({ id: kbArticles.id });
+
+            const nextCustom = { ...base, pirKbArticleId: article.id };
+            await db
+              .update(tickets)
+              .set({ customFields: nextCustom as any, updatedAt: new Date() })
+              .where(and(eq(tickets.id, updated.id), eq(tickets.orgId, org!.id)));
+          }
+        } catch (err) {
+          console.warn("[tickets.update] PIR creation failed (non-fatal):", err);
+        }
+      }
+
+      // CSAT trigger on resolve (P1-10). Best-effort: create/reuse an active CSAT survey,
+      // generate a one-time public invite token, and notify requester via in-app + email.
+      if (shouldTriggerCsat) {
+        try {
+          const { surveys, surveyInvites } = await import("@coheronconnect/db");
+
+          let [csat] = await db
+            .select()
+            .from(surveys)
+            .where(
+              and(
+                eq(surveys.orgId, org!.id),
+                eq(surveys.type, "csat" as any),
+                eq(surveys.status, "active" as any),
+              ),
+            )
+            .limit(1);
+
+          if (!csat) {
+            const [created] = await db
+              .insert(surveys)
+              .values({
+                orgId: org!.id,
+                title: "Ticket CSAT (auto)",
+                description: "Auto-triggered after ticket resolution.",
+                type: "csat" as any,
+                status: "active" as any,
+                questions: [],
+                triggerEvent: "ticket.resolved",
+                createdById: user!.id,
+              } as any)
+              .returning();
+            csat = created as any;
+          }
+
+          const token = randomBytes(24).toString("hex");
+          const tokenHash = createHash("sha256").update(token).digest("hex");
+          const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+          await db.insert(surveyInvites).values({
+            orgId: org!.id,
+            surveyId: (csat as any).id,
+            ticketId: updated.id,
+            requesterId: updated.requesterId ?? null,
+            tokenHash,
+            status: "sent",
+            expiresAt,
+          } as any);
+
+          const [reqUser] = await db
+            .select({ email: users.email })
+            .from(users)
+            .where(and(eq(users.id, updated.requesterId), eq(users.orgId, org!.id)))
+            .limit(1);
+
+          const link = `/survey/${token}`;
+          await sendNotification(
+            {
+              orgId: org!.id,
+              userId: updated.requesterId,
+              title: `Rate your ticket experience: ${updated.number}`,
+              body: `How was the support you received for “${updated.title}”? It takes 5 seconds.`,
+              link,
+              type: "info",
+              sourceType: "ticket",
+              sourceId: updated.id,
+            },
+            reqUser?.email,
+          );
+        } catch (err) {
+          console.warn("[tickets.update] CSAT trigger failed (non-fatal):", err);
+        }
+      }
+
+      // Enqueue embedding refresh when meaningful content changes or when the
+      // ticket becomes resolved (resolution context improves retrieval).
+      if (embeddingReason) {
+        try {
+          const { getWorkflowService } = await import("../services/workflow.js");
+          const { ticketEmbeddingQueue } = getWorkflowService();
+          const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
+          await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
+            orgId: org!.id,
+            ticketId: updated.id,
+            reason: embeddingReason,
+          });
+        } catch (err) {
+          console.warn("[tickets.update] Failed to enqueue ticket embedding job:", err);
+        }
+      }
+
+      return updated;
+    }),
+
+  addComment: permissionProcedure("incidents", "write")
+    .input(AddCommentSchema)
+    .mutation(async ({ ctx, input }) => {
+    const { db, org, user } = ctx;
+
+    const [ticket] = await db
+      .select()
+      .from(tickets)
+      .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+
+    if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+    const [comment] = await db
+      .insert(ticketComments)
+      .values({
+        ticketId: input.ticketId,
+        authorId: user!.id,
+        body: input.body,
+        isInternal: input.isInternal ?? false,
+      })
+      .returning();
+
+    await db.insert(ticketActivityLogs).values({
+      ticketId: input.ticketId,
+      userId: user!.id,
+      action: input.isInternal ? "note_added" : "comment_added",
+    });
+
+    return comment;
+  }),
+
+  majorIncidentComms: router({
+    list: permissionProcedure("incidents", "read")
+      .input(z.object({ ticketId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [ticket] = await db
+          .select({ id: tickets.id, isMajorIncident: tickets.isMajorIncident })
+          .from(tickets)
+          .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+        if (!ticket.isMajorIncident) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Not a major incident" });
+        }
+
+        const rows = await db
+          .select({
+            id: ticketActivityLogs.id,
+            userId: ticketActivityLogs.userId,
+            createdAt: ticketActivityLogs.createdAt,
+            changes: ticketActivityLogs.changes,
+          })
+          .from(ticketActivityLogs)
+          .where(
+            and(
+              eq(ticketActivityLogs.ticketId, input.ticketId),
+              eq(ticketActivityLogs.action, MAJOR_INCIDENT_COMMS_ACTION),
+            ),
+          )
+          .orderBy(asc(ticketActivityLogs.createdAt));
+
+        const userIds = [...new Set(rows.map((r: (typeof rows)[number]) => r.userId).filter(Boolean))] as string[];
+        const names: Record<string, string> = {};
+        if (userIds.length) {
+          const urows = await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(inArray(users.id, userIds));
+          for (const u of urows) names[u.id] = u.name ?? "";
+        }
+
+        return rows.map((r: (typeof rows)[number]) => {
+          const ch = r.changes as Record<string, unknown> | null | undefined;
+          const body = typeof ch?.body === "string" ? ch.body : "";
+          return {
+            id: r.id,
+            userId: r.userId,
+            authorName: r.userId ? names[r.userId!] ?? null : null,
+            body,
+            createdAt: r.createdAt,
+          };
+        });
+      }),
+
+    append: permissionProcedure("incidents", "write")
+      .input(
+        z.object({
+          ticketId: z.string().uuid(),
+          body: z.string().trim().min(1).max(16_000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const [ticket] = await db
+          .select({ id: tickets.id, isMajorIncident: tickets.isMajorIncident })
+          .from(tickets)
+          .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+        if (!ticket.isMajorIncident) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Not a major incident" });
+        }
+
+        await db.insert(ticketActivityLogs).values({
+          ticketId: input.ticketId,
+          userId: user!.id,
+          action: MAJOR_INCIDENT_COMMS_ACTION,
+          changes: { body: input.body } as any,
+        });
+
+        return { ok: true as const };
+      }),
+  }),
+
+  assign: permissionProcedure("incidents", "assign")
+    .input(z.object({ id: z.string().uuid(), assigneeId: z.string().uuid().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+
+      const [prev] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
+      if (!prev) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ticket] = await db
+        .update(tickets)
+        .set({ assigneeId: input.assigneeId, updatedAt: new Date() })
+        .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)))
+        .returning();
+
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.assigneeId && prev.assigneeId !== input.assigneeId) {
+        const [orgRow] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id))
+          .limit(1);
+        const cal = parseOrgSlaCalendarSettings(orgRow?.settings);
+        await db
+          .update(ticketHandoffs)
+          .set({ metAt: new Date() })
+          .where(and(eq(ticketHandoffs.ticketId, input.id), isNull(ticketHandoffs.metAt)));
+        const rawDue = new Date(Date.now() + 4 * 60 * 60 * 1000);
+        const dueAt = adjustSlaDeadlineForBusinessCalendar(rawDue, cal);
+        await db.insert(ticketHandoffs).values({
+          orgId: org!.id,
+          ticketId: input.id,
+          fromAssigneeId: prev.assigneeId,
+          toAssigneeId: input.assigneeId,
+          dueAt,
+        });
+      }
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.id,
+        userId: user!.id,
+        action: "assigned",
+        changes: { assigneeId: { from: prev.assigneeId, to: input.assigneeId } },
+      });
+
+      return ticket;
+    }),
+
+  linkKnowledgeArticle: permissionProcedure("incidents", "write")
+    .input(z.object({ ticketId: z.string().uuid(), articleId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [t] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const [article] = await db
+        .select({ id: kbArticles.id })
+        .from(kbArticles)
+        .where(and(eq(kbArticles.id, input.articleId), eq(kbArticles.orgId, org!.id)));
+      if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+
+      const base =
+        t.customFields && typeof t.customFields === "object" && !Array.isArray(t.customFields)
+          ? { ...(t.customFields as Record<string, unknown>) }
+          : {};
+      const cur = readLinkedKbArticleIds(base);
+      if (cur.includes(input.articleId)) return t;
+
+      const customFields = { ...base, linkedKbArticleIds: [...cur, input.articleId] };
+
+      const [updated] = await db
+        .update(tickets)
+        .set({
+          customFields: customFields as Record<string, unknown>,
+          updatedAt: new Date(),
+          version: sql`${tickets.version} + 1`,
+        } as any)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Record was modified by another user. Please refresh and try again.",
+        });
+      }
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "updated",
+        changes: { linkedKbArticleIds: { from: cur, to: [...cur, input.articleId] } } as any,
+      });
+
+      return updated;
+    }),
+
+  unlinkKnowledgeArticle: permissionProcedure("incidents", "write")
+    .input(z.object({ ticketId: z.string().uuid(), articleId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [t] = await db
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const base =
+        t.customFields && typeof t.customFields === "object" && !Array.isArray(t.customFields)
+          ? { ...(t.customFields as Record<string, unknown>) }
+          : {};
+      const cur = readLinkedKbArticleIds(base);
+      const next = cur.filter((id) => id !== input.articleId);
+      if (next.length === cur.length) return t;
+
+      const customFields = { ...base, linkedKbArticleIds: next };
+
+      const [updated] = await db
+        .update(tickets)
+        .set({
+          customFields: customFields as Record<string, unknown>,
+          updatedAt: new Date(),
+          version: sql`${tickets.version} + 1`,
+        } as any)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Record was modified by another user. Please refresh and try again.",
+        });
+      }
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "updated",
+        changes: { linkedKbArticleIds: { from: cur, to: next } } as any,
+      });
+
+      return updated;
+    }),
+
+  addRelation: permissionProcedure("incidents", "write")
+    .input(
+      z.object({
+        ticketId: z.string().uuid(),
+        targetTicketId: z.string().uuid(),
+        type: z.enum(["blocks", "blocked_by", "duplicate", "related"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      if (input.ticketId === input.targetTicketId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot relate a ticket to itself" });
+      }
+      const [src] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      const [tgt] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.targetTicketId), eq(tickets.orgId, org!.id)));
+      if (!src || !tgt) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      const [dup] = await db
+        .select({ id: ticketRelations.id })
+        .from(ticketRelations)
+        .where(
+          and(
+            eq(ticketRelations.sourceId, input.ticketId),
+            eq(ticketRelations.targetId, input.targetTicketId),
+            eq(ticketRelations.type, input.type),
+          ),
+        )
+        .limit(1);
+      if (dup) {
+        throw new TRPCError({ code: "CONFLICT", message: "This relation already exists" });
+      }
+
+      const [row] = await db
+        .insert(ticketRelations)
+        .values({
+          sourceId: input.ticketId,
+          targetId: input.targetTicketId,
+          type: input.type,
+        })
+        .returning();
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "relation_added",
+        changes: { relation: { from: null, to: { targetId: input.targetTicketId, type: input.type } } },
+      });
+
+      return row;
+    }),
+
+  removeRelation: permissionProcedure("incidents", "write")
+    .input(z.object({ relationId: z.string().uuid(), ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [rel] = await db
+        .select()
+        .from(ticketRelations)
+        .where(eq(ticketRelations.id, input.relationId))
+        .limit(1);
+      if (!rel) throw new TRPCError({ code: "NOT_FOUND", message: "Relation not found" });
+      if (rel.sourceId !== input.ticketId && rel.targetId !== input.ticketId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Relation does not belong to this ticket" });
+      }
+      const [ticket] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+
+      await db.delete(ticketRelations).where(eq(ticketRelations.id, input.relationId));
+
+      await db.insert(ticketActivityLogs).values({
+        ticketId: input.ticketId,
+        userId: user!.id,
+        action: "relation_removed",
+        changes: { relation: { from: { targetId: rel.targetId, type: rel.type }, to: null } },
+      });
+
+      return { ok: true };
+    }),
+
+  bulkUpdate: permissionProcedure("incidents", "write")
+    .input(
+      z.object({
+        ids: z.array(z.string().uuid()).min(1).max(100),
+        data: z.object({
+          statusId: z.string().uuid().optional(),
+          assigneeId: z.string().uuid().nullable().optional(),
+          priorityId: z.string().uuid().optional(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+
+      const updateData: Partial<typeof tickets.$inferInsert> = { updatedAt: new Date() };
+      if (input.data.statusId) updateData.statusId = input.data.statusId;
+      if (input.data.assigneeId !== undefined) updateData.assigneeId = input.data.assigneeId;
+      if (input.data.priorityId) updateData.priorityId = input.data.priorityId;
+
+      const updated = await db
+        .update(tickets)
+        .set(updateData)
+        .where(and(eq(tickets.orgId, org!.id), inArray(tickets.id, input.ids)))
+        .returning({ id: tickets.id });
+
+      // Bulk audit log
+      if (updated.length > 0) {
+        await db.insert(ticketActivityLogs).values(
+          updated.map(({ id }: { id: string }) => ({
+            ticketId: id,
+            userId: user!.id,
+            action: "bulk_updated",
+          })),
+        );
+      }
+
+      return { updatedCount: updated.length };
+    }),
+
+  listPriorities: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    return db
+      .select({
+        id: ticketPriorities.id,
+        name: ticketPriorities.name,
+        color: ticketPriorities.color,
+        sortOrder: ticketPriorities.sortOrder,
+      })
+      .from(ticketPriorities)
+      .where(eq(ticketPriorities.orgId, org!.id))
+      .orderBy(asc(ticketPriorities.sortOrder));
+  }),
+
+  statusCounts: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+
+    return db
+      .select({
+        statusId: ticketStatuses.id,
+        name: ticketStatuses.name,
+        color: ticketStatuses.color,
+        category: ticketStatuses.category,
+        count: count(tickets.id),
+      })
+      .from(ticketStatuses)
+      .leftJoin(tickets, and(eq(tickets.statusId, ticketStatuses.id), eq(tickets.orgId, ticketStatuses.orgId)))
+      .where(eq(ticketStatuses.orgId, org!.id))
+      .groupBy(ticketStatuses.id, ticketStatuses.name, ticketStatuses.color, ticketStatuses.category);
+  }),
+
+  slaPauseReasonsCatalog: router({
+    get: permissionProcedure("incidents", "read").query(async ({ ctx }) => ({
+      reasons: getSlaPauseReasonsCatalog(ctx.org!.settings),
+    })),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          reasons: z
+            .array(
+              z.object({
+                code: z.string().min(1).max(64).transform((s) => s.trim()),
+                label: z.string().min(1).max(200).transform((s) => s.trim()),
+              }),
+            )
+            .max(40),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const codes = input.reasons.map((r) => r.code);
+        const uniq = new Set(codes);
+        if (uniq.size !== codes.length) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Duplicate SLA pause reason codes" });
+        }
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevItsm = (raw.itsm as Record<string, unknown> | undefined) ?? {};
+        const itsm = {
+          ...prevItsm,
+          slaPauseReasons: input.reasons,
+        };
+        await db
+          .update(organizations)
+          .set({ settings: { ...raw, itsm } })
+          .where(eq(organizations.id, org!.id));
+        return { ok: true as const, reasons: input.reasons };
+      }),
+  }),
+
+  toggleWatch: permissionProcedure("incidents", "read")
+    .input(z.object({ ticketId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      // Check if already watching
+      const [existing] = await db
+        .select()
+        .from(ticketWatchers)
+        .where(and(eq(ticketWatchers.ticketId, input.ticketId), eq(ticketWatchers.userId, user!.id)))
+        .limit(1);
+      if (existing) {
+        await db.delete(ticketWatchers).where(and(eq(ticketWatchers.ticketId, input.ticketId), eq(ticketWatchers.userId, user!.id)));
+        return { watching: false };
+      } else {
+        await db.insert(ticketWatchers).values({ ticketId: input.ticketId, userId: user!.id }).onConflictDoNothing();
+        return { watching: true };
+      }
+    }),
+});

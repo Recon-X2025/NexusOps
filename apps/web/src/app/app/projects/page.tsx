@@ -1,0 +1,569 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  Briefcase, Plus, Calendar, Loader2, Pencil, X, LayoutGrid,
+} from "lucide-react";
+import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
+import { trpc } from "@/lib/trpc";
+import { formatDate, formatCurrency, downloadCSV } from "@/lib/utils";
+import { TASK_BOARD_ENABLED } from "@/lib/feature-flags";
+
+// Strategy Center → Initiatives surface.
+//
+// The page is intentionally an oversight view (portfolio, health, budget,
+// dates) — not an agile task board. The legacy "Agile Board" tab is hidden
+// unless the optional task-board flag is on; "Resources" and "Demand" stub
+// tabs were removed (they were always empty placeholders).
+const PPM_TABS = [
+  { key: "portfolio", label: "Portfolio View", module: "projects" as const, action: "read"  as const },
+  { key: "projects",  label: "All Projects",   module: "projects" as const, action: "read"  as const },
+  ...(TASK_BOARD_ENABLED
+    ? [{ key: "agile" as const, label: "Agile Board", module: "projects" as const, action: "write" as const }]
+    : []),
+];
+
+
+const HEALTH_COLOR: Record<string, string> = {
+  green: "bg-green-500",
+  amber: "bg-yellow-500",
+  red:   "bg-red-600",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  planning: "text-blue-700 bg-blue-100",
+  on_track: "text-green-700 bg-green-100",
+  at_risk:  "text-yellow-700 bg-yellow-100",
+  delayed:  "text-red-700 bg-red-100",
+  complete: "text-muted-foreground bg-muted",
+  completed: "text-muted-foreground bg-muted",
+  cancelled: "text-muted-foreground bg-muted",
+};
+
+export default function ProjectsPage() {
+  const router = useRouter();
+  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const visibleTabs = PPM_TABS.filter((t) => can(t.module, t.action));
+  const [tab, setTab] = useState(visibleTabs[0]?.key ?? "portfolio");
+
+  useEffect(() => {
+    if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
+  }, [visibleTabs, tab]);
+
+
+  const { data, isLoading, refetch } = trpc.projects.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("projects.list", { refetchOnWindowFocus: false },));
+
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [projectForm, setProjectForm] = useState({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
+  const [projectMsg, setProjectMsg] = useState<string | null>(null);
+
+  // Edit project state
+  type ProjectItem = NonNullable<typeof data>[number];
+  const [editProject, setEditProject] = useState<ProjectItem | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", status: "", health: "", phase: "", budgetTotal: "", endDate: "" });
+
+  function openEdit(e: React.MouseEvent, p: ProjectItem) {
+    e.stopPropagation();
+    setEditProject(p);
+    setEditForm({
+      name: p.name ?? "",
+      status: p.status ?? "",
+      health: p.health ?? "green",
+      phase: p.phase ?? "",
+      budgetTotal: p.budgetTotal ? String(p.budgetTotal) : "",
+      endDate: p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "",
+    });
+  }
+
+  const updateProject = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      toast.success("Project updated");
+      setEditProject(null);
+      refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Update failed"),
+  });
+
+  const createProject = trpc.projects.create.useMutation({
+    onSuccess: (p) => {
+      setProjectMsg(`Project ${(p as any).number ?? "new"} created`);
+      setShowNewProject(false);
+      setProjectForm({ name: "", description: "", department: "", startDate: "", endDate: "", budgetTotal: "" });
+      refetch();
+      setTimeout(() => setProjectMsg(null), 4000);
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const projectList: ProjectItem[] = data ?? [];
+
+  if (!can("projects", "read")) return <AccessDenied module="Initiatives" />;
+
+  const totalBudget = projectList.reduce((s, p) => s + Number(p.budgetTotal ?? 0), 0);
+  const totalSpent  = projectList.reduce((s, p) => s + Number(p.budgetSpent ?? 0), 0);
+  const atRisk = projectList.filter((p) => p.health !== "green").length;
+  const overallocated = 0; // Resource allocation managed per-project
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Briefcase className="w-4 h-4 text-muted-foreground" />
+          <h1 className="text-sm font-semibold text-foreground">Initiatives</h1>
+          <span className="text-[11px] text-muted-foreground/70">Portfolio · Health · Benefits</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadCSV(projectList.map((p: any) => ({ Name: p.name, Status: p.status, Phase: p.phase ?? "", Department: p.department ?? "", Start: p.startDate ? new Date(p.startDate).toLocaleDateString("en-IN") : "", End: p.endDate ? new Date(p.endDate).toLocaleDateString("en-IN") : "", Budget: p.budgetTotal ?? "", Spent: p.budgetSpent ?? "" })), "project_roadmap")}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
+          >
+            <Calendar className="w-3 h-3" /> Roadmap
+          </button>
+          <PermissionGate module="projects" action="write">
+            <button
+              onClick={() => setShowNewProject((v) => !v)}
+              className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+            >
+              <Plus className="w-3 h-3" /> {showNewProject ? "Cancel" : "New Project"}
+            </button>
+          </PermissionGate>
+        </div>
+      </div>
+
+      {/* Edit Project Modal */}
+      {editProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold text-foreground">Edit Project — {editProject.number}</h3>
+              <button onClick={() => setEditProject(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Project Name *</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Status</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                >
+                  <option value="planning">Planning</option>
+                  <option value="on_track">On Track</option>
+                  <option value="at_risk">At Risk</option>
+                  <option value="delayed">Delayed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Health</label>
+                <select
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.health}
+                  onChange={(e) => setEditForm((f) => ({ ...f, health: e.target.value }))}
+                >
+                  <option value="green">Green</option>
+                  <option value="amber">Amber</option>
+                  <option value="red">Red</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Phase</label>
+                <input
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  placeholder="e.g. Initiation, Execution…"
+                  value={editForm.phase}
+                  onChange={(e) => setEditForm((f) => ({ ...f, phase: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Target End Date</label>
+                <input
+                  type="date"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.endDate}
+                  onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] text-muted-foreground">Budget Total (₹)</label>
+                <input
+                  type="number"
+                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  value={editForm.budgetTotal}
+                  onChange={(e) => setEditForm((f) => ({ ...f, budgetTotal: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                disabled={!editForm.name || updateProject.isPending}
+                onClick={() => updateProject.mutate({
+                  id: editProject.id,
+                  status: editForm.status || undefined,
+                  health: editForm.health || undefined,
+                  phase: editForm.phase || undefined,
+                  budgetSpent: undefined,
+                })}
+                className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {updateProject.isPending ? "Saving…" : "Save Changes"}
+              </button>
+              <button
+                onClick={() => router.push(`/app/projects/${editProject.id}`)}
+                className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent"
+              >
+                Open Full Detail
+              </button>
+              <button onClick={() => setEditProject(null)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {projectMsg && (
+        <div className="px-3 py-2 bg-green-50 border border-green-200 rounded text-[12px] text-green-700 font-medium">{projectMsg}</div>
+      )}
+
+      {showNewProject && (
+        <div className="bg-card border border-primary/30 rounded p-4">
+          <h3 className="text-[12px] font-semibold text-foreground mb-3">New Project</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Project Name *</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Department</label>
+              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="IT / Finance / HR…" value={projectForm.department} onChange={(e) => setProjectForm((f) => ({ ...f, department: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Start Date</label>
+              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={projectForm.startDate} onChange={(e) => setProjectForm((f) => ({ ...f, startDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">End Date</label>
+              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={projectForm.endDate} onChange={(e) => setProjectForm((f) => ({ ...f, endDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Budget (₹)</label>
+              <input type="number" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="0" value={projectForm.budgetTotal} onChange={(e) => setProjectForm((f) => ({ ...f, budgetTotal: e.target.value }))} />
+            </div>
+            <div className="col-span-3">
+              <label className="text-[11px] text-muted-foreground">Description</label>
+              <textarea className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-14 resize-none" placeholder="Project objective…" value={projectForm.description} onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button disabled={!projectForm.name || createProject.isPending} onClick={() => createProject.mutate({ name: projectForm.name, description: projectForm.description || undefined, department: projectForm.department || undefined, startDate: projectForm.startDate || undefined, endDate: projectForm.endDate || undefined, budgetTotal: projectForm.budgetTotal || undefined })} className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50">
+              {createProject.isPending ? "Creating…" : "Create Project"}
+            </button>
+            <button onClick={() => setShowNewProject(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: "Total Portfolio Budget",  value: `₹${(totalBudget / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
+          { label: "Spent YTD",               value: `₹${(totalSpent / 1000).toFixed(0)}K`,     color: "text-blue-700" },
+          { label: "Projects At Risk",        value: atRisk,                                    color: "text-orange-700" },
+          { label: "Overallocated Resources", value: overallocated,                              color: "text-red-700" },
+        ].map((k) => (
+          <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
+            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex border-b border-border bg-card rounded-t">
+        {visibleTabs.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors
+              ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-card border border-border rounded-b overflow-hidden">
+        {(tab === "portfolio" || tab === "projects") && (
+          isLoading ? (
+            <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-xs">Loading projects…</span>
+            </div>
+          ) : projectList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
+              <Briefcase className="w-5 h-5 opacity-30" />
+              <span className="text-xs">No projects yet.</span>
+            </div>
+          ) : (
+            <table className="ent-table w-full">
+              <thead>
+                <tr>
+                  <th className="w-4" />
+                  <th>ID</th>
+                  <th>Project Name</th>
+                  <th>Phase</th>
+                  <th>Health</th>
+                  <th>Status</th>
+                  <th>Department</th>
+                  <th>Budget</th>
+                  <th>Spent</th>
+                  <th>End Date</th>
+                  <th className="w-16" />
+                </tr>
+              </thead>
+              <tbody>
+                {projectList.map((p) => (
+                  <tr
+                    key={p.id}
+                    className={`cursor-pointer hover:bg-muted/30 transition-colors ${p.health === "red" ? "bg-red-50/30" : ""}`}
+                    onClick={() => router.push(`/app/projects/${p.id}`)}
+                  >
+                    <td className="p-0 relative">
+                      <div className={`priority-bar ${HEALTH_COLOR[p.health] ?? "bg-muted"}`} />
+                    </td>
+                    <td className="font-mono text-[11px] text-primary">{p.number}</td>
+                    <td className="max-w-xs">
+                      <div className="flex items-center gap-1">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${HEALTH_COLOR[p.health]}`} />
+                        <span className="truncate text-foreground">{p.name}</span>
+                      </div>
+                    </td>
+                    <td><span className="status-badge text-muted-foreground bg-muted">{p.phase ?? "—"}</span></td>
+                    <td>
+                      <span className={`w-3 h-3 rounded-full inline-block ${HEALTH_COLOR[p.health]}`} />
+                    </td>
+                    <td>
+                      <span className={`status-badge capitalize ${STATUS_COLOR[p.status] ?? "text-muted-foreground bg-muted"}`}>
+                        {p.status.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                    <td className="text-muted-foreground">{p.department ?? "—"}</td>
+                    <td className="text-foreground/80 font-mono text-[11px]">
+                      {p.budgetTotal ? formatCurrency(Number(p.budgetTotal)) : "—"}
+                    </td>
+                    <td className="text-muted-foreground font-mono text-[11px]">
+                      {p.budgetSpent ? formatCurrency(Number(p.budgetSpent)) : "—"}
+                    </td>
+                    <td className={`text-[11px] ${p.status === "delayed" ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>
+                      {p.endDate ? formatDate(p.endDate) : "—"}
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()} className="text-right pr-2">
+                      <PermissionGate module="projects" action="write">
+                        <button
+                          onClick={(e) => openEdit(e, p)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] border border-border rounded hover:bg-muted/50 text-muted-foreground"
+                        >
+                          <Pencil className="w-2.5 h-2.5" /> Edit
+                        </button>
+                      </PermissionGate>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        )}
+
+        {tab === "agile" && TASK_BOARD_ENABLED && (
+          <AgileKanban projects={(data ?? []) as any[]} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Agile Kanban Board ─────────────────────────────────────────────────────
+// Hidden from the default product surface (see TASK_BOARD_ENABLED in
+// `lib/feature-flags`). The schema, tRPC routes, and component are kept so
+// the capability can be re-enabled without code changes when a customer
+// genuinely needs an in-product task board.
+const BOARD_COLUMNS = [
+  { key: "backlog",     label: "Backlog",      color: "bg-muted border-border" },
+  { key: "todo",        label: "To Do",        color: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" },
+  { key: "in_progress", label: "In Progress",  color: "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800" },
+  { key: "in_review",   label: "In Review",    color: "bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800" },
+  { key: "done",        label: "Done",         color: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800" },
+];
+
+const PRIORITY_DOT: Record<string, string> = {
+  critical: "bg-red-500",
+  high:     "bg-orange-500",
+  medium:   "bg-yellow-500",
+  low:      "bg-slate-400",
+};
+
+function AgileKanban({ projects }: { projects: any[] }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id ?? "");
+
+  const board = trpc.projects.getAgileBoard.useQuery({ projectId: selectedProjectId }, mergeTrpcQueryOpts("projects.getAgileBoard", { enabled: !!selectedProjectId },));
+
+  const updateTask = trpc.projects.updateTask.useMutation({
+    onSuccess: () => board.refetch(),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createTask = trpc.projects.createTask.useMutation({
+    onSuccess: () => { toast.success("Task created"); board.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+
+  if (projects.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+        <LayoutGrid className="w-8 h-8 opacity-30" />
+        <p className="text-sm font-semibold">No Projects Yet</p>
+        <p className="text-xs text-center max-w-xs">Create a project from the All Projects tab, then come back here to manage tasks on the kanban board.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      {/* Project selector */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/30">
+        <span className="text-xs text-muted-foreground font-medium">Project:</span>
+        <select
+          value={selectedProjectId}
+          onChange={(e) => setSelectedProjectId(e.target.value)}
+          className="rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:border-primary"
+        >
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        {selectedProject && (
+          <span className="text-xs text-muted-foreground">
+            {selectedProject.status} · {selectedProject.health}
+          </span>
+        )}
+      </div>
+
+      {/* Board */}
+      <div className="flex-1 overflow-x-auto p-4">
+        {board.isLoading ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <div className="flex gap-3 min-w-max h-full items-start">
+            {BOARD_COLUMNS.map((col) => {
+              const tasks: any[] = (board.data as any)?.[col.key] ?? [];
+              return (
+                <div
+                  key={col.key}
+                  className={`flex flex-col gap-2 w-60 rounded-lg border p-2 ${col.color}`}
+                >
+                  {/* Column header */}
+                  <div className="flex items-center justify-between px-1 py-0.5">
+                    <span className="text-xs font-semibold text-foreground/80">{col.label}</span>
+                    <span className="rounded-full bg-background/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                      {tasks.length}
+                    </span>
+                  </div>
+
+                  {/* Task cards */}
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="rounded bg-card border border-border/60 p-2.5 shadow-sm hover:shadow transition-shadow group"
+                    >
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{task.title}</p>
+                        {task.priority && (
+                          <div className={`h-2 w-2 rounded-full mt-1 shrink-0 ${PRIORITY_DOT[task.priority] ?? "bg-slate-400"}`} title={task.priority} />
+                        )}
+                      </div>
+                      {task.assignee && (
+                        <p className="text-[10px] text-muted-foreground truncate">{task.assignee}</p>
+                      )}
+                      {/* Move buttons */}
+                      <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {BOARD_COLUMNS.filter((c) => c.key !== col.key).map((c) => (
+                          <button
+                            key={c.key}
+                            onClick={() => updateTask.mutate({ id: task.id, status: c.key })}
+                            disabled={updateTask.isPending}
+                            className="px-1.5 py-0.5 rounded text-[9px] bg-background border border-border hover:bg-muted disabled:opacity-50 truncate max-w-[56px]"
+                            title={`Move to ${c.label}`}
+                          >
+                            → {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add task */}
+                  {addingTo === col.key ? (
+                    <div className="rounded bg-card border border-border/60 p-2">
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="Task title…"
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newTaskTitle.trim() && selectedProjectId) {
+                            createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key } as never);
+                            setNewTaskTitle("");
+                            setAddingTo(null);
+                          }
+                          if (e.key === "Escape") { setAddingTo(null); setNewTaskTitle(""); }
+                        }}
+                        className="w-full bg-transparent text-xs focus:outline-none placeholder:text-muted-foreground/60"
+                      />
+                      <div className="flex gap-1 mt-1.5">
+                        <button
+                          onClick={() => {
+                            if (newTaskTitle.trim() && selectedProjectId) {
+                              createTask.mutate({ projectId: selectedProjectId, title: newTaskTitle.trim(), status: col.key } as never);
+                              setNewTaskTitle("");
+                              setAddingTo(null);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded bg-primary text-white text-[10px]"
+                        >
+                          Add
+                        </button>
+                        <button onClick={() => { setAddingTo(null); setNewTaskTitle(""); }} className="px-2 py-0.5 rounded border border-border text-[10px]">×</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingTo(col.key)}
+                      className="flex items-center gap-1 rounded px-2 py-1 text-[10px] text-muted-foreground/60 hover:bg-background/60 hover:text-muted-foreground transition-colors w-full text-left"
+                    >
+                      <Plus className="h-3 w-3" /> Add task
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

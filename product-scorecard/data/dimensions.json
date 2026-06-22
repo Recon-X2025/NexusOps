@@ -1,0 +1,13 @@
+{
+  "scale": "Each dimension is scored 0–3: 0 = large gap vs market leaders, 1 = basic/partial, 2 = competitive for a segment, 3 = best-in-class or leading.",
+  "dimensions": [
+    { "key": "process_depth", "label": "Process depth", "description": "ITIL/process coverage, templates, edge cases, practitioner workflows" },
+    { "key": "admin_config", "label": "Admin & no-code config", "description": "Fields, policies, UI builder, safe citizen admin without engineering" },
+    { "key": "integrations", "label": "Integrations & ecosystem", "description": "Connectors, iPaaS patterns, webhooks, vendor app marketplace depth" },
+    { "key": "analytics", "label": "Analytics & reporting", "description": "Operational and executive analytics, dashboards, exports, cross-module insights" },
+    { "key": "compliance_audit", "label": "Compliance & audit", "description": "Statutory/regulatory packs, audit trails, retention, certifications narrative" },
+    { "key": "ai_automation", "label": "AI & advanced automation", "description": "Classification, search assist, grounded answers, multi-model, governance" },
+    { "key": "mobile_offline", "label": "Mobile & offline", "description": "Native apps, field/offline, push, parity with web for key flows" },
+    { "key": "tco_implementation", "label": "TCO & implementation", "description": "Time-to-value, hosting options, predictable ops cost vs $100–200/seat incumbents" }
+  ]
+}

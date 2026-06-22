@@ -1,0 +1,166 @@
+# API Reference
+
+NexusOps exposes its backend through a **tRPC** API, providing end-to-end type safety between the server and TypeScript clients. The API is also accessible as a standard HTTP JSON API for non-TypeScript consumers.
+
+## Base URL
+
+```
+https://your-instance.example.com/api/trpc
+```
+
+For local development: `http://localhost:3001/api/trpc`
+
+## Authentication
+
+All API endpoints (except public health checks) require authentication via a **JWT Bearer token**.
+
+### Obtaining a Token
+
+```bash
+curl -X POST https://your-instance/api/trpc/auth.login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"your-password"}'
+```
+
+Response:
+
+```json
+{
+  "result": {
+    "data": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expiresIn": 900,
+      "tokenType": "Bearer"
+    }
+  }
+}
+```
+
+### Using the Token
+
+Include the token in the `Authorization` header for all subsequent requests:
+
+```bash
+curl https://your-instance/api/trpc/tickets.list \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+Access tokens expire after **15 minutes** (configurable via `JWT_EXPIRY`). Use the `auth.refresh` procedure with your refresh token to obtain a new access token without re-authenticating.
+
+## tRPC HTTP Protocol
+
+tRPC procedures map to HTTP requests as follows:
+
+| Procedure type | HTTP method | Example |
+|----------------|-------------|---------|
+| `query` | `GET` | `GET /api/trpc/tickets.getById?input={"id":"tkt_123"}` |
+| `mutation` | `POST` | `POST /api/trpc/tickets.create` with JSON body |
+
+For batch requests, tRPC supports sending multiple procedures in a single HTTP call using the `?batch=1` query parameter.
+
+## Rate Limiting
+
+NexusOps applies rate limits per API key or authenticated user:
+
+| Tier | Requests / minute | Burst |
+|------|------------------:|------:|
+| Free / Trial | 60 | 10 |
+| Standard | 300 | 50 |
+| Enterprise | 1,000 | 200 |
+| Self-hosted | Configurable (default: 1,000) | 200 |
+
+When a rate limit is exceeded, the API returns:
+
+```json
+{
+  "error": {
+    "message": "Too many requests",
+    "code": "TOO_MANY_REQUESTS",
+    "httpStatus": 429
+  }
+}
+```
+
+The response includes `Retry-After` and `X-RateLimit-Reset` headers indicating when the limit resets.
+
+## Error Codes
+
+tRPC errors map to standard HTTP status codes. The `code` field in the error object follows tRPC conventions:
+
+| tRPC Code | HTTP Status | Description |
+|-----------|------------|-------------|
+| `BAD_REQUEST` | 400 | Invalid input — check the `message` field for Zod validation details |
+| `UNAUTHORIZED` | 401 | Missing or invalid authentication token |
+| `FORBIDDEN` | 403 | Authenticated but insufficient permissions |
+| `NOT_FOUND` | 404 | Resource does not exist or is not visible to this user |
+| `CONFLICT` | 409 | Resource state conflict (e.g., duplicate ticket number) |
+| `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded |
+| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error — please report to support |
+
+## Key Procedures
+
+### Tickets
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `tickets.list` | query | List tickets with filters (status, priority, assignee, etc.) |
+| `tickets.getById` | query | Get a single ticket by ID |
+| `tickets.create` | mutation | Create a new ticket |
+| `tickets.update` | mutation | Update ticket fields |
+| `tickets.updateStatus` | mutation | Transition ticket to a new status |
+| `tickets.addComment` | mutation | Add a comment to a ticket |
+| `tickets.delete` | mutation | Soft-delete a ticket (admin only) |
+
+### Assets
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `assets.list` | query | List assets with filters |
+| `assets.getById` | query | Get a single asset |
+| `assets.create` | mutation | Create an asset record |
+| `assets.update` | mutation | Update an asset |
+
+### Users
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `users.me` | query | Get the current authenticated user profile |
+| `users.list` | query | List users in the organization (admin only) |
+| `users.invite` | mutation | Invite a user by email (admin only) |
+| `users.updateRole` | mutation | Change a user's role (admin only) |
+
+### Workflows
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `workflows.list` | query | List workflows |
+| `workflows.getById` | query | Get a workflow with its nodes and edges |
+| `workflows.create` | mutation | Create a new workflow |
+| `workflows.publish` | mutation | Publish the current draft version |
+| `workflows.runHistory` | query | Get execution history for a workflow |
+
+## TypeScript Client
+
+For TypeScript applications, use the tRPC client for full type safety:
+
+```bash
+pnpm add @trpc/client @trpc/react-query @tanstack/react-query
+```
+
+```ts
+import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import type { AppRouter } from "@nexusops/api";
+
+const client = createTRPCProxyClient<AppRouter>({
+  links: [
+    httpBatchLink({
+      url: "http://localhost:3001/api/trpc",
+      headers: () => ({ Authorization: `Bearer ${getToken()}` }),
+    }),
+  ],
+});
+
+// Fully typed — no casting needed
+const ticket = await client.tickets.getById.query({ id: "tkt_abc123" });
+console.log(ticket.title);
+```

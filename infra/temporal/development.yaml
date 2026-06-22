@@ -1,0 +1,5 @@
+# Temporal dynamic config for development
+frontend.enableClientVersionCheck:
+  - value: false
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true

@@ -1,0 +1,36 @@
+{
+    email karthik@coheron.tech
+}
+
+# Serve via IP (HTTP only, no SSL) — works immediately
+:80 {
+    handle_path /api/* {
+        reverse_proxy api:3001
+    }
+
+    handle {
+        reverse_proxy web:3000
+    }
+
+    encode gzip zstd
+}
+
+# connect.coheron.tech — Caddy auto-provisions Let's Encrypt SSL
+connect.coheron.tech {
+    handle_path /api/* {
+        reverse_proxy api:3001
+    }
+
+    handle {
+        reverse_proxy web:3000
+    }
+
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}

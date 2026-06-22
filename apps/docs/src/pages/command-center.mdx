@@ -1,0 +1,41 @@
+---
+title: Command Center
+description: Executive Command Center, metrics registry, and RBAC
+---
+
+# Command Center
+
+The **Command Center** (`/app/command`) is the NexusOps executive front door. It shows a **single default organization overview** assembled from the shared **metric registry** (CEO rollup / `RoleViewKey` in code) so new KPIs stay additive (one contribution file) instead of dashboard PRs. Access requires **`command_center.read`**; there are no executive lens tabs or overrides in the UI.
+
+## What operators see
+
+- **Health score** (0–100) and posture (`healthy` / `watch` / `stressed`)
+- **Narrative** — up to two sentences; Claude when configured, otherwise a deterministic template (never blocks page load)
+- **Attention queue** — ranked items from metric states and view `attentionRules`
+- **Heatmap** — function × dimension grid with drill links
+- **Bullets, trends, flow, risks** — panels driven by the default view in the registry
+
+## RBAC
+
+| Module           | Actions | Notes |
+|------------------|---------|-------|
+| `command_center` | `read`  | Gates `/app/command`, `commandCenter.getView`, and `generateNarrative` |
+
+Grant `command_center.read` to roles that should open the Command Center.
+
+The helper `apps/api/src/lib/command-center-role.ts` remains for tests or future use; the Command Center router no longer selects a lens per user.
+
+## Contributing a metric
+
+1. Add `packages/metrics/src/contributions/<domain>.ts` and call `registerMetric({ id, resolve, appearsIn, ... })`.
+2. Export side effects by importing the file from `packages/metrics/src/contributions/index.ts`.
+3. Resolvers **must not fabricate data** — return `state: 'no_data'` and a `// TODO` when the source API or table is missing.
+
+## Architecture links
+
+- Registry + types: `packages/metrics`
+- Payload assembly + cache: `apps/api/src/services/command-center-payload.ts`
+- Router: `apps/api/src/routers/command-center.ts`
+- UI: `apps/web/src/components/command-center/`
+
+See also: `docs/COMMAND_CENTER.md` and `docs/COMMAND_CENTER_BUILD.md`.

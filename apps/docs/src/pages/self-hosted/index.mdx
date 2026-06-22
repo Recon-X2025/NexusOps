@@ -1,0 +1,131 @@
+# Self-Hosted Deployment
+
+NexusOps is designed to be self-hosted. You own your data, your infrastructure, and your upgrade cadence. The platform supports multiple deployment targets:
+
+| Method | Best For | Complexity |
+|--------|----------|-----------|
+| [Docker Compose](/self-hosted/docker-compose) | Single-server, small teams, evaluation | Low |
+| [Kubernetes (Helm)](/self-hosted/kubernetes) | Production, multi-node, high availability | Medium |
+| AWS (Terraform) | AWS-native production deployment | Medium |
+| GCP (Terraform) | GCP-native production deployment | Medium |
+
+## System Requirements
+
+### Minimum (Docker Compose, up to ~50 concurrent users)
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | 2 vCPU | 4 vCPU |
+| Memory | 4 GB RAM | 8 GB RAM |
+| Disk | 20 GB SSD | 50 GB SSD |
+| OS | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS |
+
+### Production (Kubernetes, 100+ concurrent users)
+
+| Component | Minimum Replicas | CPU Request | Memory Request |
+|-----------|----------------:|------------:|---------------:|
+| Web (Next.js) | 2 | 500m | 512Mi |
+| API (tRPC) | 2 | 500m | 512Mi |
+| PostgreSQL | 1 primary + 1 replica | 1 | 2Gi |
+| Redis | 1 (or Sentinel) | 250m | 256Mi |
+
+## Quick Start with Docker Compose
+
+The fastest way to run NexusOps in production:
+
+```bash
+# 1. Download the production compose file
+curl -LO https://github.com/Recon-X2025/NexusOps/releases/latest/download/docker-compose.prod.yml
+
+# 2. Create your environment file
+curl -LO https://github.com/Recon-X2025/NexusOps/releases/latest/download/.env.example
+cp .env.example .env
+# Edit .env and fill in your secrets
+
+# 3. Start all services
+docker compose -f docker-compose.prod.yml up -d
+
+# 4. Run database migrations
+docker compose -f docker-compose.prod.yml exec api pnpm --filter @nexusops/db db:migrate
+
+# 5. (Optional) Seed initial admin user
+docker compose -f docker-compose.prod.yml exec api pnpm --filter @nexusops/db db:seed
+```
+
+Navigate to `http://your-server-ip:3000` to access the application.
+
+## Upgrading
+
+NexusOps follows **semantic versioning**. Patch and minor updates are backwards-compatible. Major versions may include breaking database migrations.
+
+### Standard Upgrade Process
+
+```bash
+# Pull latest images
+docker compose -f docker-compose.prod.yml pull
+
+# Restart with new images (zero-downtime with Docker Compose rolling restart)
+docker compose -f docker-compose.prod.yml up -d --no-deps --build web api
+
+# Run any new migrations
+docker compose -f docker-compose.prod.yml exec api pnpm --filter @nexusops/db db:migrate
+```
+
+Always read the [release notes](https://github.com/Recon-X2025/NexusOps/releases) before upgrading, especially for major versions.
+
+## Health Checks
+
+NexusOps exposes health check endpoints:
+
+| Endpoint | Service | Expected Response |
+|----------|---------|-------------------|
+| `GET /api/health` | API server | `{"status":"ok","version":"x.y.z"}` |
+| `GET /` | Web server | HTTP 200 |
+
+Configure your load balancer or uptime monitoring tool to poll `GET /api/health` every 30 seconds.
+
+## Networking
+
+For production, place a reverse proxy (nginx, Caddy, Traefik, or a cloud load balancer) in front of NexusOps:
+
+- Terminate TLS at the proxy layer
+- Proxy `/api/*` and `/api/trpc/*` to the API service (port 3001)
+- Proxy all other paths to the web service (port 3000)
+- Enable HTTP/2 for improved performance
+
+A minimal **nginx** configuration:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name nexusops.yourcompany.com;
+
+    ssl_certificate     /etc/ssl/certs/nexusops.crt;
+    ssl_certificate_key /etc/ssl/private/nexusops.key;
+
+    location /api/ {
+        proxy_pass http://localhost:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+## Security Hardening
+
+Before going live:
+
+1. **Change all default secrets** — `APP_SECRET`, `JWT_SECRET`, `NEXTAUTH_SECRET`
+2. **Enable HTTPS** — never run production over plain HTTP
+3. **Restrict database access** — PostgreSQL should not be publicly accessible; use firewall rules
+4. **Configure rate limiting** — set `RATE_LIMIT_MAX` appropriate for your traffic
+5. **Enable audit logging** — ensure `AUDIT_LOG_RETENTION_DAYS` meets your compliance requirements
+6. **Regular backups** — see the [Backup & Restore](/self-hosted/backup-restore) guide
+
+See also: [Backup & Restore →](/self-hosted/backup-restore)

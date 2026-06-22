@@ -1,0 +1,224 @@
+/* Fonts: next/font in app/layout.tsx (avoids @import + CSP issues in embedded browsers). */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Canvas & surfaces */
+    --background: 220 33% 98%;          /* Sophisticated light grey-blue */
+    --foreground: 224 71% 4%;           /* Deep navy black */
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+
+    /* Brand */
+    --primary: 196 100% 50%;            /* CoheronConnect Primary Blue */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary / muted */
+    --secondary: 161 94% 96%;           /* Ultra-light mint */
+    --secondary-foreground: 161 94% 20%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 196 100% 96%;             /* Light blue tint */
+    --accent-foreground: 196 100% 30%;
+
+    /* Semantic */
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 196 100% 50%;
+    --radius: 0.75rem;                  /* Modern rounded corners */
+
+    /* Header (light frosted glass) */
+    --header-bg: 0 0% 100%;
+    --header-fg: 224 71% 4%;
+    --header-border: 220 13% 91%;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 71% 10%;
+    --sidebar-muted: 220 9% 50%;
+    --sidebar-primary: 196 100% 50%;
+    --sidebar-accent: 196 100% 96%;
+    --sidebar-accent-foreground: 196 100% 30%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-section: 220 9% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-ring: 196 100% 50%;
+
+    /* Priorities */
+    --p-critical: 350 89% 60%;
+    --p-high: 24 95% 53%;
+    --p-medium: 38 92% 50%;
+    --p-low: 161 94% 30%;
+
+    /* Ticket statuses */
+    --s-open: 196 100% 50%;
+    --s-in-progress: 262 83% 58%;
+    --s-pending: 38 92% 50%;
+    --s-resolved: 161 94% 30%;
+    --s-closed: 220 9% 46%;
+
+    /* Semantic status tokens (light mode) */
+    --status-critical:    350 89% 60%;    --status-critical-fg:  0 0% 100%;
+    --status-high:       24 95% 53%;     --status-high-fg:      0 0% 100%;
+    --status-medium:     38 92% 50%;     --status-medium-fg:    0 0% 100%;
+    --status-low:        161 94% 30%;    --status-low-fg:       0 0% 100%;
+    --status-info:       196 100% 50%;   --status-info-fg:      0 0% 100%;
+    --status-success:    161 94% 30%;    --status-success-fg:   0 0% 100%;
+    --status-warning:    38 92% 50%;     --status-warning-fg:   0 0% 100%;
+    --status-neutral:    220 9%  46%;    --status-neutral-fg:   0 0% 100%;
+  }
+
+  .dark {
+    --background: 224 71% 4%;           /* Deep Midnight */
+    --foreground: 220 14% 96%;
+    --card: 224 71% 7%;
+    --card-foreground: 220 14% 96%;
+    --popover: 224 71% 7%;
+    --popover-foreground: 220 14% 96%;
+    --primary: 196 100% 50%;
+    --primary-foreground: 224 71% 4%;
+    --secondary: 224 71% 12%;
+    --secondary-foreground: 220 14% 96%;
+    --muted: 224 71% 12%;
+    --muted-foreground: 220 9% 55%;
+    --accent: 196 100% 12%;
+    --accent-foreground: 196 100% 80%;
+    --destructive: 350 89% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 71% 14%;
+    --input: 224 71% 14%;
+    --ring: 196 100% 50%;
+
+    --header-bg: 224 71% 4%;
+    --header-fg: 220 14% 90%;
+    --header-border: 224 71% 10%;
+
+    --sidebar-background: 224 71% 5%;
+    --sidebar-foreground: 220 14% 90%;
+    --sidebar-muted: 220 9% 50%;
+    --sidebar-primary: 196 100% 50%;
+    --sidebar-accent: 196 100% 12%;
+    --sidebar-accent-foreground: 196 100% 80%;
+    --sidebar-border: 224 71% 10%;
+    --sidebar-section: 220 9% 45%;
+    --sidebar-primary-foreground: 224 71% 4%;
+    --sidebar-ring: 196 100% 50%;
+
+    /* Semantic status tokens (dark mode) */
+    --status-critical:    350 89% 50%;    --status-critical-fg:  0 0% 100%;
+    --status-high:       24 95% 45%;     --status-high-fg:      0 0% 100%;
+    --status-medium:     38 92% 45%;     --status-medium-fg:    0 0% 100%;
+    --status-low:        161 94% 35%;    --status-low-fg:       0 0% 100%;
+    --status-info:       196 100% 50%;   --status-info-fg:      0 0% 100%;
+    --status-success:    161 94% 35%;    --status-success-fg:   0 0% 100%;
+    --status-warning:    38 92% 45%;     --status-warning-fg:   0 0% 100%;
+    --status-neutral:    220 9%  50%;    --status-neutral-fg:   0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-size: 13px;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1 { @apply text-xl font-semibold tracking-tight; }
+  h2 { @apply text-base font-semibold tracking-tight; }
+  h3 { @apply text-sm font-semibold; }
+}
+
+/* ─── Enterprise table styling ────────────────────────────────── */
+@layer components {
+  .ent-table {
+    @apply w-full text-xs border-collapse;
+  }
+  .ent-table thead tr {
+    @apply border-b border-border bg-muted/40;
+  }
+  .ent-table th {
+    @apply px-3 py-2 text-left font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wide select-none;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+  }
+  .ent-table th.sortable {
+    @apply cursor-pointer hover:text-foreground transition-colors;
+  }
+  .ent-table tbody tr {
+    @apply border-b border-border/60 transition-colors;
+  }
+  .ent-table tbody tr:hover {
+    @apply bg-accent/40;
+  }
+  .ent-table tbody tr.selected {
+    @apply bg-accent;
+  }
+  .ent-table td {
+    @apply px-3 py-2 text-xs align-middle;
+  }
+
+  /* Priority indicator bar */
+  .priority-bar {
+    @apply absolute left-0 top-0 bottom-0 w-0.5;
+  }
+  .priority-bar.critical { @apply bg-red-500; }
+  .priority-bar.high     { @apply bg-orange-400; }
+  .priority-bar.medium   { @apply bg-amber-400; }
+  .priority-bar.low      { @apply bg-green-500; }
+
+  /* SLA badge */
+  .sla-breached {
+    @apply inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[0.6rem] font-semibold bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300;
+  }
+  .sla-ok {
+    @apply inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[0.6rem] font-semibold bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300;
+  }
+
+  /* Status badge */
+  .status-badge {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.65rem] font-medium;
+  }
+
+  /* Field label/value pattern */
+  .field-label {
+    @apply text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5;
+  }
+  .field-value {
+    @apply text-xs text-foreground;
+  }
+
+  /* Enterprise section header */
+  .section-header {
+    @apply flex items-center gap-2 px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-widest text-[hsl(var(--sidebar-section))];
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 2px;
+  }
+
+  /* Tight monospace for IDs */
+  .mono { font-family: theme("fontFamily.mono"); }
+}

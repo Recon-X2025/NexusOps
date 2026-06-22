@@ -1,0 +1,62 @@
+# Welcome to NexusOps
+
+**NexusOps** is a modern, enterprise-grade IT Service Management (ITSM) platform built by Coheron. It unifies ticketing, asset management, CMDB, workflow automation, HR operations, procurement, and AI-powered intelligence into a single cohesive platform — deployable on-premises or in the cloud.
+
+## Why NexusOps?
+
+Traditional ITSM tools are fragmented, expensive, and slow to adapt. NexusOps was designed from the ground up with a developer-first architecture:
+
+- **Monorepo structure** with a tRPC API, Next.js frontend, and shared TypeScript packages
+- **Real-time** updates via WebSockets and server-sent events
+- **AI-powered** ticket triage, summarization, and auto-classification using Anthropic Claude
+- **Multi-tenant** with full organization and team isolation
+- **Self-hostable** via Docker Compose, Kubernetes (Helm), or cloud Terraform modules
+
+## Core Modules
+
+| Module | Description |
+|--------|-------------|
+| **Tickets** | Full ITSM ticketing — incidents, requests, problems, change management |
+| **Assets** | Hardware and software asset lifecycle management |
+| **CMDB** | Configuration Management Database with relationship mapping |
+| **Workflows** | Visual no-code automation canvas with triggers, conditions, and actions |
+| **Knowledge Base** | Rich-text articles, versioning, and AI-assisted search |
+| **HR** | Employee onboarding/offboarding integrated with ticket workflows |
+| **Procurement** | Purchase requests, approvals, and vendor management |
+| **Reports** | Dashboards, SLA metrics, trend analysis, and custom exports |
+| **AI Assistant** | Claude-powered chat, ticket summarization, and smart suggestions |
+
+## Architecture at a Glance
+
+NexusOps is structured as a pnpm monorepo:
+
+```
+apps/
+  web/       ← Next.js 15 frontend (port 3000)
+  api/       ← tRPC + Express API server (port 3001)
+  docs/      ← This documentation site (port 3003)
+packages/
+  db/        ← Prisma ORM + PostgreSQL migrations
+  types/     ← Shared TypeScript types
+  ui/        ← Shared React component library
+  config/    ← Shared ESLint / TypeScript configs
+```
+
+## Quick Links
+
+- [Getting Started](/getting-started) — Install and run NexusOps locally
+- [Admin Guide](/admin-guide) — Configure organizations, teams, and SLAs
+- [Modules](/modules) — Deep dives into each platform module
+- [API Reference](/api-reference) — tRPC endpoint documentation
+- [Self-Hosted](/self-hosted) — Deploy to production with Docker or Kubernetes
+
+## Technology Stack
+
+- **Frontend**: Next.js 15, React 19, Tailwind CSS, Radix UI, TanStack Query
+- **API**: tRPC v11, Express, Zod validation
+- **Database**: PostgreSQL 15 via Prisma ORM
+- **Cache / Queue**: Redis 7
+- **Auth**: NextAuth.js with OIDC/OAuth2 support
+- **AI**: Anthropic Claude via the official SDK
+- **Workflow Engine**: Custom node-based canvas (ReactFlow)
+- **Monitoring**: Built-in health endpoints, structured JSON logging

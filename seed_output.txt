@@ -1,0 +1,47 @@
+npm warn Unknown project config "enable-pre-post-scripts". This will stop working in the next major version of npm.
+
+> db:seed
+> turbo run db:seed --filter=./packages/db
+
+• turbo 2.8.20
+
+   • Packages in scope: @coheronconnect/db
+   • Running db:seed in 1 packages
+   • Remote caching disabled
+
+@coheronconnect/db:db:seed: cache bypass, force executing be6f6e08b016a4d5
+@coheronconnect/db:db:seed: 
+@coheronconnect/db:db:seed: > @coheronconnect/db@0.1.0 db:seed /Users/kathikiyer/Documents/NexusOps/packages/db
+@coheronconnect/db:db:seed: > tsx src/seed.ts
+@coheronconnect/db:db:seed: 
+@coheronconnect/db:db:seed: ❌ Seed failed: Error: DATABASE_URL environment variable is required
+@coheronconnect/db:db:seed:     at getDb (/Users/kathikiyer/Documents/NexusOps/packages/db/src/client.ts:174:13)
+@coheronconnect/db:db:seed:     at seed (/Users/kathikiyer/Documents/NexusOps/packages/db/src/seed.ts:36:14)
+@coheronconnect/db:db:seed:     at bcrypt (/Users/kathikiyer/Documents/NexusOps/packages/db/src/seed.ts:671:1)
+@coheronconnect/db:db:seed:     at Object.<anonymous> (/Users/kathikiyer/Documents/NexusOps/packages/db/src/seed.ts:675:2)
+@coheronconnect/db:db:seed:     at Module._compile (node:internal/modules/cjs/loader:1803:14)
+@coheronconnect/db:db:seed:     at Object.transformer (/Users/kathikiyer/Documents/NexusOps/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+@coheronconnect/db:db:seed:     at Module.load (node:internal/modules/cjs/loader:1524:32)
+@coheronconnect/db:db:seed:     at Module._load (node:internal/modules/cjs/loader:1326:12)
+@coheronconnect/db:db:seed:     at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+@coheronconnect/db:db:seed:     at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+@coheronconnect/db:db:seed: Error: DATABASE_URL environment variable is required
+@coheronconnect/db:db:seed:     at getDb (/Users/kathikiyer/Documents/NexusOps/packages/db/src/client.ts:174:13)
+@coheronconnect/db:db:seed:     at seed (/Users/kathikiyer/Documents/NexusOps/packages/db/src/seed.ts:36:14)
+@coheronconnect/db:db:seed:     at bcrypt (/Users/kathikiyer/Documents/NexusOps/packages/db/src/seed.ts:671:1)
+@coheronconnect/db:db:seed:     at Object.<anonymous> (/Users/kathikiyer/Documents/NexusOps/packages/db/src/seed.ts:675:2)
+@coheronconnect/db:db:seed:     at Module._compile (node:internal/modules/cjs/loader:1803:14)
+@coheronconnect/db:db:seed:     at Object.transformer (/Users/kathikiyer/Documents/NexusOps/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+@coheronconnect/db:db:seed:     at Module.load (node:internal/modules/cjs/loader:1524:32)
+@coheronconnect/db:db:seed:     at Module._load (node:internal/modules/cjs/loader:1326:12)
+@coheronconnect/db:db:seed:     at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+@coheronconnect/db:db:seed:     at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+@coheronconnect/db:db:seed:  ELIFECYCLE  Command failed with exit code 1.
+ ERROR  @coheronconnect/db#db:seed: command (/Users/kathikiyer/Documents/NexusOps/packages/db) /opt/homebrew/bin/pnpm run db:seed exited (1)
+
+ Tasks:    0 successful, 1 total
+Cached:    0 cached, 1 total
+  Time:    1.992s 
+Failed:    @coheronconnect/db#db:seed
+
+ ERROR  run failed: command  exited (1)

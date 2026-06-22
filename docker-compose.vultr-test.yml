@@ -1,0 +1,148 @@
+# ── CoheronConnect · Vultr Secured Deployment ──────────────────────────────────
+# Managed by Caddy (Reverse Proxy + Auto HTTPS)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Web frontend (Next.js) ──────────────────────────────────────────────────
+  web:
+    image: coheronconnect/web:latest
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://connect.coheron.tech/api
+    restart: always
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+    env_file:
+      - .env.production
+    networks:
+      - nexusops-network
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ── API (Fastify / tRPC) ────────────────────────────────────────────────────
+  api:
+    image: coheronconnect/api:latest
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      BCRYPT_CONCURRENCY: "32"
+      LIBUV_THREADPOOL_SIZE: "32"
+    env_file:
+      - .env.production
+    networks:
+      - nexusops-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  # ── Caddy (Reverse Proxy) ───────────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - nexusops-network
+    depends_on:
+      - web
+      - api
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coheronconnect
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: coheronconnect
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nexusops-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coheronconnect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+        redis-server --requirepass "$$REDIS_PASSWORD" --save 60 1;
+      else
+        redis-server --save 60 1;
+      fi'
+    volumes:
+      - redis_data:/data
+    networks:
+      - nexusops-network
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - >
+          if [ -n "$$REDIS_PASSWORD" ]; then
+            redis-cli -a "$$REDIS_PASSWORD" ping;
+          else
+            redis-cli ping;
+          fi
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Meilisearch ─────────────────────────────────────────────────────────────
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY}
+      MEILI_ENV: production
+    volumes:
+      - meili_data:/meili_data
+    networks:
+      - nexusops-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:7700/health | grep -q available || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  nexusops-network:
+    driver: bridge
+
+# ⚠️  NEVER run `docker compose down -v` — it will wipe all data!
+# Use `docker compose up -d --build` to rebuild safely.
+volumes:
+  postgres_data:
+    external: true
+    name: coheronconnect_postgres_data
+  redis_data:
+  meili_data:
+  caddy_data:
+  caddy_config:

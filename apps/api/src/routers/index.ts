@@ -1,0 +1,121 @@
+import { router } from "../lib/trpc";
+import { authRouter } from "./auth";
+import { adminRouter } from "./admin";
+import { ticketsRouter } from "./tickets";
+import { assetsRouter } from "./assets";
+import { workflowsRouter } from "./workflows";
+import { hrRouter } from "./hr";
+import { procurementRouter } from "./procurement";
+import { dashboardRouter } from "./dashboard";
+import { workOrdersRouter } from "./work-orders";
+import { changesRouter } from "./changes";
+import { securityRouter } from "./security";
+import { grcRouter } from "./grc";
+import { financialRouter } from "./financial";
+import { contractsRouter } from "./contracts";
+import { projectsRouter } from "./projects";
+import { crmRouter } from "./crm/index";
+import { legalRouter } from "./legal";
+import { devopsRouter } from "./devops";
+import { surveysRouter } from "./surveys";
+import { knowledgeRouter } from "./knowledge";
+import { notificationsRouter } from "./notifications";
+import { catalogRouter } from "./catalog";
+import { csmRouter } from "./csm";
+import { apmRouter } from "./apm";
+import { oncallRouter } from "./oncall";
+import { eventsRouter } from "./events";
+import { facilitiesRouter } from "./facilities";
+import { vendorsRouter } from "./vendors";
+import { approvalsRouter } from "./approvals";
+import { reportsRouter } from "./reports";
+import { searchRouter } from "./search";
+import { aiRouter } from "./ai";
+import { recruitmentRouter } from "./recruitment";
+import { secretarialRouter } from "./secretarial";
+import { workforceRouter } from "./workforce";
+import { indiaComplianceRouter } from "./india-compliance";
+import { inventoryRouter } from "./inventory";
+import { assignmentRulesRouter } from "./assignment-rules";
+import { integrationsRouter } from "./integrations";
+import { macRouter } from "./mac";
+import { performanceRouter } from "./performance";
+import { customFieldsRouter } from "./custom-fields";
+import { accountingRouter } from "./accounting";
+import { payrollRouter } from "./payroll";
+import { expensesRouter } from "./expenses";
+import { commandCenterRouter } from "./command-center";
+import { workbenchRouter } from "./workbench";
+import { esignRouter } from "./esign";
+import { documentsRouter } from "./documents";
+import { agentRouter } from "./agent";
+import { ingestRouter } from "./ingest";
+import { teamsRouter } from "./teams";
+
+export const appRouter = router({
+  mac: macRouter,
+  auth: authRouter,
+  admin: adminRouter,
+  tickets: ticketsRouter,
+  assets: assetsRouter,
+  workflows: workflowsRouter,
+  hr: hrRouter,
+  procurement: procurementRouter,
+  dashboard: dashboardRouter,
+  workOrders: workOrdersRouter,
+  // Phase 2 routers
+  changes: changesRouter,
+  security: securityRouter,
+  grc: grcRouter,
+  financial: financialRouter,
+  contracts: contractsRouter,
+  projects: projectsRouter,
+  crm: crmRouter,
+  legal: legalRouter,
+  devops: devopsRouter,
+  surveys: surveysRouter,
+  knowledge: knowledgeRouter,
+  notifications: notificationsRouter,
+  catalog: catalogRouter,
+  // Phase 3 routers
+  csm: csmRouter,
+  apm: apmRouter,
+  oncall: oncallRouter,
+  events: eventsRouter,
+  facilities: facilitiesRouter,
+  vendors: vendorsRouter,
+  approvals: approvalsRouter,
+  reports: reportsRouter,
+  search: searchRouter,
+  ai: aiRouter,
+  // India compliance routers
+  indiaCompliance: indiaComplianceRouter,
+  assignmentRules: assignmentRulesRouter,
+  inventory: inventoryRouter,
+  // Phase 3 True Modules
+  recruitment: recruitmentRouter,
+  secretarial: secretarialRouter,
+  workforce: workforceRouter,
+  integrations: integrationsRouter,
+  // Phase 4 Modules
+  performance: performanceRouter,
+  // Phase 3 — Accounting Foundation
+  accounting: accountingRouter,
+  // Phase 7 — Custom Fields
+  customFields: customFieldsRouter,
+  payroll: payrollRouter,
+  /** Finance expense reports (`expense_reports`) — distinct from `hr.expenses` (claims). */
+  expenseReports: expensesRouter,
+  commandCenter: commandCenterRouter,
+  workbench: workbenchRouter,
+  // GA workstreams (§ Production Readiness Plan 2026-04-26)
+  esign: esignRouter,
+  documents: documentsRouter,
+  // P1 — multi-turn Copilot agent with conversation memory + write tools
+  agent: agentRouter,
+  // Readiness Gap: Bulk Ingest
+  ingest: ingestRouter,
+  teams: teamsRouter,
+});
+
+export type AppRouter = typeof appRouter;

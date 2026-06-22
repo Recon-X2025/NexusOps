@@ -1,0 +1,70 @@
+---
+title: Workbenches
+description: 12 persona-driven daily-work surfaces between the Command Center and module routes
+---
+
+# Workbenches
+
+**Workbenches** are persona-driven daily-work surfaces under `/app/workbench/<key>`. They sit between the executive **Command Center** (`/app/command`) and the contributor module routes (`/app/tickets`, `/app/changes`, …). They are not dashboards: every panel surfaces an action the operator can take, not a chart of the past.
+
+Each workbench has a **distinct primary visual** (no shared template) and a **distinct "next action" right rail** so operators don't see the same shape across roles.
+
+## Architecture
+
+- **Sidebar** — workbenches appear above a divider in each hub group; module routes remain below for direct navigation.
+- **API** — one `workbench.<key>` tRPC procedure per workbench, gated by the `workbench` RBAC module. Each procedure delegates to a payload builder under `apps/api/src/services/workbench-payloads/*` that runs source queries in parallel via `runPanel` with a 3s default timeout. Failing or empty sources return `state: "no_data"` so a single slow query never breaks the page.
+- **UI** — shared chrome in `apps/web/src/components/workbench/shared/*` (shell, header, action queue, hooks, RBAC gate); per-workbench primary visual + secondary panels in `components/workbench/<key>/`.
+- **Defaults** — `packages/types/src/workbench-defaults.ts` maps each role to its default workbench. Old hub URLs (`/app/it-services`, `/app/security-compliance`, …) **308-redirect** to the user's default workbench.
+
+## The 12 workbenches
+
+### Service Desk — `/app/workbench/service-desk`
+**Persona:** IT Service Desk Manager. **Primary visual:** live queue table with SLA countdown column (color-coded by SLA risk). Cross-cuts `tickets`, `oncall`, `approvals` so the lead sees breach risk, on-shift roster, and CAB escalations together.
+
+### Change & Release — `/app/workbench/change-release`
+**Persona:** Change Manager. **Primary visual:** 14-day change calendar / timeline strip with collision markers. Cross-cuts `changeRequests` (windows + risk) and `changeApprovals` (CAB queue).
+
+### Field Service — `/app/workbench/field-service`
+**Persona:** Dispatcher. **Primary visual:** dispatch board with state lanes (awaiting dispatch / dispatched / on site / on hold). Cross-cuts `workOrders` (board + state counts) and per-technician load.
+
+### SecOps — `/app/workbench/secops`
+**Persona:** Security Analyst (lead). **Primary visual:** alert triage stream with severity bars and MITRE technique chips. Cross-cuts `securityIncidents` (stream + MITRE) and `vulnerabilities` (action queue).
+
+### GRC — `/app/workbench/grc`
+**Persona:** GRC Analyst. **Primary visual:** control coverage matrix (categories × effectiveness). Cross-cuts `riskControls`, `riskControlEvidence`, and `auditFindings`.
+
+### HR Ops — `/app/workbench/hr-ops`
+**Persona:** HR Operations Manager. **Primary visual:** employee journey strip across joining → onboarding → active leave → exit. Cross-cuts `employees`, `hrCases`, and `leaveRequests`.
+
+### Recruiter — `/app/workbench/recruiter`
+**Persona:** Recruiter. **Primary visual:** pipeline funnel + today's interview load. Cross-cuts `candidateApplications` (funnel), `interviews` (slots), and `jobOffers` (action queue).
+
+### CSM — `/app/workbench/csm`
+**Persona:** Customer Success Manager. **Primary visual:** account portfolio cards sized by ARR and colored by health. Cross-cuts `crmAccounts` (portfolio + histogram) and `contracts` (renewals).
+
+### AP / AR — `/app/workbench/finance-ops`
+**Persona:** AP/AR Manager. **Primary visual:** dual-pane aging buckets (AP and AR side-by-side). Cross-cuts `invoices` payable and receivable flows plus the approval queue.
+
+### Procurement — `/app/workbench/procurement`
+**Persona:** Buyer / Procurement Manager. **Primary visual:** open POs Kanban (columns by PO status). Cross-cuts `purchaseOrders` (board), `vendors` (watch list), and `contracts` (renewals).
+
+### Company Secretary — `/app/workbench/company-secretary`
+**Persona:** Company Secretary. **Primary visual:** rolling 60-day compliance calendar with statutory filings, board meetings, and resolution markers. Cross-cuts `secretarialFilings`, `boardMeetings`, and `boardResolutions`.
+
+### PMO — `/app/workbench/pmo`
+**Persona:** PMO Lead. **Primary visual:** 2×2 portfolio matrix (impact × confidence) with health-pill points. Cross-cuts `projects`, `projectMilestones`, and `projectDependencies`.
+
+## Empty / loading / error states
+
+Workbenches **never fabricate data**. Per-panel state is honest:
+
+- **Loading** — skeletons matching the final layout; converted to error state after 5s if still loading.
+- **No data** — explicit empty message ("No actions for you right now.", "No changes scheduled in the next 14 days.", etc.).
+- **Error** — per-panel error boundary with retry; one failing source never crashes the page.
+
+## RBAC
+
+Access is gated at two layers:
+
+1. **Module** — `workbench` (with `read` and `admin` actions) in `packages/types/src/rbac-matrix.ts`.
+2. **Per-workbench** — `useRBAC().canAccessWorkbench(workbenchKey)` driven by the `accessRoles` map in `workbench-defaults.ts`. Users without permission for a given workbench are redirected to their default workbench (or the Command Center).

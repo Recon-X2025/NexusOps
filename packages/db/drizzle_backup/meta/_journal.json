@@ -1,0 +1,216 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1774779929927,
+      "tag": "0000_tidy_lethal_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775000000000,
+      "tag": "0003_tickets_idempotency_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775126400000,
+      "tag": "0004_recruitment_secretarial",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775232000000,
+      "tag": "0005_contracts_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775318400000,
+      "tag": "0006_tickets_vectors_external",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775404800000,
+      "tag": "0007_accounting_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775491200000,
+      "tag": "0008_business_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775577600000,
+      "tag": "0009_payroll_pipeline",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775664000000,
+      "tag": "0010_invoice_flow",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775750400000,
+      "tag": "0011_catalog_fulfillment_ticket",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1775836800000,
+      "tag": "0012_itsm_phases_bc",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1775923200000,
+      "tag": "0013_ticket_status_pending_enum_and_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1776009600000,
+      "tag": "0014_layer8_schema_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1776096000000,
+      "tag": "0015_expense_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1776182400000,
+      "tag": "0016_gap_closure_finance_itsm_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776268800000,
+      "tag": "0017_okr_objectives",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776355200000,
+      "tag": "0018_problems_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1776441600000,
+      "tag": "0019_crm_deal_won_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776528000000,
+      "tag": "0020_purchase_orders_legal_entity",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1776614400000,
+      "tag": "0021_mfa_enrolled_ci_external_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1776700800000,
+      "tag": "0022_ci_items_external_key_unique_full",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1776787200000,
+      "tag": "0023_strategy_portfolio_change_risk_kb_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1776873600000,
+      "tag": "0024_gap_closure_programme_100pct",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1776960000000,
+      "tag": "0025_attendance_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1777046400000,
+      "tag": "0026_expense_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1777190304557,
+      "tag": "0027_strange_rafael_vega",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1777192052035,
+      "tag": "0028_optimal_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1777276800000,
+      "tag": "0029_p1_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1777363200000,
+      "tag": "0030_skills_based_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777449600000,
+      "tag": "0031_survey_invites_csat",
+      "breakpoints": true
+    }
+  ]
+}

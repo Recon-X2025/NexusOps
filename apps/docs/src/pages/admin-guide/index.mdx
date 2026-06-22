@@ -1,0 +1,107 @@
+# Admin Guide
+
+This guide covers everything a platform administrator needs to configure and manage a NexusOps instance.
+
+## First-Time Admin Setup
+
+After initial deployment and login, complete these steps to fully configure your instance:
+
+1. **Set your admin profile** — navigate to **Profile → Settings** and update your name, avatar, and notification preferences.
+2. **Create your Organization** — NexusOps is multi-tenant; all resources belong to an organization.
+3. **Invite users** — send email invitations or configure SSO so users can self-register.
+4. **Define SLA policies** — set response and resolution targets per priority level.
+5. **Configure categories and priorities** — customize ticket taxonomy to match your IT processes.
+6. **Connect integrations** — link Slack, Teams, Jira, or other tools your team uses.
+
+## Organizations
+
+An **Organization** is the top-level tenant in NexusOps. All tickets, assets, workflows, and users are scoped to an organization.
+
+### Creating an Organization
+
+1. Navigate to **Admin → Organizations → New Organization**.
+2. Enter a name (e.g., "Acme Corp IT") and optional logo URL.
+3. Set the default timezone and locale for the organization.
+4. Click **Create**. You are automatically made the owner.
+
+### Organization Settings
+
+From **Admin → Organizations → [Your Org] → Settings** you can configure:
+
+- **Display name and slug** — the slug appears in URLs
+- **Default SLA policy** — applied to new tickets unless overridden
+- **Business hours** — used for SLA pause-on-holiday logic
+- **Max attachment size** — per-file upload limit (default 25 MB)
+
+## Teams
+
+Teams group agents and define ticket routing rules.
+
+### Creating a Team
+
+1. Go to **Admin → Teams → New Team**.
+2. Give the team a name (e.g., "Infrastructure", "Application Support").
+3. Assign a **Team Lead** — this user receives escalation alerts.
+4. Set the team's **working hours** (used for round-robin assignment).
+5. Add members by searching for user accounts.
+
+Teams can be assigned to ticket categories so inbound tickets are automatically routed to the correct group.
+
+## Users and Roles
+
+NexusOps has three built-in roles:
+
+| Role | Permissions |
+|------|------------|
+| **Admin** | Full platform access, all organization settings |
+| **Agent** | Create, update, and resolve tickets; manage assets; run workflows |
+| **End User** | Submit tickets, view own tickets, access Knowledge Base |
+
+### Inviting a User
+
+1. Go to **Admin → Users → Invite User**.
+2. Enter the user's email address and select their role.
+3. Click **Send Invitation**. The user receives an email with a registration link valid for 48 hours.
+
+You can also bulk-import users via CSV from **Admin → Users → Import**.
+
+## SLA Policies
+
+Service Level Agreements (SLAs) define how quickly tickets must be responded to and resolved.
+
+### Creating an SLA Policy
+
+1. Navigate to **Admin → SLA Policies → New Policy**.
+2. Name the policy (e.g., "Standard SLA", "VIP SLA").
+3. For each priority level, set:
+
+| Priority | First Response Time | Resolution Time |
+|----------|--------------------:|----------------:|
+| Critical | 15 minutes | 4 hours |
+| High | 1 hour | 8 hours |
+| Medium | 4 hours | 24 hours |
+| Low | 8 hours | 72 hours |
+
+4. Enable **Business Hours Only** to exclude evenings and weekends from SLA calculations.
+5. Set **Escalation Rules** — automatically notify team leads or reassign tickets approaching SLA breach.
+
+## Ticket Categories and Priorities
+
+Categories organize tickets into meaningful groups for reporting and routing.
+
+### Managing Categories
+
+Go to **Admin → Ticket Categories**. The default categories are:
+
+- **Hardware** — physical device issues
+- **Software** — application support and bug reports
+- **Network** — connectivity and infrastructure
+- **Access** — account, permission, and identity requests
+- **Service Request** — general IT service requests
+- **Change Request** — planned changes to infrastructure or software
+
+You can create sub-categories for more granular routing. Each category can be mapped to a default team and SLA policy.
+
+## Audit Log
+
+All administrative actions are recorded in **Admin → Audit Log**. Entries include the actor, action type, affected resource, and timestamp. Logs are retained for 90 days by default (configurable via `AUDIT_LOG_RETENTION_DAYS`).

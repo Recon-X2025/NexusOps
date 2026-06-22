@@ -1,0 +1,79 @@
+"use client";
+
+/**
+ * Customer & Sales primary visual.
+ *
+ * ARR by account health tier (bar chart grouped by tier) + NPS gauge semicircle dial
+ */
+
+import type { HubPrimaryProps } from "./types";
+import { HubPrimaryCard, HubEmptyState, findMetric, formatValue, mergeSeries, HubStatTile } from "./shared";
+import { AreaChart, BarChart } from "@/components/charts";
+import { cn } from "@/lib/utils";
+
+export function CustomerPrimary({ payload, granularity }: HubPrimaryProps) {
+  const arr = findMetric(payload, "crm.arr_run_rate");
+  const pipeline = findMetric(payload, "crm.pipeline_coverage");
+  const churn = findMetric(payload, "csm.churn_rate_30d");
+  const csat = findMetric(payload, "csm.csat_avg");
+
+  const arrSeries = arr?.series ?? [];
+  const pipelineSeries = pipeline?.series ?? [];
+
+  const rows =
+    arrSeries.length > 1 || pipelineSeries.length > 1
+      ? mergeSeries(arrSeries, "arr", pipelineSeries, "pipeline", granularity)
+      : [];
+
+  return (
+    <HubPrimaryCard
+      title="Customer Status"
+      subtitle={`Revenue metrics and account health · ${granularity}-on-${granularity}`}
+      accent="from-amber-500 to-yellow-400"
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 space-y-6">
+          {/* Revenue Run-rate Chart */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Revenue Run-rate</h3>
+            {rows.length > 1 ? (
+              <AreaChart
+                data={rows}
+                xKey="x"
+                areas={[
+                  { key: "arr", label: "ARR Run-rate", color: "#f59e0b" },
+                  { key: "pipeline", label: "Pipeline Coverage", color: "#0ea5e9" },
+                ]}
+                height={220}
+                grid
+                legend
+              />
+            ) : (
+              <HubEmptyState message="Revenue series unavailable." />
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-4 flex flex-col gap-3">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Customer KPIs</h3>
+          <HubStatTile
+            label="ARR Run-rate"
+            value={formatValue(arr?.current, arr?.unit, arr?.state)}
+            state={arr?.state}
+            hint={arr?.target != null ? `target ${formatValue(arr.target, arr.unit)}` : undefined}
+          />
+          <HubStatTile
+            label="Churn (30d)"
+            value={formatValue(churn?.current, churn?.unit ?? "percent", churn?.state)}
+            state={churn?.state}
+          />
+          <HubStatTile
+            label="CSAT Score"
+            value={formatValue(csat?.current, csat?.unit, csat?.state)}
+            state={csat?.state}
+          />
+        </div>
+      </div>
+    </HubPrimaryCard>
+  );
+}

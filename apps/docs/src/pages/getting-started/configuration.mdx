@@ -1,0 +1,93 @@
+# Configuration Reference
+
+NexusOps is configured entirely through environment variables. The API server reads from `apps/api/.env` and the web frontend reads from `apps/web/.env`.
+
+## Core Application Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `APP_SECRET` | ✅ Yes | — | 32+ character random secret used for internal signing. Generate with `openssl rand -hex 32`. |
+| `NODE_ENV` | No | `development` | Set to `production` in deployed environments. |
+| `PORT` | No | `3001` | Port the API server listens on. |
+| `LOG_LEVEL` | No | `info` | Logging verbosity: `debug`, `info`, `warn`, `error`. |
+
+## Database
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | ✅ Yes | — | PostgreSQL connection string. Format: `postgresql://user:password@host:5432/dbname` |
+| `DATABASE_POOL_MIN` | No | `2` | Minimum number of database connections in the pool. |
+| `DATABASE_POOL_MAX` | No | `10` | Maximum number of database connections in the pool. |
+
+## Redis / Cache
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `REDIS_URL` | ✅ Yes | — | Redis connection string. Format: `redis://localhost:6379` or `rediss://` for TLS. |
+| `REDIS_SESSION_TTL` | No | `86400` | Session TTL in seconds (default 24 hours). |
+
+## Authentication
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JWT_SECRET` | ✅ Yes | — | Secret key for signing JWT access tokens. Use a 64+ character random string. |
+| `JWT_EXPIRY` | No | `15m` | JWT access token expiry (e.g., `15m`, `1h`). |
+| `NEXTAUTH_URL` | ✅ Yes (web) | — | Canonical URL of the web app, e.g. `http://localhost:3000`. Required by NextAuth.js. |
+| `NEXTAUTH_SECRET` | ✅ Yes (web) | — | NextAuth.js secret for session encryption. Generate with `openssl rand -hex 32`. |
+
+## OIDC / SSO
+
+Configure these to enable Single Sign-On via any OIDC-compliant identity provider (Okta, Azure AD, Google Workspace, etc.).
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OIDC_CLIENT_ID` | No | — | OAuth2/OIDC client ID from your identity provider. |
+| `OIDC_CLIENT_SECRET` | No | — | OAuth2/OIDC client secret. |
+| `OIDC_ISSUER` | No | — | OIDC issuer URL, e.g. `https://accounts.google.com`. |
+| `OIDC_SCOPE` | No | `openid email profile` | Space-separated list of scopes to request. |
+
+## AI / Anthropic
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | No | — | Anthropic Claude API key. Required to enable AI features (auto-classification, summarization, AI assistant). Obtain from [console.anthropic.com](https://console.anthropic.com). |
+| `ANTHROPIC_MODEL` | No | `claude-3-5-sonnet-20241022` | Claude model to use for AI features. |
+| `AI_MAX_TOKENS` | No | `1024` | Maximum tokens in AI responses. |
+
+## Email (SMTP)
+
+Email is used for ticket notifications, password resets, and user invitations.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SMTP_HOST` | No | — | SMTP server hostname, e.g. `smtp.mailgun.org`. |
+| `SMTP_PORT` | No | `587` | SMTP port. Common values: `25`, `465` (SSL), `587` (STARTTLS). |
+| `SMTP_SECURE` | No | `false` | Set to `true` to use TLS/SSL (port 465). |
+| `SMTP_USER` | No | — | SMTP authentication username. |
+| `SMTP_PASSWORD` | No | — | SMTP authentication password. |
+| `SMTP_FROM` | No | `noreply@nexusops.local` | "From" address for outbound emails. |
+
+## File Storage
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `STORAGE_PROVIDER` | No | `local` | Storage backend: `local`, `s3`, or `gcs`. |
+| `STORAGE_LOCAL_PATH` | No | `./uploads` | Local filesystem path for file uploads (when `STORAGE_PROVIDER=local`). |
+| `AWS_S3_BUCKET` | No | — | S3 bucket name (when `STORAGE_PROVIDER=s3`). |
+| `AWS_REGION` | No | `us-east-1` | AWS region for S3. |
+| `AWS_ACCESS_KEY_ID` | No | — | AWS access key ID. |
+| `AWS_SECRET_ACCESS_KEY` | No | — | AWS secret access key. |
+
+## Generating Secrets
+
+Use these commands to generate cryptographically secure secrets:
+
+```bash
+# Generate APP_SECRET / JWT_SECRET / NEXTAUTH_SECRET
+openssl rand -hex 32
+
+# Or using Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+> **Security note**: Never commit `.env` files to version control. The repository's `.gitignore` already excludes them.

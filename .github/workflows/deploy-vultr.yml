@@ -1,0 +1,63 @@
+# Deploy to Vultr by rsync + docker compose pull (GHCR).
+#
+# Required repository secrets:
+#   VULTR_SSH_PRIVATE_KEY  — ed25519 key with access to root@VULTR_HOST
+#   VULTR_HOST             — VPS IP or hostname
+#
+# GHCR: workflow passes github.token to the VPS for `docker login` (packages:read).
+# For laptop-only deploy without Actions, use .env.production on the VPS or DEPLOY_MODE=build.
+#
+name: Deploy Vultr
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to pull (latest, main, or 7-char commit SHA) — only used when deploy_mode is pull"
+        required: true
+        default: "latest"
+      deploy_mode:
+        description: "pull = GHCR images (run CI build on main first). build = compile on Vultr (slower, works without GHCR)."
+        required: true
+        type: choice
+        options:
+          - pull
+          - build
+        default: pull
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: Rsync + pull + up
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rsync openssh-client
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+
+      - name: Trust host key
+        env:
+          VULTR_HOST: ${{ secrets.VULTR_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VULTR_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          VULTR_HOST: ${{ secrets.VULTR_HOST }}
+          NEXUSOPS_IMAGE_TAG: ${{ inputs.image_tag }}
+          DEPLOY_MODE: ${{ inputs.deploy_mode }}
+          GHCR_READ_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+        run: |
+          export NEXUSOPS_IMAGE_REPO="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          bash scripts/push-to-vultr.sh
