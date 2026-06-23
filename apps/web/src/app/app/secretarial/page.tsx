@@ -164,6 +164,85 @@ function BoardTab() {
   const [esignFor, setEsignFor] = useState<{ id: string; title: string } | null>(null);
   const [mtgForm, setMtgForm] = useState({ type: "board" as const, title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" });
 
+  const [showAddDirector, setShowAddDirector] = useState(false);
+  const [editingDirector, setEditingDirector] = useState<string | null>(null);
+  const [dirForm, setDirForm] = useState({
+    name: "",
+    din: "",
+    designation: "",
+    category: "non_executive",
+    pan: "",
+    email: "",
+    phone: "",
+    appointedAt: "",
+    address: ""
+  });
+
+  const createDirector = trpc.secretarial.directors.create.useMutation({
+    onSuccess: () => {
+      toast.success("Director added successfully and automated DIR-3 KYC filing created");
+      setShowAddDirector(false);
+      setDirForm({
+        name: "",
+        din: "",
+        designation: "",
+        category: "non_executive",
+        pan: "",
+        email: "",
+        phone: "",
+        appointedAt: "",
+        address: ""
+      });
+      refetchDirectors();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const updateDirector = trpc.secretarial.directors.update.useMutation({
+    onSuccess: () => {
+      toast.success("Director details updated successfully");
+      setShowAddDirector(false);
+      setEditingDirector(null);
+      setDirForm({
+        name: "",
+        din: "",
+        designation: "",
+        category: "non_executive",
+        pan: "",
+        email: "",
+        phone: "",
+        appointedAt: "",
+        address: ""
+      });
+      refetchDirectors();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteDirector = trpc.secretarial.directors.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Director removed successfully");
+      refetchDirectors();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleCloseDirectorModal = () => {
+    setShowAddDirector(false);
+    setEditingDirector(null);
+    setDirForm({
+      name: "",
+      din: "",
+      designation: "",
+      category: "non_executive",
+      pan: "",
+      email: "",
+      phone: "",
+      appointedAt: "",
+      address: ""
+    });
+  };
+
   const createResolution = trpc.secretarial.resolutions.create.useMutation({
     onSuccess: () => refetchResolutions(),
     onError: e => toast.error(e.message),
@@ -239,6 +318,14 @@ function BoardTab() {
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Board of Directors</h3>
+          <PermissionGate module="secretarial" action="write">
+            <button
+              onClick={() => setShowAddDirector(true)}
+              className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Board Director
+            </button>
+          </PermissionGate>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
@@ -261,11 +348,33 @@ function BoardTab() {
                     {d.kyc ?? "pending"}
                   </span>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                   <PermissionGate module="secretarial" action="write">
                     <button onClick={() => updateKyc.mutate({ id: d.id, kyc: d.kyc === "filed" ? "pending" : "filed" })} className="text-xs text-primary hover:underline">
                       {d.kyc === "filed" ? "Mark Pending" : "Mark Filed"}
                     </button>
+                    <span className="text-muted-foreground/30">|</span>
+                    <button onClick={() => {
+                      setDirForm({
+                        name: d.name,
+                        din: d.din,
+                        designation: d.designation,
+                        category: d.category ?? "non_executive",
+                        pan: d.pan ?? "",
+                        email: (d as any).email ?? "",
+                        phone: (d as any).phone ?? "",
+                        appointedAt: d.appointedAt ? (new Date(d.appointedAt).toISOString().split('T')[0] ?? "") : "",
+                        address: (d as any).address ?? ""
+                      });
+                      setEditingDirector(d.id);
+                      setShowAddDirector(true);
+                    }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                    <span className="text-muted-foreground/30">|</span>
+                    <button onClick={() => {
+                      if (confirm("Are you sure you want to remove this director?")) {
+                        deleteDirector.mutate({ id: d.id });
+                      }
+                    }} className="text-xs text-red-600 hover:underline">Cancel</button>
                   </PermissionGate>
                 </td>
               </tr>
@@ -444,6 +553,161 @@ function BoardTab() {
           </div>
         </div>
       )}
+
+      {showAddDirector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-foreground">{editingDirector ? "Edit Board Director" : "Add Board Director"}</h3>
+              <button onClick={handleCloseDirectorModal}>
+                <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                  placeholder="e.g. Satya Nadella"
+                  value={dirForm.name}
+                  onChange={(e) => setDirForm(f => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">DIN *</label>
+                  <input
+                    type="text"
+                    required
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    placeholder="e.g. 01234567"
+                    value={dirForm.din}
+                    onChange={(e) => setDirForm(f => ({ ...f, din: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Designation *</label>
+                  <input
+                    type="text"
+                    required
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    placeholder="e.g. Managing Director"
+                    value={dirForm.designation}
+                    onChange={(e) => setDirForm(f => ({ ...f, designation: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Category</label>
+                  <select
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    value={dirForm.category}
+                    onChange={(e) => setDirForm(f => ({ ...f, category: e.target.value }))}
+                  >
+                    <option value="executive">Executive</option>
+                    <option value="non_executive">Non-Executive</option>
+                    <option value="independent">Independent</option>
+                    <option value="nominee">Nominee</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">PAN</label>
+                  <input
+                    type="text"
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    placeholder="e.g. ABCDE1234F"
+                    value={dirForm.pan}
+                    onChange={(e) => setDirForm(f => ({ ...f, pan: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
+                  <input
+                    type="email"
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    placeholder="e.g. satya@microsoft.com"
+                    value={dirForm.email}
+                    onChange={(e) => setDirForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone</label>
+                  <input
+                    type="text"
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    placeholder="e.g. +91 99999 99999"
+                    value={dirForm.phone}
+                    onChange={(e) => setDirForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Appointed Date</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    value={dirForm.appointedAt}
+                    onChange={(e) => setDirForm(f => ({ ...f, appointedAt: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Address</label>
+                  <input
+                    type="text"
+                    className="mt-1 w-full border border-border rounded px-3 py-2 text-[12px] bg-background"
+                    placeholder="e.g. Mumbai, India"
+                    value={dirForm.address}
+                    onChange={(e) => setDirForm(f => ({ ...f, address: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleCloseDirectorModal}
+                className="flex-1 px-4 py-2 text-xs border border-border rounded hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!dirForm.name.trim()) { toast.error("Full Name is required"); return; }
+                  if (!dirForm.din.trim() || dirForm.din.trim().length < 8) { toast.error("DIN is required and must be at least 8 characters"); return; }
+                  if (!dirForm.designation.trim()) { toast.error("Designation is required"); return; }
+                  
+                  const payload = {
+                    name: dirForm.name.trim(),
+                    din: dirForm.din.trim(),
+                    designation: dirForm.designation.trim(),
+                    category: dirForm.category,
+                    pan: dirForm.pan.trim() || undefined,
+                    email: dirForm.email.trim() || undefined,
+                    phone: dirForm.phone.trim() || undefined,
+                    appointedAt: dirForm.appointedAt || undefined,
+                    address: dirForm.address.trim() || undefined
+                  };
+
+                  if (editingDirector) {
+                    updateDirector.mutate({ id: editingDirector, ...payload });
+                  } else {
+                    createDirector.mutate(payload);
+                  }
+                }}
+                disabled={createDirector.isPending || updateDirector.isPending}
+                className="flex-1 px-4 py-2 text-xs bg-primary text-white rounded hover:bg-primary/95 disabled:opacity-50 transition-colors"
+              >
+                {createDirector.isPending || updateDirector.isPending ? "Saving…" : (editingDirector ? "Save Changes" : "Add Director")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -534,7 +798,7 @@ function FilingsTab() {
                   {f.status !== "filed" && f.status !== "cancelled" && (
                     <PermissionGate module="secretarial" action="write">
                       <button onClick={() => {
-                        setForm({ formNumber: f.formNumber, title: f.title, authority: f.authority, category: f.category || "annual_return", dueDate: f.dueDate ? new Date(f.dueDate).toISOString().split('T')[0] : "", fy: f.fy || "", fees: "", notes: "" });
+                        setForm({ formNumber: f.formNumber, title: f.title, authority: f.authority, category: f.category || "annual_return", dueDate: f.dueDate ? (new Date(f.dueDate).toISOString().split('T')[0] ?? "") : "", fy: f.fy || "", fees: "", notes: "" });
                         setEditingFiling(f.id);
                         setShowCreate(true);
                       }} className="text-xs text-blue-600 hover:underline font-medium">Edit</button>
@@ -616,11 +880,26 @@ function ShareCapitalTab() {
   const { data: shares = [], refetch } = trpc.secretarial.shares.list.useQuery({}, mergeTrpcQueryOpts("secretarial.shares.list", undefined));
   const { data: summary = [] } = trpc.secretarial.shares.summary.useQuery(undefined, mergeTrpcQueryOpts("secretarial.shares.summary", undefined));
   const [showAdd, setShowAdd] = useState(false);
+  const [editingShareholder, setEditingShareholder] = useState<string | null>(null);
   const [form, setForm] = useState({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" });
   const createShare = trpc.secretarial.shares.create.useMutation({
-    onSuccess: () => { toast.success("Shareholder added"); refetch(); setShowAdd(false); },
+    onSuccess: () => { toast.success("Shareholder added"); refetch(); handleCloseModal(); },
     onError: e => toast.error(e.message),
   });
+  const updateShare = trpc.secretarial.shares.update.useMutation({
+    onSuccess: () => { toast.success("Shareholder updated"); refetch(); handleCloseModal(); },
+    onError: e => toast.error(e.message),
+  });
+  const deleteShare = trpc.secretarial.shares.delete.useMutation({
+    onSuccess: () => { toast.success("Shareholder removed"); refetch(); },
+    onError: e => toast.error(e.message),
+  });
+
+  const handleCloseModal = () => {
+    setShowAdd(false);
+    setEditingShareholder(null);
+    setForm({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" });
+  };
 
   return (
     <div className="space-y-6">
@@ -640,20 +919,20 @@ function ShareCapitalTab() {
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Shareholder Register</h3>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+            <button onClick={() => { setEditingShareholder(null); setForm({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" }); setShowAdd(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
               <Plus className="w-3.5 h-3.5" /> Add Shareholder
             </button>
           </PermissionGate>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Folio", "Holder Name", "Type", "Class", "Nominal Value", "Quantity", "Paid Up", "PAN"].map(h => (
+            <tr>{["Folio", "Holder Name", "Type", "Class", "Nominal Value", "Quantity", "Paid Up", "PAN", "Actions"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
           <tbody>
-            {shares.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
-            {shares.map((s: { id: string; folio: string; holderName: string; holderType: string; shareClass?: string; nominalValue: number; quantity?: number; paidUpValue?: number | null; pan?: string | null }) => (
+            {shares.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
+            {shares.map((s: { id: string; folio: string; holderName: string; holderType: string; shareClass?: string; nominalValue: number; quantity?: number; paidUpValue?: number | null; pan?: string | null; address?: string | null }) => (
               <tr key={s.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
                 <td className="px-4 py-3 font-medium">{s.holderName}</td>
@@ -663,6 +942,29 @@ function ShareCapitalTab() {
                 <td className="px-4 py-3 font-medium">{s.quantity?.toLocaleString()}</td>
                 <td className="px-4 py-3 text-xs">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
                 <td className="px-4 py-3 font-mono text-xs">{s.pan ?? "—"}</td>
+                <td className="px-4 py-3 space-x-2 whitespace-nowrap">
+                  <PermissionGate module="secretarial" action="write">
+                    <button onClick={() => {
+                      setForm({
+                        holderName: s.holderName,
+                        holderType: s.holderType,
+                        shareClass: (s.shareClass as any) ?? "equity",
+                        nominalValue: s.nominalValue,
+                        quantity: s.quantity ?? 1,
+                        pan: s.pan ?? "",
+                        address: s.address ?? ""
+                      });
+                      setEditingShareholder(s.id);
+                      setShowAdd(true);
+                    }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                    <span className="text-muted-foreground/30">|</span>
+                    <button onClick={() => {
+                      if (confirm("Are you sure you want to remove this shareholder?")) {
+                        deleteShare.mutate({ id: s.id });
+                      }
+                    }} className="text-xs text-red-600 hover:underline">Delete</button>
+                  </PermissionGate>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -673,8 +975,8 @@ function ShareCapitalTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">Add Shareholder</h2>
-              <button onClick={() => setShowAdd(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+              <h2 className="font-bold text-lg">{editingShareholder ? "Edit Shareholder" : "Add Shareholder"}</h2>
+              <button onClick={handleCloseModal} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
               <div className="col-span-2"><label className="block text-sm font-medium mb-1">Holder Name *</label><input value={form.holderName} onChange={e => setForm(p => ({ ...p, holderName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
@@ -686,8 +988,27 @@ function ShareCapitalTab() {
               <div className="col-span-2"><label className="block text-sm font-medium mb-1">Address</label><input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
-              <button disabled={!form.holderName || createShare.isPending} onClick={() => createShare.mutate(form)} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{createShare.isPending ? "Adding..." : "Add"}</button>
+              <button onClick={handleCloseModal} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button
+                disabled={!form.holderName || createShare.isPending || updateShare.isPending}
+                onClick={() => {
+                  if (editingShareholder) {
+                    updateShare.mutate({
+                      id: editingShareholder,
+                      holderName: form.holderName,
+                      holderType: form.holderType,
+                      shareClass: form.shareClass,
+                      nominalValue: form.nominalValue,
+                      quantity: form.quantity,
+                      pan: form.pan || undefined,
+                      address: form.address || undefined,
+                    });
+                  } else {
+                    createShare.mutate(form);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >{createShare.isPending || updateShare.isPending ? "Saving..." : (editingShareholder ? "Save Changes" : "Add")}</button>
             </div>
           </div>
         </div>
@@ -703,13 +1024,42 @@ function EsopTab() {
   const { data: grants = [], refetch } = trpc.secretarial.esop.list.useQuery({}, mergeTrpcQueryOpts("secretarial.esop.list", undefined));
   const { data: summary = [] } = trpc.secretarial.esop.summary.useQuery(undefined, mergeTrpcQueryOpts("secretarial.esop.summary", undefined));
   const [showGrant, setShowGrant] = useState(false);
+  const [editingGrant, setEditingGrant] = useState<string | null>(null);
   const [form, setForm] = useState({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" });
   const grantEsop = trpc.secretarial.esop.grant.useMutation({
-    onSuccess: () => { toast.success("ESOP grant created"); refetch(); setShowGrant(false); },
+    onSuccess: () => { toast.success("ESOP grant created"); refetch(); handleCloseModal(); },
+    onError: e => toast.error(e.message),
+  });
+  const updateEsop = trpc.secretarial.esop.update.useMutation({
+    onSuccess: () => { toast.success("ESOP grant updated"); refetch(); handleCloseModal(); },
+    onError: e => toast.error(e.message),
+  });
+  const deleteEsop = trpc.secretarial.esop.delete.useMutation({
+    onSuccess: () => { toast.success("ESOP grant deleted"); refetch(); },
     onError: e => toast.error(e.message),
   });
 
-  const handleCreateGrant = () => {
+  const handleCloseModal = () => {
+    setShowGrant(false);
+    setEditingGrant(null);
+    setForm({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" });
+  };
+
+  const handleSubmit = () => {
+    if (editingGrant) {
+      updateEsop.mutate({
+        id: editingGrant,
+        employeeName: form.employeeName,
+        options: form.options,
+        exercisePrice: form.exercisePrice,
+        grantDate: form.grantDate || undefined,
+        vestingStart: form.vestingStart || undefined,
+        vestingEnd: form.vestingEnd || undefined,
+        notes: form.notes || undefined,
+      });
+      return;
+    }
+    // Create flow — validate grant date not in future
     if (!form.grantDate) return;
     const gDate = new Date(form.grantDate);
     const today = new Date();
@@ -729,6 +1079,12 @@ function EsopTab() {
     });
   };
 
+  const isFutureDate = (d: string | Date) => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const gd = new Date(d); gd.setHours(0, 0, 0, 0);
+    return gd > today;
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -746,20 +1102,20 @@ function EsopTab() {
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">ESOP Grants Register</h3>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => setShowGrant(true)} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+            <button onClick={() => { setEditingGrant(null); setForm({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" }); setShowGrant(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
               <Plus className="w-3.5 h-3.5" /> New Grant
             </button>
           </PermissionGate>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
-            <tr>{["Grant #", "Employee", "Options", "Exercise Price", "Grant Date", "Vesting Start", "Vesting End", "Event"].map(h => (
+            <tr>{["Grant #", "Employee", "Options", "Exercise Price", "Grant Date", "Vesting Start", "Vesting End", "Event", "Actions"].map(h => (
               <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
             ))}</tr>
           </thead>
           <tbody>
-            {grants.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
-            {grants.map((g: { id: string; grantNumber: string; employeeName: string; options: number; exercisePrice: number; grantDate: string | Date; vestingStart?: string | Date | null; vestingEnd?: string | Date | null; event: string }) => (
+            {grants.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
+            {grants.map((g: { id: string; grantNumber: string; employeeName: string; options: number; exercisePrice: number; grantDate: string | Date; vestingStart?: string | Date | null; vestingEnd?: string | Date | null; event: string; notes?: string | null }) => (
               <tr key={g.id} className="border-t border-border hover:bg-muted/30">
                 <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
                 <td className="px-4 py-3 font-medium">{g.employeeName}</td>
@@ -769,6 +1125,33 @@ function EsopTab() {
                 <td className="px-4 py-3 text-xs">{g.vestingStart ? new Date(g.vestingStart).toLocaleDateString() : "—"}</td>
                 <td className="px-4 py-3 text-xs">{g.vestingEnd ? new Date(g.vestingEnd).toLocaleDateString() : "—"}</td>
                 <td className="px-4 py-3 text-xs capitalize font-medium text-indigo-600">{g.event}</td>
+                <td className="px-4 py-3 space-x-2 whitespace-nowrap">
+                  <PermissionGate module="secretarial" action="write">
+                    <button onClick={() => {
+                      setForm({
+                        employeeName: g.employeeName,
+                        options: g.options,
+                        exercisePrice: g.exercisePrice,
+                        grantDate: new Date(g.grantDate).toISOString().split('T')[0] ?? "",
+                        vestingStart: g.vestingStart ? (new Date(g.vestingStart).toISOString().split('T')[0] ?? "") : "",
+                        vestingEnd: g.vestingEnd ? (new Date(g.vestingEnd).toISOString().split('T')[0] ?? "") : "",
+                        notes: g.notes ?? ""
+                      });
+                      setEditingGrant(g.id);
+                      setShowGrant(true);
+                    }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                    {isFutureDate(g.grantDate) && (
+                      <>
+                        <span className="text-muted-foreground/30">|</span>
+                        <button onClick={() => {
+                          if (confirm("Are you sure you want to delete this ESOP grant?")) {
+                            deleteEsop.mutate({ id: g.id });
+                          }
+                        }} className="text-xs text-red-600 hover:underline">Delete</button>
+                      </>
+                    )}
+                  </PermissionGate>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -779,8 +1162,8 @@ function EsopTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">New ESOP Grant</h2>
-              <button onClick={() => setShowGrant(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
+              <h2 className="font-bold text-lg">{editingGrant ? "Edit ESOP Grant" : "New ESOP Grant"}</h2>
+              <button onClick={handleCloseModal} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
               <div className="col-span-2"><label className="block text-sm font-medium mb-1">Employee Name *</label><input value={form.employeeName} onChange={e => setForm(p => ({ ...p, employeeName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
@@ -791,8 +1174,12 @@ function EsopTab() {
               <div className="col-span-2"><label className="block text-sm font-medium mb-1">Vesting End</label><input type="date" value={form.vestingEnd} onChange={e => setForm(p => ({ ...p, vestingEnd: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => setShowGrant(false)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
-              <button disabled={!form.employeeName || !form.grantDate || grantEsop.isPending} onClick={handleCreateGrant} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{grantEsop.isPending ? "Creating..." : "Create Grant"}</button>
+              <button onClick={handleCloseModal} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button
+                disabled={!form.employeeName || !form.grantDate || grantEsop.isPending || updateEsop.isPending}
+                onClick={handleSubmit}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >{grantEsop.isPending || updateEsop.isPending ? "Saving..." : (editingGrant ? "Save Changes" : "Create Grant")}</button>
             </div>
           </div>
         </div>
@@ -816,8 +1203,8 @@ function CalendarTab() {
   type FilingRow = { status: string; dueDate: string | Date; id: string; title: string; formNumber?: string; authority?: string; fy?: string | null; eventName?: string };
 
   const allEvents = [
-    ...filings.map(f => ({ ...f, type: "filing" })),
-    ...calendar.map(c => ({ ...c, title: c.eventName, type: "calendar" }))
+    ...filings.map((f: any) => ({ ...f, type: "filing" })),
+    ...calendar.map((c: any) => ({ ...c, title: c.eventName, type: "calendar" }))
   ];
 
   const upcoming = allEvents

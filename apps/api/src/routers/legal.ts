@@ -196,7 +196,13 @@ export const legalRouter = router({
     }),
 
   createRequest: permissionProcedure("legal", "write")
-    .input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), priority: z.string().default("medium") }))
+    .input(z.object({
+      title: z.string(),
+      description: z.string().optional(),
+      type: z.string().optional(),
+      priority: z.string().default("medium"),
+      linkedMatterId: z.string().uuid().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const [req] = await db.insert(legalRequests).values({ orgId: org!.id, ...input, requesterId: user!.id }).returning();
@@ -204,12 +210,30 @@ export const legalRouter = router({
     }),
 
   updateRequest: permissionProcedure("legal", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.string().optional(), assignedTo: z.string().uuid().optional() }))
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      type: z.string().optional(),
+      priority: z.string().optional(),
+      status: z.string().optional(),
+      assignedTo: z.string().uuid().optional(),
+      linkedMatterId: z.string().uuid().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
       const [req] = await db.update(legalRequests).set({ ...data, updatedAt: new Date() } as any)
         .where(and(eq(legalRequests.id, id), eq(legalRequests.orgId, org!.id))).returning();
+      return req;
+    }),
+
+  deleteRequest: permissionProcedure("legal", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [req] = await db.delete(legalRequests)
+        .where(and(eq(legalRequests.id, input.id), eq(legalRequests.orgId, org!.id))).returning();
       return req;
     }),
 

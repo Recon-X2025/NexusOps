@@ -391,6 +391,35 @@ export const secretarialRouter = router({
         const [row] = await db.insert(shareCapital).values({ ...input, orgId: org!.id, folio }).returning();
         return row;
       }),
+
+    update: permissionProcedure("secretarial", "write")
+      .input(z.object({
+        id:           z.string().uuid(),
+        holderName:   z.string().min(1).optional(),
+        holderType:   z.string().optional(),
+        shareClass:   z.enum(["equity","preference","esop_pool","convertible"]).optional(),
+        nominalValue: z.number().optional(),
+        quantity:     z.number().min(1).optional(),
+        pan:          z.string().optional(),
+        address:      z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...rest } = input;
+        const [row] = await db.update(shareCapital)
+          .set({ ...rest, updatedAt: new Date() })
+          .where(and(eq(shareCapital.id, id), eq(shareCapital.orgId, org!.id))).returning();
+        return row;
+      }),
+
+    delete: permissionProcedure("secretarial", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db.delete(shareCapital)
+          .where(and(eq(shareCapital.id, input.id), eq(shareCapital.orgId, org!.id))).returning();
+        return row;
+      }),
   }),
 
   // ── ESOP ────────────────────────────────────────────────────────────────────
@@ -458,6 +487,55 @@ export const secretarialRouter = router({
         }).returning();
         return row;
       }),
+
+    update: permissionProcedure("secretarial", "write")
+      .input(z.object({
+        id:            z.string().uuid(),
+        employeeName:  z.string().min(1).optional(),
+        options:       z.number().min(1).optional(),
+        exercisePrice: z.number().min(0).optional(),
+        grantDate:     z.string().optional(),
+        vestingStart:  z.string().optional(),
+        vestingEnd:    z.string().optional(),
+        notes:         z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, grantDate, vestingStart, vestingEnd, ...rest } = input;
+        const updates: any = { ...rest, updatedAt: new Date() };
+        if (grantDate !== undefined) {
+          const gd = new Date(grantDate);
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const gdCompare = new Date(gd); gdCompare.setHours(0, 0, 0, 0);
+          if (gdCompare > today) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Grant date cannot be in the future" });
+          }
+          updates.grantDate = gd;
+        }
+        if (vestingStart !== undefined) updates.vestingStart = vestingStart ? new Date(vestingStart) : null;
+        if (vestingEnd !== undefined) updates.vestingEnd = vestingEnd ? new Date(vestingEnd) : null;
+        const [row] = await db.update(esopGrants).set(updates)
+          .where(and(eq(esopGrants.id, id), eq(esopGrants.orgId, org!.id))).returning();
+        return row;
+      }),
+
+    delete: permissionProcedure("secretarial", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        // Only allow deletion of future-dated grants
+        const [existing] = await db.select().from(esopGrants)
+          .where(and(eq(esopGrants.id, input.id), eq(esopGrants.orgId, org!.id)));
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Grant not found" });
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const grantDate = new Date(existing.grantDate); grantDate.setHours(0, 0, 0, 0);
+        if (grantDate <= today) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete grants with a current or past grant date" });
+        }
+        const [row] = await db.delete(esopGrants)
+          .where(and(eq(esopGrants.id, input.id), eq(esopGrants.orgId, org!.id))).returning();
+        return row;
+      }),
   }),
 
   // ── Directors ───────────────────────────────────────────────────────────────
@@ -517,6 +595,41 @@ export const secretarialRouter = router({
         const { db, org } = ctx;
         const [row] = await db.update(companyDirectors)
           .set({ kyc: input.kyc, kycDueDate: input.kycDueDate ? new Date(input.kycDueDate) : undefined, updatedAt: new Date() })
+          .where(and(eq(companyDirectors.id, input.id), eq(companyDirectors.orgId, org!.id))).returning();
+        return row;
+      }),
+
+    update: permissionProcedure("secretarial", "write")
+      .input(z.object({
+        id:          z.string().uuid(),
+        name:        z.string().min(2).optional(),
+        din:         z.string().min(8).optional(),
+        designation: z.string().min(2).optional(),
+        category:    z.string().optional(),
+        pan:         z.string().optional(),
+        email:       z.string().email().optional(),
+        phone:       z.string().optional(),
+        appointedAt: z.string().optional(),
+        address:     z.string().optional(),
+        isActive:    z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, appointedAt, ...rest } = input;
+        const updates: any = { ...rest, updatedAt: new Date() };
+        if (appointedAt !== undefined) {
+          updates.appointedAt = appointedAt ? new Date(appointedAt) : null;
+        }
+        const [row] = await db.update(companyDirectors).set(updates)
+          .where(and(eq(companyDirectors.id, id), eq(companyDirectors.orgId, org!.id))).returning();
+        return row;
+      }),
+
+    delete: permissionProcedure("secretarial", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db.delete(companyDirectors)
           .where(and(eq(companyDirectors.id, input.id), eq(companyDirectors.orgId, org!.id))).returning();
         return row;
       }),

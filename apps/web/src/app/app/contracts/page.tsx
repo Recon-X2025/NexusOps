@@ -4,7 +4,7 @@ import { Suspense } from "react";
 export const dynamic = "force-dynamic";
 
 import { SUPPORTED_CURRENCY_CODES } from "@coheronconnect/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -538,7 +538,21 @@ function ContractsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const visibleTabs = CONTRACT_TABS.filter((t) => can(t.module, t.action));
-  const [tab, setTab] = useState(visibleTabs[0]?.key ?? "register");
+
+  const tabParam = searchParams.get("tab");
+  const tab = useMemo(() => {
+    if (tabParam && visibleTabs.some(t => t.key === tabParam)) {
+      return tabParam;
+    }
+    return visibleTabs[0]?.key ?? "register";
+  }, [tabParam, visibleTabs]);
+
+  const setTab = (key: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", key);
+    router.replace(`/app/contracts?${next.toString()}`, { scroll: false });
+  };
+
   const [expandedContract, setExpandedContract] = useState<string | null>(
     searchParams.get("id"),
   );
@@ -550,10 +564,6 @@ function ContractsPageInner() {
       setExpandedContract(id);
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
-  }, [visibleTabs, tab]);
 
 
   // Live contracts from API, fallback to mock for demo

@@ -163,7 +163,7 @@ export default function LegalPage() {
   }, [visibleTabs, tab]);
 
   const { data: mattersData, isLoading: loadingMatters, refetch: refetchMatters } = trpc.legal.listMatters.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listMatters", { refetchOnWindowFocus: false },));
-  const { data: legalRequestsData, isLoading: loadingRequests } = trpc.legal.listRequests.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listRequests", { refetchOnWindowFocus: false },));
+  const { data: legalRequestsData, isLoading: loadingRequests, refetch: refetchRequests } = trpc.legal.listRequests.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listRequests", { refetchOnWindowFocus: false },));
   const { data: investigationsData, isLoading: loadingInvestigations, refetch: refetchInvestigations } = trpc.legal.listInvestigations.useQuery({ limit: 50 }, mergeTrpcQueryOpts("legal.listInvestigations", { refetchOnWindowFocus: false },));
   const { data: contractsData, isLoading: loadingContracts } = trpc.contracts.list.useQuery({ limit: 20 }, mergeTrpcQueryOpts("contracts.list", { refetchOnWindowFocus: false },));
   const { data: kbData, isLoading: loadingKb, refetch: refetchKb } = trpc.knowledge.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("knowledge.list", { refetchOnWindowFocus: false },));
@@ -204,11 +204,26 @@ export default function LegalPage() {
   });
 
   const [showNewRequest, setShowNewRequest] = useState(false);
-  const [requestForm, setRequestForm] = useState({ title: "", description: "", type: "advisory", priority: "medium" });
+  const [editingRequest, setEditingRequest] = useState<string | null>(null);
+  const [requestForm, setRequestForm] = useState({ title: "", description: "", type: "advisory", priority: "medium", linkedMatterId: "" });
   const createRequest = trpc.legal.createRequest.useMutation({
-    onSuccess: () => { toast.success("Legal request submitted"); setShowNewRequest(false); setRequestForm({ title: "", description: "", type: "advisory", priority: "medium" }); },
+    onSuccess: () => { toast.success("Legal request submitted"); setShowNewRequest(false); setRequestForm({ title: "", description: "", type: "advisory", priority: "medium", linkedMatterId: "" }); refetchRequests(); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create request"),
   });
+  const updateRequest = trpc.legal.updateRequest.useMutation({
+    onSuccess: () => { toast.success("Legal request updated"); setShowNewRequest(false); setEditingRequest(null); setRequestForm({ title: "", description: "", type: "advisory", priority: "medium", linkedMatterId: "" }); refetchRequests(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update request"),
+  });
+  const deleteRequest = trpc.legal.deleteRequest.useMutation({
+    onSuccess: () => { toast.success("Legal request deleted"); refetchRequests(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to delete request"),
+  });
+
+  const handleCloseRequestModal = () => {
+    setShowNewRequest(false);
+    setEditingRequest(null);
+    setRequestForm({ title: "", description: "", type: "advisory", priority: "medium", linkedMatterId: "" });
+  };
 
   const [showNewInvestigation, setShowNewInvestigation] = useState(false);
   const [editingInvestigation, setEditingInvestigation] = useState<string | null>(null);
@@ -295,7 +310,7 @@ export default function LegalPage() {
             </PermissionGate>
             <PermissionGate module="legal" action="write">
               <button
-                // onClick={() => router.push("/app/contract")}
+                onClick={() => router.push("/app/contracts?tab=create")}
                 className="flex items-center gap-1 px-3 py-1 bg-[#06B6D4] text-white text-[11px] rounded hover:bg-[#06B6D4]/90"
               >
                 <Plus className="w-3 h-3" /> Contract Review
@@ -497,7 +512,11 @@ export default function LegalPage() {
                             className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
                           >View Full Matter</button>
                           <button
-                            onClick={() => { setTab("requests"); }}
+                            onClick={() => {
+                              setRequestForm({ title: "", description: "", type: "advisory", priority: "medium", linkedMatterId: m.id });
+                              setTab("requests");
+                              setShowNewRequest(true);
+                            }}
                             className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground"
                           >Add Task</button>
                           <label className="px-3 py-1 border border-border text-[11px] rounded hover:bg-card text-muted-foreground cursor-pointer">
@@ -556,6 +575,7 @@ export default function LegalPage() {
                   <th className="w-4" />
                   <th>Request #</th>
                   <th>Type</th>
+                  <th>Matter ID</th>
                   <th>Subject</th>
                   <th>Requested By</th>
                   <th>Department</th>
@@ -565,6 +585,7 @@ export default function LegalPage() {
                   <th>Priority</th>
                   <th>Status</th>
                   <th>Notes</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -573,6 +594,7 @@ export default function LegalPage() {
                     <td className="p-0"><div className={`priority-bar ${PRIORITY_BAR[r.priority ?? "medium"] ?? "bg-muted"}`} /></td>
                     <td className="font-mono text-[11px] text-primary">{legalRequestDisplayId(r)}</td>
                     <td><span className="status-badge text-muted-foreground bg-muted text-[10px]">{r.type ?? "—"}</span></td>
+                    <td className="font-mono text-[11px] text-muted-foreground">{r.linkedMatterId ? matters.find((m: any) => m.id === r.linkedMatterId)?.matterNumber || "—" : "—"}</td>
                     <td className="font-medium text-foreground">{r.title}</td>
                     <td className="text-muted-foreground">{r.requesterId ?? "—"}</td>
                     <td className="text-muted-foreground">—</td>
@@ -582,6 +604,24 @@ export default function LegalPage() {
                     <td><span className={`status-badge capitalize ${PRIORITY_BAR[r.priority ?? "medium"] === "bg-red-600" ? "text-red-700 bg-red-100" : PRIORITY_BAR[r.priority ?? "medium"] === "bg-orange-500" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{r.priority ?? "—"}</span></td>
                     <td><span className={`status-badge capitalize ${REQUEST_STATUS_CFG[r.status as RequestStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(r.status))}</span></td>
                     <td className="text-[11px] text-muted-foreground/70 max-w-xs truncate">{r.description ?? "—"}</td>
+                    <td className="space-x-2 whitespace-nowrap">
+                      <button onClick={() => {
+                        setRequestForm({
+                          title: r.title,
+                          description: r.description ?? "",
+                          type: r.type ?? "advisory",
+                          priority: r.priority ?? "medium",
+                          linkedMatterId: r.linkedMatterId ?? ""
+                        });
+                        setEditingRequest(r.id);
+                        setShowNewRequest(true);
+                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => {
+                        if (confirm("Are you sure you want to delete this legal request?")) {
+                          deleteRequest.mutate({ id: r.id });
+                        }
+                      }} className="text-xs text-red-600 hover:underline">Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -826,15 +866,15 @@ export default function LegalPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">New Legal Request</h2>
-              <button onClick={() => setShowNewRequest(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+              <h2 className="text-sm font-bold">{editingRequest ? "Edit Legal Request" : "New Legal Request"}</h2>
+              <button onClick={handleCloseRequestModal}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Request Title *</label>
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Contract Review — Vendor NDA" value={requestForm.title} onChange={(e) => setRequestForm((f) => ({ ...f, title: e.target.value }))} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
                   <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={requestForm.type} onChange={(e) => setRequestForm((f) => ({ ...f, type: e.target.value }))}>
@@ -852,6 +892,15 @@ export default function LegalPage() {
                     <option value="urgent">Urgent</option>
                   </select>
                 </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Linked Matter</label>
+                  <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={requestForm.linkedMatterId} onChange={(e) => setRequestForm((f) => ({ ...f, linkedMatterId: e.target.value }))}>
+                    <option value="">None</option>
+                    {matters?.map((m: any) => (
+                      <option key={m.id} value={m.id}>{m.matterNumber} - {m.title}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Description</label>
@@ -859,16 +908,27 @@ export default function LegalPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewRequest(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={handleCloseRequestModal} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => {
                   if (!requestForm.title.trim()) { toast.error("Request title is required"); return; }
-                  createRequest.mutate({ title: requestForm.title.trim(), description: requestForm.description || undefined, type: requestForm.type, priority: requestForm.priority });
+                  const payload = {
+                    title: requestForm.title.trim(),
+                    description: requestForm.description || undefined,
+                    type: requestForm.type,
+                    priority: requestForm.priority,
+                    linkedMatterId: requestForm.linkedMatterId || undefined
+                  };
+                  if (editingRequest) {
+                    updateRequest.mutate({ id: editingRequest, ...payload });
+                  } else {
+                    createRequest.mutate(payload);
+                  }
                 }}
-                disabled={createRequest.isPending}
+                disabled={createRequest.isPending || updateRequest.isPending}
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >
-                {createRequest.isPending ? "Submitting…" : "Submit Request"}
+                {createRequest.isPending || updateRequest.isPending ? "Saving…" : (editingRequest ? "Save Changes" : "Submit Request")}
               </button>
             </div>
           </div>
@@ -945,11 +1005,11 @@ export default function LegalPage() {
                 onClick={() => {
                   if (!investigationForm.title.trim()) { toast.error("Investigation summary is required"); return; }
                   if (!investigationForm.anonymousReport && !investigationForm.reporterId) { toast.error("Reporter is required for non-anonymous reports"); return; }
-                  
-                  const payload = { 
-                    title: investigationForm.title.trim(), 
-                    type: investigationForm.type as any, 
-                    anonymousReport: investigationForm.anonymousReport, 
+
+                  const payload = {
+                    title: investigationForm.title.trim(),
+                    type: investigationForm.type as any,
+                    anonymousReport: investigationForm.anonymousReport,
                     linkedMatterId: investigationForm.linkedMatterId || undefined,
                     reporterId: investigationForm.reporterId || undefined,
                     investigatorId: investigationForm.investigatorId || undefined,
@@ -1075,6 +1135,85 @@ export default function LegalPage() {
                             </button>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Connected Legal Requests */}
+                {(() => {
+                  const connectedReqs = legalRequests.filter((r: any) => r.linkedMatterId === m.id);
+                  if (connectedReqs.length === 0) return null;
+                  return (
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2.5">Connected Legal Requests</h4>
+                      <div className="flex flex-col gap-2">
+                        {connectedReqs.map((r: any) => (
+                          <div key={r.id} className="p-3 bg-muted/20 border border-border rounded-lg flex items-center justify-between">
+                            <div>
+                              <div className="text-[12px] font-semibold text-foreground flex items-center gap-2">
+                                <span className="font-mono text-[10px] text-primary">{legalRequestDisplayId(r)}</span>
+                                <span>{r.title}</span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5 flex gap-2">
+                                <span>Type: {r.type ?? "—"}</span>
+                                <span>·</span>
+                                <span className="capitalize">Priority: {r.priority ?? "—"}</span>
+                                <span>·</span>
+                                <span className="capitalize">Status: {r.status}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setTab("requests");
+                                setSelectedMatterForDetail(null);
+                              }}
+                              className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" /> Go to Requests
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Connected Investigations */}
+                {(() => {
+                  const connectedInvs = investigations.filter((inv: any) => inv.linkedMatterId === m.id);
+                  if (connectedInvs.length === 0) return null;
+                  return (
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2.5">Connected Investigations</h4>
+                      <div className="flex flex-col gap-2">
+                        {connectedInvs.map((inv: any) => {
+                          const cfg = INV_TYPE_CFG[inv.type as InvestigationType] ?? { label: inv.type, color: "text-muted-foreground bg-muted" };
+                          return (
+                            <div key={inv.id} className="p-3 bg-muted/20 border border-border rounded-lg flex items-center justify-between">
+                              <div>
+                                <div className="text-[12px] font-semibold text-foreground flex items-center gap-2">
+                                  <span className="font-mono text-[10px] text-primary">{investigationDisplayId(inv)}</span>
+                                  <span>{inv.title}</span>
+                                </div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5 flex gap-2">
+                                  <span>Type: {cfg.label}</span>
+                                  <span>·</span>
+                                  <span className="capitalize">Status: {inv.status}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setTab("investigations");
+                                  setSelectedMatterForDetail(null);
+                                }}
+                                className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground flex items-center gap-1"
+                              >
+                                <Eye className="w-3 h-3" /> Go to Investigations
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
