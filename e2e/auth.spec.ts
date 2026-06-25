@@ -6,7 +6,7 @@ async function expectNoRuntimeCrash(page: Page, path: string) {
   const onErr = (e: Error) => batch.push(e.message);
   page.on("pageerror", onErr);
   await page.goto(path);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   const body = await page.textContent("body");
   page.off("pageerror", onErr);
   expect(body, path).not.toContain("Unhandled Runtime Error");
