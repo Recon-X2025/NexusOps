@@ -15,6 +15,13 @@
       "when": 1777387491357,
       "tag": "0001_ambiguous_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782362822941,
+      "tag": "0002_fixed_terrax",
+      "breakpoints": true
     }
   ]
 }
