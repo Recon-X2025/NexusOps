@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 const API_INTERNAL_URL =
-  process.env.API_INTERNAL_URL ?? "http://localhost:3001";
+  process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001";
 
 /**
  * Same-origin proxy for Form 16 PDF (browser opens

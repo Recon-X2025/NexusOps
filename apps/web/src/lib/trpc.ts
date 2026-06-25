@@ -48,7 +48,7 @@ function getTRPCUrl(): string {
   // Server-side (SSR): call the API directly over the Docker internal network.
   // API_INTERNAL_URL is set to http://api:3001 in the Docker Compose file.
   if (typeof window === "undefined") {
-    return `${process.env.API_INTERNAL_URL ?? "http://localhost:3001"}/trpc`;
+    return `${process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001"}/trpc`;
   }
   // Browser: use the same-origin proxy route /api/trpc.
   // This avoids all CORS and CSP issues — the browser talks to the Next.js

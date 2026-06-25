@@ -89,6 +89,7 @@ export default function TicketDetailPage() {
   const [resolveNote, setResolveNote] = useState("");
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [watching, setWatching] = useState(false);
+  const [relationTargetId, setRelationTargetId] = useState("");
 
   const ticketQuery = trpc.tickets.get.useQuery({ id }, mergeTrpcQueryOpts("tickets.get", undefined));
 
@@ -147,6 +148,16 @@ export default function TicketDetailPage() {
     onError: (e) => toast.error(e?.message ?? "Something went wrong"),
   });
 
+  const addRelation = trpc.tickets.addRelation.useMutation({
+    onSuccess: () => { setRelationTargetId(""); void ticketQuery.refetch(); toast.success("Relation added"); },
+    onError: (e) => toast.error(e?.message ?? "Failed to add relation"),
+  });
+
+  const removeRelation = trpc.tickets.removeRelation.useMutation({
+    onSuccess: () => { void ticketQuery.refetch(); toast.success("Relation removed"); },
+    onError: (e) => toast.error(e?.message ?? "Failed to remove relation"),
+  });
+
   const { data: usersData } = trpc.auth.listUsers.useQuery(undefined, mergeTrpcQueryOpts("auth.listUsers", {
     enabled: showAssignPanel,
     staleTime: 5 * 60_000,
@@ -180,7 +191,10 @@ export default function TicketDetailPage() {
             activityLog: rawActivityLog,
             suggestedKbArticles: rawSuggestedKb,
             linkedKbArticles: rawLinkedKb,
+            relations: rawRelations,
           } = data as any;
+
+          const relations = rawRelations ?? [];
 
           const comments = rawComments ?? [];
           const activityLog = rawActivityLog ?? [];
@@ -413,6 +427,7 @@ export default function TicketDetailPage() {
                     {(["notes", "activity", "related"] as const).map((tab) => (
                       <button
                         key={tab}
+                        data-testid={`ticket-tab-${tab}`}
                         onClick={() => setActiveTab(tab)}
                         className={cn(
                           "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
@@ -529,14 +544,74 @@ export default function TicketDetailPage() {
                           timestamp: l.createdAt,
                           icon: ACTIVITY_ICON[l.action] ?? Activity,
                           type: l.action === "comment_added" ? "success" : "info",
-                          description: l.authorName
+                          subtitle: `${l.authorName || "System"}${l.changes ? ` - Changes: ${JSON.stringify(l.changes)}` : ""}`
                         }))}
                       />
                     </div>
                   )}
 
                   {activeTab === "related" && (
-                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300" data-testid="ticket-related-panel">
+                      <div className="bg-card border border-border rounded-xl p-5">
+                        <h3 className="text-sm font-bold text-foreground mb-4">Linked Tickets</h3>
+                        
+                        <div className="flex gap-3 mb-6">
+                          <input
+                            data-testid="ticket-relation-target-id"
+                            placeholder="Enter ticket UUID to link..."
+                            value={relationTargetId}
+                            onChange={(e) => setRelationTargetId(e.target.value)}
+                            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-primary"
+                          />
+                          <button
+                            data-testid="ticket-relation-add"
+                            disabled={!relationTargetId.trim() || addRelation.isPending}
+                            onClick={() => {
+                              addRelation.mutate({ 
+                                ticketId: id, 
+                                targetTicketId: relationTargetId.trim(),
+                                type: "related"
+                              });
+                            }}
+                            className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            {addRelation.isPending ? "Linking..." : "Link Ticket"}
+                          </button>
+                        </div>
+
+                        {relations.length === 0 ? (
+                          <div className="p-12 text-center text-sm text-muted-foreground italic" data-testid="ticket-linked-empty">
+                            No linked tickets.
+                          </div>
+                        ) : (
+                          <div className="space-y-2" data-testid="ticket-linked-list">
+                            {relations.map((r: any) => (
+                              <div key={r.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/20">
+                                <div className="flex items-center gap-2">
+                                  <Link href={`/app/tickets/${r.relatedTicketId}`} className="text-xs font-bold text-primary hover:underline">
+                                    {r.relatedNumber}
+                                  </Link>
+                                  <span className="text-xs text-foreground/80">— {r.relatedTitle}</span>
+                                </div>
+                                <button
+                                  data-testid="ticket-relation-remove"
+                                  disabled={removeRelation.isPending}
+                                  onClick={() => {
+                                    removeRelation.mutate({ 
+                                      relationId: r.id, 
+                                      ticketId: id 
+                                    });
+                                  }}
+                                  className="text-xs font-bold text-red-600 hover:underline"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="bg-card border border-border rounded-xl p-5">
                         <h3 className="text-sm font-bold text-foreground mb-4">Linked Problems</h3>
                         <div className="p-12 text-center text-sm text-muted-foreground italic">No linked problems found.</div>
@@ -557,7 +632,30 @@ export default function TicketDetailPage() {
                     items={[
                       { label: "Urgency", value: urgency, icon: Clock, className: cn("capitalize font-bold", uCfg?.text) },
                       { label: "Impact", value: (ticket as any).impact ?? "medium", icon: AlertTriangle, className: "capitalize" },
-                      { label: "Status", value: currentStatusName, icon: Activity, className: "capitalize font-bold" },
+                      {
+                        label: "Status",
+                        icon: Activity,
+                        value: (
+                          <select
+                            data-testid="ticket-status-select"
+                            value={ticket.statusId}
+                            disabled={isTerminal || updateTicket.isPending}
+                            onChange={(e) => {
+                              updateTicket.mutate({
+                                id,
+                                data: { statusId: e.target.value } as any
+                              });
+                            }}
+                            className="bg-transparent border border-border rounded px-1.5 py-0.5 text-xs font-semibold outline-none capitalize focus:border-primary"
+                          >
+                            {statusCounts?.map((s: any) => (
+                              <option key={s.statusId} value={s.statusId} className="bg-card text-foreground">
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        )
+                      },
                       { label: "Created", value: formatDt(ticket.createdAt), icon: CalendarDays },
                       { label: "Assignee", value: ticket.assigneeName ?? "Unassigned", icon: User },
                     ]}

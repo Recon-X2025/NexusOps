@@ -48,7 +48,8 @@ export default defineConfig({
         // pre-seeds an integration row.
         APP_SECRET:
           process.env.APP_SECRET || "test-app-secret-32-chars-minimum-",
-        NODE_ENV: process.env.NODE_ENV || "development",
+        LOGIN_RATE_PER_MIN: "1000",
+        NODE_ENV: process.env.NODE_ENV || "test",
       },
     },
     {

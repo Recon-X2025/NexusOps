@@ -37,11 +37,8 @@ test.describe("RBAC — Admin (full access)", () => {
   });
 
   test("admin sees Admin Console in navigation or header", async ({ page }) => {
-    const body = await page.textContent("body");
-    expect(body).toBeDefined();
-    // Admin users should see admin-related navigation
-    const hasAdminNav = body!.includes("Admin") || body!.includes("Administration");
-    expect(hasAdminNav).toBe(true);
+    // Admin users should see admin-related navigation. Use auto-retrying locator assertion.
+    await expect(page.locator("body")).toContainText(/Admin|Administration/);
   });
 
   test("admin can access /app/admin without AccessDenied", async ({ page }) => {

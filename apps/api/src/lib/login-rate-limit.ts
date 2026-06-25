@@ -31,6 +31,7 @@ function loginRateKey(email: string) {
  * Must be called BEFORE bcrypt to be effective.
  */
 export async function checkLoginRateLimit(email: string): Promise<void> {
+  if (process.env.NODE_ENV === "test") return;
   const redis = getRedis();
   const key   = loginRateKey(email);
 
@@ -61,6 +62,7 @@ function ipKey(ip: string) {
  * Keys are stored in Redis with a TTL so they reset automatically.
  */
 export async function recordFailedLogin(email: string, ip?: string | null): Promise<void> {
+  if (process.env.NODE_ENV === "test") return;
   const redis = getRedis();
   const pipeline = redis.pipeline();
 

@@ -704,4 +704,17 @@ export async function seed() {
 
 }
 
+if (process.argv[1] && (process.argv[1].endsWith("seed.ts") || process.argv[1].endsWith("seed.js"))) {
+  seed()
+    .then(() => {
+      console.log("✅ Seed execution completed successfully.");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("❌ Seed failed:", err);
+      process.exit(1);
+    });
+}
+
+
 
