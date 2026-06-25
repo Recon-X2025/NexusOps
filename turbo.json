@@ -14,7 +14,18 @@
     },
     "test": {
       "dependsOn": ["^build", "build"],
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "MEILISEARCH_URL",
+        "MEILISEARCH_KEY",
+        "AUTH_SECRET",
+        "ENCRYPTION_KEY",
+        "NODE_ENV",
+        "LOGIN_RATE_PER_MIN",
+        "VITEST_SKIP_GLOBAL_MIGRATE"
+      ]
     },
     "test:e2e": {
       "dependsOn": ["^build"],

@@ -33,7 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm --filter @coheronconnect/types --filter @coheronconnect/db --filter @coheronconnect/metrics --filter @coheronconnect/ui build
+        run: pnpm --filter @coheronconnect/types --filter @coheronconnect/db --filter @coheronconnect/metrics --filter @coheronconnect/ui --filter @coheronconnect/api build
 
       - name: Type check API
         run: pnpm --filter @coheronconnect/api lint
