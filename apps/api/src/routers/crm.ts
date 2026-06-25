@@ -297,6 +297,48 @@ export const crmRouter = router({
       return deal;
     }),
 
+  updateDeal: permissionProcedure("accounts", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      accountId: z.string().uuid().optional(),
+      contactId: z.string().uuid().optional(),
+      value: z.string().optional(),
+      probability: z.coerce.number().optional(),
+      expectedClose: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      
+      const updates: Record<string, any> = { ...data };
+      if (data.expectedClose) {
+        updates.expectedClose = new Date(data.expectedClose);
+      }
+      
+      if (data.value !== undefined || data.probability !== undefined) {
+        let val = data.value;
+        let prob = data.probability;
+        if (val === undefined || prob === undefined) {
+          const [existing] = await db.select({ value: crmDeals.value, probability: crmDeals.probability }).from(crmDeals).where(eq(crmDeals.id, id));
+          if (existing) {
+            if (val === undefined) val = existing.value ?? undefined;
+            if (prob === undefined) prob = existing.probability;
+          }
+        }
+        if (val && prob !== undefined) {
+          updates.weightedValue = String(Number(val) * (prob / 100));
+        }
+      }
+
+      const [deal] = await db
+        .update(crmDeals)
+        .set({ ...updates, updatedAt: new Date() } as any)
+        .where(and(eq(crmDeals.id, id), eq(crmDeals.orgId, org!.id)))
+        .returning();
+      return deal;
+    }),
+
   deleteDeal: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
