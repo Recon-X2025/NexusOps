@@ -64,6 +64,43 @@ export const crmDealsRouter = router({
       return { success: true };
     }),
 
+  update: permissionProcedure("accounts", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      accountId: z.string().uuid().optional(),
+      contactId: z.string().uuid().optional(),
+      value: z.string().optional(),
+      probability: z.coerce.number().optional(),
+      expectedClose: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...updates } = input;
+      
+      const setValues: Record<string, any> = { updatedAt: new Date() };
+      if (updates.title !== undefined) setValues.title = updates.title;
+      if (updates.accountId !== undefined) setValues.accountId = updates.accountId;
+      if (updates.contactId !== undefined) setValues.contactId = updates.contactId;
+      if (updates.value !== undefined) setValues.value = updates.value;
+      if (updates.probability !== undefined) setValues.probability = updates.probability;
+      if (updates.expectedClose !== undefined) setValues.expectedClose = updates.expectedClose ? new Date(updates.expectedClose) : null;
+      
+      const [deal] = await db.update(crmDeals).set(setValues)
+        .where(and(eq(crmDeals.id, id), eq(crmDeals.orgId, org!.id))).returning();
+      if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+      
+      // Update weighted value if value or probability changed
+      if (updates.value !== undefined || updates.probability !== undefined) {
+        const value = updates.value !== undefined ? Number(updates.value) : Number(deal.value ?? 0);
+        const probability = updates.probability !== undefined ? updates.probability : deal.probability;
+        const weightedValue = String(value * (probability / 100));
+        await db.update(crmDeals).set({ weightedValue }).where(eq(crmDeals.id, id));
+      }
+      
+      return deal;
+    }),
+
   movePipeline: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
     .mutation(async ({ ctx, input }) => {

@@ -10,10 +10,10 @@ import { crmLeads, crmDeals, eq, and, desc, count } from "@coheronconnect/db";
 
 export const crmLeadsRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const conditions = [eq(crmLeads.orgId, org!.id)];
+      const conditions = [eq(crmLeads.orgId, org!.id), eq(crmLeads.archived, input.showArchived)];
       if (input.status) conditions.push(eq(crmLeads.status, input.status as any));
       return db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
     }),
@@ -22,8 +22,10 @@ export const crmLeadsRouter = router({
     .input(z.object({
       firstName: z.string(),
       lastName: z.string(),
-      email: z.string().optional(),
+      email: z.string().email(),
+      phone: z.string(),
       company: z.string().optional(),
+      title: z.string().optional(),
       source: z.string().default("website"),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -37,10 +39,12 @@ export const crmLeadsRouter = router({
       id: z.string().uuid(),
       firstName: z.string().optional(),
       lastName: z.string().optional(),
-      email: z.string().optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
       company: z.string().optional(),
       title: z.string().optional(),
       status: z.enum(["new", "contacted", "qualified", "disqualified", "converted"]).optional(),
+      archived: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;

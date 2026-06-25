@@ -32,14 +32,32 @@ export const crmContactsRouter = router({
     .input(z.object({
       firstName: z.string(),
       lastName: z.string(),
-      email: z.string().optional(),
+      email: z.string().email(),
+      phone: z.string(),
+      title: z.string(),
+      accountId: z.string().uuid(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [contact] = await db.insert(crmContacts).values({ orgId: org!.id, ...input }).returning();
+      return contact;
+    }),
+
+  update: permissionProcedure("accounts", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
+      email: z.string().email().optional(),
       phone: z.string().optional(),
       title: z.string().optional(),
       accountId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const [contact] = await db.insert(crmContacts).values({ orgId: org!.id, ...input }).returning();
+      const { id, ...data } = input;
+      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() } as any)
+        .where(and(eq(crmContacts.id, id), eq(crmContacts.orgId, org!.id))).returning();
       return contact;
     }),
 

@@ -11,10 +11,10 @@ import { crmAccounts, organizations, eq, and, desc } from "@coheronconnect/db";
 
 export const crmAccountsRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ tier: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ tier: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const conditions = [eq(crmAccounts.orgId, org!.id)];
+      const conditions = [eq(crmAccounts.orgId, org!.id), eq(crmAccounts.archived, input.showArchived)];
       if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier as any));
       return db.select().from(crmAccounts).where(and(...conditions)).orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
     }),
@@ -31,9 +31,9 @@ export const crmAccountsRouter = router({
   create: permissionProcedure("accounts", "write")
     .input(z.object({
       name: z.string(),
-      industry: z.string().optional(),
+      industry: z.string(),
       tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"),
-      website: z.string().optional(),
+      website: z.string().url(),
       annualRevenue: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -43,7 +43,7 @@ export const crmAccountsRouter = router({
     }),
 
   update: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;

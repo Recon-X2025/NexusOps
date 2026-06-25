@@ -42,16 +42,17 @@ export default function CSMPage() {
   const casesQuery = trpc.csm.cases.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("csm.cases.list", undefined));
 
   const accountsQuery = trpc.csm.accounts.list.useQuery({}, mergeTrpcQueryOpts("csm.accounts.list", undefined));
+  const contactsQuery = trpc.csm.contacts.list.useQuery({}, mergeTrpcQueryOpts("csm.contacts.list", undefined));
 
   const [showNewCase, setShowNewCase] = useState(false);
-  const [caseForm, setCaseForm] = useState({ title: "", description: "", priority: "medium" });
+  const [caseForm, setCaseForm] = useState({ title: "", description: "", priority: "medium", accountId: "", contactId: "" });
   const [caseMsg, setCaseMsg] = useState<string | null>(null);
 
   const createCase = trpc.csm.cases.create.useMutation({
     onSuccess: () => {
       setCaseMsg("Case created successfully");
       setShowNewCase(false);
-      setCaseForm({ title: "", description: "", priority: "medium" });
+      setCaseForm({ title: "", description: "", priority: "medium", accountId: "", contactId: "" });
       casesQuery.refetch();
       setTimeout(() => setCaseMsg(null), 4000);
     },
@@ -135,6 +136,20 @@ export default function CSMPage() {
                 <option value="critical">Critical</option>
               </select>
             </div>
+            <div className="col-span-2">
+              <label className="text-[11px] text-muted-foreground">Account</label>
+              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={caseForm.accountId} onChange={(e) => setCaseForm((f) => ({ ...f, accountId: e.target.value, contactId: "" }))}>
+                <option value="">— Select Account —</option>
+                {ACCOUNTS.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Contact</label>
+              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={caseForm.contactId} onChange={(e) => setCaseForm((f) => ({ ...f, contactId: e.target.value }))}>
+                <option value="">— Select Contact —</option>
+                {(Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).filter((c: any) => !caseForm.accountId || c.accountId === caseForm.accountId).map((c: any) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+              </select>
+            </div>
             <div className="col-span-3">
               <label className="text-[11px] text-muted-foreground">Description</label>
               <textarea className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-16 resize-none" placeholder="Describe the customer issue…" value={caseForm.description} onChange={(e) => setCaseForm((f) => ({ ...f, description: e.target.value }))} />
@@ -143,7 +158,13 @@ export default function CSMPage() {
           <div className="flex gap-2 mt-3">
             <button
               disabled={!caseForm.title || createCase.isPending}
-              onClick={() => createCase.mutate({ title: caseForm.title, description: caseForm.description || undefined, priority: caseForm.priority })}
+              onClick={() => createCase.mutate({ 
+                title: caseForm.title, 
+                description: caseForm.description || undefined, 
+                priority: caseForm.priority, 
+                accountId: caseForm.accountId || undefined, 
+                contactId: caseForm.contactId || undefined 
+              })}
               className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
             >
               {createCase.isPending ? "Creating…" : "Create Case"}
@@ -199,65 +220,54 @@ export default function CSMPage() {
               <table className="ent-table w-full">
                 <thead>
                   <tr>
-                    <th className="w-4" />
+                    <th />
                     <th>Case #</th>
-                    <th>Subject</th>
+                    <th>Title</th>
                     <th>Account</th>
                     <th>Contact</th>
                     <th>Priority</th>
-                    <th>State</th>
-                    <th>Channel</th>
-                    <th>Product</th>
+                    <th>Status</th>
                     <th>Assignee</th>
-                    <th>CSAT</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {CASES.map((c: any) => (
+                  {CASES.map((c: any) => {
+                    const accountName = ACCOUNTS.find((a: any) => a.id === c.accountId)?.name ?? "—";
+                    const contacts = Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : [];
+                    const contact = contacts.find((ct: any) => ct.id === c.contactId);
+                    const contactName = contact ? `${contact.firstName} ${contact.lastName}` : "—";
+                    // For assignee, ideally we map user ID, but we will just show ID or "—" if we don't have the users list easily
+                    const assigneeName = c.assigneeId ? c.assigneeId.substring(0, 8) : "—";
+                    
+                    return (
                     <tr key={c.id} className={c.slaBreached ? "bg-red-50/30" : ""}>
                       <td className="p-0"><div className={`priority-bar ${c.priority === "critical" ? "bg-red-600" : c.priority === "high" ? "bg-orange-500" : "bg-yellow-400"}`} /></td>
-                      <td className="text-primary font-mono text-[11px]">{c.id}</td>
+                      <td className="text-primary font-mono text-[11px]">{c.number}</td>
                       <td className="max-w-xs">
                         <div className="flex items-center gap-1">
                           {c.slaBreached && <span className="text-red-500 text-[10px] font-bold">⚠</span>}
-                          <span className="truncate text-foreground">{c.subject}</span>
+                          <span className="truncate text-foreground">{c.title}</span>
                         </div>
                       </td>
-                      <td className="text-muted-foreground text-[11px]">{c.account}</td>
-                      <td className="text-muted-foreground text-[11px]">{c.contact}</td>
+                      <td className="text-muted-foreground text-[11px]">{accountName}</td>
+                      <td className="text-muted-foreground text-[11px]">{contactName}</td>
                       <td><span className={`status-badge capitalize ${PRIORITY_COLOR[c.priority] ?? ""}`}>{c.priority}</span></td>
-                      <td><span className={`status-badge capitalize ${CASE_STATE[c.state] ?? ""}`}>{c.state?.replace(/_/g, " ")}</span></td>
-                      <td>
-                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground capitalize">
-                          {c.channel === "phone" ? <Phone className="w-3 h-3" /> : c.channel === "email" ? <Mail className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-                          {c.channel}
-                        </span>
-                      </td>
-                      <td className="text-muted-foreground text-[11px]">{c.product}</td>
-                      <td className="text-muted-foreground text-[11px]">{c.assignee}</td>
-                      <td>
-                        {c.csat !== null && c.csat !== undefined ? (
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} className={`w-3 h-3 ${i < (c.csat ?? 0) ? "text-yellow-400 fill-yellow-400" : "text-slate-200"}`} />
-                            ))}
-                          </div>
-                        ) : <span className="text-slate-300 text-[11px]">—</span>}
-                      </td>
+                      <td><span className={`status-badge capitalize ${CASE_STATE[c.status] ?? "text-muted-foreground bg-muted"}`}>{c.status?.replace(/_/g, " ") ?? "new"}</span></td>
+                      <td className="text-muted-foreground text-[11px]">{assigneeName}</td>
                       <td>
                         <button
                           onClick={() => router.push(`/app/csm/${c.id}`)}
-                          className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
+                          className="px-2 py-1 bg-primary text-white rounded text-[10px] hover:bg-primary/90"
                         >
-                          View <ChevronRight className="w-3 h-3" />
+                          View
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                   {CASES.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">
+                      <td colSpan={9} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">
                         No customer cases found.
                       </td>
                     </tr>
@@ -353,19 +363,19 @@ export default function CSMPage() {
           <div>
             <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
               <p className="text-[12px] font-semibold text-foreground/80">
-                Customer Portal Users ({portalUsersQuery.isLoading ? "…" : portalUsers.length})
+                CRM & Sales Contacts ({contactsQuery.isLoading ? "…" : Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items.length : Array.isArray(contactsQuery.data) ? contactsQuery.data.length : 0})
               </p>
             </div>
-            {portalUsersQuery.isLoading ? (
+            {contactsQuery.isLoading ? (
               <div className="flex items-center justify-center h-28 gap-2 text-muted-foreground">
                 <Users className="w-4 h-4 animate-pulse" />
                 <span className="text-xs">Loading contacts…</span>
               </div>
-            ) : portalUsers.length === 0 ? (
+            ) : (Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).length === 0 ? (
               <div className="p-8 text-center">
                 <Users className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-[13px] font-medium text-foreground/70 mb-1">No Portal Users</p>
-                <p className="text-[12px] text-muted-foreground/60">Customer portal users created via the external portal or via the API will appear here.</p>
+                <p className="text-[13px] font-medium text-foreground/70 mb-1">No Contacts Found</p>
+                <p className="text-[12px] text-muted-foreground/60">CRM contacts created in the Sales section will appear here.</p>
               </div>
             ) : (
               <table className="ent-table w-full">
@@ -374,64 +384,30 @@ export default function CSMPage() {
                     <th>Name</th>
                     <th>Email</th>
                     <th>Phone</th>
-                    <th>Organisation</th>
-                    <th>Role</th>
-                    <th>MFA</th>
-                    <th>Status</th>
-                    <th>Last Login</th>
+                    <th>Account</th>
+                    <th>Title</th>
+                    <th>Seniority</th>
                     <th className="w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {portalUsers.map((u: any) => (
-                    <tr key={u.id}>
-                      <td className="font-medium text-foreground/80">{u.fullName}</td>
-                      <td className="text-muted-foreground text-[11px]">{u.email}</td>
-                      <td className="text-muted-foreground text-[11px]">{u.mobile ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px] max-w-[120px] truncate" title={u.orgId}>{u.orgId}</td>
-                      <td className="capitalize text-[11px] text-muted-foreground">{u.role?.replace(/_/g, " ")}</td>
+                  {(Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).map((c: any) => {
+                    const account = ACCOUNTS.find((a: any) => a.id === c.accountId);
+                    return (
+                    <tr key={c.id}>
+                      <td className="font-medium text-foreground/80">{c.firstName} {c.lastName}</td>
+                      <td className="text-muted-foreground text-[11px]">{c.email ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{c.phone ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{account?.name ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px]">{c.title ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px] capitalize">{c.seniority ? c.seniority.replace(/_/g, " ") : "—"}</td>
                       <td>
-                        <span className={`status-badge text-[10px] ${u.mfaEnabled ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
-                          {u.mfaEnabled ? u.mfaType?.toUpperCase() ?? "On" : "Off"}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge text-[10px] ${u.status === "active" ? "text-green-700 bg-green-100" : u.status === "suspended" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}>
-                          {u.status}
-                        </span>
-                      </td>
-                      <td className="text-[11px] text-muted-foreground">
-                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("en-IN") : "Never"}
-                      </td>
-                      <td>
-                        {u.status === "active" ? (
-                          <div className="flex flex-col gap-1">
-                            <input
-                              className="border border-border rounded px-1 py-0.5 text-[10px] w-28"
-                              placeholder="Reason (required)"
-                              value={suspendReason[u.id] ?? ""}
-                              onChange={e => setSuspendReason(r => ({ ...r, [u.id]: e.target.value }))}
-                            />
-                            <button
-                              disabled={!suspendReason[u.id]?.trim() || suspendPortalUser.isPending}
-                              onClick={() => {
-                                const reason = suspendReason[u.id]?.trim();
-                                if (!reason) return;
-                                suspendPortalUser.mutate({ portalUserId: u.id, reason });
-                              }}
-                              className="text-[10px] text-red-600 hover:underline disabled:opacity-40"
-                            >Suspend</button>
-                          </div>
-                        ) : u.status === "suspended" ? (
-                          <button
-                            disabled={unlockPortalUser.isPending}
-                            onClick={() => unlockPortalUser.mutate({ portalUserId: u.id })}
-                            className="text-[11px] text-green-700 hover:underline disabled:opacity-40"
-                          >Unlock</button>
-                        ) : null}
+                        <button className="text-[11px] text-primary hover:underline px-2">
+                          View
+                        </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             )}

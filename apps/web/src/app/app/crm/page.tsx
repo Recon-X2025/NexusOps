@@ -8,10 +8,10 @@ import {
   Plus, Search, Download, ChevronRight, MoreHorizontal,
   Target, DollarSign, BarChart2, Activity, Tag, Repeat,
   Clock, CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight,
-  FileText, Send, Filter, Globe, Briefcase, Award, X,
+  FileText, Send, Filter, Globe, Briefcase, Award, X, Pencil, Archive,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
-import { downloadCSV } from "@/lib/utils";
+import { downloadCSV, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 
 const CRM_TABS = [
@@ -224,7 +224,7 @@ export default function CRMPage() {
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "dashboard");
   const [expandedQuote, setExpandedQuote] = useState<string | null>(null);
   const [editingLead, setEditingLead] = useState<any | null>(null);
-  const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", status: "new" as string });
+  const [editLeadForm, setEditLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string, status: "new" as any });
   const [showNewDeal, setShowNewDeal] = useState(false);
   const [dealForm, setDealForm] = useState({
     title: "", value: "", probability: "30", expectedClose: "",
@@ -233,12 +233,30 @@ export default function CRMPage() {
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [showNewAccount, setShowNewAccount] = useState(false);
   const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "" });
+  const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [editAccountForm, setEditAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "" });
+  const [showArchivedAccounts, setShowArchivedAccounts] = useState(false);
+  const [showArchivedContacts, setShowArchivedContacts] = useState(false);
   const [showNewContact, setShowNewContact] = useState(false);
   const [contactForm, setContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" });
+  const [editingContact, setEditingContact] = useState<any | null>(null);
+  const [editContactForm, setEditContactForm] = useState({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" });
+  const [showArchivedLeads, setShowArchivedLeads] = useState(false);
   const [showNewLead, setShowNewLead] = useState(false);
   const [leadForm, setLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string });
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [newQuoteDesc, setNewQuoteDesc] = useState("");
+  const [showNewActivity, setShowNewActivity] = useState(false);
+  const [activityForm, setActivityForm] = useState({
+    type: "call", subject: "", description: "", dealId: "", accountId: "", contactId: "",
+    outcome: "", scheduledAt: "", completedAt: "",
+  });
+  const [showArchivedActivities, setShowArchivedActivities] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<any | null>(null);
+  const [editActivityForm, setEditActivityForm] = useState({
+    type: "call", subject: "", description: "", dealId: "", accountId: "", contactId: "",
+    outcome: "", scheduledAt: "", completedAt: "",
+  });
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -249,13 +267,13 @@ export default function CRMPage() {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: dealsData, refetch: refetchDeals } = trpc.crm.listDeals.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listDeals", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.listAccounts.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listAccounts", undefined));
+  const { data: accountsData, refetch: refetchAccounts } = trpc.crm.listAccounts.useQuery({ limit: 200, showArchived: showArchivedAccounts }, mergeTrpcQueryOpts("crm.listAccounts", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: contactsData } = trpc.crm.listContacts.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listContacts", undefined));
+  const { data: contactsData, refetch: refetchContacts } = trpc.crm.listContacts.useQuery({ limit: 200, showArchived: showArchivedContacts }, mergeTrpcQueryOpts("crm.listContacts", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: leadsData, refetch: refetchLeads } = trpc.crm.listLeads.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listLeads", undefined));
+  const { data: leadsData, refetch: refetchLeads } = trpc.crm.listLeads.useQuery({ limit: 200, showArchived: showArchivedLeads }, mergeTrpcQueryOpts("crm.listLeads", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.listActivities.useQuery({ limit: 200 }, mergeTrpcQueryOpts("crm.listActivities", undefined));
+  const { data: activitiesData, refetch: refetchActivities } = trpc.crm.listActivities.useQuery({ limit: 200, showArchived: showArchivedActivities }, mergeTrpcQueryOpts("crm.listActivities", undefined));
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: quotesData, refetch: refetchQuotes } = trpc.crm.listQuotes.useQuery({}, mergeTrpcQueryOpts("crm.listQuotes", undefined));
 
@@ -275,9 +293,22 @@ export default function CRMPage() {
     onSuccess: (q: any) => { toast.success(`Quote ${q?.quoteNumber ?? ""} created`); refetchQuotes(); setShowNewQuote(false); setNewQuoteDesc(""); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create quote"),
   });
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const createActivity = trpc.crm.createActivity.useMutation({
-    onSuccess: () => { toast.success("Activity logged"); refetchActivities(); },
+    onSuccess: () => {
+      toast.success("Activity logged");
+      refetchActivities();
+      setShowNewActivity(false);
+      setActivityForm({ type: "call", subject: "", description: "", dealId: "", accountId: "", contactId: "", outcome: "", scheduledAt: "", completedAt: "" });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const updateActivity = trpc.crm.updateActivity.useMutation({
+    onSuccess: () => {
+      toast.success("Activity updated");
+      refetchActivities();
+      setEditingActivity(null);
+    },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -316,9 +347,43 @@ export default function CRMPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to create account"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
+  const updateAccountMutation = trpc.crm.updateAccount.useMutation({
+    onSuccess: () => { toast.success("Account updated"); refetchAccounts(); setEditingAccount(null); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update account"),
+  });
+  const handleArchiveAccount = (id: string) => {
+    if (!confirm("Are you sure you want to archive this account?")) return;
+    updateAccountMutation.mutate({ id, archived: true });
+  };
+  const handleUnarchiveAccount = (id: string) => {
+    if (!confirm("Are you sure you want to unarchive this account?")) return;
+    updateAccountMutation.mutate({ id, archived: false });
+  };
+  const handleArchiveContact = (id: string) => {
+    if (!confirm("Are you sure you want to archive this contact?")) return;
+    updateContactMutation.mutate({ id, archived: true });
+  };
+  const handleUnarchiveContact = (id: string) => {
+    if (!confirm("Are you sure you want to unarchive this contact?")) return;
+    updateContactMutation.mutate({ id, archived: false });
+  };
+  const handleArchiveLead = (id: string) => {
+    if (!confirm("Are you sure you want to archive this lead?")) return;
+    updateLeadMutation.mutate({ id, archived: true });
+  };
+  const handleUnarchiveLead = (id: string) => {
+    if (!confirm("Are you sure you want to unarchive this lead?")) return;
+    updateLeadMutation.mutate({ id, archived: false });
+  };
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const createContactMutation = trpc.crm.createContact.useMutation({
-    onSuccess: () => { toast.success("Contact created"); setShowNewContact(false); setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" }); },
+    onSuccess: () => { toast.success("Contact created"); refetchContacts(); setShowNewContact(false); setContactForm({ firstName: "", lastName: "", email: "", phone: "", title: "", accountId: "" }); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create contact"),
+  });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const updateContactMutation = trpc.crm.updateContact.useMutation({
+    onSuccess: () => { toast.success("Contact updated"); refetchContacts(); setEditingContact(null); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update contact"),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const updateQuote = trpc.crm.updateQuote.useMutation({
@@ -354,9 +419,16 @@ export default function CRMPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CONTACTS_LIVE = ((contactsData as any[]) ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LEADS_LIVE = ((leadsData as any[]) ?? []) as any[];
+  const LEADS_LIVE = (((leadsData as any[]) ?? []) as any[]).map((l: any) => ({ ...l, number: l.number || `LD-${l.id?.substring(0, 6).toUpperCase()}` }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ACTIVITIES_LIVE = ((activitiesData as any[]) ?? []) as any[];
+  const ACTIVITIES_LIVE = (((activitiesData as any[]) ?? []) as any[]).map((a: any) => ({
+    ...a,
+    account: ACCOUNTS_LIVE.find((x: any) => x.id === a.accountId)?.name,
+    contact: CONTACTS_LIVE.find((x: any) => x.id === a.contactId) ? `${CONTACTS_LIVE.find((x: any) => x.id === a.contactId)?.firstName} ${CONTACTS_LIVE.find((x: any) => x.id === a.contactId)?.lastName}` : undefined,
+    deal: DEALS_LIVE.find((x: any) => x.id === a.dealId)?.title,
+    dueDate: a.scheduledAt ? new Date(a.scheduledAt).toLocaleString() : "—",
+    completedDate: a.completedAt ? new Date(a.completedAt).toLocaleString() : "—",
+  }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const QUOTES_LIVE = ((quotesData as any[]) ?? []) as any[];
 
@@ -393,7 +465,7 @@ export default function CRMPage() {
                 <input autoFocus className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. CoheronConnect Enterprise — Acme Corp" />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company (Account)</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company (Account) *</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.accountId} onChange={(e) => setDealForm(f => ({ ...f, accountId: e.target.value, contactId: "" }))}>
                   <option value="">— Select account —</option>
                   {ACCOUNTS_LIVE.map((a: any) => (
@@ -402,7 +474,20 @@ export default function CRMPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Primary Contact</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Primary Contact *</label>
+                  {dealForm.accountId && (
+                    <button 
+                      onClick={() => {
+                        setContactForm(f => ({ ...f, accountId: dealForm.accountId }));
+                        setShowNewContact(true);
+                      }} 
+                      className="text-[10px] text-primary hover:underline"
+                    >
+                      + New
+                    </button>
+                  )}
+                </div>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.contactId} onChange={(e) => setDealForm(f => ({ ...f, contactId: e.target.value }))}>
                   <option value="">— Select contact —</option>
                   {CONTACTS_LIVE
@@ -413,15 +498,15 @@ export default function CRMPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Value (₹)</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Value (₹) *</label>
                 <input type="number" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.value} onChange={(e) => setDealForm(f => ({ ...f, value: e.target.value }))} placeholder="e.g. 5000000" />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Probability (%)</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Probability (%) *</label>
                 <input type="number" min="0" max="100" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage *</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
                   {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit"] as const).map(s => (
                     <option key={s} value={s}>{STAGE_CFG[s].label}</option>
@@ -429,11 +514,11 @@ export default function CRMPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close Date</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close Date *</label>
                 <input type="date" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
               </div>
               <div className="col-span-2">
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source *</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.source} onChange={(e) => setDealForm(f => ({ ...f, source: e.target.value }))}>
                   <option value="">— Select source —</option>
                   {["Inbound / Website", "Inbound / Trial", "Direct / Outbound", "Partner Referral", "LinkedIn Outbound", "Upsell / Existing Customer", "Event / Conference", "SDR / Cold Outreach", "Webinar Attendee", "Other"].map(s => (
@@ -444,7 +529,7 @@ export default function CRMPage() {
             </div>
             <div className="flex gap-2 mt-4">
               <button
-                disabled={!dealForm.title || createDeal.isPending}
+                disabled={!dealForm.title || !dealForm.accountId || !dealForm.contactId || !dealForm.value || !dealForm.probability || !dealForm.stage || !dealForm.expectedClose || !dealForm.source || createDeal.isPending}
                 onClick={() => createDeal.mutate({
                   title: dealForm.title,
                   value: dealForm.value || undefined,
@@ -515,16 +600,26 @@ export default function CRMPage() {
                 </div>
               )}
               <div className="flex flex-col gap-1.5">
-                {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as const).map(s => (
-                  <button
-                    key={s}
-                    onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
-                    disabled={movePipeline.isPending}
-                    className={`px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50 ${STAGE_CFG[s]?.color ?? ""}`}
-                  >
-                    {STAGE_CFG[s]?.label ?? s.replace(/_/g, " ")}
-                  </button>
-                ))}
+                {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as const).map(s => {
+                  const isClosedWon = moving?.stage === "closed_won";
+                  const isActiveStage = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"].includes(s);
+                  const isRestricted = isClosedWon && isActiveStage;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => movePipeline.mutate({ id: movingDeal, stage: s })}
+                      disabled={movePipeline.isPending || isRestricted}
+                      className={cn(
+                        "px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50",
+                        STAGE_CFG[s]?.color ?? "",
+                        isRestricted && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit"
+                      )}
+                      title={isRestricted ? "Cannot move a Closed Won deal back to an active stage" : undefined}
+                    >
+                      {STAGE_CFG[s]?.label ?? s.replace(/_/g, " ")}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -693,7 +788,7 @@ export default function CRMPage() {
               </PermissionGate>
             </div>
             <div className="flex overflow-x-auto p-4 gap-3 min-h-96">
-              {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won"] as DealStage[]).map((stage) => {
+              {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as DealStage[]).map((stage) => {
                 const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
                 const stageVal = stageDeals.reduce((s, d) => s + d.value, 0);
                 const cfg = STAGE_CFG[stage];
@@ -746,12 +841,22 @@ export default function CRMPage() {
         {tab === "accounts" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{ACCOUNTS_LIVE.length} Accounts</span>
-              <PermissionGate module="accounts" action="write">
-                <button onClick={() => setShowNewAccount(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
-                  <Plus className="w-3 h-3" /> Add Account
-                </button>
-              </PermissionGate>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{ACCOUNTS_LIVE.length} {showArchivedAccounts ? "Archived Accounts" : "Accounts"}</span>
+              <div className="flex items-center gap-2">
+                <select
+                  className="text-[11px] px-2 py-1 border border-border rounded bg-background"
+                  value={showArchivedAccounts ? "archived" : "active"}
+                  onChange={(e) => setShowArchivedAccounts(e.target.value === "archived")}
+                >
+                  <option value="active">Active</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <PermissionGate module="accounts" action="write">
+                  <button onClick={() => setShowNewAccount(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> Add Account
+                  </button>
+                </PermissionGate>
+              </div>
             </div>
             <table className="ent-table w-full">
               <thead>
@@ -769,6 +874,7 @@ export default function CRMPage() {
                   <th>Health</th>
                   <th>Owner</th>
                   <th>Last Contact</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -794,6 +900,16 @@ export default function CRMPage() {
                     </td>
                     <td className="text-muted-foreground">{a.owner}</td>
                     <td className="text-[11px] text-muted-foreground/70">{a.lastContact}</td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => { setEditingAccount(a); setEditAccountForm({ name: a.name ?? "", industry: a.industry ?? "", tier: a.tier ?? "smb", website: a.website ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
+                        {a.archived ? (
+                          <button onClick={() => handleUnarchiveAccount(a.id)} className="text-green-500 hover:text-green-600 px-1" title="Unarchive"><Repeat size={14} /></button>
+                        ) : (
+                          <button onClick={() => handleArchiveAccount(a.id)} className="text-amber-500 hover:text-amber-600 px-1" title="Archive"><Archive size={14} /></button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -805,12 +921,22 @@ export default function CRMPage() {
         {tab === "contacts" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{((contactsData as any[]) ?? []).length} Contacts</span>
-              <PermissionGate module="accounts" action="write">
-                <button onClick={() => setShowNewContact(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
-                  <Plus className="w-3 h-3" /> Add Contact
-                </button>
-              </PermissionGate>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{((contactsData as any[]) ?? []).length} {showArchivedContacts ? "Archived Contacts" : "Contacts"}</span>
+              <div className="flex items-center gap-2">
+                <select
+                  className="text-[11px] px-2 py-1 border border-border rounded bg-background"
+                  value={showArchivedContacts ? "archived" : "active"}
+                  onChange={(e) => setShowArchivedContacts(e.target.value === "archived")}
+                >
+                  <option value="active">Active</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <PermissionGate module="accounts" action="write">
+                  <button onClick={() => setShowNewContact(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> Add Contact
+                  </button>
+                </PermissionGate>
+              </div>
             </div>
             <table className="ent-table w-full">
               <thead>
@@ -826,6 +952,7 @@ export default function CRMPage() {
                   <th className="text-center">Open Deals</th>
                   <th>Owner</th>
                   <th>Last Activity</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -856,6 +983,16 @@ export default function CRMPage() {
                     <td className="text-center"><span className={`font-bold ${c.openDeals > 0 ? "text-primary" : "text-slate-300"}`}>{c.openDeals}</span></td>
                     <td className="text-muted-foreground">{c.owner}</td>
                     <td className="text-[11px] text-muted-foreground/70">{c.lastActivity}</td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => { setEditingContact(c); setEditContactForm({ firstName: c.firstName ?? "", lastName: c.lastName ?? "", email: c.email ?? "", phone: c.phone ?? "", title: c.title ?? "", accountId: c.accountId ?? "" }); }} className="text-blue-500 hover:text-blue-600 px-1" title="Edit"><Pencil size={14} /></button>
+                        {c.archived ? (
+                          <button onClick={() => handleUnarchiveContact(c.id)} className="text-green-500 hover:text-green-600 px-1" title="Unarchive"><Repeat size={14} /></button>
+                        ) : (
+                          <button onClick={() => handleArchiveContact(c.id)} className="text-amber-500 hover:text-amber-600 px-1" title="Archive"><Archive size={14} /></button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -867,12 +1004,22 @@ export default function CRMPage() {
         {tab === "leads" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{LEADS_LIVE.length} Leads</span>
-              <PermissionGate module="accounts" action="write">
-                <button onClick={() => setShowNewLead(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
-                  <Plus className="w-3 h-3" /> Add Lead
-                </button>
-              </PermissionGate>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase">{LEADS_LIVE.length} {showArchivedLeads ? "Archived Leads" : "Leads"}</span>
+              <div className="flex items-center gap-2">
+                <select
+                  className="text-[11px] px-2 py-1 border border-border rounded bg-background"
+                  value={showArchivedLeads ? "archived" : "active"}
+                  onChange={(e) => setShowArchivedLeads(e.target.value === "archived")}
+                >
+                  <option value="active">Active</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <PermissionGate module="accounts" action="write">
+                  <button onClick={() => setShowNewLead(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
+                    <Plus className="w-3 h-3" /> Add Lead
+                  </button>
+                </PermissionGate>
+              </div>
             </div>
             <table className="ent-table w-full">
               <thead>
@@ -913,9 +1060,14 @@ export default function CRMPage() {
                       <div className="flex gap-1.5">
                         {l.status === "qualified" && <button onClick={() => convertLead.mutate({ id: l.id, dealTitle: l.company ?? "New Deal" })} disabled={convertLead.isPending} className="text-[11px] text-green-700 hover:underline font-medium disabled:opacity-50">Convert</button>}
                         <button
-                          onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", status: l.status }); }}
+                          onClick={() => { setEditingLead(l); setEditLeadForm({ firstName: l.firstName, lastName: l.lastName, email: l.email ?? "", company: l.company ?? "", title: l.title ?? "", phone: l.phone ?? "", status: l.status, source: l.source }); }}
                           className="text-[11px] text-primary hover:underline"
                         >Edit</button>
+                        {l.archived ? (
+                          <button onClick={() => handleUnarchiveLead(l.id)} className="text-green-500 hover:text-green-600 px-1" title="Unarchive"><Repeat size={14} /></button>
+                        ) : (
+                          <button onClick={() => handleArchiveLead(l.id)} className="text-amber-500 hover:text-amber-600 px-1" title="Archive"><Archive size={14} /></button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -928,11 +1080,21 @@ export default function CRMPage() {
         {/* ACTIVITIES */}
         {tab === "activities" && (
           <div>
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
-              <span className="text-[12px] font-semibold text-foreground/80">All Activities</span>
-              <button onClick={() => createActivity.mutate({ type: "call", subject: "Activity logged from CRM", description: "" })} disabled={createActivity.isPending} className="ml-auto flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50">
-                <Plus className="w-3 h-3" /> Log Activity
-              </button>
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-muted/30">
+              <span className="text-[12px] font-semibold text-foreground/80">{ACTIVITIES_LIVE.length} {showArchivedActivities ? "Archived Activities" : "Activities"}</span>
+              <div className="flex items-center gap-2 ml-auto">
+                <select
+                  className="text-[11px] px-2 py-1 border border-border rounded bg-background"
+                  value={showArchivedActivities ? "archived" : "active"}
+                  onChange={(e) => setShowArchivedActivities(e.target.value === "archived")}
+                >
+                  <option value="active">Active</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <button onClick={() => setShowNewActivity(true)} className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> Log Activity
+                </button>
+              </div>
             </div>
             <table className="ent-table w-full">
               <thead>
@@ -943,10 +1105,10 @@ export default function CRMPage() {
                   <th>Account</th>
                   <th>Contact</th>
                   <th>Deal</th>
-                  <th>Owner</th>
                   <th>Due / Completed</th>
                   <th>Outcome / Notes</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -957,16 +1119,44 @@ export default function CRMPage() {
                       <td className="p-0"><div className={`priority-bar ${a.completed ? "bg-green-500" : "bg-blue-400"}`} /></td>
                       <td><span className={`status-badge capitalize ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type.replace("_", " ")}</span></td>
                       <td className="font-medium text-foreground">{a.subject}</td>
-                      <td className="text-primary hover:underline cursor-pointer">{a.account}</td>
-                      <td className="text-muted-foreground">{a.contact}</td>
+                      <td className="text-primary hover:underline cursor-pointer">{a.account || "—"}</td>
+                      <td className="text-muted-foreground">{a.contact || "—"}</td>
                       <td className="font-mono text-[11px] text-primary">{a.deal ?? "—"}</td>
-                      <td className="text-muted-foreground">{a.owner}</td>
-                      <td className="text-[11px] text-muted-foreground">{a.completedDate ?? a.dueDate}</td>
-                      <td className="max-w-xs text-[11px] text-muted-foreground truncate">{a.outcome ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">
+                        <div>Due: {a.dueDate}</div>
+                        <div>Completed: {a.completedDate}</div>
+                      </td>
+                      <td className="max-w-xs text-[11px] text-muted-foreground truncate" title={a.description}>{a.outcome ?? a.description ?? "—"}</td>
                       <td>
-                        <span className={`status-badge ${a.completed ? "text-green-700 bg-green-100" : "text-blue-700 bg-blue-100"}`}>
-                          {a.completed ? "✓ Done" : "Pending"}
+                        <span className={`status-badge ${a.completedAt ? "text-green-700 bg-green-100" : "text-blue-700 bg-blue-100"}`}>
+                          {a.completedAt ? "✓ Done" : "Pending"}
                         </span>
+                      </td>
+                      <td>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => {
+                              setEditingActivity(a);
+                              setEditActivityForm({
+                                type: a.type ?? "call",
+                                subject: a.subject ?? "",
+                                description: a.description ?? "",
+                                dealId: a.dealId ?? "",
+                                accountId: a.accountId ?? "",
+                                contactId: a.contactId ?? "",
+                                outcome: a.outcome ?? "",
+                                scheduledAt: a.scheduledAt ? new Date(a.scheduledAt).toISOString().slice(0, 16) : "",
+                                completedAt: a.completedAt ? new Date(a.completedAt).toISOString().slice(0, 16) : "",
+                              });
+                            }}
+                            className="text-[11px] text-primary hover:underline"
+                          >Edit</button>
+                          {a.archived ? (
+                            <button onClick={() => updateActivity.mutate({ id: a.id, archived: false })} className="text-green-500 hover:text-green-600">Unarchive</button>
+                          ) : (
+                            <button onClick={() => updateActivity.mutate({ id: a.id, archived: true })} className="text-amber-500 hover:text-amber-600">Archive</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1271,7 +1461,7 @@ export default function CRMPage() {
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={accountForm.name} onChange={(e) => setAccountForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Industry</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Industry *</label>
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Technology" value={accountForm.industry} onChange={(e) => setAccountForm(f => ({ ...f, industry: e.target.value }))} />
               </div>
               <div>
@@ -1283,17 +1473,59 @@ export default function CRMPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Website</label>
-                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={accountForm.website} onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))} />
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Website *</label>
+                <input type="url" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={accountForm.website} onChange={(e) => setAccountForm(f => ({ ...f, website: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewAccount(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry || undefined, tier: accountForm.tier, website: accountForm.website || undefined }); }}
+                onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } if (!accountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!accountForm.website.trim()) { toast.error("Website is required"); return; } if (!accountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with https://"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry.trim(), tier: accountForm.tier, website: accountForm.website.trim() }); }}
                 disabled={createAccountMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createAccountMutation.isPending ? "Creating…" : "Create Account"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Account Modal */}
+      {editingAccount && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Edit Account</h2>
+              <button onClick={() => setEditingAccount(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company Name *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editAccountForm.name} onChange={(e) => setEditAccountForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Industry *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Technology" value={editAccountForm.industry} onChange={(e) => setEditAccountForm(f => ({ ...f, industry: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Tier</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editAccountForm.tier} onChange={(e) => setEditAccountForm(f => ({ ...f, tier: e.target.value as any }))}>
+                  <option value="smb">SMB</option>
+                  <option value="mid_market">Mid Market</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Website *</label>
+                <input type="url" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="https://" value={editAccountForm.website} onChange={(e) => setEditAccountForm(f => ({ ...f, website: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditingAccount(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!editAccountForm.name.trim()) { toast.error("Company name is required"); return; } if (!editAccountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!editAccountForm.website.trim()) { toast.error("Website is required"); return; } if (!editAccountForm.website.startsWith("http://") && !editAccountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with http:// or https://"); return; } updateAccountMutation.mutate({ id: editingAccount.id, name: editAccountForm.name.trim(), industry: editAccountForm.industry.trim(), tier: editAccountForm.tier, website: editAccountForm.website.trim() }); }}
+                disabled={updateAccountMutation.isPending}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{updateAccountMutation.isPending ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>
         </div>
@@ -1319,29 +1551,29 @@ export default function CRMPage() {
                 </div>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account *</label>
                 <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.accountId} onChange={(e) => setContactForm(f => ({ ...f, accountId: e.target.value }))}>
                   <option value="">— Select account —</option>
                   {ACCOUNTS_LIVE.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email *</label>
                 <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.email} onChange={(e) => setContactForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone *</label>
                 <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={contactForm.phone} onChange={(e) => setContactForm(f => ({ ...f, phone: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title *</label>
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. VP Engineering" value={contactForm.title} onChange={(e) => setContactForm(f => ({ ...f, title: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewContact(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!contactForm.firstName.trim() || !contactForm.lastName.trim()) { toast.error("First and last name are required"); return; } createContactMutation.mutate({ firstName: contactForm.firstName.trim(), lastName: contactForm.lastName.trim(), email: contactForm.email || undefined, phone: contactForm.phone || undefined, title: contactForm.title || undefined, accountId: contactForm.accountId || undefined }); }}
+                onClick={() => { if (!contactForm.firstName.trim() || !contactForm.lastName.trim() || !contactForm.accountId || !contactForm.email.trim() || !contactForm.phone.trim() || !contactForm.title.trim()) { toast.error("All fields are required"); return; } createContactMutation.mutate({ firstName: contactForm.firstName.trim(), lastName: contactForm.lastName.trim(), email: contactForm.email.trim(), phone: contactForm.phone.trim(), title: contactForm.title.trim(), accountId: contactForm.accountId }); }}
                 disabled={createContactMutation.isPending}
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createContactMutation.isPending ? "Creating…" : "Create Contact"}</button>
@@ -1349,6 +1581,58 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Contact Modal */}
+      {editingContact && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Edit Contact</h2>
+              <button onClick={() => setEditingContact(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
+                  <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.firstName} onChange={(e) => setEditContactForm(f => ({ ...f, firstName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Last Name *</label>
+                  <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.lastName} onChange={(e) => setEditContactForm(f => ({ ...f, lastName: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account *</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.accountId} onChange={(e) => setEditContactForm(f => ({ ...f, accountId: e.target.value }))}>
+                  <option value="">— Select account —</option>
+                  {ACCOUNTS_LIVE.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email *</label>
+                <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.email} onChange={(e) => setEditContactForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone *</label>
+                <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.phone} onChange={(e) => setEditContactForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editContactForm.title} onChange={(e) => setEditContactForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditingContact(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!editContactForm.firstName.trim() || !editContactForm.lastName.trim() || !editContactForm.accountId || !editContactForm.email.trim() || !editContactForm.phone.trim() || !editContactForm.title.trim()) { toast.error("All fields are required"); return; } updateContactMutation.mutate({ id: editingContact.id, firstName: editContactForm.firstName.trim(), lastName: editContactForm.lastName.trim(), email: editContactForm.email.trim(), phone: editContactForm.phone.trim(), title: editContactForm.title.trim(), accountId: editContactForm.accountId }); }}
+                disabled={updateContactMutation.isPending}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{updateContactMutation.isPending ? "Saving…" : "Save Changes"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* New Lead Modal */}
       {showNewLead && (
@@ -1376,11 +1660,11 @@ export default function CRMPage() {
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.title} onChange={(e) => setLeadForm(f => ({ ...f, title: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone *</label>
                 <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.phone} onChange={(e) => setLeadForm(f => ({ ...f, phone: e.target.value }))} />
               </div>
               <div>
-                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email</label>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email *</label>
                 <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.email} onChange={(e) => setLeadForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
@@ -1395,10 +1679,215 @@ export default function CRMPage() {
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowNewLead(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                disabled={!leadForm.firstName.trim() || !leadForm.lastName.trim() || !leadForm.company.trim() || createLeadMutation.isPending}
-                onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email || undefined, company: leadForm.company.trim(), source: leadForm.source })}
+                disabled={!leadForm.firstName.trim() || !leadForm.lastName.trim() || !leadForm.company.trim() || !leadForm.email.trim() || !leadForm.phone.trim() || createLeadMutation.isPending}
+                onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email.trim(), phone: leadForm.phone.trim(), company: leadForm.company.trim(), title: leadForm.title.trim() || undefined, source: leadForm.source })}
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createLeadMutation.isPending ? "Creating…" : "Create Lead"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Lead Modal */}
+      {editingLead && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Edit Lead</h2>
+              <button onClick={() => setEditingLead(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">First Name *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.firstName} onChange={(e) => setEditLeadForm(f => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Last Name *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.lastName} onChange={(e) => setEditLeadForm(f => ({ ...f, lastName: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company *</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.company} onChange={(e) => setEditLeadForm(f => ({ ...f, company: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Job Title</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.title} onChange={(e) => setEditLeadForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Phone *</label>
+                <input type="tel" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.phone} onChange={(e) => setEditLeadForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email *</label>
+                <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.email} onChange={(e) => setEditLeadForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditingLead(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                disabled={!editLeadForm.firstName.trim() || !editLeadForm.lastName.trim() || !editLeadForm.company.trim() || !editLeadForm.email.trim() || !editLeadForm.phone.trim() || updateLeadMutation.isPending}
+                onClick={() => updateLeadMutation.mutate({ id: editingLead.id, firstName: editLeadForm.firstName.trim(), lastName: editLeadForm.lastName.trim(), email: editLeadForm.email.trim(), phone: editLeadForm.phone.trim(), company: editLeadForm.company.trim(), title: editLeadForm.title.trim() || undefined })}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{updateLeadMutation.isPending ? "Saving…" : "Save Changes"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Activity Modal */}
+      {showNewActivity && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Log Activity</h2>
+              <button onClick={() => setShowNewActivity(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.type} onChange={(e) => setActivityForm(f => ({ ...f, type: e.target.value }))}>
+                  {Object.keys(ACTIVITY_TYPE_CFG).map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Subject</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.subject} onChange={(e) => setActivityForm(f => ({ ...f, subject: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account *</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.accountId} onChange={(e) => setActivityForm(f => ({ ...f, accountId: e.target.value }))}>
+                  <option value="">— Select Account —</option>
+                  {ACCOUNTS_LIVE.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Contact *</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.contactId} onChange={(e) => setActivityForm(f => ({ ...f, contactId: e.target.value }))}>
+                  <option value="">— Select Contact —</option>
+                  {CONTACTS_LIVE.map((c: any) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.dealId} onChange={(e) => setActivityForm(f => ({ ...f, dealId: e.target.value }))}>
+                  <option value="">— Select Deal —</option>
+                  {DEALS_LIVE.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
+                <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.scheduledAt} onChange={(e) => setActivityForm(f => ({ ...f, scheduledAt: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Completed Date</label>
+                <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.completedAt} onChange={(e) => setActivityForm(f => ({ ...f, completedAt: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Outcome / Notes</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="Notes" value={activityForm.outcome} onChange={(e) => setActivityForm(f => ({ ...f, outcome: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+                <textarea rows={3} className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={activityForm.description} onChange={(e) => setActivityForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowNewActivity(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                disabled={!activityForm.accountId || !activityForm.contactId || createActivity.isPending}
+                onClick={() => createActivity.mutate({
+                  type: activityForm.type || undefined,
+                  subject: activityForm.subject.trim() || undefined,
+                  description: activityForm.description.trim() || undefined,
+                  dealId: activityForm.dealId || undefined,
+                  accountId: activityForm.accountId,
+                  contactId: activityForm.contactId,
+                  outcome: activityForm.outcome.trim() || undefined,
+                  scheduledAt: activityForm.scheduledAt ? new Date(activityForm.scheduledAt) : undefined,
+                  completedAt: activityForm.completedAt ? new Date(activityForm.completedAt) : undefined,
+                })}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{createActivity.isPending ? "Saving…" : "Log Activity"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Activity Modal */}
+      {editingActivity && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold">Edit Activity</h2>
+              <button onClick={() => setEditingActivity(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.type} onChange={(e) => setEditActivityForm(f => ({ ...f, type: e.target.value }))}>
+                  {Object.keys(ACTIVITY_TYPE_CFG).map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Subject</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.subject} onChange={(e) => setEditActivityForm(f => ({ ...f, subject: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.accountId} onChange={(e) => setEditActivityForm(f => ({ ...f, accountId: e.target.value }))}>
+                  <option value="">— Select Account —</option>
+                  {ACCOUNTS_LIVE.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Contact</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.contactId} onChange={(e) => setEditActivityForm(f => ({ ...f, contactId: e.target.value }))}>
+                  <option value="">— Select Contact —</option>
+                  {CONTACTS_LIVE.map((c: any) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.dealId} onChange={(e) => setEditActivityForm(f => ({ ...f, dealId: e.target.value }))}>
+                  <option value="">— Select Deal —</option>
+                  {DEALS_LIVE.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
+                <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.scheduledAt} onChange={(e) => setEditActivityForm(f => ({ ...f, scheduledAt: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Completed Date</label>
+                <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.completedAt} onChange={(e) => setEditActivityForm(f => ({ ...f, completedAt: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Outcome / Notes</label>
+                <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="Notes" value={editActivityForm.outcome} onChange={(e) => setEditActivityForm(f => ({ ...f, outcome: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+                <textarea rows={3} className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editActivityForm.description} onChange={(e) => setEditActivityForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setEditingActivity(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                disabled={updateActivity.isPending}
+                onClick={() => updateActivity.mutate({
+                  id: editingActivity.id,
+                  type: editActivityForm.type || undefined,
+                  subject: editActivityForm.subject.trim() || undefined,
+                  description: editActivityForm.description.trim() || undefined,
+                  dealId: editActivityForm.dealId || undefined,
+                  accountId: editActivityForm.accountId || undefined,
+                  contactId: editActivityForm.contactId || undefined,
+                  outcome: editActivityForm.outcome.trim() || undefined,
+                  scheduledAt: editActivityForm.scheduledAt ? new Date(editActivityForm.scheduledAt) : undefined,
+                  completedAt: editActivityForm.completedAt ? new Date(editActivityForm.completedAt) : undefined,
+                })}
+                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >{updateActivity.isPending ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>
         </div>

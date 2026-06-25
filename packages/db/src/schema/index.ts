@@ -19,6 +19,7 @@ export * from "./financial";
 export * from "./contracts";
 export * from "./projects";
 export * from "./crm";
+export * from "./csm";
 export * from "./legal";
 export * from "./facilities";
 export * from "./devops";

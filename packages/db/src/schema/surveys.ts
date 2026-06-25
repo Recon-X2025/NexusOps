@@ -36,13 +36,14 @@ export const surveys = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    number: text("number").notNull().default("SURV-000"),
     title: text("title").notNull(),
     description: text("description"),
     type: surveyTypeEnum("type").notNull().default("csat"),
     status: surveyStatusEnum("status").notNull().default("draft"),
     questions: jsonb("questions").$type<Array<{
       id: string;
-      type: "rating" | "text" | "nps" | "multiple_choice" | "yes_no";
+      type: "rating" | "text" | "open_text" | "nps" | "multiple_choice" | "single_choice" | "yes_no";
       question: string;
       required: boolean;
       options?: string[];

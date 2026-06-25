@@ -2,6 +2,7 @@ import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { surveys, surveyResponses, eq, and, desc, count, avg } from "@coheronconnect/db";
+import { getNextNumber } from "../lib/auto-number";
 
 export const surveysRouter = router({
   list: permissionProcedure("surveys", "read")
@@ -30,7 +31,7 @@ export const surveysRouter = router({
       type: z.enum(["csat", "nps", "employee_pulse", "post_incident", "onboarding", "exit_interview", "training", "vendor_review"]).default("csat"),
       questions: z.array(z.object({
         id: z.string(),
-        type: z.enum(["rating", "text", "nps", "multiple_choice", "yes_no"]),
+        type: z.enum(["rating", "text", "open_text", "nps", "multiple_choice", "single_choice", "yes_no"]),
         question: z.string(),
         required: z.boolean().default(true),
         options: z.array(z.string()).optional(),
@@ -39,7 +40,8 @@ export const surveysRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [survey] = await db.insert(surveys).values({ orgId: org!.id, ...input, createdById: user!.id }).returning();
+      const number = await getNextNumber(db, org!.id, "SURV");
+      const [survey] = await db.insert(surveys).values({ orgId: org!.id, number, ...input, createdById: user!.id }).returning();
       return survey;
     }),
 
@@ -58,7 +60,7 @@ export const surveysRouter = router({
       description: z.string().optional(),
       questions: z.array(z.object({
         id: z.string(),
-        type: z.enum(["rating", "text", "nps", "multiple_choice", "yes_no", "open_text"]),
+        type: z.enum(["rating", "text", "open_text", "nps", "multiple_choice", "single_choice", "yes_no"]),
         question: z.string(),
         required: z.boolean().default(true),
         options: z.array(z.string()).optional(),
