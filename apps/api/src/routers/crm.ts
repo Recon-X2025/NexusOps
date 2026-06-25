@@ -76,7 +76,7 @@ export const crmRouter = router({
     }),
 
   createAccount: permissionProcedure("accounts", "write")
-    .input(z.object({ name: z.string(), industry: z.string(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().url(), annualRevenue: z.string().optional() }))
+    .input(z.object({ name: z.string(), industry: z.string(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const [account] = await db.insert(crmAccounts).values({ orgId: org!.id, ...input, ownerId: user!.id }).returning();
@@ -84,7 +84,7 @@ export const crmRouter = router({
     }),
 
   updateAccount: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
@@ -122,7 +122,7 @@ export const crmRouter = router({
     }),
 
   createContact: permissionProcedure("accounts", "write")
-    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().email(), phone: z.string(), title: z.string(), accountId: z.string().uuid() }))
+    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().email().optional().nullable(), phone: z.string().optional().nullable(), title: z.string().optional().nullable(), accountId: z.string().uuid().optional().nullable() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [contact] = await db.insert(crmContacts).values({ orgId: org!.id, ...input }).returning();
@@ -130,7 +130,7 @@ export const crmRouter = router({
     }),
 
   updateContact: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), firstName: z.string().optional(), lastName: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), title: z.string().optional(), accountId: z.string().uuid().optional(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), firstName: z.string().optional(), lastName: z.string().optional(), email: z.string().email().optional().nullable(), phone: z.string().optional().nullable(), title: z.string().optional().nullable(), accountId: z.string().uuid().optional().nullable(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
