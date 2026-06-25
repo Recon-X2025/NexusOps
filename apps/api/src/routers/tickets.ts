@@ -551,6 +551,8 @@ export const ticketsRouter = router({
         configurationItemId: tickets.configurationItemId,
         knownErrorId: tickets.knownErrorId,
         idempotencyKey: tickets.idempotencyKey,
+        slaResponseDueAt: tickets.slaResponseDueAt,
+        slaResolveDueAt: tickets.slaResolveDueAt,
       })
       .from(tickets)
       .leftJoin(users, eq(tickets.assigneeId, users.id))
