@@ -75,8 +75,8 @@ export async function enqueueIrnGenerationJob(
   data: IrnJobData,
 ): Promise<void> {
   const jobId = data.force
-    ? `irn:${data.invoiceId}:${Date.now()}`
-    : `irn:${data.invoiceId}`;
+    ? `irn-${data.invoiceId}-${Date.now()}`
+    : `irn-${data.invoiceId}`;
   await queue.add("generate", data, { jobId });
 }
 

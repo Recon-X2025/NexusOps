@@ -19,7 +19,8 @@ const MAX_FAILED_IP = 50;
 // success does not reset the concurrency gate.
 
 const RATE_WINDOW_SEC = 60; // 1 minute
-const MAX_ATTEMPTS_PER_MIN = parseInt(process.env["LOGIN_RATE_PER_MIN"] ?? "5", 10);
+const defaultLimit = process.env.NODE_ENV === "production" ? "5" : "1000";
+const MAX_ATTEMPTS_PER_MIN = parseInt(process.env["LOGIN_RATE_PER_MIN"] ?? defaultLimit, 10);
 
 function loginRateKey(email: string) {
   return `login_rate:${email.trim().toLowerCase()}`;

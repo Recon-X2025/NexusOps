@@ -26,7 +26,9 @@ export default defineConfig({
   // Auto-start the dev server before E2E tests
   webServer: [
     {
-      command: "pnpm --filter @coheronconnect/api dev",
+      command: process.env.CI
+        ? "pnpm --filter @coheronconnect/api start"
+        : "pnpm --filter @coheronconnect/api dev",
       port: 3001,
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
@@ -53,7 +55,9 @@ export default defineConfig({
       },
     },
     {
-      command: "pnpm --filter @coheronconnect/web dev",
+      command: process.env.CI
+        ? "pnpm --filter @coheronconnect/web start"
+        : "pnpm --filter @coheronconnect/web dev",
       port: 3000,
       reuseExistingServer: !process.env.CI,
       timeout: 60000,

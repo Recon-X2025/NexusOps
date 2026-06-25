@@ -53,7 +53,7 @@ export async function enqueueApprovalDecision(
   data: ApprovalJobData,
 ): Promise<void> {
   await queue.add("decision", data, {
-    jobId: `approval:${data.requestId}`,
+    jobId: `approval-${data.requestId}`,
   });
 }
 

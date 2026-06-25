@@ -83,7 +83,7 @@ export async function scheduleSlaBreach(
   if (payload.slaResponseDueAt) {
     const delay = Math.max(0, payload.slaResponseDueAt.getTime() - Date.now());
     await queue.add("sla-response", { ...base, type: "response" }, {
-      jobId: `sla:response:${payload.ticketId}`,
+      jobId: `sla-response-${payload.ticketId}`,
       delay,
     });
   }
@@ -91,7 +91,7 @@ export async function scheduleSlaBreach(
   if (payload.slaResolveDueAt) {
     const delay = Math.max(0, payload.slaResolveDueAt.getTime() - Date.now());
     await queue.add("sla-resolve", { ...base, type: "resolve" }, {
-      jobId: `sla:resolve:${payload.ticketId}`,
+      jobId: `sla-resolve-${payload.ticketId}`,
       delay,
     });
   }
@@ -103,7 +103,7 @@ export async function cancelSlaJobs(
   ticketId: string,
 ): Promise<void> {
   for (const type of ["response", "resolve"] as const) {
-    const job = await queue.getJob(`sla:${type}:${ticketId}`);
+    const job = await queue.getJob(`sla-${type}-${ticketId}`);
     if (job) await job.remove();
   }
 }

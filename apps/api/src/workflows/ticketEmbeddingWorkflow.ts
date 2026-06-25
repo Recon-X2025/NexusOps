@@ -50,7 +50,7 @@ export async function enqueueTicketEmbeddingJob(
   queue: Queue<TicketEmbeddingJobData>,
   data: TicketEmbeddingJobData,
 ): Promise<void> {
-  const jobId = `tkt-emb:${data.orgId}:${data.ticketId}:${data.reason}`;
+  const jobId = `tkt-emb-${data.orgId}-${data.ticketId}-${data.reason}`;
   await queue.add("embed", data, { jobId });
 }
 

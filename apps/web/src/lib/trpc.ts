@@ -6,8 +6,8 @@ export { type AppRouter };
 
 export const trpc = createTRPCReact<AppRouter>();
 
-/** Avoid hung UI when the API is down or unreachable (browser TCP can stall a long time). */
-const TRPC_FETCH_TIMEOUT_MS = 12_000;
+const TRPC_FETCH_TIMEOUT_MS =
+  process.env.NODE_ENV === "production" ? 12_000 : 90_000;
 
 function fetchWithTimeout(
   input: RequestInfo | URL,

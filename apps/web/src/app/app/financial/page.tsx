@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -48,6 +48,21 @@ function normalizeFinTabParam(raw: string | null): string | null {
 }
 
 export default function FinancialPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-xs">Loading financial dashboard…</span>
+        </div>
+      }
+    >
+      <FinancialPageInner />
+    </Suspense>
+  );
+}
+
+function FinancialPageInner() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const router = useRouter();
   const searchParams = useSearchParams();

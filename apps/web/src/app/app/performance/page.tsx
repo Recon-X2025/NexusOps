@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -73,7 +73,18 @@ function ProgressBar({ value, color = "bg-primary" }: { value: number; color?: s
 export default function PerformancePage() {
   const { canAccess } = useRBAC();
   if (!canAccess("hr")) return <AccessDenied module="Performance" />;
-  return <PerformanceContent />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-xs">Loading performance dashboard…</span>
+        </div>
+      }
+    >
+      <PerformanceContent />
+    </Suspense>
+  );
 }
 
 function PerformanceContent() {

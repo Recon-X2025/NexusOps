@@ -63,8 +63,8 @@ export async function enqueueVirusScanJob(
   versionNumber?: number,
 ): Promise<void> {
   const jobId = versionNumber
-    ? `vscan:${documentId}:v${versionNumber}`
-    : `vscan:${documentId}`;
+    ? `vscan-${documentId}-v${versionNumber}`
+    : `vscan-${documentId}`;
   await queue.add("scan", { documentId, versionNumber }, { jobId });
 }
 

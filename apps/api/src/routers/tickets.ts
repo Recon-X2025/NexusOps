@@ -1076,37 +1076,49 @@ export const ticketsRouter = router({
     });
 
     // Enqueue embedding job (non-fatal). Powers semantic-ish search and AI tools.
-    try {
-      const { getWorkflowService } = await import("../services/workflow.js");
-      const { ticketEmbeddingQueue } = getWorkflowService();
-      const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
-      await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
-        orgId: org!.id,
-        ticketId: ticket!.id,
-        reason: "created",
-      });
-    } catch (err) {
-      console.warn("[tickets.create] Failed to enqueue ticket embedding job:", err);
-    }
+    (() => {
+      const orgId = org!.id;
+      const ticketId = ticket!.id;
+      import("../services/workflow.js")
+        .then(async ({ getWorkflowService }) => {
+          const { ticketEmbeddingQueue } = getWorkflowService();
+          const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
+          await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
+            orgId,
+            ticketId,
+            reason: "created",
+          });
+        })
+        .catch((err) => {
+          console.warn("[tickets.create] Failed to enqueue ticket embedding job:", err);
+        });
+    })();
 
     // Schedule durable SLA breach detection jobs
     if (slaResponseDueAt || slaResolveDueAt) {
-      try {
-        const { getWorkflowService } = await import("../services/workflow.js");
-        const { slaQueue } = getWorkflowService();
-        const { scheduleSlaBreach } = await import("../workflows/ticketLifecycleWorkflow.js");
-        await scheduleSlaBreach(slaQueue, {
-          ticketId: ticket!.id,
-          orgId: org!.id,
-          ticketNumber: ticket!.number,
-          assigneeId: input.assigneeId,
-          slaResponseDueAt,
-          slaResolveDueAt,
-        });
-      } catch (err) {
-        // SLA scheduling failure is non-fatal — ticket is already created
-        console.warn("[tickets.create] Failed to schedule SLA jobs:", err);
-      }
+      (() => {
+        const ticketId = ticket!.id;
+        const orgId = org!.id;
+        const ticketNumber = ticket!.number;
+        const assigneeId = input.assigneeId;
+        import("../services/workflow.js")
+          .then(async ({ getWorkflowService }) => {
+            const { slaQueue } = getWorkflowService();
+            const { scheduleSlaBreach } = await import("../workflows/ticketLifecycleWorkflow.js");
+            await scheduleSlaBreach(slaQueue, {
+              ticketId,
+              orgId,
+              ticketNumber,
+              assigneeId,
+              slaResponseDueAt,
+              slaResolveDueAt,
+            });
+          })
+          .catch((err) => {
+            // SLA scheduling failure is non-fatal — ticket is already created
+            console.warn("[tickets.create] Failed to schedule SLA jobs:", err);
+          });
+      })();
     }
 
     // Cache the response snapshot in Redis so all retries with the same
@@ -1528,18 +1540,24 @@ export const ticketsRouter = router({
       // Enqueue embedding refresh when meaningful content changes or when the
       // ticket becomes resolved (resolution context improves retrieval).
       if (embeddingReason) {
-        try {
-          const { getWorkflowService } = await import("../services/workflow.js");
-          const { ticketEmbeddingQueue } = getWorkflowService();
-          const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
-          await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
-            orgId: org!.id,
-            ticketId: updated.id,
-            reason: embeddingReason,
-          });
-        } catch (err) {
-          console.warn("[tickets.update] Failed to enqueue ticket embedding job:", err);
-        }
+        (() => {
+          const orgId = org!.id;
+          const ticketId = updated.id;
+          const reason = embeddingReason;
+          import("../services/workflow.js")
+            .then(async ({ getWorkflowService }) => {
+              const { ticketEmbeddingQueue } = getWorkflowService();
+              const { enqueueTicketEmbeddingJob } = await import("../workflows/ticketEmbeddingWorkflow.js");
+              await enqueueTicketEmbeddingJob(ticketEmbeddingQueue, {
+                orgId,
+                ticketId,
+                reason,
+              });
+            })
+            .catch((err) => {
+              console.warn("[tickets.update] Failed to enqueue ticket embedding job:", err);
+            });
+        })();
       }
 
       return updated;

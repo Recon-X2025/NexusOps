@@ -83,7 +83,7 @@ export async function enqueueRetentionSweepNow(
   queue: Queue<RetentionJobData>,
   batchSize?: number,
 ): Promise<void> {
-  await queue.add(SWEEP_JOB_NAME, { batchSize }, { jobId: `retention-sweep:${Date.now()}` });
+  await queue.add(SWEEP_JOB_NAME, { batchSize }, { jobId: `retention-sweep-${Date.now()}` });
 }
 
 export interface SweepResult {

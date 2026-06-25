@@ -14,9 +14,8 @@
 
 import { useEffect, useState } from "react";
 
-/** Returns true once `LOADING_TIMEOUT_MS` has elapsed without data — used to
- * convert a stuck skeleton into an error state per §8.2 of the spec. */
-export const LOADING_TIMEOUT_MS = 5_000;
+export const LOADING_TIMEOUT_MS =
+  process.env.NODE_ENV === "production" ? 5_000 : 45_000;
 
 export function useLoadingTimeout(isLoading: boolean): boolean {
   const [timedOut, setTimedOut] = useState(false);

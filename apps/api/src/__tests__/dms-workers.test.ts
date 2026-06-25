@@ -54,8 +54,8 @@ describe("virusScanWorkflow.enqueueVirusScanJob — idempotent jobId", () => {
     await enqueueVirusScanJob(fakeQueue as any, "doc-123", 2);
 
     expect(calls).toHaveLength(3);
-    expect(calls[0]!.opts.jobId).toBe("vscan:doc-123");
-    expect(calls[1]!.opts.jobId).toBe("vscan:doc-123:v2");
+    expect(calls[0]!.opts.jobId).toBe("vscan-doc-123");
+    expect(calls[1]!.opts.jobId).toBe("vscan-doc-123-v2");
     // BullMQ dedupes by jobId — same documentId+version must produce same id
     expect(calls[2]!.opts.jobId).toBe(calls[1]!.opts.jobId);
   });

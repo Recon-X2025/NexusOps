@@ -66,11 +66,8 @@ export const router = t.router;
 /** Warn when any single request exceeds this threshold. */
 const SLOW_WARN_MS = 500;
 
-/**
- * Hard timeout for read-only queries only (not mutations — a partial mutation
- * that is silently abandoned could leave the DB in an inconsistent state).
- */
-const QUERY_HARD_LIMIT_MS = 8_000;
+const QUERY_HARD_LIMIT_MS =
+  process.env.NODE_ENV === "production" ? 8_000 : 60_000;
 
 /** How many recent samples to keep in the rolling window. */
 const MAX_LATENCY_SAMPLES = 2000;

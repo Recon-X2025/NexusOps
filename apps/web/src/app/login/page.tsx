@@ -40,11 +40,6 @@ export default function LoginPage() {
       localStorage.setItem("coheronconnect_session", data.sessionId);
       const maxAge = rememberMe ? `; max-age=${60 * 60 * 24 * 30}` : "";
       document.cookie = `coheronconnect_session=${data.sessionId}; path=/${maxAge}; SameSite=Lax`;
-      // Eagerly fetch auth.me with the new session token so the cache holds the
-      // correct user before navigation. This prevents stale data from a previous
-      // session (e.g. a demo account) from flashing on the dashboard while the
-      // background refetch catches up.
-      await utils.auth.me.fetch().catch(() => {});
       toast.success("Welcome back!");
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get("redirect") ?? "/app/dashboard";
