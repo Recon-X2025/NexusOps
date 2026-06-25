@@ -84,9 +84,9 @@ export const changesRouter = router({
   // ── Change Requests ──────────────────────────────────────────────────────
   list: permissionProcedure("changes", "read")
     .input(z.object({
-      status: z.string().optional(),
-      type: z.string().optional(),
-      risk: z.string().optional(),
+      status: z.enum(["draft", "submitted", "cab_review", "approved", "scheduled", "implementing", "completed", "failed", "cancelled"]).optional(),
+      type: z.enum(["normal", "standard", "emergency", "expedited"]).optional(),
+      risk: z.enum(["low", "medium", "high", "critical"]).optional(),
       search: z.string().optional(),
       limit: z.coerce.number().min(1).max(200).default(50),
       cursor: z.string().optional(),
@@ -112,9 +112,9 @@ export const changesRouter = router({
       }
 
       const conditions = [eq(changeRequests.orgId, org!.id)];
-      if (input.status) conditions.push(eq(changeRequests.status, input.status as any));
-      if (input.type) conditions.push(eq(changeRequests.type, input.type as any));
-      if (input.risk) conditions.push(eq(changeRequests.risk, input.risk as any));
+      if (input.status) conditions.push(eq(changeRequests.status, input.status));
+      if (input.type) conditions.push(eq(changeRequests.type, input.type));
+      if (input.risk) conditions.push(eq(changeRequests.risk, input.risk));
 
       const rows = await db
         .select()
@@ -191,8 +191,8 @@ export const changesRouter = router({
       id: z.string().uuid(),
       title: z.string().optional(),
       description: z.string().optional(),
-      status: z.string().optional(),
-      risk: z.string().optional(),
+      status: z.enum(["draft", "submitted", "cab_review", "approved", "scheduled", "implementing", "completed", "failed", "cancelled"]).optional(),
+      risk: z.enum(["low", "medium", "high", "critical"]).optional(),
       riskScore: z.coerce.number().int().min(1).max(25).optional(),
       riskQuestionnaire: z.record(z.unknown()).optional(),
       scheduledStart: z.string().optional(),
@@ -202,10 +202,15 @@ export const changesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { id, ...data } = input;
+      const { id, scheduledStart, scheduledEnd, ...rest } = input;
       const [change] = await db
         .update(changeRequests)
-        .set({ ...data, updatedAt: new Date() } as any)
+        .set({
+          ...rest,
+          ...(scheduledStart !== undefined ? { scheduledStart: new Date(scheduledStart) } : {}),
+          ...(scheduledEnd !== undefined ? { scheduledEnd: new Date(scheduledEnd) } : {}),
+          updatedAt: new Date(),
+        })
         .where(and(eq(changeRequests.id, id), eq(changeRequests.orgId, org!.id)))
         .returning();
       if (!change) throw new TRPCError({ code: "NOT_FOUND" });
@@ -379,11 +384,14 @@ export const changesRouter = router({
 
   // ── Problems ─────────────────────────────────────────────────────────────
   listProblems: permissionProcedure("problems", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({
+      status: z.enum(["new", "investigation", "root_cause_identified", "known_error", "resolved", "closed"]).optional(),
+      limit: z.coerce.number().default(50),
+    }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(problems.orgId, org!.id)];
-      if (input.status) conditions.push(eq(problems.status, input.status as any));
+      if (input.status) conditions.push(eq(problems.status, input.status));
       return db.select().from(problems).where(and(...conditions)).orderBy(desc(problems.createdAt)).limit(input.limit);
     }),
 
@@ -397,11 +405,17 @@ export const changesRouter = router({
     }),
 
   updateProblem: permissionProcedure("problems", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.string().optional(), rootCause: z.string().optional(), workaround: z.string().optional(), resolution: z.string().optional() }))
+    .input(z.object({
+      id: z.string().uuid(),
+      status: z.enum(["new", "investigation", "root_cause_identified", "known_error", "resolved", "closed"]).optional(),
+      rootCause: z.string().optional(),
+      workaround: z.string().optional(),
+      resolution: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [problem] = await db.update(problems).set({ ...data, updatedAt: new Date() } as any)
+      const [problem] = await db.update(problems).set({ ...data, updatedAt: new Date() })
         .where(and(eq(problems.id, id), eq(problems.orgId, org!.id))).returning();
       return problem;
     }),
@@ -413,9 +427,10 @@ export const changesRouter = router({
       const [prob] = await db.select({ id: problems.id, notes: problems.notes }).from(problems)
         .where(and(eq(problems.id, input.problemId), eq(problems.orgId, org!.id)));
       if (!prob) throw new TRPCError({ code: "NOT_FOUND" });
-      const existingNotes = (prob.notes as any[]) ?? [];
-      const updatedNotes = [...existingNotes, { body: input.note, authorId: user!.id, createdAt: new Date().toISOString() }];
-      await db.update(problems).set({ notes: updatedNotes as any, updatedAt: new Date() } as any)
+      type ProblemNote = { body: string; authorId: string; createdAt: string };
+      const existingNotes: ProblemNote[] = (prob.notes ?? []) as ProblemNote[];
+      const updatedNotes: ProblemNote[] = [...existingNotes, { body: input.note, authorId: user!.id, createdAt: new Date().toISOString() }];
+      await db.update(problems).set({ notes: updatedNotes, updatedAt: new Date() })
         .where(eq(problems.id, input.problemId));
       return { success: true };
     }),
@@ -449,12 +464,17 @@ export const changesRouter = router({
     }),
 
   updateRelease: permissionProcedure("changes", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.string().optional(), notes: z.string().optional(), actualDate: z.string().optional() }))
+    .input(z.object({
+      id: z.string().uuid(),
+      status: z.enum(["planning", "build", "test", "deploy", "completed", "cancelled"]).optional(),
+      notes: z.string().optional(),
+      actualDate: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { id, ...data } = input;
+      const { id, actualDate, ...rest } = input;
       const [release] = await db.update(releases)
-        .set({ ...data, actualDate: data.actualDate ? new Date(data.actualDate) : undefined, updatedAt: new Date() } as any)
+        .set({ ...rest, ...(actualDate !== undefined ? { actualDate: new Date(actualDate) } : {}), updatedAt: new Date() })
         .where(and(eq(releases.id, id), eq(releases.orgId, org!.id)))
         .returning();
       return release;
@@ -462,11 +482,14 @@ export const changesRouter = router({
 
   // ── Releases ──────────────────────────────────────────────────────────────
   listReleases: permissionProcedure("changes", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({
+      status: z.enum(["planning", "build", "test", "deploy", "completed", "cancelled"]).optional(),
+      limit: z.coerce.number().default(50),
+    }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(releases.orgId, org!.id)];
-      if (input.status) conditions.push(eq(releases.status, input.status as any));
+      if (input.status) conditions.push(eq(releases.status, input.status));
       return db.select().from(releases).where(and(...conditions)).orderBy(desc(releases.createdAt)).limit(input.limit);
     }),
 

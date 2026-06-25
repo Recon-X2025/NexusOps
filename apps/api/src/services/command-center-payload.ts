@@ -14,6 +14,7 @@ import {
   type FunctionKey,
   type MetricDimension,
   type MetricSurface,
+  type MetricCellState,
   type CommandCenterPayload,
   type AttentionItem,
   type BulletMetric,
@@ -78,7 +79,7 @@ function toCellState(def: MetricDefinition, value: MetricValue): MetricCellState
   if (value.state === "no_data") return { kind: "no_data" };
   const val = value.current;
   const target = def.target ?? value.target;
-  const kind = value.state === "stressed" ? "unhealthy" : value.state === "watch" ? "watch" : "healthy";
+  const kind = value.state === "stressed" ? "stressed" : value.state === "watch" ? "watch" : "healthy";
   return { kind, value: val, target };
 }
 
@@ -358,7 +359,7 @@ export async function buildCommandCenterPayload(input: {
       if (!v || v.state === 'no_data') return false;
       // If it's a "Healthy 0", check if there's any non-zero history in the series
       if (v.state === 'healthy' && (v.current === 0 || v.current === null)) {
-        return (v.series && v.series.length > 0 && v.series.some(s => (s.value ?? 0) > 0)) ?? false;
+        return (v.series && v.series.length > 0 && v.series.some(s => (s.v ?? 0) > 0)) ?? false;
       }
       return true;
     });
@@ -410,6 +411,7 @@ export async function buildCommandCenterPayload(input: {
     return {
       metricId: m.id,
       function: m.function,
+      dimension: m.dimension,
       label: m.label,
       current: v.current,
       previous: v.previous,
@@ -651,7 +653,7 @@ export async function buildHubPayload(input: {
       const v = byId[d.id];
       if (!v || v.state === 'no_data') return false;
       if (v.state === 'healthy' && (v.current === 0 || v.current === null)) {
-        return (v.series && v.series.length > 0 && v.series.some(s => (s.value ?? 0) > 0)) ?? false;
+        return (v.series && v.series.length > 0 && v.series.some(s => (s.v ?? 0) > 0)) ?? false;
       }
       return true;
     });

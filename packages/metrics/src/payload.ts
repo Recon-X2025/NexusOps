@@ -7,6 +7,7 @@ export interface AttentionItem {
   label: string;
   severity: "high" | "watch";
   message: string;
+  displayValue?: string;
   drillUrl?: string;
 }
 

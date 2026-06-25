@@ -153,7 +153,7 @@ export default function ChangesPage() {
   // happens AFTER this block to avoid React error #310 (conditional hook count).
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
 
-  const { data, isLoading, refetch } = trpc.changes.list.useQuery({ status: activeStatus, limit: 50 }, mergeTrpcQueryOpts("changes.list", { refetchOnWindowFocus: false, enabled: hasAccess },));
+  const { data, isLoading, refetch } = trpc.changes.list.useQuery({ status: activeStatus as any, limit: 50 }, mergeTrpcQueryOpts("changes.list", { refetchOnWindowFocus: false, enabled: hasAccess },));
   const { data: counts } = trpc.changes.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("changes.statusCounts", { refetchOnWindowFocus: false, enabled: hasAccess },));
 
   const [actionRow, setActionRow] = useState<string | null>(null);

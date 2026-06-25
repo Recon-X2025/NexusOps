@@ -105,7 +105,7 @@ export default function ReleaseDetailPage() {
                       </select>
                       {newStatus && (
                         <button
-                          onClick={() => updateRelease.mutate({ id, status: newStatus })}
+                          onClick={() => updateRelease.mutate({ id, status: newStatus as any })}
                           className="px-4 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-all shadow-md"
                         >
                           Confirm

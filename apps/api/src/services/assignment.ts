@@ -79,7 +79,7 @@ async function countOpenItems(
       .where(
         and(
           eq(tickets.orgId, orgId),
-          inArray(tickets.assigneeId as any, userIds),
+          inArray(tickets.assigneeId, userIds),
           isNull(tickets.closedAt),
         ),
       )
@@ -98,7 +98,7 @@ async function countOpenItems(
       .where(
         and(
           eq(workOrders.orgId, orgId),
-          inArray(workOrders.assignedToId as any, userIds),
+          inArray(workOrders.assignedToId, userIds),
           // Terminal states: complete, cancelled, closed
           sql`${workOrders.state} NOT IN ('complete', 'cancelled', 'closed')`,
         ),
@@ -119,7 +119,7 @@ async function countOpenItems(
       .where(
         and(
           eq(hrCases.orgId, orgId),
-          inArray(hrCases.assigneeId as any, userIds),
+          inArray(hrCases.assigneeId, userIds),
         ),
       )
       .groupBy(hrCases.assigneeId);

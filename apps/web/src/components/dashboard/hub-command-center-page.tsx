@@ -246,6 +246,8 @@ function HubBody({
   mergeTrpcQueryOpts: ReturnType<typeof useRBAC>["mergeTrpcQueryOpts"];
 }) {
   const [viewTimedOut, setViewTimedOut] = useState(false);
+  const [isForceRefreshing, setIsForceRefreshing] = useState(false);
+  const utils = trpc.useUtils();
 
   // Hub-scoped Command Center payload. The API resolves only this hub's
   // metric pool and selects bullets/trends/risks from within that pool,
@@ -273,9 +275,15 @@ function HubBody({
     return qView.data as unknown as Payload;
   }, [qView.data]);
 
-  const refreshAll = () => {
+  const refreshAll = async () => {
     setViewTimedOut(false);
-    void qView.refetch();
+    setIsForceRefreshing(true);
+    try {
+      const freshData = await utils.commandCenter.getHubView.fetch({ functionKey, range, forceRefresh: true });
+      utils.commandCenter.getHubView.setData({ functionKey, range }, freshData);
+    } finally {
+      setIsForceRefreshing(false);
+    }
   };
 
   const bar = (
@@ -285,7 +293,7 @@ function HubBody({
       rangeId={rangeId}
       onRangeId={setRangeId}
       onRefresh={refreshAll}
-      isFetching={qView.isFetching}
+      isFetching={qView.isFetching || isForceRefreshing}
       tab={tab}
       onTab={setTab}
     />

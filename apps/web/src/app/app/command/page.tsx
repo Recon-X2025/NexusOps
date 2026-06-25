@@ -110,6 +110,8 @@ function CommandCenterBody({
   mergeTrpcQueryOpts: ReturnType<typeof useRBAC>["mergeTrpcQueryOpts"];
 }) {
   const [viewTimedOut, setViewTimedOut] = useState(false);
+  const [isForceRefreshing, setIsForceRefreshing] = useState(false);
+  const utils = trpc.useUtils();
 
   const qView = trpc.commandCenter.getView.useQuery({ range }, mergeTrpcQueryOpts("commandCenter.getView"));
 
@@ -127,15 +129,21 @@ function CommandCenterBody({
 
   const displayPayload = qView.data;
 
-  const refreshAll = () => {
+  const refreshAll = async () => {
     setViewTimedOut(false);
-    void qView.refetch();
+    setIsForceRefreshing(true);
+    try {
+      const freshData = await utils.commandCenter.getView.fetch({ range, forceRefresh: true });
+      utils.commandCenter.getView.setData({ range }, freshData);
+    } finally {
+      setIsForceRefreshing(false);
+    }
   };
 
   if (qView.isError) {
     return (
       <CommandCenterShell>
-        <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching} />
+        <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching || isForceRefreshing} />
         <CommandCenterQueryError
           title="Couldn't load command center"
           message={qView.error?.message ?? "Unknown error"}
@@ -148,7 +156,7 @@ function CommandCenterBody({
   if (viewTimedOut && !qView.data) {
     return (
       <CommandCenterShell>
-        <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching} />
+        <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching || isForceRefreshing} />
         <CommandCenterQueryError
           title="Command Center is taking too long"
           message="The dashboard did not respond in time. Check your connection or try again."
@@ -160,7 +168,7 @@ function CommandCenterBody({
 
   return (
     <CommandCenterShell>
-      <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching} />
+      <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching || isForceRefreshing} />
 
       {qView.isLoading || !displayPayload ? (
         <div className="space-y-2 animate-pulse p-2">

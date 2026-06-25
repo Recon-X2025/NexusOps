@@ -1,4 +1,6 @@
 import { sql } from "@coheronconnect/db";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type * as schema from "@coheronconnect/db";
 
 // ── Entity → table mapping for counter sync ───────────────────────────────────
 //
@@ -51,21 +53,21 @@ const COUNTER_SPECS: ReadonlyArray<{
  * @returns      The next integer sequence value (1-based)
  */
 export async function getNextSeq(
-  db: any,
+  db: PostgresJsDatabase<any>,
   orgId: string,
   entity: string,
 ): Promise<number> {
+  // postgres.js execute() returns an array of row objects for DML with RETURNING.
+  type CounterRow = { current_value: string | number };
   const rows = await db.execute(sql`
     INSERT INTO org_counters (org_id, entity, current_value)
     VALUES (${orgId}, ${entity}, 1)
     ON CONFLICT (org_id, entity)
     DO UPDATE SET current_value = org_counters.current_value + 1
     RETURNING current_value
-  `);
+  `) as CounterRow[] | { rows: CounterRow[] };
 
-  // postgres.js returns an array of row objects; handle both the direct-array
-  // shape and the {rows:[]} shape that some Drizzle adapters may produce.
-  const row = Array.isArray(rows) ? rows[0] : (rows as any)?.rows?.[0];
+  const row = Array.isArray(rows) ? rows[0] : rows.rows[0];
   return Number(row?.current_value ?? 1);
 }
 
@@ -80,7 +82,7 @@ export async function getNextSeq(
  * @param padding - Zero-pad width (default 4)
  */
 export async function getNextNumber(
-  db: any,
+  db: PostgresJsDatabase<typeof schema>,
   orgId: string,
   entity: string,
   prefix?: string,
@@ -110,7 +112,7 @@ export async function getNextNumber(
  *
  * @returns Summary of entities checked, rows upserted, and any per-entity errors.
  */
-export async function syncOrgCounters(db: any): Promise<{
+export async function syncOrgCounters(db: PostgresJsDatabase<any>): Promise<{
   checked: number;
   upserted: number;
   errors: Array<{ entity: string; message: string }>;
@@ -146,14 +148,8 @@ export async function syncOrgCounters(db: any): Promise<{
         )
       `;
       const result = await db.execute(sql.raw(rawSql));
-      // postgres.js: result is an array of row objects; its .count property
-      // (if present) is the number of rows affected by the DML statement.
-      const rowsAffected =
-        typeof (result as any)?.count === "number"
-          ? (result as any).count
-          : Array.isArray(result)
-            ? result.length
-            : 0;
+      // postgres.js: result is an array of rows; its length === rows affected by the DML.
+      const rowsAffected = Array.isArray(result) ? result.length : 0;
       upserted += rowsAffected;
       checked++;
     } catch (err) {

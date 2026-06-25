@@ -108,7 +108,7 @@ export const apmRouter = router({
         .where(eq(applications.orgId, org!.id))
         .groupBy(applications.lifecycle);
 
-      const byLifecycle: Record<string, number> = lifecycleCounts.reduce((acc: Record<string, number>, row: any) => {
+      const byLifecycle = lifecycleCounts.reduce((acc: Record<string, number>, row: any) => {
         acc[row.lifecycle] = Number(row.cnt);
         return acc;
       }, {});

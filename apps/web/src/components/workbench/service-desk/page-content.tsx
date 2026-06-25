@@ -21,7 +21,7 @@ export function ServiceDeskContent() {
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-5">
       <div className="xl:col-span-9 min-w-0 flex flex-col gap-4 md:gap-5">
         <QueueTable
-          rows={data?.queue.data?.items ?? null}
+          rows={(data?.queue.data?.items as any) ?? null}
           page={data?.queue.data?.page ?? 1}
           totalPages={data?.queue.data?.totalPages ?? 1}
           onPageChange={setPage}

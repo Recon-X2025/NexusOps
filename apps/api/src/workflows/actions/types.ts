@@ -26,7 +26,7 @@ export interface WorkflowActionResult {
 
 export interface WorkflowAction<TInput = Record<string, unknown>> {
   name: string;
-  category: "comms" | "itsm" | "statutory" | "legal" | "crm" | "hr";
+  category: "comms" | "itsm" | "statutory" | "legal" | "crm" | "hr" | "automation";
   displayName: string;
   description: string;
   /**

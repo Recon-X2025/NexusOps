@@ -31,25 +31,27 @@ const timeRangeZ = z.object({
 
 const REDIS_GET_TIMEOUT_MS = 1500;
 
-async function getCachedCommandCenter<T>(key: string, fn: () => Promise<T>): Promise<T> {
+async function getCachedCommandCenter<T>(key: string, forceRefresh: boolean, fn: () => Promise<T>): Promise<T> {
   try {
     const redis = getRedis();
-    let cached: string | null = null;
-    try {
-      cached = await Promise.race([
-        redis.get(key),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("command_center_cache_redis_get_timeout")), REDIS_GET_TIMEOUT_MS),
-        ),
-      ]);
-    } catch (e) {
-      console.warn("[command-center] cache read skipped:", e);
-    }
-    if (cached) {
+    if (!forceRefresh) {
+      let cached: string | null = null;
       try {
-        return JSON.parse(cached) as T;
-      } catch {
-        await redis.del(key).catch(() => {});
+        cached = await Promise.race([
+          redis.get(key),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("command_center_cache_redis_get_timeout")), REDIS_GET_TIMEOUT_MS),
+          ),
+        ]);
+      } catch (e) {
+        console.warn("[command-center] cache read skipped:", e);
+      }
+      if (cached) {
+        try {
+          return JSON.parse(cached) as T;
+        } catch {
+          await redis.del(key).catch(() => {});
+        }
       }
     }
     const result = await fn();
@@ -69,6 +71,7 @@ export const commandCenterRouter = router({
     .input(
       z.object({
         range: timeRangeZ,
+        forceRefresh: z.boolean().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -78,7 +81,7 @@ export const commandCenterRouter = router({
 
       const cacheKey = `commandCenter:v1:${org.id}:${activeRole}:${input.range.start.toISOString()}:${input.range.end.toISOString()}:${input.range.granularity}`;
 
-      const payload = await getCachedCommandCenter(cacheKey, () =>
+      const payload = await getCachedCommandCenter(cacheKey, input.forceRefresh ?? false, () =>
         buildCommandCenterPayload({
           role: activeRole,
           detectedRole: activeRole,
@@ -127,6 +130,7 @@ export const commandCenterRouter = router({
       z.object({
         functionKey: FunctionKeyZ,
         range: timeRangeZ,
+        forceRefresh: z.boolean().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -135,7 +139,7 @@ export const commandCenterRouter = router({
 
       const cacheKey = `commandCenter:hub:v1:${org.id}:${input.functionKey}:${input.range.start.toISOString()}:${input.range.end.toISOString()}:${input.range.granularity}`;
 
-      const payload = await getCachedCommandCenter(cacheKey, () =>
+      const payload = await getCachedCommandCenter(cacheKey, input.forceRefresh ?? false, () =>
         buildHubPayload({
           fn: input.functionKey as Parameters<typeof buildHubPayload>[0]["fn"],
           tenantId: org.id as string,

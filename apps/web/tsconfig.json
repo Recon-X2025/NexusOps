@@ -1,6 +1,7 @@
 {
   "extends": "@coheronconnect/config/tsconfig-nextjs",
   "compilerOptions": {
+    "strict": false,
     "declaration": false,
     "declarationMap": false,
     "baseUrl": ".",
