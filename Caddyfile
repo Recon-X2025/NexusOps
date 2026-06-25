@@ -2,10 +2,8 @@
     email karthik@coheron.tech
 }
 
-# Serve via IP with internal self-signed SSL
-65.20.86.128 {
-    tls internal
-
+# Serve via IP (HTTP only, no SSL) — works immediately
+http://65.20.86.128 {
     handle_path /api/* {
         reverse_proxy api:3001
     }
