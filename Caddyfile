@@ -2,17 +2,9 @@
     email karthik@coheron.tech
 }
 
-# Serve via IP (HTTP only, no SSL) — works immediately
+# Serve via IP (HTTP only, no SSL) — redirects to secure domain
 http://65.20.86.128 {
-    handle_path /api/* {
-        reverse_proxy api:3001
-    }
-
-    handle {
-        reverse_proxy web:3000
-    }
-
-    encode gzip zstd
+    redir https://connect.coheron.tech{uri} permanent
 }
 
 # connect.coheron.tech — Caddy auto-provisions Let's Encrypt SSL
