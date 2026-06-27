@@ -19,6 +19,45 @@ interface GoogleConfig {
   expiresAt?: number; // unix seconds
 }
 
+/** Send an email through the authenticated user's Gmail account. */
+export interface GmailSendMessage {
+  kind: "email";
+  to: string;
+  subject: string;
+  /** Plain-text or HTML body. */
+  body: string;
+  cc?: string;
+  bcc?: string;
+}
+
+/** Create an event on the authenticated user's primary calendar. */
+export interface GoogleCalendarEventMessage {
+  kind: "calendar_event";
+  summary: string;
+  description?: string;
+  /** ISO-8601 start/end timestamps. */
+  start: string;
+  end: string;
+  attendees?: string[];
+  location?: string;
+}
+
+export type GoogleSendMessage = GmailSendMessage | GoogleCalendarEventMessage;
+
+/** RFC 2822 message, base64url-encoded as required by the Gmail API. */
+function buildRawEmail(msg: GmailSendMessage): string {
+  const headers = [
+    `To: ${msg.to}`,
+    msg.cc ? `Cc: ${msg.cc}` : null,
+    msg.bcc ? `Bcc: ${msg.bcc}` : null,
+    `Subject: ${msg.subject}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="UTF-8"',
+  ].filter((h): h is string => h !== null);
+  const raw = `${headers.join("\r\n")}\r\n\r\n${msg.body}`;
+  return Buffer.from(raw, "utf8").toString("base64url");
+}
+
 const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
@@ -27,10 +66,10 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
 ].join(" ");
 
-export const googleWorkspaceAdapter: IntegrationAdapter<GoogleConfig> = {
+export const googleWorkspaceAdapter: IntegrationAdapter<GoogleConfig, GoogleSendMessage> = {
   provider: "google_workspace",
   displayName: "Google Workspace",
-  capabilities: { send: false, receive: false, oauth: true },
+  capabilities: { send: true, receive: false, oauth: true },
 
   async test(config) {
     if (!config.clientId || !config.clientSecret) {
@@ -40,6 +79,56 @@ export const googleWorkspaceAdapter: IntegrationAdapter<GoogleConfig> = {
       return { ok: false, details: "OAuth not yet completed — no refresh token" };
     }
     return { ok: true, details: "Refresh token present" };
+  },
+
+  async send(config, message) {
+    const accessToken = await refreshGoogleAccessToken(config);
+
+    if (message.kind === "email") {
+      const res = await fetch(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ raw: buildRawEmail(message) }),
+        },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gmail send failed: ${res.status} ${text.slice(0, 200)}`);
+      }
+      const json = (await res.json()) as { id: string };
+      return { providerRef: json.id, raw: json };
+    }
+
+    // calendar_event
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          summary: message.summary,
+          description: message.description,
+          location: message.location,
+          start: { dateTime: message.start },
+          end: { dateTime: message.end },
+          attendees: message.attendees?.map((email) => ({ email })),
+        }),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Google Calendar event create failed: ${res.status} ${text.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as { id: string };
+    return { providerRef: json.id, raw: json };
   },
 
   beginOAuth({ orgId, state, redirectUri }) {

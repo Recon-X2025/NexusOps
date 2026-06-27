@@ -19,6 +19,40 @@ interface MsConfig {
   expiresAt?: number;
 }
 
+/** Send an email through the authenticated user's Outlook mailbox. */
+export interface OutlookSendMessage {
+  kind: "email";
+  to: string;
+  subject: string;
+  /** HTML body. */
+  body: string;
+  cc?: string;
+  bcc?: string;
+}
+
+/** Create an event on the authenticated user's Outlook calendar. */
+export interface OutlookCalendarEventMessage {
+  kind: "calendar_event";
+  summary: string;
+  description?: string;
+  /** ISO-8601 start/end timestamps. */
+  start: string;
+  end: string;
+  attendees?: string[];
+  location?: string;
+}
+
+export type MicrosoftSendMessage = OutlookSendMessage | OutlookCalendarEventMessage;
+
+function toRecipients(addresses?: string): Array<{ emailAddress: { address: string } }> {
+  if (!addresses) return [];
+  return addresses
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean)
+    .map((address) => ({ emailAddress: { address } }));
+}
+
 const SCOPES = [
   "openid",
   "profile",
@@ -30,10 +64,10 @@ const SCOPES = [
   "offline_access",
 ].join(" ");
 
-export const microsoft365Adapter: IntegrationAdapter<MsConfig> = {
+export const microsoft365Adapter: IntegrationAdapter<MsConfig, MicrosoftSendMessage> = {
   provider: "microsoft_365",
   displayName: "Microsoft 365",
-  capabilities: { send: false, receive: false, oauth: true },
+  capabilities: { send: true, receive: false, oauth: true },
 
   async test(config) {
     if (!config.clientId || !config.clientSecret || !config.tenantId) {
@@ -41,6 +75,62 @@ export const microsoft365Adapter: IntegrationAdapter<MsConfig> = {
     }
     if (!config.refreshToken) return { ok: false, details: "OAuth not completed" };
     return { ok: true };
+  },
+
+  async send(config, message) {
+    const accessToken = await refreshMicrosoftAccessToken(config);
+
+    if (message.kind === "email") {
+      const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          message: {
+            subject: message.subject,
+            body: { contentType: "HTML", content: message.body },
+            toRecipients: toRecipients(message.to),
+            ccRecipients: toRecipients(message.cc),
+            bccRecipients: toRecipients(message.bcc),
+          },
+          saveToSentItems: true,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Outlook send failed: ${res.status} ${text.slice(0, 200)}`);
+      }
+      // sendMail returns 202 Accepted with no body.
+      return { providerRef: "accepted" };
+    }
+
+    // calendar_event
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        subject: message.summary,
+        body: message.description ? { contentType: "HTML", content: message.description } : undefined,
+        start: { dateTime: message.start, timeZone: "UTC" },
+        end: { dateTime: message.end, timeZone: "UTC" },
+        location: message.location ? { displayName: message.location } : undefined,
+        attendees: message.attendees?.map((address) => ({
+          emailAddress: { address },
+          type: "required",
+        })),
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Outlook calendar event create failed: ${res.status} ${text.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as { id: string };
+    return { providerRef: json.id, raw: json };
   },
 
   beginOAuth({ orgId, state, redirectUri }) {
@@ -96,6 +186,29 @@ export const microsoft365Adapter: IntegrationAdapter<MsConfig> = {
     } as unknown as MsConfig;
   },
 };
+
+/**
+ * Refresh helper — used by send() and background workers before each Graph
+ * API call. Returns a short-lived access token from the stored refresh token.
+ */
+export async function refreshMicrosoftAccessToken(config: MsConfig): Promise<string> {
+  if (!config.refreshToken) throw new Error("No refresh token");
+  const tenantId = config.tenantId || "common";
+  const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      refresh_token: config.refreshToken,
+      grant_type: "refresh_token",
+      scope: SCOPES,
+    }),
+  });
+  if (!res.ok) throw new Error(`Microsoft refresh failed: ${res.status}`);
+  const json = (await res.json()) as { access_token: string; expires_in: number };
+  return json.access_token;
+}
 
 export async function postTeamsChannelMessage(
   accessToken: string,

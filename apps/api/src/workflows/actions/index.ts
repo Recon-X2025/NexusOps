@@ -1,6 +1,8 @@
 import type { WorkflowAction } from "./types";
 import { notifyViaWhatsAppAction } from "./notify-via-whatsapp";
 import { notifyViaEmailAction } from "./notify-via-email";
+import { sendEmailAction } from "./send-email";
+import { createCalendarEventAction } from "./create-calendar-event";
 import { escalateOnSlaBreachAction } from "./escalate-on-sla-breach";
 import { gstFilingReminderAction } from "./gst-filing-reminder";
 import { dir3KycReminderAction } from "./dir3-kyc-reminder";
@@ -14,6 +16,8 @@ import { blankStepAction } from "./blank-step";
 const allActions: WorkflowAction<any>[] = [
   notifyViaWhatsAppAction,
   notifyViaEmailAction,
+  sendEmailAction,
+  createCalendarEventAction,
   escalateOnSlaBreachAction,
   gstFilingReminderAction,
   dir3KycReminderAction,

@@ -1,3 +1,5 @@
+import { integrations, eq, and, type Db } from "@coheronconnect/db";
+import { decryptIntegrationConfig } from "../encryption";
 import type { IntegrationAdapter } from "./types";
 import { whatsAppAiSensyAdapter } from "./whatsapp-aisensy";
 import { smsMsg91Adapter } from "./sms-msg91";
@@ -42,4 +44,41 @@ export function listSupportedProviders(): Array<{
     displayName: a.displayName,
     capabilities: a.capabilities,
   }));
+}
+
+/** Resolve + decrypt a connected integration config for an org, or null. */
+export async function resolveConnectedConfig(
+  db: Db,
+  orgId: string,
+  provider: string,
+): Promise<Record<string, string> | null> {
+  const [row] = await db
+    .select({ configEncrypted: integrations.configEncrypted, status: integrations.status })
+    .from(integrations)
+    .where(and(eq(integrations.orgId, orgId), eq(integrations.provider, provider)));
+  if (!row || row.status !== "connected" || !row.configEncrypted) return null;
+  try {
+    return decryptIntegrationConfig(row.configEncrypted);
+  } catch (err) {
+    console.error(`[integrations] Failed to decrypt ${provider} config for org ${orgId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Find the first connected provider (in preference order) that supports send,
+ * returning its provider key + decrypted config. Used by send-email and
+ * create-calendar-event actions to pick whichever productivity suite the org
+ * has connected (Google Workspace or Microsoft 365).
+ */
+export async function resolveFirstConnected(
+  db: Db,
+  orgId: string,
+  providers: string[],
+): Promise<{ provider: string; config: Record<string, string> } | null> {
+  for (const provider of providers) {
+    const config = await resolveConnectedConfig(db, orgId, provider);
+    if (config) return { provider, config };
+  }
+  return null;
 }
