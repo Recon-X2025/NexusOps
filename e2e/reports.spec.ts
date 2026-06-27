@@ -26,4 +26,20 @@ test.describe("Reports (Seq 8 C4)", () => {
     await loginAs(page, "admin@coheron.com");
     await expectNoRuntimeCrash(page, "/app/reports");
   });
+
+  test("export — CSV and PDF buttons render and CSV downloads", async ({ page }) => {
+    await loginAs(page, "admin@coheron.com");
+    await page.goto("/app/reports");
+    await page.waitForLoadState("networkidle");
+
+    const csvBtn = page.getByTestId("report-export-csv");
+    const pdfBtn = page.getByTestId("report-export-pdf");
+    await expect(csvBtn).toBeVisible();
+    await expect(pdfBtn).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
+    await csvBtn.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^report_overview_.*\.csv$/);
+  });
 });

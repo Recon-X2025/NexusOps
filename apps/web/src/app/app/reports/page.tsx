@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { BarChart2, TrendingUp, TrendingDown, Shield, Clock, Users, Activity, AlertTriangle, CheckCircle2, Download, Calendar } from "lucide-react";
+import { BarChart2, TrendingUp, TrendingDown, Shield, Clock, Users, Activity, AlertTriangle, CheckCircle2, Calendar, FileText, FileSpreadsheet } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { downloadCSV } from "@/lib/utils";
 
 const REPORT_TABS = [
   { key: "overview",  label: "Executive Overview",  module: "reports"   as const, action: "read" as const },
@@ -102,6 +103,80 @@ export default function ReportsPage() {
 
   const rangeTitle = periodRangeTitle(dateRange);
 
+  const activeTab = visibleTabs.find((t) => t.key === tab);
+  const rangeSuffix = `${periodRangeTitle(dateRange).replace(/\s+/g, "")}`;
+
+  function exportCsv() {
+    const fileBase = `report_${tab}_${rangeSuffix}`;
+    switch (tab) {
+      case "overview": {
+        const rows: Record<string, unknown>[] = periodLabels.map((label, i) => ({
+          period: label,
+          created: incidentTrend[i] ?? 0,
+          resolved: resolvedTrend[i] ?? 0,
+        }));
+        for (const c of byCategory) {
+          rows.push({ period: `category:${c.category}`, created: c.count, resolved: `${c.pct ?? 0}%` });
+        }
+        downloadCSV(rows, fileBase, ["period", "created", "resolved"]);
+        return;
+      }
+      case "sla": {
+        const rows: Record<string, unknown>[] = slaByPriority.map((r: any) => ({
+          priority: r.priorityName ?? r.priority,
+          total: r.total,
+          breached: r.breached,
+          breachRate: `${r.breachRate ?? 0}%`,
+          compliance: `${r.mtd}%`,
+          target: r.target,
+        }));
+        downloadCSV(rows, fileBase, ["priority", "total", "breached", "breachRate", "compliance", "target"]);
+        return;
+      }
+      case "workload": {
+        const rows: Record<string, unknown>[] = byAssignee.map((a: any) => ({
+          assignee: a.name,
+          open: a.open,
+          resolved: a.resolved,
+          total: a.total,
+          avgResolution: a.avgRes,
+          csat: a.csat || "",
+        }));
+        downloadCSV(rows, fileBase, ["assignee", "open", "resolved", "total", "avgResolution", "csat"]);
+        return;
+      }
+      case "trends": {
+        const rows: Record<string, unknown>[] = backlogTrend.map((r: any) => ({
+          period: r.week,
+          openBacklog: r.total,
+          created: r.created ?? 0,
+          slaBreached: r.breached ?? 0,
+        }));
+        downloadCSV(rows, fileBase, ["period", "openBacklog", "created", "slaBreached"]);
+        return;
+      }
+      case "quality": {
+        const rows: Record<string, unknown>[] = slaByPriority.map((r: any) => ({
+          priority: r.priorityName ?? r.priority ?? "Unknown",
+          total: r.total,
+          breached: r.breached,
+          breachRate: `${r.breachRate ?? 0}%`,
+        }));
+        downloadCSV(rows, fileBase, ["priority", "total", "breached", "breachRate"]);
+        return;
+      }
+      default:
+        downloadCSV([], fileBase);
+    }
+  }
+
+  function exportPdf() {
+    const prevTitle = document.title;
+    document.title = `CoheronConnect — ${activeTab?.label ?? "Report"} (${dateRangeLabel(dateRange)})`;
+    window.print();
+    setTimeout(() => { document.title = prevTitle; }, 500);
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -123,8 +198,21 @@ export default function ReportsPage() {
               ))}
             </select>
           </div>
-          <button onClick={() => { window.print(); }} className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
-            <Download className="w-3 h-3" /> Export PDF
+          <button
+            data-testid="report-export-csv"
+            onClick={exportCsv}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground print:hidden"
+            title={`Export ${activeTab?.label ?? "report"} as CSV`}
+          >
+            <FileSpreadsheet className="w-3 h-3" /> CSV
+          </button>
+          <button
+            data-testid="report-export-pdf"
+            onClick={exportPdf}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground print:hidden"
+            title={`Export ${activeTab?.label ?? "report"} as PDF`}
+          >
+            <FileText className="w-3 h-3" /> PDF
           </button>
         </div>
       </div>
@@ -143,7 +231,7 @@ export default function ReportsPage() {
         {tab === "overview" && (
           execQuery.isLoading ? <SkeletonSection cols={6} /> : (
           <div className="space-y-4">
-            <div className="grid grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 { label: "Open Incidents",     value: metrics?.openTickets ?? execQuery.data?.openIncidents ?? "—",  delta: -8, color: "text-blue-700",   icon: AlertTriangle },
                 { label: "Resolved",           value: execQuery.data?.resolvedMtd ?? "—", delta: +12, color: "text-green-700", icon: CheckCircle2 },
@@ -230,7 +318,7 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
               <div className="text-[11px] text-muted-foreground/70">SLA performance for <span className="font-medium text-foreground/70">{dateRangeLabel(dateRange)}</span></div>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {slaByPriority.length > 0 ? slaByPriority.map((row: any) => (
                 <div key={row.priorityId ?? row.priority} className="border border-border rounded p-3">
                   <div className="text-[11px] font-semibold text-foreground/80 mb-1">{row.priorityName ?? row.priority}</div>
@@ -378,7 +466,7 @@ export default function ReportsPage() {
             {slaQuery.isLoading ? <SkeletonSection cols={3} /> : (
               <>
                 <div className="text-[11px] text-muted-foreground/70 mb-1">Quality metrics for <span className="font-medium text-foreground/70">{dateRangeLabel(dateRange)}</span></div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {(() => {
                     const slaData: any[] = slaQuery.data?.byPriority ?? [];
                     const totalTickets = slaData.reduce((s: number, x: any) => s + Number(x.total ?? 0), 0);
