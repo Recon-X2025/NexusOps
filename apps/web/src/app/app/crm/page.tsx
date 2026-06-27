@@ -513,6 +513,7 @@ export default function CRMPage() {
   const wonDeals = DEALS_LIVE.filter((d: any) => d.stage === "closed_won");
   const lostDeals = DEALS_LIVE.filter((d: any) => d.stage === "closed_lost");
   const totalPipeline = activeDeals.reduce((s: number, d: any) => s + (Number(d.value) || d.amount || 0) * ((d.probability ?? 50) / 100), 0);
+  const grossPipeline = activeDeals.reduce((s: number, d: any) => s + (Number(d.value) || d.amount || 0), 0);
   const totalWon = wonDeals.reduce((s: number, d: any) => s + (Number(d.value) || d.amount || 0), 0);
   const closedCount = DEALS_LIVE.filter((d: any) => ["closed_won", "closed_lost"].includes(d.stage ?? "")).length;
   const winRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : 0;
@@ -878,7 +879,7 @@ export default function CRMPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
         {[
           { label: "Pipeline (Weighted)", value: `₹${(totalPipeline / 1000).toFixed(0)}K`, color: "text-blue-700", sub: `${activeDeals.length} open deals` },
-          { label: "Total Pipeline", value: `₹${(activeDeals.reduce((s, d) => s + d.value, 0) / 1000).toFixed(0)}K`, color: "text-foreground/80", sub: "gross value" },
+          { label: "Total Pipeline", value: `₹${(grossPipeline / 1000).toFixed(0)}K`, color: "text-foreground/80", sub: "gross value" },
           { label: "Closed Won (MTD)", value: `₹${(totalWon / 1000).toFixed(0)}K`, color: "text-green-700", sub: `${wonDeals.length} deals` },
           { label: "Win Rate", value: `${winRate}%`, color: winRate >= 50 ? "text-green-700" : "text-orange-600", sub: "closed deals" },
           { label: "Open Leads", value: LEADS_LIVE.filter(l => !["converted", "dead"].includes(l.status)).length, color: "text-indigo-700", sub: "active leads" },
