@@ -630,4 +630,289 @@ export const accountingRouter = router({
       };
     }),
   }),
+
+  // ── Bank Reconciliation ────────────────────────────────────────────────
+  bankRec: router({
+
+    /** List reconciliation statements (sessions), newest first. */
+    listStatements: permissionProcedure("financial", "read").input(z.object({
+      accountId: z.string().uuid().optional(),
+    }).optional()).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { bankStatements, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
+      const conds: any[] = [dbEq(bankStatements.orgId, org!.id)];
+      if (input?.accountId) conds.push(dbEq(bankStatements.accountId, input.accountId));
+      return db.select().from(bankStatements).where(dbAnd(...conds)).orderBy(dbDesc(bankStatements.createdAt));
+    }),
+
+    /** Create a new statement (reconciliation session) for a bank/cash account. */
+    createStatement: permissionProcedure("financial", "write").input(z.object({
+      accountId: z.string().uuid(),
+      name: z.string().min(1).max(200),
+      periodStart: z.coerce.date().optional(),
+      periodEnd: z.coerce.date().optional(),
+      statementBalance: z.number().default(0),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db, user } = ctx;
+      const { chartOfAccounts, bankStatements, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      const [acct] = await db.select().from(chartOfAccounts)
+        .where(dbAnd(dbEq(chartOfAccounts.id, input.accountId), dbEq(chartOfAccounts.orgId, org!.id))).limit(1);
+      if (!acct) throw new TRPCError({ code: "NOT_FOUND", message: "Account not found" });
+      if (acct.subType !== "bank" && acct.subType !== "cash") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Reconciliation requires a bank or cash account" });
+      }
+      const [stmt] = await db.insert(bankStatements).values({
+        orgId: org!.id,
+        accountId: input.accountId,
+        name: input.name,
+        periodStart: input.periodStart ?? null,
+        periodEnd: input.periodEnd ?? null,
+        statementBalance: String(input.statementBalance),
+        status: "in_progress",
+        createdById: user?.id ?? null,
+      }).returning();
+      return stmt;
+    }),
+
+    /** Get one statement with its transactions. */
+    getStatement: permissionProcedure("financial", "read").input(z.object({
+      statementId: z.string().uuid(),
+    })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { bankStatements, bankTransactions, eq: dbEq, and: dbAnd, asc: dbAsc } = await import("@coheronconnect/db");
+      const [stmt] = await db.select().from(bankStatements)
+        .where(dbAnd(dbEq(bankStatements.id, input.statementId), dbEq(bankStatements.orgId, org!.id))).limit(1);
+      if (!stmt) throw new TRPCError({ code: "NOT_FOUND" });
+      const txns = await db.select().from(bankTransactions)
+        .where(dbAnd(dbEq(bankTransactions.statementId, input.statementId), dbEq(bankTransactions.orgId, org!.id)))
+        .orderBy(dbAsc(bankTransactions.txnDate));
+      return { statement: stmt, transactions: txns };
+    }),
+
+    /** Bulk import bank statement lines (from CSV). Positive amount = money in. */
+    importTransactions: permissionProcedure("financial", "write").input(z.object({
+      statementId: z.string().uuid(),
+      rows: z.array(z.object({
+        txnDate: z.coerce.date(),
+        description: z.string().min(1),
+        reference: z.string().optional(),
+        amount: z.number(),
+      })).min(1).max(5000),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { bankStatements, bankTransactions, eq: dbEq, and: dbAnd, sql: dbSql } = await import("@coheronconnect/db");
+      const [stmt] = await db.select().from(bankStatements)
+        .where(dbAnd(dbEq(bankStatements.id, input.statementId), dbEq(bankStatements.orgId, org!.id))).limit(1);
+      if (!stmt) throw new TRPCError({ code: "NOT_FOUND" });
+      if (stmt.status === "reconciled") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Statement is already reconciled" });
+      }
+      await db.insert(bankTransactions).values(input.rows.map((r) => ({
+        orgId: org!.id,
+        statementId: input.statementId,
+        txnDate: r.txnDate,
+        description: r.description,
+        reference: r.reference ?? null,
+        amount: String(r.amount),
+        status: "unmatched" as const,
+      })));
+      await db.update(bankStatements)
+        .set({ txnCount: dbSql`${bankStatements.txnCount} + ${input.rows.length}`, updatedAt: new Date() })
+        .where(dbEq(bankStatements.id, input.statementId));
+      return { imported: input.rows.length };
+    }),
+
+    /**
+     * Suggest journal-entry matches for the unmatched transactions of a statement.
+     * Scoring: exact amount (50) + date proximity (≤30) + description token overlap (≤20).
+     */
+    suggestMatches: permissionProcedure("financial", "read").input(z.object({
+      statementId: z.string().uuid(),
+    })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const {
+        bankStatements, bankTransactions, journalEntries, journalEntryLines,
+        eq: dbEq, and: dbAnd,
+      } = await import("@coheronconnect/db");
+
+      const [stmt] = await db.select().from(bankStatements)
+        .where(dbAnd(dbEq(bankStatements.id, input.statementId), dbEq(bankStatements.orgId, org!.id))).limit(1);
+      if (!stmt) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const txns = await db.select().from(bankTransactions)
+        .where(dbAnd(
+          dbEq(bankTransactions.statementId, input.statementId),
+          dbEq(bankTransactions.orgId, org!.id),
+          dbEq(bankTransactions.status, "unmatched"),
+        ));
+      if (txns.length === 0) return { suggestions: [] as Array<{ transactionId: string; journalEntryId: string; score: number; jeNumber: string; jeDescription: string | null; jeDate: Date; jeAmount: number }> };
+
+      // Candidate journal entries that touch this bank account, posted, not already matched.
+      const candidateRows: Array<{ je: JeRow; lineDebit: string; lineCredit: string }> = await db
+        .select({ je: journalEntries, lineDebit: journalEntryLines.debitAmount, lineCredit: journalEntryLines.creditAmount })
+        .from(journalEntryLines)
+        .innerJoin(journalEntries, dbAnd(
+          dbEq(journalEntryLines.journalEntryId, journalEntries.id),
+          dbEq(journalEntries.status, "posted"),
+        ))
+        .where(dbAnd(
+          dbEq(journalEntryLines.orgId, org!.id),
+          dbEq(journalEntryLines.accountId, stmt.accountId),
+        ));
+
+      // Net effect on the bank account per JE (debit increases bank, credit decreases).
+      const jeAmountById = new Map<string, { je: JeRow; amount: number }>();
+      for (const row of candidateRows) {
+        const net = Number(row.lineDebit) - Number(row.lineCredit);
+        const existing = jeAmountById.get(row.je.id);
+        if (existing) existing.amount += net;
+        else jeAmountById.set(row.je.id, { je: row.je, amount: net });
+      }
+      const candidates = [...jeAmountById.values()];
+
+      const tokenize = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+      const DAY = 24 * 60 * 60 * 1000;
+
+      const suggestions: Array<{ transactionId: string; journalEntryId: string; score: number; jeNumber: string; jeDescription: string | null; jeDate: Date; jeAmount: number }> = [];
+      for (const txn of txns) {
+        const txnAmt = Number(txn.amount);
+        const txnTokens = tokenize(`${txn.description} ${txn.reference ?? ""}`);
+        let best: { je: JeRow; amount: number; score: number } | null = null;
+        for (const cand of candidates) {
+          // Amount sign + magnitude must align (money-in matches positive JE bank impact).
+          const amountDiff = Math.abs(cand.amount - txnAmt);
+          let score = 0;
+          if (amountDiff < 0.01) score += 50;
+          else if (amountDiff <= Math.max(1, Math.abs(txnAmt) * 0.02)) score += 30; // within 2%/₹1
+          else continue; // amount too far off — skip
+
+          const daysApart = Math.abs(cand.je.date.getTime() - txn.txnDate.getTime()) / DAY;
+          if (daysApart <= 1) score += 30;
+          else if (daysApart <= 3) score += 20;
+          else if (daysApart <= 7) score += 10;
+
+          const jeTokens = tokenize(`${cand.je.description ?? ""} ${cand.je.reference ?? ""} ${cand.je.number}`);
+          let overlap = 0;
+          for (const t of txnTokens) if (jeTokens.has(t)) overlap++;
+          if (overlap > 0) score += Math.min(20, overlap * 7);
+
+          if (!best || score > best.score) best = { je: cand.je, amount: cand.amount, score };
+        }
+        if (best && best.score >= 50) {
+          suggestions.push({
+            transactionId: txn.id,
+            journalEntryId: best.je.id,
+            score: Math.min(100, best.score),
+            jeNumber: best.je.number,
+            jeDescription: best.je.description,
+            jeDate: best.je.date,
+            jeAmount: best.amount,
+          });
+        }
+      }
+      return { suggestions };
+    }),
+
+    /** Confirm a match between a bank transaction and a journal entry. */
+    match: permissionProcedure("financial", "write").input(z.object({
+      transactionId: z.string().uuid(),
+      journalEntryId: z.string().uuid(),
+      score: z.number().int().min(0).max(100).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db, user } = ctx;
+      const { bankTransactions, bankStatements, journalEntries, eq: dbEq, and: dbAnd, sql: dbSql } = await import("@coheronconnect/db");
+      const [txn] = await db.select().from(bankTransactions)
+        .where(dbAnd(dbEq(bankTransactions.id, input.transactionId), dbEq(bankTransactions.orgId, org!.id))).limit(1);
+      if (!txn) throw new TRPCError({ code: "NOT_FOUND", message: "Transaction not found" });
+      const [je] = await db.select().from(journalEntries)
+        .where(dbAnd(dbEq(journalEntries.id, input.journalEntryId), dbEq(journalEntries.orgId, org!.id))).limit(1);
+      if (!je) throw new TRPCError({ code: "NOT_FOUND", message: "Journal entry not found" });
+
+      await db.update(bankTransactions).set({
+        status: "matched",
+        matchedJournalEntryId: input.journalEntryId,
+        matchScore: input.score ?? null,
+        matchedAt: new Date(),
+        matchedById: user?.id ?? null,
+      }).where(dbEq(bankTransactions.id, input.transactionId));
+
+      if (txn.status !== "matched") {
+        await db.update(bankStatements)
+          .set({ matchedCount: dbSql`${bankStatements.matchedCount} + 1`, updatedAt: new Date() })
+          .where(dbEq(bankStatements.id, txn.statementId));
+      }
+      return { ok: true };
+    }),
+
+    /** Clear a match or un-ignore — return a transaction to unmatched. */
+    unmatch: permissionProcedure("financial", "write").input(z.object({
+      transactionId: z.string().uuid(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { bankTransactions, bankStatements, eq: dbEq, and: dbAnd, sql: dbSql } = await import("@coheronconnect/db");
+      const [txn] = await db.select().from(bankTransactions)
+        .where(dbAnd(dbEq(bankTransactions.id, input.transactionId), dbEq(bankTransactions.orgId, org!.id))).limit(1);
+      if (!txn) throw new TRPCError({ code: "NOT_FOUND" });
+      const wasMatched = txn.status === "matched";
+      await db.update(bankTransactions).set({
+        status: "unmatched",
+        matchedJournalEntryId: null,
+        matchScore: null,
+        matchedAt: null,
+        matchedById: null,
+      }).where(dbEq(bankTransactions.id, input.transactionId));
+      if (wasMatched) {
+        await db.update(bankStatements)
+          .set({ matchedCount: dbSql`GREATEST(${bankStatements.matchedCount} - 1, 0)`, updatedAt: new Date() })
+          .where(dbEq(bankStatements.id, txn.statementId));
+      }
+      return { ok: true };
+    }),
+
+    /** Mark a transaction as ignored (e.g. bank fee already booked elsewhere). */
+    ignore: permissionProcedure("financial", "write").input(z.object({
+      transactionId: z.string().uuid(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { bankTransactions, bankStatements, eq: dbEq, and: dbAnd, sql: dbSql } = await import("@coheronconnect/db");
+      const [txn] = await db.select().from(bankTransactions)
+        .where(dbAnd(dbEq(bankTransactions.id, input.transactionId), dbEq(bankTransactions.orgId, org!.id))).limit(1);
+      if (!txn) throw new TRPCError({ code: "NOT_FOUND" });
+      const wasMatched = txn.status === "matched";
+      await db.update(bankTransactions).set({
+        status: "ignored",
+        matchedJournalEntryId: null,
+        matchScore: null,
+        matchedAt: null,
+        matchedById: null,
+      }).where(dbEq(bankTransactions.id, input.transactionId));
+      if (wasMatched) {
+        await db.update(bankStatements)
+          .set({ matchedCount: dbSql`GREATEST(${bankStatements.matchedCount} - 1, 0)`, updatedAt: new Date() })
+          .where(dbEq(bankStatements.id, txn.statementId));
+      }
+      return { ok: true };
+    }),
+
+    /** Finalize: requires every transaction to be matched or ignored. */
+    reconcile: permissionProcedure("financial", "write").input(z.object({
+      statementId: z.string().uuid(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { bankStatements, bankTransactions, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      const [stmt] = await db.select().from(bankStatements)
+        .where(dbAnd(dbEq(bankStatements.id, input.statementId), dbEq(bankStatements.orgId, org!.id))).limit(1);
+      if (!stmt) throw new TRPCError({ code: "NOT_FOUND" });
+      const txns = await db.select().from(bankTransactions)
+        .where(dbAnd(dbEq(bankTransactions.statementId, input.statementId), dbEq(bankTransactions.orgId, org!.id)));
+      const outstanding = txns.filter((t: { status: string }) => t.status === "unmatched");
+      if (outstanding.length > 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `${outstanding.length} transaction(s) still unmatched` });
+      }
+      const [updated] = await db.update(bankStatements)
+        .set({ status: "reconciled", updatedAt: new Date() })
+        .where(dbEq(bankStatements.id, input.statementId)).returning();
+      return updated;
+    }),
+  }),
 });

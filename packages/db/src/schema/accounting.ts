@@ -251,6 +251,81 @@ export const gstrFilings = pgTable(
   }),
 );
 
+// ── Bank Reconciliation ────────────────────────────────────────────────────
+export const bankStatementStatusEnum = pgEnum("bank_statement_status", [
+  "importing",
+  "in_progress",
+  "reconciled",
+]);
+
+export const bankTxnStatusEnum = pgEnum("bank_txn_status", [
+  "unmatched",
+  "matched",
+  "ignored",
+]);
+
+/** A bank statement import session for a specific bank (cash/bank) account. */
+export const bankStatements = pgTable(
+  "bank_statements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    /** The COA bank/cash account this statement reconciles against. */
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => chartOfAccounts.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }),
+    periodEnd: timestamp("period_end", { withTimezone: true }),
+    /** Closing balance per the bank statement (for reconciliation check). */
+    statementBalance: decimal("statement_balance", { precision: 15, scale: 2 }).notNull().default("0"),
+    status: bankStatementStatusEnum("status").notNull().default("in_progress"),
+    txnCount: integer("txn_count").notNull().default(0),
+    matchedCount: integer("matched_count").notNull().default(0),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgAccountIdx: index("bank_statements_org_account_idx").on(t.orgId, t.accountId),
+    orgStatusIdx: index("bank_statements_org_status_idx").on(t.orgId, t.status),
+  }),
+);
+
+/** An individual line imported from a bank statement. */
+export const bankTransactions = pgTable(
+  "bank_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    statementId: uuid("statement_id")
+      .notNull()
+      .references(() => bankStatements.id, { onDelete: "cascade" }),
+    txnDate: timestamp("txn_date", { withTimezone: true }).notNull(),
+    description: text("description").notNull(),
+    reference: text("reference"),
+    /** Positive = money in (credit to bank), negative = money out (debit). */
+    amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+    status: bankTxnStatusEnum("status").notNull().default("unmatched"),
+    /** Journal entry this bank line was matched to (if any). */
+    matchedJournalEntryId: uuid("matched_journal_entry_id").references(() => journalEntries.id, { onDelete: "set null" }),
+    /** Confidence score (0-100) of the suggested auto-match. */
+    matchScore: integer("match_score"),
+    matchedAt: timestamp("matched_at", { withTimezone: true }),
+    matchedById: uuid("matched_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgStatementIdx: index("bank_txns_org_statement_idx").on(t.orgId, t.statementId),
+    orgStatusIdx: index("bank_txns_org_status_idx").on(t.orgId, t.status),
+    matchedJeIdx: index("bank_txns_matched_je_idx").on(t.matchedJournalEntryId),
+  }),
+);
+
 // ── Relations ──────────────────────────────────────────────────────────────
 export const chartOfAccountsRelations = relations(chartOfAccounts, ({ one, many }) => ({
   org: one(organizations, { fields: [chartOfAccounts.orgId], references: [organizations.id] }),
@@ -272,4 +347,16 @@ export const journalEntryLinesRelations = relations(journalEntryLines, ({ one })
 export const gstinRegistryRelations = relations(gstinRegistry, ({ one, many }) => ({
   org: one(organizations, { fields: [gstinRegistry.orgId], references: [organizations.id] }),
   gstrFilings: many(gstrFilings),
+}));
+
+export const bankStatementsRelations = relations(bankStatements, ({ one, many }) => ({
+  org: one(organizations, { fields: [bankStatements.orgId], references: [organizations.id] }),
+  account: one(chartOfAccounts, { fields: [bankStatements.accountId], references: [chartOfAccounts.id] }),
+  transactions: many(bankTransactions),
+}));
+
+export const bankTransactionsRelations = relations(bankTransactions, ({ one }) => ({
+  org: one(organizations, { fields: [bankTransactions.orgId], references: [organizations.id] }),
+  statement: one(bankStatements, { fields: [bankTransactions.statementId], references: [bankStatements.id] }),
+  matchedJournalEntry: one(journalEntries, { fields: [bankTransactions.matchedJournalEntryId], references: [journalEntries.id] }),
 }));

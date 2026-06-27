@@ -268,6 +268,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
           { label: "Chart of Accounts", href: "/app/finance/accounting/coa" },
           { label: "Journal Entries", href: "/app/finance/accounting/journal" },
           { label: "General Ledger", href: "/app/finance/accounting/ledger" },
+          { label: "Bank Reconciliation", href: "/app/finance/accounting/reconciliation" },
           { label: "Vendors", href: "/app/vendors" },
         ],
       },

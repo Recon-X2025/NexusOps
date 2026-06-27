@@ -29,6 +29,20 @@
       "when": 1782375010383,
       "tag": "0003_soft_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782556329259,
+      "tag": "0004_powerful_orphan",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782580795665,
+      "tag": "0005_shiny_psylocke",
+      "breakpoints": true
     }
   ]
 }
