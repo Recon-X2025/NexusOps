@@ -26,4 +26,31 @@ test.describe("CRM (Seq 16 C4)", () => {
     await loginAs(page, "admin@coheron.com");
     await expectNoRuntimeCrash(page, "/app/crm");
   });
+
+  test("configurable pipeline stages — rename a stage and see it reflected", async ({ page }) => {
+    await loginAs(page, "admin@coheron.com");
+    await page.goto("/app/crm");
+    await page.waitForLoadState("networkidle");
+
+    // Open the Pipeline tab
+    await page.getByRole("button", { name: /^Pipeline$/i }).first().click();
+
+    // Admin Configure Stages button should be present
+    const configureBtn = page.getByTestId("configure-stages-btn");
+    await expect(configureBtn).toBeVisible();
+    await configureBtn.click();
+
+    const modal = page.getByTestId("stage-config-modal");
+    await expect(modal).toBeVisible();
+
+    // Rename the "prospect" stage to a unique label
+    const uniqueLabel = `Prospecting ${Date.now() % 100000}`;
+    const labelInput = page.getByTestId("stage-label-prospect");
+    await labelInput.fill(uniqueLabel);
+    await page.getByTestId("stage-config-save").click();
+
+    // Modal closes; the new label appears as a kanban column header
+    await expect(modal).toBeHidden();
+    await expect(page.getByText(uniqueLabel).first()).toBeVisible({ timeout: 10_000 });
+  });
 });

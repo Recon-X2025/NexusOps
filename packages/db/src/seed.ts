@@ -10,7 +10,7 @@ import {
   ticketCategories, ticketPriorities, ticketStatuses, assetTypes, tickets, assets, ciItems,
   changeRequests, changeApprovals, problems, risks, securityIncidents, vulnerabilities,
   contracts, contractObligations, projects, projectMilestones, projectTasks,
-  crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities,
+  crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmPipelineStages,
   legalMatters, legalRequests, investigations,
   pipelineRuns, deployments, surveys, surveyResponses,
   budgetLines, chargebacks, kbArticles,
@@ -483,7 +483,16 @@ export async function seed() {
       ownerId: faker.helpers.arrayElement([admin.id, agent1.id, agent2.id]),
     }))
   );
-  console.log(`✅ CRM: ${crmAccountData.length} accounts, ${dealData.length} deals`);
+  await db.insert(crmPipelineStages).values([
+    { orgId, key: "prospect" as const,      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true },
+    { orgId, key: "qualification" as const, label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true },
+    { orgId, key: "proposal" as const,      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true },
+    { orgId, key: "negotiation" as const,   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true },
+    { orgId, key: "verbal_commit" as const, label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true },
+    { orgId, key: "closed_won" as const,    label: "Closed Won",    color: "text-green-700 bg-green-100",     rank: 5, active: false },
+    { orgId, key: "closed_lost" as const,   label: "Closed Lost",   color: "text-red-700 bg-red-100",         rank: 6, active: false },
+  ]).onConflictDoNothing();
+  console.log(`✅ CRM: ${crmAccountData.length} accounts, ${dealData.length} deals, 7 pipeline stages`);
 
   // ── Legal ──────────────────────────────────────────────────────────────────
   await db.insert(legalMatters).values(

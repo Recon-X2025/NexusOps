@@ -8,11 +8,39 @@ import {
   Plus, Search, Download, ChevronRight, MoreHorizontal,
   Target, DollarSign, BarChart2, Activity, Tag, Repeat,
   Clock, CheckCircle2, XCircle, ArrowUpRight, ArrowDownRight,
-  FileText, Send, Filter, Globe, Briefcase, Award, X, Pencil, Archive,
+  FileText, Send, Filter, Globe, Briefcase, Award, X, Pencil, Archive, Upload, Settings,
 } from "lucide-react";
 import { useRBAC, AccessDenied, PermissionGate } from "@/lib/rbac-context";
 import { downloadCSV, cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
+
+const LEAD_IMPORT_FIELDS: ImportField[] = [
+  { key: "firstName", label: "First Name", required: true },
+  { key: "lastName", label: "Last Name", required: true },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "title", label: "Title" },
+  { key: "company", label: "Company" },
+  { key: "source", label: "Source", enumValues: ["website", "referral", "event", "cold_outreach", "partner", "advertising", "other"] },
+  { key: "status", label: "Status", enumValues: ["new", "contacted", "qualified", "converted", "disqualified"] },
+];
+
+const CONTACT_IMPORT_FIELDS: ImportField[] = [
+  { key: "firstName", label: "First Name", required: true },
+  { key: "lastName", label: "Last Name", required: true },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "title", label: "Title" },
+];
+
+const DEAL_IMPORT_FIELDS: ImportField[] = [
+  { key: "title", label: "Title", required: true },
+  { key: "stage", label: "Stage", enumValues: ["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] },
+  { key: "value", label: "Value" },
+  { key: "probability", label: "Probability" },
+  { key: "expectedClose", label: "Expected Close" },
+];
 
 const CRM_TABS = [
   { key: "dashboard", label: "Dashboard", module: "accounts" as const, action: "read" as const },
@@ -231,6 +259,8 @@ export default function CRMPage() {
     accountId: "", contactId: "", source: "", stage: "prospect" as string,
   });
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
+  const [showStageConfig, setShowStageConfig] = useState(false);
+  const [stageDraft, setStageDraft] = useState<Array<{ key: string; label: string; color: string; rank: number; active: boolean }>>([]);
   const [showNewAccount, setShowNewAccount] = useState(false);
   const [accountForm, setAccountForm] = useState({ name: "", industry: "", tier: "smb" as "enterprise" | "mid_market" | "smb", website: "" });
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
@@ -244,6 +274,10 @@ export default function CRMPage() {
   const [showArchivedLeads, setShowArchivedLeads] = useState(false);
   const [showNewLead, setShowNewLead] = useState(false);
   const [leadForm, setLeadForm] = useState({ firstName: "", lastName: "", email: "", company: "", title: "", phone: "", source: "website" as string });
+  const [importKind, setImportKind] = useState<null | "leads" | "contacts" | "deals">(null);
+  const importLeads = trpc.ingest.importLeads.useMutation();
+  const importContacts = trpc.ingest.importContacts.useMutation();
+  const importDeals = trpc.ingest.importDeals.useMutation();
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [newQuoteDesc, setNewQuoteDesc] = useState("");
   const [showNewActivity, setShowNewActivity] = useState(false);
@@ -321,6 +355,49 @@ export default function CRMPage() {
     undefined,
     mergeTrpcQueryOpts("crm.dealApprovalThresholds.get", { refetchOnWindowFocus: false }),
   );
+
+  // Per-org configurable pipeline stages (labels/colours/order/visibility).
+  // Falls back to STAGE_CFG / PIPELINE_STAGES defaults until loaded.
+  const stagesQ = trpc.crm.deals.stages.list.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("crm.deals.stages.list", { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 }),
+  );
+  const stageCfg: Record<string, { label: string; color: string }> = (() => {
+    const rows = stagesQ.data;
+    if (!rows || rows.length === 0) return STAGE_CFG;
+    const out: Record<string, { label: string; color: string }> = {};
+    for (const r of rows) out[r.key] = { label: r.label, color: r.color };
+    return out;
+  })();
+  const pipelineStages: DealStage[] = (() => {
+    const rows = stagesQ.data;
+    if (!rows || rows.length === 0) return PIPELINE_STAGES;
+    return rows
+      .filter((r) => r.active)
+      .sort((a, b) => a.rank - b.rank)
+      .map((r) => r.key as DealStage);
+  })();
+  const allStagesOrdered: DealStage[] = (() => {
+    const rows = stagesQ.data;
+    if (!rows || rows.length === 0) return ["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"];
+    return [...rows].sort((a, b) => a.rank - b.rank).map((r) => r.key as DealStage);
+  })();
+  const updateStages = trpc.crm.deals.stages.update.useMutation({
+    onSuccess: () => { toast.success("Pipeline stages updated"); stagesQ.refetch(); setShowStageConfig(false); },
+    onError: (e: { message?: string }) => toast.error(e.message ?? "Failed to update stages"),
+  });
+  const resetStages = trpc.crm.deals.stages.reset.useMutation({
+    onSuccess: () => { toast.success("Pipeline stages reset to defaults"); stagesQ.refetch(); setShowStageConfig(false); },
+    onError: (e: { message?: string }) => toast.error(e.message ?? "Failed to reset stages"),
+  });
+  function openStageConfig() {
+    const rows = stagesQ.data;
+    const base = rows && rows.length > 0
+      ? [...rows].sort((a, b) => a.rank - b.rank).map((r) => ({ key: r.key, label: r.label, color: r.color, rank: r.rank, active: r.active }))
+      : allStagesOrdered.map((k, i) => ({ key: k, label: stageCfg[k]?.label ?? k, color: stageCfg[k]?.color ?? "text-muted-foreground bg-muted", rank: i, active: pipelineStages.includes(k) }));
+    setStageDraft(base);
+    setShowStageConfig(true);
+  }
 
   const approveDealWon = trpc.crm.approveDealWon.useMutation({
     onSuccess: () => {
@@ -451,6 +528,75 @@ export default function CRMPage() {
   return (
     <div className="flex flex-col gap-3">
 
+      {/* CSV Import Modals */}
+      {importKind === "leads" && (
+        <CsvImportModal
+          title="Import Leads"
+          fields={LEAD_IMPORT_FIELDS}
+          onClose={() => setImportKind(null)}
+          onImport={async (rows) => {
+            const res = await importLeads.mutateAsync(
+              rows.map((r) => ({
+                firstName: r.firstName,
+                lastName: r.lastName,
+                email: r.email || undefined,
+                phone: r.phone || undefined,
+                title: r.title || undefined,
+                company: r.company || undefined,
+                source: (r.source?.toLowerCase() as any) || undefined,
+                status: (r.status?.toLowerCase() as any) || undefined,
+              })),
+            );
+            refetchLeads();
+            toast.success(`${res.imported} leads imported`);
+            return { imported: res.imported };
+          }}
+        />
+      )}
+      {importKind === "contacts" && (
+        <CsvImportModal
+          title="Import Contacts"
+          fields={CONTACT_IMPORT_FIELDS}
+          onClose={() => setImportKind(null)}
+          onImport={async (rows) => {
+            const res = await importContacts.mutateAsync(
+              rows.map((r) => ({
+                firstName: r.firstName,
+                lastName: r.lastName,
+                email: r.email || undefined,
+                phone: r.phone || undefined,
+                title: r.title || undefined,
+              })),
+            );
+            refetchContacts();
+            toast.success(`${res.imported} contacts imported`);
+            return { imported: res.imported };
+          }}
+        />
+      )}
+      {importKind === "deals" && (
+        <CsvImportModal
+          title="Import Deals"
+          fields={DEAL_IMPORT_FIELDS}
+          hint="Stage defaults to prospect; probability 0–100"
+          onClose={() => setImportKind(null)}
+          onImport={async (rows) => {
+            const res = await importDeals.mutateAsync(
+              rows.map((r) => ({
+                title: r.title,
+                stage: (r.stage?.toLowerCase() as any) || undefined,
+                value: r.value || undefined,
+                probability: r.probability ? Number(r.probability) : undefined,
+                expectedClose: r.expectedClose || undefined,
+              })),
+            );
+            refetchDeals();
+            toast.success(`${res.imported} deals imported`);
+            return { imported: res.imported };
+          }}
+        />
+      )}
+
       {/* Add Deal Modal */}
       {showNewDeal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -508,8 +654,8 @@ export default function CRMPage() {
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage *</label>
                 <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
-                  {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit"] as const).map(s => (
-                    <option key={s} value={s}>{STAGE_CFG[s].label}</option>
+                  {pipelineStages.map(s => (
+                    <option key={s} value={s}>{stageCfg[s]?.label ?? s.replace(/_/g, " ")}</option>
                   ))}
                 </select>
               </div>
@@ -600,9 +746,9 @@ export default function CRMPage() {
                 </div>
               )}
               <div className="flex flex-col gap-1.5">
-                {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as const).map(s => {
+                {allStagesOrdered.map(s => {
                   const isClosedWon = moving?.stage === "closed_won";
-                  const isActiveStage = ["prospect", "qualification", "proposal", "negotiation", "verbal_commit"].includes(s);
+                  const isActiveStage = pipelineStages.includes(s);
                   const isRestricted = isClosedWon && isActiveStage;
                   return (
                     <button
@@ -611,12 +757,12 @@ export default function CRMPage() {
                       disabled={movePipeline.isPending || isRestricted}
                       className={cn(
                         "px-3 py-1.5 rounded text-[11px] text-left hover:bg-primary hover:text-white border border-border transition-colors disabled:opacity-50",
-                        STAGE_CFG[s]?.color ?? "",
+                        stageCfg[s]?.color ?? "",
                         isRestricted && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-inherit"
                       )}
                       title={isRestricted ? "Cannot move a Closed Won deal back to an active stage" : undefined}
                     >
-                      {STAGE_CFG[s]?.label ?? s.replace(/_/g, " ")}
+                      {stageCfg[s]?.label ?? s.replace(/_/g, " ")}
                     </button>
                   );
                 })}
@@ -625,6 +771,87 @@ export default function CRMPage() {
           </div>
         );
       })()}
+
+      {showStageConfig && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowStageConfig(false)}>
+          <div data-testid="stage-config-modal" className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Configure Pipeline Stages</h3>
+              <button onClick={() => setShowStageConfig(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              <p className="text-[11px] text-muted-foreground">Rename stages, adjust order, and choose which appear as active pipeline columns. Stage keys are fixed; only presentation changes.</p>
+              {stageDraft.sort((a, b) => a.rank - b.rank).map((s, i) => (
+                <div key={s.key} className="flex items-center gap-2 border border-border rounded px-2 py-1.5">
+                  <span className="font-mono text-[10px] text-muted-foreground/70 w-24 flex-shrink-0">{s.key}</span>
+                  <input
+                    data-testid={`stage-label-${s.key}`}
+                    className="flex-1 text-xs border border-border rounded px-2 py-1 bg-background"
+                    value={s.label}
+                    onChange={(e) => setStageDraft((d) => d.map((x) => x.key === s.key ? { ...x, label: e.target.value } : x))}
+                  />
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={i === 0}
+                      onClick={() => setStageDraft((d) => {
+                        const sorted = [...d].sort((a, b) => a.rank - b.rank);
+                        const idx = sorted.findIndex((x) => x.key === s.key);
+                        if (idx <= 0) return d;
+                        const tmp = sorted[idx]!.rank; sorted[idx]!.rank = sorted[idx - 1]!.rank; sorted[idx - 1]!.rank = tmp;
+                        return [...sorted];
+                      })}
+                      className="px-1 text-[11px] border border-border rounded disabled:opacity-30"
+                      title="Move up"
+                    >↑</button>
+                    <button
+                      type="button"
+                      disabled={i === stageDraft.length - 1}
+                      onClick={() => setStageDraft((d) => {
+                        const sorted = [...d].sort((a, b) => a.rank - b.rank);
+                        const idx = sorted.findIndex((x) => x.key === s.key);
+                        if (idx < 0 || idx >= sorted.length - 1) return d;
+                        const tmp = sorted[idx]!.rank; sorted[idx]!.rank = sorted[idx + 1]!.rank; sorted[idx + 1]!.rank = tmp;
+                        return [...sorted];
+                      })}
+                      className="px-1 text-[11px] border border-border rounded disabled:opacity-30"
+                      title="Move down"
+                    >↓</button>
+                  </div>
+                  <label className="flex items-center gap-1 text-[10px] text-muted-foreground w-16 flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={s.active}
+                      onChange={(e) => setStageDraft((d) => d.map((x) => x.key === s.key ? { ...x, active: e.target.checked } : x))}
+                    />
+                    Active
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+              <button
+                onClick={() => resetStages.mutate()}
+                disabled={resetStages.isPending}
+                className="text-[11px] px-2.5 py-1 border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-50"
+              >
+                Reset to defaults
+              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowStageConfig(false)} className="text-[11px] px-2.5 py-1 border border-border rounded hover:bg-muted/30 text-muted-foreground">Cancel</button>
+                <button
+                  data-testid="stage-config-save"
+                  onClick={() => updateStages.mutate({ stages: stageDraft.map((s, i) => ({ key: s.key as any, label: s.label, color: s.color, rank: i, active: s.active })) })}
+                  disabled={updateStages.isPending || stageDraft.some((s) => !s.label.trim())}
+                  className="text-[11px] px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -648,7 +875,7 @@ export default function CRMPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
         {[
           { label: "Pipeline (Weighted)", value: `₹${(totalPipeline / 1000).toFixed(0)}K`, color: "text-blue-700", sub: `${activeDeals.length} open deals` },
           { label: "Total Pipeline", value: `₹${(activeDeals.reduce((s, d) => s + d.value, 0) / 1000).toFixed(0)}K`, color: "text-foreground/80", sub: "gross value" },
@@ -684,11 +911,11 @@ export default function CRMPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Pipeline Stages</div>
               <div className="p-3 space-y-2">
-                {PIPELINE_STAGES.map((stage) => {
+                {pipelineStages.map((stage) => {
                   const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
                   const stageValue = stageDeals.reduce((s, d) => s + d.value, 0);
-                  const maxVal = Math.max(...PIPELINE_STAGES.map(s => DEALS_LIVE.filter(d => d.stage === s).reduce((sum, d) => sum + d.value, 0)), 1);
-                  const cfg = STAGE_CFG[stage];
+                  const maxVal = Math.max(...pipelineStages.map(s => DEALS_LIVE.filter(d => d.stage === s).reduce((sum, d) => sum + d.value, 0)), 1);
+                  const cfg = stageCfg[stage] ?? { label: stage.replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
                   return (
                     <div key={stage} className="flex items-center gap-3">
                       <span className="text-[11px] text-muted-foreground w-28">{cfg.label}</span>
@@ -710,7 +937,7 @@ export default function CRMPage() {
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Deals Requiring Attention</div>
               <div className="divide-y divide-border">
                 {activeDeals.slice(0, 5).map((deal) => {
-                  const cfg = STAGE_CFG[deal.stage as DealStage] ?? { label: deal.stage ?? "—", color: "text-muted-foreground bg-muted" };
+                  const cfg = stageCfg[deal.stage as DealStage] ?? { label: deal.stage ?? "—", color: "text-muted-foreground bg-muted" };
                   const daysToClose = deal.closeDate ? Math.round((new Date(deal.closeDate).getTime() - new Date().getTime()) / 86400000) : null;
                   return (
                     <div key={deal.id} className="flex items-start justify-between px-3 py-2.5 hover:bg-muted/30">
@@ -782,16 +1009,24 @@ export default function CRMPage() {
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">{DEALS_LIVE.filter(d => !["closed_won", "closed_lost"].includes(d.stage ?? "")).length} Active Deals</span>
               <PermissionGate module="accounts" action="write">
+                {isAdmin() && (
+                  <button data-testid="configure-stages-btn" onClick={openStageConfig} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
+                    <Settings className="w-3 h-3" /> Configure Stages
+                  </button>
+                )}
+                <button onClick={() => setImportKind("deals")} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
+                  <Upload className="w-3 h-3" /> Import
+                </button>
                 <button onClick={() => setShowNewDeal(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                   <Plus className="w-3 h-3" /> Add Deal
                 </button>
               </PermissionGate>
             </div>
             <div className="flex overflow-x-auto p-4 gap-3 min-h-96">
-              {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as DealStage[]).map((stage) => {
+              {allStagesOrdered.map((stage) => {
                 const stageDeals = DEALS_LIVE.filter(d => d.stage === stage);
                 const stageVal = stageDeals.reduce((s, d) => s + d.value, 0);
-                const cfg = STAGE_CFG[stage];
+                const cfg = stageCfg[stage] ?? { label: stage.replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
                 return (
                   <div key={stage} className="flex-shrink-0 w-56 flex flex-col gap-2">
                     <div className="flex items-center justify-between mb-1">
@@ -932,6 +1167,9 @@ export default function CRMPage() {
                   <option value="archived">Archived</option>
                 </select>
                 <PermissionGate module="accounts" action="write">
+                  <button onClick={() => setImportKind("contacts")} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
+                    <Upload className="w-3 h-3" /> Import
+                  </button>
                   <button onClick={() => setShowNewContact(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Add Contact
                   </button>
@@ -1015,6 +1253,9 @@ export default function CRMPage() {
                   <option value="archived">Archived</option>
                 </select>
                 <PermissionGate module="accounts" action="write">
+                  <button onClick={() => setImportKind("leads")} className="flex items-center gap-1 px-2.5 py-1 text-[11px] border border-border rounded hover:bg-accent">
+                    <Upload className="w-3 h-3" /> Import
+                  </button>
                   <button onClick={() => setShowNewLead(true)} className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Add Lead
                   </button>
@@ -1286,10 +1527,10 @@ export default function CRMPage() {
             <div className="border border-border rounded overflow-hidden">
               <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Revenue by Stage (Weighted)</div>
               <div className="p-3 space-y-2">
-                {PIPELINE_STAGES.map(stage => {
+                {pipelineStages.map(stage => {
                   const deals = DEALS_LIVE.filter(d => d.stage === stage);
                   const weighted = deals.reduce((s, d) => s + d.value * (d.probability / 100), 0);
-                  const cfg = STAGE_CFG[stage];
+                  const cfg = stageCfg[stage] ?? { label: stage.replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
                   return (
                     <div key={stage} className="flex items-center gap-2 text-[11px]">
                       <span className="text-muted-foreground w-28 flex-shrink-0">{cfg.label}</span>
@@ -1339,7 +1580,7 @@ export default function CRMPage() {
                 </thead>
                 <tbody>
                   {DEALS_LIVE.map((d) => {
-                    const cfg = STAGE_CFG[d.stage as DealStage];
+                    const cfg = stageCfg[d.stage as DealStage] ?? { label: (d.stage ?? "—").replace(/_/g, " "), color: "text-muted-foreground bg-muted" };
                     return (
                       <tr key={d.id} className={d.stage === "closed_lost" ? "opacity-50" : ""}>
                         <td className="p-0"><div className={`priority-bar ${d.stage === "closed_won" ? "bg-green-500" : d.stage === "closed_lost" ? "bg-red-500" : "bg-blue-400"}`} /></td>

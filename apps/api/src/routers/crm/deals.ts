@@ -7,13 +7,69 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmDeals, crmQuotes, organizations, eq, and, desc, notInArray } from "@coheronconnect/db";
+import { crmDeals, crmQuotes, crmPipelineStages, organizations, eq, and, asc, desc } from "@coheronconnect/db";
 import { getNextNumber } from "../../lib/auto-number";
 import {
   getCrmDealApprovalThresholds,
   getDealCloseApprovalTier,
   type DealCloseApprovalTier,
 } from "../../lib/org-settings";
+
+/** Canonical deal_stage enum values (storage layer — never changes per org). */
+export const DEAL_STAGE_KEYS = [
+  "prospect",
+  "qualification",
+  "proposal",
+  "negotiation",
+  "verbal_commit",
+  "closed_won",
+  "closed_lost",
+] as const;
+export type DealStageKey = (typeof DEAL_STAGE_KEYS)[number];
+
+const dealStageSchema = z.enum(DEAL_STAGE_KEYS);
+
+/** Factory defaults used to seed `crm_pipeline_stages` for a new org. */
+export const DEFAULT_PIPELINE_STAGES: Array<{
+  key: DealStageKey;
+  label: string;
+  color: string;
+  rank: number;
+  active: boolean;
+}> = [
+  { key: "prospect",      label: "Prospect",      color: "text-muted-foreground bg-muted", rank: 0, active: true },
+  { key: "qualification", label: "Qualification", color: "text-blue-700 bg-blue-100",      rank: 1, active: true },
+  { key: "proposal",      label: "Proposal",      color: "text-indigo-700 bg-indigo-100",  rank: 2, active: true },
+  { key: "negotiation",   label: "Negotiation",   color: "text-purple-700 bg-purple-100",  rank: 3, active: true },
+  { key: "verbal_commit", label: "Verbal Commit", color: "text-orange-700 bg-orange-100",  rank: 4, active: true },
+  { key: "closed_won",    label: "Closed Won",    color: "text-green-700 bg-green-100",     rank: 5, active: false },
+  { key: "closed_lost",   label: "Closed Lost",   color: "text-red-700 bg-red-100",         rank: 6, active: false },
+];
+
+/**
+ * Loads an org's pipeline-stage config, seeding factory defaults on first read.
+ * Always returns all 7 enum stages ordered by rank so the kanban/select stays complete.
+ */
+async function loadPipelineStages(db: any, orgId: string) {
+  const existing = await db
+    .select()
+    .from(crmPipelineStages)
+    .where(eq(crmPipelineStages.orgId, orgId))
+    .orderBy(asc(crmPipelineStages.rank));
+
+  if (existing.length === 0) {
+    await db
+      .insert(crmPipelineStages)
+      .values(DEFAULT_PIPELINE_STAGES.map((s) => ({ orgId, ...s })))
+      .onConflictDoNothing();
+    return db
+      .select()
+      .from(crmPipelineStages)
+      .where(eq(crmPipelineStages.orgId, orgId))
+      .orderBy(asc(crmPipelineStages.rank));
+  }
+  return existing;
+}
 
 export const crmDealsRouter = router({
   list: permissionProcedure("accounts", "read")
@@ -102,7 +158,7 @@ export const crmDealsRouter = router({
     }),
 
   movePipeline: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), stage: z.enum(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"]) }))
+    .input(z.object({ id: z.string().uuid(), stage: dealStageSchema }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [existing] = await db.select().from(crmDeals).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)));
@@ -186,6 +242,74 @@ export const crmDealsRouter = router({
         await db.update(organizations).set({ settings: { ...raw, crm } }).where(eq(organizations.id, org!.id));
         return { ok: true as const, ...input, previous: { dealApprovalCurrency: prevCrm.dealApprovalCurrency, dealCloseNoApprovalBelow: prevCrm.dealCloseNoApprovalBelow, dealCloseExecutiveAbove: prevCrm.dealCloseExecutiveAbove } };
       }),
+  }),
+
+  // ── Pipeline stage configuration (per-org) ─────────────────────────────────
+  stages: router({
+    /** Returns the org's configured pipeline stages (seeds factory defaults on first read). */
+    list: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const rows = await loadPipelineStages(db, org!.id);
+      return rows.map((r: typeof crmPipelineStages.$inferSelect) => ({
+        key: r.key,
+        label: r.label,
+        color: r.color,
+        rank: r.rank,
+        active: r.active,
+      }));
+    }),
+
+    /** Update label/color/rank/active for one or more stages. Keys must be valid enum stages. */
+    update: adminProcedure
+      .input(
+        z.object({
+          stages: z
+            .array(
+              z.object({
+                key: dealStageSchema,
+                label: z.string().min(1).max(40),
+                color: z.string().min(1).max(120),
+                rank: z.coerce.number().int().min(0).max(99),
+                active: z.boolean(),
+              }),
+            )
+            .min(1)
+            .max(DEAL_STAGE_KEYS.length),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        // Ensure the org has a base row set before applying updates.
+        await loadPipelineStages(db, org!.id);
+        for (const s of input.stages) {
+          await db
+            .update(crmPipelineStages)
+            .set({ label: s.label, color: s.color, rank: s.rank, active: s.active, updatedAt: new Date() })
+            .where(and(eq(crmPipelineStages.orgId, org!.id), eq(crmPipelineStages.key, s.key)));
+        }
+        const rows = await loadPipelineStages(db, org!.id);
+        return rows.map((r: typeof crmPipelineStages.$inferSelect) => ({
+          key: r.key,
+          label: r.label,
+          color: r.color,
+          rank: r.rank,
+          active: r.active,
+        }));
+      }),
+
+    /** Reset all stages back to factory defaults. */
+    reset: adminProcedure.mutation(async ({ ctx }) => {
+      const { db, org } = ctx;
+      await db.delete(crmPipelineStages).where(eq(crmPipelineStages.orgId, org!.id));
+      const rows = await loadPipelineStages(db, org!.id);
+      return rows.map((r: typeof crmPipelineStages.$inferSelect) => ({
+        key: r.key,
+        label: r.label,
+        color: r.color,
+        rank: r.rank,
+        active: r.active,
+      }));
+    }),
   }),
 
   // ── Quotes ─────────────────────────────────────────────────────────────────

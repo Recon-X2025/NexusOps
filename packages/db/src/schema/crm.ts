@@ -230,6 +230,31 @@ export const crmQuotes = pgTable(
   }),
 );
 
+// ── CRM Pipeline Stages (per-org config) ───────────────────────────────────
+// Per-org presentation/config layer over the canonical `deal_stage` enum.
+// `key` MUST be one of the dealStageEnum values; this table lets an org rename,
+// recolour, reorder, and show/hide stages without altering the underlying enum
+// or the movePipeline/approval logic which keys off the enum value.
+export const crmPipelineStages = pgTable(
+  "crm_pipeline_stages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    key: dealStageEnum("key").notNull(),
+    label: text("label").notNull(),
+    color: text("color").notNull().default("text-muted-foreground bg-muted"),
+    rank: integer("rank").notNull().default(0),
+    /** Whether this stage is shown as an active kanban column (closed stages are typically hidden). */
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgKeyIdx: uniqueIndex("crm_pipeline_stages_org_key_idx").on(t.orgId, t.key),
+    orgRankIdx: index("crm_pipeline_stages_org_rank_idx").on(t.orgId, t.rank),
+  }),
+);
+
 export const crmAccountsRelations = relations(crmAccounts, ({ one, many }) => ({
   org: one(organizations, { fields: [crmAccounts.orgId], references: [organizations.id] }),
   owner: one(users, { fields: [crmAccounts.ownerId], references: [users.id] }),
