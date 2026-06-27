@@ -4,15 +4,18 @@ import { z } from "zod";
 import {
   approvalRequests,
   approvalSteps,
+  employees,
   users,
   eq,
   and,
+  inArray,
   desc,
   sql,
 } from "@coheronconnect/db";
 import { sendNotification } from "../services/notifications";
 import { enqueueApprovalDecision } from "../workflows/approvalWorkflow";
 import { getWorkflowService } from "../services/workflow";
+import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 
 export const approvalsRouter = router({
   myPending: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
@@ -53,6 +56,58 @@ export const approvalsRouter = router({
       ...r,
       state: r.status,
       requestedBy: "Me",
+      requestedOn: r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "",
+      dueBy: r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "",
+    }));
+  }),
+
+  /** Manager view: pending approvals routed to anyone in the caller's primary
+   *  reporting chain (their team subtree), excluding the caller's own queue.
+   *  Lets a manager see what their reports still owe a decision on. */
+  myTeamPending: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+
+    // Resolve the caller's employee record, then their report subtree.
+    const [me] = await db.select({ id: employees.id }).from(employees)
+      .where(and(eq(employees.orgId, org!.id), eq(employees.userId, ctx.user!.id)));
+    if (!me) return [];
+
+    const subtreeEmployeeIds = await collectReportSubtreeEmployeeIds(db, org!.id, me.id);
+    if (subtreeEmployeeIds.length === 0) return [];
+
+    // Map report employee records → their user IDs (approvals are keyed by user).
+    const reportUserRows = await db.select({ userId: employees.userId }).from(employees)
+      .where(and(eq(employees.orgId, org!.id), inArray(employees.id, subtreeEmployeeIds)));
+    const reportUserIds = reportUserRows
+      .map((r: (typeof reportUserRows)[number]) => r.userId)
+      .filter(Boolean) as string[];
+    if (reportUserIds.length === 0) return [];
+
+    const rows = await db.select().from(approvalRequests)
+      .where(and(
+        eq(approvalRequests.orgId, org!.id),
+        eq(approvalRequests.status, "pending"),
+        inArray(approvalRequests.approverId, reportUserIds),
+      ))
+      .orderBy(desc(approvalRequests.createdAt));
+
+    // Enrich with requester + approver names.
+    const peopleIds = [...new Set([
+      ...rows.map((r: (typeof rows)[number]) => r.requesterId),
+      ...rows.map((r: (typeof rows)[number]) => r.approverId),
+    ].filter(Boolean))] as string[];
+    const nameMap: Record<string, string> = {};
+    if (peopleIds.length > 0) {
+      const nameRows = await db.select({ id: users.id, name: users.name }).from(users)
+        .where(sql`${users.id} = ANY(${peopleIds})`);
+      for (const u of nameRows) nameMap[u.id] = u.name;
+    }
+
+    return rows.map((r: (typeof rows)[number]) => ({
+      ...r,
+      state: r.status,
+      requestedBy: r.requesterId ? (nameMap[r.requesterId] ?? r.requesterId) : "Unknown",
+      assignedTo: r.approverId ? (nameMap[r.approverId] ?? r.approverId) : "Unassigned",
       requestedOn: r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "",
       dueBy: r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN") : "",
     }));
