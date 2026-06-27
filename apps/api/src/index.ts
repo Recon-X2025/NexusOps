@@ -290,6 +290,10 @@ async function bootstrap() {
   const { registerOidcRoutes } = await import("./services/oidc.js");
   await registerOidcRoutes(fastify);
 
+  // ── SAML 2.0 SSO Routes ───────────────────────────────────────────────────
+  const { registerSamlRoutes } = await import("./services/saml.js");
+  await registerSamlRoutes(fastify);
+
   // ── Burst rate limiter ────────────────────────────────────────────────────
   // Secondary, shorter-window limiter that caps instantaneous bursts.
   // Registered only when RATE_LIMIT_BURST_MAX > 0 (enabled by default).

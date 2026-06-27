@@ -240,6 +240,99 @@ export const adminRouter = router({
       }),
   }),
 
+  /** Org `settings.sso.saml` — SAML 2.0 IdP connection config (US-SEC-002).
+   *  Stored material is IdP-public (entryPoint, issuer, X.509 signing cert),
+   *  never private keys, so it is safe to read back to admins. */
+  ssoConfig: router({
+    get: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const saml = parseOrgSettings(row?.settings ?? org!.settings).sso?.saml;
+      return {
+        enabled: saml?.enabled === true,
+        entryPoint: saml?.entryPoint ?? "",
+        idpIssuer: saml?.idpIssuer ?? "",
+        idpCert: saml?.idpCert ?? "",
+        attributeMapping: {
+          email: saml?.attributeMapping?.email ?? "",
+          name: saml?.attributeMapping?.name ?? "",
+        },
+        loginUrl: `/auth/saml/login?org=${encodeURIComponent(org!.slug)}`,
+        metadataUrl: "/auth/saml/metadata",
+      };
+    }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          enabled: z.boolean(),
+          entryPoint: z.string().max(2048).optional(),
+          idpIssuer: z.string().max(2048).optional(),
+          idpCert: z.string().max(16384).optional(),
+          attributeMapping: z
+            .object({
+              email: z.string().max(256).optional(),
+              name: z.string().max(256).optional(),
+            })
+            .optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Refuse to enable an incomplete config — without the IdP endpoint and
+        // its signing cert, assertion signatures cannot be verified.
+        if (input.enabled && (!input.entryPoint?.trim() || !input.idpCert?.trim())) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "entryPoint and idpCert are required to enable SAML SSO",
+          });
+        }
+
+        const { db, org } = ctx;
+        const [row] = await db
+          .select({ settings: organizations.settings })
+          .from(organizations)
+          .where(eq(organizations.id, org!.id));
+        const raw = (row?.settings ?? {}) as Record<string, unknown>;
+        const prevSso = (raw.sso as Record<string, unknown> | undefined) ?? {};
+        const prevSaml = (prevSso.saml as Record<string, unknown> | undefined) ?? {};
+
+        const saml: Record<string, unknown> = {
+          ...prevSaml,
+          enabled: input.enabled,
+        };
+        if (input.entryPoint !== undefined) saml.entryPoint = input.entryPoint.trim();
+        if (input.idpIssuer !== undefined) saml.idpIssuer = input.idpIssuer.trim();
+        if (input.idpCert !== undefined) saml.idpCert = input.idpCert.trim();
+        if (input.attributeMapping !== undefined) saml.attributeMapping = input.attributeMapping;
+
+        await db
+          .update(organizations)
+          .set({ settings: { ...raw, sso: { ...prevSso, saml } } })
+          .where(eq(organizations.id, org!.id));
+
+        // Never write the cert body into the audit log — record only state change.
+        await db.insert(auditLogs).values({
+          orgId: org!.id,
+          userId: ctx.user!.id as string,
+          action: "sso_saml_config_update",
+          resourceType: "organization",
+          resourceId: org!.id,
+          changes: sanitizeForAudit({
+            enabled: { before: prevSaml.enabled ?? false, after: input.enabled },
+            entryPoint: { before: prevSaml.entryPoint ?? null, after: saml.entryPoint ?? null },
+            idpCertChanged: input.idpCert !== undefined,
+          }) as Record<string, unknown>,
+          ipAddress: ctx.ipAddress ?? undefined,
+          userAgent: ctx.userAgent ?? undefined,
+        });
+
+        return { ok: true as const, enabled: input.enabled };
+      }),
+  }),
+
   slaDefinitions: router({
     list: adminProcedure.query(async () => {
       // slaPolicies table not yet in schema - return empty

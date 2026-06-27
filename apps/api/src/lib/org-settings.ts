@@ -86,6 +86,33 @@ export type OrgExpenseSettings = {
   categories?: Record<string, ExpenseCategoryPolicy>;
 };
 
+/**
+ * Per-org SAML 2.0 SP→IdP SSO config (US-SEC-002). Stored in
+ * `organizations.settings.sso.saml`. The SP (this app) consumes a signed SAML
+ * Response from the org's IdP; signature + condition validation is handled by
+ * `services/saml.ts`. Material here is IdP-public only (the IdP's X.509 signing
+ * cert), never private keys.
+ */
+export type OrgSamlSettings = {
+  /** Master switch — when not true, SAML routes refuse to start a flow for this org. */
+  enabled?: boolean;
+  /** IdP SSO endpoint we send the AuthnRequest to, e.g. https://idp.example.com/sso. */
+  entryPoint?: string;
+  /** IdP entityID / issuer; the assertion `Issuer` must match this when set. */
+  idpIssuer?: string;
+  /** IdP's X.509 signing certificate (PEM body). */
+  idpCert?: string;
+  /** Map of local user field → SAML attribute name (falls back to NameID / standard claims). */
+  attributeMapping?: {
+    email?: string;
+    name?: string;
+  };
+};
+
+export type OrgSsoSettings = {
+  saml?: OrgSamlSettings;
+};
+
 export type CoheronConnectOrgSettings = {
   security?: OrgSecuritySettings;
   procurement?: OrgProcurementSettings;
@@ -93,11 +120,40 @@ export type CoheronConnectOrgSettings = {
   crm?: OrgCrmSettings;
   itsm?: OrgItsmSettings;
   expense?: OrgExpenseSettings;
+  sso?: OrgSsoSettings;
 };
 
 export function parseOrgSettings(raw: unknown): CoheronConnectOrgSettings {
   if (!raw || typeof raw !== "object") return {};
   return raw as CoheronConnectOrgSettings;
+}
+
+export type EffectiveSamlConfig = {
+  entryPoint: string;
+  idpCert: string;
+  idpIssuer?: string;
+  attributeMapping?: { email?: string; name?: string };
+};
+
+/**
+ * Effective SAML config for an org, or null when SSO is disabled / incomplete.
+ * Both the IdP endpoint and its signing cert are required — without the cert we
+ * cannot verify assertion signatures, so we must not start a flow.
+ */
+export function getOrgSamlConfig(orgSettings: unknown): EffectiveSamlConfig | null {
+  const saml = parseOrgSettings(orgSettings).sso?.saml;
+  if (!saml || saml.enabled !== true) return null;
+  const entryPoint = typeof saml.entryPoint === "string" ? saml.entryPoint.trim() : "";
+  const idpCert = typeof saml.idpCert === "string" ? saml.idpCert.trim() : "";
+  if (!entryPoint || !idpCert) return null;
+  return {
+    entryPoint,
+    idpCert,
+    ...(typeof saml.idpIssuer === "string" && saml.idpIssuer.trim()
+      ? { idpIssuer: saml.idpIssuer.trim() }
+      : {}),
+    ...(saml.attributeMapping ? { attributeMapping: saml.attributeMapping } : {}),
+  };
 }
 
 /** Normalized catalog: non-empty codes, trimmed; invalid entries dropped. */
