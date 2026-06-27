@@ -71,6 +71,24 @@ function buildEmailHtml(title: string, body: string, link?: string) {
 }
 
 /**
+ * Send a standalone transactional email (no in-app notification record).
+ *
+ * Used for recipients that have no `userId` yet or no in-app context — e.g.
+ * password-reset links (sent to an email at the login screen) and org invites
+ * (recipient has no account). Degrades gracefully: when SMTP is not configured
+ * the message is logged rather than sent, and delivery failures are swallowed
+ * so auth flows never leak account existence or break on mail-server issues.
+ */
+export async function sendTransactionalEmail(
+  to: string,
+  subject: string,
+  body: string,
+  link?: string,
+): Promise<void> {
+  await sendEmail(to, subject, buildEmailHtml(subject, body, link));
+}
+
+/**
  * Send an in-app notification and optionally an email.
  * Never throws — errors are logged and swallowed.
  */

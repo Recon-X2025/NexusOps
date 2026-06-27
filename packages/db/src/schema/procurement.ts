@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import { assetTypes } from "./assets";
 import { legalEntities } from "./legal-entity";
@@ -138,7 +138,9 @@ export const purchaseRequests = pgTable(
     orgNumberIdx: uniqueIndex("purchase_requests_org_number_idx").on(t.orgId, t.number),
     orgIdx: index("purchase_requests_org_idx").on(t.orgId),
     statusIdx: index("purchase_requests_status_idx").on(t.status),
-    idempotencyKeyIdx: index("purchase_requests_idempotency_key_idx").on(t.idempotencyKey),
+    idempotencyKeyIdx: uniqueIndex("purchase_requests_idempotency_key_idx")
+      .on(t.orgId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
   }),
 );
 
@@ -418,8 +420,12 @@ export const approvalRequests = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    orgIdx: index("approval_requests_org_idx").on(t.orgId),
     entityIdx: index("approval_requests_entity_idx").on(t.entityType, t.entityId),
     approverIdx: index("approval_requests_approver_idx").on(t.approverId),
+    idempotencyKeyIdx: uniqueIndex("approval_requests_idempotency_key_idx")
+      .on(t.orgId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
   }),
 );
 

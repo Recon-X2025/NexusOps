@@ -557,4 +557,8 @@ export const okrKeyResults = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
+  (t) => ({
+    orgIdx: index("okr_key_results_org_idx").on(t.orgId),
+    objectiveIdx: index("okr_key_results_objective_idx").on(t.objectiveId),
+  }),
 );

@@ -43,6 +43,13 @@
       "when": 1782580795665,
       "tag": "0005_shiny_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782592626149,
+      "tag": "0006_giant_pandemic",
+      "breakpoints": true
     }
   ]
 }

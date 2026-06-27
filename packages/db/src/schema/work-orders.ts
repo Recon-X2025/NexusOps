@@ -130,6 +130,7 @@ export const workOrderTasks = pgTable(
       .notNull(),
   },
   (t) => ({
+    orgIdx: index("wo_tasks_org_idx").on(t.orgId),
     workOrderIdx: index("wo_tasks_wo_idx").on(t.workOrderId),
   }),
 );

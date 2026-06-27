@@ -235,7 +235,10 @@ export const contractEsignEvents = pgTable(
     auditPayload: jsonb("audit_payload").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({ contractIdx: index("contract_esign_events_contract_idx").on(t.contractId) }),
+  (t) => ({
+    orgIdx: index("contract_esign_events_org_idx").on(t.orgId),
+    contractIdx: index("contract_esign_events_contract_idx").on(t.contractId),
+  }),
 );
 
 export const whistleblowerProgramSettings = pgTable("whistleblower_program_settings", {

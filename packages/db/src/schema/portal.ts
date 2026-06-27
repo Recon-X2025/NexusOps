@@ -71,6 +71,7 @@ export const kbArticleRevisions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    orgIdx: index("kb_article_revisions_org_idx").on(t.orgId),
     articleIdx: index("kb_article_revisions_article_idx").on(t.articleId),
     articleVersionUidx: uniqueIndex("kb_article_revisions_article_version_uidx").on(
       t.articleId,

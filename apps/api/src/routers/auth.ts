@@ -30,6 +30,7 @@ import bcrypt from "bcrypt";
 import { randomBytes, createHash } from "crypto";
 import { nanoid } from "nanoid";
 import { checkLoginRateLimit, recordFailedLogin, clearLoginAttempts } from "../lib/login-rate-limit";
+import { sendTransactionalEmail } from "../services/notifications";
 import { hashSessionToken } from "../middleware/auth";
 import { clearSessionStepUp, setSessionStepUpVerified } from "../lib/step-up-session";
 
@@ -369,8 +370,13 @@ export const authRouter = router({
         });
 
         const resetUrl = `${process.env["AUTH_URL"] ?? "http://localhost:3000"}/reset-password/${rawToken}`;
-        console.info(`[PASSWORD RESET] URL for ${email}: ${resetUrl}`);
-        // TODO (Phase 2): send via notification service email
+        await sendTransactionalEmail(
+          email,
+          "Reset your CoheronConnect password",
+          "We received a request to reset your password. This link expires in 1 hour. " +
+            "If you didn't request this, you can safely ignore this email.",
+          resetUrl,
+        );
       }
 
       return { success: true };
@@ -447,8 +453,13 @@ export const authRouter = router({
         .returning();
 
       const inviteUrl = `${process.env["AUTH_URL"] ?? "http://localhost:3000"}/invite/${token}`;
-      console.info(`[INVITE] URL for ${inviteEmail}: ${inviteUrl}`);
-      // TODO (Phase 2): send via notification service email
+      await sendTransactionalEmail(
+        inviteEmail,
+        `You've been invited to join ${org!.name} on CoheronConnect`,
+        `${user!.name ?? "A teammate"} invited you to join ${org!.name} as ${input.role}. ` +
+          "This invite expires in 7 days.",
+        inviteUrl,
+      );
 
       return { invite, inviteUrl };
     }),

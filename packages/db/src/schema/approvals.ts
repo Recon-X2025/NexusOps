@@ -8,7 +8,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { users } from "./auth";
+import { organizations, users } from "./auth";
 // approvalChains and approvalRequests live in procurement.ts (re-used cross-module)
 // This file adds approval steps for multi-step sequential approvals
 
@@ -25,6 +25,9 @@ export const approvalSteps = pgTable(
   "approval_steps",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     requestId: uuid("request_id").notNull(),
     approverId: uuid("approver_id").notNull().references(() => users.id),
     sequence: integer("sequence").notNull().default(1),
@@ -34,11 +37,13 @@ export const approvalSteps = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    orgIdx: index("approval_steps_org_idx").on(t.orgId),
     requestIdx: index("approval_steps_request_idx").on(t.requestId),
     approverIdx: index("approval_steps_approver_idx").on(t.approverId),
   }),
 );
 
 export const approvalStepsRelations = relations(approvalSteps, ({ one }) => ({
+  org: one(organizations, { fields: [approvalSteps.orgId], references: [organizations.id] }),
   approver: one(users, { fields: [approvalSteps.approverId], references: [users.id] }),
 }));
