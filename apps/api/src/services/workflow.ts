@@ -41,6 +41,11 @@ import {
   startTicketEmbeddingWorker,
   type TicketEmbeddingJobData,
 } from "../workflows/ticketEmbeddingWorkflow";
+import {
+  createNotificationDispatchQueue,
+  startNotificationDispatchWorker,
+  type NotificationDispatchJobData,
+} from "../workflows/notificationDispatchWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -49,6 +54,7 @@ interface WorkflowServiceInstance {
   retentionQueue: Queue<RetentionJobData>;
   irnQueue: Queue<IrnJobData>;
   ticketEmbeddingQueue: Queue<TicketEmbeddingJobData>;
+  notificationDispatchQueue: Queue<NotificationDispatchJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -64,6 +70,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const retentionQueue = createRetentionQueue();
   const irnQueue = createIrnQueue();
   const ticketEmbeddingQueue = createTicketEmbeddingQueue();
+  const notificationDispatchQueue = createNotificationDispatchQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -71,6 +78,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const retentionWorker = startRetentionWorker(db);
   const irnWorker = startIrnWorker(db);
   const ticketEmbeddingWorker = startTicketEmbeddingWorker(db);
+  const notificationDispatchWorker = startNotificationDispatchWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -94,6 +102,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     console.error(`[workflow:irn] Job ${job?.id} failed:`, err.message);
   });
 
+  notificationDispatchWorker.on("failed", (job, err) => {
+    console.error(`[workflow:notify-dispatch] Job ${job?.id} failed:`, err.message);
+  });
+
   _instance = {
     approvalQueue,
     slaQueue,
@@ -101,6 +113,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     retentionQueue,
     irnQueue,
     ticketEmbeddingQueue,
+    notificationDispatchQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -109,12 +122,14 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         retentionWorker.close(),
         irnWorker.close(),
         ticketEmbeddingWorker.close(),
+        notificationDispatchWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
         retentionQueue.close(),
         irnQueue.close(),
         ticketEmbeddingQueue.close(),
+        notificationDispatchQueue.close(),
       ]);
       _instance = undefined;
     },

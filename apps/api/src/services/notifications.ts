@@ -1,9 +1,12 @@
 /**
- * Notification service — sends in-app notifications (always) and email (when SMTP configured).
- * Future: Slack webhook support.
+ * Notification service — sends in-app notifications (always), email (when SMTP
+ * configured), and fans out to external channels (Slack) via a durable BullMQ
+ * worker when the org has the integration connected.
  */
 import { getDb, notifications } from "@coheronconnect/db";
 import nodemailer from "nodemailer";
+import { getWorkflowService } from "./workflow";
+import { enqueueNotificationDispatch } from "../workflows/notificationDispatchWorkflow";
 
 export interface NotificationPayload {
   orgId: string;
@@ -100,5 +103,24 @@ export async function sendNotification(
       payload.title,
       buildEmailHtml(payload.title, payload.body, link),
     );
+  }
+
+  // Fan out to external channels (Slack) via the durable dispatch worker. This
+  // is best-effort: if the workflow service isn't booted (scripts/tests) or
+  // Redis is unavailable, we log and move on — the in-app record above is the
+  // source of truth and is never blocked by external-channel delivery.
+  try {
+    const queue = getWorkflowService().notificationDispatchQueue;
+    const dispatch: Parameters<typeof enqueueNotificationDispatch>[1] = {
+      orgId: payload.orgId,
+      channels: ["slack"],
+      title: payload.title,
+      body: payload.body,
+    };
+    if (payload.link) dispatch.link = payload.link;
+    if (payload.type) dispatch.type = payload.type;
+    await enqueueNotificationDispatch(queue, dispatch);
+  } catch (err) {
+    console.error("[NOTIFY] Slack fan-out enqueue skipped:", (err as Error).message);
   }
 }

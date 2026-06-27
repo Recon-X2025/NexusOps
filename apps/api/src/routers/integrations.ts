@@ -58,7 +58,7 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     provider: "slack",
     displayName: "Slack",
     category: "chat",
-    testable: false,
+    testable: true,
     description: "Post ticket notifications, approvals, and SLA alerts to Slack channels.",
     fields: [
       { key: "webhookUrl", label: "Incoming Webhook URL", type: "url", required: true, placeholder: "https://hooks.slack.com/services/…" },

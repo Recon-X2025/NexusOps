@@ -5,6 +5,7 @@ import { razorpayAdapter } from "./razorpay";
 import { clearTaxGstAdapter } from "./cleartax-gst";
 import { googleWorkspaceAdapter } from "./google-workspace";
 import { microsoft365Adapter } from "./microsoft-365";
+import { slackAdapter } from "./slack";
 
 /**
  * Central adapter registry — `integrations` tRPC router resolves a provider
@@ -21,6 +22,7 @@ const adapters: Record<string, IntegrationAdapter<any, any>> = {
   cleartax_gst: clearTaxGstAdapter,
   google_workspace: googleWorkspaceAdapter,
   microsoft_365: microsoft365Adapter,
+  slack: slackAdapter,
 };
 
 export type SupportedProvider = keyof typeof adapters;
