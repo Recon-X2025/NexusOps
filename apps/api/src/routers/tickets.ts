@@ -1469,69 +1469,79 @@ export const ticketsRouter = router({
         try {
           const { surveys, surveyInvites } = await import("@coheronconnect/db");
 
-          let [csat] = await db
-            .select()
-            .from(surveys)
-            .where(
-              and(
-                eq(surveys.orgId, org!.id),
-                eq(surveys.type, "csat" as any),
-                eq(surveys.status, "active" as any),
-              ),
-            )
+          // One survey per ticket: skip if an invite already exists for this ticket
+          // (e.g. ticket re-opened and resolved again). Enforces one-response per ticket.
+          const [existingInvite] = await db
+            .select({ id: surveyInvites.id })
+            .from(surveyInvites)
+            .where(and(eq(surveyInvites.orgId, org!.id), eq(surveyInvites.ticketId, updated.id)))
             .limit(1);
 
-          if (!csat) {
-            const [created] = await db
-              .insert(surveys)
-              .values({
-                orgId: org!.id,
-                title: "Ticket CSAT (auto)",
-                description: "Auto-triggered after ticket resolution.",
-                type: "csat" as any,
-                status: "active" as any,
-                questions: [],
-                triggerEvent: "ticket.resolved",
-                createdById: user!.id,
-              } as any)
-              .returning();
-            csat = created as any;
-          }
+          if (!existingInvite) {
+            let [csat] = await db
+              .select()
+              .from(surveys)
+              .where(
+                and(
+                  eq(surveys.orgId, org!.id),
+                  eq(surveys.type, "csat" as any),
+                  eq(surveys.status, "active" as any),
+                ),
+              )
+              .limit(1);
 
-          const token = randomBytes(24).toString("hex");
-          const tokenHash = createHash("sha256").update(token).digest("hex");
-          const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+            if (!csat) {
+              const [created] = await db
+                .insert(surveys)
+                .values({
+                  orgId: org!.id,
+                  title: "Ticket CSAT (auto)",
+                  description: "Auto-triggered after ticket resolution.",
+                  type: "csat" as any,
+                  status: "active" as any,
+                  questions: [],
+                  triggerEvent: "ticket.resolved",
+                  createdById: user!.id,
+                } as any)
+                .returning();
+              csat = created as any;
+            }
 
-          await db.insert(surveyInvites).values({
-            orgId: org!.id,
-            surveyId: (csat as any).id,
-            ticketId: updated.id,
-            requesterId: updated.requesterId ?? null,
-            tokenHash,
-            status: "sent",
-            expiresAt,
-          } as any);
+            const token = randomBytes(24).toString("hex");
+            const tokenHash = createHash("sha256").update(token).digest("hex");
+            const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
-          const [reqUser] = await db
-            .select({ email: users.email })
-            .from(users)
-            .where(and(eq(users.id, updated.requesterId), eq(users.orgId, org!.id)))
-            .limit(1);
-
-          const link = `/survey/${token}`;
-          await sendNotification(
-            {
+            await db.insert(surveyInvites).values({
               orgId: org!.id,
-              userId: updated.requesterId,
-              title: `Rate your ticket experience: ${updated.number}`,
-              body: `How was the support you received for “${updated.title}”? It takes 5 seconds.`,
-              link,
-              type: "info",
-              sourceType: "ticket",
-              sourceId: updated.id,
-            },
-            reqUser?.email,
-          );
+              surveyId: (csat as any).id,
+              ticketId: updated.id,
+              requesterId: updated.requesterId ?? null,
+              tokenHash,
+              status: "sent",
+              expiresAt,
+            } as any);
+
+            const [reqUser] = await db
+              .select({ email: users.email })
+              .from(users)
+              .where(and(eq(users.id, updated.requesterId), eq(users.orgId, org!.id)))
+              .limit(1);
+
+            const link = `/survey/${token}`;
+            await sendNotification(
+              {
+                orgId: org!.id,
+                userId: updated.requesterId,
+                title: `Rate your ticket experience: ${updated.number}`,
+                body: `How was the support you received for “${updated.title}”? It takes 5 seconds.`,
+                link,
+                type: "info",
+                sourceType: "ticket",
+                sourceId: updated.id,
+              },
+              reqUser?.email,
+            );
+          }
         } catch (err) {
           console.warn("[tickets.update] CSAT trigger failed (non-fatal):", err);
         }
