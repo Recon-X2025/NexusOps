@@ -133,6 +133,29 @@ test.describe("Ticket Lifecycle", () => {
     await expect(page.getByTestId("ticket-linked-empty")).toBeVisible({ timeout: 10_000 });
   });
 
+  test("ticket detail — Similar Tickets panel renders", async ({ page }) => {
+    // Create a ticket so we have a guaranteed detail page to open.
+    await page.goto("/app/tickets/new");
+    await page.waitForLoadState("networkidle");
+    await page.fill('[data-testid="ticket-title"]', `E2E Similar Panel ${Date.now()}`);
+    await page.fill('[data-testid="ticket-description"]', "Playwright similar-tickets panel check");
+    const categorySelect = page.locator("select").filter({ hasText: /category|select/i }).first();
+    if (await categorySelect.isVisible()) {
+      await categorySelect.selectOption({ index: 1 });
+    }
+    await page.click('[data-testid="ticket-submit"]');
+    await expect(page).toHaveURL(/app\/tickets\/[a-f0-9-]{36}/, { timeout: 15_000 });
+
+    // The panel must render in one of its valid states without crashing. The
+    // embedding job is async, so a freshly-created ticket may legitimately be
+    // in the "still indexing" / empty state — we only assert the panel mounts.
+    const panel = page.getByTestId("similar-tickets-panel");
+    await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(panel).toContainText(/Similar Tickets/i);
+    const body = await page.textContent("body");
+    expect(body).not.toContain("Unhandled Runtime Error");
+  });
+
   test("pending status — SLA pause appears on activity log", async ({ page }) => {
     await page.goto("/app/tickets/new");
     await page.waitForLoadState("networkidle");

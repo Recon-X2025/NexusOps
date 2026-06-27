@@ -423,7 +423,7 @@ export default function TicketDetailPage() {
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <div className="lg:col-span-3 flex flex-col gap-6">
                   {/* Tabs */}
-                  <div className="flex border-b border-border gap-6">
+                  <div className="flex overflow-x-auto border-b border-border gap-6">
                     {(["notes", "activity", "related"] as const).map((tab) => (
                       <button
                         key={tab}
@@ -678,12 +678,76 @@ export default function TicketDetailPage() {
                       </button>
                     </div>
                   )}
+
+                  {/* Similar Tickets (embedding-based) */}
+                  <SimilarTicketsPanel ticketId={id} />
                 </div>
               </div>
             </div>
           );
         }}
       </ResourceView>
+    </div>
+  );
+}
+
+/**
+ * Surfaces tickets the platform considers similar to this one, using the
+ * stored embedding vectors (tickets.findSimilar). Helps agents spot prior
+ * resolutions and avoid duplicate work. Shows an "indexing" state while the
+ * source ticket's embedding is still being computed.
+ */
+function SimilarTicketsPanel({ ticketId }: { ticketId: string }) {
+  const { data, isLoading } = trpc.tickets.findSimilar.useQuery(
+    { ticketId, limit: 5 },
+    { staleTime: 60_000, refetchOnWindowFocus: false },
+  );
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5" data-testid="similar-tickets-panel">
+      <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+        <Copy className="w-3.5 h-3.5" /> Similar Tickets
+      </h3>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Finding matches…
+        </div>
+      ) : !data?.ready ? (
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          This ticket is still being indexed for similarity. Check back shortly.
+        </p>
+      ) : data.results.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          No similar tickets found yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2" data-testid="similar-tickets-list">
+          {data.results.map((t) => (
+            <li key={t.id}>
+              <Link
+                href={`/app/tickets/${t.id}`}
+                className="flex items-start justify-between gap-3 p-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/30 transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-muted-foreground">{t.number}</span>
+                    {t.hasResolution && (
+                      <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[8px] font-bold uppercase rounded">
+                        Resolved
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-foreground truncate mt-0.5">{t.title}</p>
+                </div>
+                <span className="text-[10px] font-bold text-primary whitespace-nowrap shrink-0">
+                  {Math.round(t.score * 100)}%
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

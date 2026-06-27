@@ -412,7 +412,7 @@ export default function NewTicketPage() {
               </div>
 
               {/* Category + Subcategory */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="field-label block mb-1">
                     Category <span className="text-red-500">*</span>
@@ -497,7 +497,7 @@ export default function NewTicketPage() {
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Contact Information
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="field-label block mb-1">Affected User / Requester</label>
                   <input

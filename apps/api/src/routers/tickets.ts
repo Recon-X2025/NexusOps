@@ -2045,4 +2045,113 @@ export const ticketsRouter = router({
         return { watching: true };
       }
     }),
+
+  /**
+   * Find tickets similar to the given one using the stored embedding vectors
+   * (see ticketEmbeddingWorkflow). Cosine similarity is computed in-process
+   * over the org's embedded tickets — fine at SMB scale (hundreds–low
+   * thousands of tickets). Returns the top matches above a relevance floor,
+   * excluding the source ticket itself.
+   *
+   * Returns `{ ready: false }` when the source ticket has no embedding yet
+   * (the async embedding job may still be in flight), so the UI can show a
+   * "still indexing" state rather than an empty list.
+   */
+  findSimilar: permissionProcedure("incidents", "read")
+    .input(
+      z.object({
+        ticketId: z.string().uuid(),
+        limit: z.number().int().min(1).max(20).default(5),
+        minScore: z.number().min(0).max(1).default(0.3),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+
+      const [source] = await db
+        .select({ id: tickets.id, embeddingVector: tickets.embeddingVector })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)))
+        .limit(1);
+
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
+      if (!source.embeddingVector) {
+        return { ready: false as const, results: [] };
+      }
+
+      let sourceVec: number[];
+      try {
+        sourceVec = JSON.parse(source.embeddingVector) as number[];
+      } catch {
+        return { ready: false as const, results: [] };
+      }
+      if (!Array.isArray(sourceVec) || sourceVec.length === 0) {
+        return { ready: false as const, results: [] };
+      }
+
+      // Candidates: org tickets that have an embedding, excluding the source.
+      const candidates = await db
+        .select({
+          id: tickets.id,
+          number: tickets.number,
+          title: tickets.title,
+          statusId: tickets.statusId,
+          priorityId: tickets.priorityId,
+          resolutionNotes: tickets.resolutionNotes,
+          embeddingVector: tickets.embeddingVector,
+          updatedAt: tickets.updatedAt,
+        })
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            sql`${tickets.embeddingVector} is not null`,
+            sql`${tickets.id} <> ${input.ticketId}`,
+          ),
+        );
+
+      // Both vectors are L2-normalised (see embedTextHashing), so cosine
+      // similarity reduces to a dot product.
+      const dot = (a: number[], b: number[]): number => {
+        const n = Math.min(a.length, b.length);
+        let s = 0;
+        for (let i = 0; i < n; i++) s += (a[i] ?? 0) * (b[i] ?? 0);
+        return s;
+      };
+
+      const scored: Array<{
+        id: string;
+        number: string;
+        title: string;
+        statusId: string | null;
+        priorityId: string | null;
+        hasResolution: boolean;
+        score: number;
+      }> = [];
+
+      for (const c of candidates) {
+        if (!c.embeddingVector) continue;
+        let vec: number[];
+        try {
+          vec = JSON.parse(c.embeddingVector) as number[];
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(vec) || vec.length === 0) continue;
+        const score = dot(sourceVec, vec);
+        if (score < input.minScore) continue;
+        scored.push({
+          id: c.id,
+          number: c.number,
+          title: c.title,
+          statusId: c.statusId ?? null,
+          priorityId: c.priorityId ?? null,
+          hasResolution: Boolean(c.resolutionNotes && c.resolutionNotes.trim().length > 0),
+          score: Math.round(score * 1000) / 1000,
+        });
+      }
+
+      scored.sort((a, b) => b.score - a.score);
+      return { ready: true as const, results: scored.slice(0, input.limit) };
+    }),
 });

@@ -393,7 +393,7 @@ export default function TicketsPage() {
 
             return (
               <>
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   {liveKpis.map((k) => {
                     const Icon = k.icon;
                     return (
@@ -408,7 +408,7 @@ export default function TicketsPage() {
                   })}
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   {/* Status breakdown */}
                   <div className="bg-card border border-border rounded overflow-hidden">
                     <div className="px-3 py-2 border-b border-border bg-muted/30">
