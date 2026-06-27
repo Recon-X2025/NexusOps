@@ -885,10 +885,27 @@ export const ticketsRouter = router({
         );
       }
       if (resMin != null && resMin > 0) {
-        slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(
-          new Date(now.getTime() + resMin * 60 * 1000),
-          slaCal,
-        );
+        const rawResolve = new Date(now.getTime() + resMin * 60 * 1000);
+        slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(rawResolve, slaCal);
+        // Resolution can never be due before — or at the same instant as — first
+        // response. The business-calendar adjustment preserves time-of-day while
+        // rolling over weekends/holidays, so two deadlines that straddle the same
+        // weekend can invert (a later raw deadline with an earlier clock time lands
+        // earlier on the next business day). When that happens, anchor resolution to
+        // the adjusted response deadline plus the original response→resolve gap, then
+        // re-roll, guaranteeing a strictly-ordered, monotonic pair.
+        if (
+          respMin != null &&
+          respMin > 0 &&
+          slaResponseDueAt &&
+          slaResolveDueAt.getTime() <= slaResponseDueAt.getTime()
+        ) {
+          const gapMs = Math.max(resMin - respMin, 1) * 60 * 1000;
+          slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(
+            new Date(slaResponseDueAt.getTime() + gapMs),
+            slaCal,
+          );
+        }
       }
     }
 
