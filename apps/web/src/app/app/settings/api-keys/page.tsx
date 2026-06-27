@@ -115,33 +115,35 @@ function NewApiKeyModal({
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-2">Permissions</label>
             <div className="rounded-lg border border-border overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium">Module</th>
-                    {PERMISSION_LEVELS.map((l) => (
-                      <th key={l} className="text-center px-3 py-2 font-medium capitalize w-16">{l}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {PERMISSION_MODULES.map((mod) => (
-                    <tr key={mod.key} className="hover:bg-muted/30">
-                      <td className="px-3 py-2">{mod.label}</td>
-                      {PERMISSION_LEVELS.map((level) => (
-                        <td key={level} className="px-3 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={(permissions[mod.key] ?? []).includes(level)}
-                            onChange={() => togglePerm(mod.key, level)}
-                            className="rounded"
-                          />
-                        </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium">Module</th>
+                      {PERMISSION_LEVELS.map((l) => (
+                        <th key={l} className="text-center px-3 py-2 font-medium capitalize w-16">{l}</th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {PERMISSION_MODULES.map((mod) => (
+                      <tr key={mod.key} className="hover:bg-muted/30">
+                        <td className="px-3 py-2">{mod.label}</td>
+                        {PERMISSION_LEVELS.map((level) => (
+                          <td key={level} className="px-3 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={(permissions[mod.key] ?? []).includes(level)}
+                              onChange={() => togglePerm(mod.key, level)}
+                              className="rounded"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               No modules selected = read access to all public endpoints only.
@@ -303,86 +305,88 @@ export default function ApiKeysSettingsPage() {
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/50">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium">Name</th>
-                <th className="text-left px-4 py-3 font-medium">Key prefix</th>
-                <th className="text-left px-4 py-3 font-medium">Permissions</th>
-                <th className="text-left px-4 py-3 font-medium">Last used</th>
-                <th className="text-left px-4 py-3 font-medium">Expires</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((key) => {
-                const isExpired = key.expiresAt && new Date(key.expiresAt) < new Date();
-                const expiringSoon =
-                  key.expiresAt &&
-                  !isExpired &&
-                  new Date(key.expiresAt).getTime() - Date.now() < 14 * 86_400_000;
-                const modules = Object.keys(key.permissions ?? {});
-
-                return (
-                  <tr key={key.id} className={cn("hover:bg-muted/30", isExpired && "opacity-60")}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="font-medium">{key.name}</span>
-                        {isExpired && (
-                          <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-1.5 py-0.5 text-xs">Expired</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Created {formatRelativeTime(key.createdAt)}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">{key.keyPrefix}…</td>
-                    <td className="px-4 py-3">
-                      {modules.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">Read-only (all)</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {modules.map((m) => (
-                            <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
-                              {m}:{(key.permissions[m] ?? []).join("+")}
-                            </span>
-                          ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/50">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium">Name</th>
+                  <th className="text-left px-4 py-3 font-medium">Key prefix</th>
+                  <th className="text-left px-4 py-3 font-medium">Permissions</th>
+                  <th className="text-left px-4 py-3 font-medium">Last used</th>
+                  <th className="text-left px-4 py-3 font-medium">Expires</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rows.map((key) => {
+                  const isExpired = key.expiresAt && new Date(key.expiresAt) < new Date();
+                  const expiringSoon =
+                    key.expiresAt &&
+                    !isExpired &&
+                    new Date(key.expiresAt).getTime() - Date.now() < 14 * 86_400_000;
+                  const modules = Object.keys(key.permissions ?? {});
+  
+                  return (
+                    <tr key={key.id} className={cn("hover:bg-muted/30", isExpired && "opacity-60")}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{key.name}</span>
+                          {isExpired && (
+                            <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-1.5 py-0.5 text-xs">Expired</span>
+                          )}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {key.lastUsedAt ? formatRelativeTime(key.lastUsedAt) : "Never"}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {key.expiresAt ? (
-                        <span className={cn(
-                          "flex items-center gap-1",
-                          isExpired ? "text-red-600" : expiringSoon ? "text-yellow-600" : "text-muted-foreground",
-                        )}>
-                          <Calendar className="h-3 w-3" />
-                          {new Date(key.expiresAt).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Never</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => revoke.mutate({ id: key.id })}
-                        disabled={!can("settings", "write") || revoke.isPending}
-                        title="Revoke key"
-                        className="rounded-lg p-1.5 text-destructive hover:bg-destructive/10 disabled:opacity-40"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Created {formatRelativeTime(key.createdAt)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">{key.keyPrefix}…</td>
+                      <td className="px-4 py-3">
+                        {modules.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">Read-only (all)</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {modules.map((m) => (
+                              <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
+                                {m}:{(key.permissions[m] ?? []).join("+")}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {key.lastUsedAt ? formatRelativeTime(key.lastUsedAt) : "Never"}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {key.expiresAt ? (
+                          <span className={cn(
+                            "flex items-center gap-1",
+                            isExpired ? "text-red-600" : expiringSoon ? "text-yellow-600" : "text-muted-foreground",
+                          )}>
+                            <Calendar className="h-3 w-3" />
+                            {new Date(key.expiresAt).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Never</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => revoke.mutate({ id: key.id })}
+                          disabled={!can("settings", "write") || revoke.isPending}
+                          title="Revoke key"
+                          className="rounded-lg p-1.5 text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

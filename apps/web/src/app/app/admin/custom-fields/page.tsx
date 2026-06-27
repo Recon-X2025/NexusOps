@@ -196,47 +196,49 @@ export default function CustomFieldsAdminPage() {
       )}
 
       <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-[12px]">
-          <thead className="bg-muted/40 border-b border-border">
-            <tr>
-              <th className="text-left px-3 py-2 font-medium">Name</th>
-              <th className="text-left px-3 py-2 font-medium">Label</th>
-              <th className="text-left px-3 py-2 font-medium">Type</th>
-              <th className="text-left px-3 py-2 font-medium">Active</th>
-              <th className="text-right px-3 py-2 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {listQ.isLoading ? (
-              <tr><td colSpan={5} className="px-3 py-6 text-muted-foreground text-center">Loading…</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-3 py-6 text-muted-foreground text-center">No definitions for this entity.</td></tr>
-            ) : (
-              rows.map((r: any) => (
-                <tr key={r.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2 font-mono text-[11px]">{r.name}</td>
-                  <td className="px-3 py-2">{r.label}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{r.type}</td>
-                  <td className="px-3 py-2">{r.isActive ? "Yes" : "No"}</td>
-                  <td className="px-3 py-2 text-right">
-                    {can("admin", "write") && r.isActive && (
-                      <button
-                        type="button"
-                        title="Deactivate"
-                        onClick={() => {
-                          if (confirm(`Deactivate field “${r.label}”?`)) deleteMut.mutate({ id: r.id });
-                        }}
-                        className="p-1 rounded text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead className="bg-muted/40 border-b border-border">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Name</th>
+                <th className="text-left px-3 py-2 font-medium">Label</th>
+                <th className="text-left px-3 py-2 font-medium">Type</th>
+                <th className="text-left px-3 py-2 font-medium">Active</th>
+                <th className="text-right px-3 py-2 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {listQ.isLoading ? (
+                <tr><td colSpan={5} className="px-3 py-6 text-muted-foreground text-center">Loading…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={5} className="px-3 py-6 text-muted-foreground text-center">No definitions for this entity.</td></tr>
+              ) : (
+                rows.map((r: any) => (
+                  <tr key={r.id} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2 font-mono text-[11px]">{r.name}</td>
+                    <td className="px-3 py-2">{r.label}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{r.type}</td>
+                    <td className="px-3 py-2">{r.isActive ? "Yes" : "No"}</td>
+                    <td className="px-3 py-2 text-right">
+                      {can("admin", "write") && r.isActive && (
+                        <button
+                          type="button"
+                          title="Deactivate"
+                          onClick={() => {
+                            if (confirm(`Deactivate field “${r.label}”?`)) deleteMut.mutate({ id: r.id });
+                          }}
+                          className="p-1 rounded text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

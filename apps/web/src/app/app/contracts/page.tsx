@@ -209,7 +209,7 @@ function ContractCreationWizard() {
       {step === "type" && (
         <div>
           <p className="text-[12px] text-muted-foreground mb-3">Select a contract template to start from. All templates include standard legal clauses and can be customised.</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {CONTRACT_TEMPLATES.map((tmpl) => {
               const Icon = TEMPLATE_ICONS[tmpl.icon] ?? FileText;
               return (
@@ -609,7 +609,7 @@ function ContractsPageInner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         {[
           { label: "Active Contracts",         value: activeContracts,              color: "text-green-700" },
           { label: "Total Contracted Value",    value: `₹${(totalContractValue/10000000).toFixed(1)}Cr`, color: "text-foreground/80" },
@@ -688,7 +688,7 @@ function ContractsPageInner() {
                   </div>
                   {isExpanded && (
                     <div className="px-6 pb-4 bg-muted/30/50 border-t border-dashed border-slate-200">
-                      <div className="grid grid-cols-3 gap-3 mt-3 mb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 mb-4">
                         {[
                           { label: "Governing Law",     value: c.governingLaw },
                           { label: "Payment Terms",     value: c.paymentTerms ?? "N/A" },

@@ -147,6 +147,16 @@
   .ent-table {
     @apply w-full text-xs border-collapse;
   }
+  /* Responsive: on small screens, let wide tables scroll horizontally
+     instead of overflowing the viewport. `display:block` turns the table
+     into a scroll container; it reverts to normal table layout at >=768px. */
+  @media (max-width: 767px) {
+    .ent-table {
+      display: block;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+  }
   .ent-table thead tr {
     @apply border-b border-border bg-muted/40;
   }

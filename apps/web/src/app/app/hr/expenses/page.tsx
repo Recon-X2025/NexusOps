@@ -86,13 +86,13 @@ export default function ExpensesPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Receipt className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-sm font-semibold text-foreground">My Expense Claims</h1>
-          <span className="text-[11px] text-muted-foreground/70">File · Edit drafts · Submit for approval</span>
+          <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">File · Edit drafts · Submit for approval</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canApprove && (
             <Link
               href="/app/finance/expenses"
@@ -111,7 +111,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* KPI */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[{ l: "Pending Approval", v: fmtInr(pending), c: "text-yellow-700", I: Clock }, { l: "Approved (Unpaid)", v: fmtInr(approved), c: "text-green-700", I: CheckCircle2 }, { l: "Reimbursed", v: fmtInr(reimbursed), c: "text-primary", I: DollarSign }].map(k => (
           <div key={k.l} className="bg-card border border-border rounded px-3 py-2">
             <k.I className="w-4 h-4 text-muted-foreground/70 mb-1" />
@@ -186,7 +186,7 @@ export default function ExpensesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg p-6">
             <h2 className="text-sm font-semibold mb-4">New Expense Claim</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="col-span-2"><label className="text-[11px] font-medium text-muted-foreground block mb-1">Title *</label><input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Client dinner at Taj" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Category</label><select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none">{CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}</select></div>
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Amount (₹) *</label><input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>

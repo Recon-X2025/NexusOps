@@ -403,7 +403,7 @@ export default function AdminConsolePage() {
           {/* OVERVIEW */}
           {tab === "overview" && (
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                   { label: "Active Users",     value: allUsers.filter(u => u.status === "active").length,   color: "text-green-700" },
                   { label: "Role Library",     value: SYSTEM_ROLES_CATALOG.length,                          color: "text-blue-700" },
@@ -2669,66 +2669,68 @@ function AssignmentRulesTab() {
         </div>
       ) : (
         <div className="border border-border rounded overflow-hidden">
-          <table className="w-full text-[12px]">
-            <thead className="bg-muted/40 border-b border-border">
-              <tr>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Entity</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Match On</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Team</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Algorithm</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Capacity</th>
-                <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rules.map((rule: any) => (
-                <tr key={rule.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-3 py-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
-                      {ENTITY_TYPE_LABELS[rule.entityType] ?? rule.entityType}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
-                    {rule.matchValue ?? <span className="italic text-muted-foreground/50">catch-all</span>}
-                  </td>
-                  <td className="px-3 py-2 font-medium text-foreground/80">{rule.teamName}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {rule.algorithm === "round_robin" ? "Round-Robin" : "Load-Based"}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{rule.capacityThreshold}</td>
-                  <td className="px-3 py-2">
-                    <button
-                      onClick={() => toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive })}
-                      className="flex items-center gap-1"
-                      title={rule.isActive ? "Click to disable" : "Click to enable"}
-                    >
-                      {rule.isActive
-                        ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-600" /><span className="text-green-700 text-[11px]">Active</span></>
-                        : <><XCircle className="w-3.5 h-3.5 text-muted-foreground/50" /><span className="text-muted-foreground/50 text-[11px]">Inactive</span></>
-                      }
-                    </button>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => startEdit(rule)}
-                        className="text-[11px] text-primary hover:underline"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteMutation.mutate({ id: rule.id })}
-                        className="text-[11px] text-red-500 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+              <thead className="bg-muted/40 border-b border-border">
+                <tr>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Entity</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Match On</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Team</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Algorithm</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Capacity</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                  <th className="px-3 py-2" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rules.map((rule: any) => (
+                  <tr key={rule.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-3 py-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
+                        {ENTITY_TYPE_LABELS[rule.entityType] ?? rule.entityType}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                      {rule.matchValue ?? <span className="italic text-muted-foreground/50">catch-all</span>}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-foreground/80">{rule.teamName}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {rule.algorithm === "round_robin" ? "Round-Robin" : "Load-Based"}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{rule.capacityThreshold}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive })}
+                        className="flex items-center gap-1"
+                        title={rule.isActive ? "Click to disable" : "Click to enable"}
+                      >
+                        {rule.isActive
+                          ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-600" /><span className="text-green-700 text-[11px]">Active</span></>
+                          : <><XCircle className="w-3.5 h-3.5 text-muted-foreground/50" /><span className="text-muted-foreground/50 text-[11px]">Inactive</span></>
+                        }
+                      </button>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => startEdit(rule)}
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteMutation.mutate({ id: rule.id })}
+                          className="text-[11px] text-red-500 hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

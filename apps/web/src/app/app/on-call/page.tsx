@@ -157,7 +157,7 @@ export default function OnCallPage() {
 
       {/* Currently on-call */}
       {schedulesQuery.isLoading ? (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <div className="animate-pulse space-y-2">
             {[...Array(4)].map((_, i) => <div key={i} className="h-8 bg-muted rounded" />)}
           </div>
@@ -174,7 +174,7 @@ export default function OnCallPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {rotations.map((rot) => {
             const person = getCurrentOncall(rot);
             return (

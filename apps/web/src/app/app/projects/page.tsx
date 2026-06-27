@@ -241,7 +241,7 @@ export default function ProjectsPage() {
       {showNewProject && (
         <div className="bg-card border border-primary/30 rounded p-4">
           <h3 className="text-[12px] font-semibold text-foreground mb-3">New Project</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Project Name *</label>
               <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} />
@@ -276,7 +276,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Total Portfolio Budget",  value: `₹${(totalBudget / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
           { label: "Spent YTD",               value: `₹${(totalSpent / 1000).toFixed(0)}K`,     color: "text-blue-700" },

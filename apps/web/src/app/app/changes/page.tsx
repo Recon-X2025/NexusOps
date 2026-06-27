@@ -234,7 +234,7 @@ export default function ChangesPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Awaiting CAB",      value: cabPending,        color: "text-yellow-700", border: "border-yellow-200" },
           { label: "Emergency Changes", value: emergencyCount,    color: "text-red-700",    border: "border-red-200" },
@@ -512,7 +512,7 @@ export default function ChangesPage() {
             Risk Assessment Summary
           </span>
         </div>
-        <div className="p-4 grid grid-cols-4 gap-3">
+        <div className="p-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: "Critical Risk", key: "critical", color: "text-red-700 bg-red-50 border-red-200" },
             { label: "High Risk",     key: "high",     color: "text-orange-700 bg-orange-50 border-orange-200" },

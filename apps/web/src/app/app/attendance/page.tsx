@@ -78,7 +78,7 @@ export default function AttendancePage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { l: "Total Records", v: records.length, c: "text-foreground", I: Clock },
           { l: "Present / Late", v: presentCount, c: "text-green-700", I: UserCheck },

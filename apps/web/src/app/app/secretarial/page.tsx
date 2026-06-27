@@ -268,50 +268,52 @@ function BoardTab() {
             </button>
           </PermissionGate>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>{["Number", "Title", "Type", "Date", "Duration", "Status", "Quorum", "Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody>
-            {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
-            {meetings.map((m: { id: string; number: string; title: string; type?: string; scheduledAt: string | Date; duration: number; status?: string; quorumMet?: boolean | null; venue?: string; videoLink?: string }) => (
-              <tr key={m.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
-                <td className="px-4 py-3 font-medium">{m.title}</td>
-                <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_", " ")}</td>
-                <td className="px-4 py-3 text-xs">{new Date(m.scheduledAt).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{m.duration}min</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status === "scheduled" ? "upcoming" : m.status ?? "—").replace("_", " ")}</span></td>
-                <td className="px-4 py-3 text-xs">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
-                <td className="px-4 py-3 space-x-2">
-                  {m.status === "scheduled" && (
-                    <>
-                      <button onClick={() => {
-                        setMtgForm({
-                          type: (m.type as any) || "board",
-                          title: m.title,
-                          scheduledAt: new Date(m.scheduledAt).toISOString().slice(0, 16),
-                          duration: m.duration,
-                          venue: m.venue || "",
-                          videoLink: m.videoLink || ""
-                        });
-                        setEditingMeeting(m.id);
-                        setShowNewMeeting(true);
-                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
-                      <button onClick={() => {
-                        setMarkDoneMeeting(m);
-                        setResolutionText("");
-                      }} className="text-xs text-green-600 hover:underline">Mark Done</button>
-                      <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "cancelled" })} className="text-xs text-red-600 hover:underline">Cancel</button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>{["Number", "Title", "Type", "Date", "Duration", "Status", "Quorum", "Actions"].map(h => (
+                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
+              {meetings.map((m: { id: string; number: string; title: string; type?: string; scheduledAt: string | Date; duration: number; status?: string; quorumMet?: boolean | null; venue?: string; videoLink?: string }) => (
+                <tr key={m.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
+                  <td className="px-4 py-3 font-medium">{m.title}</td>
+                  <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-xs">{new Date(m.scheduledAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{m.duration}min</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status === "scheduled" ? "upcoming" : m.status ?? "—").replace("_", " ")}</span></td>
+                  <td className="px-4 py-3 text-xs">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
+                  <td className="px-4 py-3 space-x-2">
+                    {m.status === "scheduled" && (
+                      <>
+                        <button onClick={() => {
+                          setMtgForm({
+                            type: (m.type as any) || "board",
+                            title: m.title,
+                            scheduledAt: new Date(m.scheduledAt).toISOString().slice(0, 16),
+                            duration: m.duration,
+                            venue: m.venue || "",
+                            videoLink: m.videoLink || ""
+                          });
+                          setEditingMeeting(m.id);
+                          setShowNewMeeting(true);
+                        }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                        <button onClick={() => {
+                          setMarkDoneMeeting(m);
+                          setResolutionText("");
+                        }} className="text-xs text-green-600 hover:underline">Mark Done</button>
+                        <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "cancelled" })} className="text-xs text-red-600 hover:underline">Cancel</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Directors */}
@@ -327,60 +329,62 @@ function BoardTab() {
             </button>
           </PermissionGate>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>{["Name", "DIN", "Designation", "Category", "Pan", "Appointed", "KYC Status", "Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody>
-            {directors.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No directors found</td></tr>}
-            {directors.map((d: { id: string; name: string; din: string; designation: string; category?: string; pan?: string | null; appointedAt?: string | Date | null; kyc?: string | null }) => (
-              <tr key={d.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-3 font-medium">{d.name}</td>
-                <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
-                <td className="px-4 py-3 text-xs">{d.designation}</td>
-                <td className="px-4 py-3 text-xs capitalize">{d.category?.replace("_", " ")}</td>
-                <td className="px-4 py-3 text-xs font-mono">{d.pan ?? "—"}</td>
-                <td className="px-4 py-3 text-xs">{d.appointedAt ? new Date(d.appointedAt).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.kyc === "filed" ? "text-green-700 bg-green-100" : d.kyc === "expired" ? "text-red-700 bg-red-100" : "text-amber-700 bg-amber-100"}`}>
-                    {d.kyc ?? "pending"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 space-x-2 whitespace-nowrap">
-                  <PermissionGate module="secretarial" action="write">
-                    <button onClick={() => updateKyc.mutate({ id: d.id, kyc: d.kyc === "filed" ? "pending" : "filed" })} className="text-xs text-primary hover:underline">
-                      {d.kyc === "filed" ? "Mark Pending" : "Mark Filed"}
-                    </button>
-                    <span className="text-muted-foreground/30">|</span>
-                    <button onClick={() => {
-                      setDirForm({
-                        name: d.name,
-                        din: d.din,
-                        designation: d.designation,
-                        category: d.category ?? "non_executive",
-                        pan: d.pan ?? "",
-                        email: (d as any).email ?? "",
-                        phone: (d as any).phone ?? "",
-                        appointedAt: d.appointedAt ? (new Date(d.appointedAt).toISOString().split('T')[0] ?? "") : "",
-                        address: (d as any).address ?? ""
-                      });
-                      setEditingDirector(d.id);
-                      setShowAddDirector(true);
-                    }} className="text-xs text-blue-600 hover:underline">Edit</button>
-                    <span className="text-muted-foreground/30">|</span>
-                    <button onClick={() => {
-                      if (confirm("Are you sure you want to remove this director?")) {
-                        deleteDirector.mutate({ id: d.id });
-                      }
-                    }} className="text-xs text-red-600 hover:underline">Cancel</button>
-                  </PermissionGate>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>{["Name", "DIN", "Designation", "Category", "Pan", "Appointed", "KYC Status", "Actions"].map(h => (
+                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {directors.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No directors found</td></tr>}
+              {directors.map((d: { id: string; name: string; din: string; designation: string; category?: string; pan?: string | null; appointedAt?: string | Date | null; kyc?: string | null }) => (
+                <tr key={d.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-3 font-medium">{d.name}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
+                  <td className="px-4 py-3 text-xs">{d.designation}</td>
+                  <td className="px-4 py-3 text-xs capitalize">{d.category?.replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-xs font-mono">{d.pan ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs">{d.appointedAt ? new Date(d.appointedAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.kyc === "filed" ? "text-green-700 bg-green-100" : d.kyc === "expired" ? "text-red-700 bg-red-100" : "text-amber-700 bg-amber-100"}`}>
+                      {d.kyc ?? "pending"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 space-x-2 whitespace-nowrap">
+                    <PermissionGate module="secretarial" action="write">
+                      <button onClick={() => updateKyc.mutate({ id: d.id, kyc: d.kyc === "filed" ? "pending" : "filed" })} className="text-xs text-primary hover:underline">
+                        {d.kyc === "filed" ? "Mark Pending" : "Mark Filed"}
+                      </button>
+                      <span className="text-muted-foreground/30">|</span>
+                      <button onClick={() => {
+                        setDirForm({
+                          name: d.name,
+                          din: d.din,
+                          designation: d.designation,
+                          category: d.category ?? "non_executive",
+                          pan: d.pan ?? "",
+                          email: (d as any).email ?? "",
+                          phone: (d as any).phone ?? "",
+                          appointedAt: d.appointedAt ? (new Date(d.appointedAt).toISOString().split('T')[0] ?? "") : "",
+                          address: (d as any).address ?? ""
+                        });
+                        setEditingDirector(d.id);
+                        setShowAddDirector(true);
+                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <span className="text-muted-foreground/30">|</span>
+                      <button onClick={() => {
+                        if (confirm("Are you sure you want to remove this director?")) {
+                          deleteDirector.mutate({ id: d.id });
+                        }
+                      }} className="text-xs text-red-600 hover:underline">Cancel</button>
+                    </PermissionGate>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Resolutions */}
@@ -388,36 +392,38 @@ function BoardTab() {
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold">Board Resolutions</h3>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>{["Number", "Title", "Type", "Status", "Passed", "For", "Against", "Abstain", "Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody>
-            {resolutions.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
-            {resolutions.map((r: { id: string; number: string; title: string; type: string; status?: string; passedAt?: string | Date | null; votesFor?: number; votesAgainst?: number; abstentions?: number }) => (
-              <tr key={r.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
-                <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
-                <td className="px-4 py-3 text-xs capitalize">{r.type}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(r.status ?? "—").replace("_", " ")}</span></td>
-                <td className="px-4 py-3 text-xs">{r.passedAt ? new Date(r.passedAt).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3 text-xs text-green-600">{r.votesFor ?? 0}</td>
-                <td className="px-4 py-3 text-xs text-red-600">{r.votesAgainst ?? 0}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{r.abstentions ?? 0}</td>
-                <td className="px-4 py-3 text-xs">
-                  <button
-                    onClick={() => setEsignFor({ id: r.id, title: `Resolution ${r.number} — ${r.title}` })}
-                    className="text-blue-700 hover:underline font-medium"
-                  >
-                    E-sign
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>{["Number", "Title", "Type", "Status", "Passed", "For", "Against", "Abstain", "Actions"].map(h => (
+                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {resolutions.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
+              {resolutions.map((r: { id: string; number: string; title: string; type: string; status?: string; passedAt?: string | Date | null; votesFor?: number; votesAgainst?: number; abstentions?: number }) => (
+                <tr key={r.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
+                  <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
+                  <td className="px-4 py-3 text-xs capitalize">{r.type}</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(r.status ?? "—").replace("_", " ")}</span></td>
+                  <td className="px-4 py-3 text-xs">{r.passedAt ? new Date(r.passedAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-xs text-green-600">{r.votesFor ?? 0}</td>
+                  <td className="px-4 py-3 text-xs text-red-600">{r.votesAgainst ?? 0}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{r.abstentions ?? 0}</td>
+                  <td className="px-4 py-3 text-xs">
+                    <button
+                      onClick={() => setEsignFor({ id: r.id, title: `Resolution ${r.number} — ${r.title}` })}
+                      className="text-blue-700 hover:underline font-medium"
+                    >
+                      E-sign
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* E-sign Modal */}
@@ -776,51 +782,53 @@ function FilingsTab() {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>{["Form", "Title", "Authority", "Category", "FY", "Due Date", "Status", "SRN", "Actions"].map(h => (
-              <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No filings found</td></tr>}
-            {filtered.map((f: { id: string; formNumber: string; title: string; authority: string; category?: string; fy?: string | null; dueDate?: string | Date | null; status?: string; srn?: string | null }) => (
-              <tr key={f.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
-                <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
-                <td className="px-3 py-3 text-xs">{f.authority}</td>
-                <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_", " ")}</td>
-                <td className="px-3 py-3 text-xs">{f.fy ?? "—"}</td>
-                <td className="px-3 py-3 text-xs">{f.dueDate ? new Date(f.dueDate).toLocaleDateString() : "—"}</td>
-                <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(f.status ?? "—").replace("_", " ")}</span></td>
-                <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{f.srn ?? "—"}</td>
-                <td className="px-3 py-3 space-x-2 whitespace-nowrap">
-                  {f.status !== "filed" && f.status !== "cancelled" && (
-                    <PermissionGate module="secretarial" action="write">
-                      <button onClick={() => {
-                        setForm({ formNumber: f.formNumber, title: f.title, authority: f.authority, category: f.category || "annual_return", dueDate: f.dueDate ? (new Date(f.dueDate).toISOString().split('T')[0] ?? "") : "", fy: f.fy || "", fees: "", notes: "" });
-                        setEditingFiling(f.id);
-                        setShowCreate(true);
-                      }} className="text-xs text-blue-600 hover:underline font-medium">Edit</button>
-                      <button onClick={() => {
-                        const notes = prompt("Please provide comments for marking this filing as Done:");
-                        if (notes !== null) {
-                          markFiled.mutate({ id: f.id, notes: notes });
-                        }
-                      }} className="text-xs text-green-600 hover:underline font-medium">Mark as Done</button>
-                      <button onClick={() => {
-                        const notes = prompt("Please provide comments for cancelling this filing:");
-                        if (notes !== null) {
-                          updateFiling.mutate({ id: f.id, status: "cancelled", notes: notes });
-                        }
-                      }} className="text-xs text-red-600 hover:underline font-medium">Cancel</button>
-                    </PermissionGate>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>{["Form", "Title", "Authority", "Category", "FY", "Due Date", "Status", "SRN", "Actions"].map(h => (
+                <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No filings found</td></tr>}
+              {filtered.map((f: { id: string; formNumber: string; title: string; authority: string; category?: string; fy?: string | null; dueDate?: string | Date | null; status?: string; srn?: string | null }) => (
+                <tr key={f.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
+                  <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
+                  <td className="px-3 py-3 text-xs">{f.authority}</td>
+                  <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_", " ")}</td>
+                  <td className="px-3 py-3 text-xs">{f.fy ?? "—"}</td>
+                  <td className="px-3 py-3 text-xs">{f.dueDate ? new Date(f.dueDate).toLocaleDateString() : "—"}</td>
+                  <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(f.status ?? "—").replace("_", " ")}</span></td>
+                  <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{f.srn ?? "—"}</td>
+                  <td className="px-3 py-3 space-x-2 whitespace-nowrap">
+                    {f.status !== "filed" && f.status !== "cancelled" && (
+                      <PermissionGate module="secretarial" action="write">
+                        <button onClick={() => {
+                          setForm({ formNumber: f.formNumber, title: f.title, authority: f.authority, category: f.category || "annual_return", dueDate: f.dueDate ? (new Date(f.dueDate).toISOString().split('T')[0] ?? "") : "", fy: f.fy || "", fees: "", notes: "" });
+                          setEditingFiling(f.id);
+                          setShowCreate(true);
+                        }} className="text-xs text-blue-600 hover:underline font-medium">Edit</button>
+                        <button onClick={() => {
+                          const notes = prompt("Please provide comments for marking this filing as Done:");
+                          if (notes !== null) {
+                            markFiled.mutate({ id: f.id, notes: notes });
+                          }
+                        }} className="text-xs text-green-600 hover:underline font-medium">Mark as Done</button>
+                        <button onClick={() => {
+                          const notes = prompt("Please provide comments for cancelling this filing:");
+                          if (notes !== null) {
+                            updateFiling.mutate({ id: f.id, status: "cancelled", notes: notes });
+                          }
+                        }} className="text-xs text-red-600 hover:underline font-medium">Cancel</button>
+                      </PermissionGate>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showCreate && (
@@ -924,51 +932,53 @@ function ShareCapitalTab() {
             </button>
           </PermissionGate>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>{["Folio", "Holder Name", "Type", "Class", "Nominal Value", "Quantity", "Paid Up", "PAN", "Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody>
-            {shares.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
-            {shares.map((s: { id: string; folio: string; holderName: string; holderType: string; shareClass?: string; nominalValue: number; quantity?: number; paidUpValue?: number | null; pan?: string | null; address?: string | null }) => (
-              <tr key={s.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
-                <td className="px-4 py-3 font-medium">{s.holderName}</td>
-                <td className="px-4 py-3 text-xs capitalize">{s.holderType}</td>
-                <td className="px-4 py-3 text-xs capitalize">{s.shareClass?.replace("_", " ")}</td>
-                <td className="px-4 py-3 text-xs">₹{s.nominalValue}</td>
-                <td className="px-4 py-3 font-medium">{s.quantity?.toLocaleString()}</td>
-                <td className="px-4 py-3 text-xs">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
-                <td className="px-4 py-3 font-mono text-xs">{s.pan ?? "—"}</td>
-                <td className="px-4 py-3 space-x-2 whitespace-nowrap">
-                  <PermissionGate module="secretarial" action="write">
-                    <button onClick={() => {
-                      setForm({
-                        holderName: s.holderName,
-                        holderType: s.holderType,
-                        shareClass: (s.shareClass as any) ?? "equity",
-                        nominalValue: s.nominalValue,
-                        quantity: s.quantity ?? 1,
-                        pan: s.pan ?? "",
-                        address: s.address ?? ""
-                      });
-                      setEditingShareholder(s.id);
-                      setShowAdd(true);
-                    }} className="text-xs text-blue-600 hover:underline">Edit</button>
-                    <span className="text-muted-foreground/30">|</span>
-                    <button onClick={() => {
-                      if (confirm("Are you sure you want to remove this shareholder?")) {
-                        deleteShare.mutate({ id: s.id });
-                      }
-                    }} className="text-xs text-red-600 hover:underline">Delete</button>
-                  </PermissionGate>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>{["Folio", "Holder Name", "Type", "Class", "Nominal Value", "Quantity", "Paid Up", "PAN", "Actions"].map(h => (
+                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {shares.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
+              {shares.map((s: { id: string; folio: string; holderName: string; holderType: string; shareClass?: string; nominalValue: number; quantity?: number; paidUpValue?: number | null; pan?: string | null; address?: string | null }) => (
+                <tr key={s.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
+                  <td className="px-4 py-3 font-medium">{s.holderName}</td>
+                  <td className="px-4 py-3 text-xs capitalize">{s.holderType}</td>
+                  <td className="px-4 py-3 text-xs capitalize">{s.shareClass?.replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-xs">₹{s.nominalValue}</td>
+                  <td className="px-4 py-3 font-medium">{s.quantity?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{s.pan ?? "—"}</td>
+                  <td className="px-4 py-3 space-x-2 whitespace-nowrap">
+                    <PermissionGate module="secretarial" action="write">
+                      <button onClick={() => {
+                        setForm({
+                          holderName: s.holderName,
+                          holderType: s.holderType,
+                          shareClass: (s.shareClass as any) ?? "equity",
+                          nominalValue: s.nominalValue,
+                          quantity: s.quantity ?? 1,
+                          pan: s.pan ?? "",
+                          address: s.address ?? ""
+                        });
+                        setEditingShareholder(s.id);
+                        setShowAdd(true);
+                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <span className="text-muted-foreground/30">|</span>
+                      <button onClick={() => {
+                        if (confirm("Are you sure you want to remove this shareholder?")) {
+                          deleteShare.mutate({ id: s.id });
+                        }
+                      }} className="text-xs text-red-600 hover:underline">Delete</button>
+                    </PermissionGate>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showAdd && (
@@ -1107,55 +1117,57 @@ function EsopTab() {
             </button>
           </PermissionGate>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>{["Grant #", "Employee", "Options", "Exercise Price", "Grant Date", "Vesting Start", "Vesting End", "Event", "Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody>
-            {grants.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
-            {grants.map((g: { id: string; grantNumber: string; employeeName: string; options: number; exercisePrice: number; grantDate: string | Date; vestingStart?: string | Date | null; vestingEnd?: string | Date | null; event: string; notes?: string | null }) => (
-              <tr key={g.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
-                <td className="px-4 py-3 font-medium">{g.employeeName}</td>
-                <td className="px-4 py-3 font-semibold">{g.options.toLocaleString()}</td>
-                <td className="px-4 py-3 text-xs">₹{(g.exercisePrice / 100).toLocaleString()}</td>
-                <td className="px-4 py-3 text-xs">{new Date(g.grantDate).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-xs">{g.vestingStart ? new Date(g.vestingStart).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3 text-xs">{g.vestingEnd ? new Date(g.vestingEnd).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3 text-xs capitalize font-medium text-indigo-600">{g.event}</td>
-                <td className="px-4 py-3 space-x-2 whitespace-nowrap">
-                  <PermissionGate module="secretarial" action="write">
-                    <button onClick={() => {
-                      setForm({
-                        employeeName: g.employeeName,
-                        options: g.options,
-                        exercisePrice: g.exercisePrice,
-                        grantDate: new Date(g.grantDate).toISOString().split('T')[0] ?? "",
-                        vestingStart: g.vestingStart ? (new Date(g.vestingStart).toISOString().split('T')[0] ?? "") : "",
-                        vestingEnd: g.vestingEnd ? (new Date(g.vestingEnd).toISOString().split('T')[0] ?? "") : "",
-                        notes: g.notes ?? ""
-                      });
-                      setEditingGrant(g.id);
-                      setShowGrant(true);
-                    }} className="text-xs text-blue-600 hover:underline">Edit</button>
-                    {isFutureDate(g.grantDate) && (
-                      <>
-                        <span className="text-muted-foreground/30">|</span>
-                        <button onClick={() => {
-                          if (confirm("Are you sure you want to delete this ESOP grant?")) {
-                            deleteEsop.mutate({ id: g.id });
-                          }
-                        }} className="text-xs text-red-600 hover:underline">Delete</button>
-                      </>
-                    )}
-                  </PermissionGate>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>{["Grant #", "Employee", "Options", "Exercise Price", "Grant Date", "Vesting Start", "Vesting End", "Event", "Actions"].map(h => (
+                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {grants.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
+              {grants.map((g: { id: string; grantNumber: string; employeeName: string; options: number; exercisePrice: number; grantDate: string | Date; vestingStart?: string | Date | null; vestingEnd?: string | Date | null; event: string; notes?: string | null }) => (
+                <tr key={g.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
+                  <td className="px-4 py-3 font-medium">{g.employeeName}</td>
+                  <td className="px-4 py-3 font-semibold">{g.options.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs">₹{(g.exercisePrice / 100).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs">{new Date(g.grantDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-xs">{g.vestingStart ? new Date(g.vestingStart).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-xs">{g.vestingEnd ? new Date(g.vestingEnd).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-xs capitalize font-medium text-indigo-600">{g.event}</td>
+                  <td className="px-4 py-3 space-x-2 whitespace-nowrap">
+                    <PermissionGate module="secretarial" action="write">
+                      <button onClick={() => {
+                        setForm({
+                          employeeName: g.employeeName,
+                          options: g.options,
+                          exercisePrice: g.exercisePrice,
+                          grantDate: new Date(g.grantDate).toISOString().split('T')[0] ?? "",
+                          vestingStart: g.vestingStart ? (new Date(g.vestingStart).toISOString().split('T')[0] ?? "") : "",
+                          vestingEnd: g.vestingEnd ? (new Date(g.vestingEnd).toISOString().split('T')[0] ?? "") : "",
+                          notes: g.notes ?? ""
+                        });
+                        setEditingGrant(g.id);
+                        setShowGrant(true);
+                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      {isFutureDate(g.grantDate) && (
+                        <>
+                          <span className="text-muted-foreground/30">|</span>
+                          <button onClick={() => {
+                            if (confirm("Are you sure you want to delete this ESOP grant?")) {
+                              deleteEsop.mutate({ id: g.id });
+                            }
+                          }} className="text-xs text-red-600 hover:underline">Delete</button>
+                        </>
+                      )}
+                    </PermissionGate>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showGrant && (
@@ -1214,7 +1226,7 @@ function CalendarTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="grid grid-cols-3 gap-4 flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
             <p className="text-2xl font-bold text-red-700">{allEvents.filter((f: { status: string }) => f.status === "overdue").length}</p>
             <p className="text-xs text-red-600">Overdue</p>

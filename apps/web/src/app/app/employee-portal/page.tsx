@@ -167,7 +167,7 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
             </div>
 
             {/* YTD row */}
-            <div className="grid grid-cols-4 gap-4 mt-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
               {[
                 { label: "YTD gross", value: payslip.ytdGross },
                 { label: "YTD PF", value: payslip.ytdPF },
@@ -300,7 +300,7 @@ export default function EmployeePayslipsPage() {
       </div>
 
       {/* FY Summary Cards */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "Total earnings", value: fySummary.totalGross, color: "" },
           { label: "Total TDS", value: fySummary.totalTDS, color: "text-amber-600" },

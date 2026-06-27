@@ -203,7 +203,7 @@ export default function PartsInventoryPage() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Total SKUs",      value: rawItems.length,           color: "text-foreground" },
           { label: "Low Stock Items", value: lowStockCount,             color: lowStockCount > 0 ? "text-red-600" : "text-green-600" },
@@ -248,77 +248,79 @@ export default function PartsInventoryPage() {
             <span className="text-xs">Loading inventory…</span>
           </div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="bg-muted/30 border-b border-border">
-              <tr>
-                {["Part #", "Description", "Category", "Qty / Min", "Location", "Actions"].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {items.map((p) => {
-                const lowStock = p.qty <= p.minQty;
-                return (
-                  <tr key={p.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">{p.partNumber}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5">
-                        {lowStock && <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />}
-                        <span className="font-medium text-foreground/90">{p.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", CATEGORY_COLORS[p.category] ?? "bg-muted text-muted-foreground")}>
-                        {p.category}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        <span className={cn("font-semibold tabular-nums", lowStock ? "text-red-600" : "text-foreground")}>{p.qty}</span>
-                        <span className="text-muted-foreground">/ {p.minQty} {p.unit}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground font-mono text-[11px]">
-                      {p.location && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 border-b border-border">
+                <tr>
+                  {["Part #", "Description", "Category", "Qty / Min", "Location", "Actions"].map((h) => (
+                    <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {items.map((p) => {
+                  const lowStock = p.qty <= p.minQty;
+                  return (
+                    <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">{p.partNumber}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          {lowStock && <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />}
+                          <span className="font-medium text-foreground/90">{p.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", CATEGORY_COLORS[p.category] ?? "bg-muted text-muted-foreground")}>
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {p.location}
+                          <span className={cn("font-semibold tabular-nums", lowStock ? "text-red-600" : "text-foreground")}>{p.qty}</span>
+                          <span className="text-muted-foreground">/ {p.minQty} {p.unit}</span>
                         </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {canWrite && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => openModal("issue", p)}
-                            className="rounded border border-border px-2 py-0.5 text-[10px] hover:bg-accent transition"
-                          >Issue</button>
-                          <button
-                            onClick={() => openModal("reorder", p)}
-                            className="rounded border border-border px-2 py-0.5 text-[10px] hover:bg-accent transition"
-                          >Reorder</button>
-                          <button
-                            onClick={() => openModal("intake", p)}
-                            className="rounded border border-border px-2 py-0.5 text-[10px] hover:bg-accent transition"
-                          >Intake</button>
-                        </div>
-                      )}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground font-mono text-[11px]">
+                        {p.location && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {p.location}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {canWrite && (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => openModal("issue", p)}
+                              className="rounded border border-border px-2 py-0.5 text-[10px] hover:bg-accent transition"
+                            >Issue</button>
+                            <button
+                              onClick={() => openModal("reorder", p)}
+                              className="rounded border border-border px-2 py-0.5 text-[10px] hover:bg-accent transition"
+                            >Reorder</button>
+                            <button
+                              onClick={() => openModal("intake", p)}
+                              className="rounded border border-border px-2 py-0.5 text-[10px] hover:bg-accent transition"
+                            >Intake</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">
+                      {inventoryQuery.data && rawItems.length === 0
+                        ? <span>No inventory items yet. <button onClick={() => openModal("create")} className="text-primary underline">Add your first item</button></span>
+                        : search ? "No parts match your search." : "No items match the current filter."}
                     </td>
                   </tr>
-                );
-              })}
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">
-                    {inventoryQuery.data && rawItems.length === 0
-                      ? <span>No inventory items yet. <button onClick={() => openModal("create")} className="text-primary underline">Add your first item</button></span>
-                      : search ? "No parts match your search." : "No items match the current filter."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

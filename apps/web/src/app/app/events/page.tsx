@@ -173,7 +173,7 @@ export default function EventManagementPage() {
           {nodeHealthMap.size === 0 ? (
             <p className="text-center text-[11px] text-muted-foreground/50 py-4">No active events — all systems appear healthy</p>
           ) : (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               {Array.from(nodeHealthMap.entries()).map(([node, health]) => (
                 <div key={node} className={`flex items-center gap-2 px-2 py-1.5 rounded border text-[11px]
                   ${health === "critical" ? "border-red-200 bg-red-50/40" : health === "degraded" ? "border-orange-200 bg-orange-50/40" : health === "warning" ? "border-yellow-200 bg-yellow-50/30" : "border-green-200 bg-green-50/30"}`}>
@@ -188,7 +188,7 @@ export default function EventManagementPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         {[
           { label: "Critical Alerts",   value: critCount,    color: "text-red-700",    border: "border-red-200" },
           { label: "Active Events",     value: openCount,    color: "text-orange-700", border: "border-orange-200" },

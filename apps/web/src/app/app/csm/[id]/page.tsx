@@ -129,7 +129,7 @@ export default function CSMCaseDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-0 divide-x divide-border">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-border">
           {[
             { label: "Account", value: c.accountId ? `Account …${c.accountId.slice(-6)}` : "—", icon: Users },
             { label: "Contact", value: c.contactId ? `Contact …${c.contactId.slice(-6)}` : "—", icon: Mail },

@@ -128,13 +128,13 @@ export default function ApprovalsPage() {
   return (
     <div className="flex flex-col gap-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <CheckSquare className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-sm font-semibold text-foreground">Approval Queue</h1>
-          <span className="text-[11px] text-muted-foreground/70">Pending decisions across all modules</span>
+          <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">Pending decisions across all modules</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto">
           <button
             onClick={() => setActiveTab("pending")}
             className={`px-3 py-1 text-[11px] rounded border transition-colors ${activeTab === "pending" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
@@ -157,7 +157,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {[
           { label: "Pending Approval",  value: pendingFiltered.length,  color: "text-blue-700" },
           { label: "Urgent / Due Today", value: urgentCount,    color: "text-red-700" },
@@ -212,9 +212,9 @@ export default function ApprovalsPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span className={`status-badge ${typeCfg.color}`}>{typeCfg.label}</span>
                           <span className={`status-badge ${priCfg.badge}`}>{priCfg.label}</span>
                           <span className="text-[11px] font-mono text-muted-foreground/70">{appr.requestNumber ?? appr.number ?? ""}</span>
@@ -226,12 +226,12 @@ export default function ApprovalsPage() {
                         <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed">{appr.description}</p>
                       </div>
 
-                      <div className="flex-shrink-0 text-right min-w-28">
-                        <div className="flex items-center gap-1 justify-end text-[11px] text-muted-foreground mb-0.5">
+                      <div className="flex-shrink-0 text-left sm:text-right sm:min-w-28">
+                        <div className="flex items-center gap-1 justify-start sm:justify-end text-[11px] text-muted-foreground mb-0.5">
                           <User className="w-3 h-3" />
                           {appr.requestedBy ?? appr.requestedByName ?? ""}
                         </div>
-                        <div className="flex items-center gap-1 justify-end text-[11px] text-muted-foreground/70 mb-0.5">
+                        <div className="flex items-center gap-1 justify-start sm:justify-end text-[11px] text-muted-foreground/70 mb-0.5">
                           <Clock className="w-3 h-3" />
                           {appr.requestedOn ?? appr.createdAt ?? ""}
                         </div>
@@ -242,7 +242,7 @@ export default function ApprovalsPage() {
                     </div>
 
                     {!isDecided ? (
-                      <div className="flex items-center gap-2 mt-3">
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
                         {canApprove && (
                           <button
                             onClick={() => handleApprove(appr.id)}

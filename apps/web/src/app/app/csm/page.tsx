@@ -122,7 +122,7 @@ export default function CSMPage() {
       {showNewCase && (
         <div className="bg-card border border-primary/30 rounded p-4">
           <h3 className="text-[12px] font-semibold text-foreground mb-3">New Customer Case</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Case Title *</label>
               <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Issue summary" value={caseForm.title} onChange={(e) => setCaseForm((f) => ({ ...f, title: e.target.value }))} />
@@ -174,7 +174,7 @@ export default function CSMPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Open Cases",        value: openCases,      color: "text-blue-700" },
           { label: "Critical Cases",    value: criticalCases,  color: "text-red-700" },
@@ -415,7 +415,7 @@ export default function CSMPage() {
         )}
 
         {tab === "sla" && (
-          <div className="p-4 grid grid-cols-3 gap-4">
+          <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: "First Response SLA", enterprise: "1 hr", professional: "4 hrs", starter: "24 hrs", entMet: 94, proMet: 98, starMet: 100 },
               { label: "Resolution SLA",     enterprise: "4 hrs (P1)", professional: "24 hrs", starter: "72 hrs", entMet: 78, proMet: 91, starMet: 100 },

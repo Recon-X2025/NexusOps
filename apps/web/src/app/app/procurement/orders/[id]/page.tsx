@@ -143,34 +143,36 @@ export default function PurchaseOrderDetailPage() {
 
                   {activeTab === "items" && (
                     <div className="bg-card border border-border rounded-xl overflow-hidden animate-in fade-in slide-in-from-left-4 duration-300">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-muted/30 border-b border-border">
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Qty</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Unit Price</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {(po.items ?? []).map((item: any, i: number) => (
-                            <tr key={i} className="hover:bg-muted/10 transition-colors">
-                              <td className="px-4 py-3 text-sm font-medium text-foreground">{item.description}</td>
-                              <td className="px-4 py-3 text-sm text-right font-mono">{item.quantity}</td>
-                              <td className="px-4 py-3 text-sm text-right font-mono">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
-                              <td className="px-4 py-3 text-sm text-right font-bold font-mono">₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-muted/30 border-b border-border">
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Qty</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Unit Price</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Total</th>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-muted/10 font-bold border-t border-border">
-                            <td colSpan={3} className="px-4 py-4 text-sm text-right uppercase tracking-widest">Grand Total</td>
-                            <td className="px-4 py-4 text-lg text-right font-mono text-primary">
-                              ₹{Number(po.totalAmount).toLocaleString("en-IN")}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {(po.items ?? []).map((item: any, i: number) => (
+                              <tr key={i} className="hover:bg-muted/10 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium text-foreground">{item.description}</td>
+                                <td className="px-4 py-3 text-sm text-right font-mono">{item.quantity}</td>
+                                <td className="px-4 py-3 text-sm text-right font-mono">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
+                                <td className="px-4 py-3 text-sm text-right font-bold font-mono">₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-muted/10 font-bold border-t border-border">
+                              <td colSpan={3} className="px-4 py-4 text-sm text-right uppercase tracking-widest">Grand Total</td>
+                              <td className="px-4 py-4 text-lg text-right font-mono text-primary">
+                                ₹{Number(po.totalAmount).toLocaleString("en-IN")}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
                     </div>
                   )}
 

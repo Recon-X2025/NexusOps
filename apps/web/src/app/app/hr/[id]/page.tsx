@@ -130,48 +130,50 @@ export default function HRCaseDetailPage() {
                         tasks.length === 0 ? (
                           <div className="p-12 text-center text-sm text-muted-foreground/60 italic">No tasks for this case yet.</div>
                         ) : (
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className="bg-muted/50 border-b border-border">
-                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Task</th>
-                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</th>
-                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {tasks.map((t: any) => (
-                                <tr key={t.id} className={cn("hover:bg-muted/30 transition-colors", t.status === "done" && "opacity-60")}>
-                                  <td className="px-4 py-3 text-sm font-medium text-foreground">{t.title}</td>
-                                  <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">
-                                    {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : "—"}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                                      t.status === "done" ? "text-green-700 bg-green-100" :
-                                      t.status === "in_progress" ? "text-blue-700 bg-blue-100" :
-                                      "text-muted-foreground bg-muted"
-                                    )}>
-                                      {t.status.replace("_", " ")}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    {t.status !== "done" && (
-                                      <PermissionGate module="hr" action="write">
-                                        <button
-                                          onClick={() => completeTask.mutate({ taskId: t.id })}
-                                          disabled={completeTask.isPending}
-                                          className="text-[11px] font-bold text-primary hover:underline disabled:opacity-50"
-                                        >
-                                          Complete
-                                        </button>
-                                      </PermissionGate>
-                                    )}
-                                  </td>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-muted/50 border-b border-border">
+                                  <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Task</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Actions</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {tasks.map((t: any) => (
+                                  <tr key={t.id} className={cn("hover:bg-muted/30 transition-colors", t.status === "done" && "opacity-60")}>
+                                    <td className="px-4 py-3 text-sm font-medium text-foreground">{t.title}</td>
+                                    <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">
+                                      {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : "—"}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                        t.status === "done" ? "text-green-700 bg-green-100" :
+                                        t.status === "in_progress" ? "text-blue-700 bg-blue-100" :
+                                        "text-muted-foreground bg-muted"
+                                      )}>
+                                        {t.status.replace("_", " ")}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      {t.status !== "done" && (
+                                        <PermissionGate module="hr" action="write">
+                                          <button
+                                            onClick={() => completeTask.mutate({ taskId: t.id })}
+                                            disabled={completeTask.isPending}
+                                            className="text-[11px] font-bold text-primary hover:underline disabled:opacity-50"
+                                          >
+                                            Complete
+                                          </button>
+                                        </PermissionGate>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         )
                       )}
 

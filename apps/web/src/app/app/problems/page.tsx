@@ -117,7 +117,7 @@ export default function ProblemsPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Open Problems",  value: openProblems.length, color: "text-blue-700" },
           { label: "Known Errors",   value: knownErrors.length,  color: "text-red-700" },

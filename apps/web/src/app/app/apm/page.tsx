@@ -255,7 +255,7 @@ export default function APMPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         {[
           { label: "Applications",       value: summaryQuery.data?.total ?? APPS.length,                 color: "text-foreground" },
           { label: "Annual License Cost",value: `₹${((summaryQuery.data?.totalAnnualCost ?? totalAnnualCost)/1000000).toFixed(2)}M`, color: "text-foreground/80" },
@@ -325,7 +325,7 @@ export default function APMPage() {
                     </div>
                     {isExpanded && (
                       <div className="px-6 pb-4 bg-muted/30/50 border-t border-dashed border-slate-200">
-                        <div className="grid grid-cols-3 gap-4 mt-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
                           <div>
                             <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase mb-2">Technical Details</p>
                             <div className="space-y-1 text-[11px]">
@@ -366,7 +366,7 @@ export default function APMPage() {
         {/* LIFECYCLE */}
         {tab === "lifecycle" && (
           <div className="p-4">
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
               {(Object.entries(LIFECYCLE_CFG) as [LifecycleStatus, typeof LIFECYCLE_CFG[LifecycleStatus]][]).map(([status, cfg]) => {
                 const count = APPS.filter(a => a.lifecycle === status).length;
                 const cost = APPS.filter(a => a.lifecycle === status).reduce((s,a)=>s+(a.annualCost ?? 0),0);
@@ -418,7 +418,7 @@ export default function APMPage() {
         {/* TECH DEBT */}
         {tab === "techdebt" && (
           <div className="p-4 space-y-4">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               {(["critical","high","medium","low"] as TechDebtLevel[]).map(level => {
                 const count = APPS.filter(a => a.techDebt === level).length;
                 const cost = APPS.filter(a => a.techDebt === level).reduce((s,a)=>s+(a.annualCost ?? 0),0);
@@ -466,7 +466,7 @@ export default function APMPage() {
         {/* CLOUD READINESS */}
         {tab === "cloud" && (
           <div className="p-4">
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
               {Object.entries(CLOUD_CFG).map(([key, cfg]) => {
                 const count = APPS.filter(a => a.cloudReadiness === key).length;
                 return count > 0 ? (

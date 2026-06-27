@@ -379,7 +379,7 @@ export default function VirtualAgentPage() {
       ) : (
         <div className="bg-card border border-border rounded overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: "Total Conversations (30d)", value: totalVolume, color: "text-foreground/80" },
                 { label: "Tickets Deflected",        value: totalDeflected, color: "text-green-700" },

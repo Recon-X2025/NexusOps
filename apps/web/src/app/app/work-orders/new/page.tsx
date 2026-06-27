@@ -105,7 +105,7 @@ export default function NewWorkOrderPage() {
         {/* Priority */}
         <div className="bg-card border border-border rounded p-4 flex flex-col gap-2">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Priority</h2>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             {PRIORITIES.map((p) => (
               <button key={p.value} type="button" onClick={() => set("priority", p.value)}
                 className={cn("rounded border px-2 py-2 text-[11px] font-semibold transition text-center", form.priority === p.value ? p.color : "border-border hover:bg-accent text-muted-foreground")}>

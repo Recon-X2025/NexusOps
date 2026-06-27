@@ -142,7 +142,7 @@ export default function EscalationQueuePage() {
       </div>
 
       {/* KPI tabs */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         {[
           {
             key: "breached" as const,

@@ -139,7 +139,7 @@ export default function ChangeDetailPage() {
         </PermissionGate>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Left: description + activity */}
         <div className="col-span-2 flex flex-col gap-3">
           <div className="bg-card border border-border rounded p-4">

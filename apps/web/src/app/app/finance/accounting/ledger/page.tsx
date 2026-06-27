@@ -121,60 +121,62 @@ export default function LedgerPage() {
 
                     {/* Ledger Table */}
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-muted/50 border-b border-border">
-                                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Date</th>
-                                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Reference</th>
-                                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Description</th>
-                                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Debit</th>
-                                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Credit</th>
-                                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                                {qLedger.isLoading ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center">
-                                            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                                                <RefreshCcw className="w-4 h-4 animate-spin" />
-                                                Loading ledger...
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : qLedger.data?.lines.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                                            No transactions found for this account in the selected period.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    qLedger.data?.lines.map((line: any, index: number) => (
-                                        <tr key={line.id} className="hover:bg-muted/30 transition-colors group">
-                                            <td className="px-4 py-3 text-sm text-muted-foreground">
-                                                {new Date(line.je.date).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-4 py-3 font-mono text-xs font-bold text-primary">
-                                                {line.je.number}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <p className="text-sm font-medium text-foreground">{line.line.description}</p>
-                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{line.je.subject}</p>
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
-                                                {Number(line.line.debit) > 0 ? `₹${Number(line.line.debit).toLocaleString()}` : "—"}
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
-                                                {Number(line.line.credit) > 0 ? `₹${Number(line.line.credit).toLocaleString()}` : "—"}
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-mono text-sm font-bold">
-                                                ₹{Number(line.runningBalance).toLocaleString()}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                              <thead>
+                                  <tr className="bg-muted/50 border-b border-border">
+                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Date</th>
+                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Reference</th>
+                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Description</th>
+                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Debit</th>
+                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Credit</th>
+                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                  {qLedger.isLoading ? (
+                                      <tr>
+                                          <td colSpan={6} className="px-4 py-12 text-center">
+                                              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                                                  <RefreshCcw className="w-4 h-4 animate-spin" />
+                                                  Loading ledger...
+                                              </div>
+                                          </td>
+                                      </tr>
+                                  ) : qLedger.data?.lines.length === 0 ? (
+                                      <tr>
+                                          <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                                              No transactions found for this account in the selected period.
+                                          </td>
+                                      </tr>
+                                  ) : (
+                                      qLedger.data?.lines.map((line: any, index: number) => (
+                                          <tr key={line.id} className="hover:bg-muted/30 transition-colors group">
+                                              <td className="px-4 py-3 text-sm text-muted-foreground">
+                                                  {new Date(line.je.date).toLocaleDateString()}
+                                              </td>
+                                              <td className="px-4 py-3 font-mono text-xs font-bold text-primary">
+                                                  {line.je.number}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                  <p className="text-sm font-medium text-foreground">{line.line.description}</p>
+                                                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{line.je.subject}</p>
+                                              </td>
+                                              <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
+                                                  {Number(line.line.debit) > 0 ? `₹${Number(line.line.debit).toLocaleString()}` : "—"}
+                                              </td>
+                                              <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
+                                                  {Number(line.line.credit) > 0 ? `₹${Number(line.line.credit).toLocaleString()}` : "—"}
+                                              </td>
+                                              <td className="px-4 py-3 text-right font-mono text-sm font-bold">
+                                                  ₹{Number(line.runningBalance).toLocaleString()}
+                                              </td>
+                                          </tr>
+                                      ))
+                                  )}
+                              </tbody>
+                          </table>
+                        </div>
                     </div>
                 </div>
             )}

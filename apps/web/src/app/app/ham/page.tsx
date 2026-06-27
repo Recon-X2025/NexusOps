@@ -117,7 +117,7 @@ export default function HAMPage() {
       {showAddAsset && (
         <div className="bg-card border border-primary/30 rounded p-4">
           <h3 className="text-[12px] font-semibold text-foreground mb-3">Add New Asset</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Asset Name *</label>
               <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="e.g. Dell Latitude 5540" value={assetForm.name} onChange={(e) => setAssetForm((f) => ({ ...f, name: e.target.value }))} />
@@ -161,7 +161,7 @@ export default function HAMPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Total Assets",         value: assets.length,                                                          color: "text-foreground/80" },
           { label: "Total Purchase Cost",  value: `₹${(totalCost / 1000).toFixed(0)}K`,                                   color: "text-blue-700" },
@@ -287,7 +287,7 @@ export default function HAMPage() {
         )}
 
         {tab === "lifecycle" && (
-          <div className="p-4 grid grid-cols-5 gap-3">
+          <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { stage: "In Stock",          count: assets.filter((a) => a.status === "in_stock").length,   color: "bg-blue-100 text-blue-700",    border: "border-blue-200" },
               { stage: "Deployed",          count: assets.filter((a) => a.status === "in_use").length,     color: "bg-green-100 text-green-700",  border: "border-green-200" },

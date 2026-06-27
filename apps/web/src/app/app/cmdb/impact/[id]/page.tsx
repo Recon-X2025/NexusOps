@@ -311,7 +311,7 @@ export default function ImpactAnalysisPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         {[
           { label: "Direct Dependencies",  value: upstream.length,   icon: ArrowUp,   color: "text-blue-600" },
           { label: "Direct Dependents",    value: downstream.length, icon: ArrowDown, color: "text-orange-600" },

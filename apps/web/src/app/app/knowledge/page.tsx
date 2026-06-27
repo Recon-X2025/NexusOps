@@ -113,7 +113,7 @@ export default function KnowledgePage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Published Articles", value: publishedCount,                  color: "text-blue-700" },
           { label: "Total Views",        value: totalViews.toLocaleString(),     color: "text-foreground" },

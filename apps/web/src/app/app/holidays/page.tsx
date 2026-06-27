@@ -81,7 +81,7 @@ export default function HolidaysPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {(["national", "state", "restricted", "company"] as const).map(t => {
           const n = holidays.filter(h => h.type === t).length;
           const cfg =
@@ -101,7 +101,7 @@ export default function HolidaysPage() {
       ) : holidays.length === 0 ? (
         <EmptyState icon={CalendarDays} title="No holidays configured" description={`No holidays for ${year} yet. Click "Seed India ${year}" to auto-populate national holidays, or add them manually.`} action={canWrite ? <button onClick={() => seedMut.mutate({ year })} className="px-3 py-1.5 bg-primary text-white text-[12px] rounded hover:bg-primary/90">Seed India {year}</button> : undefined} />
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {MONTHS.map((m, i) => {
             const hs = byMonth[i];
             if (!hs || hs.length === 0) return null;

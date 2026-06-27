@@ -372,62 +372,64 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr>
-              {["#","Job Title","Department","Location","Type","Level","Openings","Status","Target Date","Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {reqs.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">No job requisitions found</td></tr>
-            )}
-            {reqs.map((r: any) => (
-              <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{r.number}</td>
-                <td className="px-4 py-3 font-medium">{r.title}</td>
-                <td className="px-4 py-3 text-muted-foreground">{r.department}</td>
-                <td className="px-4 py-3 text-muted-foreground">{r.location ?? "—"}</td>
-                <td className="px-4 py-3 capitalize">{r.type?.replace("_"," ")}</td>
-                <td className="px-4 py-3 capitalize">{r.level}</td>
-                <td className="px-4 py-3">{r.filled}/{r.openings}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${JOB_STATUS_STYLES[r.status ?? ""] ?? "bg-slate-100"}`}>{(r.status ?? "unknown").replace("_"," ")}</span>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{r.targetDate ? new Date(r.targetDate).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1.5">
-                    <button type="button" onClick={() => onViewPipeline(r.id, r.title)} className="flex items-center gap-1 text-xs text-primary hover:underline font-medium text-left">
-                      Pipeline <ArrowRight className="w-3 h-3" />
-                    </button>
-                    <PermissionGate module="recruitment" action="write">
-                      <div className="flex flex-wrap gap-1">
-                        {r.status === "draft" && (
-                          <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-green-200 bg-green-50 text-green-800 hover:bg-green-100"
-                            onClick={() => updateReq.mutate({ id: r.id, status: "open" })} disabled={updateReq.isPending}>Publish</button>
-                        )}
-                        {r.status === "open" && (
-                          <>
-                            <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                              onClick={() => updateReq.mutate({ id: r.id, status: "on_hold" })} disabled={updateReq.isPending}>Hold</button>
-                            <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted"
-                              onClick={() => updateReq.mutate({ id: r.id, status: "closed" })} disabled={updateReq.isPending}>Close</button>
-                          </>
-                        )}
-                        {r.status === "on_hold" && (
-                          <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-green-200 bg-green-50 text-green-800"
-                            onClick={() => updateReq.mutate({ id: r.id, status: "open" })} disabled={updateReq.isPending}>Resume</button>
-                        )}
-                      </div>
-                    </PermissionGate>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 border-b border-border">
+              <tr>
+                {["#","Job Title","Department","Location","Type","Level","Openings","Status","Target Date","Actions"].map(h => (
+                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {reqs.length === 0 && (
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">No job requisitions found</td></tr>
+              )}
+              {reqs.map((r: any) => (
+                <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{r.number}</td>
+                  <td className="px-4 py-3 font-medium">{r.title}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{r.department}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{r.location ?? "—"}</td>
+                  <td className="px-4 py-3 capitalize">{r.type?.replace("_"," ")}</td>
+                  <td className="px-4 py-3 capitalize">{r.level}</td>
+                  <td className="px-4 py-3">{r.filled}/{r.openings}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${JOB_STATUS_STYLES[r.status ?? ""] ?? "bg-slate-100"}`}>{(r.status ?? "unknown").replace("_"," ")}</span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{r.targetDate ? new Date(r.targetDate).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1.5">
+                      <button type="button" onClick={() => onViewPipeline(r.id, r.title)} className="flex items-center gap-1 text-xs text-primary hover:underline font-medium text-left">
+                        Pipeline <ArrowRight className="w-3 h-3" />
+                      </button>
+                      <PermissionGate module="recruitment" action="write">
+                        <div className="flex flex-wrap gap-1">
+                          {r.status === "draft" && (
+                            <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-green-200 bg-green-50 text-green-800 hover:bg-green-100"
+                              onClick={() => updateReq.mutate({ id: r.id, status: "open" })} disabled={updateReq.isPending}>Publish</button>
+                          )}
+                          {r.status === "open" && (
+                            <>
+                              <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                                onClick={() => updateReq.mutate({ id: r.id, status: "on_hold" })} disabled={updateReq.isPending}>Hold</button>
+                              <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-border hover:bg-muted"
+                                onClick={() => updateReq.mutate({ id: r.id, status: "closed" })} disabled={updateReq.isPending}>Close</button>
+                            </>
+                          )}
+                          {r.status === "on_hold" && (
+                            <button type="button" className="text-[10px] px-1.5 py-0.5 rounded border border-green-200 bg-green-50 text-green-800"
+                              onClick={() => updateReq.mutate({ id: r.id, status: "open" })} disabled={updateReq.isPending}>Resume</button>
+                          )}
+                        </div>
+                      </PermissionGate>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showNew && <NewReqModal onClose={() => setShowNew(false)} onCreated={() => refetch()} />}
@@ -512,36 +514,38 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
         </div>
       </div>
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr>
-              {["Name","Current Role","Experience","Location","Source","Skills","Added"].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {candidates.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No candidates yet</td></tr>}
-            {(candidates as any[]).map((c: any) => (
-              <tr key={c.id ?? c.candidate?.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3">
-                  <p className="font-medium">{c.firstName ?? c.candidate?.firstName} {c.lastName ?? c.candidate?.lastName}</p>
-                  <p className="text-xs text-muted-foreground">{c.email ?? c.candidate?.email}</p>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{c.currentTitle ?? c.candidate?.currentTitle ?? "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{(c.experience ?? c.candidate?.experience) != null ? `${c.experience ?? c.candidate?.experience}y` : "—"}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{c.location ?? c.candidate?.location ?? "—"}</td>
-                <td className="px-4 py-3 capitalize text-xs">{c.source ?? c.candidate?.source ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1 flex-wrap">
-                    {(c.skills ?? c.candidate?.skills ?? []).slice(0, 3).map((s: string) => <span key={s} className="text-xs bg-muted px-1.5 py-0.5 rounded">{s}</span>)}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(c.createdAt ?? c.candidate?.createdAt).toLocaleDateString()}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 border-b border-border">
+              <tr>
+                {["Name","Current Role","Experience","Location","Source","Skills","Added"].map(h => (
+                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {candidates.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No candidates yet</td></tr>}
+              {(candidates as any[]).map((c: any) => (
+                <tr key={c.id ?? c.candidate?.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{c.firstName ?? c.candidate?.firstName} {c.lastName ?? c.candidate?.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{c.email ?? c.candidate?.email}</p>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{c.currentTitle ?? c.candidate?.currentTitle ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{(c.experience ?? c.candidate?.experience) != null ? `${c.experience ?? c.candidate?.experience}y` : "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{c.location ?? c.candidate?.location ?? "—"}</td>
+                  <td className="px-4 py-3 capitalize text-xs">{c.source ?? c.candidate?.source ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 flex-wrap">
+                      {(c.skills ?? c.candidate?.skills ?? []).slice(0, 3).map((s: string) => <span key={s} className="text-xs bg-muted px-1.5 py-0.5 rounded">{s}</span>)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(c.createdAt ?? c.candidate?.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -565,33 +569,35 @@ function InterviewsTab() {
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 border-b border-border">
-          <tr>
-            {["Title","Type","Scheduled","Duration","Status","Overall Rating","Decision"].map(h => (
-              <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {interviews.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No interviews scheduled</td></tr>}
-          {interviews.map((iv: any) => (
-            <tr key={iv.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-              <td className="px-4 py-3 font-medium">{iv.title}</td>
-              <td className="px-4 py-3 capitalize text-muted-foreground text-xs">{iv.type?.replace("_"," ")}</td>
-              <td className="px-4 py-3 text-xs">{iv.scheduledAt ? new Date(iv.scheduledAt).toLocaleString() : "—"}</td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">{iv.durationMins}min</td>
-              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusStyle[iv.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(iv.status ?? "—").replace("_", " ")}</span></td>
-              <td className="px-4 py-3">
-                {iv.overallRating ? <div className="flex gap-0.5">{Array.from({length:5},(_,i) => <Star key={i} className={`w-3 h-3 ${i < iv.overallRating ? "text-amber-400 fill-amber-400" : "text-muted-foreground"}`} />)}</div> : <span className="text-xs text-muted-foreground">—</span>}
-              </td>
-              <td className={`px-4 py-3 text-xs font-medium capitalize ${decisionStyle[iv.decision ?? ""] ?? "text-muted-foreground"}`}>
-                {iv.decision?.replace("_"," ") ?? "—"}
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 border-b border-border">
+            <tr>
+              {["Title","Type","Scheduled","Duration","Status","Overall Rating","Decision"].map(h => (
+                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {interviews.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No interviews scheduled</td></tr>}
+            {interviews.map((iv: any) => (
+              <tr key={iv.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                <td className="px-4 py-3 font-medium">{iv.title}</td>
+                <td className="px-4 py-3 capitalize text-muted-foreground text-xs">{iv.type?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-xs">{iv.scheduledAt ? new Date(iv.scheduledAt).toLocaleString() : "—"}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{iv.durationMins}min</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusStyle[iv.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(iv.status ?? "—").replace("_", " ")}</span></td>
+                <td className="px-4 py-3">
+                  {iv.overallRating ? <div className="flex gap-0.5">{Array.from({length:5},(_,i) => <Star key={i} className={`w-3 h-3 ${i < iv.overallRating ? "text-amber-400 fill-amber-400" : "text-muted-foreground"}`} />)}</div> : <span className="text-xs text-muted-foreground">—</span>}
+                </td>
+                <td className={`px-4 py-3 text-xs font-medium capitalize ${decisionStyle[iv.decision ?? ""] ?? "text-muted-foreground"}`}>
+                  {iv.decision?.replace("_"," ") ?? "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -609,56 +615,58 @@ function OffersTab() {
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 border-b border-border">
-          <tr>
-            {["Title","Dept","Salary (Base)","Variable","Currency","Status","Sent","Expiry","Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {offers.length === 0 && <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">No offers yet</td></tr>}
-          {offers.map((o: any) => (
-            <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-              <td className="px-4 py-3 font-medium">{o.title}</td>
-              <td className="px-4 py-3 text-muted-foreground text-xs">{o.department ?? "—"}</td>
-              <td className="px-4 py-3 text-xs">{o.baseSalary ? `₹${o.baseSalary.toLocaleString()}` : "—"}</td>
-              <td className="px-4 py-3 text-xs">{o.variablePay ? `₹${o.variablePay.toLocaleString()}` : "—"}</td>
-              <td className="px-4 py-3 text-xs">{o.currency}</td>
-              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${OFFER_STATUS_STYLES[o.status]}`}>{o.status}</span></td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">{o.sentAt ? new Date(o.sentAt).toLocaleDateString() : "—"}</td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">{o.expiryDate ? new Date(o.expiryDate).toLocaleDateString() : "—"}</td>
-              <td className="px-4 py-3">
-                <div className="flex gap-2 items-center flex-wrap">
-                  {o.status === "draft" && (
-                    <button onClick={() => updateStatus.mutate({ id: o.id, status: "sent" })} className="text-xs text-primary hover:underline font-medium flex items-center gap-1"><Send className="w-3 h-3" /> Send</button>
-                  )}
-                  {o.status === "sent" && (
-                    <>
-                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "accepted" })} className="text-xs text-green-600 hover:underline font-medium">Accept</button>
-                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "declined" })} className="text-xs text-red-600 hover:underline font-medium">Decline</button>
-                    </>
-                  )}
-                  {(o.status === "draft" || o.status === "sent") && (
-                    <button
-                      onClick={() => setEsignOpen({
-                        id: o.id,
-                        title: `Offer Letter — ${o.title}`,
-                        candidateName: o.candidateName ?? o.candidate?.name,
-                        candidateEmail: o.candidateEmail ?? o.candidate?.email,
-                      })}
-                      className="text-xs text-blue-700 hover:underline font-medium"
-                    >
-                      E-sign
-                    </button>
-                  )}
-                </div>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 border-b border-border">
+            <tr>
+              {["Title","Dept","Salary (Base)","Variable","Currency","Status","Sent","Expiry","Actions"].map(h => (
+                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {offers.length === 0 && <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">No offers yet</td></tr>}
+            {offers.map((o: any) => (
+              <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                <td className="px-4 py-3 font-medium">{o.title}</td>
+                <td className="px-4 py-3 text-muted-foreground text-xs">{o.department ?? "—"}</td>
+                <td className="px-4 py-3 text-xs">{o.baseSalary ? `₹${o.baseSalary.toLocaleString()}` : "—"}</td>
+                <td className="px-4 py-3 text-xs">{o.variablePay ? `₹${o.variablePay.toLocaleString()}` : "—"}</td>
+                <td className="px-4 py-3 text-xs">{o.currency}</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${OFFER_STATUS_STYLES[o.status]}`}>{o.status}</span></td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{o.sentAt ? new Date(o.sentAt).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">{o.expiryDate ? new Date(o.expiryDate).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2 items-center flex-wrap">
+                    {o.status === "draft" && (
+                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "sent" })} className="text-xs text-primary hover:underline font-medium flex items-center gap-1"><Send className="w-3 h-3" /> Send</button>
+                    )}
+                    {o.status === "sent" && (
+                      <>
+                        <button onClick={() => updateStatus.mutate({ id: o.id, status: "accepted" })} className="text-xs text-green-600 hover:underline font-medium">Accept</button>
+                        <button onClick={() => updateStatus.mutate({ id: o.id, status: "declined" })} className="text-xs text-red-600 hover:underline font-medium">Decline</button>
+                      </>
+                    )}
+                    {(o.status === "draft" || o.status === "sent") && (
+                      <button
+                        onClick={() => setEsignOpen({
+                          id: o.id,
+                          title: `Offer Letter — ${o.title}`,
+                          candidateName: o.candidateName ?? o.candidate?.name,
+                          candidateEmail: o.candidateEmail ?? o.candidate?.email,
+                        })}
+                        className="text-xs text-blue-700 hover:underline font-medium"
+                      >
+                        E-sign
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {esignOpen && (
         <div

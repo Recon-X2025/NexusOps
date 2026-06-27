@@ -117,7 +117,7 @@ export default function NewChangePage() {
         {/* Change type */}
         <div className="bg-card border border-border rounded p-4 flex flex-col gap-3">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Change Type</h2>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {TYPES.map((t) => (
               <button
                 key={t.value}

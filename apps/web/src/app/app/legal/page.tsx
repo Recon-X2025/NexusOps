@@ -319,7 +319,7 @@ export default function LegalPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
           {[
             { label: "Active Matters", value: activeMatters.length, color: "text-foreground" },
             { label: "Estimated Exposure", value: `₹${(totalExposure / 1000).toFixed(0)}K`, color: "text-red-700" },
@@ -473,7 +473,7 @@ export default function LegalPage() {
                     {isExpanded && (
                       <div className="px-6 pb-4 bg-muted/30/50 border-t border-dashed border-slate-200">
                         <p className="text-[12px] text-foreground/80 mt-3 mb-3">{m.description}</p>
-                        <div className="grid grid-cols-5 gap-3 mb-3">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
                           {[
                             { label: "Tasks", value: m.tasks ? `${m.tasks.done}/${m.tasks.total} done` : "—" },
                             { label: "Practice", value: m.practice ?? "—" },
@@ -874,7 +874,7 @@ export default function LegalPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Request Title *</label>
                 <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. Contract Review — Vendor NDA" value={requestForm.title} onChange={(e) => setRequestForm((f) => ({ ...f, title: e.target.value }))} />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
                   <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={requestForm.type} onChange={(e) => setRequestForm((f) => ({ ...f, type: e.target.value }))}>
@@ -966,7 +966,7 @@ export default function LegalPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Reporter *</label>
                   <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={investigationForm.reporterId} onChange={(e) => setInvestigationForm((f) => ({ ...f, reporterId: e.target.value }))} disabled={investigationForm.anonymousReport}>

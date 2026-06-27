@@ -126,7 +126,7 @@ export default function CMDBPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Total CIs",          value: ciList.length,  color: "text-foreground/80" },
           { label: "CIs Degraded/Down", value: ciList.filter((c: any) => c.status === "degraded" || c.status === "down").length, color: "text-red-700" },

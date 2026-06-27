@@ -93,7 +93,7 @@ export default function SAMPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Annual License Cost",   value: `₹${(totalCost / 1000).toFixed(0)}K`,         color: "text-foreground/80" },
           { label: "Non-Compliant Titles",  value: nonCompliant.length,                           color: "text-red-700" },

@@ -153,7 +153,7 @@ function PerformanceContent() {
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-4 gap-3 px-4 py-3 border-b border-border">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-4 py-3 border-b border-border">
         {[
           { label: "Active Cycles",   value: activeCycles,   color: "text-green-600"  },
           { label: "Active Goals",    value: activeGoals,    color: "text-blue-600"   },

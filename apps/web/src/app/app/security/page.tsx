@@ -118,7 +118,7 @@ export default function SecurityOpsPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Critical Vulns Open",  value: critVulns,    color: "text-red-700",    border: "border-red-200 bg-red-50/30" },
           { label: "Overdue Remediation",  value: overdueVulns, color: "text-orange-700", border: "border-orange-200" },
@@ -381,7 +381,7 @@ export default function SecurityOpsPage() {
 
                 return (
                   <>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                       <div className={`border rounded px-3 py-2 ${avgScore !== null ? (avgScore >= 80 ? "border-green-200 bg-green-50/30" : avgScore >= 60 ? "border-yellow-200 bg-yellow-50/30" : "border-red-200 bg-red-50/30") : "border-border"}`}>
                         <div className={`text-2xl font-black ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/40"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Overall Posture</div>

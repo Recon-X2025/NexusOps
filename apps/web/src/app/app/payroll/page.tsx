@@ -253,7 +253,7 @@ export default function PayrollPage() {
                   </div>
 
                   {/* KPI Cards */}
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
                       { label: "Gross pay", value: `₹${Number(run.totalGross || 0).toLocaleString("en-IN")}` },
                       { label: "Total deductions", value: `₹${Number(run.totalDeductions || 0).toLocaleString("en-IN")}` },
@@ -268,7 +268,7 @@ export default function PayrollPage() {
                   </div>
 
                   {/* Statutory breakdown */}
-                  <div className="grid grid-cols-4 gap-3 mt-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
                     {[
                       { label: "PF", value: `₹${Number(run.totalPF || 0).toLocaleString("en-IN")}` },
                       { label: "ESI", value: `₹${Number(run.totalESI || 0).toLocaleString("en-IN")}` },

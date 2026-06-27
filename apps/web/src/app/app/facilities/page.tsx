@@ -107,7 +107,7 @@ export default function FacilitiesPage() {
         </PermissionGate>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         {[
           { label: "Total Desks",         value: totalDesks, color: "text-foreground/80", loading: buildingsQuery.isLoading },
           { label: "Occupied Desks",      value: totalDesks > 0 ? `${occupiedDesks} (${Math.round(occupiedDesks/totalDesks*100)}%)` : "—", color: "text-blue-700", loading: buildingsQuery.isLoading },

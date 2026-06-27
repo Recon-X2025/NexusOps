@@ -129,7 +129,7 @@ function StepCard({ step, index }: { step: StepRun; index: number }) {
       </div>
 
       {/* Timing */}
-      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
         <div>
           <p className="text-muted-foreground">Started</p>
           <p className="font-medium">{formatTs(step.startedAt)}</p>

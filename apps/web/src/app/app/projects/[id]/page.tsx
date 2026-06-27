@@ -216,7 +216,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* KPIs — task counts only when the task board is enabled. */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {(TASK_BOARD_ENABLED
           ? [
               { label: "Total Tasks",  value: allBoardTasks.length },
@@ -333,7 +333,7 @@ export default function ProjectDetailPage() {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Task Title *</label>
               <input
@@ -438,7 +438,7 @@ export default function ProjectDetailPage() {
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Task Board</span>
           {boardQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
         </div>
-        <div className="p-3 grid grid-cols-4 gap-3">
+        <div className="p-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {BOARD_COLS.map((col) => {
             const colTasks: Task[] = (board[col.key] ?? []) as Task[];
             return (

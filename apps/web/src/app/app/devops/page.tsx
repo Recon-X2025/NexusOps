@@ -281,7 +281,7 @@ export default function DevOpsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         {[
           { label: "Running Pipelines",    value: runningPipelines,      color: "text-blue-700" },
           { label: "Failed Today",         value: failedToday,           color: failedToday > 0 ? "text-red-700" : "text-green-700" },
@@ -623,7 +623,7 @@ export default function DevOpsPage() {
         {/* CHANGE VELOCITY */}
         {tab === "changes" && (
           <div className="p-4 space-y-4">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               {[
                 { label: "Total Deployments (30d)", value: String((doraData as any)?.totalDeploys30d ?? "—"), color: "text-foreground" },
                 { label: "Deployment Frequency",    value: hasDoraDeploys ? `${dora?.deploymentFrequency}/day` : "—", color: "text-green-700" },

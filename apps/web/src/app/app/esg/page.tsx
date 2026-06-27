@@ -75,7 +75,7 @@ function OverviewPillar() {
   const overall = Math.round(scores.reduce((s, p) => s + p.score, 0) / scores.length);
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="col-span-1 bg-card border border-border rounded-xl p-4 flex flex-col items-center justify-center text-center">
           <div className="text-4xl font-black text-primary">{overall}</div>
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-1">ESG Score</div>
@@ -89,7 +89,7 @@ function OverviewPillar() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {[
           { l: "Scope 1+2 GHG", v: "420 tCO₂e", sub: "↓ 8% vs last year", ok: true },
           { l: "Female Employees", v: "34%", sub: "Target: 40%", ok: false },

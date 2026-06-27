@@ -171,56 +171,58 @@ export default function ContractDetailPage() {
                     {obligations.length === 0 ? (
                       <div className="p-12 text-center text-sm text-muted-foreground italic">No obligations recorded for this agreement.</div>
                     ) : (
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-muted/50 border-b border-border">
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Obligation</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Party</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-                            {!isTerminal && can("contracts", "write") && <th className="px-4 py-3 w-10"></th>}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {obligations.map((obl: any) => (
-                            <tr key={obl.id} className={cn("hover:bg-muted/30 transition-colors", obl.status === "completed" && "opacity-60")}>
-                              <td className="px-4 py-3 text-sm text-foreground font-medium">{obl.description}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                                  obl.party === "counterparty" ? "text-blue-700 bg-blue-100" :
-                                  obl.party === "both" ? "text-purple-700 bg-purple-100" :
-                                  "text-green-700 bg-green-100"
-                                )}>
-                                  {obl.party === "counterparty" ? "Them" : obl.party === "both" ? "Both" : "Us"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{obl.dueDate ?? "—"}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
-                                  obl.status === "completed" ? "text-green-700 bg-green-100" :
-                                  obl.status === "overdue" ? "text-red-700 bg-red-100" :
-                                  "text-yellow-700 bg-yellow-100"
-                                )}>
-                                  {obl.status ?? "pending"}
-                                </span>
-                              </td>
-                              {!isTerminal && can("contracts", "write") && (
-                                <td className="px-4 py-3 text-right">
-                                  {obl.status !== "completed" && (
-                                    <button
-                                      onClick={() => completeObligation.mutate({ id: obl.id })}
-                                      disabled={completeObligation.isPending}
-                                      className="text-xs font-bold text-primary hover:underline disabled:opacity-50"
-                                    >
-                                      Done
-                                    </button>
-                                  )}
-                                </td>
-                              )}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-muted/50 border-b border-border">
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Obligation</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Party</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Due Date</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
+                              {!isTerminal && can("contracts", "write") && <th className="px-4 py-3 w-10"></th>}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {obligations.map((obl: any) => (
+                              <tr key={obl.id} className={cn("hover:bg-muted/30 transition-colors", obl.status === "completed" && "opacity-60")}>
+                                <td className="px-4 py-3 text-sm text-foreground font-medium">{obl.description}</td>
+                                <td className="px-4 py-3">
+                                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                    obl.party === "counterparty" ? "text-blue-700 bg-blue-100" :
+                                    obl.party === "both" ? "text-purple-700 bg-purple-100" :
+                                    "text-green-700 bg-green-100"
+                                  )}>
+                                    {obl.party === "counterparty" ? "Them" : obl.party === "both" ? "Both" : "Us"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">{obl.dueDate ?? "—"}</td>
+                                <td className="px-4 py-3">
+                                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                    obl.status === "completed" ? "text-green-700 bg-green-100" :
+                                    obl.status === "overdue" ? "text-red-700 bg-red-100" :
+                                    "text-yellow-700 bg-yellow-100"
+                                  )}>
+                                    {obl.status ?? "pending"}
+                                  </span>
+                                </td>
+                                {!isTerminal && can("contracts", "write") && (
+                                  <td className="px-4 py-3 text-right">
+                                    {obl.status !== "completed" && (
+                                      <button
+                                        onClick={() => completeObligation.mutate({ id: obl.id })}
+                                        disabled={completeObligation.isPending}
+                                        className="text-xs font-bold text-primary hover:underline disabled:opacity-50"
+                                      >
+                                        Done
+                                      </button>
+                                    )}
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
 

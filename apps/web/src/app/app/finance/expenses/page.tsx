@@ -124,15 +124,15 @@ export default function FinanceExpensesQueuePage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Receipt className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-sm font-semibold text-foreground">Expenses &amp; Reimbursements</h1>
-          <span className="text-[11px] text-muted-foreground/70">
+          <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">
             Finance approver queue · Approve · Reimburse
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/app/hr/expenses"
             className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
@@ -171,7 +171,7 @@ export default function FinanceExpensesQueuePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[
           { l: "Pending Approval", v: fmtInr(pendingTotal), c: "text-yellow-700", I: Clock },
           { l: "Approved (Unpaid)", v: fmtInr(approvedTotal), c: "text-green-700", I: CheckCircle2 },
@@ -185,7 +185,7 @@ export default function FinanceExpensesQueuePage() {
         ))}
       </div>
 
-      <div className="flex items-center gap-2 border-b border-border">
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-border">
         {QUEUE_TABS.map((t) => {
           const count = allItems.filter((r) =>
             (t.statuses as readonly string[]).includes((r.claim ?? r).status),

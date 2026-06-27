@@ -421,11 +421,11 @@ export default function HRPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <UserCheck className="w-4 h-4 text-muted-foreground" />
           <h1 className="text-sm font-semibold text-foreground">HR Service Delivery</h1>
-          <span className="text-[11px] text-muted-foreground/70">HR Cases · Onboarding · Offboarding · Lifecycle</span>
+          <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">HR Cases · Onboarding · Offboarding · Lifecycle</span>
         </div>
         {can("hr", "write") && (
           <button
@@ -437,7 +437,7 @@ export default function HRPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {[
           { label: "Open HR Cases",       value: openCases,                                                                                             color: "text-blue-700" },
           { label: "Active Onboardings",  value: hrCases.filter((c) => c.hrCase?.caseType === "onboarding").length,                                        color: "text-green-700" },
@@ -451,7 +451,7 @@ export default function HRPage() {
         ))}
       </div>
 
-      <div className="flex border-b border-border bg-card rounded-t">
+      <div className="flex overflow-x-auto border-b border-border bg-card rounded-t">
         {visibleTabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-colors
@@ -461,7 +461,7 @@ export default function HRPage() {
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-b overflow-hidden">
+      <div className="bg-card border border-border rounded-b overflow-x-auto">
         {tab === "directory" && (
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
@@ -589,7 +589,7 @@ export default function HRPage() {
             {showLeaveForm && (
               <div className="bg-card border border-primary/30 rounded p-4">
                 <h3 className="text-[12px] font-semibold text-foreground mb-3">New Leave Request</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="text-[11px] text-muted-foreground">Leave Type</label>
                     <select
@@ -654,7 +654,7 @@ export default function HRPage() {
               </div>
             )}
 
-            <div className="bg-card border border-border rounded overflow-hidden">
+            <div className="bg-card border border-border rounded overflow-x-auto">
               <table className="ent-table w-full">
                 <thead>
                   <tr>

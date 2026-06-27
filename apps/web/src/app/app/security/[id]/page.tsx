@@ -183,24 +183,26 @@ export default function SecurityIncidentDetailPage() {
                       {containmentActions.length === 0 ? (
                         <div className="p-12 text-center text-muted-foreground">No actions recorded.</div>
                       ) : (
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-muted/30 border-b border-border">
-                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Action</th>
-                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">By</th>
-                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Time</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border">
-                            {containmentActions.map((a, i) => (
-                              <tr key={i} className="hover:bg-muted/10 transition-colors">
-                                <td className="px-4 py-3 text-sm font-medium text-foreground">{a.action}</td>
-                                <td className="px-4 py-3 text-sm text-muted-foreground">{a.performedBy}</td>
-                                <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{new Date(a.performedAt).toLocaleString()}</td>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-muted/30 border-b border-border">
+                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Action</th>
+                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">By</th>
+                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Time</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {containmentActions.map((a, i) => (
+                                <tr key={i} className="hover:bg-muted/10 transition-colors">
+                                  <td className="px-4 py-3 text-sm font-medium text-foreground">{a.action}</td>
+                                  <td className="px-4 py-3 text-sm text-muted-foreground">{a.performedBy}</td>
+                                  <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{new Date(a.performedAt).toLocaleString()}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   )}

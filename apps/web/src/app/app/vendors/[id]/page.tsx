@@ -169,7 +169,7 @@ export default function VendorDetailPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-0 divide-x divide-border">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-x divide-border">
             {[
               { label: "Contact Email",  value: v.contactEmail ?? "—",   icon: Mail },
               { label: "Phone",          value: v.contactPhone ?? "—",   icon: Phone },
@@ -202,7 +202,7 @@ export default function VendorDetailPage() {
             <ScoreBar value={perfData?.responsiveness ?? Math.max(0, score - 3)} label="Responsiveness" />
           </div>
           {perfData?.totalOrders !== undefined && (
-            <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 pt-3 border-t border-border">
               {[
                 { label: "Total Orders", value: perfData.totalOrders ?? 0 },
                 { label: "On-Time Delivery", value: `${perfData.onTimeRate ?? 0}%` },

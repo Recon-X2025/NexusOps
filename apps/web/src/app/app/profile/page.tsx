@@ -296,50 +296,52 @@ function NotificationsTab() {
   return (
     <div className="flex flex-col gap-4 max-w-2xl">
       <div className="p-4 bg-card border border-border rounded-lg">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wider pb-2">Event</th>
-              {CHANNELS.map((ch) => (
-                <th key={ch} className="text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wider pb-2 w-20">
-                  {ch === "in_app" ? "In-App" : "Email"}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {EVENT_GROUPS.map(({ group, events }) => (
-              <Fragment key={group}>
-                <tr>
-                  <td colSpan={3} className="pt-3 pb-1">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{group}</span>
-                  </td>
-                </tr>
-                {events.map((ev) => (
-                  <tr key={ev} className="border-b border-border/50 last:border-0">
-                    <td className="py-2 text-[13px] text-foreground/80">
-                      {ev.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </td>
-                    {CHANNELS.map((ch) => (
-                      <td key={ch} className="py-2 text-center">
-                        <button
-                          onClick={() => toggle(ev, ch)}
-                          className="flex items-center justify-center mx-auto"
-                          aria-label={`Toggle ${ch} for ${ev}`}
-                        >
-                          {prefs[ev]?.[ch]
-                            ? <ToggleRight className="h-5 w-5 text-primary" />
-                            : <ToggleLeft className="h-5 w-5 text-muted-foreground/40" />
-                          }
-                        </button>
-                      </td>
-                    ))}
-                  </tr>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wider pb-2">Event</th>
+                {CHANNELS.map((ch) => (
+                  <th key={ch} className="text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wider pb-2 w-20">
+                    {ch === "in_app" ? "In-App" : "Email"}
+                  </th>
                 ))}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+              </tr>
+            </thead>
+            <tbody>
+              {EVENT_GROUPS.map(({ group, events }) => (
+                <Fragment key={group}>
+                  <tr>
+                    <td colSpan={3} className="pt-3 pb-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{group}</span>
+                    </td>
+                  </tr>
+                  {events.map((ev) => (
+                    <tr key={ev} className="border-b border-border/50 last:border-0">
+                      <td className="py-2 text-[13px] text-foreground/80">
+                        {ev.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </td>
+                      {CHANNELS.map((ch) => (
+                        <td key={ch} className="py-2 text-center">
+                          <button
+                            onClick={() => toggle(ev, ch)}
+                            className="flex items-center justify-center mx-auto"
+                            aria-label={`Toggle ${ch} for ${ev}`}
+                          >
+                            {prefs[ev]?.[ch]
+                              ? <ToggleRight className="h-5 w-5 text-primary" />
+                              : <ToggleLeft className="h-5 w-5 text-muted-foreground/40" />
+                            }
+                          </button>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <button
         onClick={handleSave}

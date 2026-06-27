@@ -1,11 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Plus, Star, AlertTriangle, X } from "lucide-react";
+import { Building2, Plus, Star, AlertTriangle, X, Upload } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { CsvImportModal, type ImportField } from "@/components/csv-import-modal";
+
+const VENDOR_IMPORT_FIELDS: ImportField[] = [
+  { key: "name", label: "Name", required: true },
+  { key: "vendorType", label: "Vendor Type" },
+  { key: "gstin", label: "GSTIN" },
+  { key: "pan", label: "PAN" },
+  { key: "contactEmail", label: "Contact Email" },
+  { key: "contactPhone", label: "Contact Phone" },
+  { key: "contactPersonName", label: "Contact Person" },
+  { key: "address", label: "Address" },
+  { key: "state", label: "State" },
+  { key: "paymentTerms", label: "Payment Terms" },
+];
 
 const TIER_COLOR: Record<string, string> = {
   Strategic: "text-purple-700 bg-purple-100",
@@ -56,7 +70,10 @@ export default function VendorsPage() {
   const visibleTabs = VENDOR_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vendors");
   const [showAddVendor, setShowAddVendor] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [vendorForm, setVendorForm] = useState({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });
+  // @ts-ignore
+  const importVendors = trpc.ingest.importVendors.useMutation();
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -142,15 +159,53 @@ export default function VendorsPage() {
           <h1 className="text-sm font-semibold text-foreground">Vendor & Supplier Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Vendor Register · Contracts · SLA · Performance</span>
         </div>
-        <button
-          onClick={() => setShowAddVendor(true)}
-          className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
-        >
-          <Plus className="w-3 h-3" /> Add Vendor
-        </button>
+        <div className="flex items-center gap-2">
+          {can("vendors", "write") && (
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1 px-3 py-1 border border-border text-[11px] rounded hover:bg-accent"
+            >
+              <Upload className="w-3 h-3" /> Import CSV
+            </button>
+          )}
+          <button
+            onClick={() => setShowAddVendor(true)}
+            className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+          >
+            <Plus className="w-3 h-3" /> Add Vendor
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      {showImport && (
+        <CsvImportModal
+          title="Import Vendors"
+          fields={VENDOR_IMPORT_FIELDS}
+          hint="Vendor Type defaults to goods_supplier"
+          onClose={() => setShowImport(false)}
+          onImport={async (rows) => {
+            const res = await importVendors.mutateAsync(
+              rows.map((r) => ({
+                name: r.name,
+                vendorType: r.vendorType || undefined,
+                gstin: r.gstin || undefined,
+                pan: r.pan || undefined,
+                contactEmail: r.contactEmail || undefined,
+                contactPhone: r.contactPhone || undefined,
+                contactPersonName: r.contactPersonName || undefined,
+                address: r.address || undefined,
+                state: r.state || undefined,
+                paymentTerms: r.paymentTerms || undefined,
+              })),
+            );
+            vendorsQuery.refetch();
+            toast.success(`${res.imported} vendors imported`);
+            return { imported: res.imported };
+          }}
+        />
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Total Vendor Spend",  value: `₹${(totalSpend / 1000000).toFixed(1)}M`, color: "text-foreground/80" },
           { label: "Active Vendors",      value: vendors.filter((v: any) => v.status === "active").length, color: "text-green-700" },

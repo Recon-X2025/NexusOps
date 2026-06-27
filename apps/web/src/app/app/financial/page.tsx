@@ -504,7 +504,7 @@ function FinancialPageInner() {
         {tab === "ap" && (
           <div className="p-4 space-y-4">
             {/* AP KPIs from live apAging */}
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
               {[
                 { label: "Current (0–30d)",   value: `₹${((apAgingData?.current ?? 0) / 100000).toFixed(1)}L`,  color: "text-green-700" },
                 { label: "31–60 Days",          value: `₹${((apAgingData?.d30 ?? 0) / 100000).toFixed(1)}L`,     color: "text-yellow-700" },
@@ -605,7 +605,7 @@ function FinancialPageInner() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div className="border border-border rounded px-3 py-2">
                       <div className="text-xl font-bold text-foreground/80">₹{(totalAR / 100000).toFixed(1)}L</div>
                       <div className="text-[10px] text-muted-foreground uppercase">Total AR Outstanding</div>

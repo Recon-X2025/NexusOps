@@ -241,7 +241,7 @@ export default function SurveysPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Active Surveys",    value: activeSurveys, color: "text-green-700" },
           { label: "Total Responses",   value: totalResponses.toLocaleString(), color: "text-foreground" },
@@ -432,7 +432,7 @@ export default function SurveysPage() {
                 className="w-full border border-border rounded px-3 py-1.5 text-[12px] outline-none focus:border-primary"
               />
             </div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="field-label">Survey Type</label>
                 <select
@@ -551,7 +551,7 @@ export default function SurveysPage() {
 
             {isRealSurveyId && liveResults ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="border border-border rounded p-4 text-center">
                     <div className={`text-4xl font-black ${liveResults.averageScore ? "text-green-700" : "text-muted-foreground"}`}>
                       {liveResults.averageScore ?? "—"}
@@ -600,7 +600,7 @@ export default function SurveysPage() {
               </div>
             ) : !isRealSurveyId && selectedResult === "sv-001" ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="border border-border rounded p-4 text-center">
                     <div className="text-4xl font-black text-green-700">{CSAT_RESULTS.overall}</div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Average CSAT Score</div>

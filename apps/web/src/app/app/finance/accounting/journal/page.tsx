@@ -251,58 +251,60 @@ export default function JournalPage() {
                 </div>
             ) : (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-muted/50 border-b border-border">
-                                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Date</th>
-                                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Number</th>
-                                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Subject</th>
-                                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Amount</th>
-                                <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                            {qJournals.isLoading ? (
-                                <tr>
-                                    <td colSpan={5} className="px-4 py-12 text-center">
-                                        <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                                            <RefreshCcw className="w-4 h-4 animate-spin" />
-                                            Loading entries...
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : qJournals.data?.items.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
-                                        No journal entries found.
-                                    </td>
-                                </tr>
-                            ) : (
-                                qJournals.data?.items.map((je: any) => (
-                                    <tr key={je.id} className="hover:bg-muted/30 transition-colors group">
-                                        <td className="px-4 py-3 text-sm text-muted-foreground">
-                                            {new Date(je.date).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-xs font-bold text-primary">
-                                            {je.number}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <p className="text-sm font-medium text-foreground">{je.subject}</p>
-                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{je.sourceType}</p>
-                                        </td>
-                                        <td className="px-4 py-3 text-right font-mono text-sm font-bold">
-                                            ₹{Number(je.totalAmount).toLocaleString()}
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">
-                                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                          <thead>
+                              <tr className="bg-muted/50 border-b border-border">
+                                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Date</th>
+                                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Number</th>
+                                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Subject</th>
+                                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Amount</th>
+                                  <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                              {qJournals.isLoading ? (
+                                  <tr>
+                                      <td colSpan={5} className="px-4 py-12 text-center">
+                                          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                                              <RefreshCcw className="w-4 h-4 animate-spin" />
+                                              Loading entries...
+                                          </div>
+                                      </td>
+                                  </tr>
+                              ) : qJournals.data?.items.length === 0 ? (
+                                  <tr>
+                                      <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                                          No journal entries found.
+                                      </td>
+                                  </tr>
+                              ) : (
+                                  qJournals.data?.items.map((je: any) => (
+                                      <tr key={je.id} className="hover:bg-muted/30 transition-colors group">
+                                          <td className="px-4 py-3 text-sm text-muted-foreground">
+                                              {new Date(je.date).toLocaleDateString()}
+                                          </td>
+                                          <td className="px-4 py-3 font-mono text-xs font-bold text-primary">
+                                              {je.number}
+                                          </td>
+                                          <td className="px-4 py-3">
+                                              <p className="text-sm font-medium text-foreground">{je.subject}</p>
+                                              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{je.sourceType}</p>
+                                          </td>
+                                          <td className="px-4 py-3 text-right font-mono text-sm font-bold">
+                                              ₹{Number(je.totalAmount).toLocaleString()}
+                                          </td>
+                                          <td className="px-4 py-3 text-right">
+                                              <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">
+                                                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                              </button>
+                                          </td>
+                                      </tr>
+                                  ))
+                              )}
+                          </tbody>
+                      </table>
+                    </div>
                 </div>
             )}
         </div>

@@ -143,7 +143,7 @@ export default function NewWorkflowPage() {
         {/* Trigger */}
         <div className="bg-card border border-border rounded p-4 flex flex-col gap-3">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trigger</h2>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {TRIGGERS.map(({ value, label, icon: Icon }) => (
               <button key={value} type="button"
                 onClick={() => setForm((f) => ({ ...f, trigger: value }))}

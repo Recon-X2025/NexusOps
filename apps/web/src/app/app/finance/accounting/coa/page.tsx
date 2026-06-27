@@ -117,48 +117,50 @@ export default function CoaPage() {
 
                     return (
                         <div className="bg-card border border-border rounded-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-muted/50 border-b border-border">
-                                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-24">Code</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Account Name</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Type</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Sub-Type</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {displayAccounts?.map(acct => (
-                                        <tr key={acct.id} className="hover:bg-muted/30 transition-colors group">
-                                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{acct.code}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium text-foreground">{acct.name}</span>
-                                                    {acct.isSystem && (
-                                                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold uppercase rounded">System</span>
-                                                    )}
-                                                </div>
-                                                {acct.description && <p className="text-xs text-muted-foreground mt-0.5">{acct.description}</p>}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", TYPE_COLORS[acct.type])}>
-                                                    {acct.type}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{acct.subType.replace("_", " ")}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-sm font-bold">
-                                                ₹{Number(acct.currentBalance).toLocaleString()}
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">
-                                                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                  <thead>
+                                      <tr className="bg-muted/50 border-b border-border">
+                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-24">Code</th>
+                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Account Name</th>
+                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Type</th>
+                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Sub-Type</th>
+                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
+                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border">
+                                      {displayAccounts?.map(acct => (
+                                          <tr key={acct.id} className="hover:bg-muted/30 transition-colors group">
+                                              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{acct.code}</td>
+                                              <td className="px-4 py-3">
+                                                  <div className="flex items-center gap-2">
+                                                      <span className="font-medium text-foreground">{acct.name}</span>
+                                                      {acct.isSystem && (
+                                                          <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold uppercase rounded">System</span>
+                                                      )}
+                                                  </div>
+                                                  {acct.description && <p className="text-xs text-muted-foreground mt-0.5">{acct.description}</p>}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", TYPE_COLORS[acct.type])}>
+                                                      {acct.type}
+                                                  </span>
+                                              </td>
+                                              <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{acct.subType.replace("_", " ")}</td>
+                                              <td className="px-4 py-3 text-right font-mono text-sm font-bold">
+                                                  ₹{Number(acct.currentBalance).toLocaleString()}
+                                              </td>
+                                              <td className="px-4 py-3 text-right">
+                                                  <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">
+                                                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                                  </button>
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                              </table>
+                            </div>
                         </div>
                     );
                 }}

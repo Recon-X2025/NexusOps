@@ -280,7 +280,7 @@ export default function FlowDesignerPage() {
       {view === "list" ? (
         <div className="flex flex-col gap-3 overflow-y-auto">
           {/* KPIs */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             {[
               { label: "Active Flows", value: FLOWS.filter((f) => f.isActive).length, color: "text-green-700" },
               { label: "Executions (30d)", value: FLOWS.reduce((s, f) => s + (f.executionCount30d || 0), 0), color: "text-blue-700" },

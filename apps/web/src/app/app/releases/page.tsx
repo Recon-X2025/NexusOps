@@ -82,7 +82,7 @@ export default function ReleasesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "Deployments In Flight", value: inFlight,     color: "text-orange-700" },
           { label: "Awaiting CAB",           value: awaitingCAB, color: "text-yellow-700" },

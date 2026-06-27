@@ -316,7 +316,7 @@ function GSTRTab() {
               <span className="font-semibold text-foreground">{generated.invoiceCount}</span> invoices compiled into GSTR-1 payload.
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
                 { l: "Output IGST", v: fmtInr(generated.summary.outputIGST) },
                 { l: "Output CGST", v: fmtInr(generated.summary.outputCGST) },

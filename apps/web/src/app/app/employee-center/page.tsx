@@ -81,14 +81,14 @@ export default function EmployeeCenterPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Quick actions + requests */}
         <div className="col-span-2 space-y-4">
           <div className="bg-card border border-border rounded overflow-hidden">
             <div className="px-4 py-2 border-b border-border bg-muted/30">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Quick Requests</span>
             </div>
-            <div className="p-3 grid grid-cols-3 gap-2">
+            <div className="p-3 grid grid-cols-1 md:grid-cols-3 gap-2">
               {CATALOG_QUICK.map((item) => {
                 const Icon = item.icon;
                 return (

@@ -93,7 +93,7 @@ export default function CompliancePage() {
       </div>
 
       {/* Stats grid — mix of static baseline data and real risk/audit data */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="bg-card border border-border rounded px-3 py-2">
           <div className={`text-xl font-bold ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/50"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg Compliance Score</div>
@@ -231,7 +231,7 @@ export default function CompliancePage() {
                 <span className="font-semibold text-foreground text-[12px]">Audit: {selectedAudit.title}</span>
                 <button onClick={() => setSelectedAuditId(null)} className="text-muted-foreground hover:text-foreground">✕</button>
               </div>
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                 <div><span className="text-muted-foreground/70">Framework:</span> <span className="font-medium">{selectedAudit.framework ?? "—"}</span></div>
                 <div><span className="text-muted-foreground/70">Status:</span> <span className="font-medium capitalize">{selectedAudit.status?.replace("_", " ")}</span></div>
                 <div><span className="text-muted-foreground/70">Score:</span> <span className={`font-bold ${selectedAudit.score ? (Number(selectedAudit.score) >= 80 ? "text-green-700" : "text-orange-700") : "text-muted-foreground"}`}>{selectedAudit.score ? `${selectedAudit.score}%` : "—"}</span></div>

@@ -167,7 +167,7 @@ export default function GRCPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           { label: "High/Critical Risks", value: highRisks.length,  color: "text-red-700",  border: "border-red-200" },
           { label: "Open Risks",           value: openRisks.length, color: "text-orange-700", border: "border-border" },
@@ -194,7 +194,7 @@ export default function GRCPage() {
       {showNewRisk && (
         <div className="bg-card border border-border rounded p-4 space-y-3">
           <p className="text-[11px] font-semibold text-foreground/80 uppercase tracking-wide">Register New Risk</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="block text-[10px] font-medium text-muted-foreground mb-1">Risk Title *</label>
               <input className="w-full border border-border rounded px-2 py-1.5 text-[12px]" placeholder="e.g. Unpatched critical vulnerability in production" value={riskForm.title} onChange={e => setRiskForm(f => ({ ...f, title: e.target.value }))} />

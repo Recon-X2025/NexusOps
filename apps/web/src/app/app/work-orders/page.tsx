@@ -180,7 +180,7 @@ export default function WorkOrdersPage() {
 
       {/* KPI strip */}
       {metrics && (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {[
             { label: "Total",    value: metrics.total,    color: "text-foreground/80" },
             { label: "Open",     value: metrics.open,     color: "text-blue-700" },

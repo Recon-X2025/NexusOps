@@ -155,28 +155,30 @@ export default function GRCRiskDetailPage() {
                       {controls.length === 0 ? (
                         <div className="p-12 text-center text-muted-foreground">No controls linked.</div>
                       ) : (
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-muted/30 border-b border-border">
-                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Control ID</th>
-                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Name</th>
-                              <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border">
-                            {controls.map((c) => (
-                              <tr key={c.id} className="hover:bg-muted/10 transition-colors">
-                                <td className="px-4 py-3 text-sm font-mono text-primary">{c.id}</td>
-                                <td className="px-4 py-3 text-sm font-medium text-foreground">{c.title}</td>
-                                <td className="px-4 py-3 text-sm">
-                                  <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase", CTRL_STATUS[c.status] || "bg-muted text-muted-foreground")}>
-                                    {c.status.replace("_", " ")}
-                                  </span>
-                                </td>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-muted/30 border-b border-border">
+                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Control ID</th>
+                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Name</th>
+                                <th className="px-4 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {controls.map((c) => (
+                                <tr key={c.id} className="hover:bg-muted/10 transition-colors">
+                                  <td className="px-4 py-3 text-sm font-mono text-primary">{c.id}</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-foreground">{c.title}</td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase", CTRL_STATUS[c.status] || "bg-muted text-muted-foreground")}>
+                                      {c.status.replace("_", " ")}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   )}

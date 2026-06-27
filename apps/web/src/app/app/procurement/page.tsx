@@ -697,7 +697,7 @@ export default function ProcurementPage() {
 
                   {isExpanded && (
                     <div className="px-6 pb-4 bg-muted/20 border-t border-dashed border-slate-200">
-                      <div className="grid grid-cols-3 gap-4 mt-3 mb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 mb-4">
                         {[
                           { label: "PO Number",    value: po.poNumber ?? po.id },
                           { label: "Vendor ID",    value: po.vendorId ?? "—" },
