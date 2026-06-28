@@ -4,7 +4,9 @@ import { z } from "zod";
 import {
   crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmQuotes,
   organizations,
+  accountTierEnum, dealStageEnum, leadStatusEnum, leadSourceEnum, quoteStatusEnum,
   eq, and, desc, count, sum, inArray, notInArray, lt,
+  type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 import {
@@ -13,7 +15,7 @@ import {
   type DealCloseApprovalTier,
 } from "../lib/org-settings";
 
-async function getCrmExecutiveSummary(db: any, orgId: string) {
+async function getCrmExecutiveSummary(db: DbOrTx, orgId: string) {
   const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
     .from(crmDeals).where(and(eq(crmDeals.orgId, orgId), notInArray(crmDeals.stage, ["closed_won", "closed_lost"])));
   const [wonDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
@@ -64,14 +66,16 @@ async function getCrmExecutiveSummary(db: any, orgId: string) {
   };
 }
 
+const activityTypeSchema = z.enum(["call", "email", "meeting", "demo", "follow_up", "note"]);
+
 export const crmRouter = router({
   // ── Accounts ──────────────────────────────────────────────────────────────
   listAccounts: permissionProcedure("accounts", "read")
-    .input(z.object({ tier: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ tier: z.enum(accountTierEnum.enumValues).optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmAccounts.orgId, org!.id), eq(crmAccounts.archived, input.showArchived)];
-      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier as any));
+      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier));
       return db.select().from(crmAccounts).where(and(...conditions)).orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
     }),
 
@@ -88,7 +92,7 @@ export const crmRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() } as any)
+      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() })
         .where(and(eq(crmAccounts.id, id), eq(crmAccounts.orgId, org!.id))).returning();
       return account;
     }),
@@ -134,7 +138,7 @@ export const crmRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() } as any)
+      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() })
         .where(and(eq(crmContacts.id, id), eq(crmContacts.orgId, org!.id))).returning();
       return contact;
     }),
@@ -159,11 +163,11 @@ export const crmRouter = router({
 
   // ── Deals ─────────────────────────────────────────────────────────────────
   listDeals: permissionProcedure("accounts", "read")
-    .input(z.object({ stage: z.string().optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
+    .input(z.object({ stage: z.enum(dealStageEnum.enumValues).optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmDeals.orgId, org!.id)];
-      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage as any));
+      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage));
       if (input.accountId) conditions.push(eq(crmDeals.accountId, input.accountId));
       return db.select().from(crmDeals).where(and(...conditions)).orderBy(desc(crmDeals.updatedAt)).limit(input.limit);
     }),
@@ -225,7 +229,7 @@ export const crmRouter = router({
         }
       }
 
-      const updates: Record<string, unknown> = { stage: input.stage, updatedAt: new Date() };
+      const updates: Partial<typeof crmDeals.$inferInsert> = { stage: input.stage, updatedAt: new Date() };
       if (input.stage === "closed_won" || input.stage === "closed_lost") {
         updates.closedAt = new Date();
       } else {
@@ -238,7 +242,7 @@ export const crmRouter = router({
 
       const [deal] = await db
         .update(crmDeals)
-        .set(updates as any)
+        .set(updates)
         .where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id)))
         .returning();
       return deal;
@@ -311,7 +315,7 @@ export const crmRouter = router({
       const { db, org } = ctx;
       const { id, ...data } = input;
       
-      const updates: Record<string, any> = { ...data };
+      const updates: Partial<typeof crmDeals.$inferInsert> = { ...data, expectedClose: undefined };
       if (data.expectedClose) {
         updates.expectedClose = new Date(data.expectedClose);
       }
@@ -333,7 +337,7 @@ export const crmRouter = router({
 
       const [deal] = await db
         .update(crmDeals)
-        .set({ ...updates, updatedAt: new Date() } as any)
+        .set({ ...updates, updatedAt: new Date() })
         .where(and(eq(crmDeals.id, id), eq(crmDeals.orgId, org!.id)))
         .returning();
       return deal;
@@ -402,19 +406,19 @@ export const crmRouter = router({
 
   // ── Leads ─────────────────────────────────────────────────────────────────
   listLeads: permissionProcedure("accounts", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ status: z.enum(leadStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmLeads.orgId, org!.id), eq(crmLeads.archived, input.showArchived)];
-      if (input.status) conditions.push(eq(crmLeads.status, input.status as any));
+      if (input.status) conditions.push(eq(crmLeads.status, input.status));
       return db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
     }),
 
   createLead: permissionProcedure("accounts", "write")
-    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().optional(), company: z.string().optional(), source: z.string().default("website") }))
+    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().optional(), company: z.string().optional(), source: z.enum(leadSourceEnum.enumValues).default("website") }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source as any }).returning();
+      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source }).returning();
       return lead;
     }),
 
@@ -442,7 +446,6 @@ export const crmRouter = router({
     .input(z.object({ id: z.string().uuid(), dealTitle: z.string(), dealValue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [{ cnt }] = await db.select({ cnt: count() }).from(crmDeals).where(eq(crmDeals.orgId, org!.id));
       const [deal] = await db.insert(crmDeals).values({
         orgId: org!.id, title: input.dealTitle, value: input.dealValue, ownerId: user!.id,
         weightedValue: input.dealValue ? String(Number(input.dealValue) * 0.1) : undefined,
@@ -464,7 +467,7 @@ export const crmRouter = router({
 
   createActivity: permissionProcedure("accounts", "write")
     .input(z.object({
-      type: z.string().optional(),
+      type: activityTypeSchema.optional(),
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
@@ -480,7 +483,7 @@ export const crmRouter = router({
         orgId: org!.id, 
         ...input, 
         ownerId: user!.id, 
-        type: (input.type || "call") as any,
+        type: input.type || "call",
         subject: input.subject || "Logged Activity",
       }).returning();
       return activity;
@@ -489,7 +492,7 @@ export const crmRouter = router({
   updateActivity: permissionProcedure("accounts", "write")
     .input(z.object({
       id: z.string().uuid(),
-      type: z.string().optional(),
+      type: activityTypeSchema.optional(),
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
@@ -512,12 +515,12 @@ export const crmRouter = router({
 
   // ── Quotes ────────────────────────────────────────────────────────────────
   listQuotes: permissionProcedure("accounts", "read")
-    .input(z.object({ dealId: z.string().uuid().optional(), status: z.string().optional() }))
+    .input(z.object({ dealId: z.string().uuid().optional(), status: z.enum(quoteStatusEnum.enumValues).optional() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmQuotes.orgId, org!.id)];
       if (input.dealId) conditions.push(eq(crmQuotes.dealId, input.dealId));
-      if (input.status) conditions.push(eq(crmQuotes.status, input.status as any));
+      if (input.status) conditions.push(eq(crmQuotes.status, input.status));
       return db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
     }),
 
@@ -542,11 +545,11 @@ export const crmRouter = router({
     }),
 
   updateQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.enum(["draft", "sent", "viewed", "accepted", "declined", "expired"]).optional(), notes: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() } as any)
+      const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() })
         .where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
       if (!quote) throw new TRPCError({ code: "NOT_FOUND" });
       return quote;

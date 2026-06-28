@@ -86,3 +86,5 @@ export {
   gt,
   gte,
 } from "drizzle-orm";
+
+export type { SQL } from "drizzle-orm";

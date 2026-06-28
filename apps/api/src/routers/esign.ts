@@ -135,6 +135,7 @@ export const esignRouter = router({
           requestedById: user!.id,
         })
         .returning();
+      if (!reqRow) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create signature request" });
 
       await db.insert(signatureSigners).values(
         input.signers.map((s, idx) => ({

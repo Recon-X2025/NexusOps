@@ -7,15 +7,15 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmAccounts, organizations, eq, and, desc } from "@coheronconnect/db";
+import { crmAccounts, organizations, accountTierEnum, eq, and, desc } from "@coheronconnect/db";
 
 export const crmAccountsRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ tier: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ tier: z.enum(accountTierEnum.enumValues).optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmAccounts.orgId, org!.id), eq(crmAccounts.archived, input.showArchived)];
-      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier as any));
+      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier));
       return db.select().from(crmAccounts).where(and(...conditions)).orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
     }),
 
@@ -47,7 +47,7 @@ export const crmAccountsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() } as any)
+      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() })
         .where(and(eq(crmAccounts.id, id), eq(crmAccounts.orgId, org!.id))).returning();
       return account;
     }),

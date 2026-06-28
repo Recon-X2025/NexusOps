@@ -56,7 +56,7 @@ export const crmContactsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() } as any)
+      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() })
         .where(and(eq(crmContacts.id, id), eq(crmContacts.orgId, org!.id))).returning();
       return contact;
     }),

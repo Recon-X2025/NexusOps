@@ -8,6 +8,11 @@ import {
   vendorRisks,
   riskControlEvidence,
   riskControls,
+  riskStatusEnum,
+  riskCategoryEnum,
+  riskTreatmentEnum,
+  policyStatusEnum,
+  questionnaireStatusEnum,
   eq,
   and,
   desc,
@@ -18,12 +23,12 @@ import { getNextNumber } from "../lib/auto-number";
 export const grcRouter = router({
   // ── Risks ─────────────────────────────────────────────────────────────────
   listRisks: permissionProcedure("grc", "read")
-    .input(z.object({ status: z.string().optional(), category: z.string().optional(), limit: z.coerce.number().default(100) }))
+    .input(z.object({ status: z.enum(riskStatusEnum.enumValues).optional(), category: z.enum(riskCategoryEnum.enumValues).optional(), limit: z.coerce.number().default(100) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(risks.orgId, org!.id)];
-      if (input.status) conditions.push(eq(risks.status, input.status as any));
-      if (input.category) conditions.push(eq(risks.category, input.category as any));
+      if (input.status) conditions.push(eq(risks.status, input.status));
+      if (input.category) conditions.push(eq(risks.category, input.category));
       return db.select().from(risks).where(and(...conditions)).orderBy(desc(risks.riskScore)).limit(input.limit);
     }),
 
@@ -53,11 +58,11 @@ export const grcRouter = router({
     }),
 
   updateRisk: permissionProcedure("grc", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.string().optional(), likelihood: z.coerce.number().optional(), impact: z.coerce.number().optional(), mitigationPlan: z.string().optional(), treatment: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(riskStatusEnum.enumValues).optional(), likelihood: z.coerce.number().optional(), impact: z.coerce.number().optional(), mitigationPlan: z.string().optional(), treatment: z.enum(riskTreatmentEnum.enumValues).optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, likelihood, impact, ...rest } = input;
-      const updates: Record<string, any> = { ...rest, updatedAt: new Date() };
+      const updates: Partial<typeof risks.$inferInsert> = { ...rest, updatedAt: new Date() };
       if (likelihood !== undefined) updates.likelihood = likelihood;
       if (impact !== undefined) updates.impact = impact;
       // Recalculate riskScore if either value changes — fetch current for missing operand
@@ -75,11 +80,11 @@ export const grcRouter = router({
 
   // ── Policies ──────────────────────────────────────────────────────────────
   listPolicies: permissionProcedure("grc", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.enum(policyStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(policies.orgId, org!.id)];
-      if (input.status) conditions.push(eq(policies.status, input.status as any));
+      if (input.status) conditions.push(eq(policies.status, input.status));
       return db.select().from(policies).where(and(...conditions)).orderBy(desc(policies.createdAt)).limit(input.limit);
     }),
 
@@ -132,11 +137,11 @@ export const grcRouter = router({
     }),
 
   updateVendorRisk: permissionProcedure("grc", "write")
-    .input(z.object({ id: z.string().uuid(), riskScore: z.coerce.number().optional(), questionnaireStatus: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), riskScore: z.coerce.number().optional(), questionnaireStatus: z.enum(questionnaireStatusEnum.enumValues).optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [vr] = await db.update(vendorRisks).set({ ...data, updatedAt: new Date() } as any)
+      const [vr] = await db.update(vendorRisks).set({ ...data, updatedAt: new Date() })
         .where(and(eq(vendorRisks.id, id), eq(vendorRisks.orgId, org!.id))).returning();
       return vr;
     }),

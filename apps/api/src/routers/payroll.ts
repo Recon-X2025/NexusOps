@@ -377,7 +377,7 @@ const runsRouter = router({
         .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
         .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
 
-      await db.transaction(async (tx: typeof db) => {
+      await db.transaction(async (tx) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
         for (const { emp, st } of empRows) {
           const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year);

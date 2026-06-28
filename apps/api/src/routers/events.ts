@@ -86,11 +86,18 @@ export const eventsRouter = router({
       status: ciItems.status,
     }).from(ciItems).where(eq(ciItems.orgId, org!.id)).orderBy(asc(ciItems.name)).limit(100);
 
-    return cis.map((ci: any) => ({
+    return cis.map((ci) => ({
       id: ci.id,
       name: ci.name,
       type: ci.ciType,
-      health: ci.status === "active" ? "healthy" : ci.status === "maintenance" ? "degraded" : "unknown",
+      health:
+        ci.status === "operational"
+          ? "healthy"
+          : ci.status === "degraded"
+            ? "degraded"
+            : ci.status === "down"
+              ? "down"
+              : "unknown",
     }));
   }),
 
@@ -101,11 +108,11 @@ export const eventsRouter = router({
     const bySeverity = { critical: 0, major: 0, minor: 0, warning: 0, info: 0, clear: 0 };
     const byStatus = { open: 0, in_progress: 0, suppressed: 0, resolved: 0, flapping: 0 };
 
-    events.forEach((e: any) => {
-      // @ts-ignore
-      if (bySeverity[e.severity] !== undefined) bySeverity[e.severity]++;
-      // @ts-ignore
-      if (byStatus[e.state] !== undefined) byStatus[e.state]++;
+    events.forEach((e) => {
+      const sev = e.severity as keyof typeof bySeverity;
+      if (sev in bySeverity) bySeverity[sev]++;
+      const st = e.state as keyof typeof byStatus;
+      if (st in byStatus) byStatus[st]++;
     });
 
     return {

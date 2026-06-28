@@ -5,6 +5,10 @@ import {
   legalMatters,
   legalRequests,
   investigations,
+  legalMatterStatusEnum,
+  legalMatterTypeEnum,
+  legalRequestStatusEnum,
+  investigationStatusEnum,
   boardMeetings,
   secretarialFilings,
   companyDirectors,
@@ -64,11 +68,11 @@ const ISSUER_MATRIX_SEED: Array<{
 ];
 
 async function ensureIssuerProgrammeMatrix(db: Context["db"], orgId: string) {
-  const [{ n }] = await db
+  const [countRow] = await db
     .select({ n: count() })
     .from(issuerProgrammeMatrix)
     .where(eq(issuerProgrammeMatrix.orgId, orgId));
-  if (Number(n ?? 0) >= 24) return;
+  if (Number(countRow?.n ?? 0) >= 24) return;
   for (const row of ISSUER_MATRIX_SEED) {
     await db
       .insert(issuerProgrammeMatrix)
@@ -89,8 +93,8 @@ export const legalRouter = router({
   listMatters: permissionProcedure("legal", "read")
     .input(
       z.object({
-        status: z.string().optional(),
-        type: z.string().optional(),
+        status: z.enum(legalMatterStatusEnum.enumValues).optional(),
+        type: z.enum(legalMatterTypeEnum.enumValues).optional(),
         limit: z.coerce.number().default(50),
         hearingFrom: z.string().optional(),
         hearingTo: z.string().optional(),
@@ -99,8 +103,8 @@ export const legalRouter = router({
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(legalMatters.orgId, org!.id)];
-      if (input.status) conditions.push(eq(legalMatters.status, input.status as any));
-      if (input.type) conditions.push(eq(legalMatters.type, input.type as any));
+      if (input.status) conditions.push(eq(legalMatters.status, input.status));
+      if (input.type) conditions.push(eq(legalMatters.type, input.type));
       if (input.hearingFrom) {
         conditions.push(gte(legalMatters.nextHearingAt, new Date(input.hearingFrom)));
       }
@@ -157,7 +161,7 @@ export const legalRouter = router({
   updateMatter: permissionProcedure("legal", "write")
     .input(z.object({
       id: z.string().uuid(),
-      status: z.string().optional(),
+      status: z.enum(legalMatterStatusEnum.enumValues).optional(),
       phase: z.string().optional(),
       actualCost: z.string().optional(),
       cnr: z.string().optional(),
@@ -172,7 +176,7 @@ export const legalRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, nextHearingAt, limitationDeadlineAt, ...data } = input;
-      const updates: Record<string, any> = { ...data, updatedAt: new Date() };
+      const updates: Partial<typeof legalMatters.$inferInsert> = { ...data, updatedAt: new Date() };
       if (nextHearingAt !== undefined) {
         updates.nextHearingAt = nextHearingAt ? new Date(nextHearingAt) : null;
       }
@@ -187,11 +191,11 @@ export const legalRouter = router({
 
   // ── Legal Requests ─────────────────────────────────────────────────────────
   listRequests: permissionProcedure("legal", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.enum(legalRequestStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(legalRequests.orgId, org!.id)];
-      if (input.status) conditions.push(eq(legalRequests.status, input.status as any));
+      if (input.status) conditions.push(eq(legalRequests.status, input.status));
       return db.select().from(legalRequests).where(and(...conditions)).orderBy(desc(legalRequests.createdAt)).limit(input.limit);
     }),
 
@@ -216,14 +220,14 @@ export const legalRouter = router({
       description: z.string().optional(),
       type: z.string().optional(),
       priority: z.string().optional(),
-      status: z.string().optional(),
+      status: z.enum(legalRequestStatusEnum.enumValues).optional(),
       assignedTo: z.string().uuid().optional(),
       linkedMatterId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [req] = await db.update(legalRequests).set({ ...data, updatedAt: new Date() } as any)
+      const [req] = await db.update(legalRequests).set({ ...data, updatedAt: new Date() })
         .where(and(eq(legalRequests.id, id), eq(legalRequests.orgId, org!.id))).returning();
       return req;
     }),
@@ -239,14 +243,14 @@ export const legalRouter = router({
 
   // ── Investigations ─────────────────────────────────────────────────────────
   listInvestigations: permissionProcedure("legal", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.enum(investigationStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(investigations.orgId, org!.id)];
-      if (input.status) conditions.push(eq(investigations.status, input.status as any));
+      if (input.status) conditions.push(eq(investigations.status, input.status));
       const rows = await db.select().from(investigations).where(and(...conditions)).orderBy(desc(investigations.createdAt)).limit(input.limit);
       // Filter confidential investigations: only the investigator or users with grc.admin can see them
-      return rows.filter((investigation: any) => {
+      return rows.filter((investigation) => {
         if (!investigation.confidential) return true;
         const isInvestigator = investigation.investigatorId === ctx.user!.id;
         const canSeeAll = checkDbUserPermission(ctx.user!.role, "legal", "admin", ctx.user!.matrixRole);
@@ -285,7 +289,7 @@ export const legalRouter = router({
       reporterId: z.string().uuid().optional(),
       investigatorId: z.string().uuid().optional(),
       priority: z.string().optional(),
-      status: z.enum(["reported", "under_review", "investigating", "closed"]).optional(),
+      status: z.enum(["reported", "under_investigation", "findings", "closed"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -398,11 +402,11 @@ export const legalRouter = router({
               ),
             );
           secretarial = {
-            upcomingMeetings: Number(upcomingMeetings.n),
-            overdueFilings: Number(overdueFilings.n),
-            upcomingFilings: Number(upcomingFilings.n),
-            totalDirectors: Number(totalDirectors.n),
-            kycExpiring: Number(kycExpiring.n),
+            upcomingMeetings: Number(upcomingMeetings?.n ?? 0),
+            overdueFilings: Number(overdueFilings?.n ?? 0),
+            upcomingFilings: Number(upcomingFilings?.n ?? 0),
+            totalDirectors: Number(totalDirectors?.n ?? 0),
+            kycExpiring: Number(kycExpiring?.n ?? 0),
           };
         }
 
@@ -482,8 +486,8 @@ export const legalRouter = router({
               ),
             );
           contractsKpi = {
-            active: Number(activeRow.n),
-            expiringSoon: Number(expiringSoonRow.n),
+            active: Number(activeRow?.n ?? 0),
+            expiringSoon: Number(expiringSoonRow?.n ?? 0),
             indiaFormalitiesAttention: Number(formalitiesRow?.n ?? 0),
             expiringWithin30: expiringRows.map((r: {
               id: string;
@@ -583,8 +587,8 @@ export const legalRouter = router({
             )
             .limit(5);
           indiaCompliance = {
-            overdue: Number(overdueRow.n),
-            dueWithin30: Number(dueSoonRow.n),
+            overdue: Number(overdueRow?.n ?? 0),
+            dueWithin30: Number(dueSoonRow?.n ?? 0),
             totalPenaltyInr: Number(penaltyRow?.total ?? 0),
             upcoming: upcomingItems.map((r: {
               id: string;
@@ -614,10 +618,10 @@ export const legalRouter = router({
 
         return {
           legal: {
-            activeMatters: Number(activeMatters.n),
-            totalMatters: Number(totalMatters.n),
-            openRequests: Number(openRequests.n),
-            openInvestigations: Number(openInvestigations.n),
+            activeMatters: Number(activeMatters?.n ?? 0),
+            totalMatters: Number(totalMatters?.n ?? 0),
+            openRequests: Number(openRequests?.n ?? 0),
+            openInvestigations: Number(openInvestigations?.n ?? 0),
           },
           secretarial,
           contracts: contractsKpi,

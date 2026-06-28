@@ -50,6 +50,20 @@
       "when": 1782592626149,
       "tag": "0006_giant_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782619481225,
+      "tag": "0007_regular_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782627887952,
+      "tag": "0008_clumsy_susan_delgado",
+      "breakpoints": true
     }
   ]
 }

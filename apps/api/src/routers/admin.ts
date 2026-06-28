@@ -47,10 +47,11 @@ export const adminRouter = router({
         if (action) conditions.push(eq(auditLogs.action, action));
         if (resourceType) conditions.push(eq(auditLogs.resourceType, resourceType));
 
-        const [{ total }] = await db
+        const [totalRow] = await db
           .select({ total: count() })
           .from(auditLogs)
           .where(and(...conditions));
+        const total = totalRow?.total ?? 0;
 
         const items = await db
           .select({

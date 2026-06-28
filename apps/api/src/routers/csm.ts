@@ -34,7 +34,7 @@ export const csmRouter = router({
             LIMIT ${input.limit}
           `);
           const items = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
-          return { items: items as any[], nextCursor: null };
+          return { items: items as Record<string, unknown>[], nextCursor: null };
         } catch {
           return { items: [], nextCursor: null };
         }
@@ -146,7 +146,8 @@ export const csmRouter = router({
 
   slaMetrics: permissionProcedure("csm", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
-    const [{ total }] = await db.select({ total: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org!.id));
+    const [totalRow] = await db.select({ total: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org!.id));
+    const total = totalRow?.total ?? 0;
     let openCases = 0;
     let totalCases = 0;
     try {
@@ -157,7 +158,7 @@ export const csmRouter = router({
         FROM csm_cases
         WHERE org_id = ${org!.id}
       `);
-      const r = (rows as { total: string; open_cnt: string }[])[0];
+      const r = (rows as unknown as { total: string; open_cnt: string }[])[0];
       totalCases = Number(r?.total ?? 0);
       openCases = Number(r?.open_cnt ?? 0);
     } catch {
@@ -174,8 +175,10 @@ export const csmRouter = router({
 
   dashboard: permissionProcedure("csm", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
-    const [{ totalAccounts }] = await db.select({ totalAccounts: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org!.id));
-    const [{ totalContacts }] = await db.select({ totalContacts: count() }).from(crmContacts).where(eq(crmContacts.orgId, org!.id));
+    const [totalAccountsRow] = await db.select({ totalAccounts: count() }).from(crmAccounts).where(eq(crmAccounts.orgId, org!.id));
+    const totalAccounts = totalAccountsRow?.totalAccounts ?? 0;
+    const [totalContactsRow] = await db.select({ totalContacts: count() }).from(crmContacts).where(eq(crmContacts.orgId, org!.id));
+    const totalContacts = totalContactsRow?.totalContacts ?? 0;
 
     let totalCases = 0;
     let openCases = 0;
@@ -192,7 +195,7 @@ export const csmRouter = router({
         FROM csm_cases
         WHERE org_id = ${org!.id}
       `);
-      const r = (rows as { total: string; open_cnt: string; resolved_today: string }[])[0];
+      const r = (rows as unknown as { total: string; open_cnt: string; resolved_today: string }[])[0];
       totalCases = Number(r?.total ?? 0);
       openCases = Number(r?.open_cnt ?? 0);
       resolvedToday = Number(r?.resolved_today ?? 0);

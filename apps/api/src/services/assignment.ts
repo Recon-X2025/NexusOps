@@ -15,8 +15,7 @@
  *   and the group lead is notified.
  */
 
-import { type PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import * as schema from "@coheronconnect/db";
+import { type DbOrTx } from "@coheronconnect/db";
 import { and, eq, inArray, isNull, sql, asc, count } from "@coheronconnect/db";
 import {
   assignmentRules,
@@ -28,7 +27,7 @@ import {
   hrCases,
 } from "@coheronconnect/db";
 
-type Db = PostgresJsDatabase<typeof schema>;
+type Db = DbOrTx;
 
 export type EntityType = "ticket" | "work_order" | "hr_case";
 

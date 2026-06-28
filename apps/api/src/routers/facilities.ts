@@ -7,6 +7,10 @@ import {
   roomBookings,
   moveRequests,
   facilityRequests,
+  buildingStatusEnum,
+  moveRequestStatusEnum,
+  facilityRequestStatusEnum,
+  facilityRequestTypeEnum,
   eq,
   and,
   desc,
@@ -18,21 +22,21 @@ import {
 export const facilitiesRouter = router({
   hubSnapshot: permissionProcedure("facilities", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
-    const [{ roomCount }] = await db
+    const [roomCountRow] = await db
       .select({ roomCount: count() })
       .from(rooms)
       .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
       .where(eq(buildings.orgId, org!.id));
-    return { roomCount: Number(roomCount ?? 0) };
+    return { roomCount: Number(roomCountRow?.roomCount ?? 0) };
   }),
 
   buildings: router({
     list: permissionProcedure("facilities", "read")
-      .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+      .input(z.object({ status: z.enum(buildingStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(buildings.orgId, org!.id)];
-        if (input.status) conditions.push(eq(buildings.status, input.status as any));
+        if (input.status) conditions.push(eq(buildings.status, input.status));
         return db.select().from(buildings).where(and(...conditions))
           .orderBy(buildings.name).limit(input.limit);
       }),
@@ -96,7 +100,7 @@ export const facilitiesRouter = router({
             sql`${roomBookings.startTime} < ${end} AND ${roomBookings.endTime} > ${start}`,
           ));
         const filtered = input.excludeBookingId
-          ? conflicts.filter((b: any) => b.id !== input.excludeBookingId)
+          ? conflicts.filter((b) => b.id !== input.excludeBookingId)
           : conflicts;
         return { available: filtered.length === 0, conflicts: filtered };
       }),
@@ -153,11 +157,11 @@ export const facilitiesRouter = router({
 
   moveRequests: router({
     list: permissionProcedure("facilities", "read")
-      .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+      .input(z.object({ status: z.enum(moveRequestStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(moveRequests.orgId, org!.id)];
-        if (input.status) conditions.push(eq(moveRequests.status, input.status as any));
+        if (input.status) conditions.push(eq(moveRequests.status, input.status));
         return db.select().from(moveRequests).where(and(...conditions))
           .orderBy(desc(moveRequests.createdAt)).limit(input.limit);
       }),
@@ -185,12 +189,12 @@ export const facilitiesRouter = router({
 
   facilityRequests: router({
     list: permissionProcedure("facilities", "read")
-      .input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.coerce.number().default(50) }))
+      .input(z.object({ status: z.enum(facilityRequestStatusEnum.enumValues).optional(), type: z.enum(facilityRequestTypeEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(facilityRequests.orgId, org!.id)];
-        if (input.status) conditions.push(eq(facilityRequests.status, input.status as any));
-        if (input.type) conditions.push(eq(facilityRequests.type, input.type as any));
+        if (input.status) conditions.push(eq(facilityRequests.status, input.status));
+        if (input.type) conditions.push(eq(facilityRequests.type, input.type));
         return db.select().from(facilityRequests).where(and(...conditions))
           .orderBy(desc(facilityRequests.createdAt)).limit(input.limit);
       }),

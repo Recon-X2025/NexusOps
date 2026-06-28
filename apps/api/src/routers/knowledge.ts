@@ -1,13 +1,13 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { kbArticles, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@coheronconnect/db";
+import { kbArticles, kbArticleStatusEnum, kbArticleRevisions, kbFeedback, eq, and, desc, sql, or, ilike } from "@coheronconnect/db";
 
 export const knowledgeRouter = router({
   list: permissionProcedure("knowledge", "read")
     .input(
       z.object({
-        status: z.string().optional(),
+        status: z.enum(kbArticleStatusEnum.enumValues).optional(),
         categoryId: z.string().uuid().optional(),
         search: z.string().optional(),
         limit: z.coerce.number().default(50),
@@ -16,7 +16,7 @@ export const knowledgeRouter = router({
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(kbArticles.orgId, org!.id)];
-      if (input.status) conditions.push(eq(kbArticles.status, input.status as any));
+      if (input.status) conditions.push(eq(kbArticles.status, input.status));
       if (input.categoryId) conditions.push(eq(kbArticles.categoryId, input.categoryId));
       const q = input.search?.trim().slice(0, 120);
       if (q) {
@@ -106,7 +106,7 @@ export const knowledgeRouter = router({
           ...data,
           contentVersion: titleChanged || contentChanged ? nextVersion : prev.contentVersion ?? 1,
           updatedAt: new Date(),
-        } as any)
+        })
         .where(and(eq(kbArticles.id, id), eq(kbArticles.orgId, org!.id)))
         .returning();
       if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });

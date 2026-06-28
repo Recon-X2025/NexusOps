@@ -98,11 +98,13 @@ export const vendorsRouter = router({
         .where(and(eq(vendors.id, input.vendorId), eq(vendors.orgId, org!.id)));
       if (!vendor) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const [{ totalOrders }] = await db.select({ totalOrders: count() }).from(purchaseOrders)
+      const [totalOrdersRow] = await db.select({ totalOrders: count() }).from(purchaseOrders)
         .where(and(eq(purchaseOrders.vendorId, input.vendorId), eq(purchaseOrders.orgId, org!.id)));
+      const totalOrders = totalOrdersRow?.totalOrders ?? 0;
 
-      const [{ totalSpend }] = await db.select({ totalSpend: sum(purchaseOrders.totalAmount) }).from(purchaseOrders)
+      const [totalSpendRow] = await db.select({ totalSpend: sum(purchaseOrders.totalAmount) }).from(purchaseOrders)
         .where(and(eq(purchaseOrders.vendorId, input.vendorId), eq(purchaseOrders.orgId, org!.id)));
+      const totalSpend = totalSpendRow?.totalSpend ?? null;
 
       return {
         vendorId: input.vendorId,

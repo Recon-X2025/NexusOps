@@ -314,7 +314,7 @@ export const macRouter = router({
       if (input.trialEndsAt) existing.trialEndsAt = input.trialEndsAt;
       if (input.subscriptionStatus) existing.subscriptionStatus = input.subscriptionStatus;
       if (input.plan) {
-        await db.update(organizations).set({ plan: input.plan as any, settings: existing }).where(eq(organizations.id, input.orgId));
+        await db.update(organizations).set({ plan: input.plan, settings: existing }).where(eq(organizations.id, input.orgId));
       } else {
         await db.update(organizations).set({ settings: existing }).where(eq(organizations.id, input.orgId));
       }
@@ -374,7 +374,7 @@ export const macRouter = router({
       return {
         org,
         userCount: userCount?.count ?? 0,
-        status: (org.settings as any)?.suspended ? "suspended" : "healthy",
+        status: org.settings?.suspended ? "suspended" : "healthy",
       };
     }),
 

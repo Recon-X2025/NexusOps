@@ -7,6 +7,10 @@ import {
   portalUsers,
   tdsChallanRecords,
   epfoEcrSubmissions,
+  complianceItemStatusEnum,
+  complianceTypeEnum,
+  dinKycStatusEnum,
+  portalUserStatusEnum,
   eq,
   and,
   desc,
@@ -21,7 +25,7 @@ export const indiaComplianceRouter = router({
     list: permissionProcedure("secretarial", "read")
       .input(
         z.object({
-          status: z.string().optional(),
+          status: z.enum(complianceItemStatusEnum.enumValues).optional(),
           financialYear: z.string().optional(),
           daysAhead: z.number().int().positive().optional(),
         }),
@@ -30,7 +34,7 @@ export const indiaComplianceRouter = router({
         const { db, org } = ctx;
         const conditions = [eq(complianceCalendarItems.orgId, org!.id)];
         if (input.status) {
-          conditions.push(eq(complianceCalendarItems.status, input.status as any));
+          conditions.push(eq(complianceCalendarItems.status, input.status));
         }
         if (input.financialYear) {
           conditions.push(eq(complianceCalendarItems.financialYear, input.financialYear));
@@ -65,7 +69,7 @@ export const indiaComplianceRouter = router({
         const { db, org } = ctx;
         const [item] = await db
           .insert(complianceCalendarItems)
-          .values({ orgId: org!.id, ...input, penaltyPerDayInr: String(input.penaltyPerDayInr) } as any)
+          .values({ orgId: org!.id, ...input, penaltyPerDayInr: String(input.penaltyPerDayInr) })
           .returning();
         return item;
       }),
@@ -104,7 +108,7 @@ export const indiaComplianceRouter = router({
         const conditions = [
           eq(complianceCalendarItems.orgId, org!.id),
           lte(complianceCalendarItems.dueDate, now),
-          eq(complianceCalendarItems.status, "overdue" as any),
+          eq(complianceCalendarItems.status, "overdue"),
         ];
         if (input.financialYear) {
           conditions.push(eq(complianceCalendarItems.financialYear, input.financialYear));
@@ -137,7 +141,14 @@ export const indiaComplianceRouter = router({
         let year = parseInt(parts[1] || (parseInt(parts[0] || "2024") + 1).toString());
         if (year < 100) year += 2000;
 
-        const standardItems = [
+        const standardItems: Array<{
+          eventName: string;
+          mcaForm?: string;
+          complianceType: (typeof complianceTypeEnum.enumValues)[number];
+          dueDate: Date;
+          penaltyPerDayInr: string;
+          notes: string;
+        }> = [
           {
             eventName: "DIR-3 KYC (Director KYC)",
             mcaForm: "DIR-3 KYC",
@@ -259,7 +270,7 @@ export const indiaComplianceRouter = router({
               orgId: org!.id,
               financialYear: fy,
               ...item,
-            } as any);
+            });
             seeded++;
           }
         }
@@ -271,12 +282,12 @@ export const indiaComplianceRouter = router({
   // ── Directors ────────────────────────────────────────────────────────────
   directors: router({
     list: permissionProcedure("secretarial", "read")
-      .input(z.object({ isActive: z.boolean().optional(), dinKycStatus: z.string().optional() }))
+      .input(z.object({ isActive: z.boolean().optional(), dinKycStatus: z.enum(dinKycStatusEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(directors.orgId, org!.id)];
         if (input.isActive !== undefined) conditions.push(eq(directors.isActive, input.isActive));
-        if (input.dinKycStatus) conditions.push(eq(directors.dinKycStatus, input.dinKycStatus as any));
+        if (input.dinKycStatus) conditions.push(eq(directors.dinKycStatus, input.dinKycStatus));
         return db.select().from(directors).where(and(...conditions));
       }),
 
@@ -307,7 +318,7 @@ export const indiaComplianceRouter = router({
 
         const [director] = await db
           .insert(directors)
-          .values({ orgId: org!.id, ...input, dinKycStatus: "active", isActive: true } as any)
+          .values({ orgId: org!.id, ...input, dinKycStatus: "active", isActive: true })
           .returning();
         return director;
       }),
@@ -371,11 +382,11 @@ export const indiaComplianceRouter = router({
   // ── Portal Users ─────────────────────────────────────────────────────────
   portalUsers: router({
     list: permissionProcedure("csm", "read")
-      .input(z.object({ status: z.string().optional(), customerId: z.string().uuid().optional() }))
+      .input(z.object({ status: z.enum(portalUserStatusEnum.enumValues).optional(), customerId: z.string().uuid().optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(portalUsers.orgId, org!.id)];
-        if (input.status) conditions.push(eq(portalUsers.status, input.status as any));
+        if (input.status) conditions.push(eq(portalUsers.status, input.status));
         if (input.customerId) conditions.push(eq(portalUsers.customerId, input.customerId));
         return db
           .select({
@@ -428,7 +439,7 @@ export const indiaComplianceRouter = router({
             isLocked: false,
             isSelfRegistered: false,
             createdByEmployeeId: ctx.user!.id,
-          } as any)
+          })
           .returning();
         return user;
       }),
@@ -452,7 +463,7 @@ export const indiaComplianceRouter = router({
         const { db, org } = ctx;
         const [user] = await db
           .update(portalUsers)
-          .set({ isLocked: false, failedLoginCount: 0, lockedAt: null, lockReason: null, updatedAt: new Date() } as any)
+          .set({ isLocked: false, failedLoginCount: 0, lockedAt: null, lockReason: null, updatedAt: new Date() })
           .where(and(eq(portalUsers.id, input.portalUserId), eq(portalUsers.orgId, org!.id)))
           .returning();
         if (!user) throw new TRPCError({ code: "NOT_FOUND" });

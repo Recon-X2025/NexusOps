@@ -8,6 +8,8 @@ import { router, permissionProcedure } from "../../lib/trpc";
 import { z } from "zod";
 import { crmActivities, eq, and, desc } from "@coheronconnect/db";
 
+const activityTypeSchema = z.enum(["call", "email", "meeting", "demo", "follow_up", "note"]);
+
 export const crmActivitiesRouter = router({
   list: permissionProcedure("accounts", "read")
     .input(z.object({ dealId: z.string().uuid().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
@@ -20,7 +22,7 @@ export const crmActivitiesRouter = router({
 
   create: permissionProcedure("accounts", "write")
     .input(z.object({
-      type: z.string().optional(),
+      type: activityTypeSchema.optional(),
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
@@ -36,7 +38,7 @@ export const crmActivitiesRouter = router({
         orgId: org!.id, 
         ...input, 
         ownerId: user!.id, 
-        type: (input.type || "call") as any,
+        type: input.type || "call",
         subject: input.subject || "Logged Activity",
       }).returning();
       return activity;
@@ -45,7 +47,7 @@ export const crmActivitiesRouter = router({
   update: permissionProcedure("accounts", "write")
     .input(z.object({
       id: z.string().uuid(),
-      type: z.string().optional(),
+      type: activityTypeSchema.optional(),
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),

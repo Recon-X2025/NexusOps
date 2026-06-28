@@ -70,7 +70,7 @@ export const oncallRouter = router({
         const { db, org } = ctx;
         const { id, ...data } = input;
         const [schedule] = await db.update(oncallSchedules)
-          .set({ ...data as any, updatedAt: new Date() })
+          .set({ ...data, updatedAt: new Date() })
           .where(and(eq(oncallSchedules.id, id), eq(oncallSchedules.orgId, org!.id)))
           .returning();
         if (!schedule) throw new TRPCError({ code: "NOT_FOUND" });
@@ -88,8 +88,8 @@ export const oncallRouter = router({
           .orderBy(desc(oncallSchedules.createdAt))
           .limit(input.limit);
         // Return escalation chains extracted from schedules
-        return schedules.flatMap((s: any) =>
-          (s.escalationChain ?? []).map((step: any) => ({
+        return schedules.flatMap((s) =>
+          (s.escalationChain ?? []).map((step) => ({
             scheduleId: s.id,
             scheduleName: s.name,
             ...step,
@@ -107,7 +107,7 @@ export const oncallRouter = router({
     const now = new Date();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
 
-    return schedules.map((schedule: any) => {
+    return schedules.map((schedule) => {
       const members: Array<{ userId: string; name: string; phone: string; email: string }> = schedule.members ?? [];
       if (members.length === 0) return { scheduleId: schedule.id, scheduleName: schedule.name, currentOncall: null };
 

@@ -24,7 +24,9 @@ import { z } from "zod";
 import {
   crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmQuotes,
   organizations,
+  accountTierEnum, dealStageEnum, leadStatusEnum, leadSourceEnum, quoteStatusEnum,
   eq, and, desc, count, sum, inArray, notInArray, lt,
+  type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextNumber } from "../../lib/auto-number";
 import {
@@ -42,7 +44,7 @@ import { crmActivitiesRouter } from "./activities";
 import { crmDashboardRouter } from "./dashboard";
 
 // ─── Dashboard helper (shared between legacy + new sub-router) ────────────────
-async function getCrmExecutiveSummary(db: any, orgId: string) {
+async function getCrmExecutiveSummary(db: DbOrTx, orgId: string) {
   const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
     .from(crmDeals).where(and(eq(crmDeals.orgId, orgId), notInArray(crmDeals.stage, ["closed_won", "closed_lost"])));
   const [wonDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
@@ -65,6 +67,8 @@ async function getCrmExecutiveSummary(db: any, orgId: string) {
   };
 }
 
+const activityTypeSchema = z.enum(["call", "email", "meeting", "demo", "follow_up", "note"]);
+
 export const crmRouter = router({
   // ══════════════════════════════════════════════════════════════════════════
   // NEW: Domain-Driven Sub-Routers (canonical going forward)
@@ -83,11 +87,11 @@ export const crmRouter = router({
   // ── Accounts ──────────────────────────────────────────────────────────────
   /** @deprecated Use trpc.crm.accounts.list */
   listAccounts: permissionProcedure("accounts", "read")
-    .input(z.object({ tier: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ tier: z.enum(accountTierEnum.enumValues).optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmAccounts.orgId, org!.id), eq(crmAccounts.archived, input.showArchived)];
-      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier as any));
+      if (input.tier) conditions.push(eq(crmAccounts.tier, input.tier));
       return db.select().from(crmAccounts).where(and(...conditions)).orderBy(desc(crmAccounts.createdAt)).limit(input.limit);
     }),
   /** @deprecated Use trpc.crm.accounts.create */
@@ -104,7 +108,7 @@ export const crmRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() } as any).where(and(eq(crmAccounts.id, id), eq(crmAccounts.orgId, org!.id))).returning();
+      const [account] = await db.update(crmAccounts).set({ ...data, updatedAt: new Date() }).where(and(eq(crmAccounts.id, id), eq(crmAccounts.orgId, org!.id))).returning();
       return account;
     }),
   /** @deprecated Use trpc.crm.accounts.get */
@@ -149,7 +153,7 @@ export const crmRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() } as any)
+      const [contact] = await db.update(crmContacts).set({ ...data, updatedAt: new Date() })
         .where(and(eq(crmContacts.id, id), eq(crmContacts.orgId, org!.id))).returning();
       return contact;
     }),
@@ -175,11 +179,11 @@ export const crmRouter = router({
   // ── Deals ─────────────────────────────────────────────────────────────────
   /** @deprecated Use trpc.crm.deals.list */
   listDeals: permissionProcedure("accounts", "read")
-    .input(z.object({ stage: z.string().optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
+    .input(z.object({ stage: z.enum(dealStageEnum.enumValues).optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmDeals.orgId, org!.id)];
-      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage as any));
+      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage));
       if (input.accountId) conditions.push(eq(crmDeals.accountId, input.accountId));
       return db.select().from(crmDeals).where(and(...conditions)).orderBy(desc(crmDeals.updatedAt)).limit(input.limit);
     }),
@@ -207,9 +211,9 @@ export const crmRouter = router({
         if (!existing.wonApprovedAt) throw new TRPCError({ code: "PRECONDITION_FAILED", message: required === "executive" ? "Deal value requires executive approval before closed-won. An owner/admin must record approval (Admin → CRM deal thresholds or approveDealWon)." : "Deal value requires leadership approval before closed-won. An owner/admin must record approval first." });
         if (required === "executive" && existing.wonApprovalTier !== "executive") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Executive-tier approval is required for this deal value." });
       }
-      const updates: Record<string, unknown> = { stage: input.stage, updatedAt: new Date() };
+      const updates: Partial<typeof crmDeals.$inferInsert> = { stage: input.stage, updatedAt: new Date() };
       if (input.stage === "closed_won" || input.stage === "closed_lost") { updates.closedAt = new Date(); } else { updates.wonApprovedAt = null; updates.wonApprovedBy = null; updates.wonApprovalTier = null; updates.closedAt = null; }
-      const [deal] = await db.update(crmDeals).set(updates as any).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      const [deal] = await db.update(crmDeals).set(updates).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
       return deal;
     }),
   /** @deprecated Use trpc.crm.deals.approveDealWon */
@@ -276,7 +280,7 @@ export const crmRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...updates } = input;
-      const setValues: Record<string, any> = { updatedAt: new Date() };
+      const setValues: Partial<typeof crmDeals.$inferInsert> = { updatedAt: new Date() };
       if (updates.title !== undefined) setValues.title = updates.title;
       if (updates.accountId !== undefined) setValues.accountId = updates.accountId;
       if (updates.contactId !== undefined) setValues.contactId = updates.contactId;
@@ -301,19 +305,19 @@ export const crmRouter = router({
   // ── Leads ─────────────────────────────────────────────────────────────────
   /** @deprecated Use trpc.crm.leads.list */
   listLeads: permissionProcedure("accounts", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ status: z.enum(leadStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmLeads.orgId, org!.id), eq(crmLeads.archived, input.showArchived)];
-      if (input.status) conditions.push(eq(crmLeads.status, input.status as any));
+      if (input.status) conditions.push(eq(crmLeads.status, input.status));
       return db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
     }),
   /** @deprecated Use trpc.crm.leads.create */
   createLead: permissionProcedure("accounts", "write")
-    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().email(), phone: z.string(), company: z.string().optional(), title: z.string().optional(), source: z.string().default("website") }))
+    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().email(), phone: z.string(), company: z.string().optional(), title: z.string().optional(), source: z.enum(leadSourceEnum.enumValues).default("website") }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source as any }).returning();
+      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source }).returning();
       return lead;
     }),
   /** @deprecated Use trpc.crm.leads.update */
@@ -348,7 +352,7 @@ export const crmRouter = router({
   /** @deprecated Use trpc.crm.activities.create */
   createActivity: permissionProcedure("accounts", "write")
     .input(z.object({
-      type: z.string().optional(),
+      type: activityTypeSchema.optional(),
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
@@ -364,7 +368,7 @@ export const crmRouter = router({
         orgId: org!.id, 
         ...input, 
         ownerId: user!.id, 
-        type: (input.type || "call") as any,
+        type: input.type || "call",
         subject: input.subject || "Logged Activity",
       }).returning();
       return activity;
@@ -373,7 +377,7 @@ export const crmRouter = router({
   updateActivity: permissionProcedure("accounts", "write")
     .input(z.object({
       id: z.string().uuid(),
-      type: z.string().optional(),
+      type: activityTypeSchema.optional(),
       subject: z.string().optional(),
       description: z.string().optional(),
       dealId: z.string().uuid().optional(),
@@ -397,12 +401,12 @@ export const crmRouter = router({
   // ── Quotes ────────────────────────────────────────────────────────────────
   /** @deprecated Use trpc.crm.deals.quotes.list */
   listQuotes: permissionProcedure("accounts", "read")
-    .input(z.object({ dealId: z.string().uuid().optional(), status: z.string().optional() }))
+    .input(z.object({ dealId: z.string().uuid().optional(), status: z.enum(quoteStatusEnum.enumValues).optional() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmQuotes.orgId, org!.id)];
       if (input.dealId) conditions.push(eq(crmQuotes.dealId, input.dealId));
-      if (input.status) conditions.push(eq(crmQuotes.status, input.status as any));
+      if (input.status) conditions.push(eq(crmQuotes.status, input.status));
       return db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
     }),
   /** @deprecated Use trpc.crm.deals.quotes.create */
@@ -418,11 +422,11 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.deals.quotes.update */
   updateQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.enum(["draft", "sent", "viewed", "accepted", "declined", "expired"]).optional(), notes: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() } as any).where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
+      const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() }).where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
       if (!quote) throw new TRPCError({ code: "NOT_FOUND" });
       return quote;
     }),

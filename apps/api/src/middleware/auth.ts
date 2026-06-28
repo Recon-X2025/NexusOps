@@ -12,7 +12,7 @@ import {
   and,
   sql,
 } from "@coheronconnect/db";
-import type { Context } from "../lib/trpc";
+import type { Context, ContextUser, ContextOrg } from "../lib/trpc";
 import { getRedis } from "../lib/redis";
 
 function withoutPasswordHash<T extends { passwordHash?: string | null }>(row: T | null | undefined) {
@@ -55,8 +55,8 @@ export const REDIS_TTL_SECS = 300;
 // ── L1: In-process session cache ─────────────────────────────────────────────
 
 interface SessionCacheEntry {
-  user: Record<string, unknown> | null;
-  org:  Record<string, unknown> | null;
+  user: ContextUser | null;
+  org:  ContextOrg | null;
   /** Absolute epoch ms beyond which this entry must not be served. */
   expiresAt: number;
 }
@@ -84,8 +84,8 @@ function getL1(tokenHash: string): SessionCacheEntry | null {
  */
 function setL1(
   tokenHash: string,
-  user: Context["user"],
-  org: Record<string, unknown> | null,
+  user: ContextUser | null,
+  org: ContextOrg | null,
   sessionExpiresAt: string | null,
 ): void {
   const now = Date.now();
@@ -113,8 +113,8 @@ function setL1(
 // ── L2: Redis session cache ───────────────────────────────────────────────────
 
 interface RedisSessionPayload {
-  user: Record<string, unknown>;
-  org:  Record<string, unknown>;
+  user: ContextUser;
+  org:  ContextOrg;
   sessionExpiresAt: string; // ISO string — validated before serving
 }
 
@@ -164,7 +164,7 @@ export async function invalidateSessionCache(tokenHash: string): Promise<void> {
 
 type ResolvedSession = {
   user: Context["user"];
-  org:  Record<string, unknown> | null;
+  org:  ContextOrg | null;
   /** ISO string of session expiry from DB; null for invalid sessions. */
   sessionExpiresAt: string | null;
 };
@@ -233,13 +233,13 @@ async function fetchSession(
     .limit(1);
 
   const user = withoutPasswordHash(rawUser);
-  let org: Record<string, unknown> | null = null;
+  let org: ContextOrg | null = null;
 
   if (user) {
     const [rawOrg] = await db
       .select()
       .from(organizations)
-      .where(eq(organizations.id, user.orgId as string))
+      .where(eq(organizations.id, user.orgId))
       .limit(1);
     org = rawOrg ?? null;
   }
@@ -252,7 +252,7 @@ async function fetchSession(
   // Back-fill Redis so the next L1 eviction falls through to Redis, not DB.
   if (user && org) {
     setRedisSession(tokenHash, {
-      user: user as Record<string, unknown>,
+      user,
       org,
       sessionExpiresAt,
     }).catch(() => {});
@@ -280,8 +280,8 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
   const db = getDb();
   const databaseProvider = getDatabaseOltpProvider();
   const mongoDb = isMongoReady() ? getMongoDb() : null;
-  let user: Context["user"] = null;
-  let org: Record<string, unknown> | null = null;
+  let user: ContextUser | null = null;
+  let org: ContextOrg | null = null;
   let sessionId: string | null = null;
 
   const rawHeaders = req.headers as Record<string, string | string[] | undefined>;
@@ -350,7 +350,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       user = withoutPasswordHash(u);
       if (user) {
         const [rawApiOrg] = await db.select().from(organizations).where(eq(organizations.id, apiKey.orgId)).limit(1);
-        org = (rawApiOrg ?? null) as Record<string, unknown> | null;
+        org = rawApiOrg ?? null;
       }
     }
 
@@ -360,7 +360,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       databaseProvider,
       user: user ?? null,
       org: org ?? null,
-      orgId: (org?.id as string | undefined) ?? null,
+      orgId: org?.id ?? null,
       sessionId: null,
       requestId: (req.id as string) ?? null,
       ipAddress: req.ip ?? null,
@@ -382,7 +382,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       databaseProvider,
       user: l1.user,
       org: l1.org,
-      orgId: (l1.org?.id as string | undefined) ?? null,
+      orgId: l1.org?.id ?? null,
       sessionId,
       requestId: (req.id as string) ?? null,
       ipAddress: req.ip ?? null,
@@ -415,7 +415,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
     databaseProvider,
     user:           user ?? null,
     org:            org  ?? null,
-    orgId:          (org?.id as string | undefined) ?? null,
+    orgId:          org?.id ?? null,
     sessionId,
     requestId:      (req.id as string) ?? null,
     ipAddress:      req.ip ?? null,

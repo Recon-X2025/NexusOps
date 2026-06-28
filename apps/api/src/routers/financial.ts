@@ -6,6 +6,7 @@ import {
   budgetLines,
   chargebacks,
   invoices,
+  invoiceStatusEnum,
   vendors,
   legalEntities,
   organizations,
@@ -19,6 +20,7 @@ import {
   gte,
   lt,
   notInArray,
+  type DbOrTx,
 } from "@coheronconnect/db";
 import {
   getDuplicatePayablePolicy,
@@ -31,7 +33,7 @@ import {
 import { getWorkflowService } from "../services/workflow";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function countDuplicatePayable(db: any, orgId: string, vendorId: string, invoiceNumber: string): Promise<number> {
+async function countDuplicatePayable(db: DbOrTx, orgId: string, vendorId: string, invoiceNumber: string): Promise<number> {
   const [row] = await db
     .select({ c: count() })
     .from(invoices)
@@ -77,7 +79,7 @@ export const financialRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const [line] = await db.update(budgetLines).set({ ...data, updatedAt: new Date() } as any)
+      const [line] = await db.update(budgetLines).set({ ...data, updatedAt: new Date() })
         .where(and(eq(budgetLines.id, id), eq(budgetLines.orgId, org!.id))).returning();
       return line;
     }),
@@ -138,7 +140,7 @@ export const financialRouter = router({
         matchingStatus: "pending",
         invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-      } as any).returning();
+      }).returning();
       return { ...inv, duplicatePayableWarning: dup > 0 && policy === "warn" };
     }),
 
@@ -178,7 +180,7 @@ export const financialRouter = router({
           matchingStatus: "pending",
           invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
           dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-        } as any)
+        })
         .returning();
       return inv;
     }),
@@ -186,7 +188,7 @@ export const financialRouter = router({
   listInvoices: permissionProcedure("financial", "read")
     .input(z.object({
       direction: z.enum(["payable", "receivable"]).optional(),
-      status: z.string().optional(),
+      status: z.enum(invoiceStatusEnum.enumValues).optional(),
       limit: z.coerce.number().default(50),
       cursor: z.string().optional(),
     }))
@@ -196,7 +198,7 @@ export const financialRouter = router({
       if (input.direction) {
         conditions.push(eq(invoices.invoiceFlow, input.direction));
       }
-      if (input.status) conditions.push(eq(invoices.status, input.status as any));
+      if (input.status) conditions.push(eq(invoices.status, input.status));
 
       const base = await db
         .select({
@@ -577,7 +579,7 @@ export const financialRouter = router({
           invoiceDate: input.invoiceDate,
           status: "confirmed",
           matchingStatus: "pending",
-        } as any)
+        })
         .returning();
 
       const eInvoiceRequired = isEInvoiceRequired(0);
@@ -671,15 +673,15 @@ export const financialRouter = router({
       const allInvoices = await db
         .select()
         .from(invoices)
-        .where(eq(invoices.orgId, org!.id)) as any[];
+        .where(eq(invoices.orgId, org!.id));
 
       const bookLines = allInvoices
-        .filter((inv: any) => {
+        .filter((inv) => {
           if (!inv.invoiceDate) return false;
           const d = new Date(inv.invoiceDate);
           return d >= startDate && d <= endDate;
         })
-        .map((inv: any) => ({
+        .map((inv) => ({
           supplierGstin: inv.supplierGstin ?? "",
           invoiceNumber: inv.invoiceNumber,
           invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().slice(0, 10) : "",

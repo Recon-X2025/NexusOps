@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { contracts, contractObligations, eq, and, desc, count, sql } from "@coheronconnect/db";
+import { contracts, contractObligations, contractStatusEnum, contractTypeEnum, obligationStatusEnum, obligationFrequencyEnum, eq, and, desc, count, sql } from "@coheronconnect/db";
 import { supportedCurrencyCodeSchema } from "@coheronconnect/types";
 import { getNextNumber } from "../lib/auto-number";
 
@@ -20,8 +20,8 @@ const CONTRACT_STATE_MACHINE: Record<string, string[]> = {
 export const contractsRouter = router({
   list: permissionProcedure("contracts", "read")
     .input(z.object({
-      status: z.string().optional(),
-      type: z.string().optional(),
+      status: z.enum(contractStatusEnum.enumValues).optional(),
+      type: z.enum(contractTypeEnum.enumValues).optional(),
       search: z.string().optional(),
       limit: z.coerce.number().default(50),
       cursor: z.string().optional(),
@@ -29,8 +29,8 @@ export const contractsRouter = router({
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(contracts.orgId, org!.id)];
-      if (input.status) conditions.push(eq(contracts.status, input.status as any));
-      if (input.type) conditions.push(eq(contracts.type, input.type as any));
+      if (input.status) conditions.push(eq(contracts.status, input.status));
+      if (input.type) conditions.push(eq(contracts.type, input.type));
 
       const rows = await db.select().from(contracts)
         .where(and(...conditions))
@@ -85,7 +85,7 @@ export const contractsRouter = router({
     .input(z.object({
       title: z.string(),
       counterparty: z.string(),
-      type: z.string(),
+      type: z.enum(contractTypeEnum.enumValues),
       value: z.string().optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
@@ -102,7 +102,7 @@ export const contractsRouter = router({
         fieldValues: z.record(z.union([z.string(), z.coerce.number()])),
         wasModified: z.boolean(),
       })).optional(),
-      obligations: z.array(z.object({ title: z.string(), party: z.string(), frequency: z.string(), dueDate: z.string().optional() })).default([]),
+      obligations: z.array(z.object({ title: z.string(), party: z.string(), frequency: z.enum(obligationFrequencyEnum.enumValues), dueDate: z.string().optional() })).default([]),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -112,7 +112,7 @@ export const contractsRouter = router({
         orgId: org!.id, contractNumber,
         title: input.title,
         counterparty: input.counterparty,
-        type: input.type as any,
+        type: input.type,
         value: input.value,
         internalOwnerId: user!.id,
         startDate: input.startDate ? new Date(input.startDate) : undefined,
@@ -131,7 +131,7 @@ export const contractsRouter = router({
             contractId: contract!.id,
             title: o.title,
             party: o.party,
-            frequency: o.frequency as any,
+            frequency: o.frequency,
             dueDate: o.dueDate ? new Date(o.dueDate) : undefined,
           })),
         );
@@ -141,7 +141,7 @@ export const contractsRouter = router({
     }),
 
   transition: permissionProcedure("contracts", "write")
-    .input(z.object({ id: z.string().uuid(), toStatus: z.string() }))
+    .input(z.object({ id: z.string().uuid(), toStatus: z.enum(contractStatusEnum.enumValues) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [contract] = await db.select().from(contracts)
@@ -154,7 +154,7 @@ export const contractsRouter = router({
       }
 
       const [updated] = await db.update(contracts)
-        .set({ status: input.toStatus as any, updatedAt: new Date() })
+        .set({ status: input.toStatus, updatedAt: new Date() })
         .where(eq(contracts.id, input.id)).returning();
       return updated;
     }),
@@ -163,7 +163,7 @@ export const contractsRouter = router({
   updateStatus: permissionProcedure("contracts", "write")
     .input(z.object({
       id: z.string().uuid(),
-      status: z.string().optional(),
+      status: z.enum(contractStatusEnum.enumValues).optional(),
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -184,7 +184,7 @@ export const contractsRouter = router({
 
       const [updated] = await db.update(contracts)
         .set({
-          ...(input.status !== undefined ? { status: input.status as any } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
           ...(input.notes !== undefined ? { notes: input.notes } : {}),
           updatedAt: new Date(),
         })
@@ -208,14 +208,14 @@ export const contractsRouter = router({
     }),
 
   listObligations: permissionProcedure("contracts", "read")
-    .input(z.object({ status: z.string().optional() }))
+    .input(z.object({ status: z.enum(obligationStatusEnum.enumValues).optional() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const contractsInOrg = await db.select({ id: contracts.id }).from(contracts).where(eq(contracts.orgId, org!.id));
       if (!contractsInOrg.length) return [];
       const ids = contractsInOrg.map((c: { id: string }) => c.id);
       const conditions = [sql`contract_id = ANY(${ids})`];
-      if (input.status) conditions.push(eq(contractObligations.status, input.status as any));
+      if (input.status) conditions.push(eq(contractObligations.status, input.status));
       return db.select().from(contractObligations).where(and(...conditions)).orderBy(contractObligations.dueDate);
     }),
 

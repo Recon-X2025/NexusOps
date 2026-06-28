@@ -28,13 +28,19 @@ const MatterIngestSchema = z.object({
 
 const ContractIngestSchema = z.object({
     title: z.string().min(1),
-    contractType: z.string().default("general"),
-    counterparty: z.string().optional(),
+    contractType: z.enum([
+        "nda", "msa", "sow", "license", "customer_agreement",
+        "sla_support", "colocation", "employment", "vendor", "partnership",
+    ]).default("vendor"),
+    counterparty: z.string().min(1),
     amount: z.string().optional(),
     currency: z.string().default("INR"),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
-    status: z.string().default("active"),
+    status: z.enum([
+        "draft", "under_review", "legal_review", "awaiting_signature",
+        "active", "expiring_soon", "expired", "terminated",
+    ]).default("active"),
 });
 
 const LeadIngestSchema = z.object({
@@ -111,7 +117,7 @@ export const ingestRouter = router({
                     limitationDeadlineAt: limitationDeadlineAt ? new Date(limitationDeadlineAt) : undefined,
                 }).returning();
 
-                results.push(row.id);
+                if (row) results.push(row.id);
             }
 
             // Sync counters after bulk import to ensure no collisions
@@ -131,18 +137,20 @@ export const ingestRouter = router({
 
             for (const item of input) {
                 const contractNumber = await getNextNumber(db, org!.id, "CON");
-                const { startDate, endDate, ...rest } = item;
+                const { startDate, endDate, contractType, amount, ...rest } = item;
 
                 const [row] = await db.insert(contracts).values({
                     orgId: org!.id,
                     contractNumber,
                     ...rest,
-                    ownerId: user!.id,
+                    type: contractType,
+                    value: amount,
+                    internalOwnerId: user!.id,
                     startDate: startDate ? new Date(startDate) : undefined,
                     endDate: endDate ? new Date(endDate) : undefined,
                 }).returning();
 
-                results.push(row.id);
+                if (row) results.push(row.id);
             }
 
             await syncOrgCounters(db);
@@ -289,7 +297,7 @@ export const ingestRouter = router({
                     matchingStatus: "pending",
                     invoiceDate: item.invoiceDate ? new Date(item.invoiceDate) : new Date(),
                     dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
-                } as any).returning();
+                }).returning();
                 results.push(row!.id);
             }
 

@@ -270,7 +270,8 @@ export const authRouter = router({
   /** Returns null when unauthenticated (HTTP 200) so clients do not treat routine “no session” as a 401 error. */
   me: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.user || !ctx.org) return null;
-    return { user: stripPasswordHash(ctx.user), org: ctx.org };
+    // ctx.user is already ContextUser (passwordHash omitted by auth middleware).
+    return { user: ctx.user, org: ctx.org };
   }),
 
   // ── Profile Update ──────────────────────────────────────────────────────

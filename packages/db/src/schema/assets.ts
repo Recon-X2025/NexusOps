@@ -53,6 +53,15 @@ export const licenseTypeEnum = pgEnum("license_type", [
   "enterprise",
 ]);
 
+// Acquisition / commercial model of a license, distinct from its seat model (`type`).
+export const acquisitionTypeEnum = pgEnum("acquisition_type", [
+  "perpetual",
+  "subscription",
+  "trial",
+  "open_source",
+  "freeware",
+]);
+
 // ── Asset Types ────────────────────────────────────────────────────────────
 export const assetTypes = pgTable(
   "asset_types",
@@ -184,6 +193,7 @@ export const softwareLicenses = pgTable(
     name: text("name").notNull(),
     vendor: text("vendor"),
     type: licenseTypeEnum("type").notNull(),
+    acquisitionType: acquisitionTypeEnum("acquisition_type"),
     totalSeats: decimal("total_seats", { precision: 10, scale: 0 }),
     cost: decimal("cost", { precision: 12, scale: 2 }),
     purchaseDate: timestamp("purchase_date", { withTimezone: true }),

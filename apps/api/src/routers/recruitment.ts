@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   jobRequisitions, candidates, candidateApplications, interviews, jobOffers,
+  candidateSourceEnum, jobStatusEnum, offerStatusEnum,
   eq, and, desc, asc, count, sql, inArray,
 } from "@coheronconnect/db";
 
@@ -17,20 +18,20 @@ export const recruitmentRouter = router({
   requisitions: router({
     list: permissionProcedure("recruitment", "read")
       .input(z.object({
-        status: z.string().optional(),
+        status: z.enum(jobStatusEnum.enumValues).optional(),
         department: z.string().optional(),
         search: z.string().optional(),
       }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(jobRequisitions.orgId, org!.id)];
-        if (input.status) conds.push(eq(jobRequisitions.status, input.status as any));
+        if (input.status) conds.push(eq(jobRequisitions.status, input.status));
         if (input.department) conds.push(eq(jobRequisitions.department, input.department));
         const rows = await db.select().from(jobRequisitions)
           .where(and(...conds)).orderBy(desc(jobRequisitions.createdAt));
         if (input.search) {
           const q = input.search.toLowerCase();
-          return rows.filter((r: any) => r.title.toLowerCase().includes(q) || r.department.toLowerCase().includes(q));
+          return rows.filter((r) => r.title.toLowerCase().includes(q) || r.department.toLowerCase().includes(q));
         }
         return rows;
       }),
@@ -88,7 +89,7 @@ export const recruitmentRouter = router({
       .input(z.object({
         id:          z.string().uuid(),
         title:       z.string().optional(),
-        status:      z.enum(["draft","open","on_hold","closed","cancelled"]).optional(),
+        status:      z.enum(jobStatusEnum.enumValues).optional(),
         department:  z.string().optional(),
         description: z.string().optional(),
         requirements: z.string().optional(),
@@ -101,11 +102,11 @@ export const recruitmentRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, targetDate, ...rest } = input;
-        const patch: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+        const patch: Partial<typeof jobRequisitions.$inferInsert> = { ...rest, updatedAt: new Date() };
         if (targetDate !== undefined) patch.targetDate = targetDate ? new Date(targetDate) : null;
-        Object.keys(patch).forEach((k) => patch[k] === undefined && delete patch[k]);
+        Object.keys(patch).forEach((k) => (patch as Record<string, unknown>)[k] === undefined && delete (patch as Record<string, unknown>)[k]);
         const [row] = await db.update(jobRequisitions)
-          .set(patch as any)
+          .set(patch)
           .where(and(eq(jobRequisitions.id, id), eq(jobRequisitions.orgId, org!.id)))
           .returning();
         return row;
@@ -133,7 +134,7 @@ export const recruitmentRouter = router({
           .where(eq(candidates.orgId, org!.id)).orderBy(desc(candidates.createdAt));
         if (input.search) {
           const q = input.search.toLowerCase();
-          return rows.filter((r: any) =>
+          return rows.filter((r) =>
             `${r.firstName} ${r.lastName}`.toLowerCase().includes(q) ||
             r.email.toLowerCase().includes(q) ||
             (r.currentTitle ?? "").toLowerCase().includes(q),
@@ -157,7 +158,7 @@ export const recruitmentRouter = router({
           .innerJoin(jobRequisitions, eq(jobRequisitions.id, candidateApplications.jobId))
           .where(eq(candidateApplications.candidateId, input.id));
         const ivws = await db.select().from(interviews)
-          .where(inArray(interviews.applicationId, apps.map((a: any) => a.application.id)))
+          .where(inArray(interviews.applicationId, apps.map((a) => a.application.id)))
           .orderBy(desc(interviews.scheduledAt));
         return { candidate: cand, applications: apps, interviews: ivws };
       }),
@@ -175,7 +176,7 @@ export const recruitmentRouter = router({
         skills:       z.array(z.string()).default([]),
         resumeUrl:    z.string().optional(),
         linkedinUrl:  z.string().optional(),
-        source:       z.string().optional(),
+        source:       z.enum(candidateSourceEnum.enumValues).optional(),
         notes:        z.string().optional(),
         jobId:        z.string().uuid().optional(),  // directly apply to a job
       }))
@@ -185,8 +186,9 @@ export const recruitmentRouter = router({
         const [cand] = await db.insert(candidates).values({
           ...candData,
           orgId: org!.id,
-          source: (candData.source as any) ?? "other",
+          source: candData.source ?? "other",
         }).returning();
+        if (!cand) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create candidate." });
         if (jobId) {
           const [existing] = await db.select({ id: candidateApplications.id }).from(candidateApplications)
             .where(and(
@@ -262,7 +264,7 @@ export const recruitmentRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const updates: Record<string, any> = {
+        const updates: Partial<typeof candidateApplications.$inferInsert> = {
           stage: input.stage,
           stageUpdatedAt: new Date(),
           updatedAt: new Date(),
@@ -274,6 +276,7 @@ export const recruitmentRouter = router({
           .set(updates)
           .where(and(eq(candidateApplications.id, input.applicationId), eq(candidateApplications.orgId, org!.id)))
           .returning();
+        if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "Application not found." });
         if (input.stage === "hired") {
           const [req] = await db.select().from(jobRequisitions)
             .where(and(eq(jobRequisitions.id, app.jobId), eq(jobRequisitions.orgId, org!.id)));
@@ -368,11 +371,11 @@ export const recruitmentRouter = router({
 
   offers: router({
     list: permissionProcedure("recruitment", "read")
-      .input(z.object({ status: z.string().optional() }))
+      .input(z.object({ status: z.enum(offerStatusEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(jobOffers.orgId, org!.id)];
-        if (input.status) conds.push(eq(jobOffers.status, input.status as any));
+        if (input.status) conds.push(eq(jobOffers.status, input.status));
         return db.select().from(jobOffers).where(and(...conds)).orderBy(desc(jobOffers.createdAt));
       }),
 
@@ -412,7 +415,7 @@ export const recruitmentRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const updates: Record<string, any> = { status: input.status, updatedAt: new Date() };
+        const updates: Partial<typeof jobOffers.$inferInsert> = { status: input.status, updatedAt: new Date() };
         if (input.notes) updates.notes = input.notes;
         if (input.status === "sent") updates.sentAt = new Date();
         if (["accepted","declined"].includes(input.status)) updates.respondedAt = new Date();
@@ -451,13 +454,15 @@ export const recruitmentRouter = router({
         .where(and(eq(jobRequisitions.orgId, org!.id), eq(jobRequisitions.status, "open")))
         .groupBy(jobRequisitions.department);
 
-      const conversionRate = totalApps.n > 0 ? Math.round((hired.n / totalApps.n) * 100) : 0;
+      const totalAppsN = totalApps?.n ?? 0;
+      const hiredN = hired?.n ?? 0;
+      const conversionRate = totalAppsN > 0 ? Math.round((hiredN / totalAppsN) * 100) : 0;
 
       return {
-        openReqs: openReqs.n,
-        totalApplications: totalApps.n,
-        hired: hired.n,
-        rejected: rejected.n,
+        openReqs: openReqs?.n ?? 0,
+        totalApplications: totalAppsN,
+        hired: hiredN,
+        rejected: rejected?.n ?? 0,
         conversionRate,
         byStage,
         bySource,

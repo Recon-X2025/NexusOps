@@ -10,6 +10,7 @@
  */
 
 import { router, permissionProcedure } from "../lib/trpc";
+import type { ContextUser } from "../lib/trpc";
 import { z } from "zod";
 import { canAccessWorkbench, type WorkbenchKey, type SystemRole } from "@coheronconnect/types";
 import { systemRolesForDbUser } from "../lib/rbac-db";
@@ -30,8 +31,7 @@ import {
 } from "../services/workbench-payloads";
 
 function assertWorkbenchAccess(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  user: Record<string, any> | null,
+  user: ContextUser | null,
   key: WorkbenchKey,
 ) {
   // ctx.user exposes the DB row (role + matrixRole). The RBAC matrix uses

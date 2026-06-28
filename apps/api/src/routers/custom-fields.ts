@@ -6,6 +6,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import type { SQL } from "@coheronconnect/db";
 
 const ENTITY_VALUES = ["ticket","asset","employee","contract","vendor","project","change_request","lead","invoice","expense_claim","okr_objective"] as const;
 const FIELD_TYPES   = ["text","textarea","number","decimal","boolean","date","datetime","select","multi_select","url","email","phone","user_reference","file","json"] as const;
@@ -19,7 +20,7 @@ export const customFieldsRouter = router({
   })).query(async ({ ctx, input }) => {
     const { org, db } = ctx;
     const { customFieldDefinitions, eq: dbEq, and: dbAnd, asc: dbAsc } = await import("@coheronconnect/db");
-    const conds: any[] = [dbEq(customFieldDefinitions.orgId, org!.id), dbEq(customFieldDefinitions.entity, input.entity)];
+    const conds: SQL[] = [dbEq(customFieldDefinitions.orgId, org!.id), dbEq(customFieldDefinitions.entity, input.entity)];
     if (input.activeOnly) conds.push(dbEq(customFieldDefinitions.isActive, true));
     return db.select().from(customFieldDefinitions).where(dbAnd(...conds)).orderBy(dbAsc(customFieldDefinitions.sortOrder));
   }),
@@ -119,7 +120,7 @@ export const customFieldsRouter = router({
     const { sql } = await import("@coheronconnect/db");
     await db.insert(customFieldValues).values(rows)
       .onConflictDoUpdate({
-        target: ["field_id", "entity_id"],
+        target: [customFieldValues.fieldId, customFieldValues.entityId],
         set: { value: sql`excluded.value`, updatedAt: new Date() },
       });
 

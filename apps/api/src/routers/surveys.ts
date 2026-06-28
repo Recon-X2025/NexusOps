@@ -1,17 +1,17 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { surveys, surveyResponses, eq, and, desc, count, avg } from "@coheronconnect/db";
+import { surveys, surveyResponses, surveyStatusEnum, surveyTypeEnum, eq, and, desc, count, avg } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 
 export const surveysRouter = router({
   list: permissionProcedure("surveys", "read")
-    .input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.enum(surveyStatusEnum.enumValues).optional(), type: z.enum(surveyTypeEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(surveys.orgId, org!.id)];
-      if (input.status) conditions.push(eq(surveys.status, input.status as any));
-      if (input.type) conditions.push(eq(surveys.type, input.type as any));
+      if (input.status) conditions.push(eq(surveys.status, input.status));
+      if (input.type) conditions.push(eq(surveys.type, input.type));
       return db.select().from(surveys).where(and(...conditions)).orderBy(desc(surveys.createdAt)).limit(input.limit);
     }),
 
@@ -65,14 +65,14 @@ export const surveysRouter = router({
         required: z.boolean().default(true),
         options: z.array(z.string()).optional(),
       })).optional(),
-      status: z.enum(["draft", "active", "closed"]).optional(),
+      status: z.enum(surveyStatusEnum.enumValues).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
       const [survey] = await db
         .update(surveys)
-        .set({ ...data as any, updatedAt: new Date() })
+        .set({ ...data, updatedAt: new Date() })
         .where(and(eq(surveys.id, id), eq(surveys.orgId, org!.id)))
         .returning();
       if (!survey) throw new TRPCError({ code: "NOT_FOUND" });
@@ -105,8 +105,10 @@ export const surveysRouter = router({
     const [survey] = await db.select().from(surveys).where(and(eq(surveys.id, input.id), eq(surveys.orgId, org!.id)));
     if (!survey) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const [{ cnt }] = await db.select({ cnt: count() }).from(surveyResponses).where(eq(surveyResponses.surveyId, input.id));
-    const [{ avgScore }] = await db.select({ avgScore: avg(surveyResponses.score) }).from(surveyResponses).where(eq(surveyResponses.surveyId, input.id));
+    const [cntRow] = await db.select({ cnt: count() }).from(surveyResponses).where(eq(surveyResponses.surveyId, input.id));
+    const cnt = cntRow?.cnt ?? 0;
+    const [avgScoreRow] = await db.select({ avgScore: avg(surveyResponses.score) }).from(surveyResponses).where(eq(surveyResponses.surveyId, input.id));
+    const avgScore = avgScoreRow?.avgScore ?? null;
     const responses = await db.select().from(surveyResponses).where(eq(surveyResponses.surveyId, input.id)).orderBy(desc(surveyResponses.submittedAt)).limit(100);
 
     return { survey, totalResponses: Number(cnt), averageScore: avgScore ? Number(avgScore).toFixed(1) : null, responses };

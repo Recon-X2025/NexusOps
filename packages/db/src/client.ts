@@ -195,6 +195,21 @@ export function getDb() {
 export type Db = ReturnType<typeof getDb>;
 
 /**
+ * Transaction handle type — the value passed to the callback of `db.transaction()`.
+ * Use this to type helper functions that must accept either the root `Db` or a
+ * transaction handle (`Db | Tx`). Derived from `Db` so it always tracks the live
+ * schema generic and never drifts from the singleton instance's type.
+ */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * Accepts either the root connection or an in-flight transaction. Helper
+ * functions that run the same query on `ctx.db` or inside `db.transaction(tx => …)`
+ * should annotate their db parameter with this union.
+ */
+export type DbOrTx = Db | Tx;
+
+/**
  * Gracefully closes all pool connections.
  * Logs a final pool summary (peak utilisation, exhaustion events) before exit.
  */

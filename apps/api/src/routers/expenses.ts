@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   expenseReports,
+  expenseStatusEnum,
   expenseItems,
   eq,
   and,
@@ -47,14 +48,14 @@ export const expensesRouter = router({
   // ── List reports ─────────────────────────────────────────────────────────
   listReports: permissionProcedure("financial", "read")
     .input(z.object({
-      status: z.string().optional(),
+      status: z.enum(expenseStatusEnum.enumValues).optional(),
       submittedById: z.string().uuid().optional(),
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(expenseReports.orgId, org!.id)];
-      if (input.status) conditions.push(eq(expenseReports.status, input.status as any));
+      if (input.status) conditions.push(eq(expenseReports.status, input.status));
       if (input.submittedById) conditions.push(eq(expenseReports.submittedById, input.submittedById));
       return db
         .select()
@@ -111,7 +112,7 @@ export const expensesRouter = router({
           currency: input.currency,
           submittedById: user!.id,
           status: "draft",
-        } as any)
+        })
         .returning();
       return report;
     }),
@@ -124,7 +125,7 @@ export const expensesRouter = router({
       const { id, ...data } = input;
       const [report] = await db
         .update(expenseReports)
-        .set({ ...data, updatedAt: new Date() } as any)
+        .set({ ...data, updatedAt: new Date() })
         .where(and(
           eq(expenseReports.id, id),
           eq(expenseReports.orgId, org!.id),
@@ -143,7 +144,7 @@ export const expensesRouter = router({
       const { db, org, user } = ctx;
       const [report] = await db
         .update(expenseReports)
-        .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() } as any)
+        .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
         .where(and(
           eq(expenseReports.id, input.id),
           eq(expenseReports.orgId, org!.id),
@@ -164,7 +165,7 @@ export const expensesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const updates: Record<string, any> = {
+      const updates: Partial<typeof expenseReports.$inferInsert> = {
         status: input.decision,
         approverId: user!.id,
         updatedAt: new Date(),
@@ -205,7 +206,7 @@ export const expensesRouter = router({
           receiptFileName: input.receiptFileName,
           isBillable: input.isBillable,
           notes: input.notes,
-        } as any)
+        })
         .returning();
 
       // Update report total
@@ -216,7 +217,7 @@ export const expensesRouter = router({
       const newTotal = totals[0]?.total ?? "0";
       await db
         .update(expenseReports)
-        .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() } as any)
+        .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() })
         .where(and(eq(expenseReports.id, input.reportId), eq(expenseReports.orgId, org!.id)));
 
       return item;
@@ -243,7 +244,7 @@ export const expensesRouter = router({
       const newTotal = totals[0]?.total ?? "0";
       await db
         .update(expenseReports)
-        .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() } as any)
+        .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() })
         .where(and(eq(expenseReports.id, input.reportId), eq(expenseReports.orgId, org!.id)));
 
       return { success: true };

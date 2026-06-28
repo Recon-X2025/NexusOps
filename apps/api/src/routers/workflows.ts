@@ -166,7 +166,7 @@ export const workflowsRouter = router({
       if (!workflow) throw new TRPCError({ code: "NOT_FOUND" });
 
       // Update metadata if provided
-      const metaUpdates: Record<string, any> = { updatedAt: new Date() };
+      const metaUpdates: Partial<typeof workflows.$inferInsert> = { updatedAt: new Date() };
       if (input.name !== undefined) metaUpdates.name = input.name;
       if (input.description !== undefined) metaUpdates.description = input.description;
       if (input.triggerType !== undefined) metaUpdates.triggerType = input.triggerType;

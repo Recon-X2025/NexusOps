@@ -1,15 +1,15 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { pipelineRuns, deployments, eq, and, desc, count, avg, sql } from "@coheronconnect/db";
+import { pipelineRuns, deployments, pipelineStatusEnum, deploymentEnvEnum, deploymentStatusEnum, eq, and, desc, count, avg, sql } from "@coheronconnect/db";
 
 export const devopsRouter = router({
   // ── Pipeline Runs ──────────────────────────────────────────────────────────
   listPipelines: permissionProcedure("projects", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.enum(pipelineStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(pipelineRuns.orgId, org!.id)];
-      if (input.status) conditions.push(eq(pipelineRuns.status, input.status as any));
+      if (input.status) conditions.push(eq(pipelineRuns.status, input.status));
       return db.select().from(pipelineRuns).where(and(...conditions)).orderBy(desc(pipelineRuns.startedAt)).limit(input.limit);
     }),
 
@@ -38,12 +38,12 @@ export const devopsRouter = router({
 
   // ── Deployments ────────────────────────────────────────────────────────────
   listDeployments: permissionProcedure("projects", "read")
-    .input(z.object({ environment: z.string().optional(), status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ environment: z.enum(deploymentEnvEnum.enumValues).optional(), status: z.enum(deploymentStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(deployments.orgId, org!.id)];
-      if (input.environment) conditions.push(eq(deployments.environment, input.environment as any));
-      if (input.status) conditions.push(eq(deployments.status, input.status as any));
+      if (input.environment) conditions.push(eq(deployments.environment, input.environment));
+      if (input.status) conditions.push(eq(deployments.status, input.status));
       return db.select().from(deployments).where(and(...conditions)).orderBy(desc(deployments.startedAt)).limit(input.limit);
     }),
 

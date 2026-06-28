@@ -4,6 +4,10 @@ import { z } from "zod";
 import {
   securityIncidents,
   vulnerabilities,
+  secIncidentSeverityEnum,
+  secIncidentStatusEnum,
+  vulnSeverityEnum,
+  vulnStatusEnum,
   secIncidentTicketLinks,
   vulnerabilityExceptions,
   privacyBreachNotificationProfiles,
@@ -32,16 +36,16 @@ const STATE_MACHINE: Record<string, string[]> = {
 export const securityRouter = router({
   listIncidents: permissionProcedure("security", "read")
     .input(z.object({
-      severity: z.string().optional(),
-      status: z.string().optional(),
+      severity: z.enum(secIncidentSeverityEnum.enumValues).optional(),
+      status: z.enum(secIncidentStatusEnum.enumValues).optional(),
       limit: z.coerce.number().default(50),
       cursor: z.string().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(securityIncidents.orgId, org!.id)];
-      if (input.severity) conditions.push(eq(securityIncidents.severity, input.severity as any));
-      if (input.status) conditions.push(eq(securityIncidents.status, input.status as any));
+      if (input.severity) conditions.push(eq(securityIncidents.severity, input.severity));
+      if (input.status) conditions.push(eq(securityIncidents.status, input.status));
 
       const rows = await db.select().from(securityIncidents)
         .where(and(...conditions))
@@ -83,7 +87,7 @@ export const securityRouter = router({
     }),
 
   transition: permissionProcedure("security", "write")
-    .input(z.object({ id: z.string().uuid(), toStatus: z.string() }))
+    .input(z.object({ id: z.string().uuid(), toStatus: z.enum(secIncidentStatusEnum.enumValues) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [incident] = await db.select().from(securityIncidents)
@@ -95,7 +99,7 @@ export const securityRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot transition from ${incident.status} to ${input.toStatus}` });
       }
 
-      const updates: Record<string, any> = { status: input.toStatus, updatedAt: new Date() };
+      const updates: Partial<typeof securityIncidents.$inferInsert> = { status: input.toStatus, updatedAt: new Date() };
       if (input.toStatus === "closed") updates.resolvedAt = new Date();
 
       const [updated] = await db.update(securityIncidents).set(updates)
@@ -112,7 +116,7 @@ export const securityRouter = router({
       if (!incident) throw new TRPCError({ code: "NOT_FOUND" });
 
       const newAction = { action: input.action, performedAt: new Date().toISOString(), performedBy: input.performedBy };
-      const existing = (incident.containmentActions ?? []) as any[];
+      const existing = incident.containmentActions ?? [];
       const [updated] = await db.update(securityIncidents)
         .set({ containmentActions: [...existing, newAction], updatedAt: new Date() })
         .where(eq(securityIncidents.id, input.id)).returning();
@@ -121,12 +125,12 @@ export const securityRouter = router({
 
   // ── Vulnerabilities ───────────────────────────────────────────────────────
   listVulnerabilities: permissionProcedure("vulnerabilities", "read")
-    .input(z.object({ severity: z.string().optional(), status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ severity: z.enum(vulnSeverityEnum.enumValues).optional(), status: z.enum(vulnStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(vulnerabilities.orgId, org!.id)];
-      if (input.severity) conditions.push(eq(vulnerabilities.severity, input.severity as any));
-      if (input.status) conditions.push(eq(vulnerabilities.status, input.status as any));
+      if (input.severity) conditions.push(eq(vulnerabilities.severity, input.severity));
+      if (input.status) conditions.push(eq(vulnerabilities.status, input.status));
       return db.select().from(vulnerabilities).where(and(...conditions)).orderBy(desc(vulnerabilities.createdAt)).limit(input.limit);
     }),
 
@@ -278,7 +282,7 @@ export const securityRouter = router({
             .set({
               title: f.title,
               cveId: f.cveId,
-              severity: f.severity as any,
+              severity: f.severity,
               scannerSource: input.source,
               remediationSlaDays: f.remediationSlaDays,
               remediationDueAt: due,
@@ -294,7 +298,7 @@ export const securityRouter = router({
               externalFingerprint: f.fingerprint,
               title: f.title,
               cveId: f.cveId,
-              severity: f.severity as any,
+              severity: f.severity,
               scannerSource: input.source,
               remediationSlaDays: f.remediationSlaDays,
               remediationDueAt: due,

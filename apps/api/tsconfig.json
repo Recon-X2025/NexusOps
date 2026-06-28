@@ -2,7 +2,14 @@
   "extends": "@coheronconnect/config/tsconfig",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // This is an application bundled by tsup, not a published library — it never
+    // emits .d.ts files. Disabling declaration output avoids spurious TS2742
+    // "inferred type cannot be named" errors on exported tRPC procedure builders
+    // (whose deep inferred types reference Drizzle's bundled schema chunk).
+    // Full type-checking is unaffected; `lint` still runs `tsc --noEmit`.
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src/**/*"],
   "exclude": [

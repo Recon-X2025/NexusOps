@@ -90,14 +90,16 @@ export const workforceRouter = router({
         .groupBy(employees.location)
         .orderBy(desc(count()));
 
-      const attritionRate = total.n > 0 ? Math.round((resigned.n / total.n) * 100 * 10) / 10 : 0;
+      const totalN = total?.n ?? 0;
+      const resignedN = resigned?.n ?? 0;
+      const attritionRate = totalN > 0 ? Math.round((resignedN / totalN) * 100 * 10) / 10 : 0;
 
       return {
         scope: input.scope,
-        total: total.n,
-        newHires: newHires.n,
-        resigned: resigned.n,
-        onLeave: onLeave.n,
+        total: totalN,
+        newHires: newHires?.n ?? 0,
+        resigned: resignedN,
+        onLeave: onLeave?.n ?? 0,
         attritionRate,
         byDept,
         byEmploymentType,
@@ -251,6 +253,6 @@ export const workforceRouter = router({
       const [pending] = await db.select({ n: count() }).from(leaveRequests)
         .where(and(eq(leaveRequests.orgId, org!.id), eq(leaveRequests.status, "pending")));
 
-      return { total: total.n, onLeave: onLeave.n, newHiresLast30: newHires.n, pendingLeaves: pending.n };
+      return { total: total?.n ?? 0, onLeave: onLeave?.n ?? 0, newHiresLast30: newHires?.n ?? 0, pendingLeaves: pending?.n ?? 0 };
     }),
 });

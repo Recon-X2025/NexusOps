@@ -44,6 +44,7 @@ export const kbArticles = pgTable(
       .references(() => users.id),
     embeddingVector: text("embedding_vector"), // stored as JSON string of number[]
     contentVersion: integer("content_version").notNull().default(1),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

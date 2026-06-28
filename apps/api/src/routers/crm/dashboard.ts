@@ -5,9 +5,9 @@
  * Accessed via `trpc.crm.dashboard.*` on the frontend.
  */
 import { router, permissionProcedure } from "../../lib/trpc";
-import { crmDeals, crmLeads, eq, and, desc, count, sum, inArray, notInArray, lt } from "@coheronconnect/db";
+import { crmDeals, crmLeads, eq, and, desc, count, sum, inArray, notInArray, lt, type DbOrTx } from "@coheronconnect/db";
 
-async function getExecutiveSummary(db: any, orgId: string) {
+async function getExecutiveSummary(db: DbOrTx, orgId: string) {
   const [openDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })
     .from(crmDeals).where(and(eq(crmDeals.orgId, orgId), notInArray(crmDeals.stage, ["closed_won", "closed_lost"])));
   const [wonDeals] = await db.select({ cnt: count(), total: sum(crmDeals.value) })

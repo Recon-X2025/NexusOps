@@ -1,0 +1,2 @@
+CREATE TYPE "public"."acquisition_type" AS ENUM('perpetual', 'subscription', 'trial', 'open_source', 'freeware');--> statement-breakpoint
+ALTER TABLE "software_licenses" ADD COLUMN "acquisition_type" "acquisition_type";

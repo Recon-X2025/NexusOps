@@ -1,5 +1,4 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and } from "@coheronconnect/db";
+import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and, type DbOrTx } from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "./encryption";
 
 interface SapConfig {
@@ -46,7 +45,7 @@ export async function fetchSapIncidents(config: SapConfig): Promise<SapServiceRe
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function syncSapToNexus(db: NodePgDatabase<any>, orgId: string, integrationId: string): Promise<number> {
+export async function syncSapToNexus(db: DbOrTx, orgId: string, integrationId: string): Promise<number> {
   const [integration] = await db
     .select()
     .from(integrations)

@@ -4,6 +4,8 @@ import { z } from "zod";
 import {
   boardMeetings, boardResolutions, secretarialFilings,
   shareCapital, esopGrants, companyDirectors,
+  meetingStatusEnum, meetingTypeEnum, resolutionStatusEnum,
+  filingStatusEnum, shareClassEnum, esopEventEnum,
   eq, and, desc, asc, count, sql,
 } from "@coheronconnect/db";
 
@@ -14,15 +16,15 @@ export const secretarialRouter = router({
   meetings: router({
     list: permissionProcedure("secretarial", "read")
       .input(z.object({
-        status: z.string().optional(),
-        type: z.string().optional(),
+        status: z.enum(meetingStatusEnum.enumValues).optional(),
+        type: z.enum(meetingTypeEnum.enumValues).optional(),
         upcoming: z.boolean().optional(),
       }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(boardMeetings.orgId, org!.id)];
-        if (input.status) conds.push(eq(boardMeetings.status, input.status as any));
-        if (input.type)   conds.push(eq(boardMeetings.type, input.type as any));
+        if (input.status) conds.push(eq(boardMeetings.status, input.status));
+        if (input.type)   conds.push(eq(boardMeetings.type, input.type));
         if (input.upcoming) conds.push(sql`${boardMeetings.scheduledAt} >= NOW()`);
         return db.select().from(boardMeetings).where(and(...conds))
           .orderBy(desc(boardMeetings.scheduledAt));
@@ -98,7 +100,7 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, scheduledAt, ...rest } = input;
-        const updates: any = { ...rest, updatedAt: new Date() };
+        const updates: Partial<typeof boardMeetings.$inferInsert> = { ...rest, updatedAt: new Date() };
         if (scheduledAt) updates.scheduledAt = new Date(scheduledAt);
         const [row] = await db.update(boardMeetings)
           .set(updates)
@@ -111,12 +113,12 @@ export const secretarialRouter = router({
 
   resolutions: router({
     list: permissionProcedure("secretarial", "read")
-      .input(z.object({ meetingId: z.string().uuid().optional(), status: z.string().optional() }))
+      .input(z.object({ meetingId: z.string().uuid().optional(), status: z.enum(resolutionStatusEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(boardResolutions.orgId, org!.id)];
         if (input.meetingId) conds.push(eq(boardResolutions.meetingId, input.meetingId));
-        if (input.status) conds.push(eq(boardResolutions.status, input.status as any));
+        if (input.status) conds.push(eq(boardResolutions.status, input.status));
         return db.select().from(boardResolutions).where(and(...conds)).orderBy(desc(boardResolutions.passedAt));
       }),
 
@@ -164,11 +166,11 @@ export const secretarialRouter = router({
 
   filings: router({
     list: permissionProcedure("secretarial", "read")
-      .input(z.object({ status: z.string().optional(), fy: z.string().optional() }))
+      .input(z.object({ status: z.enum(filingStatusEnum.enumValues).optional(), fy: z.string().optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(secretarialFilings.orgId, org!.id)];
-        if (input.status) conds.push(eq(secretarialFilings.status, input.status as any));
+        if (input.status) conds.push(eq(secretarialFilings.status, input.status));
         if (input.fy) conds.push(eq(secretarialFilings.fy, input.fy));
         return db.select().from(secretarialFilings).where(and(...conds)).orderBy(asc(secretarialFilings.dueDate));
       }),
@@ -215,12 +217,12 @@ export const secretarialRouter = router({
       }),
 
     update: permissionProcedure("secretarial", "write")
-      .input(z.object({ id: z.string().uuid(), formNumber: z.string().optional(), title: z.string().optional(), authority: z.string().optional(), category: z.string().optional(), dueDate: z.string().optional(), fy: z.string().optional(), fees: z.number().optional(), notes: z.string().optional(), status: z.string().optional() }))
+      .input(z.object({ id: z.string().uuid(), formNumber: z.string().optional(), title: z.string().optional(), authority: z.string().optional(), category: z.string().optional(), dueDate: z.string().optional(), fy: z.string().optional(), fees: z.number().optional(), notes: z.string().optional(), status: z.enum(filingStatusEnum.enumValues).optional() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, dueDate, ...rest } = input;
-        
-        const updateData: any = { ...rest, updatedAt: new Date() };
+
+        const updateData: Partial<typeof secretarialFilings.$inferInsert> = { ...rest, updatedAt: new Date() };
         if (dueDate) updateData.dueDate = new Date(dueDate);
 
         const [row] = await db.update(secretarialFilings)
@@ -353,11 +355,11 @@ export const secretarialRouter = router({
 
   shares: router({
     list: permissionProcedure("secretarial", "read")
-      .input(z.object({ shareClass: z.string().optional() }))
+      .input(z.object({ shareClass: z.enum(shareClassEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(shareCapital.orgId, org!.id)];
-        if (input.shareClass) conds.push(eq(shareCapital.shareClass, input.shareClass as any));
+        if (input.shareClass) conds.push(eq(shareCapital.shareClass, input.shareClass));
         return db.select().from(shareCapital).where(and(...conds)).orderBy(shareCapital.folio);
       }),
 
@@ -426,11 +428,11 @@ export const secretarialRouter = router({
 
   esop: router({
     list: permissionProcedure("secretarial", "read")
-      .input(z.object({ event: z.string().optional() }))
+      .input(z.object({ event: z.enum(esopEventEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conds = [eq(esopGrants.orgId, org!.id)];
-        if (input.event) conds.push(eq(esopGrants.event, input.event as any));
+        if (input.event) conds.push(eq(esopGrants.event, input.event));
         return db.select().from(esopGrants).where(and(...conds)).orderBy(desc(esopGrants.grantDate));
       }),
 
@@ -502,7 +504,7 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, grantDate, vestingStart, vestingEnd, ...rest } = input;
-        const updates: any = { ...rest, updatedAt: new Date() };
+        const updates: Partial<typeof esopGrants.$inferInsert> = { ...rest, updatedAt: new Date() };
         if (grantDate !== undefined) {
           const gd = new Date(grantDate);
           const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -616,7 +618,7 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, appointedAt, ...rest } = input;
-        const updates: any = { ...rest, updatedAt: new Date() };
+        const updates: Partial<typeof companyDirectors.$inferInsert> = { ...rest, updatedAt: new Date() };
         if (appointedAt !== undefined) {
           updates.appointedAt = appointedAt ? new Date(appointedAt) : null;
         }
@@ -665,12 +667,12 @@ export const secretarialRouter = router({
         ));
 
       return {
-        upcomingMeetings: upcomingMeetings.n,
-        pendingResolutions: pendingResolutions.n,
-        overdueFilings: overdueFilings.n,
-        upcomingFilings: upcomingFilings.n,
-        totalDirectors: totalDirectors.n,
-        kycExpiring: kycExpiring.n,
+        upcomingMeetings: upcomingMeetings?.n ?? 0,
+        pendingResolutions: pendingResolutions?.n ?? 0,
+        overdueFilings: overdueFilings?.n ?? 0,
+        upcomingFilings: upcomingFilings?.n ?? 0,
+        totalDirectors: totalDirectors?.n ?? 0,
+        kycExpiring: kycExpiring?.n ?? 0,
       };
     }),
 });

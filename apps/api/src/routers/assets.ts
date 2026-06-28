@@ -3,11 +3,14 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   assets,
+  assetStatusEnum,
   assetTypes,
   assetHistory,
   ciItems,
   ciRelationships,
   softwareLicenses,
+  licenseTypeEnum,
+  acquisitionTypeEnum,
   licenseAssignments,
   eq,
   and,
@@ -520,24 +523,24 @@ export const assetsRouter = router({
       .input(z.object({
         productName: z.string().min(1),
         vendor: z.string().optional(),
-        licenseType: z.enum(["perpetual", "subscription", "trial", "open_source", "freeware"]).default("subscription"),
+        seatModel: z.enum(licenseTypeEnum.enumValues).default("per_seat"),
+        licenseType: z.enum(acquisitionTypeEnum.enumValues).default("subscription"),
         totalSeats: z.coerce.number().int().positive().optional(),
         costPerSeat: z.string().optional(),
         expiresAt: z.string().optional(),
-        notes: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [license] = await db.insert(softwareLicenses).values({
           orgId: org!.id,
-          productName: input.productName,
+          name: input.productName,
           vendor: input.vendor,
-          licenseType: input.licenseType,
+          type: input.seatModel,
+          acquisitionType: input.licenseType,
           totalSeats: input.totalSeats ? String(input.totalSeats) : undefined,
-          costPerSeat: input.costPerSeat,
-          expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
-          notes: input.notes,
-        } as any).returning();
+          cost: input.costPerSeat,
+          expiryDate: input.expiresAt ? new Date(input.expiresAt) : undefined,
+        }).returning();
         return license;
       }),
 
@@ -607,7 +610,7 @@ export const assetsRouter = router({
   ham: router({
     list: permissionProcedure("ham", "read")
       .input(z.object({
-        status: z.string().optional(),
+        status: z.enum(assetStatusEnum.enumValues).optional(),
         search: z.string().optional(),
         limit: z.coerce.number().default(50),
         cursor: z.string().optional(),
@@ -615,7 +618,7 @@ export const assetsRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(assets.orgId, org!.id)];
-        if (input.status) conditions.push(eq(assets.status, input.status as any));
+        if (input.status) conditions.push(eq(assets.status, input.status));
         const rows = await db.select().from(assets)
           .where(and(...conditions))
           .orderBy(desc(assets.createdAt))
@@ -637,7 +640,7 @@ export const assetsRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [asset] = await db.update(assets)
-          .set({ ownerId: input.userId, location: input.location, updatedAt: new Date() } as any)
+          .set({ ownerId: input.userId, location: input.location, updatedAt: new Date() })
           .where(and(eq(assets.id, input.assetId), eq(assets.orgId, org!.id)))
           .returning();
         if (input.userId) {
@@ -646,7 +649,7 @@ export const assetsRouter = router({
             actorId: ctx.user!.id,
             action: "assigned",
             details: { userId: input.userId },
-          } as any);
+          });
         }
         return asset;
       }),
@@ -656,7 +659,7 @@ export const assetsRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [asset] = await db.update(assets)
-          .set({ status: "retired" as any, updatedAt: new Date() })
+          .set({ status: "retired", updatedAt: new Date() })
           .where(and(eq(assets.id, input.assetId), eq(assets.orgId, org!.id)))
           .returning();
         await db.insert(assetHistory).values({
@@ -664,7 +667,7 @@ export const assetsRouter = router({
           actorId: ctx.user!.id,
           action: "retired",
           details: { reason: input.reason },
-        } as any);
+        });
         return asset;
       }),
   }),
@@ -682,11 +685,12 @@ export const assetsRouter = router({
             .orderBy(desc(softwareLicenses.createdAt))
             .limit(input.limit);
           return Promise.all(rows.map(async (lic: SoftwareLicense) => {
-            const [{ cnt }] = await db.select({ cnt: count() }).from(licenseAssignments)
+            const [cntRow] = await db.select({ cnt: count() }).from(licenseAssignments)
               .where(and(
                 eq(licenseAssignments.licenseId, lic.id),
                 sql`${licenseAssignments.revokedAt} IS NULL`,
               ));
+            const cnt = cntRow?.cnt ?? 0;
             const total = lic.totalSeats ? parseInt(lic.totalSeats) : 0;
             return {
               ...lic,
@@ -706,18 +710,19 @@ export const assetsRouter = router({
           const [lic] = await db.select().from(softwareLicenses)
             .where(and(eq(softwareLicenses.id, input.licenseId), eq(softwareLicenses.orgId, org!.id)));
           if (!lic) throw new TRPCError({ code: "NOT_FOUND" });
-          const [{ cnt }] = await db.select({ cnt: count() }).from(licenseAssignments)
+          const [cntRow] = await db.select({ cnt: count() }).from(licenseAssignments)
             .where(and(
               eq(licenseAssignments.licenseId, input.licenseId),
               sql`${licenseAssignments.revokedAt} IS NULL`,
             ));
+          const cnt = cntRow?.cnt ?? 0;
           if (lic.totalSeats && Number(cnt) >= parseInt(lic.totalSeats)) {
             throw new TRPCError({ code: "BAD_REQUEST", message: "No available seats" });
           }
           const [assignment] = await db.insert(licenseAssignments).values({
             licenseId: input.licenseId,
             userId: input.userId,
-          } as any).returning();
+          }).returning();
           return assignment;
         }),
     }),

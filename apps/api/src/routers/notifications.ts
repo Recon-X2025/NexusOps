@@ -15,9 +15,9 @@ export const notificationsRouter = router({
 
   unreadCount: protectedProcedure.query(async ({ ctx }) => {
     const { db, user } = ctx;
-    const [{ cnt }] = await db.select({ cnt: count() }).from(notifications)
+    const [cntRow] = await db.select({ cnt: count() }).from(notifications)
       .where(and(eq(notifications.userId, user!.id), eq(notifications.isRead, false)));
-    return Number(cnt);
+    return Number(cntRow?.cnt ?? 0);
   }),
 
   markRead: protectedProcedure
@@ -65,7 +65,7 @@ export const notificationsRouter = router({
       const [pref] = await db.insert(notificationPreferences)
         .values({ userId: user!.id, ...input })
         .onConflictDoUpdate({
-          target: [notificationPreferences.userId, notificationPreferences.channel, notificationPreferences.eventType] as any,
+          target: [notificationPreferences.userId, notificationPreferences.channel, notificationPreferences.eventType],
           set: { enabled: input.enabled },
         })
         .returning();

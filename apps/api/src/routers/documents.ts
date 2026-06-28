@@ -117,6 +117,7 @@ export const documentsRouter = router({
           ownerId: user!.id,
         })
         .returning();
+      if (!doc) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create document" });
 
       const key = buildDocumentKey(doc.id, 1, ext);
       const put = await putObject({

@@ -6,15 +6,15 @@
  */
 import { router, permissionProcedure } from "../../lib/trpc";
 import { z } from "zod";
-import { crmLeads, crmDeals, eq, and, desc, count } from "@coheronconnect/db";
+import { crmLeads, crmDeals, leadStatusEnum, leadSourceEnum, eq, and, desc, count } from "@coheronconnect/db";
 
 export const crmLeadsRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
+    .input(z.object({ status: z.enum(leadStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50), showArchived: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmLeads.orgId, org!.id), eq(crmLeads.archived, input.showArchived)];
-      if (input.status) conditions.push(eq(crmLeads.status, input.status as any));
+      if (input.status) conditions.push(eq(crmLeads.status, input.status));
       return db.select().from(crmLeads).where(and(...conditions)).orderBy(desc(crmLeads.score)).limit(input.limit);
     }),
 
@@ -26,11 +26,11 @@ export const crmLeadsRouter = router({
       phone: z.string(),
       company: z.string().optional(),
       title: z.string().optional(),
-      source: z.string().default("website"),
+      source: z.enum(leadSourceEnum.enumValues).default("website"),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source as any }).returning();
+      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source }).returning();
       return lead;
     }),
 

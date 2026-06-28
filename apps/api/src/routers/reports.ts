@@ -90,33 +90,38 @@ export const reportsRouter = router({
       const granularity = getGranularity(input.days);
       const periods = generatePeriods(since, granularity);
 
-      const [{ openTickets }] = await db.select({ openTickets: count() }).from(tickets)
+      const [openTicketsRow] = await db.select({ openTickets: count() }).from(tickets)
         .where(and(
           eq(tickets.orgId, org!.id),
           sql`${tickets.statusId} IN (SELECT id FROM ticket_statuses WHERE org_id = ${org!.id} AND category IN ('open', 'in_progress'))`,
         ));
+      const openTickets = openTicketsRow?.openTickets ?? 0;
 
-      const [{ resolvedInPeriod }] = await db.select({ resolvedInPeriod: count() }).from(tickets)
+      const [resolvedInPeriodRow] = await db.select({ resolvedInPeriod: count() }).from(tickets)
         .where(and(
           eq(tickets.orgId, org!.id),
           isNotNull(tickets.resolvedAt),
           gte(tickets.resolvedAt, since),
         ));
+      const resolvedInPeriod = resolvedInPeriodRow?.resolvedInPeriod ?? 0;
 
-      const [{ slaBreached }] = await db.select({ slaBreached: count() }).from(tickets)
+      const [slaBreachedRow] = await db.select({ slaBreached: count() }).from(tickets)
         .where(and(eq(tickets.orgId, org!.id), eq(tickets.slaBreached, true)));
+      const slaBreached = slaBreachedRow?.slaBreached ?? 0;
 
-      const [{ secIncidents }] = await db.select({ secIncidents: count() }).from(securityIncidents)
+      const [secIncidentsRow] = await db.select({ secIncidents: count() }).from(securityIncidents)
         .where(and(
           eq(securityIncidents.orgId, org!.id),
           sql`${securityIncidents.status} NOT IN ('closed', 'false_positive')`,
         ));
+      const secIncidents = secIncidentsRow?.secIncidents ?? 0;
 
-      const [{ pendingChanges }] = await db.select({ pendingChanges: count() }).from(changeRequests)
+      const [pendingChangesRow] = await db.select({ pendingChanges: count() }).from(changeRequests)
         .where(and(
           eq(changeRequests.orgId, org!.id),
           sql`${changeRequests.status} IN ('submitted', 'cab_review', 'approved', 'scheduled')`,
         ));
+      const pendingChanges = pendingChangesRow?.pendingChanges ?? 0;
 
       const budgetRows = await db.select({
         budgeted: sql<number>`SUM(CAST(${budgetLines.budgeted} AS numeric))`,
@@ -131,7 +136,7 @@ export const reportsRouter = router({
       const actual = Number(budgetRows[0]?.actual ?? 0);
       const budgetVariance = budgeted > 0 ? Math.round(((actual - budgeted) / budgeted) * 100) : 0;
 
-      const [{ avgMs }] = await db.select({
+      const [avgMsRow] = await db.select({
         avgMs: sql<number>`AVG(EXTRACT(EPOCH FROM (${tickets.resolvedAt} - ${tickets.createdAt})) * 1000)`,
       }).from(tickets)
         .where(and(
@@ -139,12 +144,14 @@ export const reportsRouter = router({
           isNotNull(tickets.resolvedAt),
           gte(tickets.resolvedAt, since),
         ));
+      const avgMs = avgMsRow?.avgMs ?? null;
       const avgHours = avgMs ? (Number(avgMs) / 3600000).toFixed(1) : null;
 
-      const [{ avgCsat }] = await db.select({
+      const [avgCsatRow] = await db.select({
         avgCsat: avg(surveyResponses.score),
       }).from(surveyResponses)
         .where(gte(surveyResponses.submittedAt, since));
+      const avgCsat = avgCsatRow?.avgCsat ?? null;
       const csatScore = avgCsat ? `${Number(avgCsat).toFixed(1)}/5` : null;
 
       // Per-period incident / resolved trend
@@ -378,13 +385,13 @@ export const reportsRouter = router({
 
       const joinOpen = and(...baseConds);
 
-      const [{ pausedOpen }] = await db
+      const [pausedOpenRow] = await db
         .select({ pausedOpen: count() })
         .from(tickets)
         .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
         .where(and(joinOpen, isNotNull(tickets.slaPausedAt)));
 
-      const [{ breachedOpen }] = await db
+      const [breachedOpenRow] = await db
         .select({ breachedOpen: count() })
         .from(tickets)
         .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
@@ -449,8 +456,8 @@ export const reportsRouter = router({
 
       return {
         atRiskWithinHours: hrs,
-        pausedOpen: Number(pausedOpen),
-        breachedOpen: Number(breachedOpen),
+        pausedOpen: Number(pausedOpenRow?.pausedOpen ?? 0),
+        breachedOpen: Number(breachedOpenRow?.breachedOpen ?? 0),
         atRiskNearDue: Number(atRiskRow?.n ?? 0),
         overdueUnbreached: Number(overdueRow?.n ?? 0),
         filters: { teamId: input.teamId ?? null, categoryId: input.categoryId ?? null },
@@ -464,7 +471,7 @@ export const reportsRouter = router({
     const { db, org } = ctx;
     const since30 = new Date(Date.now() - 30 * 86400000);
 
-    const [{ openTickets }] = await db
+    const [openTicketsRow] = await db
       .select({ openTickets: count() })
       .from(tickets)
       .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
@@ -475,14 +482,14 @@ export const reportsRouter = router({
         ),
       );
 
-    const [{ breached30 }] = await db
+    const [breached30Row] = await db
       .select({ breached30: count() })
       .from(tickets)
       .where(
         and(eq(tickets.orgId, org!.id), eq(tickets.slaBreached, true), gte(tickets.createdAt, since30)),
       );
 
-    const [{ pendingChanges }] = await db
+    const [pendingChangesRow] = await db
       .select({ pendingChanges: count() })
       .from(changeRequests)
       .where(
@@ -492,7 +499,7 @@ export const reportsRouter = router({
         ),
       );
 
-    const [{ openSec }] = await db
+    const [openSecRow] = await db
       .select({ openSec: count() })
       .from(securityIncidents)
       .where(
@@ -502,7 +509,7 @@ export const reportsRouter = router({
         ),
       );
 
-    const [{ catalogDone }] = await db
+    const [catalogDoneRow] = await db
       .select({ catalogDone: count() })
       .from(catalogRequests)
       .where(
@@ -513,18 +520,18 @@ export const reportsRouter = router({
         ),
       );
 
-    const [{ kbNew }] = await db
+    const [kbNewRow] = await db
       .select({ kbNew: count() })
       .from(kbArticles)
       .where(and(eq(kbArticles.orgId, org!.id), gte(kbArticles.createdAt, since30)));
 
     return {
-      openTickets: Number(openTickets),
-      ticketsSlaBreachedLast30d: Number(breached30),
-      pendingChanges: Number(pendingChanges),
-      openSecurityIncidents: Number(openSec),
-      catalogRequestsCompletedLast30d: Number(catalogDone),
-      kbArticlesCreatedLast30d: Number(kbNew),
+      openTickets: Number(openTicketsRow?.openTickets ?? 0),
+      ticketsSlaBreachedLast30d: Number(breached30Row?.breached30 ?? 0),
+      pendingChanges: Number(pendingChangesRow?.pendingChanges ?? 0),
+      openSecurityIncidents: Number(openSecRow?.openSec ?? 0),
+      catalogRequestsCompletedLast30d: Number(catalogDoneRow?.catalogDone ?? 0),
+      kbArticlesCreatedLast30d: Number(kbNewRow?.kbNew ?? 0),
       generatedAt: new Date().toISOString(),
     };
   }),
@@ -536,12 +543,12 @@ export const reportsRouter = router({
       const { db, org } = ctx;
       const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
 
-      const [{ createdN }] = await db
+      const [createdNRow] = await db
         .select({ createdN: count() })
         .from(tickets)
         .where(and(eq(tickets.orgId, org!.id), gte(tickets.createdAt, since)));
 
-      const [{ breachedN }] = await db
+      const [breachedNRow] = await db
         .select({ breachedN: count() })
         .from(tickets)
         .where(
@@ -552,8 +559,8 @@ export const reportsRouter = router({
           ),
         );
 
-      const created = Number(createdN);
-      const breached = Number(breachedN);
+      const created = Number(createdNRow?.createdN ?? 0);
+      const breached = Number(breachedNRow?.breachedN ?? 0);
       const slaCompliancePct = created > 0 ? Math.round(((created - breached) / created) * 100) : 100;
 
       const openAgeRows = await db
@@ -578,7 +585,7 @@ export const reportsRouter = router({
         else backlogAgeing.d30p++;
       }
 
-      const [{ reopenedN }] = await db
+      const [reopenedNRow] = await db
         .select({ reopenedN: count() })
         .from(tickets)
         .where(
@@ -590,7 +597,7 @@ export const reportsRouter = router({
           ),
         );
 
-      const [{ resolvedN }] = await db
+      const [resolvedNRow] = await db
         .select({ resolvedN: count() })
         .from(tickets)
         .where(
@@ -601,8 +608,8 @@ export const reportsRouter = router({
           ),
         );
 
-      const resolved = Number(resolvedN);
-      const reopened = Number(reopenedN);
+      const resolved = Number(resolvedNRow?.resolvedN ?? 0);
+      const reopened = Number(reopenedNRow?.reopenedN ?? 0);
       const reopenRatePct = resolved > 0 ? Math.round((reopened / resolved) * 100) : 0;
 
       const categoryRows = await db
@@ -626,7 +633,7 @@ export const reportsRouter = router({
         pct: totalCat > 0 ? Math.round((Number(r.cnt) / totalCat) * 100) : 0,
       }));
 
-      const [{ openHandoffsBreached }] = await db
+      const [openHandoffsBreachedRow] = await db
         .select({ openHandoffsBreached: count() })
         .from(ticketHandoffs)
         .where(
@@ -637,7 +644,7 @@ export const reportsRouter = router({
           ),
         );
 
-      const [{ majorIncidentsOpen }] = await db
+      const [majorIncidentsOpenRow] = await db
         .select({ majorIncidentsOpen: count() })
         .from(tickets)
         .innerJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
@@ -670,8 +677,8 @@ export const reportsRouter = router({
         resolvedCount: resolved,
         reopenRatePct,
         volumeByCategory,
-        openHandoffsBreached: Number(openHandoffsBreached),
-        majorIncidentsOpen: Number(majorIncidentsOpen),
+        openHandoffsBreached: Number(openHandoffsBreachedRow?.openHandoffsBreached ?? 0),
+        majorIncidentsOpen: Number(majorIncidentsOpenRow?.majorIncidentsOpen ?? 0),
         intakeChannelMix,
       };
     }),

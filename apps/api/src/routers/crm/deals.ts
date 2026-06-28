@@ -7,7 +7,7 @@
 import { router, permissionProcedure, adminProcedure } from "../../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { crmDeals, crmQuotes, crmPipelineStages, organizations, eq, and, asc, desc } from "@coheronconnect/db";
+import { crmDeals, crmQuotes, crmPipelineStages, organizations, dealStageEnum, quoteStatusEnum, eq, and, asc, desc, type DbOrTx } from "@coheronconnect/db";
 import { getNextNumber } from "../../lib/auto-number";
 import {
   getCrmDealApprovalThresholds,
@@ -50,7 +50,7 @@ export const DEFAULT_PIPELINE_STAGES: Array<{
  * Loads an org's pipeline-stage config, seeding factory defaults on first read.
  * Always returns all 7 enum stages ordered by rank so the kanban/select stays complete.
  */
-async function loadPipelineStages(db: any, orgId: string) {
+async function loadPipelineStages(db: DbOrTx, orgId: string) {
   const existing = await db
     .select()
     .from(crmPipelineStages)
@@ -73,11 +73,11 @@ async function loadPipelineStages(db: any, orgId: string) {
 
 export const crmDealsRouter = router({
   list: permissionProcedure("accounts", "read")
-    .input(z.object({ stage: z.string().optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
+    .input(z.object({ stage: z.enum(dealStageEnum.enumValues).optional(), accountId: z.string().uuid().optional(), limit: z.coerce.number().default(100) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(crmDeals.orgId, org!.id)];
-      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage as any));
+      if (input.stage) conditions.push(eq(crmDeals.stage, input.stage));
       if (input.accountId) conditions.push(eq(crmDeals.accountId, input.accountId));
       return db.select().from(crmDeals).where(and(...conditions)).orderBy(desc(crmDeals.updatedAt)).limit(input.limit);
     }),
@@ -134,7 +134,7 @@ export const crmDealsRouter = router({
       const { db, org } = ctx;
       const { id, ...updates } = input;
       
-      const setValues: Record<string, any> = { updatedAt: new Date() };
+      const setValues: Partial<typeof crmDeals.$inferInsert> = { updatedAt: new Date() };
       if (updates.title !== undefined) setValues.title = updates.title;
       if (updates.accountId !== undefined) setValues.accountId = updates.accountId;
       if (updates.contactId !== undefined) setValues.contactId = updates.contactId;
@@ -184,7 +184,7 @@ export const crmDealsRouter = router({
         }
       }
 
-      const updates: Record<string, unknown> = { stage: input.stage, updatedAt: new Date() };
+      const updates: Partial<typeof crmDeals.$inferInsert> = { stage: input.stage, updatedAt: new Date() };
       if (input.stage === "closed_won" || input.stage === "closed_lost") {
         updates.closedAt = new Date();
       } else {
@@ -194,7 +194,7 @@ export const crmDealsRouter = router({
         updates.closedAt = null;
       }
 
-      const [deal] = await db.update(crmDeals).set(updates as any).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
+      const [deal] = await db.update(crmDeals).set(updates).where(and(eq(crmDeals.id, input.id), eq(crmDeals.orgId, org!.id))).returning();
       return deal;
     }),
 
@@ -315,12 +315,12 @@ export const crmDealsRouter = router({
   // ── Quotes ─────────────────────────────────────────────────────────────────
   quotes: router({
     list: permissionProcedure("accounts", "read")
-      .input(z.object({ dealId: z.string().uuid().optional(), status: z.string().optional() }))
+      .input(z.object({ dealId: z.string().uuid().optional(), status: z.enum(quoteStatusEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(crmQuotes.orgId, org!.id)];
         if (input.dealId) conditions.push(eq(crmQuotes.dealId, input.dealId));
-        if (input.status) conditions.push(eq(crmQuotes.status, input.status as any));
+        if (input.status) conditions.push(eq(crmQuotes.status, input.status));
         return db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
       }),
 
@@ -344,11 +344,11 @@ export const crmDealsRouter = router({
       }),
 
     update: permissionProcedure("accounts", "write")
-      .input(z.object({ id: z.string().uuid(), status: z.enum(["draft", "sent", "viewed", "accepted", "declined", "expired"]).optional(), notes: z.string().optional() }))
+      .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, ...data } = input;
-        const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() } as any)
+        const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() })
           .where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
         if (!quote) throw new TRPCError({ code: "NOT_FOUND" });
         return quote;

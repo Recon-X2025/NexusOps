@@ -19,6 +19,9 @@ import {
   surveyResponses,
   performanceReviews,
   reviewCycles,
+  employeeStatusEnum,
+  leaveStatusEnum,
+  expenseStatusEnum,
   eq,
   and,
   desc,
@@ -28,6 +31,7 @@ import {
   isNull,
   gte,
   inArray,
+  type SQL,
 } from "@coheronconnect/db";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { CreateLeaveRequestSchema } from "@coheronconnect/types";
@@ -37,22 +41,26 @@ export const hrRouter = router({
   platformHomeStrip: permissionProcedure("hr", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
     const orgId = org!.id;
-    const [{ caseCnt }] = await db
+    const [caseCntRow] = await db
       .select({ caseCnt: count() })
       .from(hrCases)
       .where(eq(hrCases.orgId, orgId));
-    const [{ totalEmp }] = await db
+    const caseCnt = caseCntRow?.caseCnt ?? 0;
+    const [totalEmpRow] = await db
       .select({ totalEmp: count() })
       .from(employees)
       .where(eq(employees.orgId, orgId));
-    const [{ onboardingCases }] = await db
+    const totalEmp = totalEmpRow?.totalEmp ?? 0;
+    const [onboardingCasesRow] = await db
       .select({ onboardingCases: count() })
       .from(hrCases)
       .where(and(eq(hrCases.orgId, orgId), eq(hrCases.caseType, "onboarding")));
-    const [{ offboardingCases }] = await db
+    const onboardingCases = onboardingCasesRow?.onboardingCases ?? 0;
+    const [offboardingCasesRow] = await db
       .select({ offboardingCases: count() })
       .from(hrCases)
       .where(and(eq(hrCases.orgId, orgId), eq(hrCases.caseType, "offboarding")));
+    const offboardingCases = offboardingCasesRow?.offboardingCases ?? 0;
     return {
       hrCases: Number(caseCnt ?? 0),
       totalEmployees: Number(totalEmp ?? 0),
@@ -90,14 +98,14 @@ export const hrRouter = router({
       .input(
         z.object({
           department: z.string().optional(),
-          status: z.string().optional(),
+          status: z.enum(employeeStatusEnum.enumValues).optional(),
           search: z.string().optional(),
         }),
       )
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(employees.orgId, org!.id)];
-        if (input.status) conditions.push(eq(employees.status, input.status as any));
+        if (input.status) conditions.push(eq(employees.status, input.status));
         if (input.department) conditions.push(eq(employees.department, input.department));
 
         const rows = await db
@@ -235,7 +243,7 @@ export const hrRouter = router({
         const { db, org } = ctx;
         const { id, ...data } = input;
         const [emp] = await db.update(employees)
-          .set({ ...data, updatedAt: new Date() } as any)
+          .set({ ...data, updatedAt: new Date() })
           .where(and(eq(employees.id, id), eq(employees.orgId, org!.id)))
           .returning();
         if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
@@ -421,14 +429,14 @@ export const hrRouter = router({
       .input(
         z.object({
           employeeId: z.string().uuid().optional(),
-          status: z.string().optional(),
+          status: z.enum(leaveStatusEnum.enumValues).optional(),
         }),
       )
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(leaveRequests.orgId, org!.id)];
         if (input.employeeId) conditions.push(eq(leaveRequests.employeeId, input.employeeId));
-        if (input.status) conditions.push(eq(leaveRequests.status, input.status as any));
+        if (input.status) conditions.push(eq(leaveRequests.status, input.status));
 
         return db.select().from(leaveRequests).where(and(...conditions)).orderBy(desc(leaveRequests.createdAt));
       }),
@@ -922,7 +930,7 @@ export const hrRouter = router({
           .where(eq(payslipsTable.payrollRunId, run.id));
 
         const ecrLines = await Promise.all(
-          (slips as any[]).map(async (slip) => {
+          slips.map(async (slip) => {
             const [emp] = await db
               .select()
               .from(employees)
@@ -948,8 +956,8 @@ export const hrRouter = router({
         return {
           ecrContent: formatECRFile(orgEpfoId, input.month, input.year, ecrLines),
           totalLines: ecrLines.length,
-          totalEmployeeContribution: (slips as any[]).reduce((s: number, sl: any) => s + Number(sl.pfEmployee), 0),
-          totalEmployerContribution: (slips as any[]).reduce((s: number, sl: any) => s + Number(sl.pfEmployer), 0),
+          totalEmployeeContribution: slips.reduce((s, sl) => s + Number(sl.pfEmployee), 0),
+          totalEmployerContribution: slips.reduce((s, sl) => s + Number(sl.pfEmployer), 0),
         };
       }),
   }),
@@ -1023,7 +1031,7 @@ export const hrRouter = router({
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { attendanceRecords, employees: emps, gte, lte, and: dbAnd, eq: dbEq, desc: dbDesc } = await import("@coheronconnect/db");
-      const conds: any[] = [dbEq(attendanceRecords.orgId, org!.id)];
+      const conds: SQL[] = [dbEq(attendanceRecords.orgId, org!.id)];
       if (input.employeeId) conds.push(dbEq(attendanceRecords.employeeId, input.employeeId));
       if (input.month && input.year) {
         const start = new Date(input.year, input.month - 1, 1);
@@ -1079,14 +1087,14 @@ export const hrRouter = router({
   expenses: router({
     list: permissionProcedure("hr", "read").input(z.object({
       employeeId: z.string().uuid().optional(),
-      status: z.string().optional(),
+      status: z.enum(expenseStatusEnum.enumValues).optional(),
       limit: z.number().int().min(1).max(100).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { expenseClaims, employees: emps, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
-      const conds: any[] = [dbEq(expenseClaims.orgId, org!.id)];
+      const conds: SQL[] = [dbEq(expenseClaims.orgId, org!.id)];
       if (input.employeeId) conds.push(dbEq(expenseClaims.employeeId, input.employeeId));
-      if (input.status) conds.push(dbEq(expenseClaims.status, input.status as any));
+      if (input.status) conds.push(dbEq(expenseClaims.status, input.status));
       return db.select({ claim: expenseClaims, employee: emps })
         .from(expenseClaims).leftJoin(emps, dbEq(expenseClaims.employeeId, emps.id))
         .where(dbAnd(...conds)).orderBy(dbDesc(expenseClaims.createdAt)).limit(input.limit);
@@ -1234,7 +1242,7 @@ export const hrRouter = router({
      * gated only by authentication. Used by the employee portal.
      */
     listMine: protectedProcedure.input(z.object({
-      status: z.string().optional(),
+      status: z.enum(expenseStatusEnum.enumValues).optional(),
       limit: z.number().int().min(1).max(100).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
@@ -1245,8 +1253,8 @@ export const hrRouter = router({
         .where(dbAnd(dbEq(employees.userId, user!.id), dbEq(employees.orgId, org!.id)))
         .limit(1);
       if (!emp) return [];
-      const conds: any[] = [dbEq(expenseClaims.orgId, org!.id), dbEq(expenseClaims.employeeId, emp.id)];
-      if (input.status) conds.push(dbEq(expenseClaims.status, input.status as any));
+      const conds: SQL[] = [dbEq(expenseClaims.orgId, org!.id), dbEq(expenseClaims.employeeId, emp.id)];
+      if (input.status) conds.push(dbEq(expenseClaims.status, input.status));
       return db
         .select()
         .from(expenseClaims)
@@ -1301,7 +1309,7 @@ export const hrRouter = router({
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { okrObjectives, okrKeyResults, users: usersT, eq: dbEq, and: dbAnd, desc: dbDesc, inArray: dbInArray } = await import("@coheronconnect/db");
-      const conds: any[] = [dbEq(okrObjectives.orgId, org!.id)];
+      const conds: SQL[] = [dbEq(okrObjectives.orgId, org!.id)];
       if (input.year) conds.push(dbEq(okrObjectives.year, input.year));
       if (input.cycle) conds.push(dbEq(okrObjectives.cycle, input.cycle));
       const objectives = await db.select({ objective: okrObjectives, owner: usersT })
@@ -1566,14 +1574,14 @@ export const hrRouter = router({
       z.object({
         limit: z.number().int().positive().optional(),
         department: z.string().optional(),
-        status: z.string().optional(),
+        status: z.enum(employeeStatusEnum.enumValues).optional(),
         search: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(employees.orgId, org!.id)];
-      if (input.status) conditions.push(eq(employees.status, input.status as any));
+      if (input.status) conditions.push(eq(employees.status, input.status));
       if (input.department) conditions.push(eq(employees.department, input.department));
 
       const query = db

@@ -6,6 +6,8 @@ import {
   performanceReviews,
   goals,
   users,
+  reviewStatusEnum,
+  goalStatusEnum,
   eq,
   and,
   desc,
@@ -52,7 +54,7 @@ export const performanceRouter = router({
           enable360: String(input.enable360),
           notes: input.notes,
           createdById: user!.id,
-        } as any)
+        })
         .returning();
       return cycle;
     }),
@@ -68,7 +70,7 @@ export const performanceRouter = router({
       const { id, ...data } = input;
       const [cycle] = await db
         .update(reviewCycles)
-        .set({ ...data, updatedAt: new Date() } as any)
+        .set({ ...data, updatedAt: new Date() })
         .where(and(eq(reviewCycles.id, id), eq(reviewCycles.orgId, org!.id)))
         .returning();
       if (!cycle) throw new TRPCError({ code: "NOT_FOUND" });
@@ -81,7 +83,7 @@ export const performanceRouter = router({
       cycleId: z.string().uuid().optional(),
       revieweeId: z.string().uuid().optional(),
       reviewerId: z.string().uuid().optional(),
-      status: z.string().optional(),
+      status: z.enum(reviewStatusEnum.enumValues).optional(),
     }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -89,7 +91,7 @@ export const performanceRouter = router({
       if (input.cycleId) conditions.push(eq(performanceReviews.cycleId, input.cycleId));
       if (input.revieweeId) conditions.push(eq(performanceReviews.revieweeId, input.revieweeId));
       if (input.reviewerId) conditions.push(eq(performanceReviews.reviewerId, input.reviewerId));
-      if (input.status) conditions.push(eq(performanceReviews.status, input.status as any));
+      if (input.status) conditions.push(eq(performanceReviews.status, input.status));
       return db
         .select()
         .from(performanceReviews)
@@ -128,7 +130,7 @@ export const performanceRouter = router({
           reviewerId: input.reviewerId,
           reviewerRole: input.reviewerRole,
           status: "draft",
-        } as any)
+        })
         .returning();
       return review;
     }),
@@ -146,7 +148,7 @@ export const performanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
-      const updates: Record<string, any> = { ...data, updatedAt: new Date() };
+      const updates: Partial<typeof performanceReviews.$inferInsert> = { ...data, updatedAt: new Date() };
       if (data.status === "completed") updates.completedAt = new Date();
       const [review] = await db
         .update(performanceReviews)
@@ -162,7 +164,7 @@ export const performanceRouter = router({
     .input(z.object({
       cycleId: z.string().uuid().optional(),
       ownerId: z.string().uuid().optional(),
-      status: z.string().optional(),
+      status: z.enum(goalStatusEnum.enumValues).optional(),
       goalType: z.string().optional(),
     }))
     .query(async ({ ctx, input }) => {
@@ -170,7 +172,7 @@ export const performanceRouter = router({
       const conditions = [eq(goals.orgId, org!.id)];
       if (input.cycleId) conditions.push(eq(goals.cycleId, input.cycleId));
       if (input.ownerId) conditions.push(eq(goals.ownerId, input.ownerId));
-      if (input.status) conditions.push(eq(goals.status, input.status as any));
+      if (input.status) conditions.push(eq(goals.status, input.status));
       if (input.goalType) conditions.push(eq(goals.goalType, input.goalType));
       return db
         .select()
@@ -216,7 +218,7 @@ export const performanceRouter = router({
           unit: input.unit,
           dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
           tags: input.tags ?? [],
-        } as any)
+        })
         .returning();
       return goal;
     }),
@@ -235,7 +237,7 @@ export const performanceRouter = router({
       const { id, ...data } = input;
       const [goal] = await db
         .update(goals)
-        .set({ ...data, updatedAt: new Date() } as any)
+        .set({ ...data, updatedAt: new Date() })
         .where(and(eq(goals.id, id), eq(goals.orgId, org!.id)))
         .returning();
       if (!goal) throw new TRPCError({ code: "NOT_FOUND" });

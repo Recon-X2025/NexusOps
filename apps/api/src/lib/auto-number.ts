@@ -1,6 +1,4 @@
-import { sql } from "@coheronconnect/db";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import type * as schema from "@coheronconnect/db";
+import { sql, type DbOrTx } from "@coheronconnect/db";
 
 // ── Entity → table mapping for counter sync ───────────────────────────────────
 //
@@ -53,7 +51,7 @@ const COUNTER_SPECS: ReadonlyArray<{
  * @returns      The next integer sequence value (1-based)
  */
 export async function getNextSeq(
-  db: PostgresJsDatabase<any>,
+  db: DbOrTx,
   orgId: string,
   entity: string,
 ): Promise<number> {
@@ -82,7 +80,7 @@ export async function getNextSeq(
  * @param padding - Zero-pad width (default 4)
  */
 export async function getNextNumber(
-  db: PostgresJsDatabase<typeof schema>,
+  db: DbOrTx,
   orgId: string,
   entity: string,
   prefix?: string,
@@ -112,7 +110,7 @@ export async function getNextNumber(
  *
  * @returns Summary of entities checked, rows upserted, and any per-entity errors.
  */
-export async function syncOrgCounters(db: PostgresJsDatabase<any>): Promise<{
+export async function syncOrgCounters(db: DbOrTx): Promise<{
   checked: number;
   upserted: number;
   errors: Array<{ entity: string; message: string }>;

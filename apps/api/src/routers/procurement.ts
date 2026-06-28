@@ -7,6 +7,7 @@ import { getNextNumber } from "../lib/auto-number";
 import {
   vendors,
   purchaseRequests,
+  prStatusEnum,
   purchaseRequestItems,
   purchaseOrders,
   poLineItems,
@@ -79,11 +80,11 @@ export const procurementRouter = router({
 
   purchaseRequests: router({
     list: permissionProcedure("procurement", "read")
-      .input(z.object({ status: z.string().optional() }))
+      .input(z.object({ status: z.enum(prStatusEnum.enumValues).optional() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(purchaseRequests.orgId, org!.id)];
-        if (input.status) conditions.push(eq(purchaseRequests.status, input.status as any));
+        if (input.status) conditions.push(eq(purchaseRequests.status, input.status));
 
         return db.select().from(purchaseRequests).where(and(...conditions)).orderBy(desc(purchaseRequests.createdAt));
       }),

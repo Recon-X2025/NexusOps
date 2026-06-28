@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
 import type { Module, RbacAction } from "@coheronconnect/types";
-import { auditLogs } from "@coheronconnect/db";
+import { auditLogs, users, organizations, type Db } from "@coheronconnect/db";
 import { checkDbUserPermission } from "./rbac-db";
 import { isRetryableTrpcResult, retryDelay, MAX_ATTEMPTS, extractPgCode } from "./db-retry";
 import {
@@ -19,9 +19,17 @@ import { sanitizeForAudit } from "./audit-sanitize";
 import { assertStepUpIfRequired } from "./step-up";
 import { assertMfaIfRequired } from "./mfa-policy";
 
+/**
+ * The authenticated user as exposed on the request context.
+ * `passwordHash` is intentionally stripped by the auth middleware
+ * (`withoutPasswordHash`) and is therefore absent from this type — the
+ * credential hash must never travel through the request context.
+ */
+export type ContextUser = Omit<typeof users.$inferSelect, "passwordHash">;
+export type ContextOrg = typeof organizations.$inferSelect;
+
 export type Context = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: any;
+  db: Db;
   /**
    * Optional MongoDB database when `MONGODB_URI` is set and init succeeded.
    * OLTP remains PostgreSQL unless/until individual procedures are migrated.
@@ -29,10 +37,8 @@ export type Context = {
   mongoDb: import("mongodb").Db | null;
   /** Declared mode: postgres | hybrid | mongo (see `DATABASE_PROVIDER`). */
   databaseProvider: "postgres" | "hybrid" | "mongo";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  user: Record<string, any> | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  org: Record<string, any> | null;
+  user: ContextUser | null;
+  org: ContextOrg | null;
   /** Set from org.id when org is loaded (see createContext + enforceAuth). */
   orgId: string | null;
   /** Fastify request.id — unique per HTTP request, used to correlate all logs. */

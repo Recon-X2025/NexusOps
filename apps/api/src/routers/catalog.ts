@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { catalogItems, catalogRequests, eq, and, desc, count, inArray } from "@coheronconnect/db";
+import { catalogItems, catalogRequests, catalogItemStatusEnum, catalogRequestStatusEnum, eq, and, desc, count, inArray } from "@coheronconnect/db";
 import { createCatalogFulfillmentTicket } from "../lib/catalog-fulfillment-ticket";
 
 type CatalogFormField = {
@@ -39,12 +39,12 @@ function assertCatalogVariablesValid(fields: CatalogFormField[], data: Record<st
 
 export const catalogRouter = router({
   listItems: permissionProcedure("catalog", "read")
-    .input(z.object({ category: z.string().optional(), status: z.string().optional() }))
+    .input(z.object({ category: z.string().optional(), status: z.enum(catalogItemStatusEnum.enumValues).optional() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(catalogItems.orgId, org!.id)];
       if (input.category) conditions.push(eq(catalogItems.category, input.category));
-      if (input.status) conditions.push(eq(catalogItems.status, input.status as any));
+      if (input.status) conditions.push(eq(catalogItems.status, input.status));
       else conditions.push(eq(catalogItems.status, "active"));
       return db.select().from(catalogItems).where(and(...conditions)).orderBy(catalogItems.sortOrder, catalogItems.name);
     }),
@@ -103,7 +103,7 @@ export const catalogRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const batchId = randomUUID();
-      return db.transaction(async (tx: typeof db) => {
+      return db.transaction(async (tx) => {
         const created: unknown[] = [];
         for (const line of input.items) {
           const [item] = await tx
@@ -132,11 +132,11 @@ export const catalogRouter = router({
     }),
 
   listRequests: permissionProcedure("catalog", "read")
-    .input(z.object({ status: z.string().optional(), myRequests: z.boolean().default(false) }))
+    .input(z.object({ status: z.enum(catalogRequestStatusEnum.enumValues).optional(), myRequests: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const conditions = [eq(catalogRequests.orgId, org!.id)];
-      if (input.status) conditions.push(eq(catalogRequests.status, input.status as any));
+      if (input.status) conditions.push(eq(catalogRequests.status, input.status));
       if (input.myRequests) conditions.push(eq(catalogRequests.requesterId, user!.id));
 
       const rows = (await db
@@ -368,6 +368,6 @@ export const catalogRouter = router({
       const [totalReqs]    = await db.select({ n: count() }).from(catalogRequests).where(eq(catalogRequests.orgId, org!.id));
       const [pendingReqs]  = await db.select({ n: count() }).from(catalogRequests).where(and(eq(catalogRequests.orgId, org!.id), eq(catalogRequests.status, "pending_approval")));
       const [completedReqs]= await db.select({ n: count() }).from(catalogRequests).where(and(eq(catalogRequests.orgId, org!.id), eq(catalogRequests.status, "completed")));
-      return { totalItems: totalItems.n, totalRequests: totalReqs.n, pendingApproval: pendingReqs.n, completed: completedReqs.n };
+      return { totalItems: totalItems?.n ?? 0, totalRequests: totalReqs?.n ?? 0, pendingApproval: pendingReqs?.n ?? 0, completed: completedReqs?.n ?? 0 };
     }),
 });

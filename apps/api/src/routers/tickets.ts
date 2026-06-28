@@ -597,7 +597,7 @@ export const ticketsRouter = router({
     const isAgent = checkDbUserPermission(ctx.user!.role, "incidents", "assign", ctx.user!.matrixRole as string | undefined);
     const visibleComments = isAgent
       ? comments
-      : comments.filter((c: any) => !c.isInternal);
+      : comments.filter((c) => !c.isInternal);
 
     const relRows: (typeof ticketRelations.$inferSelect)[] = await db
       .select()
@@ -714,11 +714,11 @@ export const ticketsRouter = router({
 
     let ciDownstreamCount = 0;
     if (ticket.configurationItemId) {
-      const [{ n }] = await db
+      const [nRow] = await db
         .select({ n: count() })
         .from(ciRelationships)
         .where(eq(ciRelationships.targetId, ticket.configurationItemId));
-      ciDownstreamCount = Number(n ?? 0);
+      ciDownstreamCount = Number(nRow?.n ?? 0);
     }
 
     let parentTicket: { id: string; number: string; title: string; isMajorIncident: boolean } | null = null;
@@ -973,9 +973,10 @@ export const ticketsRouter = router({
       }
     }
 
-    const [ticket] = await (async () => {
+    type TicketRow = typeof tickets.$inferSelect;
+    const [ticket] = await (async (): Promise<TicketRow[]> => {
         try {
-        return await db.transaction(async (tx: any) => {
+        return await db.transaction(async (tx) => {
           // Optimistic check: if the key is already in use, return the existing ticket
           // immediately without consuming a sequence number or doing any writes.
           const [existing] = await tx
@@ -1039,7 +1040,7 @@ export const ticketsRouter = router({
               idempotency_key: idempotencyKey.slice(0, 8) + "…",
               ticket_id:       snapshot["id"],
             });
-            return [snapshot as Record<string, unknown>];
+            return [snapshot as unknown as TicketRow];
           }
           // Redis miss (cache not yet populated by the winner) — fall back to DB.
           const [existing] = await db
@@ -1071,7 +1072,7 @@ export const ticketsRouter = router({
     });
 
     // Notify assignee (fire-and-forget)
-    const finalAssigneeId = (ticket as any).assigneeId;
+    const finalAssigneeId = ticket!.assigneeId;
     if (finalAssigneeId && finalAssigneeId !== user!.id) {
       sendNotification({
         orgId: org!.id,
@@ -1218,7 +1219,7 @@ export const ticketsRouter = router({
               to: trimmed,
             };
           }
-        } else if (oldStatusRow?.category === "pending" && newStatus?.category && newStatus.category !== "pending") {
+        } else if (oldStatusRow?.category === "pending" && newStatus?.category) {
           const pausedAt = existing.slaPausedAt;
           let nextDuration = existing.slaPauseDurationMins ?? 0;
           if (pausedAt) {
@@ -1356,11 +1357,10 @@ export const ticketsRouter = router({
       }
 
       updateData.updatedAt = new Date();
-      (updateData as any).version = sql`${tickets.version} + 1`;
 
       const [updated] = await db
         .update(tickets)
-        .set(updateData)
+        .set({ ...updateData, version: sql`${tickets.version} + 1` })
         .where(and(
           eq(tickets.id, input.id),
           eq(tickets.orgId, org!.id),
@@ -1413,7 +1413,7 @@ export const ticketsRouter = router({
 
       // PIR workflow (P1-11): when a major incident is closed, create a draft KB article
       // with a PIR template and link it on the ticket customFields.
-      if (shouldCreatePir && (updated as any).isMajorIncident) {
+      if (shouldCreatePir && updated.isMajorIncident) {
         try {
           const base =
             updated.customFields && typeof updated.customFields === "object" && !Array.isArray(updated.customFields)
@@ -1466,13 +1466,13 @@ export const ticketsRouter = router({
                 status: "draft",
                 authorId: user!.id,
                 tags: ["pir", "major_incident"],
-              } as any)
+              })
               .returning({ id: kbArticles.id });
 
-            const nextCustom = { ...base, pirKbArticleId: article.id };
+            const nextCustom = { ...base, pirKbArticleId: article?.id };
             await db
               .update(tickets)
-              .set({ customFields: nextCustom as any, updatedAt: new Date() })
+              .set({ customFields: nextCustom as Record<string, unknown>, updatedAt: new Date() })
               .where(and(eq(tickets.id, updated.id), eq(tickets.orgId, org!.id)));
           }
         } catch (err) {
@@ -1501,8 +1501,8 @@ export const ticketsRouter = router({
               .where(
                 and(
                   eq(surveys.orgId, org!.id),
-                  eq(surveys.type, "csat" as any),
-                  eq(surveys.status, "active" as any),
+                  eq(surveys.type, "csat"),
+                  eq(surveys.status, "active"),
                 ),
               )
               .limit(1);
@@ -1514,14 +1514,14 @@ export const ticketsRouter = router({
                   orgId: org!.id,
                   title: "Ticket CSAT (auto)",
                   description: "Auto-triggered after ticket resolution.",
-                  type: "csat" as any,
-                  status: "active" as any,
+                  type: "csat",
+                  status: "active",
                   questions: [],
                   triggerEvent: "ticket.resolved",
                   createdById: user!.id,
-                } as any)
+                })
                 .returning();
-              csat = created as any;
+              csat = created;
             }
 
             const token = randomBytes(24).toString("hex");
@@ -1530,13 +1530,13 @@ export const ticketsRouter = router({
 
             await db.insert(surveyInvites).values({
               orgId: org!.id,
-              surveyId: (csat as any).id,
+              surveyId: csat!.id,
               ticketId: updated.id,
               requesterId: updated.requesterId ?? null,
               tokenHash,
               status: "sent",
               expiresAt,
-            } as any);
+            });
 
             const [reqUser] = await db
               .select({ email: users.email })
@@ -1662,8 +1662,9 @@ export const ticketsRouter = router({
         }
 
         return rows.map((r: (typeof rows)[number]) => {
-          const ch = r.changes as Record<string, unknown> | null | undefined;
-          const body = typeof ch?.body === "string" ? ch.body : "";
+          const ch = r.changes;
+          const to = ch?.body?.to;
+          const body = typeof to === "string" ? to : "";
           return {
             id: r.id,
             userId: r.userId,
@@ -1696,7 +1697,7 @@ export const ticketsRouter = router({
           ticketId: input.ticketId,
           userId: user!.id,
           action: MAJOR_INCIDENT_COMMS_ACTION,
-          changes: { body: input.body } as any,
+          changes: { body: { from: null, to: input.body } },
         });
 
         return { ok: true as const };
@@ -1785,7 +1786,7 @@ export const ticketsRouter = router({
           customFields: customFields as Record<string, unknown>,
           updatedAt: new Date(),
           version: sql`${tickets.version} + 1`,
-        } as any)
+        })
         .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
         .returning();
 
@@ -1800,7 +1801,7 @@ export const ticketsRouter = router({
         ticketId: input.ticketId,
         userId: user!.id,
         action: "updated",
-        changes: { linkedKbArticleIds: { from: cur, to: [...cur, input.articleId] } } as any,
+        changes: { linkedKbArticleIds: { from: cur, to: [...cur, input.articleId] } },
       });
 
       return updated;
@@ -1832,7 +1833,7 @@ export const ticketsRouter = router({
           customFields: customFields as Record<string, unknown>,
           updatedAt: new Date(),
           version: sql`${tickets.version} + 1`,
-        } as any)
+        })
         .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
         .returning();
 
@@ -1847,7 +1848,7 @@ export const ticketsRouter = router({
         ticketId: input.ticketId,
         userId: user!.id,
         action: "updated",
-        changes: { linkedKbArticleIds: { from: cur, to: next } } as any,
+        changes: { linkedKbArticleIds: { from: cur, to: next } },
       });
 
       return updated;

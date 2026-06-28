@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, permissionProcedure } from "../lib/trpc";
 import { sendNotification } from "../services/notifications";
 import { getNextSeq } from "../lib/auto-number";
@@ -160,6 +161,7 @@ export const workOrdersRouter = router({
           estimatedHours: input.estimatedHours,
         })
         .returning();
+      if (!wo) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create work order" });
 
       await db.insert(workOrderActivityLogs).values({
         workOrderId: wo.id,

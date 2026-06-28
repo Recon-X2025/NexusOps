@@ -9,10 +9,14 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import type { InferSelectModel } from "drizzle-orm";
+import type { SQL } from "@coheronconnect/db";
 import {
   chartOfAccounts as chartOfAccountsTbl,
   journalEntries as journalEntriesTbl,
   journalEntryLines as journalEntryLinesTbl,
+  accountTypeEnum,
+  accountSubTypeEnum,
+  journalEntryStatusEnum,
 } from "@coheronconnect/db";
 
 type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
@@ -94,22 +98,22 @@ export const accountingRouter = router({
 
   coa: router({
     list: permissionProcedure("financial", "read").input(z.object({
-      type: z.string().optional(),
+      type: z.enum(accountTypeEnum.enumValues).optional(),
       activeOnly: z.boolean().default(true),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
-      const conds: any[] = [dbEq(chartOfAccounts.orgId, org!.id)];
+      const conds: SQL[] = [dbEq(chartOfAccounts.orgId, org!.id)];
       if (input.activeOnly) conds.push(dbEq(chartOfAccounts.isActive, true));
-      if (input.type) conds.push(dbEq(chartOfAccounts.type, input.type as any));
+      if (input.type) conds.push(dbEq(chartOfAccounts.type, input.type));
       return db.select().from(chartOfAccounts).where(dbAnd(...conds));
     }),
 
     create: permissionProcedure("financial", "write").input(z.object({
       code: z.string().min(1).max(20),
       name: z.string().min(1).max(200),
-      type: z.enum(["asset", "liability", "equity", "income", "expense", "contra_asset", "contra_liability", "contra_equity", "contra_income", "contra_expense"]),
-      subType: z.string().optional(),
+      type: z.enum(accountTypeEnum.enumValues),
+      subType: z.enum(accountSubTypeEnum.enumValues).optional(),
       parentId: z.string().uuid().optional(),
       description: z.string().optional(),
       currency: z.string().default("INR"),
@@ -122,7 +126,7 @@ export const accountingRouter = router({
         orgId: org!.id,
         openingBalance: String(input.openingBalance),
         currentBalance: String(input.openingBalance),
-        subType: input.subType as any,
+        subType: input.subType,
       }).returning();
       return acct!;
     }),
@@ -151,7 +155,7 @@ export const accountingRouter = router({
           .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
           .from(chartOfAccounts)
           .where(dbEq(chartOfAccounts.orgId, org!.id));
-        const codeToId = new Map<string, string>(existing.map((r: CoaRow) => [r.code, r.id]));
+        const codeToId = new Map<string, string>(existing.map((r) => [r.code, r.id]));
 
         let seeded = 0;
         for (const acct of INDIA_COA_SEED) {
@@ -163,8 +167,8 @@ export const accountingRouter = router({
               orgId: org!.id,
               code: acct.code,
               name: acct.name,
-              type: acct.type as any,
-              subType: acct.subType as any,
+              type: acct.type,
+              subType: acct.subType,
               parentId,
               isSystem: acct.isSystem,
               openingBalance: "0",
@@ -196,7 +200,7 @@ export const accountingRouter = router({
 
   journal: router({
     list: permissionProcedure("financial", "read").input(z.object({
-      status: z.string().optional(),
+      status: z.enum(journalEntryStatusEnum.enumValues).optional(),
       startDate: z.coerce.date().optional(),
       endDate: z.coerce.date().optional(),
       accountId: z.string().uuid().optional(),
@@ -205,8 +209,8 @@ export const accountingRouter = router({
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, desc: dbDesc, gte, lte } = await import("@coheronconnect/db");
-      const conds: any[] = [dbEq(journalEntries.orgId, org!.id)];
-      if (input.status) conds.push(dbEq(journalEntries.status, input.status as any));
+      const conds: SQL[] = [dbEq(journalEntries.orgId, org!.id)];
+      if (input.status) conds.push(dbEq(journalEntries.status, input.status));
       if (input.startDate) conds.push(gte(journalEntries.date, input.startDate));
       if (input.endDate) conds.push(lte(journalEntries.date, input.endDate));
 
@@ -390,8 +394,8 @@ export const accountingRouter = router({
       .where(dbAnd(dbEq(chartOfAccounts.id, input.accountId), dbEq(chartOfAccounts.orgId, org!.id))).limit(1);
     if (!acct) throw new TRPCError({ code: "NOT_FOUND" });
 
-    const conds: any[] = [dbEq(journalEntryLines.accountId, input.accountId), dbEq(journalEntryLines.orgId, org!.id)];
-    const joinConds: any[] = [];
+    const conds: SQL[] = [dbEq(journalEntryLines.accountId, input.accountId), dbEq(journalEntryLines.orgId, org!.id)];
+    const joinConds: SQL[] = [];
     if (input.startDate) joinConds.push(gte(journalEntries.date, input.startDate));
     if (input.endDate)   joinConds.push(lte(journalEntries.date, input.endDate));
 
@@ -532,26 +536,38 @@ export const accountingRouter = router({
       const invs = await db.select().from(invoices)
         .where(dbAnd(dbEq(invoices.orgId, org!.id), gte(invoices.invoiceDate, start), lte(invoices.invoiceDate, end)));
 
-      const b2b: any[] = [];
-      const b2c: any[] = [];
+      type GstrItem = {
+        num: number;
+        itm_det: { rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
+      };
+      type GstrEntry = {
+        inum: string;
+        idt: string;
+        val: number;
+        pos: string;
+        rchrg: string;
+        itms: GstrItem[];
+      };
+      const b2b: Array<{ ctin: string; inv: GstrEntry[] }> = [];
+      const b2c: Array<GstrEntry & { ty: string }> = [];
 
-      for (const inv of invs as any[]) {
+      for (const inv of invs) {
         const igst = Number(inv.igstAmount ?? 0);
         const cgst = Number(inv.cgstAmount ?? 0);
         const sgst = Number(inv.sgstAmount ?? 0);
         const taxableValue = Number(inv.taxableValue ?? 0);
 
-        const entry = {
+        const entry: GstrEntry = {
           inum: inv.invoiceNumber,
-          idt: new Date(inv.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
-          val: Number(inv.totalAmount ?? 0),
+          idt: new Date(inv.invoiceDate!).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          val: Number(inv.amount ?? 0),
           pos: inv.placeOfSupply ?? gstin.stateCode,
           rchrg: (inv.isReverseCharge ?? false) ? "Y" : "N",
           itms: [{ num: 1, itm_det: { rt: 18, txval: taxableValue, iamt: igst, camt: cgst, samt: sgst, csamt: 0 } }],
         };
 
         if (inv.buyerGstin) {
-          const existing = b2b.find((g: any) => g.ctin === inv.buyerGstin);
+          const existing = b2b.find((g) => g.ctin === inv.buyerGstin);
           if (existing) {
             existing.inv.push(entry);
           } else {
@@ -640,7 +656,7 @@ export const accountingRouter = router({
     }).optional()).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { bankStatements, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
-      const conds: any[] = [dbEq(bankStatements.orgId, org!.id)];
+      const conds: SQL[] = [dbEq(bankStatements.orgId, org!.id)];
       if (input?.accountId) conds.push(dbEq(bankStatements.accountId, input.accountId));
       return db.select().from(bankStatements).where(dbAnd(...conds)).orderBy(dbDesc(bankStatements.createdAt));
     }),

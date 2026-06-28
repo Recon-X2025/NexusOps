@@ -3,6 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   applications,
+  appLifecycleEnum,
+  cloudReadinessEnum,
   eq,
   and,
   desc,
@@ -13,10 +15,10 @@ import {
 
 export const apmRouter = router({
   applications: router({
-    list: permissionProcedure("analytics" as any, "read")
+    list: permissionProcedure("analytics", "read")
       .input(z.object({
-        lifecycle: z.string().optional(),
-        cloudReadiness: z.string().optional(),
+        lifecycle: z.enum(appLifecycleEnum.enumValues).optional(),
+        cloudReadiness: z.enum(cloudReadinessEnum.enumValues).optional(),
         search: z.string().optional(),
         limit: z.coerce.number().default(50),
         cursor: z.string().optional(),
@@ -24,8 +26,8 @@ export const apmRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const conditions = [eq(applications.orgId, org!.id)];
-        if (input.lifecycle) conditions.push(eq(applications.lifecycle, input.lifecycle as any));
-        if (input.cloudReadiness) conditions.push(eq(applications.cloudReadiness, input.cloudReadiness as any));
+        if (input.lifecycle) conditions.push(eq(applications.lifecycle, input.lifecycle));
+        if (input.cloudReadiness) conditions.push(eq(applications.cloudReadiness, input.cloudReadiness));
 
         const rows = await db.select().from(applications)
           .where(and(...conditions))
@@ -40,7 +42,7 @@ export const apmRouter = router({
         };
       }),
 
-    get: permissionProcedure("analytics" as any, "read")
+    get: permissionProcedure("analytics", "read")
       .input(z.object({ id: z.string().uuid() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -50,7 +52,7 @@ export const apmRouter = router({
         return app;
       }),
 
-    create: permissionProcedure("analytics" as any, "write")
+    create: permissionProcedure("analytics", "write")
       .input(z.object({
         name: z.string().min(1),
         description: z.string().optional(),
@@ -71,13 +73,13 @@ export const apmRouter = router({
         return app;
       }),
 
-    update: permissionProcedure("analytics" as any, "write")
+    update: permissionProcedure("analytics", "write")
       .input(z.object({
         id: z.string().uuid(),
-        lifecycle: z.string().optional(),
+        lifecycle: z.enum(appLifecycleEnum.enumValues).optional(),
         healthScore: z.coerce.number().optional(),
         techDebtScore: z.coerce.number().optional(),
-        cloudReadiness: z.string().optional(),
+        cloudReadiness: z.enum(cloudReadinessEnum.enumValues).optional(),
         annualCost: z.string().optional(),
         description: z.string().optional(),
       }))
@@ -85,7 +87,7 @@ export const apmRouter = router({
         const { db, org } = ctx;
         const { id, ...data } = input;
         const [app] = await db.update(applications)
-          .set({ ...data as any, updatedAt: new Date() })
+          .set({ ...data, updatedAt: new Date() })
           .where(and(eq(applications.id, id), eq(applications.orgId, org!.id)))
           .returning();
         if (!app) throw new TRPCError({ code: "NOT_FOUND" });
@@ -94,12 +96,15 @@ export const apmRouter = router({
   }),
 
   portfolio: router({
-    summary: permissionProcedure("analytics" as any, "read").query(async ({ ctx }) => {
+    summary: permissionProcedure("analytics", "read").query(async ({ ctx }) => {
       const { db, org } = ctx;
 
-      const [{ total }] = await db.select({ total: count() }).from(applications).where(eq(applications.orgId, org!.id));
-      const [{ avgHealth }] = await db.select({ avgHealth: avg(applications.healthScore) }).from(applications).where(eq(applications.orgId, org!.id));
-      const [{ totalCost }] = await db.select({ totalCost: sum(applications.annualCost) }).from(applications).where(eq(applications.orgId, org!.id));
+      const [totalRow] = await db.select({ total: count() }).from(applications).where(eq(applications.orgId, org!.id));
+      const total = totalRow?.total ?? 0;
+      const [avgHealthRow] = await db.select({ avgHealth: avg(applications.healthScore) }).from(applications).where(eq(applications.orgId, org!.id));
+      const avgHealth = avgHealthRow?.avgHealth ?? null;
+      const [totalCostRow] = await db.select({ totalCost: sum(applications.annualCost) }).from(applications).where(eq(applications.orgId, org!.id));
+      const totalCost = totalCostRow?.totalCost ?? null;
 
       const lifecycleCounts = await db.select({
         lifecycle: applications.lifecycle,
@@ -108,8 +113,8 @@ export const apmRouter = router({
         .where(eq(applications.orgId, org!.id))
         .groupBy(applications.lifecycle);
 
-      const byLifecycle = lifecycleCounts.reduce((acc: Record<string, number>, row: any) => {
-        acc[row.lifecycle] = Number(row.cnt);
+      const byLifecycle = lifecycleCounts.reduce<Record<string, number>>((acc, row) => {
+        if (row.lifecycle) acc[row.lifecycle] = Number(row.cnt);
         return acc;
       }, {});
 

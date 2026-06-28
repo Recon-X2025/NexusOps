@@ -1,0 +1,1 @@
+ALTER TABLE "kb_articles" ADD COLUMN "published_at" timestamp with time zone;

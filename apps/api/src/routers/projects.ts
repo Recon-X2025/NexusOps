@@ -3,6 +3,10 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   projects,
+  projectStatusEnum,
+  projectHealthEnum,
+  milestoneStatusEnum,
+  taskStatusEnum,
   applications,
   strategicInitiatives,
   projectDependencies,
@@ -78,11 +82,11 @@ async function getStrategyDashboardSummaryCached<T>(orgId: string, fn: () => Pro
 
 export const projectsRouter = router({
   list: permissionProcedure("projects", "read")
-    .input(z.object({ status: z.string().optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ status: z.enum(projectStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(projects.orgId, org!.id)];
-      if (input.status) conditions.push(eq(projects.status, input.status as any));
+      if (input.status) conditions.push(eq(projects.status, input.status));
       return db.select().from(projects).where(and(...conditions)).orderBy(desc(projects.createdAt)).limit(input.limit);
     }),
 
@@ -140,8 +144,8 @@ export const projectsRouter = router({
       startDate: z.string().nullable().optional(),
       endDate: z.string().nullable().optional(),
       budgetTotal: z.string().optional(),
-      status: z.string().optional(),
-      health: z.string().optional(),
+      status: z.enum(projectStatusEnum.enumValues).optional(),
+      health: z.enum(projectHealthEnum.enumValues).optional(),
       phase: z.string().optional(),
       budgetSpent: z.string().optional(),
       initiativeId: z.string().uuid().nullable().optional(),
@@ -153,7 +157,7 @@ export const projectsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, startDate, endDate, ...data } = input;
-      const updates: Record<string, any> = { ...data, updatedAt: new Date() };
+      const updates: Partial<typeof projects.$inferInsert> = { ...data, updatedAt: new Date() };
       if (startDate !== undefined) updates.startDate = startDate ? new Date(startDate) : null;
       if (endDate !== undefined) updates.endDate = endDate ? new Date(endDate) : null;
       
@@ -291,10 +295,10 @@ export const projectsRouter = router({
     }),
 
   updateMilestone: permissionProcedure("projects", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(milestoneStatusEnum.enumValues).optional() }))
     .mutation(async ({ ctx, input }) => {
       const { id, status } = input;
-      const updates: Record<string, any> = {};
+      const updates: Partial<typeof projectMilestones.$inferInsert> = {};
       if (status) { updates.status = status; if (status === "completed") updates.completedAt = new Date(); }
       const [ms] = await ctx.db.update(projectMilestones).set(updates).where(eq(projectMilestones.id, id)).returning();
       return ms;
@@ -313,15 +317,15 @@ export const projectsRouter = router({
       sprint: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [task] = await ctx.db.insert(projectTasks).values(input as any).returning();
+      const [task] = await ctx.db.insert(projectTasks).values(input).returning();
       return task;
     }),
 
   updateTask: permissionProcedure("projects", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.string().optional(), assigneeId: z.string().uuid().optional(), sprint: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(taskStatusEnum.enumValues).optional(), assigneeId: z.string().uuid().optional(), sprint: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      const updates: Record<string, any> = { ...data, updatedAt: new Date() };
+      const updates: Partial<typeof projectTasks.$inferInsert> = { ...data, updatedAt: new Date() };
       if (data.status === "done") updates.completedAt = new Date();
       const [task] = await ctx.db.update(projectTasks).set(updates).where(eq(projectTasks.id, id)).returning();
       return task;
