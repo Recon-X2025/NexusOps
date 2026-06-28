@@ -13,7 +13,7 @@ import {
   crmAccounts, crmContacts, crmDeals, crmLeads, crmActivities, crmPipelineStages,
   legalMatters, legalRequests, investigations,
   pipelineRuns, deployments, surveys, surveyResponses,
-  budgetLines, chargebacks, kbArticles,
+  budgetLines, chargebacks, kbArticles, chartOfAccounts,
   vendors, purchaseRequests, purchaseOrders,
   oncallSchedules, catalogItems,
   buildings, rooms, facilityRequests,
@@ -368,6 +368,48 @@ export async function seed() {
   });
   await db.insert(risks).values(risksSeeds);
   console.log(`✅ GRC risks: ${risksSeeds.length}`);
+
+  // ── Chart of Accounts ──────────────────────────────────────────────────────
+  // Standard India COA so finance pages (reconciliation, ledger, journal) have
+  // bank/cash accounts on a fresh DB. Mirrors INDIA_COA_SEED in the API router.
+  const coaSeed: { code: string; name: string; type: "asset" | "liability" | "equity" | "income" | "expense" | "contra_asset"; subType: string; isSystem: boolean; parentCode: string | null }[] = [
+    { code: "1000", name: "Assets", type: "asset", subType: "other_asset", isSystem: true, parentCode: null },
+    { code: "1100", name: "Current Assets", type: "asset", subType: "other_current_asset", isSystem: true, parentCode: "1000" },
+    { code: "1110", name: "Cash and Cash Equivalents", type: "asset", subType: "cash", isSystem: true, parentCode: "1100" },
+    { code: "1120", name: "Bank Accounts", type: "asset", subType: "bank", isSystem: false, parentCode: "1100" },
+    { code: "1130", name: "Accounts Receivable (Trade)", type: "asset", subType: "accounts_receivable", isSystem: true, parentCode: "1100" },
+    { code: "1140", name: "GST Input Tax Credit (ITC)", type: "asset", subType: "other_current_asset", isSystem: true, parentCode: "1100" },
+    { code: "1200", name: "Fixed Assets", type: "asset", subType: "fixed_asset", isSystem: false, parentCode: "1000" },
+    { code: "2000", name: "Liabilities", type: "liability", subType: "other_current_liability", isSystem: true, parentCode: null },
+    { code: "2100", name: "Current Liabilities", type: "liability", subType: "other_current_liability", isSystem: true, parentCode: "2000" },
+    { code: "2110", name: "Accounts Payable (Trade)", type: "liability", subType: "accounts_payable", isSystem: true, parentCode: "2100" },
+    { code: "2120", name: "GST Payable", type: "liability", subType: "other_current_liability", isSystem: true, parentCode: "2100" },
+    { code: "3000", name: "Equity", type: "equity", subType: "owners_equity", isSystem: true, parentCode: null },
+    { code: "3100", name: "Share Capital", type: "equity", subType: "share_capital", isSystem: false, parentCode: "3000" },
+    { code: "3200", name: "Retained Earnings", type: "equity", subType: "retained_earnings", isSystem: true, parentCode: "3000" },
+    { code: "4000", name: "Income", type: "income", subType: "income", isSystem: true, parentCode: null },
+    { code: "4100", name: "Revenue from Operations", type: "income", subType: "income", isSystem: true, parentCode: "4000" },
+    { code: "5000", name: "Expenses", type: "expense", subType: "expense", isSystem: true, parentCode: null },
+    { code: "5100", name: "Cost of Revenue", type: "expense", subType: "cost_of_goods_sold", isSystem: false, parentCode: "5000" },
+    { code: "5300", name: "Office & Admin Expenses", type: "expense", subType: "expense", isSystem: false, parentCode: "5000" },
+  ];
+  const coaCodeToId = new Map<string, string>();
+  for (const acct of coaSeed) {
+    const parentId = acct.parentCode ? coaCodeToId.get(acct.parentCode) : undefined;
+    const [inserted] = await db.insert(chartOfAccounts).values({
+      orgId,
+      code: acct.code,
+      name: acct.name,
+      type: acct.type,
+      subType: acct.subType as never,
+      parentId,
+      isSystem: acct.isSystem,
+      openingBalance: "0",
+      currentBalance: "0",
+    }).onConflictDoNothing().returning();
+    if (inserted) coaCodeToId.set(acct.code, inserted.id);
+  }
+  console.log(`✅ Chart of accounts: ${coaCodeToId.size}`);
 
   // ── Financial ──────────────────────────────────────────────────────────────
   const budgetSeeds = Array.from({ length: 10 }).map(() => {
