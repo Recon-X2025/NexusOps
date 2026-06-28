@@ -1602,23 +1602,28 @@ export const ticketsRouter = router({
 
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
 
-    const [comment] = await db
-      .insert(ticketComments)
-      .values({
+    // Atomicity: the comment insert and its activity-log entry must commit
+    // together so an audit trail never references a comment that failed to
+    // persist (or vice-versa).
+    return await db.transaction(async (tx) => {
+      const [comment] = await tx
+        .insert(ticketComments)
+        .values({
+          ticketId: input.ticketId,
+          authorId: user!.id,
+          body: input.body,
+          isInternal: input.isInternal ?? false,
+        })
+        .returning();
+
+      await tx.insert(ticketActivityLogs).values({
         ticketId: input.ticketId,
-        authorId: user!.id,
-        body: input.body,
-        isInternal: input.isInternal ?? false,
-      })
-      .returning();
+        userId: user!.id,
+        action: input.isInternal ? "note_added" : "comment_added",
+      });
 
-    await db.insert(ticketActivityLogs).values({
-      ticketId: input.ticketId,
-      userId: user!.id,
-      action: input.isInternal ? "note_added" : "comment_added",
+      return comment;
     });
-
-    return comment;
   }),
 
   majorIncidentComms: router({
@@ -1715,44 +1720,49 @@ export const ticketsRouter = router({
         .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)));
       if (!prev) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const [ticket] = await db
-        .update(tickets)
-        .set({ assigneeId: input.assigneeId, updatedAt: new Date() })
-        .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)))
-        .returning();
+      // Atomicity: the assignee update, handoff bookkeeping, and activity-log
+      // entry must commit as a unit so a ticket is never reassigned without its
+      // handoff records and audit trail staying consistent.
+      return await db.transaction(async (tx) => {
+        const [ticket] = await tx
+          .update(tickets)
+          .set({ assigneeId: input.assigneeId, updatedAt: new Date() })
+          .where(and(eq(tickets.id, input.id), eq(tickets.orgId, org!.id)))
+          .returning();
 
-      if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
 
-      if (input.assigneeId && prev.assigneeId !== input.assigneeId) {
-        const [orgRow] = await db
-          .select({ settings: organizations.settings })
-          .from(organizations)
-          .where(eq(organizations.id, org!.id))
-          .limit(1);
-        const cal = parseOrgSlaCalendarSettings(orgRow?.settings);
-        await db
-          .update(ticketHandoffs)
-          .set({ metAt: new Date() })
-          .where(and(eq(ticketHandoffs.ticketId, input.id), isNull(ticketHandoffs.metAt)));
-        const rawDue = new Date(Date.now() + 4 * 60 * 60 * 1000);
-        const dueAt = adjustSlaDeadlineForBusinessCalendar(rawDue, cal);
-        await db.insert(ticketHandoffs).values({
-          orgId: org!.id,
+        if (input.assigneeId && prev.assigneeId !== input.assigneeId) {
+          const [orgRow] = await tx
+            .select({ settings: organizations.settings })
+            .from(organizations)
+            .where(eq(organizations.id, org!.id))
+            .limit(1);
+          const cal = parseOrgSlaCalendarSettings(orgRow?.settings);
+          await tx
+            .update(ticketHandoffs)
+            .set({ metAt: new Date() })
+            .where(and(eq(ticketHandoffs.ticketId, input.id), isNull(ticketHandoffs.metAt)));
+          const rawDue = new Date(Date.now() + 4 * 60 * 60 * 1000);
+          const dueAt = adjustSlaDeadlineForBusinessCalendar(rawDue, cal);
+          await tx.insert(ticketHandoffs).values({
+            orgId: org!.id,
+            ticketId: input.id,
+            fromAssigneeId: prev.assigneeId,
+            toAssigneeId: input.assigneeId,
+            dueAt,
+          });
+        }
+
+        await tx.insert(ticketActivityLogs).values({
           ticketId: input.id,
-          fromAssigneeId: prev.assigneeId,
-          toAssigneeId: input.assigneeId,
-          dueAt,
+          userId: user!.id,
+          action: "assigned",
+          changes: { assigneeId: { from: prev.assigneeId, to: input.assigneeId } },
         });
-      }
 
-      await db.insert(ticketActivityLogs).values({
-        ticketId: input.id,
-        userId: user!.id,
-        action: "assigned",
-        changes: { assigneeId: { from: prev.assigneeId, to: input.assigneeId } },
+        return ticket;
       });
-
-      return ticket;
     }),
 
   linkKnowledgeArticle: permissionProcedure("incidents", "write")
@@ -1780,31 +1790,36 @@ export const ticketsRouter = router({
 
       const customFields = { ...base, linkedKbArticleIds: [...cur, input.articleId] };
 
-      const [updated] = await db
-        .update(tickets)
-        .set({
-          customFields: customFields as Record<string, unknown>,
-          updatedAt: new Date(),
-          version: sql`${tickets.version} + 1`,
-        })
-        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
-        .returning();
+      // Atomicity: the ticket update (with optimistic version bump) and its
+      // activity-log entry must commit together so the audit trail and the
+      // linked-article state never diverge.
+      return await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(tickets)
+          .set({
+            customFields: customFields as Record<string, unknown>,
+            updatedAt: new Date(),
+            version: sql`${tickets.version} + 1`,
+          })
+          .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
+          .returning();
 
-      if (!updated) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Record was modified by another user. Please refresh and try again.",
+        if (!updated) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Record was modified by another user. Please refresh and try again.",
+          });
+        }
+
+        await tx.insert(ticketActivityLogs).values({
+          ticketId: input.ticketId,
+          userId: user!.id,
+          action: "updated",
+          changes: { linkedKbArticleIds: { from: cur, to: [...cur, input.articleId] } },
         });
-      }
 
-      await db.insert(ticketActivityLogs).values({
-        ticketId: input.ticketId,
-        userId: user!.id,
-        action: "updated",
-        changes: { linkedKbArticleIds: { from: cur, to: [...cur, input.articleId] } },
+        return updated;
       });
-
-      return updated;
     }),
 
   unlinkKnowledgeArticle: permissionProcedure("incidents", "write")
@@ -1827,31 +1842,36 @@ export const ticketsRouter = router({
 
       const customFields = { ...base, linkedKbArticleIds: next };
 
-      const [updated] = await db
-        .update(tickets)
-        .set({
-          customFields: customFields as Record<string, unknown>,
-          updatedAt: new Date(),
-          version: sql`${tickets.version} + 1`,
-        })
-        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
-        .returning();
+      // Atomicity: the ticket update (with optimistic version bump) and its
+      // activity-log entry must commit together so the audit trail and the
+      // linked-article state never diverge.
+      return await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(tickets)
+          .set({
+            customFields: customFields as Record<string, unknown>,
+            updatedAt: new Date(),
+            version: sql`${tickets.version} + 1`,
+          })
+          .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id), eq(tickets.version, t.version)))
+          .returning();
 
-      if (!updated) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Record was modified by another user. Please refresh and try again.",
+        if (!updated) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Record was modified by another user. Please refresh and try again.",
+          });
+        }
+
+        await tx.insert(ticketActivityLogs).values({
+          ticketId: input.ticketId,
+          userId: user!.id,
+          action: "updated",
+          changes: { linkedKbArticleIds: { from: cur, to: next } },
         });
-      }
 
-      await db.insert(ticketActivityLogs).values({
-        ticketId: input.ticketId,
-        userId: user!.id,
-        action: "updated",
-        changes: { linkedKbArticleIds: { from: cur, to: next } },
+        return updated;
       });
-
-      return updated;
     }),
 
   addRelation: permissionProcedure("incidents", "write")
@@ -1930,16 +1950,21 @@ export const ticketsRouter = router({
         .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
 
-      await db.delete(ticketRelations).where(eq(ticketRelations.id, input.relationId));
+      // Atomicity: deleting the relation and recording its removal in the
+      // activity log must commit together so the audit trail never references a
+      // relation that still exists (or omits one that was removed).
+      return await db.transaction(async (tx) => {
+        await tx.delete(ticketRelations).where(eq(ticketRelations.id, input.relationId));
 
-      await db.insert(ticketActivityLogs).values({
-        ticketId: input.ticketId,
-        userId: user!.id,
-        action: "relation_removed",
-        changes: { relation: { from: { targetId: rel.targetId, type: rel.type }, to: null } },
+        await tx.insert(ticketActivityLogs).values({
+          ticketId: input.ticketId,
+          userId: user!.id,
+          action: "relation_removed",
+          changes: { relation: { from: { targetId: rel.targetId, type: rel.type }, to: null } },
+        });
+
+        return { ok: true };
       });
-
-      return { ok: true };
     }),
 
   bulkUpdate: permissionProcedure("incidents", "write")
@@ -1961,24 +1986,29 @@ export const ticketsRouter = router({
       if (input.data.assigneeId !== undefined) updateData.assigneeId = input.data.assigneeId;
       if (input.data.priorityId) updateData.priorityId = input.data.priorityId;
 
-      const updated = await db
-        .update(tickets)
-        .set(updateData)
-        .where(and(eq(tickets.orgId, org!.id), inArray(tickets.id, input.ids)))
-        .returning({ id: tickets.id });
+      // Atomicity: the bulk ticket update and its bulk audit-log entries must
+      // commit together so the activity log always matches exactly the set of
+      // tickets that were actually updated.
+      return await db.transaction(async (tx) => {
+        const updated = await tx
+          .update(tickets)
+          .set(updateData)
+          .where(and(eq(tickets.orgId, org!.id), inArray(tickets.id, input.ids)))
+          .returning({ id: tickets.id });
 
-      // Bulk audit log
-      if (updated.length > 0) {
-        await db.insert(ticketActivityLogs).values(
-          updated.map(({ id }: { id: string }) => ({
-            ticketId: id,
-            userId: user!.id,
-            action: "bulk_updated",
-          })),
-        );
-      }
+        // Bulk audit log
+        if (updated.length > 0) {
+          await tx.insert(ticketActivityLogs).values(
+            updated.map(({ id }: { id: string }) => ({
+              ticketId: id,
+              userId: user!.id,
+              action: "bulk_updated",
+            })),
+          );
+        }
 
-      return { updatedCount: updated.length };
+        return { updatedCount: updated.length };
+      });
     }),
 
   listPriorities: permissionProcedure("incidents", "read").query(async ({ ctx }) => {

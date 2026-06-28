@@ -58,12 +58,17 @@ export const crmLeadsRouter = router({
     .input(z.object({ id: z.string().uuid(), dealTitle: z.string(), dealValue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [deal] = await db.insert(crmDeals).values({
-        orgId: org!.id, title: input.dealTitle, value: input.dealValue, ownerId: user!.id,
-        weightedValue: input.dealValue ? String(Number(input.dealValue) * 0.1) : undefined,
-      }).returning();
-      await db.update(crmLeads).set({ status: "converted", convertedDealId: deal!.id, updatedAt: new Date() })
-        .where(and(eq(crmLeads.id, input.id), eq(crmLeads.orgId, org!.id)));
-      return deal;
+      // Atomicity: the deal insert and the lead status/link update must commit
+      // together so a converted deal can never exist without its source lead
+      // being flagged "converted" and pointed at that deal.
+      return await db.transaction(async (tx) => {
+        const [deal] = await tx.insert(crmDeals).values({
+          orgId: org!.id, title: input.dealTitle, value: input.dealValue, ownerId: user!.id,
+          weightedValue: input.dealValue ? String(Number(input.dealValue) * 0.1) : undefined,
+        }).returning();
+        await tx.update(crmLeads).set({ status: "converted", convertedDealId: deal!.id, updatedAt: new Date() })
+          .where(and(eq(crmLeads.id, input.id), eq(crmLeads.orgId, org!.id)));
+        return deal;
+      });
     }),
 });

@@ -250,23 +250,29 @@ export const projectsRouter = router({
       if (proj.status !== "proposed") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only proposed projects can pass intake approval" });
       }
-      const [updated] = await db
-        .update(projects)
-        .set({ status: "planning", updatedAt: new Date() })
-        .where(and(eq(projects.id, input.projectId), eq(projects.orgId, org!.id)))
-        .returning();
-      await db.insert(auditLogs).values({
-        orgId: org!.id,
-        userId: user!.id,
-        action: "project_intake_approved",
-        resourceType: "project",
-        resourceId: input.projectId,
-        changes: {
-          fromStatus: "proposed",
-          toStatus: "planning",
-          number: proj.number,
-          name: proj.name,
-        },
+      // Atomicity: the status transition (proposed→planning) and its audit-log
+      // entry must commit together so we never have an approved project without
+      // a corresponding audit record (or vice versa).
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(projects)
+          .set({ status: "planning", updatedAt: new Date() })
+          .where(and(eq(projects.id, input.projectId), eq(projects.orgId, org!.id)))
+          .returning();
+        await tx.insert(auditLogs).values({
+          orgId: org!.id,
+          userId: user!.id,
+          action: "project_intake_approved",
+          resourceType: "project",
+          resourceId: input.projectId,
+          changes: {
+            fromStatus: "proposed",
+            toStatus: "planning",
+            number: proj.number,
+            name: proj.name,
+          },
+        });
+        return row;
       });
       if (proj.ownerId && proj.ownerId !== user!.id) {
         sendNotification({

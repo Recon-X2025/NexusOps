@@ -115,8 +115,6 @@ export const procurementRouter = router({
         }
       }
 
-      const prNumber = await getNextNumber(db, org!.id, "PR");
-
       const totalAmount = input.items.reduce(
         (sum, item) => sum + item.quantity * item.unitPrice,
         0,
@@ -129,36 +127,43 @@ export const procurementRouter = router({
       const approvalLevel = await determineApproval(totalAmount, freshOrg?.settings ?? org!.settings);
       const status = approvalLevel === "auto" ? "approved" : "pending";
 
-      const [pr] = await db
-        .insert(purchaseRequests)
-        .values({
-          orgId: org!.id,
-          number: prNumber,
-          requesterId: user!.id,
-          title: input.title,
-          justification: input.justification,
-          totalAmount: totalAmount.toString(),
-          status,
-          priority: input.priority ?? "medium",
-          department: input.department,
-          budgetCode: input.budgetCode,
-          idempotencyKey: input.idempotencyKey ?? null,
-        })
-        .returning();
+      // Number allocation + header + line items are one unit: a failed item
+      // insert must roll back both the PR header and the consumed PR number.
+      const pr = await db.transaction(async (tx) => {
+        const prNumber = await getNextNumber(tx, org!.id, "PR");
 
-      // Insert items
-      if (input.items.length > 0) {
-        await db.insert(purchaseRequestItems).values(
-          input.items.map((item: { description: string; quantity: number; unitPrice: number; vendorId?: string; assetTypeId?: string }) => ({
-            prId: pr!.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice.toString(),
-            vendorId: item.vendorId,
-            assetTypeId: item.assetTypeId,
-          })),
-        );
-      }
+        const [created] = await tx
+          .insert(purchaseRequests)
+          .values({
+            orgId: org!.id,
+            number: prNumber,
+            requesterId: user!.id,
+            title: input.title,
+            justification: input.justification,
+            totalAmount: totalAmount.toString(),
+            status,
+            priority: input.priority ?? "medium",
+            department: input.department,
+            budgetCode: input.budgetCode,
+            idempotencyKey: input.idempotencyKey ?? null,
+          })
+          .returning();
+
+        if (input.items.length > 0) {
+          await tx.insert(purchaseRequestItems).values(
+            input.items.map((item: { description: string; quantity: number; unitPrice: number; vendorId?: string; assetTypeId?: string }) => ({
+              prId: created!.id,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice.toString(),
+              vendorId: item.vendorId,
+              assetTypeId: item.assetTypeId,
+            })),
+          );
+        }
+
+        return created;
+      });
 
       return { ...pr, approvalRequired: approvalLevel !== "auto", approvalLevel };
     }),
@@ -300,83 +305,90 @@ export const procurementRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const poNumber = await getNextNumber(db, org!.id, "PO");
 
-        const [po] = await db
-          .insert(purchaseOrders)
-          .values({
-            orgId: org!.id,
-            poNumber,
-            vendorId: input.vendorId,
-            totalAmount: input.totalAmount.toString(),
-            status: "draft",
-            notes: input.notes,
-            expectedDelivery: input.expectedDelivery,
-            legalEntityId: input.legalEntityId ?? null,
-          })
-          .returning();
+        // PO header, line items, budget commitment, and the draft accrual JE
+        // (+ its lines) form one financial event. A partial write would commit
+        // budget without a PO, or leave a one-sided GL accrual — both corrupt
+        // the books. Run the whole thing in a single transaction.
+        return await db.transaction(async (tx) => {
+          const poNumber = await getNextNumber(tx, org!.id, "PO");
 
-        await db.insert(poLineItems).values(
-          input.items.map((item) => ({
-            poId: po!.id,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice.toString(),
-            receivedQuantity: 0,
-          })),
-        );
-
-        // ── Financial Integration: Budget Commitment ───────────────────────
-        if (input.department && input.category) {
-          await db.update(budgetLines)
-            .set({
-              committed: sql`${budgetLines.committed} + ${input.totalAmount}`,
-              updatedAt: new Date(),
+          const [po] = await tx
+            .insert(purchaseOrders)
+            .values({
+              orgId: org!.id,
+              poNumber,
+              vendorId: input.vendorId,
+              totalAmount: input.totalAmount.toString(),
+              status: "draft",
+              notes: input.notes,
+              expectedDelivery: input.expectedDelivery,
+              legalEntityId: input.legalEntityId ?? null,
             })
-            .where(and(
-              eq(budgetLines.orgId, org!.id),
-              eq(budgetLines.department, input.department),
-              eq(budgetLines.category, input.category),
-              eq(budgetLines.fiscalYear, new Date().getFullYear()),
-            ));
-        }
+            .returning();
 
-        // ── Financial Integration: Draft Journal Entry ──────────────────────
-        const [je] = await db.insert(journalEntries).values({
-          orgId: org!.id,
-          number: `JE-PO-${po!.poNumber}`,
-          date: new Date(),
-          type: "invoice",
-          status: "draft",
-          description: `Accrual for PO ${po!.poNumber}`,
-          totalDebit: input.totalAmount.toString(),
-          totalCredit: input.totalAmount.toString(),
-          createdById: ctx.user!.id,
-        }).returning();
+          await tx.insert(poLineItems).values(
+            input.items.map((item) => ({
+              poId: po!.id,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice.toString(),
+              receivedQuantity: 0,
+            })),
+          );
 
-        if (je) {
-          // Simplified: Debit Expense, Credit Accrued Liability (placeholder accounts)
-          // In a real system, we'd lookup specific COA IDs
-          // For now, we assume standard IDs or just track the link
-          await db.insert(journalEntryLines).values([
-            {
-              journalEntryId: je.id,
-              orgId: org!.id,
-              accountId: "00000000-0000-0000-0000-000000000001", // Placeholder
-              debitAmount: input.totalAmount.toString(),
-              description: `Expense accrual for PO ${po!.poNumber}`,
-            },
-            {
-              journalEntryId: je.id,
-              orgId: org!.id,
-              accountId: "00000000-0000-0000-0000-000000000002", // Placeholder
-              creditAmount: input.totalAmount.toString(),
-              description: `Accrued liability for PO ${po!.poNumber}`,
-            }
-          ]);
-        }
+          // ── Financial Integration: Budget Commitment ───────────────────────
+          if (input.department && input.category) {
+            await tx.update(budgetLines)
+              .set({
+                committed: sql`${budgetLines.committed} + ${input.totalAmount}`,
+                updatedAt: new Date(),
+              })
+              .where(and(
+                eq(budgetLines.orgId, org!.id),
+                eq(budgetLines.department, input.department),
+                eq(budgetLines.category, input.category),
+                eq(budgetLines.fiscalYear, new Date().getFullYear()),
+              ));
+          }
 
-        return po;
+          // ── Financial Integration: Draft Journal Entry ──────────────────────
+          const [je] = await tx.insert(journalEntries).values({
+            orgId: org!.id,
+            number: `JE-PO-${po!.poNumber}`,
+            date: new Date(),
+            type: "invoice",
+            status: "draft",
+            description: `Accrual for PO ${po!.poNumber}`,
+            totalDebit: input.totalAmount.toString(),
+            totalCredit: input.totalAmount.toString(),
+            createdById: ctx.user!.id,
+          }).returning();
+
+          if (je) {
+            // Simplified: Debit Expense, Credit Accrued Liability (placeholder accounts)
+            // In a real system, we'd lookup specific COA IDs
+            // For now, we assume standard IDs or just track the link
+            await tx.insert(journalEntryLines).values([
+              {
+                journalEntryId: je.id,
+                orgId: org!.id,
+                accountId: "00000000-0000-0000-0000-000000000001", // Placeholder
+                debitAmount: input.totalAmount.toString(),
+                description: `Expense accrual for PO ${po!.poNumber}`,
+              },
+              {
+                journalEntryId: je.id,
+                orgId: org!.id,
+                accountId: "00000000-0000-0000-0000-000000000002", // Placeholder
+                creditAmount: input.totalAmount.toString(),
+                description: `Accrued liability for PO ${po!.poNumber}`,
+              }
+            ]);
+          }
+
+          return po;
+        });
       }),
 
     createFromPR: permissionProcedure("purchase_orders", "write")
@@ -416,40 +428,45 @@ export const procurementRouter = router({
           .from(purchaseRequestItems)
           .where(eq(purchaseRequestItems.prId, input.prId));
 
-        const poNumber = await getNextNumber(db, org!.id, "PO");
+        // PO header + lines + flipping the source PR to "ordered" are one unit:
+        // a failure must not leave a PO without its PR marked ordered (which
+        // would allow a second PO off the same PR) or vice versa.
+        return await db.transaction(async (tx) => {
+          const poNumber = await getNextNumber(tx, org!.id, "PO");
 
-        const [po] = await db
-          .insert(purchaseOrders)
-          .values({
-            orgId: org!.id,
-            poNumber,
-            prId: input.prId,
-            vendorId: input.vendorId,
-            totalAmount: pr.totalAmount,
-            status: "draft",
-            expectedDelivery: input.expectedDelivery,
-            legalEntityId: input.legalEntityId ?? null,
-          })
-          .returning();
+          const [po] = await tx
+            .insert(purchaseOrders)
+            .values({
+              orgId: org!.id,
+              poNumber,
+              prId: input.prId,
+              vendorId: input.vendorId,
+              totalAmount: pr.totalAmount,
+              status: "draft",
+              expectedDelivery: input.expectedDelivery,
+              legalEntityId: input.legalEntityId ?? null,
+            })
+            .returning();
 
-        if (prItems.length > 0) {
-          await db.insert(poLineItems).values(
-            prItems.map((item: typeof purchaseRequestItems.$inferSelect) => ({
-              poId: po!.id,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              receivedQuantity: 0,
-            })),
-          );
-        }
+          if (prItems.length > 0) {
+            await tx.insert(poLineItems).values(
+              prItems.map((item: typeof purchaseRequestItems.$inferSelect) => ({
+                poId: po!.id,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                receivedQuantity: 0,
+              })),
+            );
+          }
 
-        await db
-          .update(purchaseRequests)
-          .set({ status: "ordered" })
-          .where(eq(purchaseRequests.id, input.prId));
+          await tx
+            .update(purchaseRequests)
+            .set({ status: "ordered" })
+            .where(eq(purchaseRequests.id, input.prId));
 
-        return po;
+          return po;
+        });
       }),
 
     receive: permissionProcedure("purchase_orders", "write")
@@ -462,27 +479,32 @@ export const procurementRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 
-        for (const item of input.lineItems) {
-          await db
-            .update(poLineItems)
-            .set({ receivedQuantity: item.receivedQty })
-            .where(eq(poLineItems.id, item.lineItemId));
-        }
+        // Per-line received quantities and the resulting PO status must move
+        // together: a mid-loop failure would mark some lines received while the
+        // PO status (received / partially_received) reflects a different reality.
+        return await db.transaction(async (tx) => {
+          for (const item of input.lineItems) {
+            await tx
+              .update(poLineItems)
+              .set({ receivedQuantity: item.receivedQty })
+              .where(eq(poLineItems.id, item.lineItemId));
+          }
 
-        // Check if fully received
-        const allItems = await db.select().from(poLineItems).where(eq(poLineItems.poId, input.id));
-        const allReceived = allItems.every((item: typeof poLineItems.$inferSelect) => item.receivedQuantity >= item.quantity);
+          // Check if fully received
+          const allItems = await tx.select().from(poLineItems).where(eq(poLineItems.poId, input.id));
+          const allReceived = allItems.every((item: typeof poLineItems.$inferSelect) => item.receivedQuantity >= item.quantity);
 
-        const [updated] = await db
-          .update(purchaseOrders)
-          .set({
-            status: allReceived ? "received" : "partially_received",
-            updatedAt: new Date(),
-          })
-          .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.orgId, org!.id)))
-          .returning();
+          const [updated] = await tx
+            .update(purchaseOrders)
+            .set({
+              status: allReceived ? "received" : "partially_received",
+              updatedAt: new Date(),
+            })
+            .where(and(eq(purchaseOrders.id, input.id), eq(purchaseOrders.orgId, org!.id)))
+            .returning();
 
-        return updated;
+          return updated;
+        });
       }),
 
     send: permissionProcedure("purchase_orders", "write")

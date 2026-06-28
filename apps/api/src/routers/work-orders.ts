@@ -137,37 +137,44 @@ export const workOrdersRouter = router({
         }
       }
 
-      const [wo] = await db
-        .insert(workOrders)
-        .values({
-          orgId: org!.id,
-          number,
-          shortDescription: input.shortDescription,
-          description: input.description,
-          type: input.type,
-          priority: input.priority,
-          location: input.location,
-          category: input.category,
-          subcategory: input.subcategory,
-          cmdbCi: input.cmdbCi,
-          assignedToId: resolvedAssignedToId,
-          requestedById: user!.id,
-          scheduledStartDate: input.scheduledStartDate
-            ? new Date(input.scheduledStartDate)
-            : undefined,
-          scheduledEndDate: input.scheduledEndDate
-            ? new Date(input.scheduledEndDate)
-            : undefined,
-          estimatedHours: input.estimatedHours,
-        })
-        .returning();
-      if (!wo) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create work order" });
+      // Atomicity: the work order row and its initial activity-log entry must
+      // be committed together. Wrapping both writes in a transaction prevents a
+      // work order existing without its creation audit log (or vice versa).
+      const wo = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(workOrders)
+          .values({
+            orgId: org!.id,
+            number,
+            shortDescription: input.shortDescription,
+            description: input.description,
+            type: input.type,
+            priority: input.priority,
+            location: input.location,
+            category: input.category,
+            subcategory: input.subcategory,
+            cmdbCi: input.cmdbCi,
+            assignedToId: resolvedAssignedToId,
+            requestedById: user!.id,
+            scheduledStartDate: input.scheduledStartDate
+              ? new Date(input.scheduledStartDate)
+              : undefined,
+            scheduledEndDate: input.scheduledEndDate
+              ? new Date(input.scheduledEndDate)
+              : undefined,
+            estimatedHours: input.estimatedHours,
+          })
+          .returning();
+        if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create work order" });
 
-      await db.insert(workOrderActivityLogs).values({
-        workOrderId: wo.id,
-        userId: user!.id,
-        action: "created",
-        note: `Work order ${number} created`,
+        await tx.insert(workOrderActivityLogs).values({
+          workOrderId: created.id,
+          userId: user!.id,
+          action: "created",
+          note: `Work order ${number} created`,
+        });
+
+        return created;
       });
 
       if (resolvedAssignedToId && resolvedAssignedToId !== user!.id) {
@@ -196,20 +203,24 @@ export const workOrdersRouter = router({
       const { db } = ctx;
       const { org, user } = ctx;
 
-      const [wo] = await db
-        .update(workOrders)
-        .set({ state: input.state, updatedAt: new Date() })
-        .where(and(eq(workOrders.id, input.id), eq(workOrders.orgId, org!.id)))
-        .returning();
+      // Atomicity: the state change and its audit-log entry must commit together
+      // so the work order's recorded state always matches its activity history.
+      return await db.transaction(async (tx) => {
+        const [wo] = await tx
+          .update(workOrders)
+          .set({ state: input.state, updatedAt: new Date() })
+          .where(and(eq(workOrders.id, input.id), eq(workOrders.orgId, org!.id)))
+          .returning();
 
-      await db.insert(workOrderActivityLogs).values({
-        workOrderId: input.id,
-        userId: user!.id,
-        action: "state_changed",
-        note: input.note ?? `State changed to ${input.state}`,
+        await tx.insert(workOrderActivityLogs).values({
+          workOrderId: input.id,
+          userId: user!.id,
+          action: "state_changed",
+          note: input.note ?? `State changed to ${input.state}`,
+        });
+
+        return wo;
       });
-
-      return wo;
     }),
 
   update: permissionProcedure("work_orders", "write")
@@ -223,18 +234,22 @@ export const workOrdersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const { id, ...updates } = input;
-      const [wo] = await db
-        .update(workOrders)
-        .set({ ...updates, updatedAt: new Date() })
-        .where(and(eq(workOrders.id, id), eq(workOrders.orgId, org!.id)))
-        .returning();
-      await db.insert(workOrderActivityLogs).values({
-        workOrderId: id,
-        userId: user!.id,
-        action: "updated",
-        note: "Work order details updated",
+      // Atomicity: the field update and its audit-log entry must commit together
+      // so an "updated" log is never recorded without the change (or vice versa).
+      return await db.transaction(async (tx) => {
+        const [wo] = await tx
+          .update(workOrders)
+          .set({ ...updates, updatedAt: new Date() })
+          .where(and(eq(workOrders.id, id), eq(workOrders.orgId, org!.id)))
+          .returning();
+        await tx.insert(workOrderActivityLogs).values({
+          workOrderId: id,
+          userId: user!.id,
+          action: "updated",
+          note: "Work order details updated",
+        });
+        return wo;
       });
-      return wo;
     }),
 
   updateTask: permissionProcedure("work_orders", "write")

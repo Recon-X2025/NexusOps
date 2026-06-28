@@ -262,39 +262,44 @@ export const accountingRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Journal entry is not balanced: debit ${totalDebit} ≠ credit ${totalCredit}` });
       }
 
-      // Generate JE number
-      const [c] = await db.select({ n: dbCount() }).from(journalEntries).where(dbEq(journalEntries.orgId, org!.id));
-      const seq = (c?.n ?? 0) + 1;
-      const number = `JE-${input.date.getFullYear()}-${String(seq).padStart(5, "0")}`;
       const fy = input.financialYear ?? currentFY(input.date);
 
-      const [je] = await db.insert(journalEntries).values({
-        orgId: org!.id,
-        number,
-        date: input.date,
-        type: input.type,
-        status: "draft",
-        description: input.description,
-        reference: input.reference,
-        currency: input.currency,
-        totalDebit: String(totalDebit),
-        totalCredit: String(totalCredit),
-        createdById: user!.id,
-        financialYear: fy,
-        period: input.date.getMonth() + 1,
-      }).returning();
+      // Header + lines are one entry; do them in a transaction so a line-insert
+      // failure can't leave a header with no (or partial) line items, and so the
+      // JE-number sequence read can't race a concurrent create.
+      return await db.transaction(async (tx) => {
+        const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(dbEq(journalEntries.orgId, org!.id));
+        const seq = (c?.n ?? 0) + 1;
+        const number = `JE-${input.date.getFullYear()}-${String(seq).padStart(5, "0")}`;
 
-      const lineRows = input.lines.map((l, i) => ({
-        journalEntryId: je!.id,
-        orgId: org!.id,
-        accountId: l.accountId,
-        debitAmount: String(l.debitAmount),
-        creditAmount: String(l.creditAmount),
-        description: l.description,
-        sortOrder: i,
-      }));
-      await db.insert(journalEntryLines).values(lineRows);
-      return je!;
+        const [je] = await tx.insert(journalEntries).values({
+          orgId: org!.id,
+          number,
+          date: input.date,
+          type: input.type,
+          status: "draft",
+          description: input.description,
+          reference: input.reference,
+          currency: input.currency,
+          totalDebit: String(totalDebit),
+          totalCredit: String(totalCredit),
+          createdById: user!.id,
+          financialYear: fy,
+          period: input.date.getMonth() + 1,
+        }).returning();
+
+        const lineRows = input.lines.map((l, i) => ({
+          journalEntryId: je!.id,
+          orgId: org!.id,
+          accountId: l.accountId,
+          debitAmount: String(l.debitAmount),
+          creditAmount: String(l.creditAmount),
+          description: l.description,
+          sortOrder: i,
+        }));
+        await tx.insert(journalEntryLines).values(lineRows);
+        return je!;
+      });
     }),
 
     post: permissionProcedure("financial", "write").input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
@@ -308,21 +313,24 @@ export const accountingRouter = router({
 
       const lines = await db.select().from(journalEntryLines).where(dbEq(journalEntryLines.journalEntryId, je.id));
 
-      // Update account running balances
-      for (const line of lines) {
-        const net = Number(line.debitAmount) - Number(line.creditAmount);
-        await db.update(chartOfAccounts)
-          .set({ currentBalance: sql`current_balance + ${String(net)}`, updatedAt: new Date() })
-          .where(dbEq(chartOfAccounts.id, line.accountId));
-      }
+      // Balance updates and the status flip must be atomic: a mid-loop failure
+      // would corrupt account running balances while leaving the entry "draft".
+      return await db.transaction(async (tx) => {
+        for (const line of lines) {
+          const net = Number(line.debitAmount) - Number(line.creditAmount);
+          await tx.update(chartOfAccounts)
+            .set({ currentBalance: sql`current_balance + ${String(net)}`, updatedAt: new Date() })
+            .where(dbEq(chartOfAccounts.id, line.accountId));
+        }
 
-      const [posted] = await db.update(journalEntries).set({
-        status: "posted",
-        postedById: user!.id,
-        postedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(dbEq(journalEntries.id, je.id)).returning();
-      return posted!;
+        const [posted] = await tx.update(journalEntries).set({
+          status: "posted",
+          postedById: user!.id,
+          postedAt: new Date(),
+          updatedAt: new Date(),
+        }).where(dbEq(journalEntries.id, je.id)).returning();
+        return posted!;
+      });
     }),
 
     reverse: permissionProcedure("financial", "write").input(z.object({
@@ -340,42 +348,47 @@ export const accountingRouter = router({
       const lines = await db.select().from(journalEntryLines).where(dbEq(journalEntryLines.journalEntryId, je.id));
       const revDate = input.date ?? new Date();
 
-      const [c] = await db.select({ n: dbCount() }).from(journalEntries).where(dbEq(journalEntries.orgId, org!.id));
-      const seq = (c?.n ?? 0) + 1;
-      const revNumber = `JE-${revDate.getFullYear()}-${String(seq).padStart(5, "0")}-REV`;
+      // The reversal header, its lines, and flipping the original to "reversed"
+      // are one accounting event: a partial write would leave a half-reversed
+      // entry or an orphaned reversal in the ledger.
+      return await db.transaction(async (tx) => {
+        const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(dbEq(journalEntries.orgId, org!.id));
+        const seq = (c?.n ?? 0) + 1;
+        const revNumber = `JE-${revDate.getFullYear()}-${String(seq).padStart(5, "0")}-REV`;
 
-      const [revJe] = await db.insert(journalEntries).values({
-        orgId: org!.id,
-        number: revNumber,
-        date: revDate,
-        type: "reversal",
-        status: "posted",
-        description: `Reversal of ${je.number}`,
-        reference: je.number,
-        currency: je.currency,
-        totalDebit: je.totalCredit,
-        totalCredit: je.totalDebit,
-        createdById: user!.id,
-        postedById: user!.id,
-        postedAt: revDate,
-        reversalOfId: je.id,
-        financialYear: currentFY(revDate),
-        period: revDate.getMonth() + 1,
-      }).returning();
+        const [revJe] = await tx.insert(journalEntries).values({
+          orgId: org!.id,
+          number: revNumber,
+          date: revDate,
+          type: "reversal",
+          status: "posted",
+          description: `Reversal of ${je.number}`,
+          reference: je.number,
+          currency: je.currency,
+          totalDebit: je.totalCredit,
+          totalCredit: je.totalDebit,
+          createdById: user!.id,
+          postedById: user!.id,
+          postedAt: revDate,
+          reversalOfId: je.id,
+          financialYear: currentFY(revDate),
+          period: revDate.getMonth() + 1,
+        }).returning();
 
-      const revLines = lines.map((l: JelRow, i: number) => ({
-        journalEntryId: revJe!.id,
-        orgId: org!.id,
-        accountId: l.accountId,
-        debitAmount: l.creditAmount,
-        creditAmount: l.debitAmount,
-        description: l.description,
-        sortOrder: i,
-      }));
-      await db.insert(journalEntryLines).values(revLines);
+        const revLines = lines.map((l: JelRow, i: number) => ({
+          journalEntryId: revJe!.id,
+          orgId: org!.id,
+          accountId: l.accountId,
+          debitAmount: l.creditAmount,
+          creditAmount: l.debitAmount,
+          description: l.description,
+          sortOrder: i,
+        }));
+        await tx.insert(journalEntryLines).values(revLines);
 
-      await db.update(journalEntries).set({ status: "reversed", updatedAt: new Date() }).where(dbEq(journalEntries.id, je.id));
-      return revJe!;
+        await tx.update(journalEntries).set({ status: "reversed", updatedAt: new Date() }).where(dbEq(journalEntries.id, je.id));
+        return revJe!;
+      });
     }),
   }),
 

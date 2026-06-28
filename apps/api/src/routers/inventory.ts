@@ -59,23 +59,28 @@ export const inventoryRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const [item] = await db
-        .insert(inventoryItems)
-        .values({ orgId: org!.id, ...input })
-        .returning();
+      // Atomicity: the item insert and the initial intake transaction must
+      // commit together so an item is never created without its stock ledger
+      // entry (and vice versa).
+      return await db.transaction(async (tx) => {
+        const [item] = await tx
+          .insert(inventoryItems)
+          .values({ orgId: org!.id, ...input })
+          .returning();
 
-      if (input.qty > 0) {
-        await db.insert(inventoryTransactions).values({
-          orgId: org!.id,
-          itemId: item!.id,
-          type: "intake",
-          qty: input.qty,
-          notes: "Initial stock intake",
-          performedById: ctx.user!.id,
-        });
-      }
+        if (input.qty > 0) {
+          await tx.insert(inventoryTransactions).values({
+            orgId: org!.id,
+            itemId: item!.id,
+            type: "intake",
+            qty: input.qty,
+            notes: "Initial stock intake",
+            performedById: ctx.user!.id,
+          });
+        }
 
-      return item;
+        return item;
+      });
     }),
 
   issueStock: permissionProcedure("inventory", "write")
@@ -102,25 +107,29 @@ export const inventoryRouter = router({
         });
       }
 
-      await db
-        .update(inventoryItems)
-        .set({ qty: item.qty - input.qty, lastUsedAt: new Date(), updatedAt: new Date() })
-        .where(eq(inventoryItems.id, input.itemId));
+      // Atomicity: the quantity decrement and the issue ledger entry must
+      // commit together so stock levels never drift from the transaction log.
+      return await db.transaction(async (trx) => {
+        await trx
+          .update(inventoryItems)
+          .set({ qty: item.qty - input.qty, lastUsedAt: new Date(), updatedAt: new Date() })
+          .where(eq(inventoryItems.id, input.itemId));
 
-      const [tx] = await db
-        .insert(inventoryTransactions)
-        .values({
-          orgId: org!.id,
-          itemId: input.itemId,
-          type: "issue",
-          qty: -input.qty,
-          reference: input.reference,
-          notes: input.notes,
-          performedById: ctx.user!.id,
-        })
-        .returning();
+        const [tx] = await trx
+          .insert(inventoryTransactions)
+          .values({
+            orgId: org!.id,
+            itemId: input.itemId,
+            type: "issue",
+            qty: -input.qty,
+            reference: input.reference,
+            notes: input.notes,
+            performedById: ctx.user!.id,
+          })
+          .returning();
 
-      return tx;
+        return tx;
+      });
     }),
 
   reorder: permissionProcedure("inventory", "write")
@@ -173,25 +182,29 @@ export const inventoryRouter = router({
 
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
 
-      await db
-        .update(inventoryItems)
-        .set({ qty: item.qty + input.qty, updatedAt: new Date() })
-        .where(eq(inventoryItems.id, input.itemId));
+      // Atomicity: the quantity increment and the intake ledger entry must
+      // commit together so stock levels never drift from the transaction log.
+      return await db.transaction(async (trx) => {
+        await trx
+          .update(inventoryItems)
+          .set({ qty: item.qty + input.qty, updatedAt: new Date() })
+          .where(eq(inventoryItems.id, input.itemId));
 
-      const [tx] = await db
-        .insert(inventoryTransactions)
-        .values({
-          orgId: org!.id,
-          itemId: input.itemId,
-          type: "intake",
-          qty: input.qty,
-          reference: input.reference,
-          notes: input.notes,
-          performedById: ctx.user!.id,
-        })
-        .returning();
+        const [tx] = await trx
+          .insert(inventoryTransactions)
+          .values({
+            orgId: org!.id,
+            itemId: input.itemId,
+            type: "intake",
+            qty: input.qty,
+            reference: input.reference,
+            notes: input.notes,
+            performedById: ctx.user!.id,
+          })
+          .returning();
 
-      return tx;
+        return tx;
+      });
     }),
 
   transactions: permissionProcedure("inventory", "read")

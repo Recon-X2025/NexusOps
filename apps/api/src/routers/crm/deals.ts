@@ -281,20 +281,24 @@ export const crmDealsRouter = router({
         const { db, org } = ctx;
         // Ensure the org has a base row set before applying updates.
         await loadPipelineStages(db, org!.id);
-        for (const s of input.stages) {
-          await db
-            .update(crmPipelineStages)
-            .set({ label: s.label, color: s.color, rank: s.rank, active: s.active, updatedAt: new Date() })
-            .where(and(eq(crmPipelineStages.orgId, org!.id), eq(crmPipelineStages.key, s.key)));
-        }
-        const rows = await loadPipelineStages(db, org!.id);
-        return rows.map((r: typeof crmPipelineStages.$inferSelect) => ({
-          key: r.key,
-          label: r.label,
-          color: r.color,
-          rank: r.rank,
-          active: r.active,
-        }));
+        // Atomicity: all stage updates must commit together so the kanban board
+        // never reflects a partially-applied reordering/relabeling on failure.
+        return await db.transaction(async (tx) => {
+          for (const s of input.stages) {
+            await tx
+              .update(crmPipelineStages)
+              .set({ label: s.label, color: s.color, rank: s.rank, active: s.active, updatedAt: new Date() })
+              .where(and(eq(crmPipelineStages.orgId, org!.id), eq(crmPipelineStages.key, s.key)));
+          }
+          const rows = await loadPipelineStages(tx, org!.id);
+          return rows.map((r: typeof crmPipelineStages.$inferSelect) => ({
+            key: r.key,
+            label: r.label,
+            color: r.color,
+            rank: r.rank,
+            active: r.active,
+          }));
+        });
       }),
 
     /** Reset all stages back to factory defaults. */
