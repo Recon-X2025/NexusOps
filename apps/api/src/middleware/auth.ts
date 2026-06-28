@@ -329,6 +329,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       ipAddress: req.ip ?? null,
       userAgent: req.headers["user-agent"] ?? null,
       idempotencyKey: headerIdempotencyKey,
+      macToken: bearerToken,
     };
   }
 
@@ -366,6 +367,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       ipAddress: req.ip ?? null,
       userAgent: req.headers["user-agent"] ?? null,
       idempotencyKey: headerIdempotencyKey,
+      macToken: bearerToken,
     };
   }
 
@@ -388,6 +390,7 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
       ipAddress: req.ip ?? null,
       userAgent: req.headers["user-agent"] ?? null,
       idempotencyKey: headerIdempotencyKey,
+      macToken: bearerToken,
     };
   }
 
@@ -421,5 +424,6 @@ export async function createContext(req: FastifyRequest): Promise<Context> {
     ipAddress:      req.ip ?? null,
     userAgent:      req.headers["user-agent"] ?? null,
     idempotencyKey: headerIdempotencyKey,
+    macToken:       bearerToken,
   };
 }

@@ -109,6 +109,7 @@ export function makeContext(
     ipAddress: '127.0.0.1',
     userAgent: 'vitest',
     idempotencyKey: null,
+    macToken: null,
     ...overrides,
   };
 }
@@ -274,6 +275,7 @@ export async function loginAndGetToken(email: string, password: string): Promise
     ipAddress: '127.0.0.1',
     userAgent: 'vitest',
     idempotencyKey: null,
+    macToken: null,
   });
   const result = await caller.auth.login({ email, password });
   // FIX: 2026-03-25 — auth.login returns { sessionId } not { sessionToken }

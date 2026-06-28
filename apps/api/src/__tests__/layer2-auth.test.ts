@@ -32,6 +32,7 @@ function publicCaller() {
     ipAddress: "127.0.0.1",
     userAgent: "vitest",
     idempotencyKey: null,
+    macToken: null,
   };
   return appRouter.createCaller(ctx);
 }
@@ -191,6 +192,7 @@ describe("Layer 2: Authentication", () => {
         ipAddress: "127.0.0.1",
         userAgent: "vitest",
         idempotencyKey: null,
+        macToken: null,
       });
 
       // The middleware checks expiry — but tRPC context is created by the

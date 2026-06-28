@@ -1,9 +1,22 @@
-import { router, publicProcedure } from "../lib/trpc";
+import { router, publicProcedure, macProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { organizations, users, sessions, eq, desc, count, and, sql } from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import jwt from "jsonwebtoken";
+
+/**
+ * The MAC (platform super-admin) surface is disabled unless `MAC_ENABLED` is
+ * explicitly set to "true". Defense-in-depth: even with valid operator creds,
+ * the cross-tenant control plane is off by default (e.g. in production) and
+ * must be deliberately turned on. Throws NOT_FOUND so a disabled MAC surface is
+ * indistinguishable from one that does not exist.
+ */
+function assertMacEnabled(): void {
+  if (process.env["MAC_ENABLED"] !== "true") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+}
 
 function getPlanFeatureDefaults(plan: string): Record<string, boolean> {
   const base = { ai_features: false, advanced_workflows: false, custom_branding: false, sso: false, api_access: true, reports: true };
@@ -18,6 +31,7 @@ export const macRouter = router({
   login: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string() }))
     .mutation(async ({ input }) => {
+      assertMacEnabled();
       const macEmail = process.env["MAC_OPERATOR_EMAIL"];
       const macPassword = process.env["MAC_OPERATOR_PASSWORD"];
       const macSecret = process.env["MAC_JWT_SECRET"];
@@ -41,7 +55,7 @@ export const macRouter = router({
     }),
 
   // Platform-wide stats
-  stats: publicProcedure.query(async ({ ctx }) => {
+  stats: macProcedure.query(async ({ ctx }) => {
     const { db } = ctx;
     const [orgCount] = await db.select({ count: count() }).from(organizations);
     const [userCount] = await db.select({ count: count() }).from(users);
@@ -65,7 +79,7 @@ export const macRouter = router({
   }),
 
   // List all organizations (paginated, optional search)
-  listOrganizations: publicProcedure
+  listOrganizations: macProcedure
     .input(
       z.object({
         page: z.number().int().min(1).default(1),
@@ -97,7 +111,7 @@ export const macRouter = router({
     }),
 
   // Get a single organization by ID
-  getOrganization: publicProcedure
+  getOrganization: macProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -114,7 +128,7 @@ export const macRouter = router({
     }),
 
   // List users within a specific organization
-  listOrgUsers: publicProcedure
+  listOrgUsers: macProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -134,7 +148,7 @@ export const macRouter = router({
     }),
 
   // Create a new organization and record admin email for provisioning
-  createOrganization: publicProcedure
+  createOrganization: macProcedure
     .input(
       z.object({
         name: z.string().min(2).max(200),
@@ -167,7 +181,7 @@ export const macRouter = router({
     }),
 
   // Suspend an organization by setting settings.suspended = true
-  suspendOrganization: publicProcedure
+  suspendOrganization: macProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -194,7 +208,7 @@ export const macRouter = router({
     }),
 
   // Resume an organization by clearing settings.suspended
-  resumeOrganization: publicProcedure
+  resumeOrganization: macProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -223,7 +237,7 @@ export const macRouter = router({
     }),
 
   // Revoke all sessions for users in an organization
-  revokeOrgSessions: publicProcedure
+  revokeOrgSessions: macProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -250,7 +264,7 @@ export const macRouter = router({
     }),
 
   // P1.1 — Legal acceptance tracking
-  recordLegalAcceptance: publicProcedure
+  recordLegalAcceptance: macProcedure
     .input(z.object({
       orgId: z.string().uuid(),
       documentType: z.enum(["terms_of_service", "data_processing_agreement", "privacy_policy"]),
@@ -273,7 +287,7 @@ export const macRouter = router({
       return { ok: true };
     }),
 
-  getLegalAcceptance: publicProcedure
+  getLegalAcceptance: macProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -282,7 +296,7 @@ export const macRouter = router({
     }),
 
   // P1.2 — Stripe billing
-  getBillingInfo: publicProcedure
+  getBillingInfo: macProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -297,7 +311,7 @@ export const macRouter = router({
       };
     }),
 
-  updateBillingInfo: publicProcedure
+  updateBillingInfo: macProcedure
     .input(z.object({
       orgId: z.string().uuid(),
       plan: z.enum(["free", "starter", "professional", "enterprise"]).optional(),
@@ -322,7 +336,7 @@ export const macRouter = router({
     }),
 
   // P2.1 — Feature flags
-  getFeatureFlags: publicProcedure
+  getFeatureFlags: macProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -334,7 +348,7 @@ export const macRouter = router({
       return { ...planDefaults, ...overrides };
     }),
 
-  setFeatureFlag: publicProcedure
+  setFeatureFlag: macProcedure
     .input(z.object({
       orgId: z.string().uuid(),
       flag: z.string(),
@@ -351,7 +365,7 @@ export const macRouter = router({
       return { ok: true };
     }),
 
-  resetFeatureFlags: publicProcedure
+  resetFeatureFlags: macProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -364,7 +378,7 @@ export const macRouter = router({
     }),
 
   // P2.2 — Per-tenant health dashboard
-  getOrgHealth: publicProcedure
+  getOrgHealth: macProcedure
     .input(z.object({ orgId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -379,7 +393,7 @@ export const macRouter = router({
     }),
 
   // P2.3 — Time-boxed operator impersonation
-  startImpersonation: publicProcedure
+  startImpersonation: macProcedure
     .input(z.object({
       targetUserId: z.string().uuid(),
       reason: z.string().min(10),
@@ -404,7 +418,7 @@ export const macRouter = router({
     }),
 
   // P2 — Search users across all orgs
-  searchUsers: publicProcedure
+  searchUsers: macProcedure
     .input(z.object({ email: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { db } = ctx;
@@ -423,7 +437,7 @@ export const macRouter = router({
     }),
 
   // P3.1 — Analytics overview
-  analyticsOverview: publicProcedure.query(async ({ ctx }) => {
+  analyticsOverview: macProcedure.query(async ({ ctx }) => {
     const { db } = ctx;
     const [orgCount] = await db.select({ count: count() }).from(organizations);
     const [userCount] = await db.select({ count: count() }).from(users);
@@ -445,7 +459,7 @@ export const macRouter = router({
   }),
 
   // P3 — All orgs with user counts (for churn risk)
-  listOrgsWithHealth: publicProcedure.query(async ({ ctx }) => {
+  listOrgsWithHealth: macProcedure.query(async ({ ctx }) => {
     const { db } = ctx;
     const orgs = await db.select().from(organizations).orderBy(desc(organizations.createdAt));
     const userCounts = await db.select({ orgId: users.orgId, count: count() }).from(users).groupBy(users.orgId);

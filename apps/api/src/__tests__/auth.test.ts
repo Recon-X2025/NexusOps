@@ -32,6 +32,7 @@ function publicCaller() {
     ipAddress: "127.0.0.1",
     userAgent: "vitest-auth-file",
     idempotencyKey: null,
+    macToken: null,
   };
   return appRouter.createCaller(ctx);
 }

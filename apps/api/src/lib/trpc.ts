@@ -1,4 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
+import jwt from "jsonwebtoken";
 import { z, ZodError } from "zod";
 import type { Module, RbacAction } from "@coheronconnect/types";
 import { auditLogs, users, organizations, type Db } from "@coheronconnect/db";
@@ -64,6 +65,13 @@ export type Context = {
   userAgent: string | null;
   /** Value of the X-Idempotency-Key request header, if provided. */
   idempotencyKey: string | null;
+  /**
+   * Raw bearer token from the Authorization header, used only by the MAC
+   * (platform super-admin) surface to verify a `MAC_JWT_SECRET`-signed
+   * operator token. Never populated from cookies and never used for tenant
+   * auth — see `macProcedure`.
+   */
+  macToken: string | null;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -269,6 +277,98 @@ const loggingMiddleware = t.middleware(async ({ ctx, path, type, next }) => {
 });
 
 export const publicProcedure = t.procedure.use(loggingMiddleware);
+
+/**
+ * MAC (platform super-admin / Mission-and-Admin-Control) operator gate.
+ *
+ * The MAC surface performs CROSS-TENANT privileged operations (org create /
+ * suspend, session revocation, operator impersonation, billing, feature
+ * flags). It is NOT tenant-scoped and must never be a `publicProcedure`.
+ *
+ * Authn model: `mac.login` validates the operator against MAC_OPERATOR_* env
+ * and issues a short-lived JWT signed with `MAC_JWT_SECRET` carrying
+ * `{ role: "mac_operator" }`. Every other MAC procedure must present that
+ * token as `Authorization: Bearer <token>` — verified here. Failure → 401.
+ *
+ * `mac.login` itself stays a `publicProcedure` (no token yet exists).
+ */
+const enforceMacOperator = t.middleware(({ ctx, path, next }) => {
+  // Defense-in-depth: the whole MAC control plane is off unless explicitly
+  // enabled. Throw NOT_FOUND so a disabled surface is indistinguishable from a
+  // non-existent one (mirrors `assertMacEnabled` guarding `mac.login`).
+  if (process.env["MAC_ENABLED"] !== "true") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+
+  const macSecret = process.env["MAC_JWT_SECRET"];
+  if (!macSecret) {
+    // Fail closed: if the secret is unset the surface cannot be authenticated,
+    // so deny rather than allow unauthenticated access.
+    logAuthFail({
+      requestId: ctx.requestId ?? null,
+      userId: null,
+      orgId: null,
+      route: path,
+      ip: ctx.ipAddress,
+      sessionRef: null,
+      reason: "mac_not_configured",
+    });
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "MAC not configured" });
+  }
+
+  const token = ctx.macToken;
+  if (!token) {
+    logAuthFail({
+      requestId: ctx.requestId ?? null,
+      userId: null,
+      orgId: null,
+      route: path,
+      ip: ctx.ipAddress,
+      sessionRef: null,
+      reason: "mac_no_token",
+    });
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "MAC operator token required" });
+  }
+
+  let payload: string | jwt.JwtPayload;
+  try {
+    payload = jwt.verify(token, macSecret);
+  } catch {
+    logAuthFail({
+      requestId: ctx.requestId ?? null,
+      userId: null,
+      orgId: null,
+      route: path,
+      ip: ctx.ipAddress,
+      sessionRef: null,
+      reason: "mac_invalid_token",
+    });
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MAC operator token" });
+  }
+
+  const role = typeof payload === "object" ? payload["role"] : undefined;
+  if (role !== "mac_operator") {
+    logAuthFail({
+      requestId: ctx.requestId ?? null,
+      userId: null,
+      orgId: null,
+      route: path,
+      ip: ctx.ipAddress,
+      sessionRef: null,
+      reason: "mac_wrong_role",
+    });
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not a MAC operator" });
+  }
+
+  return next({ ctx });
+});
+
+/**
+ * Procedure for the platform super-admin (MAC) surface. Requires a valid
+ * `MAC_JWT_SECRET`-signed operator token. Use for every `mac.*` procedure
+ * except `mac.login`.
+ */
+export const macProcedure = publicProcedure.use(enforceMacOperator);
 
 const enforceAuth = t.middleware(({ ctx, path, next }) => {
   if (!ctx.user || !ctx.org) {

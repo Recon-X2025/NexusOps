@@ -130,6 +130,7 @@ describe("Layer 6: Data Integrity", () => {
         ipAddress: "127.0.0.1",
         userAgent: "vitest",
         idempotencyKey: null,
+        macToken: null,
       };
       const caller = appRouter.createCaller(ctx);
 

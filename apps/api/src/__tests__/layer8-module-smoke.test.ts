@@ -32,6 +32,7 @@ function publicCaller() {
     ipAddress: "127.0.0.1",
     userAgent: "vitest-layer8-auth",
     idempotencyKey: null,
+    macToken: null,
   };
   return appRouter.createCaller(ctx);
 }
@@ -1923,10 +1924,12 @@ describe("Layer 8: Module Smoke Tests", () => {
   // ── 8.50 Remaining appRouter namespaces (C5 backlog) ───────────────────────
 
   describe("8.50 Remaining routers", () => {
-    it("mac.stats (public) returns aggregates", async () => {
+    it("mac.stats rejects callers without a MAC operator token", async () => {
+      // mac.* is the cross-tenant super-admin surface: a normal tenant session
+      // (even an org admin) must NOT reach it. With MAC disabled / no operator
+      // token the gate rejects (NOT_FOUND — disabled surface looks absent).
       const caller = await authedCaller(adminToken);
-      const stats = await caller.mac.stats();
-      expect(typeof stats.orgs).toBe("number");
+      await expect(caller.mac.stats()).rejects.toThrow();
     });
 
     it("assets: seed type → create → list", async () => {
