@@ -1,127 +1,44 @@
-/** Typed helpers for `organizations.settings` JSON (gap-closure: finance / procurement / security). */
-
-export type OrgSecuritySettings = {
-  /** Matrix roles (e.g. `finance_manager`, `admin`) that must call `auth.verifyStepUp` before privileged mutations. */
-  requireStepUpForMatrixRoles?: string[];
-  /** Matrix roles that must have `users.mfa_enrolled` before privileged mutations (e.g. finance approve / mark paid). */
-  requireMfaForMatrixRoles?: string[];
-};
-
-export type OrgProcurementSettings = {
-  /** Absolute currency tolerance for PO vs invoice total match (default 1). */
-  poMatchToleranceAbs?: number;
-  /** When `block`, duplicate vendor + invoice # on payable flow throws; `warn` only returns a flag for clients. */
-  duplicatePayableInvoicePolicy?: "off" | "warn" | "block";
-  /**
-   * Purchase request total **strictly below** this amount (same currency as line math, typically INR) → auto-approved.
-   * Default 75_000 (legacy constant).
-   */
-  prAutoApproveBelow?: number;
-  /**
-   * PR total **strictly below** this amount (and ≥ prAutoApproveBelow) → `dept_head` approval path; else `vp_finance`.
-   * Must be greater than `prAutoApproveBelow`. Default 750_000.
-   */
-  prDeptHeadMax?: number;
-};
-
-export type OrgFinancialSettings = {
-  /** Closed accounting periods as `YYYY-MM`; blocks mark-paid on invoices in those months. */
-  closedPeriods?: string[];
-};
-
-/** US-CRM-003: RevOps-configurable thresholds (same numeric basis as deal `value` / quotes). */
-export type OrgCrmSettings = {
-  /** ISO 4217 code for display / future multi-currency (amounts still one numeric column per org). */
-  dealApprovalCurrency?: string;
-  /**
-   * Deal `value` **strictly below** this → may move to `closed_won` without recorded approval.
-   * Default 500_000 (INR-style units when org uses lakhs/crores in copy).
-   */
-  dealCloseNoApprovalBelow?: number;
-  /**
-   * Deal `value` **greater than or equal to** this → requires **executive** tier approval before `closed_won`.
-   * Between `dealCloseNoApprovalBelow` and this → **manager** tier. Default 5_000_000.
-   */
-  dealCloseExecutiveAbove?: number;
-};
-
-/** US-ITSM-001 — SLA pause reason catalog (codes stored on `tickets.sla_pause_reason_code`). */
-export type SlaPauseReasonEntry = { code: string; label: string };
-
-export type OrgItsmSettings = {
-  slaPauseReasons?: SlaPauseReasonEntry[];
-};
-
 /**
- * Per-category caps for expense self-service policy (US-FIN-EXP-001).
+ * Runtime helpers for `organizations.settings` JSON (gap-closure: finance /
+ * procurement / security).
  *
- * `perDiemCap` covers daily-rate categories (food, accommodation when
- * org has fixed allowance) — applied as `amount > perDiemCap` ⇒
- * violation. `perItemCap` is a hard ceiling for one-off line items
- * regardless of whether per-diem applies (e.g. flagging a single ₹50k
- * meal even if the trip per-diem would normally allow it).
+ * The **shape** types now live in the db schema package
+ * (`@coheronconnect/db` → `packages/db/src/schema/org-settings.ts`) so the
+ * Drizzle column `organizations.settings` is typed end-to-end with the same
+ * canonical `OrgSettings`. This module re-exports those types (keeping the
+ * historic `CoheronConnectOrgSettings` alias) and owns the parse/getter logic.
  */
-export type ExpenseCategoryPolicy = {
-  perDiemCap?: number;
-  perItemCap?: number;
-  /** Reimbursable rate per kilometer for `transport` / `fuel` claims. */
-  mileageRatePerKm?: number;
-  /** When true, claim must have `receiptUrl` to pass policy. */
-  receiptRequired?: boolean;
+
+import type {
+  OrgSettings,
+  OrgSecuritySettings,
+  OrgProcurementSettings,
+  OrgFinancialSettings,
+  OrgCrmSettings,
+  OrgItsmSettings,
+  OrgExpenseSettings,
+  OrgSsoSettings,
+  OrgSamlSettings,
+  ExpenseCategoryPolicy,
+  SlaPauseReasonEntry,
+} from "@coheronconnect/db";
+
+export type {
+  OrgSettings,
+  OrgSecuritySettings,
+  OrgProcurementSettings,
+  OrgFinancialSettings,
+  OrgCrmSettings,
+  OrgItsmSettings,
+  OrgExpenseSettings,
+  OrgSsoSettings,
+  OrgSamlSettings,
+  ExpenseCategoryPolicy,
+  SlaPauseReasonEntry,
 };
 
-export type OrgExpenseSettings = {
-  /** Default currency assumed for amount comparisons (INR by default). */
-  baseCurrency?: string;
-  /** Hard cap applied when no category-specific cap is configured. */
-  defaultPerItemCap?: number;
-  /**
-   * `block` rejects the claim before insert; `warn` accepts and stamps
-   * the violation onto the row so an approver sees it (default `warn`).
-   */
-  enforcement?: "warn" | "block";
-  /** Whether non-managerial categories require a receipt. */
-  defaultReceiptRequired?: boolean;
-  /** Per-category overrides keyed by `expenseCategoryEnum`. */
-  categories?: Record<string, ExpenseCategoryPolicy>;
-};
-
-/**
- * Per-org SAML 2.0 SP→IdP SSO config (US-SEC-002). Stored in
- * `organizations.settings.sso.saml`. The SP (this app) consumes a signed SAML
- * Response from the org's IdP; signature + condition validation is handled by
- * `services/saml.ts`. Material here is IdP-public only (the IdP's X.509 signing
- * cert), never private keys.
- */
-export type OrgSamlSettings = {
-  /** Master switch — when not true, SAML routes refuse to start a flow for this org. */
-  enabled?: boolean;
-  /** IdP SSO endpoint we send the AuthnRequest to, e.g. https://idp.example.com/sso. */
-  entryPoint?: string;
-  /** IdP entityID / issuer; the assertion `Issuer` must match this when set. */
-  idpIssuer?: string;
-  /** IdP's X.509 signing certificate (PEM body). */
-  idpCert?: string;
-  /** Map of local user field → SAML attribute name (falls back to NameID / standard claims). */
-  attributeMapping?: {
-    email?: string;
-    name?: string;
-  };
-};
-
-export type OrgSsoSettings = {
-  saml?: OrgSamlSettings;
-};
-
-export type CoheronConnectOrgSettings = {
-  security?: OrgSecuritySettings;
-  procurement?: OrgProcurementSettings;
-  financial?: OrgFinancialSettings;
-  crm?: OrgCrmSettings;
-  itsm?: OrgItsmSettings;
-  expense?: OrgExpenseSettings;
-  sso?: OrgSsoSettings;
-};
+/** Historic alias retained for existing imports; identical to the db `OrgSettings`. */
+export type CoheronConnectOrgSettings = OrgSettings;
 
 export function parseOrgSettings(raw: unknown): CoheronConnectOrgSettings {
   if (!raw || typeof raw !== "object") return {};

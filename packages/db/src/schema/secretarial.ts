@@ -54,8 +54,8 @@ export const boardMeetings = pgTable("board_meetings", {
   duration:     integer("duration_mins").default(120),
   venue:        text("venue"),
   videoLink:    text("video_link"),
-  agenda:       jsonb("agenda").default([]),       // [{item, presenter, duration}]
-  attendees:    jsonb("attendees").default([]),     // [{userId, role, attended}]
+  agenda:       jsonb("agenda").$type<Array<{ item: string; presenter?: string; durationMins?: number }>>().default([]),
+  attendees:    jsonb("attendees").$type<Array<{ userId: string; role?: string; attended?: boolean }>>().default([]),
   quorumMet:    boolean("quorum_met"),
   minutesUrl:   text("minutes_url"),
   minutesDraft: text("minutes_draft"),
@@ -146,7 +146,7 @@ export const esopGrants = pgTable("esop_grants", {
   grantDate:     timestamp("grant_date").notNull(),
   vestingStart:  timestamp("vesting_start"),
   vestingEnd:    timestamp("vesting_end"),
-  vestingSchedule: jsonb("vesting_schedule").default([]), // [{date, qty, cliff}]
+  vestingSchedule: jsonb("vesting_schedule").$type<Array<{ date: string; qty: number; cliff?: boolean }>>().default([]),
   exerciseWindow: timestamp("exercise_window"),
   notes:         text("notes"),
   createdAt:     timestamp("created_at").notNull().defaultNow(),

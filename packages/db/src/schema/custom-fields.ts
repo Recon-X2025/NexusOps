@@ -66,8 +66,8 @@ export const customFieldDefinitions = pgTable(
     name: text("name").notNull(),
     label: text("label").notNull(),
     type: customFieldTypeEnum("type").notNull().default("text"),
-    /** JSON-encoded options for select/multi-select */
-    options: jsonb("options"),
+    /** Options for select/multi-select fields. */
+    options: jsonb("options").$type<Array<{ value: string; label: string }>>(),
     /** Whether this field is required */
     isRequired: boolean("is_required").notNull().default(false),
     /** Whether visible on list views */
@@ -107,8 +107,8 @@ export const customFieldValues = pgTable(
     entity: customFieldEntityEnum("entity").notNull(),
     /** UUID of the record (ticket.id, asset.id, etc.) */
     entityId: uuid("entity_id").notNull(),
-    /** JSON-encoded value — supports all types including arrays and objects */
-    value: jsonb("value"),
+    /** Per-entity value — supports any JSON-encodable type (scalar, array, object) by design. */
+    value: jsonb("value").$type<unknown>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

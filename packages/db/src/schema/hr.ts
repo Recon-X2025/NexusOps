@@ -495,8 +495,8 @@ export const expenseClaims = pgTable(
     /** Stable code from {@link evaluateExpenseClaim} when a claim violates org policy. */
     policyViolationCode: text("policy_violation_code"),
     policyViolationReason: text("policy_violation_reason"),
-    /** Raw structured output from receipt-OCR for audit / re-extraction. */
-    ocrExtracted: jsonb("ocr_extracted"),
+    /** Raw structured output from receipt-OCR for audit / re-extraction; provider-specific shape. */
+    ocrExtracted: jsonb("ocr_extracted").$type<Record<string, unknown>>(),
     ocrConfidence: decimal("ocr_confidence", { precision: 4, scale: 3 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

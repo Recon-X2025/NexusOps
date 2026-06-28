@@ -10,6 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import type { OrgSettings } from "./org-settings";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const orgPlanEnum = pgEnum("org_plan", [
@@ -40,7 +41,7 @@ export const organizations = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     plan: orgPlanEnum("plan").notNull().default("free"),
-    settings: jsonb("settings").$type<Record<string, unknown>>(),
+    settings: jsonb("settings").$type<OrgSettings>(),
     logoUrl: text("logo_url"),
     primaryColor: text("primary_color").default("#6366f1"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

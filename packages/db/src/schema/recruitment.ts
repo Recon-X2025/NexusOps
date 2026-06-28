@@ -138,7 +138,8 @@ export const interviews = pgTable("interviews", {
   durationMins:  integer("duration_mins").default(60),
   location:      text("location"), // room / video link
   interviewers:  uuid("interviewers").array().default([]),
-  scorecard:     jsonb("scorecard").default({}), // { criteria: [{name, rating, comment}] }
+  // Open-ended interviewer scorecard; API accepts z.record(z.unknown()). Shape varies by org template.
+  scorecard:     jsonb("scorecard").$type<Record<string, unknown>>().default({}),
   overallRating: integer("overall_rating"), // 1-5
   decision:      text("decision"), // strong_yes, yes, no, strong_no
   notes:         text("notes"),
@@ -165,7 +166,8 @@ export const jobOffers = pgTable("job_offers", {
   currency:        text("currency").default("INR"),
   startDate:       timestamp("start_date"),
   expiryDate:      timestamp("expiry_date"),
-  components:      jsonb("components").default({}), // { pf, gratuity, insurance, etc. }
+  // Open-ended compensation components (pf, gratuity, insurance, …); API accepts z.record(z.unknown()).
+  components:      jsonb("components").$type<Record<string, unknown>>().default({}),
   notes:           text("notes"),
   sentAt:          timestamp("sent_at"),
   respondedAt:     timestamp("responded_at"),

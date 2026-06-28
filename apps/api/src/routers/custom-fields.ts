@@ -44,7 +44,8 @@ export const customFieldsRouter = router({
     const [field] = await db.insert(customFieldDefinitions).values({
       ...input,
       orgId: org!.id,
-      options: input.options ? JSON.stringify(input.options) : null,
+      // `options` is a jsonb column — pass the array directly; Drizzle serializes it.
+      options: input.options ?? null,
     }).returning();
     return field!;
   }),
@@ -64,7 +65,7 @@ export const customFieldsRouter = router({
     const { customFieldDefinitions, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
     const { id, options, ...rest } = input;
     const [field] = await db.update(customFieldDefinitions)
-      .set({ ...rest, ...(options !== undefined ? { options: JSON.stringify(options) } : {}), updatedAt: new Date() })
+      .set({ ...rest, ...(options !== undefined ? { options } : {}), updatedAt: new Date() })
       .where(dbAnd(dbEq(customFieldDefinitions.id, id), dbEq(customFieldDefinitions.orgId, org!.id)))
       .returning();
     return field!;

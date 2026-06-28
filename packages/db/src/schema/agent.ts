@@ -65,7 +65,8 @@ export const agentMessages = pgTable(
     content: text("content").notNull(),
     /** When `role = "tool"`, the tool that produced this result. */
     toolName: text("tool_name"),
-    toolArgs: jsonb("tool_args"),
+    /** Arbitrary tool-call arguments; shape is per-tool and intentionally open. */
+    toolArgs: jsonb("tool_args").$type<Record<string, unknown>>(),
     toolResultPreview: text("tool_result_preview"),
     sequence: integer("sequence").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
