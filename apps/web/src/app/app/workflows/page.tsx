@@ -71,7 +71,7 @@ export default function WorkflowsPage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {workflows?.map((workflow: { id: string; name: string; isActive: boolean; triggerType: string; currentVersion: number; createdAt: Date; updatedAt: Date; description: string | null }) => (
+          {workflows?.map((workflow: any) => (
             <div
               key={workflow.id}
               className="flex items-center justify-between rounded-xl border border-border bg-card p-4"

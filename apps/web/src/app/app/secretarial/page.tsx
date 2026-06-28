@@ -82,7 +82,7 @@ function OverviewTab() {
             <AlertTriangle className="w-4 h-4" /> Upcoming Compliance Deadlines (Next 30 Days)
           </h3>
           <div className="space-y-2">
-            {upcomingFilings.map((f: { id: string; title: string; formNumber: string; authority: string; dueDate: string | Date; status: string }) => (
+            {upcomingFilings.map((f: any) => (
               <div key={f.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <div>
                   <p className="text-sm font-medium">{f.title}</p>
@@ -277,7 +277,7 @@ function BoardTab() {
             </thead>
             <tbody>
               {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
-              {meetings.map((m: { id: string; number: string; title: string; type?: string; scheduledAt: string | Date; duration: number; status?: string; quorumMet?: boolean | null; venue?: string; videoLink?: string }) => (
+              {meetings.map((m: any) => (
                 <tr key={m.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
                   <td className="px-4 py-3 font-medium">{m.title}</td>
@@ -338,7 +338,7 @@ function BoardTab() {
             </thead>
             <tbody>
               {directors.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No directors found</td></tr>}
-              {directors.map((d: { id: string; name: string; din: string; designation: string; category?: string; pan?: string | null; appointedAt?: string | Date | null; kyc?: string | null }) => (
+              {directors.map((d: any) => (
                 <tr key={d.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{d.name}</td>
                   <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
@@ -401,7 +401,7 @@ function BoardTab() {
             </thead>
             <tbody>
               {resolutions.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
-              {resolutions.map((r: { id: string; number: string; title: string; type: string; status?: string; passedAt?: string | Date | null; votesFor?: number; votesAgainst?: number; abstentions?: number }) => (
+              {resolutions.map((r: any) => (
                 <tr key={r.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
                   <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
@@ -745,7 +745,7 @@ function FilingsTab() {
     onError: e => toast.error(e.message),
   });
 
-  const filtered = statusFilter ? filings.filter((f: { status: string }) => f.status === statusFilter) : filings;
+  const filtered = statusFilter ? filings.filter((f: any) => f.status === statusFilter) : filings;
 
   return (
     <div className="space-y-4">
@@ -791,7 +791,7 @@ function FilingsTab() {
             </thead>
             <tbody>
               {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No filings found</td></tr>}
-              {filtered.map((f: { id: string; formNumber: string; title: string; authority: string; category?: string; fy?: string | null; dueDate?: string | Date | null; status?: string; srn?: string | null }) => (
+              {filtered.map((f: any) => (
                 <tr key={f.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
                   <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
@@ -818,7 +818,7 @@ function FilingsTab() {
                         <button onClick={() => {
                           const notes = prompt("Please provide comments for cancelling this filing:");
                           if (notes !== null) {
-                            updateFiling.mutate({ id: f.id, status: "cancelled", notes: notes });
+                            updateFiling.mutate({ id: f.id, status: "not_applicable", notes: notes });
                           }
                         }} className="text-xs text-red-600 hover:underline font-medium">Cancel</button>
                       </PermissionGate>
@@ -941,7 +941,7 @@ function ShareCapitalTab() {
             </thead>
             <tbody>
               {shares.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
-              {shares.map((s: { id: string; folio: string; holderName: string; holderType: string; shareClass?: string; nominalValue: number; quantity?: number; paidUpValue?: number | null; pan?: string | null; address?: string | null }) => (
+              {shares.map((s: any) => (
                 <tr key={s.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
                   <td className="px-4 py-3 font-medium">{s.holderName}</td>
@@ -1126,7 +1126,7 @@ function EsopTab() {
             </thead>
             <tbody>
               {grants.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
-              {grants.map((g: { id: string; grantNumber: string; employeeName: string; options: number; exercisePrice: number; grantDate: string | Date; vestingStart?: string | Date | null; vestingEnd?: string | Date | null; event: string; notes?: string | null }) => (
+              {grants.map((g: any) => (
                 <tr key={g.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
                   <td className="px-4 py-3 font-medium">{g.employeeName}</td>

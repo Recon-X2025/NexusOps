@@ -372,7 +372,7 @@ export default function GRCPage() {
                       <td className="text-red-600 font-semibold text-center">{nonCompliant}</td>
                       <td className="text-yellow-600 text-center">0</td>
                       <td>
-                        <span className={`status-badge capitalize ${pStatus === "active" ? "text-green-700 bg-green-100" : pStatus === "overdue" ? "text-red-700 bg-red-100" : "text-yellow-700 bg-yellow-100"}`}>
+                        <span className={`status-badge capitalize ${pStatus === "published" ? "text-green-700 bg-green-100" : pStatus === "retired" ? "text-red-700 bg-red-100" : "text-yellow-700 bg-yellow-100"}`}>
                           {pStatus.replace(/_/g, " ")}
                         </span>
                       </td>

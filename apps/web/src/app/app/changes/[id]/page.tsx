@@ -83,7 +83,7 @@ export default function ChangeDetailPage() {
     cancelled:      [],
   };
   const nextStates = TRANSITIONS[change.status ?? "draft"] ?? [];
-  const isTerminalChange = change.status === "complete" || change.status === "cancelled";
+  const isTerminalChange = change.status === "completed" || change.status === "cancelled";
 
   if (!can("changes", "read")) return <AccessDenied module="Change Management" />;
 

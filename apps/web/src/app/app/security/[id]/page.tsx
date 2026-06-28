@@ -108,7 +108,7 @@ export default function SecurityIncidentDetailPage() {
                       <select
                         className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
                         value={incident.status}
-                        onChange={(e) => transitionMutation.mutate({ id: incident.id, toStatus: e.target.value })}
+                        onChange={(e) => transitionMutation.mutate({ id: incident.id, toStatus: e.target.value as typeof incident.status })}
                         disabled={transitionMutation.isPending}
                       >
                         {STATE_ORDERED.map((s) => (

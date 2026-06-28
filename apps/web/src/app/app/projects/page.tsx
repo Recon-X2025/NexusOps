@@ -211,8 +211,8 @@ export default function ProjectsPage() {
                 disabled={!editForm.name || updateProject.isPending}
                 onClick={() => updateProject.mutate({
                   id: editProject.id,
-                  status: editForm.status || undefined,
-                  health: editForm.health || undefined,
+                  status: (editForm.status || undefined) as "active" | "completed" | "cancelled" | "planning" | "on_hold" | "proposed" | undefined,
+                  health: (editForm.health || undefined) as "green" | "red" | "amber" | undefined,
                   phase: editForm.phase || undefined,
                   budgetSpent: undefined,
                 })}
@@ -362,7 +362,11 @@ export default function ProjectsPage() {
                     <td className="text-muted-foreground font-mono text-[11px]">
                       {p.budgetSpent ? formatCurrency(Number(p.budgetSpent)) : "—"}
                     </td>
-                    <td className={`text-[11px] ${p.status === "delayed" ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>
+                    <td className={`text-[11px] ${
+                      p.endDate && p.status !== "completed" && p.status !== "cancelled" && new Date(p.endDate).getTime() < Date.now()
+                        ? "text-red-600 font-semibold"
+                        : "text-muted-foreground"
+                    }`}>
                       {p.endDate ? formatDate(p.endDate) : "—"}
                     </td>
                     <td onClick={(e) => e.stopPropagation()} className="text-right pr-2">
@@ -503,7 +507,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
                         {BOARD_COLUMNS.filter((c) => c.key !== col.key).map((c) => (
                           <button
                             key={c.key}
-                            onClick={() => updateTask.mutate({ id: task.id, status: c.key })}
+                            onClick={() => updateTask.mutate({ id: task.id, status: c.key as "in_progress" | "todo" | "done" | "backlog" | "in_review" })}
                             disabled={updateTask.isPending}
                             className="px-1.5 py-0.5 rounded text-[9px] bg-background border border-border hover:bg-muted disabled:opacity-50 truncate max-w-[56px]"
                             title={`Move to ${c.label}`}

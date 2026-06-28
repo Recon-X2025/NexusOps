@@ -877,15 +877,15 @@ export default function HRPage() {
               {(hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase?.caseType ?? "")).length > 0
                 ? hrCases.filter((c) => ["transfer","promotion","leave","return_from_leave","role_change"].includes(c.hrCase?.caseType ?? "")).map((c) => (
                     <tr key={c.hrCase?.id ?? c.hrCase?.employeeId}>
-                      <td className="font-mono text-[11px] text-primary">{c.hrCase?.number ?? c.hrCase?.id?.slice(0,8) ?? "—"}</td>
+                      <td className="font-mono text-[11px] text-primary">{c.hrCase?.id?.slice(0,8) ?? "—"}</td>
                       <td><span className="status-badge text-blue-700 bg-blue-100 capitalize">{(c.hrCase?.caseType ?? "lifecycle").replace(/_/g," ")}</span></td>
-                      <td className="font-medium text-foreground">{c.employee?.name ?? "—"}</td>
-                      <td className="text-[11px] text-muted-foreground">{c.hrCase?.description ?? "—"}</td>
-                      <td className="text-[11px] text-muted-foreground">{c.hrCase?.targetDate ? new Date(c.hrCase.targetDate).toLocaleDateString("en-IN") : "—"}</td>
-                      <td className="text-muted-foreground">{c.hrCase.assignedToId ?? "HR"}</td>
-                      <td><span className={`status-badge capitalize ${CASE_STATE_COLOR[c.hrCase.status] ?? ""}`}>{c.hrCase.status?.replace(/_/g," ")}</span></td>
-                      <td className="text-center font-semibold">{c.hrCase.tasks?.filter((t: any) => t.category === "hr").length ?? "—"}</td>
-                      <td className="text-center font-semibold">{c.hrCase.tasks?.filter((t: any) => t.category === "it").length ?? "—"}</td>
+                      <td className="font-medium text-foreground">{c.employee?.employeeId ?? c.employee?.title ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{c.hrCase?.notes ?? "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">—</td>
+                      <td className="text-muted-foreground">{c.hrCase?.assigneeId ?? "HR"}</td>
+                      <td><span className="status-badge capitalize text-blue-700 bg-blue-100">{c.hrCase?.priority ?? "—"}</span></td>
+                      <td className="text-center font-semibold">—</td>
+                      <td className="text-center font-semibold">—</td>
                     </tr>
                   ))
                 : [].map((l: any) => (

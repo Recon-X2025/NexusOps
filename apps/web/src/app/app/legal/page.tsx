@@ -252,7 +252,7 @@ export default function LegalPage() {
   const legalRequests = (legalRequestsData ?? []) as any[];
   const investigations = (investigationsData ?? []) as any[];
   const contractReviews = (contractsData?.items ?? []) as any[];
-  const kbArticles = (kbData?.items ?? kbData ?? []) as any[];
+  const kbArticles = ((kbData as any)?.items ?? kbData ?? []) as any[];
 
   const activeMatters = matters.filter((m: any) => m.status === "active");
   const totalExposure = activeMatters.reduce((s: number, m: any) => s + Number(m.estimatedCost ?? 0), 0);

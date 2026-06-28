@@ -84,9 +84,9 @@ export default function SecurityOpsPage() {
   const vulnList: VulnItem[] = vulns ?? [];
   const incidentList: IncidentItem[] = incidents?.items ?? [];
 
-  const critVulns = vulnList.filter((v) => v.severity === "critical" && v.status !== "resolved").length;
+  const critVulns = vulnList.filter((v) => v.severity === "critical" && v.status !== "remediated").length;
   const overdueVulns = vulnList.filter((v) => {
-    if (v.status === "resolved" || !v.discoveredAt) return false;
+    if (v.status === "remediated" || !v.discoveredAt) return false;
     const days = Math.floor((Date.now() - new Date(v.discoveredAt).getTime()) / 86400000);
     return days > 14;
   }).length;
@@ -184,7 +184,7 @@ export default function SecurityOpsPage() {
                   </thead>
               <tbody>
                 {vulnList.map((v) => (
-                  <tr key={v.id} className={v.status === "resolved" ? "opacity-60" : ""}>
+                  <tr key={v.id} className={v.status === "remediated" ? "opacity-60" : ""}>
                     <td className="p-0 relative">
                       <div className={`priority-bar ${
                         v.severity === "critical" ? "bg-red-600"
@@ -226,7 +226,7 @@ export default function SecurityOpsPage() {
                       {v.discoveredAt ? formatRelativeTime(v.discoveredAt) : "—"}
                     </td>
                     <td>
-                      {v.status !== "resolved" && v.status !== "false_positive" && can("vulnerabilities", "write") && (
+                      {v.status !== "remediated" && v.status !== "false_positive" && can("vulnerabilities", "write") && (
                         remediatingId === v.id ? (
                           <div className="flex items-center gap-1">
                             <input

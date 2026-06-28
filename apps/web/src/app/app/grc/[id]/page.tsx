@@ -209,7 +209,7 @@ export default function GRCRiskDetailPage() {
                   {tab === "reviews" && (
                     <div className="animate-in fade-in slide-in-from-left-4 duration-300">
                       <Timeline
-                        items={(risk.logs ?? []).map((l: any) => ({
+                        items={((risk as { logs?: Array<{ id: string; action: string; createdAt: string | Date; authorName?: string }> }).logs ?? []).map((l) => ({
                           id: l.id,
                           title: l.action,
                           timestamp: l.createdAt,

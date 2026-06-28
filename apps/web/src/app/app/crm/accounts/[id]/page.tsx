@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-    Building2, Users, TrendingUp, Activity, Phone, Mail, Globe,
+    Building2, TrendingUp, Activity, Phone, Mail, Globe,
     MapPin, Calendar, Plus, Trash2, Edit3, ExternalLink,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -41,8 +41,7 @@ export default function AccountDetailPage() {
             {(account) => {
                 const accountFields: FieldDef[] = [
                     { label: "Website", icon: Globe, value: account.website?.replace(/^https?:\/\//, "") ?? "—", href: account.website ?? undefined },
-                    { label: "Employees", icon: Users, value: account.employees?.toLocaleString() ?? "—" },
-                    { label: "Annual Revenue", icon: TrendingUp, value: `₹${((account.annualRevenue ?? 0) / 10000000).toFixed(1)} Cr` },
+                    { label: "Annual Revenue", icon: TrendingUp, value: `₹${((Number(account.annualRevenue ?? 0)) / 10000000).toFixed(1)} Cr` },
                     {
                         type: "progress" as const,
                         label: "Health Score",
@@ -50,7 +49,7 @@ export default function AccountDetailPage() {
                         value: account.healthScore ?? 0,
                     },
                     { label: "Industry", icon: MapPin, value: account.industry ?? "—" },
-                    { label: "Country", icon: MapPin, value: account.country ?? "—" },
+                    { label: "Billing Address", icon: MapPin, value: account.billingAddress ?? "—" },
                 ];
 
                 const tierBadge = (
@@ -95,7 +94,7 @@ export default function AccountDetailPage() {
                         <PageHeader
                             icon={Building2}
                             title={account.name}
-                            subtitle={`${account.industry ?? ""} · ${account.country ?? ""}`}
+                            subtitle={`${account.industry ?? ""}${account.billingAddress ? ` · ${account.billingAddress}` : ""}`}
                             badge={tierBadge}
                             actions={actions}
                             backHref="/app/crm"

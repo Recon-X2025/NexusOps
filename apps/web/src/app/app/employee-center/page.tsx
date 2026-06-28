@@ -196,9 +196,9 @@ export default function EmployeeCenterPage() {
                     <div className="h-3 bg-muted rounded w-3/4" />
                   </div>
                 ))
-              ) : (kbQuery.data?.items ?? kbQuery.data as any ?? []).length === 0 ? (
+              ) : ((kbQuery.data as any)?.items ?? kbQuery.data ?? []).length === 0 ? (
                 <div className="px-4 py-4 text-center text-[11px] text-muted-foreground/50">No knowledge articles available yet</div>
-              ) : (kbQuery.data?.items ?? kbQuery.data as any ?? []).slice(0, 4).map((art: any) => (
+              ) : ((kbQuery.data as any)?.items ?? kbQuery.data ?? []).slice(0, 4).map((art: any) => (
                 <div
                   key={art.id}
                   onClick={() => router.push(`/app/knowledge/${art.id}`)}

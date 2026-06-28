@@ -62,7 +62,7 @@ export default function KnowledgePage() {
 
   const { data, isLoading } = trpc.knowledge.list.useQuery({
       search: debouncedSearch || undefined,
-      status: activeStatus !== "all" ? activeStatus : undefined,
+      status: activeStatus !== "all" ? (activeStatus as "draft" | "archived" | "published") : undefined,
       limit: 50,
     }, mergeTrpcQueryOpts("knowledge.list", { refetchOnWindowFocus: false },));
 

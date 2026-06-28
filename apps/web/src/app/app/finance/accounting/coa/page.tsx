@@ -27,7 +27,7 @@ export default function CoaPage() {
     const [filterType, setFilterType] = useState<string | null>(null);
 
     const qCoa = trpc.accounting.coa.list.useQuery({
-        type: filterType || undefined,
+        type: (filterType || undefined) as "asset" | "liability" | "equity" | "income" | "expense" | undefined,
     });
 
     const mSeed = trpc.accounting.coa.seed.useMutation({

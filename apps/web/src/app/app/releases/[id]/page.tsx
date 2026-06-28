@@ -146,13 +146,13 @@ export default function ReleaseDetailPage() {
                     )}
                   </div>
 
-                  {rawStatus === "complete" && (
+                  {rawStatus === "completed" && (
                     <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 text-sm text-green-700 font-medium">
                       <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
                       Release successfully deployed on {r.actualDate ? new Date(r.actualDate).toLocaleDateString("en-IN") : "—"}.
                     </div>
                   )}
-                  {rawStatus === "failed" && (
+                  {rawStatus === "cancelled" && (
                     <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 text-sm text-red-700 font-medium">
                       <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                       This release failed. Review post-mortem and create a follow-up release.

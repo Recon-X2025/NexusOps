@@ -61,7 +61,7 @@ export default function ExpensesPage() {
 
   const utils        = trpc.useUtils();
   const employeesQ   = trpc.hr.listEmployees.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.listEmployees", { enabled: canView }));
-  const expensesQ    = trpc.hr.expenses.list.useQuery({ status: filterStatus || undefined, limit: 200 }, mergeTrpcQueryOpts("hr.expenses.list", { enabled: canView }));
+  const expensesQ    = trpc.hr.expenses.list.useQuery({ status: (filterStatus || undefined) as "draft" | "submitted" | "approved" | "rejected" | "cancelled" | "under_review" | "reimbursed" | "paid" | undefined, limit: 200 }, mergeTrpcQueryOpts("hr.expenses.list", { enabled: canView }));
 
   const createMut  = trpc.hr.expenses.create.useMutation({
     onSuccess: () => { toast.success("Expense claim created"); setShowNew(false); setForm(f => ({ ...f, title: "", description: "", amount: "", projectCode: "" })); void utils.hr.expenses.list.invalidate(); },

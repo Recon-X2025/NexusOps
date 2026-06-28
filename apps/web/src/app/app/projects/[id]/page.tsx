@@ -148,7 +148,7 @@ export default function ProjectDetailPage() {
   const board = boardQuery.data ?? {};
   const allBoardTasks: Task[] = Object.values(board).flat() as Task[];
 
-  const isTerminal = project.status === "complete" || project.status === "completed" || project.status === "cancelled";
+  const isTerminal = project.status === "completed" || project.status === "cancelled";
 
   return (
     <div className="flex flex-col gap-3">
@@ -308,8 +308,8 @@ export default function ProjectDetailPage() {
                 id,
                 name: editForm.name,
                 description: editForm.description || undefined,
-                status: editForm.status || undefined,
-                health: editForm.health || undefined,
+                status: (editForm.status || undefined) as typeof project.status | undefined,
+                health: (editForm.health || undefined) as "green" | "red" | "amber" | undefined,
                 phase: editForm.phase || undefined,
               })}
               className="px-4 py-2 rounded bg-primary text-white text-[12px] font-semibold shadow hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
@@ -469,7 +469,7 @@ export default function ProjectDetailPage() {
                               disabled={movingTask === task.id}
                               onClick={() => {
                                 setMovingTask(task.id);
-                                updateTask.mutate({ id: task.id, status: targetCol.key });
+                                updateTask.mutate({ id: task.id, status: targetCol.key as "in_progress" | "todo" | "done" | "backlog" | "in_review" });
                               }}
                               className="text-[9px] px-1.5 py-0.5 rounded border border-border bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
                             >

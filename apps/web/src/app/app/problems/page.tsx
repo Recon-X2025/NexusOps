@@ -121,7 +121,7 @@ export default function ProblemsPage() {
         {[
           { label: "Open Problems",  value: openProblems.length, color: "text-blue-700" },
           { label: "Known Errors",   value: knownErrors.length,  color: "text-red-700" },
-          { label: "Under RCA",      value: allProblems.filter((p) => p.status === "root_cause_analysis").length, color: "text-orange-700" },
+          { label: "Under RCA",      value: allProblems.filter((p) => p.status === "investigation").length, color: "text-orange-700" },
           { label: "Resolved (all)", value: resolvedCount,       color: "text-green-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">

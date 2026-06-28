@@ -109,7 +109,7 @@ function CoaTab() {
             </div>
             <div className="flex items-center justify-end gap-2 mt-4">
               <button onClick={() => setShowNew(false)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/50">Cancel</button>
-              <button disabled={!form.code || !form.name || createMut.isPending} onClick={() => createMut.mutate({ ...form, openingBalance: parseFloat(form.openingBalance || "0") })} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[12px] rounded disabled:opacity-50">
+              <button disabled={!form.code || !form.name || createMut.isPending} onClick={() => createMut.mutate({ ...form, subType: form.subType || undefined, openingBalance: parseFloat(form.openingBalance || "0") } as Parameters<typeof createMut.mutate>[0])} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-[12px] rounded disabled:opacity-50">
                 {createMut.isPending && <Loader2 className="w-3 h-3 animate-spin" />} Create
               </button>
             </div>

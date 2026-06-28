@@ -244,7 +244,7 @@ function AddCandidateModal({ jobs, onClose, onCreated }: { jobs: any[]; onClose:
           <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">Cancel</button>
           <button
             disabled={!form.firstName || !form.lastName || !form.email || createCand.isPending}
-            onClick={() => createCand.mutate({ ...form, experience: form.experience ? +form.experience : undefined, skills: form.skills.split(",").map(s => s.trim()).filter(Boolean), jobId: form.jobId || undefined })}
+            onClick={() => createCand.mutate({ ...form, experience: form.experience ? +form.experience : undefined, skills: form.skills.split(",").map(s => s.trim()).filter(Boolean), jobId: form.jobId || undefined } as Parameters<typeof createCand.mutate>[0])}
             className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >{createCand.isPending ? "Adding..." : "Add Candidate"}</button>
         </div>
@@ -345,7 +345,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showNew, setShowNew] = useState(false);
-  const { data: reqs = [], refetch } = trpc.recruitment.requisitions.list.useQuery({ search, status: statusFilter || undefined }, mergeTrpcQueryOpts("recruitment.requisitions.list", undefined));
+  const { data: reqs = [], refetch } = trpc.recruitment.requisitions.list.useQuery({ search, status: (statusFilter || undefined) as any }, mergeTrpcQueryOpts("recruitment.requisitions.list", undefined));
   const updateReq = trpc.recruitment.requisitions.update.useMutation({
     onSuccess: () => { toast.success("Requisition updated"); refetch(); },
     onError: (e) => toast.error(e.message),

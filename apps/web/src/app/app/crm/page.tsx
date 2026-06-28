@@ -1922,7 +1922,7 @@ export default function CRMPage() {
               <button onClick={() => setShowNewLead(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={!leadForm.firstName.trim() || !leadForm.lastName.trim() || !leadForm.company.trim() || !leadForm.email.trim() || !leadForm.phone.trim() || createLeadMutation.isPending}
-                onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email.trim(), phone: leadForm.phone.trim(), company: leadForm.company.trim(), title: leadForm.title.trim() || undefined, source: leadForm.source })}
+                onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email.trim(), phone: leadForm.phone.trim(), company: leadForm.company.trim(), title: leadForm.title.trim() || undefined, source: leadForm.source as "other" | "website" | "event" | "partner" | "referral" | "cold_outreach" | "advertising" })}
                 className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createLeadMutation.isPending ? "Creating…" : "Create Lead"}</button>
             </div>
@@ -2038,7 +2038,7 @@ export default function CRMPage() {
               <button
                 disabled={!activityForm.accountId || !activityForm.contactId || createActivity.isPending}
                 onClick={() => createActivity.mutate({
-                  type: activityForm.type || undefined,
+                  type: (activityForm.type || undefined) as "email" | "note" | "call" | "meeting" | "demo" | "follow_up" | undefined,
                   subject: activityForm.subject.trim() || undefined,
                   description: activityForm.description.trim() || undefined,
                   dealId: activityForm.dealId || undefined,
@@ -2118,7 +2118,7 @@ export default function CRMPage() {
                 disabled={updateActivity.isPending}
                 onClick={() => updateActivity.mutate({
                   id: editingActivity.id,
-                  type: editActivityForm.type || undefined,
+                  type: (editActivityForm.type || undefined) as "email" | "note" | "call" | "meeting" | "demo" | "follow_up" | undefined,
                   subject: editActivityForm.subject.trim() || undefined,
                   description: editActivityForm.description.trim() || undefined,
                   dealId: editActivityForm.dealId || undefined,
