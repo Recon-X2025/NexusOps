@@ -232,7 +232,7 @@ export const authRouter = router({
     return { user: stripPasswordHash(user), org, sessionId: session.token, rememberMe: input.rememberMe ?? false };
   }),
 
-  logout: protectedProcedure.mutation(async ({ ctx }) => {
+  logout: protectedProcedure.input(z.object({}).optional()).mutation(async ({ ctx }) => {
     if (ctx.sessionId) {
       await clearSessionStepUp(ctx.sessionId);
       // DB delete must complete before responding (correctness)

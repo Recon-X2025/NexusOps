@@ -146,7 +146,7 @@ export const accountingRouter = router({
     }),
 
     /** Seed standard India COA (idempotent). */
-    seed: permissionProcedure("financial", "write").mutation(async ({ ctx }) => {
+    seed: permissionProcedure("financial", "write").input(z.object({}).optional()).mutation(async ({ ctx }) => {
       const { org, db } = ctx;
       const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
       try {

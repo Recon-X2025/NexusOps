@@ -33,7 +33,7 @@ export const notificationsRouter = router({
       return { ok: true };
     }),
 
-  markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+  markAllRead: protectedProcedure.input(z.object({}).optional()).mutation(async ({ ctx }) => {
     await ctx.db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, ctx.user!.id));
     return { ok: true };
   }),

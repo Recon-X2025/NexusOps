@@ -324,6 +324,7 @@ export const indiaComplianceRouter = router({
       }),
 
     triggerKYCReminders: permissionProcedure("secretarial", "write")
+      .input(z.object({}).optional())
       .mutation(async ({ ctx }) => {
         const { db, org } = ctx;
         const now = new Date();

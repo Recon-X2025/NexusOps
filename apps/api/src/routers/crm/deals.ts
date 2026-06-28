@@ -298,7 +298,7 @@ export const crmDealsRouter = router({
       }),
 
     /** Reset all stages back to factory defaults. */
-    reset: adminProcedure.mutation(async ({ ctx }) => {
+    reset: adminProcedure.input(z.object({}).optional()).mutation(async ({ ctx }) => {
       const { db, org } = ctx;
       await db.delete(crmPipelineStages).where(eq(crmPipelineStages.orgId, org!.id));
       const rows = await loadPipelineStages(db, org!.id);
