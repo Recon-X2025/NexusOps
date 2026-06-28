@@ -114,14 +114,19 @@ export const knowledgeRouter = router({
     }),
 
   listArticleVersions: permissionProcedure("knowledge", "read")
-    .input(z.object({ articleId: z.string().uuid() }))
+    .input(z.object({
+      articleId: z.string().uuid(),
+      limit: z.coerce.number().int().min(1).max(200).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       return db
         .select()
         .from(kbArticleRevisions)
         .where(and(eq(kbArticleRevisions.articleId, input.articleId), eq(kbArticleRevisions.orgId, org!.id)))
-        .orderBy(desc(kbArticleRevisions.version));
+        .orderBy(desc(kbArticleRevisions.version))
+        .limit(input.limit).offset(input.offset);
     }),
 
   publish: permissionProcedure("knowledge", "write")

@@ -1,4 +1,4 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, paginationInput } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -18,7 +18,7 @@ import { getWorkflowService } from "../services/workflow";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 
 export const approvalsRouter = router({
-  myPending: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+  myPending: permissionProcedure("approvals", "read").input(paginationInput).query(async ({ ctx, input }) => {
     const { db, org } = ctx;
     const rows = await db.select().from(approvalRequests)
       .where(and(
@@ -26,7 +26,8 @@ export const approvalsRouter = router({
         eq(approvalRequests.approverId, ctx.user!.id),
         eq(approvalRequests.status, "pending"),
       ))
-      .orderBy(desc(approvalRequests.createdAt));
+      .orderBy(desc(approvalRequests.createdAt))
+      .limit(input.limit).offset(input.offset);
     // Enrich with requester names
     const requesterIds = [...new Set(rows.map((r: (typeof rows)[number]) => r.requesterId).filter(Boolean))] as string[];
     const requesterMap: Record<string, string> = {};
@@ -44,14 +45,15 @@ export const approvalsRouter = router({
     }));
   }),
 
-  mySubmitted: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+  mySubmitted: permissionProcedure("approvals", "read").input(paginationInput).query(async ({ ctx, input }) => {
     const { db, org } = ctx;
     const rows = await db.select().from(approvalRequests)
       .where(and(
         eq(approvalRequests.orgId, org!.id),
         eq(approvalRequests.requesterId, ctx.user!.id),
       ))
-      .orderBy(desc(approvalRequests.createdAt));
+      .orderBy(desc(approvalRequests.createdAt))
+      .limit(input.limit).offset(input.offset);
     return rows.map((r: (typeof rows)[number]) => ({
       ...r,
       state: r.status,
@@ -64,7 +66,7 @@ export const approvalsRouter = router({
   /** Manager view: pending approvals routed to anyone in the caller's primary
    *  reporting chain (their team subtree), excluding the caller's own queue.
    *  Lets a manager see what their reports still owe a decision on. */
-  myTeamPending: permissionProcedure("approvals", "read").query(async ({ ctx }) => {
+  myTeamPending: permissionProcedure("approvals", "read").input(paginationInput).query(async ({ ctx, input }) => {
     const { db, org } = ctx;
 
     // Resolve the caller's employee record, then their report subtree.
@@ -89,7 +91,8 @@ export const approvalsRouter = router({
         eq(approvalRequests.status, "pending"),
         inArray(approvalRequests.approverId, reportUserIds),
       ))
-      .orderBy(desc(approvalRequests.createdAt));
+      .orderBy(desc(approvalRequests.createdAt))
+      .limit(input.limit).offset(input.offset);
 
     // Enrich with requester + approver names.
     const peopleIds = [...new Set([

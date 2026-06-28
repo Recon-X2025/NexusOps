@@ -100,13 +100,17 @@ export const accountingRouter = router({
     list: permissionProcedure("financial", "read").input(z.object({
       type: z.enum(accountTypeEnum.enumValues).optional(),
       activeOnly: z.boolean().default(true),
+      limit: z.coerce.number().int().min(1).max(200).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      const { chartOfAccounts, eq: dbEq, and: dbAnd, asc: dbAsc } = await import("@coheronconnect/db");
       const conds: SQL[] = [dbEq(chartOfAccounts.orgId, org!.id)];
       if (input.activeOnly) conds.push(dbEq(chartOfAccounts.isActive, true));
       if (input.type) conds.push(dbEq(chartOfAccounts.type, input.type));
-      return db.select().from(chartOfAccounts).where(dbAnd(...conds));
+      return db.select().from(chartOfAccounts).where(dbAnd(...conds))
+        .orderBy(dbAsc(chartOfAccounts.code))
+        .limit(input.limit).offset(input.offset);
     }),
 
     create: permissionProcedure("financial", "write").input(z.object({

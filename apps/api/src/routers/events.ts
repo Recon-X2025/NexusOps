@@ -1,4 +1,4 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, paginationInput } from "../lib/trpc";
 import { z } from "zod";
 import {
   itomEvents,
@@ -54,27 +54,33 @@ export const eventsRouter = router({
     }),
 
   listSuppressionRules: permissionProcedure("events", "read")
-    .query(async ({ ctx }) => {
+    .input(paginationInput)
+    .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       return db.select().from(itomSuppressionRules)
         .where(eq(itomSuppressionRules.orgId, org!.id))
-        .orderBy(asc(itomSuppressionRules.name));
+        .orderBy(asc(itomSuppressionRules.name))
+        .limit(input.limit).offset(input.offset);
     }),
 
   listCorrelationPolicies: permissionProcedure("events", "read")
-    .query(async ({ ctx }) => {
+    .input(paginationInput)
+    .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       return db.select().from(itomCorrelationPolicies)
         .where(eq(itomCorrelationPolicies.orgId, org!.id))
-        .orderBy(asc(itomCorrelationPolicies.name));
+        .orderBy(asc(itomCorrelationPolicies.name))
+        .limit(input.limit).offset(input.offset);
     }),
 
   listIntegrations: permissionProcedure("events", "read")
-    .query(async ({ ctx }) => {
+    .input(paginationInput)
+    .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       return db.select().from(integrations)
         .where(eq(integrations.orgId, org!.id))
-        .orderBy(asc(integrations.provider));
+        .orderBy(asc(integrations.provider))
+        .limit(input.limit).offset(input.offset);
     }),
 
   healthNodes: permissionProcedure("events", "read").query(async ({ ctx }) => {

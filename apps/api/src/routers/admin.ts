@@ -1,4 +1,4 @@
-import { router, adminProcedure } from "../lib/trpc";
+import { router, adminProcedure, paginationInput } from "../lib/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
@@ -392,13 +392,15 @@ export const adminRouter = router({
   }),
 
   businessRules: router({
-    list: adminProcedure.query(async ({ ctx }) => {
+    list: adminProcedure.input(paginationInput).query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       return db
         .select()
         .from(businessRules)
         .where(eq(businessRules.orgId, org!.id))
-        .orderBy(asc(businessRules.priority), desc(businessRules.updatedAt));
+        .orderBy(asc(businessRules.priority), desc(businessRules.updatedAt))
+        .limit(input.limit)
+        .offset(input.offset);
     }),
 
     create: adminProcedure.input(BusinessRuleCreateSchema).mutation(async ({ ctx, input }) => {

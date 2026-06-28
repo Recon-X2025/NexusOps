@@ -1,4 +1,4 @@
-import { router, permissionProcedure, protectedProcedure, adminProcedure } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure, adminProcedure, paginationInput } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
@@ -100,6 +100,8 @@ export const hrRouter = router({
           department: z.string().optional(),
           status: z.enum(employeeStatusEnum.enumValues).optional(),
           search: z.string().optional(),
+          limit: z.coerce.number().int().min(1).max(200).default(50),
+          offset: z.coerce.number().int().min(0).default(0),
         }),
       )
       .query(async ({ ctx, input }) => {
@@ -112,7 +114,10 @@ export const hrRouter = router({
           .select({ emp: employees, userName: users.name, userEmail: users.email })
           .from(employees)
           .innerJoin(users, eq(employees.userId, users.id))
-          .where(and(...conditions));
+          .where(and(...conditions))
+          .orderBy(asc(users.name))
+          .limit(input.limit)
+          .offset(input.offset);
 
         return rows.map((row: (typeof rows)[number]) => {
           const { emp, userName, userEmail } = row;
@@ -128,7 +133,8 @@ export const hrRouter = router({
 
     /** Org users who do not yet have an employee row (for linking a new employee record). */
     listUsersWithoutEmployee: permissionProcedure("hr", "write")
-      .query(async ({ ctx }) => {
+      .input(paginationInput)
+      .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         return db
           .select({
@@ -139,7 +145,9 @@ export const hrRouter = router({
           .from(users)
           .leftJoin(employees, eq(users.id, employees.userId))
           .where(and(eq(users.orgId, org!.id), isNull(employees.id)))
-          .orderBy(asc(users.name));
+          .orderBy(asc(users.name))
+          .limit(input.limit)
+          .offset(input.offset);
       }),
 
     get: permissionProcedure("hr", "read")

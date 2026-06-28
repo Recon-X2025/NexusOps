@@ -52,13 +52,20 @@ async function countDuplicatePayable(db: DbOrTx, orgId: string, vendorId: string
 export const financialRouter = router({
   // ── Budget ─────────────────────────────────────────────────────────────────
   listBudget: permissionProcedure("budget", "read")
-    .input(z.object({ fiscalYear: z.coerce.number().optional(), department: z.string().optional() }))
+    .input(z.object({
+      fiscalYear: z.coerce.number().optional(),
+      department: z.string().optional(),
+      limit: z.coerce.number().int().min(1).max(200).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(budgetLines.orgId, org!.id)];
       if (input.fiscalYear) conditions.push(eq(budgetLines.fiscalYear, input.fiscalYear));
       if (input.department) conditions.push(eq(budgetLines.department, input.department));
-      return db.select().from(budgetLines).where(and(...conditions)).orderBy(budgetLines.category);
+      return db.select().from(budgetLines).where(and(...conditions))
+        .orderBy(budgetLines.category)
+        .limit(input.limit).offset(input.offset);
     }),
 
   createBudgetLine: permissionProcedure("budget", "write")

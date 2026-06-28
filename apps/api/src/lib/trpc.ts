@@ -1,5 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import type { Module, RbacAction } from "@coheronconnect/types";
 import { auditLogs, users, organizations, type Db } from "@coheronconnect/db";
 import { checkDbUserPermission } from "./rbac-db";
@@ -27,6 +27,22 @@ import { assertMfaIfRequired } from "./mfa-policy";
  */
 export type ContextUser = Omit<typeof users.$inferSelect, "passwordHash">;
 export type ContextOrg = typeof organizations.$inferSelect;
+
+/**
+ * Shared pagination input for list endpoints. Bounds the result set so no
+ * single query can return an unbounded number of rows (DoS / memory guard),
+ * and exposes a uniform `limit`/`offset` contract across routers.
+ *
+ * Spread into an existing input object:
+ *   .input(z.object({ ...paginationShape, status: z.string().optional() }))
+ * or use directly (standalone). `.default({})` lets callers omit the argument
+ * entirely (tRPC passes `undefined`) and still receive the field defaults.
+ */
+export const paginationShape = {
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+};
+export const paginationInput = z.object(paginationShape).default({});
 
 export type Context = {
   db: Db;
