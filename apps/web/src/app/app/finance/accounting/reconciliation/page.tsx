@@ -33,7 +33,7 @@ export default function ReconciliationPage() {
   const [newName, setNewName] = useState("");
   const [newBalance, setNewBalance] = useState("");
 
-  const qCoa = trpc.accounting.coa.list.useQuery({}, mergeTrpcQueryOpts("accounting.coa.list", undefined));
+  const qCoa = trpc.accounting.coa.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
   const bankAccounts = useMemo(
     () => (qCoa.data ?? []).filter((a: any) => a.subType === "bank" || a.subType === "cash"),
     [qCoa.data],

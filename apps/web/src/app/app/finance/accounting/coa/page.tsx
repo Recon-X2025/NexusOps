@@ -28,6 +28,7 @@ export default function CoaPage() {
 
     const qCoa = trpc.accounting.coa.list.useQuery({
         type: (filterType || undefined) as "asset" | "liability" | "equity" | "income" | "expense" | undefined,
+        limit: 200,
     });
 
     const mSeed = trpc.accounting.coa.seed.useMutation({

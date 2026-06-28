@@ -44,7 +44,7 @@ export default function HRPage() {
 
   const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { refetchOnWindowFocus: false },));
   // employees list — drives Employee Directory tab
-  const { data: employeesData } = trpc.hr.employees.list.useQuery({}, mergeTrpcQueryOpts("hr.employees.list", { refetchOnWindowFocus: false },));
+  const { data: employeesData } = trpc.hr.employees.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.employees.list", { refetchOnWindowFocus: false },));
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null);

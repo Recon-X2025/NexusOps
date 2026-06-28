@@ -47,7 +47,7 @@ function CoaTab() {
   const [form, setForm] = useState({ code: "", name: "", type: "asset" as const, subType: "", description: "", currency: "INR", openingBalance: "0" });
 
   const utils  = trpc.useUtils();
-  const coaQ   = trpc.accounting.coa.list.useQuery({ activeOnly: false }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
+  const coaQ   = trpc.accounting.coa.list.useQuery({ activeOnly: false, limit: 200 }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
   const seedMut = trpc.accounting.coa.seed.useMutation({ onSuccess: (d) => { toast.success(`Seeded ${(d as any).seeded} India COA accounts`); void utils.accounting.coa.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const createMut = trpc.accounting.coa.create.useMutation({ onSuccess: () => { toast.success("Account created"); setShowNew(false); void utils.accounting.coa.list.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
 

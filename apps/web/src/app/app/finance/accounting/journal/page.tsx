@@ -28,7 +28,7 @@ export default function JournalPage() {
     ]);
 
     const qJournals = trpc.accounting.journal.list.useQuery({ limit: 50 });
-    const qCoa = trpc.accounting.coa.list.useQuery({});
+    const qCoa = trpc.accounting.coa.list.useQuery({ limit: 200 });
 
     const mCreate = trpc.accounting.journal.create.useMutation({
         onSuccess: () => {

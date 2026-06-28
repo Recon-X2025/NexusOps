@@ -15,7 +15,7 @@ export default function LedgerPage() {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
 
-    const qCoa = trpc.accounting.coa.list.useQuery({});
+    const qCoa = trpc.accounting.coa.list.useQuery({ limit: 200 });
     const qLedger = trpc.accounting.ledger.useQuery({
         accountId: accountId || undefined,
         startDate: dateFrom ? new Date(dateFrom) : undefined,
