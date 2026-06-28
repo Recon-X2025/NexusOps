@@ -41,7 +41,7 @@ export const kbArticles = pgTable(
     notHelpfulCount: integer("not_helpful_count").notNull().default(0),
     authorId: uuid("author_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     embeddingVector: text("embedding_vector"), // stored as JSON string of number[]
     contentVersion: integer("content_version").notNull().default(1),
     publishedAt: timestamp("published_at", { withTimezone: true }),
@@ -133,7 +133,7 @@ export const announcements = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     authorId: uuid("author_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

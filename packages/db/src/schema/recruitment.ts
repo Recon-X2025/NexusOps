@@ -49,7 +49,7 @@ export const candidateSourceEnum = pgEnum("candidate_source", [
 
 export const jobRequisitions = pgTable("job_requisitions", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  orgId:           uuid("org_id").notNull().references(() => organizations.id),
+  orgId:           uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   number:          text("number").notNull(), // REQ-001
   title:           text("title").notNull(),
   department:      text("department").notNull(),
@@ -67,13 +67,13 @@ export const jobRequisitions = pgTable("job_requisitions", {
   salaryMax:       integer("salary_max"),
   currency:        text("currency").default("INR"),
   budgetCode:      text("budget_code"),
-  hiringManagerId: uuid("hiring_manager_id").references(() => users.id),
-  recruiterId:     uuid("recruiter_id").references(() => users.id),
-  approverId:      uuid("approver_id").references(() => users.id),
+  hiringManagerId: uuid("hiring_manager_id").references(() => users.id, { onDelete: "set null" }),
+  recruiterId:     uuid("recruiter_id").references(() => users.id, { onDelete: "set null" }),
+  approverId:      uuid("approver_id").references(() => users.id, { onDelete: "set null" }),
   approvedAt:      timestamp("approved_at"),
   targetDate:      timestamp("target_date"),
   closedAt:        timestamp("closed_at"),
-  createdBy:       uuid("created_by").references(() => users.id),
+  createdBy:       uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt:       timestamp("created_at").notNull().defaultNow(),
   updatedAt:       timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
@@ -83,7 +83,7 @@ export const jobRequisitions = pgTable("job_requisitions", {
 
 export const candidates = pgTable("candidates", {
   id:           uuid("id").primaryKey().defaultRandom(),
-  orgId:        uuid("org_id").notNull().references(() => organizations.id),
+  orgId:        uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   firstName:    text("first_name").notNull(),
   lastName:     text("last_name").notNull(),
   email:        text("email").notNull(),
@@ -96,7 +96,7 @@ export const candidates = pgTable("candidates", {
   resumeUrl:    text("resume_url"),
   linkedinUrl:  text("linkedin_url"),
   source:       candidateSourceEnum("source").default("other"),
-  referredBy:   uuid("referred_by").references(() => users.id),
+  referredBy:   uuid("referred_by").references(() => users.id, { onDelete: "set null" }),
   notes:        text("notes"),
   tags:         text("tags").array().default([]),
   createdAt:    timestamp("created_at").notNull().defaultNow(),
@@ -107,14 +107,14 @@ export const candidates = pgTable("candidates", {
 
 export const candidateApplications = pgTable("candidate_applications", {
   id:            uuid("id").primaryKey().defaultRandom(),
-  orgId:         uuid("org_id").notNull().references(() => organizations.id),
-  candidateId:   uuid("candidate_id").notNull().references(() => candidates.id),
-  jobId:         uuid("job_id").notNull().references(() => jobRequisitions.id),
+  orgId:         uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  candidateId:   uuid("candidate_id").notNull().references(() => candidates.id, { onDelete: "cascade" }),
+  jobId:         uuid("job_id").notNull().references(() => jobRequisitions.id, { onDelete: "cascade" }),
   stage:         candidateStageEnum("stage").notNull().default("applied"),
   rating:        integer("rating"), // 1-5 stars
   feedback:      text("feedback"),
   rejectionReason: text("rejection_reason"),
-  assignedTo:    uuid("assigned_to").references(() => users.id),
+  assignedTo:    uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
   appliedAt:     timestamp("applied_at").notNull().defaultNow(),
   stageUpdatedAt: timestamp("stage_updated_at").notNull().defaultNow(),
   hiredAt:       timestamp("hired_at"),
@@ -129,8 +129,8 @@ export const candidateApplications = pgTable("candidate_applications", {
 
 export const interviews = pgTable("interviews", {
   id:            uuid("id").primaryKey().defaultRandom(),
-  orgId:         uuid("org_id").notNull().references(() => organizations.id),
-  applicationId: uuid("application_id").notNull().references(() => candidateApplications.id),
+  orgId:         uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  applicationId: uuid("application_id").notNull().references(() => candidateApplications.id, { onDelete: "cascade" }),
   type:          interviewTypeEnum("type").notNull().default("video"),
   status:        interviewStatusEnum("status").notNull().default("scheduled"),
   title:         text("title").notNull(),
@@ -144,7 +144,7 @@ export const interviews = pgTable("interviews", {
   decision:      text("decision"), // strong_yes, yes, no, strong_no
   notes:         text("notes"),
   meetingLink:   text("meeting_link"),
-  createdBy:     uuid("created_by").references(() => users.id),
+  createdBy:     uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt:     timestamp("created_at").notNull().defaultNow(),
   updatedAt:     timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
@@ -154,9 +154,9 @@ export const interviews = pgTable("interviews", {
 
 export const jobOffers = pgTable("job_offers", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  orgId:           uuid("org_id").notNull().references(() => organizations.id),
-  applicationId:   uuid("application_id").notNull().references(() => candidateApplications.id),
-  candidateId:     uuid("candidate_id").notNull().references(() => candidates.id),
+  orgId:           uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  applicationId:   uuid("application_id").notNull().references(() => candidateApplications.id, { onDelete: "cascade" }),
+  candidateId:     uuid("candidate_id").notNull().references(() => candidates.id, { onDelete: "cascade" }),
   status:          offerStatusEnum("status").notNull().default("draft"),
   title:           text("title").notNull(),
   department:      text("department"),
@@ -171,7 +171,7 @@ export const jobOffers = pgTable("job_offers", {
   notes:           text("notes"),
   sentAt:          timestamp("sent_at"),
   respondedAt:     timestamp("responded_at"),
-  createdBy:       uuid("created_by").references(() => users.id),
+  createdBy:       uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt:       timestamp("created_at").notNull().defaultNow(),
   updatedAt:       timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({

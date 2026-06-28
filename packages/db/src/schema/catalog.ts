@@ -63,8 +63,8 @@ export const catalogRequests = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    itemId: uuid("item_id").notNull().references(() => catalogItems.id),
-    requesterId: uuid("requester_id").notNull().references(() => users.id),
+    itemId: uuid("item_id").notNull().references(() => catalogItems.id, { onDelete: "cascade" }),
+    requesterId: uuid("requester_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     formData: jsonb("form_data").$type<Record<string, unknown>>().default({}),
     status: catalogRequestStatusEnum("status").notNull().default("submitted"),
     fulfillerId: uuid("fulfiller_id").references(() => users.id, { onDelete: "set null" }),

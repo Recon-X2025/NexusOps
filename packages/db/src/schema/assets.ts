@@ -98,7 +98,7 @@ export const assets = pgTable(
     name: text("name").notNull(),
     typeId: uuid("type_id")
       .notNull()
-      .references(() => assetTypes.id),
+      .references(() => assetTypes.id, { onDelete: "restrict" }),
     status: assetStatusEnum("status").notNull().default("in_stock"),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     location: text("location"),

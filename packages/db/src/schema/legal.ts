@@ -121,7 +121,7 @@ export const legalRequests = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     requesterId: uuid("requester_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
     description: text("description"),
     type: text("type"),

@@ -119,7 +119,7 @@ export const purchaseRequests = pgTable(
     number: text("number").notNull(), // PR-0001
     requesterId: uuid("requester_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
     justification: text("justification"),
     totalAmount: decimal("total_amount", { precision: 14, scale: 2 }).notNull().default("0"),
@@ -177,7 +177,7 @@ export const purchaseOrders = pgTable(
     prId: uuid("pr_id").references(() => purchaseRequests.id, { onDelete: "set null" }),
     vendorId: uuid("vendor_id")
       .notNull()
-      .references(() => vendors.id),
+      .references(() => vendors.id, { onDelete: "restrict" }),
     vendorGstin: text("vendor_gstin"),
     deliveryAddress: text("delivery_address"),
     taxableValue: decimal("taxable_value", { precision: 14, scale: 2 }).notNull().default("0"),
@@ -233,7 +233,7 @@ export const goodsReceiptNotes = pgTable(
     grnNumber: text("grn_number").notNull(),
     poId: uuid("po_id")
       .notNull()
-      .references(() => purchaseOrders.id),
+      .references(() => purchaseOrders.id, { onDelete: "restrict" }),
     receivedById: uuid("received_by_id").references(() => users.id, { onDelete: "set null" }),
     vendorDeliveryChallan: text("vendor_delivery_challan"),
     status: grnStatusEnum("status").notNull().default("draft"),
@@ -285,7 +285,7 @@ export const invoices = pgTable(
     invoiceType: invoiceTypeEnum("invoice_type").notNull().default("tax_invoice"),
     vendorId: uuid("vendor_id")
       .notNull()
-      .references(() => vendors.id),
+      .references(() => vendors.id, { onDelete: "restrict" }),
     legalEntityId: uuid("legal_entity_id").references(() => legalEntities.id, { onDelete: "set null" }),
     poId: uuid("po_id").references(() => purchaseOrders.id, { onDelete: "set null" }),
     grnId: uuid("grn_id").references(() => goodsReceiptNotes.id, { onDelete: "set null" }),
@@ -403,8 +403,8 @@ export const approvalRequests = pgTable(
     entityId: uuid("entity_id").notNull(),
     approverId: uuid("approver_id")
       .notNull()
-      .references(() => users.id),
-    requesterId: uuid("requester_id").references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
+    requesterId: uuid("requester_id").references(() => users.id, { onDelete: "set null" }),
     title: text("title"),
     description: text("description"),
     type: text("type").default("change"), // change | service_request | work_order | purchase | access

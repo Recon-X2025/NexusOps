@@ -45,7 +45,7 @@ export const esopEventEnum = pgEnum("esop_event", [
 
 export const boardMeetings = pgTable("board_meetings", {
   id:           uuid("id").primaryKey().defaultRandom(),
-  orgId:        uuid("org_id").notNull().references(() => organizations.id),
+  orgId:        uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   number:       text("number").notNull(),       // BM-2024-001
   type:         meetingTypeEnum("type").notNull().default("board"),
   status:       meetingStatusEnum("status").notNull().default("scheduled"),
@@ -59,8 +59,8 @@ export const boardMeetings = pgTable("board_meetings", {
   quorumMet:    boolean("quorum_met"),
   minutesUrl:   text("minutes_url"),
   minutesDraft: text("minutes_draft"),
-  chairperson:  uuid("chairperson_id").references(() => users.id),
-  createdBy:    uuid("created_by").references(() => users.id),
+  chairperson:  uuid("chairperson_id").references(() => users.id, { onDelete: "set null" }),
+  createdBy:    uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt:    timestamp("created_at").notNull().defaultNow(),
   updatedAt:    timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
@@ -70,8 +70,8 @@ export const boardMeetings = pgTable("board_meetings", {
 
 export const boardResolutions = pgTable("board_resolutions", {
   id:          uuid("id").primaryKey().defaultRandom(),
-  orgId:       uuid("org_id").notNull().references(() => organizations.id),
-  meetingId:   uuid("meeting_id").references(() => boardMeetings.id),
+  orgId:       uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  meetingId:   uuid("meeting_id").references(() => boardMeetings.id, { onDelete: "cascade" }),
   number:      text("number").notNull(),        // BR-2024-045
   type:        resolutionTypeEnum("type").notNull().default("board"),
   status:      resolutionStatusEnum("status").notNull().default("draft"),
@@ -83,7 +83,7 @@ export const boardResolutions = pgTable("board_resolutions", {
   abstentions: integer("abstentions").default(0),
   attachment:  text("attachment_url"),
   tags:        text("tags").array().default([]),
-  createdBy:   uuid("created_by").references(() => users.id),
+  createdBy:   uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 }, (t) => ({
@@ -92,7 +92,7 @@ export const boardResolutions = pgTable("board_resolutions", {
 
 export const secretarialFilings = pgTable("secretarial_filings", {
   id:         uuid("id").primaryKey().defaultRandom(),
-  orgId:      uuid("org_id").notNull().references(() => organizations.id),
+  orgId:      uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   formNumber: text("form_number").notNull(), // MGT-7, AOC-4, DIR-3 KYC
   title:      text("title").notNull(),
   authority:  text("authority").notNull(),   // MCA, ROC, SEBI, RBI
@@ -105,7 +105,7 @@ export const secretarialFilings = pgTable("secretarial_filings", {
   penaltyPaid: integer("penalty_paid").default(0),
   notes:      text("notes"),
   attachmentUrl: text("attachment_url"),
-  assignedTo: uuid("assigned_to").references(() => users.id),
+  assignedTo: uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
   fy:         text("fy"),                    // 2024-25
   createdAt:  timestamp("created_at").notNull().defaultNow(),
   updatedAt:  timestamp("updated_at").notNull().defaultNow(),
@@ -116,7 +116,7 @@ export const secretarialFilings = pgTable("secretarial_filings", {
 
 export const shareCapital = pgTable("share_capital", {
   id:           uuid("id").primaryKey().defaultRandom(),
-  orgId:        uuid("org_id").notNull().references(() => organizations.id),
+  orgId:        uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   folio:        text("folio").notNull(),         // SH-001
   holderName:   text("holder_name").notNull(),
   holderType:   text("holder_type").default("individual"), // individual, institution, promoter
@@ -136,9 +136,9 @@ export const shareCapital = pgTable("share_capital", {
 
 export const esopGrants = pgTable("esop_grants", {
   id:            uuid("id").primaryKey().defaultRandom(),
-  orgId:         uuid("org_id").notNull().references(() => organizations.id),
+  orgId:         uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   grantNumber:   text("grant_number").notNull(),
-  employeeId:    uuid("employee_id").references(() => users.id),
+  employeeId:    uuid("employee_id").references(() => users.id, { onDelete: "set null" }),
   employeeName:  text("employee_name").notNull(),
   event:         esopEventEnum("event").notNull().default("grant"),
   options:       integer("options").notNull(),
@@ -157,7 +157,7 @@ export const esopGrants = pgTable("esop_grants", {
 
 export const companyDirectors = pgTable("company_directors", {
   id:          uuid("id").primaryKey().defaultRandom(),
-  orgId:       uuid("org_id").notNull().references(() => organizations.id),
+  orgId:       uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   name:        text("name").notNull(),
   din:         text("din").notNull(), // Director Identification Number
   designation: text("designation").notNull(), // Managing Director, Independent Director

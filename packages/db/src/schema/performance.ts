@@ -50,7 +50,7 @@ export const reviewCycles = pgTable(
     managerReviewDeadline: timestamp("manager_review_deadline", { withTimezone: true }),
     enable360: text("enable_360").default("false"),
     notes: text("notes"),
-    createdById: uuid("created_by_id").references(() => users.id),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -67,8 +67,8 @@ export const performanceReviews = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     cycleId: uuid("cycle_id").notNull().references(() => reviewCycles.id, { onDelete: "cascade" }),
-    revieweeId: uuid("reviewee_id").notNull().references(() => users.id),
-    reviewerId: uuid("reviewer_id").references(() => users.id),
+    revieweeId: uuid("reviewee_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    reviewerId: uuid("reviewer_id").references(() => users.id, { onDelete: "set null" }),
     reviewerRole: text("reviewer_role").notNull().default("manager"), // self | peer | manager
     status: reviewStatusEnum("status").notNull().default("draft"),
     overallRating: ratingScaleEnum("overall_rating"),
@@ -96,7 +96,7 @@ export const goals = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     cycleId: uuid("cycle_id").references(() => reviewCycles.id, { onDelete: "set null" }),
-    ownerId: uuid("owner_id").notNull().references(() => users.id),
+    ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     parentGoalId: uuid("parent_goal_id"),    // for cascaded org/team OKRs
     title: text("title").notNull(),
     description: text("description"),

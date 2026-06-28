@@ -151,7 +151,7 @@ export const hrCases = pgTable(
     employeeId: uuid("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    statusId: uuid("status_id").references(() => ticketStatuses.id),
+    statusId: uuid("status_id").references(() => ticketStatuses.id, { onDelete: "restrict" }),
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     priority: text("priority").notNull().default("medium"),
     notes: text("notes"),

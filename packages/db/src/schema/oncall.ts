@@ -36,7 +36,7 @@ export const oncallOverrides = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     scheduleId: uuid("schedule_id").notNull().references(() => oncallSchedules.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull().references(() => users.id),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }).notNull(),
     reason: text("reason"),

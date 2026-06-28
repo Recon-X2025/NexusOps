@@ -73,7 +73,7 @@ export const itomSuppressionRules = pgTable(
     condition: text("condition").notNull(), // e.g. "node=db-01 AND metric=cpu_load"
     suppressUntil: timestamp("suppress_until", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
-    createdBy: uuid("created_by").references(() => users.id),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

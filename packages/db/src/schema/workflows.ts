@@ -55,7 +55,7 @@ export const workflows = pgTable(
     currentVersion: integer("current_version").notNull().default(0),
     createdById: uuid("created_by_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -111,7 +111,7 @@ export const workflowRuns = pgTable(
       .references(() => workflows.id, { onDelete: "cascade" }),
     workflowVersionId: uuid("workflow_version_id")
       .notNull()
-      .references(() => workflowVersions.id),
+      .references(() => workflowVersions.id, { onDelete: "restrict" }),
     temporalWorkflowId: text("temporal_workflow_id"),
     status: workflowRunStatusEnum("status").notNull().default("running"),
     triggerData: jsonb("trigger_data").$type<Record<string, unknown>>(),

@@ -149,14 +149,14 @@ export const tickets = pgTable(
     priorityId: uuid("priority_id").references(() => ticketPriorities.id, { onDelete: "set null" }),
     statusId: uuid("status_id")
       .notNull()
-      .references(() => ticketStatuses.id),
+      .references(() => ticketStatuses.id, { onDelete: "restrict" }),
     type: ticketTypeEnum("type").notNull().default("request"),
     impact: ticketImpactEnum("impact").notNull().default("medium"),
     urgency: ticketUrgencyEnum("urgency").notNull().default("medium"),
     subcategory: text("subcategory"),
     requesterId: uuid("requester_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     requesterType: ticketRequesterTypeEnum("requester_type").notNull().default("internal"),
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
@@ -225,7 +225,7 @@ export const ticketComments = pgTable(
       .references(() => tickets.id, { onDelete: "cascade" }),
     authorId: uuid("author_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     body: text("body").notNull(),
     isInternal: boolean("is_internal").notNull().default(false),
     attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size: number }>>(),

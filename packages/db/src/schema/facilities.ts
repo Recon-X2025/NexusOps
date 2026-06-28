@@ -63,7 +63,7 @@ export const roomBookings = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     roomId: uuid("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
-    bookedById: uuid("booked_by_id").notNull().references(() => users.id),
+    bookedById: uuid("booked_by_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     title: text("title"),
     startTime: timestamp("start_time", { withTimezone: true }).notNull(),
     endTime: timestamp("end_time", { withTimezone: true }).notNull(),
@@ -83,7 +83,7 @@ export const moveRequests = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    requesterId: uuid("requester_id").notNull().references(() => users.id),
+    requesterId: uuid("requester_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     fromLocation: text("from_location"),
     toLocation: text("to_location").notNull(),
     status: moveRequestStatusEnum("status").notNull().default("requested"),
@@ -102,7 +102,7 @@ export const facilityRequests = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    requesterId: uuid("requester_id").notNull().references(() => users.id),
+    requesterId: uuid("requester_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     type: facilityRequestTypeEnum("type").notNull().default("maintenance"),
     title: text("title").notNull(),
     description: text("description"),

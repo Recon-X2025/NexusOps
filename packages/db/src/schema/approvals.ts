@@ -29,7 +29,7 @@ export const approvalSteps = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     requestId: uuid("request_id").notNull(),
-    approverId: uuid("approver_id").notNull().references(() => users.id),
+    approverId: uuid("approver_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     sequence: integer("sequence").notNull().default(1),
     status: approvalStepStatusEnum("status").notNull().default("pending"),
     comments: text("comments"),

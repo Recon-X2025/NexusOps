@@ -143,7 +143,7 @@ export const apiKeys = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     createdById: uuid("created_by_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     keyHash: text("key_hash").notNull(),
     keyPrefix: text("key_prefix").notNull(), // first 8 chars for display
@@ -263,7 +263,7 @@ export const invites = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     invitedByUserId: uuid("invited_by_user_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "restrict" }),
     email: text("email").notNull(),
     role: userRoleEnum("role").notNull().default("member"),
     token: text("token").notNull(),

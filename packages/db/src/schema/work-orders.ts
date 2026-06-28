@@ -65,8 +65,8 @@ export const workOrders = pgTable(
     state: woStateEnum("state").default("open").notNull(),
     type: woTypeEnum("type").default("corrective").notNull(),
     priority: woPriorityEnum("priority").default("4_low").notNull(),
-    assignedToId: uuid("assigned_to_id").references(() => users.id),
-    requestedById: uuid("requested_by_id").references(() => users.id),
+    assignedToId: uuid("assigned_to_id").references(() => users.id, { onDelete: "set null" }),
+    requestedById: uuid("requested_by_id").references(() => users.id, { onDelete: "set null" }),
     location: text("location"),
     category: text("category"),
     subcategory: text("subcategory"),
@@ -113,7 +113,7 @@ export const workOrderTasks = pgTable(
     number: text("number").notNull(),
     shortDescription: text("short_description").notNull(),
     state: woTaskStateEnum("state").default("pending_dispatch").notNull(),
-    assignedToId: uuid("assigned_to_id").references(() => users.id),
+    assignedToId: uuid("assigned_to_id").references(() => users.id, { onDelete: "set null" }),
     plannedStartDate: timestamp("planned_start_date", { withTimezone: true }),
     plannedEndDate: timestamp("planned_end_date", { withTimezone: true }),
     actualStartDate: timestamp("actual_start_date", { withTimezone: true }),
@@ -140,7 +140,7 @@ export const workOrderActivityLogs = pgTable("work_order_activity_logs", {
   workOrderId: uuid("work_order_id")
     .notNull()
     .references(() => workOrders.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").references(() => users.id),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   action: text("action").notNull(),
   note: text("note"),
   isInternal: boolean("is_internal").default(false).notNull(),

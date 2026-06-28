@@ -74,7 +74,7 @@ export const changeRequests = pgTable(
     type: changeTypeEnum("type").notNull().default("normal"),
     risk: changeRiskEnum("risk").notNull().default("medium"),
     status: changeStatusEnum("status").notNull().default("draft"),
-    requesterId: uuid("requester_id").notNull().references(() => users.id),
+    requesterId: uuid("requester_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     cabDecision: text("cab_decision"),
     scheduledStart: timestamp("scheduled_start", { withTimezone: true }),
@@ -105,7 +105,7 @@ export const changeApprovals = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     changeId: uuid("change_id").notNull().references(() => changeRequests.id, { onDelete: "cascade" }),
-    approverId: uuid("approver_id").notNull().references(() => users.id),
+    approverId: uuid("approver_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     decision: changeApprovalDecisionEnum("decision").notNull().default("pending"),
     comments: text("comments"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
