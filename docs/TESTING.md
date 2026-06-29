@@ -107,16 +107,39 @@ pnpm test:e2e:headed   # watch in a browser
 
 Config (`playwright.config.ts`): `testDir: ./e2e`, chromium only, `workers: 1`,
 `fullyParallel: false`, `retries: 2` in CI / `0` locally. The `webServer` block
-auto-starts both the API (:3001) and the web app (:3000); `baseURL` is
-`http://localhost:3000`.
+auto-starts both the API and the web app; `baseURL` follows the web port.
 
-### Cold-start caveat
+### Configurable ports
 
-Locally, the **first** spec can fail if Next.js is still cold-compiling `/login`
-when the 15s `waitForURL` fires; because workers run serially this can cascade.
-This is an environment warm-up artifact, **not** a spec defect. CI absorbs it via
-`retries: 2`. To avoid it locally, pre-warm the stack (load `/login` once) before
-running, or simply re-run.
+Ports are env-overridable so a local run can dodge a port already held by another
+project's dev server. Defaults are unchanged (`3000`/`3001`).
+
+```bash
+WEB_PORT=3100 pnpm test:e2e          # web on 3100, api on 3001
+WEB_PORT=3100 API_PORT=3101 pnpm test:e2e
+PLAYWRIGHT_BASE_URL=http://localhost:3100 pnpm test:e2e
+```
+
+### Local-run caveats (verified 2026-06-29)
+
+Two things bite local E2E runs; **neither is a spec defect**:
+
+1. **Port conflict.** If another project's dev server is squatting on `:3000`
+   (e.g. a stray Next app), Playwright's `reuseExistingServer` reuses it and every
+   `goto("/login")` 404s or behaves like a different app. Symptom seen: "the login
+   page refreshes while I type." Fix: run on a free port via `WEB_PORT` (above),
+   or stop the other server.
+
+2. **Next *dev* server instability under full-suite load.** Running all 27 specs
+   against `next dev` can exhaust the dev server mid-run (on-demand route
+   compilation), after which later tests fail with `net::ERR_CONNECTION_REFUSED`.
+   Spot-checks against a *stable* server pass cleanly (auth 6/6, crm + changes
+   3/3). CI uses `next start` (a production build), which doesn't have this
+   problem, plus `retries: 2`. For a reliable local full run, build and serve the
+   production output rather than `dev`.
+
+The test DB ships seeded demo accounts (e.g. `admin@coheron.com` / `demo1234!`,
+stored as a bcrypt hash). Re-run `pnpm db:seed` to restore them if a login fails.
 
 ### Flake-resistance conventions (applied in Phase 3 Stage D)
 

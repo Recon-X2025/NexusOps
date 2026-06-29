@@ -1,5 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Ports are overridable so a clean local run can avoid a port already taken by
+// another project's dev server (e.g. a stray Next server squatting on :3000).
+// Defaults preserve the original behaviour for CI and normal local runs.
+const WEB_PORT = Number(process.env.WEB_PORT || 3000);
+const API_PORT = Number(process.env.API_PORT || 3001);
+const BASE_URL =
+  process.env.PLAYWRIGHT_BASE_URL || `http://localhost:${WEB_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,         // Run sequentially (tests share state)
@@ -11,7 +19,7 @@ export default defineConfig({
     ["html", { open: "never", outputFolder: "playwright-report" }],
   ],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: BASE_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -27,9 +35,9 @@ export default defineConfig({
   webServer: [
     {
       command: process.env.CI
-        ? "pnpm --filter @coheronconnect/api start"
-        : "pnpm --filter @coheronconnect/api dev",
-      port: 3001,
+        ? `pnpm --filter @coheronconnect/api start --port ${API_PORT}`
+        : `pnpm --filter @coheronconnect/api dev --port ${API_PORT}`,
+      port: API_PORT,
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
       env: {
@@ -56,11 +64,19 @@ export default defineConfig({
     },
     {
       command: process.env.CI
-        ? "pnpm --filter @coheronconnect/web start"
-        : "pnpm --filter @coheronconnect/web dev",
-      port: 3000,
+        ? `pnpm --filter @coheronconnect/web start --port ${WEB_PORT}`
+        : `pnpm --filter @coheronconnect/web dev --port ${WEB_PORT}`,
+      port: WEB_PORT,
       reuseExistingServer: !process.env.CI,
       timeout: 60000,
+      env: {
+        // The web tRPC proxy (apps/web/src/lib/trpc.ts) resolves the API via
+        // API_INTERNAL_URL server-side; point it at the chosen API port.
+        API_INTERNAL_URL:
+          process.env.API_INTERNAL_URL || `http://127.0.0.1:${API_PORT}`,
+        NEXT_PUBLIC_API_URL:
+          process.env.NEXT_PUBLIC_API_URL || `http://localhost:${API_PORT}`,
+      },
     },
   ],
 });
