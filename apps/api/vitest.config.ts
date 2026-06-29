@@ -18,6 +18,13 @@ export default defineConfig({
         singleFork: true, // All tests in one process to share DB connection
       },
     },
+    coverage: {
+      provider: 'v8',
+      // json-summary feeds scripts/coverage-floor.mjs (the Phase 3 Stage E gate);
+      // text is for local readability. coverage/ is gitignored.
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: './coverage',
+    },
   },
   resolve: {
     alias: {

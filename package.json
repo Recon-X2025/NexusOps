@@ -42,6 +42,8 @@
     "lint": "turbo run lint --filter=!@coheronconnect/mobile",
     "lint:all": "turbo run lint",
     "check:migrations": "node scripts/verify-migration-journal.mjs",
+    "coverage": "pnpm --filter @coheronconnect/api exec vitest run --coverage",
+    "check:coverage": "node scripts/coverage-floor.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "db:push": "turbo run db:push --filter=./packages/db",
     "db:migrate": "turbo run db:migrate --filter=./packages/db",

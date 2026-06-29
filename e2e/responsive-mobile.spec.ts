@@ -47,9 +47,11 @@ test.describe("Responsive @ 390px phone", () => {
       page.on("pageerror", (e) => errors.push(e.message));
 
       await page.goto(p.path);
-      await page.waitForLoadState("networkidle").catch(() => {});
-      // settle any async content
-      await page.waitForTimeout(800);
+      // Deterministic settle: DOM ready + main content visible, instead of a
+      // swallowed networkidle followed by a fixed sleep.
+      await page.waitForLoadState("domcontentloaded");
+      await page.locator("body").waitFor({ state: "visible" });
+      await page.locator("main, [role='main'], #__next").first().waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
 
       await page.screenshot({
         path: `playwright-report/mobile-${p.name}.png`,

@@ -43,8 +43,9 @@ test.describe("CRM (Seq 16 C4)", () => {
     const modal = page.getByTestId("stage-config-modal");
     await expect(modal).toBeVisible();
 
-    // Rename the "prospect" stage to a unique label
-    const uniqueLabel = `Prospecting ${Date.now() % 100000}`;
+    // Rename the "prospect" stage to a unique label.
+    // Use full timestamp + random suffix to avoid CI collisions across runs.
+    const uniqueLabel = `Prospecting ${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const labelInput = page.getByTestId("stage-label-prospect");
     await labelInput.fill(uniqueLabel);
     await page.getByTestId("stage-config-save").click();

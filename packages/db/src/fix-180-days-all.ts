@@ -29,7 +29,7 @@ async function main() {
       }
       console.log(`✅ ${table}: updated ${count} records with 180-day dates`);
     } catch (e) {
-      console.log(`⚠️  Skipped ${table}: ${e.message}`);
+      console.log(`⚠️  Skipped ${table}: ${(e as Error).message}`);
     }
   }
 
@@ -66,7 +66,7 @@ async function main() {
       console.log(`✅ csm_cases: created table and seeded 50 records`);
     }
   } catch (e) {
-    console.error(`❌ CSM cases failed: ${e.message}`);
+    console.error(`❌ CSM cases failed: ${(e as Error).message}`);
   }
 
   // Survey Responses
@@ -87,7 +87,7 @@ async function main() {
       console.log(`⚠️  No CSAT survey found to seed responses`);
     }
   } catch (e) {
-    console.error(`❌ Survey responses failed: ${e.message}`);
+    console.error(`❌ Survey responses failed: ${(e as Error).message}`);
   }
 
   await client.end();

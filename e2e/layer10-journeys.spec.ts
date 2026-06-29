@@ -49,14 +49,18 @@ test.describe("Layer 10: End-to-End User Journeys", () => {
     test("forgot password page loads and shows success message", async ({ page }) => {
       await page.goto("/forgot-password");
       const emailInput = page.locator("input[type=email], input[name=email]").first();
-      if (await emailInput.isVisible()) {
-        await emailInput.fill("admin@coheron.com");
-        await page.click("button[type=submit]");
-        await page.waitForTimeout(1000);
-        // Should show generic success (no enumeration)
-        const body = await page.textContent("body");
-        expect(body).toBeDefined();
-      }
+      await expect(emailInput).toBeVisible();
+      await emailInput.fill("admin@coheron.com");
+      // Wait for the submit network call to settle rather than a fixed sleep.
+      await Promise.all([
+        page.waitForLoadState("networkidle"),
+        page.click("button[type=submit]"),
+      ]);
+      // Should show a generic confirmation (no user enumeration). Accept any of
+      // the common phrasings the UI may render.
+      await expect(
+        page.getByText(/if .* account .* exists|reset link|check your (e-?mail|inbox)|sent/i).first(),
+      ).toBeVisible({ timeout: 10_000 });
     });
 
     test("logout → session cleared → redirected to /login", async ({ page }) => {
@@ -170,10 +174,12 @@ test.describe("Layer 10: End-to-End User Journeys", () => {
             !e.includes("Failed to load resource") &&
             !e.includes("ResizeObserver"),
         );
-        if (criticalErrors.length > 0) {
-          console.warn(`Non-fatal errors on ${route}:`, criticalErrors.slice(0, 3));
-        }
-        expect(criticalErrors.length).toBeLessThanOrEqual(3); // Allow minor non-critical
+        // Zero-tolerance: any application-level console/page error fails the route.
+        // Benign resource noise (favicon, network, ResizeObserver) is filtered above.
+        expect(
+          criticalErrors,
+          `${route} emitted console/page errors: ${criticalErrors.join(" | ")}`,
+        ).toEqual([]);
       });
     }
   });

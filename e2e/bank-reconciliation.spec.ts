@@ -29,7 +29,8 @@ test.describe("Bank Reconciliation", () => {
     const seedBtn = page.getByRole("button", { name: /Seed.*COA|Seed India|Seed Accounts/i }).first();
     if (await seedBtn.isVisible().catch(() => false)) {
       await seedBtn.click();
-      await page.waitForTimeout(1500);
+      // Wait for the seed mutation to settle rather than a fixed sleep.
+      await page.waitForLoadState("networkidle");
     }
 
     await page.goto("/app/finance/accounting/reconciliation");
@@ -82,11 +83,14 @@ test.describe("Bank Reconciliation", () => {
     await expect(page.getByTestId("txn-row")).toHaveCount(3, { timeout: 10_000 });
 
     // Ignore all three so the statement can be finalized (no ledger entries to match against).
-    let ignoreBtns = page.getByTestId("ignore-btn");
-    while (await ignoreBtns.first().isVisible().catch(() => false)) {
+    // After each click, wait for the button count to actually decrease (event-based,
+    // not a fixed sleep) to avoid double-clicks and timing races.
+    const ignoreBtns = page.getByTestId("ignore-btn");
+    let remaining = await ignoreBtns.count();
+    while (remaining > 0) {
       await ignoreBtns.first().click();
-      await page.waitForTimeout(500);
-      ignoreBtns = page.getByTestId("ignore-btn");
+      await expect(ignoreBtns).toHaveCount(remaining - 1, { timeout: 10_000 });
+      remaining = await ignoreBtns.count();
     }
 
     // Unmatched count should reach 0 and Finalize becomes enabled.

@@ -11,7 +11,9 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 
-const RUN = Date.now().toString().slice(-6);
+// Unique per-run token. Full timestamp + random suffix avoids the ~6-digit
+// collision window that caused intermittent "name must be unique" CI failures.
+const RUN = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
 async function login(page: Page) {
   await page.goto("/login");
@@ -50,7 +52,8 @@ test.describe("CSV ingestion", () => {
 
   test("vendors bulk import", async ({ page }) => {
     await page.goto("/app/vendors");
-    await page.waitForLoadState("networkidle").catch(() => {});
+    // domcontentloaded is deterministic; networkidle can hang on noisy pages.
+    await page.waitForLoadState("domcontentloaded");
 
     await page.getByRole("button", { name: /Import CSV/i }).click();
     await expect(page.getByText("Import Vendors")).toBeVisible();
@@ -74,7 +77,8 @@ test.describe("CSV ingestion", () => {
 
   test("crm leads bulk import", async ({ page }) => {
     await page.goto("/app/crm");
-    await page.waitForLoadState("networkidle").catch(() => {});
+    // domcontentloaded is deterministic; networkidle can hang on noisy pages.
+    await page.waitForLoadState("domcontentloaded");
 
     // Switch to the Leads tab, then open its importer.
     await page.getByRole("button", { name: /^Leads$/i }).first().click();
