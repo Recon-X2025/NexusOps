@@ -77,10 +77,19 @@ else
   "${COMPOSE[@]}" up -d
 fi
 
+# Compose handle for exec/ps — same file set as the up/pull above. The api port
+# (3001) is NOT published to the host (only caddy exposes 80/443), so all probes
+# must run *inside* the network via `compose exec`, not host curl.
+if [[ "$DEPLOY_MODE" == "pull" ]]; then
+  EXEC=(docker compose --env-file .env.production -f docker-compose.vultr-test.yml -f docker-compose.vultr.images.yml)
+else
+  EXEC=(docker compose --env-file .env.production -f docker-compose.vultr-test.yml)
+fi
+
 echo "── wait API health ──"
 HEALTH_BODY=""
 for _ in $(seq 1 60); do
-  if HEALTH_BODY="$(curl -sf http://127.0.0.1:3001/health 2>/dev/null)"; then
+  if HEALTH_BODY="$("${EXEC[@]}" exec -T api wget -qO- http://127.0.0.1:3001/health 2>/dev/null)"; then
     echo "✓ API healthy"
     break
   fi
@@ -106,11 +115,6 @@ else
 fi
 
 echo "── seed (best-effort; API already runs migrate on start) ──"
-if [[ "$DEPLOY_MODE" == "pull" ]]; then
-  EXEC=(docker compose --env-file .env.production -f docker-compose.vultr-test.yml -f docker-compose.vultr.images.yml)
-else
-  EXEC=(docker compose --env-file .env.production -f docker-compose.vultr-test.yml)
-fi
 "${EXEC[@]}" exec -T api node -e "try{require('./dist/seed.js')}catch(e){console.error(e)}" 2>/dev/null || true
 
 "${EXEC[@]}" ps
