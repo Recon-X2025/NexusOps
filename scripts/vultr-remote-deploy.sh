@@ -78,13 +78,32 @@ else
 fi
 
 echo "── wait API health ──"
+HEALTH_BODY=""
 for _ in $(seq 1 60); do
-  if curl -sf http://127.0.0.1:3001/health >/dev/null 2>&1; then
+  if HEALTH_BODY="$(curl -sf http://127.0.0.1:3001/health 2>/dev/null)"; then
     echo "✓ API healthy"
     break
   fi
   sleep 2
 done
+
+# ── verify the running container is the commit we just deployed ───────────────
+# A stale container answers /health perfectly, so health alone is not proof.
+# When deploying an immutable 7-hex SHA tag, assert /health.version matches it.
+EXPECT_VERSION="${EXPECT_VERSION:-}"
+if [[ "$EXPECT_VERSION" =~ ^[0-9a-f]{7,40}$ ]]; then
+  LIVE_VERSION="$(printf '%s' "$HEALTH_BODY" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+  echo "── verify version: expected=${EXPECT_VERSION} live=${LIVE_VERSION:-<none>} ──"
+  # Image tag is the short (7-char) SHA; GIT_SHA baked in is the full SHA.
+  if [[ -z "$LIVE_VERSION" || "$LIVE_VERSION" != "$EXPECT_VERSION"* ]]; then
+    echo "✗ DEPLOY FAILED: running container reports '${LIVE_VERSION:-<none>}', expected '${EXPECT_VERSION}'." >&2
+    echo "  The new image did not start (stale container still running). Investigate before retrying." >&2
+    exit 1
+  fi
+  echo "✓ version verified — running the deployed commit"
+else
+  echo "⚠ EXPECT_VERSION='${EXPECT_VERSION}' is not an immutable SHA — skipping version assertion."
+fi
 
 echo "── seed (best-effort; API already runs migrate on start) ──"
 if [[ "$DEPLOY_MODE" == "pull" ]]; then

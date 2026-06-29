@@ -34,6 +34,10 @@ RUN pnpm --filter @coheronconnect/web build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+# Build-time commit stamp for parity with the API image (debuggability).
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 

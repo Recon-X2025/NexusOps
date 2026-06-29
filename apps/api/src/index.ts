@@ -475,7 +475,14 @@ async function bootstrap() {
   registerPublicSurveyRoutes(fastify);
 
   // ── Health Checks ─────────────────────────────────────────────────────────
-  fastify.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
+  // `version` is the build-time commit SHA (Dockerfile ARG GIT_SHA). The deploy
+  // pipeline asserts this matches the SHA it just shipped, so a stale container
+  // can never silently pass health.
+  fastify.get("/health", async () => ({
+    status: "ok",
+    version: process.env["GIT_SHA"] ?? "unknown",
+    timestamp: new Date().toISOString(),
+  }));
 
   async function runDetailedChecks(): Promise<{
     checks: Record<string, "ok" | "error">;

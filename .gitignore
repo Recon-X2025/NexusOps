@@ -64,3 +64,6 @@ tests/full-qa/results/
 tests/local-brutal/results/
 tests/chaos/results/
 tests/chaos-vertical/results/
+
+# Playwright MCP runtime artifacts
+.playwright-mcp/

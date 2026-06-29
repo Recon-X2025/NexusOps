@@ -25,6 +25,11 @@ RUN pnpm --filter @coheronconnect/api build
 # ── Production image ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
+# Build-time commit stamp so the running container can prove which code it is.
+# Surfaced at runtime via GET /health → { version }. CI passes the real SHA.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 RUN apk add --no-cache tini && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 api
