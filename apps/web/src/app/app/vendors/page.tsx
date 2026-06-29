@@ -259,7 +259,11 @@ export default function VendorsPage() {
                   </tr>
                 )
                 : vendors.map((v: any) => (
-                  <tr key={v.id} className={v.status === "at_risk" ? "bg-red-50/30" : v.status === "under_review" ? "bg-yellow-50/20" : ""}>
+                  <tr
+                    key={v.id}
+                    onClick={() => router.push(`/app/vendors/${v.id}`)}
+                    className={`cursor-pointer hover:bg-accent/50 ${v.status === "at_risk" ? "bg-red-50/30" : v.status === "under_review" ? "bg-yellow-50/20" : ""}`}
+                  >
                     <td className="p-0"><div className={`priority-bar ${v.status === "at_risk" ? "bg-red-600" : v.status === "under_review" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
                     <td>
                       <div>

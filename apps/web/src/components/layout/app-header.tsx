@@ -13,6 +13,31 @@ import { cn } from "@/lib/utils";
 import { useRBAC } from "@/lib/rbac-context";
 import { MOCK_USERS, SYSTEM_ROLES_CATALOG } from "@/lib/rbac";
 import { trpc } from "@/lib/trpc";
+import { SIDEBAR_GROUPS } from "@/lib/sidebar-config";
+
+/**
+ * Maps a top-level page slug (e.g. "payroll", "vendors") to its sidebar
+ * section label (e.g. "Finance & Procurement"), so the breadcrumb can show
+ * "Section › Page" instead of a lone slug. Derived from SIDEBAR_GROUPS (the
+ * single source of truth). A given slug resolves to the first group whose
+ * item — or item child — links to /app/{slug}.
+ */
+const SLUG_TO_SECTION: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  const slugOf = (href: string) => href.split("?")[0]?.split("/").filter(Boolean)[1] ?? "";
+  for (const group of SIDEBAR_GROUPS) {
+    for (const item of group.items) {
+      const candidates = [item.href, ...(item.children?.map((c) => c.href) ?? [])];
+      for (const href of candidates) {
+        const slug = slugOf(href);
+        if (slug && !(slug in map)) map[slug] = group.label;
+      }
+    }
+  }
+  // Payroll has no sidebar entry yet; pin it to its owning section explicitly.
+  if (!("payroll" in map)) map["payroll"] = "People & Workplace";
+  return map;
+})();
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   // Core
@@ -80,6 +105,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   accounting: "Accounting",
   // People extras
   performance: "Performance Management",
+  payroll: "Payroll",
   // Legal & Governance
   "legal-governance": "Legal & Governance",
   legal: "Legal",
@@ -126,7 +152,18 @@ function Breadcrumbs() {
   const segments = pathname.split("/").filter(Boolean);
   const crumbs: { label: string; href: string }[] = [];
 
+  // Prepend the owning sidebar section (e.g. "Finance & Procurement") for the
+  // first real page segment, so the trail reads "Section › Page" rather than a
+  // lone slug. The section is a label-only crumb pointing at the page itself.
+  const firstPageSlug = segments[1];
+  if (firstPageSlug) {
+    const section = SLUG_TO_SECTION[firstPageSlug];
+    if (section) crumbs.push({ label: section, href: `/app/${firstPageSlug}` });
+  }
+
   segments.forEach((seg, i) => {
+    // Skip the leading "app" segment — it is the root, not a navigable crumb.
+    if (i === 0) return;
     const href = "/" + segments.slice(0, i + 1).join("/");
     const label = BREADCRUMB_LABELS[seg] ?? seg;
     crumbs.push({ label, href });
@@ -142,12 +179,12 @@ function Breadcrumbs() {
     crumbs.push({ label: subLabel, href: `/app/secretarial?${qs.toString()}` });
   }
 
-  const visible = crumbs.slice(1);
+  const visible = crumbs;
 
   return (
     <nav className="flex items-center gap-1 text-xs text-slate-600 dark:text-[hsl(var(--header-fg))] opacity-80">
       {visible.map((c, i) => (
-        <span key={c.href} className="flex items-center gap-1">
+        <span key={`${i}-${c.href}`} className="flex items-center gap-1">
           {i > 0 && <span className="opacity-40">/</span>}
           <span className={cn(i === visible.length - 1 ? "opacity-100 font-medium text-slate-800 dark:text-white" : "opacity-60")}>
             {c.label}
