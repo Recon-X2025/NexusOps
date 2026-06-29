@@ -22,15 +22,15 @@ CoheronConnect is a multi-tenant platform. Every row of business data belongs to
 
 ### Foreign-key deletion policy
 
-After Phase 2 D2, **all 409 FK references carry an explicit `onDelete` rule** (no implicit `NO ACTION`).
+After Phase 2 D2 (and the D2 corrective migration `0010`), **all 409 FK constraints carry an explicit `onDelete` rule** (no implicit `NO ACTION`). Verified against a live database by applying the full migration chain.
 
-| `onDelete` | Count | Used for |
+| `onDelete` | Count (live DB) | Used for |
 |---|---:|---|
 | `cascade` | 244 | `org_id` → organizations; child → owning parent |
-| `set null` | 119 | Nullable actor refs (preserve record, clear link) |
+| `set null` | 134 | Nullable actor refs (preserve record, clear link) |
 | `restrict` | 31 | NOT NULL actor refs; lookup/reference rows (block orphaning) |
 
-> Counts above are parsed from `uuid()`/`text()` FK declarations; the schema sweep reports 409 total references including multi-line forms.
+> Counts reflect the actual constraints in a freshly-migrated database (`pg_constraint`). Migration `0010` corrects `csm_cases.requester_id`, which migration `0003` left as `NO ACTION` because it added the constraint without first dropping the prior one.
 
 ## 2. Global anchor tables
 
