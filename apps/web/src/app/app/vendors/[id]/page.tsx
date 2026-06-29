@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, PermissionGate } from "@/lib/rbac-context";
+import { EsignPanel } from "@/components/esign/EsignPanel";
 
 const TIER_COLOR: Record<string, string> = {
   Strategic: "text-purple-700 bg-purple-100",
@@ -224,6 +225,21 @@ export default function VendorDetailPage() {
           <p className="text-[12px] text-muted-foreground">{v.notes}</p>
         </div>
       )}
+
+      {/* MSME self-declaration e-sign */}
+      <PermissionGate module="vendors" action="write">
+        <EsignPanel
+          sourceType="vendor_msme"
+          sourceId={id}
+          defaultTitle={`MSME self-declaration — ${v.name}`}
+          subject={`Vendor: ${v.name}`}
+          defaultSigners={
+            v.contactEmail
+              ? [{ name: v.name, email: v.contactEmail, ...(v.contactPhone ? { phone: v.contactPhone } : {}), role: "vendor" }]
+              : []
+          }
+        />
+      </PermissionGate>
     </div>
   );
 }

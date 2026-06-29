@@ -79,10 +79,19 @@ Monorepo managed with **pnpm@10 + Turborepo**.
 
 ## Roadmap reference
 
-The authoritative hardening roadmap is `docs/PRODUCTION_READINESS_PLAN_2026-04-26.md` (Phases 0–6).
-Phases 0–2 are complete. **Phase 3 (automated tests / "hire inspectors") is in progress**:
-- Stage A — coverage baseline + tooling ✅
-- Stage B — deletion-cascade FK behavior tests ✅ (`apps/api/src/__tests__/deletion-cascade.test.ts`)
-- Stage C — money-path invariant tests (in progress)
-- Stage D — critical-path E2E hardening + flake audit
-- Stage E — coverage-floor gate + `docs/TESTING.md`
+The authoritative roadmap is `docs/PRODUCTION_READINESS_PLAN_2026-04-26.md`. That
+document is organised by **Workstreams (WS-1…WS-6)**; this file tracks the same
+work as **Phases 0–6**. The Phase↔WS reconciliation is recorded in §13 of the plan.
+
+Phases 0–3 are complete:
+- Phase 0–2 — foundations, data model, FK `onDelete` policy (`docs/DATA_MODEL.md`) ✅
+- **Phase 3 (automated tests / "hire inspectors") — complete** ✅
+  - Stage A — coverage baseline + tooling ✅
+  - Stage B — deletion-cascade FK behavior tests ✅ (`apps/api/src/__tests__/deletion-cascade.test.ts`)
+  - Stage C — money-path invariant tests ✅ (`apps/api/src/__tests__/money-invariants.test.ts`)
+  - Stage D — critical-path E2E hardening + flake audit ✅
+  - Stage E — coverage-floor gate + `docs/TESTING.md` ✅
+
+**Phase 4 (feature completion) is next** — close the WS-1…WS-5 gaps identified in
+the 2026-06-29 build-state audit (see plan §13). Phase 5 = durability/depth,
+Phase 6 = GA hardening.

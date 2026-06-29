@@ -19,6 +19,16 @@
  * The agent is intentionally OPT-IN: callers explicitly call
  * `runAgentTurn`. There is no eager polling/streaming yet — the Command
  * Palette dialog awaits a single round-trip per user message.
+ *
+ * Why two agent services? (sibling: ai-agent.ts)
+ *   This is the STATEFUL copilot — it persists threads in
+ *   `agent_conversations` / `agent_messages` and backs the /app/agent
+ *   full-page chat (list / resume / delete) via `agent.chat`. For the
+ *   ephemeral, no-history surfaces (CopilotPanel slide-over, floating
+ *   virtual-agent widget) use the stateless `ai-agent.ts` instead. Both
+ *   deliberately share the same `allTools` registry and the same
+ *   `hasPermission` RBAC gate, so a tool added under ./ai-tools reaches both.
+ *   Keep both: each powers a distinct, shipped UI.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import {

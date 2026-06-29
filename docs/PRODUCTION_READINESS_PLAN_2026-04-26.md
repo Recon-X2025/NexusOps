@@ -254,3 +254,26 @@ W13  ┃ Post-GA fast-follow: Copilot write tools (v1.1)
 ## 12. How this document stays current
 
 This plan is **owned by Product** and updated weekly. When a workstream slips or a decision changes, edit this file and tag in the commit. The market assessment (`docs/MARKET_ASSESSMENT_2026-04-26.md`) is the *why*; this file is the *what + when*.
+
+---
+
+## 13. Phase ↔ Workstream mapping (hardening track)
+
+`CLAUDE.md` tracks delivery in **Phases 0–6**; this document is organised by
+**Workstreams (WS-1…WS-6)**. They describe the same body of work on two axes —
+Phases are *time/maturity stages*, Workstreams are *feature areas*. This table is
+the authoritative reconciliation (added 2026-06-29 after a full build-state audit):
+
+| Phase | Theme | Scope |
+|---|---|---|
+| **Phase 0–2** | Foundations | Repo/build setup, data model, FK `onDelete` policy (see `docs/DATA_MODEL.md`). **Complete.** |
+| **Phase 3** | Automated tests ("hire inspectors") | Coverage baseline + gate, deletion-cascade tests, money-path invariants, E2E flake-hardening, `docs/TESTING.md`. **Complete.** |
+| **Phase 4** | Feature completion | Close the remaining gaps in WS-1…WS-5: connector smoke tests (WS-1), e-sign wire-ups (WS-2), FilePicker multi-mode (WS-3), missing copilot tools (WS-4), missing install templates (WS-5). |
+| **Phase 5** | Durability & depth | WS-4 Temporal durability + copilot grounding tests; canonical-agent consolidation; WS-5 template hardening. |
+| **Phase 6** | GA hardening | WS-6: operational runbooks, GA freeze / go-no-go checklist, security review, design-partner sign-off. |
+
+**Build-state at audit (2026-06-29):** WS-1 ~90%, WS-2 ~85%, WS-3 ~95%, WS-4 ~80%,
+WS-5 ~70% (engine + 7 actions done; 4/5 install templates unseeded), WS-6 ~80%
+(27 Playwright specs + OTel done; runbooks/GA checklist outstanding). The codebase
+is materially ahead of the §11 calendar; remaining work is seeding, wiring, and
+test coverage rather than greenfield engineering.

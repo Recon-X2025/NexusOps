@@ -12,6 +12,17 @@
  * Trace contract: every successful run returns the text answer + the full
  * trace of tool calls (name + args + summary of output). The UI renders the
  * trace below the answer so users can see grounding.
+ *
+ * Why two agent services? (sibling: agent-copilot.ts)
+ *   This is the STATELESS copilot. Each call is self-contained — history is
+ *   passed in per request (`conversationHistory`) and nothing is persisted.
+ *   It backs the ephemeral surfaces (the slide-over CopilotPanel and the
+ *   floating virtual-agent widget) via `ai.agentInvoke`. For saved, resumable
+ *   threads (the /app/agent full-page chat) use the DB-backed
+ *   `agent-copilot.ts` instead. Both deliberately share the same `allTools`
+ *   registry and the same `hasPermission` RBAC gate, so any tool added under
+ *   ./ai-tools automatically reaches both surfaces. Keep both: each powers a
+ *   distinct, shipped UI — deleting one removes a live feature.
  */
 import Anthropic from "@anthropic-ai/sdk";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -17,6 +17,8 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
 import { format } from "date-fns";
+import { FileSignature, X } from "lucide-react";
+import { EsignPanel } from "@/components/esign/EsignPanel";
 
 // ─── STATUS STEP MAP ───────────────────────────────────────────────────────────
 
@@ -75,10 +77,16 @@ export default function PayrollPage() {
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
   const [createYear, setCreateYear] = useState(new Date().getFullYear());
   const [activeTab, setActiveTab] = useState<"runs" | "structures" | "declarations">("runs");
+  const [form16For, setForm16For] = useState<Record<string, unknown> | null>(null);
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
   const runsQuery = trpc.payroll.runs.list.useQuery({}, mergeTrpcQueryOpts("payroll.runs.list", {}));
+  // Employees drive the Form 16 e-sign list under the Declarations tab.
+  const employeesQuery = trpc.hr.employees.list.useQuery(
+    { limit: 200 },
+    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "declarations" }),
+  );
   const selectedRun = trpc.payroll.runs.get.useQuery(
     { id: selectedRunId! },
     mergeTrpcQueryOpts("payroll.runs.get", { enabled: !!selectedRunId }),
@@ -424,6 +432,84 @@ export default function PayrollPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "declarations" && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Issue Form 16 (TDS certificate) to an employee for e-signature.
+          </p>
+          {employeesQuery.isLoading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">Loading employees…</div>
+          )}
+          {employeesQuery.data && employeesQuery.data.length === 0 && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">No employees found.</div>
+          )}
+          {employeesQuery.data && employeesQuery.data.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Employee</th>
+                    <th className="px-4 py-2 font-medium">Employee #</th>
+                    <th className="px-4 py-2 font-medium">Department</th>
+                    <th className="px-4 py-2 font-medium text-right">Form 16</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {employeesQuery.data.map((emp) => (
+                    <tr key={emp.id as string} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{(emp.name as string) ?? "—"}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(emp.employeeNumber as string) ?? "—"}</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{(emp.department as string) ?? "—"}</td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setForm16For(emp as Record<string, unknown>)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          <FileSignature className="w-3.5 h-3.5" /> Send Form 16
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Form 16 e-sign modal */}
+      {form16For && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Form 16 — {(form16For.name as string) ?? "Employee"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setForm16For(null)}
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <EsignPanel
+              sourceType="form16"
+              sourceId={form16For.id as string}
+              defaultTitle={`Form 16 — ${(form16For.name as string) ?? "Employee"}`}
+              subject="Form 16 — TDS certificate"
+              defaultSigners={
+                form16For.email
+                  ? [{ name: (form16For.name as string) ?? "Employee", email: form16For.email as string, role: "employee" }]
+                  : []
+              }
+            />
           </div>
         </div>
       )}

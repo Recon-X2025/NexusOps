@@ -697,21 +697,63 @@ export async function seed() {
   console.log(`✅ APM applications: 15`);
 
   // ── Workflows ─────────────────────────────────────────────────────────────
-  const [workflow] = await db.insert(workflows).values([
+  // Install templates. NOTE: node `data.actionName` MUST match a registered
+  // workflow action `.name` (underscore convention — see
+  // apps/api/src/workflows/actions/*). Hyphenated names silently fail at
+  // runtime via getWorkflowAction() returning null.
+  const seededWorkflows = await db.insert(workflows).values([
     {
       orgId,
       name: "Auto-Notify on P1 Incident",
-      description: "Send email and whatsapp notifications when a P1 ticket is created",
+      description: "Send email and WhatsApp notifications when a P1 ticket is created",
       triggerType: "ticket_created",
       isActive: true,
       createdById: admin.id,
       currentVersion: 1,
-    }
+    },
+    {
+      orgId,
+      name: "Inbound Email → Ticket → Triage",
+      description: "Convert an inbound email into a ticket, classify it, route it, and start the SLA timer",
+      triggerType: "webhook",
+      isActive: true,
+      createdById: admin.id,
+      currentVersion: 1,
+    },
+    {
+      orgId,
+      name: "PO Approval → 3-Way Match → Invoice",
+      description: "Route a purchase order for WhatsApp approval, run the 3-way match, then schedule the invoice",
+      triggerType: "manual",
+      isActive: true,
+      createdById: admin.id,
+      currentVersion: 1,
+    },
+    {
+      orgId,
+      name: "New-Hire Onboarding",
+      description: "Kick off onboarding tasks, schedule orientation, and notify the new joiner on day one",
+      triggerType: "manual",
+      isActive: true,
+      createdById: admin.id,
+      currentVersion: 1,
+    },
+    {
+      orgId,
+      name: "Monthly GST + TDS Filing Cadence",
+      description: "Recurring reminders for the monthly GST and TDS filing deadlines",
+      triggerType: "scheduled",
+      isActive: true,
+      createdById: admin.id,
+      currentVersion: 1,
+    },
   ]).returning();
+
+  const wfByName = new Map(seededWorkflows.map((w) => [w.name, w]));
 
   await db.insert(workflowVersions).values([
     {
-      workflowId: workflow!.id,
+      workflowId: wfByName.get("Auto-Notify on P1 Incident")!.id,
       version: 1,
       nodes: [
         {
@@ -722,8 +764,8 @@ export async function seed() {
             label: "Notify via Email",
             category: "Incident",
             description: "Send P1 alert to support team",
-            actionName: "notify-via-email",
-          }
+            actionName: "notify_via_email",
+          },
         },
         {
           id: "node-2",
@@ -733,16 +775,130 @@ export async function seed() {
             label: "Notify via WhatsApp",
             category: "Incident",
             description: "Alert on-call engineer",
-            actionName: "notify-via-whatsapp",
-          }
-        }
+            actionName: "notify_via_whatsapp",
+          },
+        },
       ],
-      edges: [
-        { id: "e1-2", source: "node-1", target: "node-2" }
-      ]
-    }
+      edges: [{ id: "e1-2", source: "node-1", target: "node-2" }],
+    },
+    {
+      workflowId: wfByName.get("Inbound Email → Ticket → Triage")!.id,
+      version: 1,
+      nodes: [
+        {
+          id: "node-1",
+          type: "workflow",
+          position: { x: 250, y: 50 },
+          data: {
+            label: "Acknowledge Requester",
+            category: "Service Desk",
+            description: "Email the requester confirming the ticket was created",
+            actionName: "notify_via_email",
+          },
+        },
+        {
+          id: "node-2",
+          type: "workflow",
+          position: { x: 250, y: 200 },
+          data: {
+            label: "Escalate if SLA at Risk",
+            category: "Service Desk",
+            description: "Escalate the ticket if the first-response SLA is breached",
+            actionName: "escalate_on_sla_breach",
+          },
+        },
+      ],
+      edges: [{ id: "e1-2", source: "node-1", target: "node-2" }],
+    },
+    {
+      workflowId: wfByName.get("PO Approval → 3-Way Match → Invoice")!.id,
+      version: 1,
+      nodes: [
+        {
+          id: "node-1",
+          type: "workflow",
+          position: { x: 250, y: 50 },
+          data: {
+            label: "Request Approval (WhatsApp)",
+            category: "Procurement",
+            description: "Send the PO to the approver over WhatsApp",
+            actionName: "notify_via_whatsapp",
+          },
+        },
+        {
+          id: "node-2",
+          type: "workflow",
+          position: { x: 250, y: 200 },
+          data: {
+            label: "Notify Finance on Match",
+            category: "Procurement",
+            description: "Email finance once the 3-way match passes so the invoice can be scheduled",
+            actionName: "notify_via_email",
+          },
+        },
+      ],
+      edges: [{ id: "e1-2", source: "node-1", target: "node-2" }],
+    },
+    {
+      workflowId: wfByName.get("New-Hire Onboarding")!.id,
+      version: 1,
+      nodes: [
+        {
+          id: "node-1",
+          type: "workflow",
+          position: { x: 250, y: 50 },
+          data: {
+            label: "Schedule Orientation",
+            category: "HR",
+            description: "Create a calendar event for the new-hire orientation",
+            actionName: "create_calendar_event",
+          },
+        },
+        {
+          id: "node-2",
+          type: "workflow",
+          position: { x: 250, y: 200 },
+          data: {
+            label: "Welcome the New Joiner",
+            category: "HR",
+            description: "Email the new joiner their day-one checklist",
+            actionName: "notify_via_email",
+          },
+        },
+      ],
+      edges: [{ id: "e1-2", source: "node-1", target: "node-2" }],
+    },
+    {
+      workflowId: wfByName.get("Monthly GST + TDS Filing Cadence")!.id,
+      version: 1,
+      nodes: [
+        {
+          id: "node-1",
+          type: "workflow",
+          position: { x: 250, y: 50 },
+          data: {
+            label: "GST Filing Reminder",
+            category: "Compliance (India)",
+            description: "Remind the finance team of the monthly GST filing deadline",
+            actionName: "gst_filing_reminder",
+          },
+        },
+        {
+          id: "node-2",
+          type: "workflow",
+          position: { x: 250, y: 200 },
+          data: {
+            label: "TDS Filing Reminder",
+            category: "Compliance (India)",
+            description: "Email the finance team the monthly TDS filing reminder",
+            actionName: "notify_via_email",
+          },
+        },
+      ],
+      edges: [{ id: "e1-2", source: "node-1", target: "node-2" }],
+    },
   ]);
-  console.log(`✅ Workflows: 1 sample flow`);
+  console.log(`✅ Workflows: ${seededWorkflows.length} install templates`);
 
   // ── IT Operations (Events, Rules, Policies) ───────────────────────────────
   await seedEvents(db as any);

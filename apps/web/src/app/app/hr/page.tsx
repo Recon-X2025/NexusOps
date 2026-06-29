@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil } from "lucide-react";
+import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { EsignPanel } from "@/components/esign/EsignPanel";
 
 const HR_TABS = [
   { key: "directory",  label: "Employee Directory",   module: "hr"         as const, action: "read"  as const },
@@ -48,6 +49,7 @@ export default function HRPage() {
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null);
+  const [policyEsignFor, setPolicyEsignFor] = useState<Record<string, unknown> | null>(null);
   const [addEmpForm, setAddEmpForm] = useState({
     userId: "",
     department: "",
@@ -547,22 +549,31 @@ export default function HRPage() {
                       </td>
                       {can("hr", "write") && (
                         <td className="text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingEmployee(emp);
-                              setEditEmpForm({
-                                department: String(emp.department ?? ""),
-                                title: String(emp.jobTitle ?? emp.title ?? ""),
-                                location: String(emp.location ?? ""),
-                                employmentType: (emp.employmentType ?? "full_time") as typeof editEmpForm.employmentType,
-                                managerId: emp.managerId ? String(emp.managerId) : "",
-                              });
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"
-                          >
-                            <Pencil className="w-3 h-3" /> Edit
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setPolicyEsignFor(emp)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"
+                            >
+                              <FileSignature className="w-3 h-3" /> Policy
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingEmployee(emp);
+                                setEditEmpForm({
+                                  department: String(emp.department ?? ""),
+                                  title: String(emp.jobTitle ?? emp.title ?? ""),
+                                  location: String(emp.location ?? ""),
+                                  employmentType: (emp.employmentType ?? "full_time") as typeof editEmpForm.employmentType,
+                                  managerId: emp.managerId ? String(emp.managerId) : "",
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"
+                            >
+                              <Pencil className="w-3 h-3" /> Edit
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -571,6 +582,53 @@ export default function HRPage() {
                 </tbody>
               </table>
             )}
+          </div>
+        )}
+
+        {/* Policy acknowledgement e-sign modal */}
+        {policyEsignFor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-card border border-border rounded-lg w-full max-w-lg shadow-xl">
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div>
+                  <h2 className="text-base font-semibold">Policy acknowledgement e-sign</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {(policyEsignFor.name as string) ??
+                      ([policyEsignFor.firstName, policyEsignFor.lastName].filter(Boolean).join(" ") ||
+                        "Employee")}
+                  </p>
+                </div>
+                <button onClick={() => setPolicyEsignFor(null)} className="p-2 rounded-lg hover:bg-muted">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4">
+                <EsignPanel
+                  sourceType="policy_ack"
+                  sourceId={policyEsignFor.id as string}
+                  defaultTitle={`Policy acknowledgement — ${
+                    (policyEsignFor.name as string) ??
+                    ([policyEsignFor.firstName, policyEsignFor.lastName].filter(Boolean).join(" ") ||
+                      "Employee")
+                  }`}
+                  subject="Employee policy acknowledgement"
+                  defaultSigners={
+                    policyEsignFor.email
+                      ? [
+                          {
+                            name:
+                              (policyEsignFor.name as string) ??
+                              ([policyEsignFor.firstName, policyEsignFor.lastName].filter(Boolean).join(" ") ||
+                                (policyEsignFor.email as string)),
+                            email: policyEsignFor.email as string,
+                            role: "employee",
+                          },
+                        ]
+                      : []
+                  }
+                />
+              </div>
+            </div>
           </div>
         )}
 

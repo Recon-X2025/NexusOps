@@ -7,6 +7,8 @@ import { searchInvoicesTool } from "./search-invoices";
 import { searchContractsTool } from "./search-contracts";
 import { getComplianceCalendarTool } from "./get-compliance-calendar";
 import { searchKbTool } from "./search-kb";
+import { getOkrsTool } from "./get-okrs";
+import { searchChangesTool } from "./search-changes";
 import { createTicketTool } from "./create-ticket";
 import { updateTicketStatusTool } from "./update-ticket-status";
 
@@ -29,6 +31,8 @@ export const allTools: AgentTool<any>[] = [
   searchContractsTool,
   getComplianceCalendarTool,
   searchKbTool,
+  getOkrsTool,
+  searchChangesTool,
   // ── Write tools (confirmation-gated) ─────────────────────────
   createTicketTool,
   updateTicketStatusTool,
