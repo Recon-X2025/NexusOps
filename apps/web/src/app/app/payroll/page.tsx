@@ -17,7 +17,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRBAC } from "@/lib/rbac-context";
 import { format } from "date-fns";
-import { FileSignature, X } from "lucide-react";
+import { FileSignature, X, Plus, Pencil, Trash2 } from "lucide-react";
 import { EsignPanel } from "@/components/esign/EsignPanel";
 
 // ─── STATUS STEP MAP ───────────────────────────────────────────────────────────
@@ -68,20 +68,83 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+// ─── SALARY STRUCTURE EDITOR STATE ─────────────────────────────────────────────
+
+interface StructureFormState {
+  id?: string;
+  structureName: string;
+  ctcAnnual: string;
+  basicPercent: string;
+  hraPercentOfBasic: string;
+  ltaAnnual: string;
+  medicalAllowanceAnnual: string;
+  conveyanceAllowanceAnnual: string;
+  bonusAnnual: string;
+  effectiveFrom: string; // yyyy-mm-dd
+  effectiveTo: string; // yyyy-mm-dd or ""
+}
+
+function emptyStructureForm(): StructureFormState {
+  return {
+    structureName: "",
+    ctcAnnual: "",
+    basicPercent: "40",
+    hraPercentOfBasic: "50",
+    ltaAnnual: "0",
+    medicalAllowanceAnnual: "15000",
+    conveyanceAllowanceAnnual: "19200",
+    bonusAnnual: "0",
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+    effectiveTo: "",
+  };
+}
+
+function structureToForm(s: Record<string, any>): StructureFormState {
+  const toDate = (d: any) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+  return {
+    id: s.id,
+    structureName: s.structureName ?? "",
+    ctcAnnual: String(s.ctcAnnual ?? ""),
+    basicPercent: String(s.basicPercent ?? "40"),
+    hraPercentOfBasic: String(s.hraPercentOfBasic ?? "50"),
+    ltaAnnual: String(s.ltaAnnual ?? "0"),
+    medicalAllowanceAnnual: String(s.medicalAllowanceAnnual ?? "15000"),
+    conveyanceAllowanceAnnual: String(s.conveyanceAllowanceAnnual ?? "19200"),
+    bonusAnnual: String(s.bonusAnnual ?? "0"),
+    effectiveFrom: toDate(s.effectiveFrom) || new Date().toISOString().slice(0, 10),
+    effectiveTo: toDate(s.effectiveTo),
+  };
+}
+
+function inr(v: string | number | null | undefined): string {
+  return `₹${Number(v ?? 0).toLocaleString("en-IN")}`;
+}
+
 // ─── MAIN PAGE COMPONENT ──────────────────────────────────────────────────────
 
 export default function PayrollPage() {
-  const { mergeTrpcQueryOpts } = useRBAC();
+  const { mergeTrpcQueryOpts, can } = useRBAC();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
   const [createYear, setCreateYear] = useState(new Date().getFullYear());
   const [activeTab, setActiveTab] = useState<"runs" | "structures" | "declarations">("runs");
   const [form16For, setForm16For] = useState<Record<string, unknown> | null>(null);
+  const [structureEditor, setStructureEditor] = useState<StructureFormState | null>(null);
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
   const runsQuery = trpc.payroll.runs.list.useQuery({}, mergeTrpcQueryOpts("payroll.runs.list", {}));
+  const structuresQuery = trpc.payroll.salaryStructures.list.useQuery(
+    undefined,
+    mergeTrpcQueryOpts("payroll.salaryStructures.list", { enabled: activeTab === "structures" }),
+  );
+  const upsertStructure = trpc.payroll.salaryStructures.upsert.useMutation({
+    onSuccess: () => { setStructureEditor(null); void structuresQuery.refetch(); },
+  });
+  const deleteStructure = trpc.payroll.salaryStructures.delete.useMutation({
+    onSuccess: () => { void structuresQuery.refetch(); },
+  });
   // Employees drive the Form 16 e-sign list under the Declarations tab.
   const employeesQuery = trpc.hr.employees.list.useQuery(
     { limit: 200 },
@@ -436,6 +499,92 @@ export default function PayrollPage() {
         </div>
       )}
 
+      {activeTab === "structures" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              CTC templates used to compute gross, HRA, and statutory components for assigned employees.
+            </p>
+            {can("hr", "write") && (
+              <button
+                type="button"
+                onClick={() => setStructureEditor(emptyStructureForm())}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 dark:bg-gray-100 px-3 py-2 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> New structure
+              </button>
+            )}
+          </div>
+
+          {structuresQuery.isLoading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">Loading structures…</div>
+          )}
+          {structuresQuery.data && structuresQuery.data.length === 0 && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              No salary structures yet. Create one to assign it to employees.
+            </div>
+          )}
+          {structuresQuery.data && structuresQuery.data.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Structure</th>
+                    <th className="px-4 py-2 font-medium text-right">Annual CTC</th>
+                    <th className="px-4 py-2 font-medium text-right">Basic %</th>
+                    <th className="px-4 py-2 font-medium text-right">HRA % of Basic</th>
+                    <th className="px-4 py-2 font-medium">Effective From</th>
+                    <th className="px-4 py-2 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {structuresQuery.data.map((s: any) => (
+                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-2 text-gray-900 dark:text-gray-100 font-medium">{s.structureName}</td>
+                      <td className="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{inr(s.ctcAnnual)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-gray-500 dark:text-gray-400">{Number(s.basicPercent)}%</td>
+                      <td className="px-4 py-2 text-right font-mono text-gray-500 dark:text-gray-400">{Number(s.hraPercentOfBasic)}%</td>
+                      <td className="px-4 py-2 text-gray-500 dark:text-gray-400">
+                        {s.effectiveFrom ? format(new Date(s.effectiveFrom), "dd MMM yyyy") : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {can("hr", "write") && (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setStructureEditor(structureToForm(s))}
+                              className="p-1.5 rounded text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              aria-label="Edit"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Delete salary structure "${s.structureName}"?`)) {
+                                  deleteStructure.mutate({ id: s.id });
+                                }
+                              }}
+                              className="p-1.5 rounded text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
+                              aria-label="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {deleteStructure.error && (
+            <div className="text-sm text-red-600">{deleteStructure.error.message}</div>
+          )}
+        </div>
+      )}
+
       {activeTab === "declarations" && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -479,6 +628,121 @@ export default function PayrollPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Salary structure editor modal */}
+      {structureEditor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {structureEditor.id ? "Edit salary structure" : "New salary structure"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setStructureEditor(null)}
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                upsertStructure.mutate({
+                  ...(structureEditor.id ? { id: structureEditor.id } : {}),
+                  structureName: structureEditor.structureName,
+                  ctcAnnual: Number(structureEditor.ctcAnnual),
+                  basicPercent: Number(structureEditor.basicPercent),
+                  hraPercentOfBasic: Number(structureEditor.hraPercentOfBasic),
+                  ltaAnnual: Number(structureEditor.ltaAnnual),
+                  medicalAllowanceAnnual: Number(structureEditor.medicalAllowanceAnnual),
+                  conveyanceAllowanceAnnual: Number(structureEditor.conveyanceAllowanceAnnual),
+                  bonusAnnual: Number(structureEditor.bonusAnnual),
+                  effectiveFrom: new Date(structureEditor.effectiveFrom),
+                  effectiveTo: structureEditor.effectiveTo ? new Date(structureEditor.effectiveTo) : null,
+                });
+              }}
+              className="space-y-3"
+            >
+              <label className="block">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Structure name</span>
+                <input
+                  required
+                  value={structureEditor.structureName}
+                  onChange={(e) => setStructureEditor({ ...structureEditor, structureName: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                  placeholder="e.g. Senior Engineer — Band L4"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  ["ctcAnnual", "Annual CTC (₹)"],
+                  ["basicPercent", "Basic %"],
+                  ["hraPercentOfBasic", "HRA % of Basic"],
+                  ["ltaAnnual", "LTA (₹/yr)"],
+                  ["medicalAllowanceAnnual", "Medical (₹/yr)"],
+                  ["conveyanceAllowanceAnnual", "Conveyance (₹/yr)"],
+                  ["bonusAnnual", "Bonus (₹/yr)"],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="block">
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</span>
+                    <input
+                      required
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={structureEditor[key]}
+                      onChange={(e) => setStructureEditor({ ...structureEditor, [key]: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm font-mono"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Effective from</span>
+                  <input
+                    required
+                    type="date"
+                    value={structureEditor.effectiveFrom}
+                    onChange={(e) => setStructureEditor({ ...structureEditor, effectiveFrom: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Effective to (optional)</span>
+                  <input
+                    type="date"
+                    value={structureEditor.effectiveTo}
+                    onChange={(e) => setStructureEditor({ ...structureEditor, effectiveTo: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+              {upsertStructure.error && (
+                <div className="text-sm text-red-600">{upsertStructure.error.message}</div>
+              )}
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStructureEditor(null)}
+                  className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={upsertStructure.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-gray-100 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-60"
+                >
+                  {upsertStructure.isPending ? "Saving…" : "Save structure"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

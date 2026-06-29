@@ -5,6 +5,9 @@ import {
   auditLogs,
   users,
   businessRules,
+  slaDefinitions,
+  systemProperties,
+  notificationRules,
   organizations,
   sessions,
   eq,
@@ -335,42 +338,130 @@ export const adminRouter = router({
   }),
 
   slaDefinitions: router({
-    list: adminProcedure.query(async () => {
-      // slaPolicies table not yet in schema - return empty
-      return [];
+    list: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(slaDefinitions)
+        .where(eq(slaDefinitions.orgId, org!.id))
+        .orderBy(asc(slaDefinitions.name));
     }),
     upsert: adminProcedure
       .input(z.object({
         id: z.string().uuid().optional(),
-        name: z.string(),
-        priority: z.string(),
-        responseMinutes: z.coerce.number(),
-        resolveMinutes: z.coerce.number(),
+        name: z.string().min(1),
+        // Accepts the UI's P1..P4 ladder or any short priority label.
+        priority: z.string().min(1).max(32),
+        responseMinutes: z.coerce.number().int().positive(),
+        resolveMinutes: z.coerce.number().int().positive(),
+        active: z.boolean().default(true),
       }))
-      .mutation(async ({ input }) => {
-        return input;
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const values = {
+          name: input.name,
+          priority: input.priority,
+          responseMinutes: input.responseMinutes,
+          resolveMinutes: input.resolveMinutes,
+          active: input.active,
+          updatedAt: new Date(),
+        };
+        if (input.id) {
+          const [updated] = await db
+            .update(slaDefinitions)
+            .set(values)
+            .where(and(eq(slaDefinitions.id, input.id), eq(slaDefinitions.orgId, org!.id)))
+            .returning();
+          if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+          return updated;
+        }
+        const [created] = await db
+          .insert(slaDefinitions)
+          .values({ orgId: org!.id, ...values })
+          .returning();
+        return created;
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [deleted] = await db
+          .delete(slaDefinitions)
+          .where(and(eq(slaDefinitions.id, input.id), eq(slaDefinitions.orgId, org!.id)))
+          .returning();
+        if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+        return { ok: true as const };
       }),
   }),
 
   systemProperties: router({
-    list: adminProcedure.query(async () => {
-      return [
+    list: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const rows = await db
+        .select()
+        .from(systemProperties)
+        .where(eq(systemProperties.orgId, org!.id))
+        .orderBy(asc(systemProperties.key));
+
+      // Seed-on-read defaults so the screen is never empty for a fresh org.
+      // Any default whose key already has a stored override is hidden.
+      const defaults = [
         { key: "platform.name", value: "CoheronConnect", description: "Platform display name", environment: "all" },
         { key: "session.timeout_hours", value: "24", description: "Session sliding window hours", environment: "all" },
         { key: "rate_limit.login_attempts", value: "10", description: "Max failed login attempts before lockout", environment: "all" },
         { key: "email.from_address", value: process.env.SMTP_FROM ?? "noreply@coheronconnect.io", description: "Email from address", environment: "all" },
         { key: "meilisearch.enabled", value: process.env.MEILISEARCH_URL ? "true" : "false", description: "Global search enabled", environment: "all" },
       ];
+      const storedKeys = new Set(rows.map((r) => r.key));
+      const missingDefaults = defaults
+        .filter((d) => !storedKeys.has(d.key))
+        .map((d) => ({ id: null, ...d, isDefault: true }));
+      return [...rows.map((r) => ({ ...r, isDefault: false })), ...missingDefaults];
     }),
     update: adminProcedure
-      .input(z.object({ key: z.string(), value: z.string() }))
-      .mutation(async ({ input }) => input),
+      .input(z.object({ key: z.string().min(1), value: z.string(), description: z.string().optional(), environment: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [existing] = await db
+          .select()
+          .from(systemProperties)
+          .where(and(eq(systemProperties.orgId, org!.id), eq(systemProperties.key, input.key)))
+          .limit(1);
+        if (existing) {
+          const [updated] = await db
+            .update(systemProperties)
+            .set({
+              value: input.value,
+              ...(input.description !== undefined ? { description: input.description } : {}),
+              ...(input.environment !== undefined ? { environment: input.environment } : {}),
+              updatedAt: new Date(),
+            })
+            .where(eq(systemProperties.id, existing.id))
+            .returning();
+          return updated;
+        }
+        const [created] = await db
+          .insert(systemProperties)
+          .values({
+            orgId: org!.id,
+            key: input.key,
+            value: input.value,
+            description: input.description ?? null,
+            environment: input.environment ?? "all",
+          })
+          .returning();
+        return created;
+      }),
   }),
 
   notificationRules: router({
-    list: adminProcedure.query(async () => {
-      // notificationRules table not yet in schema - return empty
-      return [];
+    list: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(notificationRules)
+        .where(eq(notificationRules.orgId, org!.id))
+        .orderBy(desc(notificationRules.createdAt));
     }),
     create: adminProcedure
       .input(z.object({
@@ -381,13 +472,54 @@ export const adminRouter = router({
         conditions: z.string().optional(),
         active: z.boolean().default(true),
       }))
-      .mutation(async ({ input }) => {
-        // notificationRules table not yet in schema — return stub with generated id
-        return {
-          id: `NR-${Date.now()}`,
-          ...input,
-          createdAt: new Date(),
-        };
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const [created] = await db
+          .insert(notificationRules)
+          .values({
+            orgId: org!.id,
+            name: input.name,
+            event: input.event,
+            channel: input.channel,
+            recipients: input.recipients,
+            conditions: input.conditions ?? null,
+            active: input.active,
+            createdBy: user!.id,
+          })
+          .returning();
+        return created;
+      }),
+    update: adminProcedure
+      .input(z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        event: z.string().min(1).optional(),
+        channel: z.enum(["email", "slack", "teams", "in_app"]).optional(),
+        recipients: z.string().min(1).optional(),
+        conditions: z.string().nullable().optional(),
+        active: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...patch } = input;
+        const [updated] = await db
+          .update(notificationRules)
+          .set({ ...patch, updatedAt: new Date() })
+          .where(and(eq(notificationRules.id, id), eq(notificationRules.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [deleted] = await db
+          .delete(notificationRules)
+          .where(and(eq(notificationRules.id, input.id), eq(notificationRules.orgId, org!.id)))
+          .returning();
+        if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+        return { ok: true as const };
       }),
   }),
 

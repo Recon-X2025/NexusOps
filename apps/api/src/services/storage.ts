@@ -19,16 +19,22 @@ let _client: S3Client | null = null;
 
 function getClient(): S3Client {
   if (_client) return _client;
+  // Accept both the AWS-SDK-style names (S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY)
+  // and the shorter names used across the env templates (S3_ACCESS_KEY / S3_SECRET_KEY).
+  const accessKeyId = process.env["S3_ACCESS_KEY_ID"] ?? process.env["S3_ACCESS_KEY"];
+  const secretAccessKey = process.env["S3_SECRET_ACCESS_KEY"] ?? process.env["S3_SECRET_KEY"];
+  // MinIO and other S3-compatible providers require path-style addressing; default it
+  // on automatically whenever a custom endpoint is set, unless explicitly disabled.
+  const forcePathStyle = process.env["S3_FORCE_PATH_STYLE"]
+    ? process.env["S3_FORCE_PATH_STYLE"] === "true"
+    : Boolean(process.env["S3_ENDPOINT"]);
   _client = new S3Client({
     region: process.env["S3_REGION"] ?? "ap-south-1",
     endpoint: process.env["S3_ENDPOINT"], // optional — for non-AWS providers
-    forcePathStyle: process.env["S3_FORCE_PATH_STYLE"] === "true",
+    forcePathStyle,
     credentials:
-      process.env["S3_ACCESS_KEY_ID"] && process.env["S3_SECRET_ACCESS_KEY"]
-        ? {
-            accessKeyId: process.env["S3_ACCESS_KEY_ID"],
-            secretAccessKey: process.env["S3_SECRET_ACCESS_KEY"],
-          }
+      accessKeyId && secretAccessKey
+        ? { accessKeyId, secretAccessKey }
         : undefined,
   });
   return _client;

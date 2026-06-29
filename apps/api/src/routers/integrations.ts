@@ -166,8 +166,8 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     description: "Generate IRN + e-invoices for B2B invoices ≥ ₹5 cr aggregate turnover (mandatory in India).",
     docsUrl: "https://cleartax.in/s/gst-api",
     fields: [
-      { key: "clientId", label: "Client ID", required: true },
-      { key: "clientSecret", label: "Client Secret", type: "password", required: true },
+      { key: "apiKey", label: "API Key", required: true },
+      { key: "apiSecret", label: "API Secret", type: "password", required: true },
       { key: "gstin", label: "Filing GSTIN", required: true, placeholder: "29ABCDE1234F1Z5" },
       { key: "environment", label: "Environment", type: "select", required: true,
         options: [

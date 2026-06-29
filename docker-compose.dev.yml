@@ -57,6 +57,11 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      # Built-in KMS so SSE-S3 (ServerSideEncryption: AES256) works locally — the
+      # app encrypts every uploaded object; without this MinIO rejects the PUT with
+      # "Server side encryption specified but KMS is not configured".
+      # Format: "<key-name>:<base64 of 32 random bytes>". Dev-only key — never reuse in prod.
+      MINIO_KMS_SECRET_KEY: "coheronconnect-dev:S9ElofaKqnYZGZPUd/xvlxX7UmBaKUHKp8bRlogh6wc="
     ports:
       - "9000:9000"
       - "9001:9001"

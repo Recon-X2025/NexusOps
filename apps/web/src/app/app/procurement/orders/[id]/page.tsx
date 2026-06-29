@@ -9,7 +9,7 @@ import {
   ChevronRight, Clock, Lock, CheckCircle2,
   Package, FileText, Send, Printer, User,
   CalendarDays, Tag, AlertTriangle, Coins,
-  Activity, ArrowUpCircle, XCircle
+  Activity, ArrowUpCircle, XCircle, Paperclip, UploadCloud
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -190,6 +190,12 @@ export default function PurchaseOrderDetailPage() {
                       />
                     </div>
                   )}
+
+                  {activeTab === "documents" && (
+                    <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+                      <PODocuments poId={id} canWrite={can("purchase_orders", "write")} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-6">
@@ -219,6 +225,100 @@ export default function PurchaseOrderDetailPage() {
           );
         }}
       </ResourceView>
+    </div>
+  );
+}
+
+function PODocuments({ poId, canWrite }: { poId: string; canWrite: boolean }) {
+  const utils = trpc.useUtils();
+  const docs = trpc.documents.list.useQuery({
+    sourceType: "purchase_order",
+    sourceId: poId,
+    limit: 50,
+  });
+  const upload = trpc.documents.upload.useMutation({
+    onSuccess: () => { void docs.refetch(); toast.success("Document uploaded"); },
+    onError: (e) => toast.error(e?.message ?? "Upload failed"),
+  });
+
+  const list = docs.data ?? [];
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("File exceeds 25 MB limit");
+      return;
+    }
+    const buf = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    const contentBase64 = btoa(binary);
+    upload.mutate({
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      contentBase64,
+      sourceType: "purchase_order",
+      sourceId: poId,
+    });
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          Documents {list.length > 0 ? `(${list.length})` : ""}
+        </span>
+        {canWrite && (
+          <label className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-all cursor-pointer">
+            <UploadCloud className="w-4 h-4" />
+            {upload.isPending ? "Uploading…" : "Upload"}
+            <input type="file" className="hidden" onChange={onPick} disabled={upload.isPending} />
+          </label>
+        )}
+      </div>
+      <div className="p-4">
+        {docs.isLoading ? (
+          <div className="text-[12px] text-muted-foreground/70">Loading…</div>
+        ) : list.length === 0 ? (
+          <div className="text-[12px] text-muted-foreground/70">
+            No documents attached to this purchase order yet.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {list.map((d: any) => (
+              <li
+                key={d.id}
+                className="flex items-center gap-3 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+              >
+                <Paperclip className="w-4 h-4 text-muted-foreground/70" />
+                <span className="truncate flex-1 font-medium text-foreground/80">{d.name}</span>
+                <span className="text-[11px] text-muted-foreground/60 font-mono">
+                  {(d.sizeBytes / 1024).toFixed(0)} KB
+                </span>
+                {d.scanStatus === "infected" ? (
+                  <span className="text-[11px] text-red-600 font-bold uppercase">Infected</span>
+                ) : d.scanStatus === "pending" ? (
+                  <span className="text-[11px] text-amber-600">scanning…</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const r = await utils.documents.getDownloadUrl.fetch({ id: d.id, ttlSeconds: 300 });
+                      window.open(r.url, "_blank", "noopener");
+                    }}
+                    className="text-[12px] text-primary font-medium hover:underline"
+                  >
+                    Download
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

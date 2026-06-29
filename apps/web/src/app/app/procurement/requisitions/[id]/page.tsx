@@ -203,6 +203,75 @@ export default function PurchaseRequestDetailPage() {
                       />
                     </div>
                   )}
+
+                  {activeTab === "approval" && (
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                      <div className={cn(
+                        "rounded-xl border p-5 flex items-start gap-3",
+                        status === "approved" ? "bg-green-50 border-green-200"
+                          : status === "rejected" ? "bg-red-50 border-red-200"
+                          : status === "pending" ? "bg-yellow-50 border-yellow-200"
+                          : "bg-muted/30 border-border"
+                      )}>
+                        <sCfg.icon className={cn(
+                          "w-5 h-5 mt-0.5",
+                          status === "approved" ? "text-green-600"
+                            : status === "rejected" ? "text-red-600"
+                            : status === "pending" ? "text-yellow-600"
+                            : "text-muted-foreground"
+                        )} />
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-bold text-foreground">{sCfg.label}</span>
+                          <span className="text-[12px] text-muted-foreground">
+                            {status === "approved" ? `Approved on ${formatDt(pr.updatedAt)}.`
+                              : status === "rejected" ? `Rejected on ${formatDt(pr.updatedAt)}.`
+                              : status === "pending" ? "Awaiting approval decision."
+                              : "This requisition has not been submitted for approval."}
+                          </span>
+                        </div>
+                      </div>
+
+                      <DetailGrid
+                        title="Approval Details"
+                        icon={CheckCircle2}
+                        items={[
+                          { label: "Status", value: sCfg.label, icon: Activity },
+                          { label: "Current Approver", value: pr.currentApproverName || (pr.currentApproverId ? `ID: …${pr.currentApproverId.slice(-6)}` : "—"), icon: User },
+                          { label: "Requester", value: pr.requesterName || `ID: …${pr.requesterId?.slice(-6)}`, icon: User },
+                          { label: "Priority", value: priority, icon: AlertTriangle },
+                          { label: "Estimated Value", value: `₹${Number(pr.totalAmount).toLocaleString("en-IN")}`, icon: Coins },
+                          { label: "Last Updated", value: formatDt(pr.updatedAt), icon: CalendarDays },
+                        ]}
+                      />
+
+                      {status === "pending" && (
+                        <PermissionGate module="approvals" action="approve">
+                          <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-4">
+                            <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Decision</h4>
+                            <p className="text-[12px] text-muted-foreground">
+                              Approve to allow a purchase order to be raised, or reject to send this requisition back to the requester.
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => approvePR.mutate({ id })}
+                                disabled={approvePR.isPending}
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md disabled:opacity-60"
+                              >
+                                <CheckCircle2 className="w-4 h-4" /> {approvePR.isPending ? "Approving…" : "Approve"}
+                              </button>
+                              <button
+                                onClick={() => rejectPR.mutate({ id })}
+                                disabled={rejectPR.isPending}
+                                className="flex items-center gap-1.5 px-4 py-1.5 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60"
+                              >
+                                <XCircle className="w-4 h-4" /> {rejectPR.isPending ? "Rejecting…" : "Reject"}
+                              </button>
+                            </div>
+                          </div>
+                        </PermissionGate>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-6">

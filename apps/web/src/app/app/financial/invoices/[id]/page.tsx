@@ -185,6 +185,89 @@ export default function InvoiceDetailPage() {
                       />
                     </div>
                   )}
+
+                  {activeTab === "payment" && (
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                      <div className={cn(
+                        "rounded-xl border p-5 flex items-center gap-4",
+                        status === "paid" ? "bg-green-50 border-green-200" : "bg-muted/30 border-border"
+                      )}>
+                        {status === "paid"
+                          ? <CheckCircle2 className="w-8 h-8 text-green-600 shrink-0" />
+                          : <Clock className="w-8 h-8 text-muted-foreground shrink-0" />}
+                        <div>
+                          <p className="text-sm font-bold text-foreground">
+                            {status === "paid"
+                              ? (direction === "payable" ? "Payment completed" : "Amount collected")
+                              : status === "approved"
+                              ? "Approved — awaiting payment"
+                              : "Payment not yet initiated"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {inv.paidAt
+                              ? `Settled on ${formatDt(inv.paidAt)}`
+                              : inv.dueDate
+                              ? `Due ${formatDt(inv.dueDate)}`
+                              : "No due date set"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <DetailGrid
+                        title="Payment Details"
+                        items={[
+                          { label: "Status", value: sCfg.label, icon: sCfg.icon },
+                          { label: "Payment Method", value: inv.paymentMethod ? String(inv.paymentMethod).replace(/_/g, " ") : "—", icon: Wallet },
+                          { label: "Paid / Settled On", value: formatDt(inv.paidAt), icon: CalendarDays },
+                          { label: "Due Date", value: formatDt(inv.dueDate), icon: Clock },
+                        ]}
+                      />
+
+                      <DetailGrid
+                        title="Amount Breakdown"
+                        items={[
+                          { label: "Taxable Value", value: `₹${Number(inv.amount || inv.totalAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                          { label: "CGST", value: `₹${Number(inv.cgstAmount || 0).toLocaleString("en-IN")}`, icon: ArrowUpCircle },
+                          { label: "SGST", value: `₹${Number(inv.sgstAmount || 0).toLocaleString("en-IN")}`, icon: ArrowUpCircle },
+                          { label: "IGST", value: `₹${Number(inv.igstAmount || 0).toLocaleString("en-IN")}`, icon: ArrowUpCircle },
+                          { label: "Total Tax", value: `₹${Number(inv.totalTaxAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                          { label: "e-Invoice Status", value: inv.eInvoiceStatus || "Not generated", icon: FileText },
+                        ]}
+                      />
+
+                      {status !== "paid" && (
+                        <PermissionGate module="financial" action="write">
+                          <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-bold text-foreground">
+                                {direction === "payable" ? "Record this payment" : "Record collection"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {status === "pending"
+                                  ? "Approve the invoice first, then mark it as paid."
+                                  : "Mark this invoice as settled once funds have moved."}
+                              </p>
+                            </div>
+                            {status === "pending" ? (
+                              <button
+                                onClick={() => approveInvoice.mutate({ id })}
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-md"
+                              >
+                                <CheckCircle2 className="w-4 h-4" /> Approve
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => markPaid.mutate({ id, paymentMethod: direction === "payable" ? "bank_transfer" : "collection" })}
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md"
+                              >
+                                <Wallet className="w-4 h-4" /> {direction === "payable" ? "Mark Paid" : "Mark Collected"}
+                              </button>
+                            )}
+                          </div>
+                        </PermissionGate>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-6">

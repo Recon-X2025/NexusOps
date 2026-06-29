@@ -100,7 +100,7 @@ export default function WorkOrdersPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [woActionPanel, setWoActionPanel] = useState<"assign" | "state" | null>(null);
+  const [woActionPanel, setWoActionPanel] = useState<"state" | null>(null);
   const [woNewState, setWoNewState] = useState<string>("");
   const [woActionMsg, setWoActionMsg] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);

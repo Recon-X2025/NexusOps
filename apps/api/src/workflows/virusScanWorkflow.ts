@@ -134,16 +134,20 @@ async function clamdInstreamScan(buffer: Buffer): Promise<ClamScanResult> {
 let _s3: S3Client | null = null;
 function s3(): S3Client {
   if (_s3) return _s3;
+  // Accept both S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY and the shorter
+  // S3_ACCESS_KEY / S3_SECRET_KEY names used in the env templates.
+  const accessKeyId = process.env["S3_ACCESS_KEY_ID"] ?? process.env["S3_ACCESS_KEY"];
+  const secretAccessKey = process.env["S3_SECRET_ACCESS_KEY"] ?? process.env["S3_SECRET_KEY"];
+  const forcePathStyle = process.env["S3_FORCE_PATH_STYLE"]
+    ? process.env["S3_FORCE_PATH_STYLE"] === "true"
+    : Boolean(process.env["S3_ENDPOINT"]);
   _s3 = new S3Client({
     region: process.env["S3_REGION"] ?? "ap-south-1",
     endpoint: process.env["S3_ENDPOINT"],
-    forcePathStyle: process.env["S3_FORCE_PATH_STYLE"] === "true",
+    forcePathStyle,
     credentials:
-      process.env["S3_ACCESS_KEY_ID"] && process.env["S3_SECRET_ACCESS_KEY"]
-        ? {
-            accessKeyId: process.env["S3_ACCESS_KEY_ID"],
-            secretAccessKey: process.env["S3_SECRET_ACCESS_KEY"],
-          }
+      accessKeyId && secretAccessKey
+        ? { accessKeyId, secretAccessKey }
         : undefined,
   });
   return _s3;

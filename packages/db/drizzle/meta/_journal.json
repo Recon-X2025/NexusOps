@@ -78,6 +78,13 @@
       "when": 1782666921286,
       "tag": "0010_fix_csm_cases_requester_ondelete",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782742305343,
+      "tag": "0011_sticky_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

@@ -46,6 +46,8 @@ export * from "./accounting";
 export * from "./custom-fields";
 // Business rules engine (admin automation)
 export * from "./business-rules";
+// Admin settings — SLA definitions, system properties, notification rules
+export * from "./admin-settings";
 // Issuer / India legal programme (§3.9 spine)
 export * from "./issuer-programme";
 // E-sign (eMudhra / DocuSign envelopes + audit) — IT Act §3A

@@ -562,9 +562,90 @@ const payslipsRouter = router({
     }),
 });
 
+const salaryStructuresRouter = router({
+  list: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    return db
+      .select()
+      .from(salaryStructures)
+      .where(eq(salaryStructures.orgId, org!.id))
+      .orderBy(desc(salaryStructures.createdAt));
+  }),
+
+  upsert: permissionProcedure("hr", "write")
+    .input(
+      z.object({
+        id: z.string().uuid().optional(),
+        structureName: z.string().min(1).max(200),
+        ctcAnnual: z.coerce.number().nonnegative(),
+        basicPercent: z.coerce.number().min(0).max(100).default(40),
+        hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
+        ltaAnnual: z.coerce.number().nonnegative().default(0),
+        medicalAllowanceAnnual: z.coerce.number().nonnegative().default(15000),
+        conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(19200),
+        bonusAnnual: z.coerce.number().nonnegative().default(0),
+        effectiveFrom: z.coerce.date(),
+        effectiveTo: z.coerce.date().nullish(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const values = {
+        structureName: input.structureName,
+        ctcAnnual: input.ctcAnnual.toFixed(2),
+        basicPercent: input.basicPercent.toFixed(2),
+        hraPercentOfBasic: input.hraPercentOfBasic.toFixed(2),
+        ltaAnnual: input.ltaAnnual.toFixed(2),
+        medicalAllowanceAnnual: input.medicalAllowanceAnnual.toFixed(2),
+        conveyanceAllowanceAnnual: input.conveyanceAllowanceAnnual.toFixed(2),
+        bonusAnnual: input.bonusAnnual.toFixed(2),
+        effectiveFrom: input.effectiveFrom,
+        effectiveTo: input.effectiveTo ?? null,
+      };
+      if (input.id) {
+        const [updated] = await db
+          .update(salaryStructures)
+          .set(values)
+          .where(and(eq(salaryStructures.id, input.id), eq(salaryStructures.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
+      }
+      const [created] = await db
+        .insert(salaryStructures)
+        .values({ orgId: org!.id, ...values })
+        .returning();
+      return created;
+    }),
+
+  delete: permissionProcedure("hr", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const inUse = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(and(eq(employees.salaryStructureId, input.id), eq(employees.orgId, org!.id)))
+        .limit(1);
+      if (inUse.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Cannot delete: this salary structure is assigned to one or more employees.",
+        });
+      }
+      const [deleted] = await db
+        .delete(salaryStructures)
+        .where(and(eq(salaryStructures.id, input.id), eq(salaryStructures.orgId, org!.id)))
+        .returning();
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
+});
+
 export const payrollRouter = router({
   runs: runsRouter,
   payslips: payslipsRouter,
+  salaryStructures: salaryStructuresRouter,
 
   /**
    * Export a payroll run to a bank-disbursement file (NEFT / NACH-Credit).
