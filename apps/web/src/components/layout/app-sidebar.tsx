@@ -50,6 +50,7 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  Wallet,
   Wrench,
   X,
   Globe,
@@ -119,6 +120,7 @@ const SIDEBAR_ICONS: Record<string, LucideIcon> = {
   Plug,
   Sparkles,
   UserPlus,
+  Wallet,
   Zap,
 };
 

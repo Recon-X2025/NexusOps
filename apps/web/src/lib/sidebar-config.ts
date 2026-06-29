@@ -183,6 +183,12 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         ],
       },
       {
+        label: "Payroll",
+        href: "/app/payroll",
+        icon: "Wallet",
+        module: "hr",
+      },
+      {
         label: "Recruitment",
         href: "/app/recruitment",
         icon: "UserPlus",
