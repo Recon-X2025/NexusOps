@@ -8,6 +8,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/config/package.json ./packages/config/
 COPY packages/types/package.json ./packages/types/
+COPY packages/payroll-math/package.json ./packages/payroll-math/
 COPY packages/db/package.json ./packages/db/
 COPY packages/metrics/package.json ./packages/metrics/
 COPY packages/validators/package.json ./packages/validators/
@@ -18,6 +19,7 @@ FROM deps AS builder
 WORKDIR /app
 COPY . .
 RUN pnpm --filter @coheronconnect/types build
+RUN pnpm --filter @coheronconnect/payroll-math build
 RUN pnpm --filter @coheronconnect/db build
 RUN pnpm --filter @coheronconnect/metrics build
 RUN pnpm --filter @coheronconnect/api build

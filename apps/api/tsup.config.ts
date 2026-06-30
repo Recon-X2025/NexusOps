@@ -9,7 +9,7 @@ export default defineConfig([
     sourcemap: true,
     target: "node20",
     // Bundle internal workspace packages so Docker runner doesn't need their node_modules
-    noExternal: ["@coheronconnect/db", "@coheronconnect/types", "@coheronconnect/metrics", "@coheronconnect/config", "drizzle-orm", "postgres"],
+    noExternal: ["@coheronconnect/db", "@coheronconnect/types", "@coheronconnect/metrics", "@coheronconnect/config", "@coheronconnect/payroll-math", "drizzle-orm", "postgres"],
     banner: {
       js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
     },

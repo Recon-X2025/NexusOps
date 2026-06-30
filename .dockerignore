@@ -1,0 +1,33 @@
+# Dependencies (reinstalled inside the image)
+**/node_modules
+
+# Build artifacts (rebuilt inside the image)
+**/dist
+**/.next
+**/.turbo
+.turbo
+
+# VCS / CI
+.git
+.github
+
+# Test / coverage
+**/coverage
+**/.vitest
+playwright-report
+test-results
+
+# Local env & logs (never bake into images)
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store
+
+# Misc local-only
+*.png
+docs
