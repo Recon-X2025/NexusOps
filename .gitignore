@@ -22,6 +22,21 @@ apps/docs/html-export
 *.log
 npm-debug.log*
 pnpm-debug.log*
+*_log.txt
+*_log_*.txt
+api_logs.txt
+*_output.txt
+
+# Scratch / one-off scripts (do not commit)
+/test.ts
+/test.js
+/frontend_test.js
+/mixed_test.js
+/seed_users.js
+
+# System exports / migration backups
+/system_export_*/
+packages/db/drizzle_backup/
 
 # Database
 *.sqlite

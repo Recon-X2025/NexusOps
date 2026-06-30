@@ -40,6 +40,13 @@ Monorepo managed with **pnpm@10 + Turborepo**.
 - Generate: `pnpm db:generate` (in `packages/db`). Apply: `pnpm db:migrate`.
 - Always validate new migrations against a throwaway copy of a real DB, not just typechecking. See `docs/DATA_MODEL.md` for the data-model reference (tenancy classes + FK ownership).
 
+## Demo data seed
+
+The 100-employee / 24-month `coheron-demo` company seed has been **removed**. The
+generator (`packages/db/src/seed-demo.ts`) and its `db:seed:company` / `db:seed:demo`
+scripts no longer exist; the demo company must not be re-introduced. The base seeds
+(`db:seed`, `db:seed:modules`, `db:seed:smb`) remain.
+
 ## Money paths (verify invariants when touching these)
 
 - **Journal entries**: `accounting.journal.create` — debits must equal credits (tolerance 0.001), enforced in `apps/api/src/routers/accounting.ts`.
@@ -95,3 +102,16 @@ Phases 0–3 are complete:
 **Phase 4 (feature completion) is next** — close the WS-1…WS-5 gaps identified in
 the 2026-06-29 build-state audit (see plan §13). Phase 5 = durability/depth,
 Phase 6 = GA hardening.
+
+## Latest session state
+
+See **`docs/SESSION_HANDOVER_2026-06-30.md`** for the current handover (read it first
+when resuming). Highlights:
+- Branch `main` is **1 commit ahead of origin** (`3e1404f`, demo seed) — **not pushed**
+  (pushing auto-deploys to Vultr; needs user approval).
+- Local test DB (5433) is a **clean slate**: org + founder `admin@coheron.com` + RBAC only.
+- A **read-only whole-monorepo architecture audit** was completed; findings + recommended
+  sequencing are in the handover §4. Top items: money-math duplication (Phase 5),
+  worker Temporal durability (Phase 5), per-router `orgId` scoping (Phase 6), repo-hygiene
+  cleanup (quick win).
+- Deferred: cross-tenant **super-admin / platform-monitoring role** (no such role exists yet).

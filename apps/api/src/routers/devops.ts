@@ -30,9 +30,10 @@ export const devopsRouter = router({
   completePipeline: permissionProcedure("projects", "write")
     .input(z.object({ id: z.string().uuid(), status: z.enum(["success", "failed", "cancelled"]), durationSeconds: z.coerce.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const [run] = await ctx.db.update(pipelineRuns)
+      const { db, org } = ctx;
+      const [run] = await db.update(pipelineRuns)
         .set({ status: input.status, durationSeconds: input.durationSeconds, completedAt: new Date() })
-        .where(eq(pipelineRuns.id, input.id)).returning();
+        .where(and(eq(pipelineRuns.id, input.id), eq(pipelineRuns.orgId, org!.id))).returning();
       return run;
     }),
 
@@ -63,9 +64,10 @@ export const devopsRouter = router({
   completeDeployment: permissionProcedure("projects", "write")
     .input(z.object({ id: z.string().uuid(), status: z.enum(["success", "failed", "rolled_back"]), durationSeconds: z.coerce.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const [dep] = await ctx.db.update(deployments)
+      const { db, org } = ctx;
+      const [dep] = await db.update(deployments)
         .set({ status: input.status, durationSeconds: input.durationSeconds, completedAt: new Date() })
-        .where(eq(deployments.id, input.id)).returning();
+        .where(and(eq(deployments.id, input.id), eq(deployments.orgId, org!.id))).returning();
       return dep;
     }),
 

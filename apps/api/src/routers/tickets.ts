@@ -2089,6 +2089,16 @@ export const ticketsRouter = router({
     .input(z.object({ ticketId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      // Tenant guard: the ticket must belong to the caller's org before we touch
+      // its watchers. `ticket_watchers` has no orgId column, so without this an
+      // out-of-org caller could attach themselves as a watcher of a ticket they
+      // cannot see (the insert branch below).
+      const [parent] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)))
+        .limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found" });
       // Check if already watching
       const [existing] = await db
         .select()

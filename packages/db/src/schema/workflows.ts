@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -147,6 +148,8 @@ export const workflowStepRuns = pgTable(
   },
   (t) => ({
     runIdx: index("workflow_step_runs_run_idx").on(t.runId),
+    // One step row per (run, node): enables idempotent upsert on Temporal retry.
+    runNodeUnique: uniqueIndex("workflow_step_runs_run_node_unique").on(t.runId, t.nodeId),
   }),
 );
 

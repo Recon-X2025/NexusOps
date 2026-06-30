@@ -36,20 +36,55 @@ export interface WorkflowActivities {
 
 // ── Step run helpers ──────────────────────────────────────────────────────────
 
+interface StepHandle {
+  /** Step row id. */
+  stepId: string;
+  /** True if this (run, node) step already finished successfully on a prior attempt. */
+  alreadyCompleted: boolean;
+}
+
+/**
+ * Idempotently begin a step for (runId, nodeId).
+ *
+ * Relies on the UNIQUE(run_id, node_id) index: on Temporal retry the same step
+ * row is reused (ON CONFLICT) rather than duplicated, and attempt_count is
+ * incremented. If the step is already `completed`, the caller should skip the
+ * side effect entirely (see `alreadyCompleted`).
+ */
 async function startStep(
   pool: Pool,
   runId: string,
   nodeId: string,
   nodeType: string,
   input: Record<string, unknown>,
-): Promise<string> {
-  const result = await pool.query<{ id: string }>(
-    `INSERT INTO workflow_step_runs (run_id, node_id, node_type, status, input, attempt_count, started_at)
-     VALUES ($1, $2, $3, 'running', $4, 1, now())
-     RETURNING id`,
+): Promise<StepHandle> {
+  // Capture the prior status (if any) in a CTE before the upsert, because
+  // Postgres RETURNING in DO UPDATE only exposes the *post*-update row.
+  const result = await pool.query<{ id: string; was_completed: boolean }>(
+    `WITH prev AS (
+       SELECT id, status FROM workflow_step_runs
+       WHERE run_id = $1 AND node_id = $2
+     ),
+     upsert AS (
+       INSERT INTO workflow_step_runs (run_id, node_id, node_type, status, input, attempt_count, started_at)
+       VALUES ($1, $2, $3, 'running', $4, 1, now())
+       ON CONFLICT (run_id, node_id) DO UPDATE
+         SET attempt_count = workflow_step_runs.attempt_count + 1,
+             -- keep a completed step terminal; otherwise re-arm it for this attempt
+             status = (CASE WHEN workflow_step_runs.status = 'completed'
+                           THEN 'completed' ELSE 'running' END)::workflow_step_status,
+             input = EXCLUDED.input,
+             started_at = CASE WHEN workflow_step_runs.status = 'completed'
+                               THEN workflow_step_runs.started_at ELSE now() END
+       RETURNING id
+     )
+     SELECT upsert.id,
+            COALESCE((SELECT status = 'completed' FROM prev), false) AS was_completed
+     FROM upsert`,
     [runId, nodeId, nodeType, JSON.stringify(input)],
   );
-  return result.rows[0]!.id;
+  const row = result.rows[0]!;
+  return { stepId: row.id, alreadyCompleted: row.was_completed };
 }
 
 async function finishStep(
@@ -76,19 +111,36 @@ async function failStep(pool: Pool, stepId: string, error: string): Promise<void
   );
 }
 
+/** Read a single key out of a completed step's stored JSON output. */
+async function loadStepResult(pool: Pool, stepId: string, key: string): Promise<unknown> {
+  const res = await pool.query<{ value: unknown }>(
+    `SELECT output -> $2 AS value FROM workflow_step_runs WHERE id = $1`,
+    [stepId, key],
+  );
+  return res.rows[0]?.value ?? null;
+}
+
 // ── Activity factory ──────────────────────────────────────────────────────────
 
 export function createActivities(pool: Pool): WorkflowActivities {
   return {
     // ── evaluateCondition ───────────────────────────────────────────────────
     async evaluateCondition({ orgId: _orgId, runId, nodeId, expression, context }) {
-      const stepId = await startStep(pool, runId, nodeId, "CONDITION", { expression, context });
+      const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "CONDITION", { expression, context });
+      if (alreadyCompleted) {
+        // Re-derive the condition result into context without re-recording the step.
+        context[`__cond_${nodeId}`] = await loadStepResult(pool, stepId, "result");
+        return;
+      }
       try {
         // Support simple `context.field == value` comparisons
         let result = false;
         const match = /^context\.(\w+)\s*(==|!=|>|<|>=|<=)\s*(.+)$/.exec(expression?.trim() ?? "");
         if (match) {
-          const [, field, op, rawValue] = match as [string, string, string, string];
+          // The regex has three capture groups, so these are present when it matches.
+          const field = match[1]!;
+          const op = match[2]!;
+          const rawValue = match[3]!;
           const actual = context[field];
           const expected: unknown = (() => {
             try { return JSON.parse(rawValue); } catch { return rawValue.replace(/^['"]|['"]$/g, ""); }
@@ -110,7 +162,8 @@ export function createActivities(pool: Pool): WorkflowActivities {
 
     // ── assignTicket ────────────────────────────────────────────────────────
     async assignTicket({ orgId: _orgId, runId, nodeId, data, context }) {
-      const stepId = await startStep(pool, runId, nodeId, "ASSIGN", { data });
+      const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "ASSIGN", { data });
+      if (alreadyCompleted) return;
       try {
         const ticketId = context["ticketId"] as string | undefined;
         if (ticketId) {
@@ -141,18 +194,25 @@ export function createActivities(pool: Pool): WorkflowActivities {
 
     // ── sendNotification ────────────────────────────────────────────────────
     async sendNotification({ orgId, runId, nodeId, data, context }) {
-      const stepId = await startStep(pool, runId, nodeId, "NOTIFY", { data });
+      const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "NOTIFY", { data });
+      // Non-idempotent side effect: never re-send a notification on retry.
+      if (alreadyCompleted) return;
       try {
         const userId = (context["userId"] ?? data["userId"]) as string | undefined;
         const title   = (data["title"]   as string) ?? "Workflow Notification";
-        const message = (data["message"] as string) ?? "";
+        // `notifications` stores the text in `body`; `message` is the node-data key.
+        const body    = (data["message"] as string) ?? "";
 
-        await pool.query(
-          `INSERT INTO notifications (org_id, user_id, title, message, type, is_read, created_at)
-           VALUES ($1, $2, $3, $4, 'workflow', false, now())`,
-          [orgId, userId ?? null, title, message],
-        );
-        await finishStep(pool, stepId, { sent: true, userId: userId ?? null });
+        // user_id is NOT NULL on `notifications`; without a recipient there is
+        // nothing to deliver, so record the step as completed without inserting.
+        if (userId) {
+          await pool.query(
+            `INSERT INTO notifications (org_id, user_id, title, body, type, is_read, created_at)
+             VALUES ($1, $2, $3, $4, 'info', false, now())`,
+            [orgId, userId, title, body],
+          );
+        }
+        await finishStep(pool, stepId, { sent: !!userId, userId: userId ?? null });
       } catch (err) {
         await failStep(pool, stepId, String(err));
         throw err;
@@ -161,7 +221,8 @@ export function createActivities(pool: Pool): WorkflowActivities {
 
     // ── updateTicketField ───────────────────────────────────────────────────
     async updateTicketField({ orgId: _orgId, runId, nodeId, data, context }) {
-      const stepId = await startStep(pool, runId, nodeId, "UPDATE_FIELD", { data });
+      const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "UPDATE_FIELD", { data });
+      if (alreadyCompleted) return;
       try {
         const ticketId = context["ticketId"] as string | undefined;
         const field    = data["field"]  as string | undefined;
@@ -199,14 +260,20 @@ export function createActivities(pool: Pool): WorkflowActivities {
 
     // ── callWebhook ─────────────────────────────────────────────────────────
     async callWebhook({ orgId: _orgId, runId, nodeId, data, context }) {
-      const stepId = await startStep(pool, runId, nodeId, "WEBHOOK", { data });
+      const { stepId, alreadyCompleted } = await startStep(pool, runId, nodeId, "WEBHOOK", { data });
+      // Non-idempotent external side effect: never re-POST on retry.
+      if (alreadyCompleted) return;
       try {
         const url = data["url"] as string;
         if (!url) throw new Error("Webhook node missing url");
 
         const response = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // Stable per (run, node) so the receiver can also dedup replays.
+            "Idempotency-Key": `${runId}:${nodeId}`,
+          },
           body: JSON.stringify({ context, nodeData: data, runId }),
         });
 

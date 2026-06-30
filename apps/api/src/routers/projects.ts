@@ -293,7 +293,16 @@ export const projectsRouter = router({
   createMilestone: permissionProcedure("projects", "write")
     .input(z.object({ projectId: z.string().uuid(), title: z.string(), dueDate: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const [ms] = await ctx.db.insert(projectMilestones).values({
+      const { db, org } = ctx;
+      // Tenant guard: don't let a caller attach a milestone to another org's project.
+      const [parent] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.id, input.projectId), eq(projects.orgId, org!.id)))
+        .limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ms] = await db.insert(projectMilestones).values({
         ...input,
         dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
       }).returning();
@@ -303,10 +312,21 @@ export const projectsRouter = router({
   updateMilestone: permissionProcedure("projects", "write")
     .input(z.object({ id: z.string().uuid(), status: z.enum(milestoneStatusEnum.enumValues).optional() }))
     .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
       const { id, status } = input;
+      // Tenant guard: `project_milestones` has no orgId column; verify the parent
+      // project belongs to the caller's org before mutating the milestone.
+      const [parent] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .innerJoin(projectMilestones, eq(projectMilestones.projectId, projects.id))
+        .where(and(eq(projectMilestones.id, id), eq(projects.orgId, org!.id)))
+        .limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
+
       const updates: Partial<typeof projectMilestones.$inferInsert> = {};
       if (status) { updates.status = status; if (status === "completed") updates.completedAt = new Date(); }
-      const [ms] = await ctx.db.update(projectMilestones).set(updates).where(eq(projectMilestones.id, id)).returning();
+      const [ms] = await db.update(projectMilestones).set(updates).where(eq(projectMilestones.id, id)).returning();
       return ms;
     }),
 
@@ -323,17 +343,37 @@ export const projectsRouter = router({
       sprint: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const [task] = await ctx.db.insert(projectTasks).values(input).returning();
+      const { db, org } = ctx;
+      // Tenant guard: don't let a caller attach a task to another org's project.
+      const [parent] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.id, input.projectId), eq(projects.orgId, org!.id)))
+        .limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [task] = await db.insert(projectTasks).values(input).returning();
       return task;
     }),
 
   updateTask: permissionProcedure("projects", "write")
     .input(z.object({ id: z.string().uuid(), status: z.enum(taskStatusEnum.enumValues).optional(), assigneeId: z.string().uuid().optional(), sprint: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
       const { id, ...data } = input;
+      // Tenant guard: `project_tasks` has no orgId column; verify the parent
+      // project belongs to the caller's org before mutating the task.
+      const [parent] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .innerJoin(projectTasks, eq(projectTasks.projectId, projects.id))
+        .where(and(eq(projectTasks.id, id), eq(projects.orgId, org!.id)))
+        .limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
+
       const updates: Partial<typeof projectTasks.$inferInsert> = { ...data, updatedAt: new Date() };
       if (data.status === "done") updates.completedAt = new Date();
-      const [task] = await ctx.db.update(projectTasks).set(updates).where(eq(projectTasks.id, id)).returning();
+      const [task] = await db.update(projectTasks).set(updates).where(eq(projectTasks.id, id)).returning();
       return task;
     }),
 

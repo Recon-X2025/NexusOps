@@ -594,7 +594,17 @@ export const assetsRouter = router({
     revoke: permissionProcedure("sam", "write")
       .input(z.object({ assignmentId: z.string().uuid() }))
       .mutation(async ({ ctx, input }) => {
-        const { db } = ctx;
+        const { db, org } = ctx;
+
+        // Tenant guard: `license_assignments` has no orgId column; verify the
+        // parent license belongs to the caller's org before revoking the seat.
+        const [parent] = await db
+          .select({ id: softwareLicenses.id })
+          .from(softwareLicenses)
+          .innerJoin(licenseAssignments, eq(licenseAssignments.licenseId, softwareLicenses.id))
+          .where(and(eq(licenseAssignments.id, input.assignmentId), eq(softwareLicenses.orgId, org!.id)))
+          .limit(1);
+        if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
 
         const [updated] = await db
           .update(licenseAssignments)

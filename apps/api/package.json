@@ -25,6 +25,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1037.0",
     "@coheronconnect/db": "workspace:*",
     "@coheronconnect/metrics": "workspace:*",
+    "@coheronconnect/payroll-math": "workspace:*",
     "@coheronconnect/types": "workspace:*",
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^13.0.0",

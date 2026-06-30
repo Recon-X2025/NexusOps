@@ -1353,7 +1353,11 @@ export const hrRouter = router({
       dueDate: z.coerce.date().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { okrKeyResults } = await import("@coheronconnect/db");
+      const { okrKeyResults, okrObjectives, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      // Tenant guard: don't let a caller attach a key-result to another org's objective.
+      const [parent] = await db.select({ id: okrObjectives.id }).from(okrObjectives)
+        .where(dbAnd(dbEq(okrObjectives.id, input.objectiveId), dbEq(okrObjectives.orgId, org!.id))).limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
       const [kr] = await db.insert(okrKeyResults).values({ ...input, orgId: org!.id, targetValue: String(input.targetValue), status: "on_track" }).returning();
       return kr!;
     }),
@@ -1364,14 +1368,17 @@ export const hrRouter = router({
       status: z.enum(["on_track", "at_risk", "behind", "completed"]).optional(),
       notes: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
-      const { db } = ctx;
-      const { okrKeyResults, okrObjectives, eq: dbEq } = await import("@coheronconnect/db");
-      const [kr] = await db.update(okrKeyResults).set({ currentValue: String(input.currentValue), status: input.status, notes: input.notes, updatedAt: new Date() }).where(dbEq(okrKeyResults.id, input.id)).returning();
+      const { db, org } = ctx;
+      const { okrKeyResults, okrObjectives, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      // Tenant guard: scope the key-result update to the caller's org so an
+      // out-of-org caller cannot mutate another tenant's KR (and cascade into
+      // their objective's progress below).
+      const [kr] = await db.update(okrKeyResults).set({ currentValue: String(input.currentValue), status: input.status, notes: input.notes, updatedAt: new Date() }).where(dbAnd(dbEq(okrKeyResults.id, input.id), dbEq(okrKeyResults.orgId, org!.id))).returning();
       if (kr) {
-        const allKRs = await db.select().from(okrKeyResults).where(dbEq(okrKeyResults.objectiveId, kr.objectiveId));
+        const allKRs = await db.select().from(okrKeyResults).where(dbAnd(dbEq(okrKeyResults.objectiveId, kr.objectiveId), dbEq(okrKeyResults.orgId, org!.id)));
         const pcts = allKRs.map((k: (typeof allKRs)[number]) => (Number(k.currentValue) / Math.max(Number(k.targetValue), 1)) * 100);
         const avg = pcts.length ? Math.round(pcts.reduce((s: number, p: number) => s + p, 0) / pcts.length) : 0;
-        await db.update(okrObjectives).set({ overallProgress: avg, updatedAt: new Date() }).where(dbEq(okrObjectives.id, kr.objectiveId));
+        await db.update(okrObjectives).set({ overallProgress: avg, updatedAt: new Date() }).where(dbAnd(dbEq(okrObjectives.id, kr.objectiveId), dbEq(okrObjectives.orgId, org!.id)));
       }
       return kr!;
     }),

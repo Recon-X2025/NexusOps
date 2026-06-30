@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { contracts, contractObligations, contractStatusEnum, contractTypeEnum, obligationStatusEnum, obligationFrequencyEnum, eq, and, desc, count, sql } from "@coheronconnect/db";
+import { contracts, contractObligations, contractStatusEnum, contractTypeEnum, obligationStatusEnum, obligationFrequencyEnum, eq, and, desc, count, inArray, sql } from "@coheronconnect/db";
 import { supportedCurrencyCodeSchema } from "@coheronconnect/types";
 import { getNextNumber } from "../lib/auto-number";
 
@@ -155,7 +155,7 @@ export const contractsRouter = router({
 
       const [updated] = await db.update(contracts)
         .set({ status: input.toStatus, updatedAt: new Date() })
-        .where(eq(contracts.id, input.id)).returning();
+        .where(and(eq(contracts.id, input.id), eq(contracts.orgId, org!.id))).returning();
       return updated;
     }),
 
@@ -188,7 +188,7 @@ export const contractsRouter = router({
           ...(input.notes !== undefined ? { notes: input.notes } : {}),
           updatedAt: new Date(),
         })
-        .where(eq(contracts.id, input.id))
+        .where(and(eq(contracts.id, input.id), eq(contracts.orgId, org!.id)))
         .returning();
       return updated;
     }),
@@ -214,7 +214,7 @@ export const contractsRouter = router({
       const contractsInOrg = await db.select({ id: contracts.id }).from(contracts).where(eq(contracts.orgId, org!.id));
       if (!contractsInOrg.length) return [];
       const ids = contractsInOrg.map((c: { id: string }) => c.id);
-      const conditions = [sql`contract_id = ANY(${ids})`];
+      const conditions = [inArray(contractObligations.contractId, ids)];
       if (input.status) conditions.push(eq(contractObligations.status, input.status));
       return db.select().from(contractObligations).where(and(...conditions)).orderBy(contractObligations.dueDate);
     }),
@@ -222,7 +222,19 @@ export const contractsRouter = router({
   completeObligation: permissionProcedure("contracts", "write")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const [ob] = await ctx.db.update(contractObligations)
+      const { db, org } = ctx;
+      // Tenant guard: `contract_obligations` has no orgId column, so verify the
+      // parent contract belongs to the caller's org before mutating the row.
+      // Without this an out-of-org caller could complete another tenant's obligation.
+      const [parent] = await db
+        .select({ id: contracts.id })
+        .from(contracts)
+        .innerJoin(contractObligations, eq(contractObligations.contractId, contracts.id))
+        .where(and(eq(contractObligations.id, input.id), eq(contracts.orgId, org!.id)))
+        .limit(1);
+      if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [ob] = await db.update(contractObligations)
         .set({ status: "completed", completedAt: new Date() })
         .where(eq(contractObligations.id, input.id)).returning();
       return ob;

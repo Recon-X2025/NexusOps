@@ -36,8 +36,6 @@
     "db:seed": "tsx src/seed.ts",
     "db:seed:modules": "tsx src/seed-modules.ts",
     "db:seed:smb": "tsx src/seed-smb-analytics.ts",
-    "db:seed:company": "tsx src/seed-demo.ts",
-    "db:seed:demo": "tsx src/seed.ts && tsx src/seed-demo.ts && tsx src/seed-modules.ts",
     "db:clean": "tsx src/clean.ts",
     "backfill:sla": "tsx src/scripts/backfill-sla-deadlines.ts",
     "db:studio": "drizzle-kit studio",
@@ -46,6 +44,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@coheronconnect/payroll-math": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.36.0",

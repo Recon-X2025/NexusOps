@@ -8,6 +8,14 @@ import type { WorkflowActivities } from "../activities/workflow-activities";
 
 const acts = proxyActivities<WorkflowActivities>({
   startToCloseTimeout: "30 seconds",
+  // Activities are idempotent (upsert on (run_id, node_id); completed steps are
+  // not re-executed), so transient failures can be safely retried.
+  retry: {
+    initialInterval: "1 second",
+    backoffCoefficient: 2,
+    maximumInterval: "1 minute",
+    maximumAttempts: 5,
+  },
 });
 
 export interface NexusWorkflowInput {

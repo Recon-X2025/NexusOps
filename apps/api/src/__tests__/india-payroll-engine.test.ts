@@ -389,3 +389,87 @@ describe("Full Payslip Generation", () => {
     expect(payslip.ytdTDS).toBe(payslip.tds);
   });
 });
+
+// ─── SURCHARGE & MARGINAL RELIEF ───────────────────────────────────────────────
+
+describe("Surcharge & Marginal Relief", () => {
+  // Drive taxable income to an exact value. With joiningMonth=1, grossSalary =
+  // annualCTC; NEW regime deducts only the ₹75K standard deduction (PT set to 0),
+  // so taxableIncome = annualCTC - 75,000.  ⇒  annualCTC = taxable + 75,000.
+  function profileForTaxable(taxable: number): EmployeeTaxProfile {
+    return makeProfile({
+      regime: "NEW",
+      annualCTC: taxable + 75_000,
+      // Components large enough not to clamp anything; only annualCTC matters here
+      // because joiningMonth=1 short-circuits to annualCTC for grossSalary.
+      basicMonthly: 500_000,
+      hraMonthly: 200_000,
+      specialAllowance: 200_000,
+      lta: 0,
+      professionalTax: 0,
+    });
+  }
+
+  it("levies NO surcharge at exactly ₹50L taxable income", () => {
+    const result = computeTax(profileForTaxable(5_000_000));
+    expect(result.taxableIncome).toBe(5_000_000);
+    expect(result.surcharge).toBe(0);
+  });
+
+  it("levies surcharge once taxable income exceeds ₹50L", () => {
+    const result = computeTax(profileForTaxable(5_100_000));
+    expect(result.taxableIncome).toBe(5_100_000);
+    expect(result.surcharge).toBeGreaterThan(0);
+  });
+
+  it("caps surcharge via marginal relief just above ₹50L", () => {
+    // At the threshold liability is base tax only (0% surcharge band below ₹50L).
+    const atThreshold = computeTax(profileForTaxable(5_000_000));
+    const justAbove = computeTax(profileForTaxable(5_001_000));
+
+    const incomeIncrement = 5_001_000 - 5_000_000; // ₹1,000
+    // Marginal relief: extra (tax + surcharge) from crossing the threshold may not
+    // exceed the extra income earned above it. (Cess excluded — it rides on top.)
+    const liabilityAtThreshold =
+      atThreshold.taxAfterRebate + atThreshold.surcharge;
+    const liabilityJustAbove = justAbove.taxAfterRebate + justAbove.surcharge;
+    const extraLiability = liabilityJustAbove - liabilityAtThreshold;
+
+    expect(extraLiability).toBeLessThanOrEqual(incomeIncrement + 1); // +1 rounding tol
+  });
+
+  it("caps surcharge via marginal relief just above ₹1cr", () => {
+    const atThreshold = computeTax(profileForTaxable(10_000_000));
+    const justAbove = computeTax(profileForTaxable(10_001_000));
+
+    const incomeIncrement = 10_001_000 - 10_000_000;
+    const extraLiability =
+      justAbove.taxAfterRebate +
+      justAbove.surcharge -
+      (atThreshold.taxAfterRebate + atThreshold.surcharge);
+
+    expect(extraLiability).toBeLessThanOrEqual(incomeIncrement + 1);
+  });
+
+  it("applies the full 10% surcharge well above ₹50L (relief no longer binds)", () => {
+    // At ₹80L taxable the income cushion above ₹50L (₹30L) far exceeds the surcharge,
+    // so marginal relief is inactive and surcharge equals exactly 10% of base tax.
+    const result = computeTax(profileForTaxable(8_000_000));
+    expect(result.surcharge).toBe(Math.round(result.taxAfterRebate * 0.10));
+  });
+
+  it("applies the full 15% surcharge well above ₹1cr (relief no longer binds)", () => {
+    const result = computeTax(profileForTaxable(15_000_000));
+    expect(result.surcharge).toBe(Math.round(result.taxAfterRebate * 0.15));
+  });
+
+  it("increases monotonically in (tax + surcharge) across the ₹50L boundary", () => {
+    const below = computeTax(profileForTaxable(4_999_000));
+    const above = computeTax(profileForTaxable(5_001_000));
+    const belowLiability = below.taxAfterRebate + below.surcharge;
+    const aboveLiability = above.taxAfterRebate + above.surcharge;
+    // Crossing the threshold must never reduce total liability (the bug marginal
+    // relief specifically prevents — a naive surcharge cliff would invert this).
+    expect(aboveLiability).toBeGreaterThanOrEqual(belowLiability);
+  });
+});
