@@ -32,9 +32,9 @@ export const crmContactsRouter = router({
     .input(z.object({
       firstName: z.string(),
       lastName: z.string(),
-      email: z.string().email(),
-      phone: z.string(),
-      title: z.string(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+      title: z.string().optional(),
       accountId: z.string().uuid(),
     }))
     .mutation(async ({ ctx, input }) => {

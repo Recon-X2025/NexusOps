@@ -170,12 +170,12 @@ function IndiaSetupStep({ data, onChange, onNext, onBack }: {
   onNext: () => void;
   onBack: () => void;
 }) {
-  const gstinValid = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(data.gstin.trim().toUpperCase());
-  const panValid = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(data.pan.trim().toUpperCase());
+  const gstinValid = /^[A-Z0-9]{15}$/.test(data.gstin.trim().toUpperCase());
+  const panValid = /^[A-Z0-9]{10}$/.test(data.pan.trim().toUpperCase());
   const cinValid = /^[A-Z0-9]{21}$/.test(data.cin.trim().toUpperCase());
-  const tanValid = /^[A-Z]{4}[0-9]{5}[A-Z]{1}$/.test(data.tan.trim().toUpperCase());
+  const tanValid = /^[A-Z0-9]{10}$/.test(data.tan.trim().toUpperCase());
   const pfValid = data.pf.trim().length > 0;
-  const stateCodeValid = /^[A-Z]{2}$/.test(data.stateCode.trim().toUpperCase());
+  const stateCodeValid = /^[A-Z0-9]{2}$/.test(data.stateCode.trim().toUpperCase());
   const canNext = gstinValid && panValid && cinValid && tanValid && pfValid && stateCodeValid;
 
   const upperCaseFields = ["gstin", "pan", "cin", "tan", "stateCode"];

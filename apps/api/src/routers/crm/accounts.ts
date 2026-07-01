@@ -31,9 +31,9 @@ export const crmAccountsRouter = router({
   create: permissionProcedure("accounts", "write")
     .input(z.object({
       name: z.string(),
-      industry: z.string(),
+      industry: z.string().optional(),
       tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"),
-      website: z.string().url(),
+      website: z.string().url().optional(),
       annualRevenue: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

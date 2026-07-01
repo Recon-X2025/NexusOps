@@ -600,10 +600,10 @@ export const adminRouter = router({
   scheduledJobs: router({
     list: adminProcedure.query(async () => {
       return [
-        { id: "sla-checker", name: "SLA Breach Checker", schedule: "*/5 * * * *", lastRun: new Date(Date.now() - 5 * 60 * 1000), nextRun: new Date(Date.now() + 5 * 60 * 1000), status: "active" },
-        { id: "notification-digest", name: "Notification Digest", schedule: "0 9 * * 1-5", lastRun: new Date(Date.now() - 86400 * 1000), nextRun: new Date(Date.now() + 3600 * 1000), status: "active" },
-        { id: "contract-expiry", name: "Contract Expiry Alerts", schedule: "0 8 * * *", lastRun: new Date(Date.now() - 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "active" },
-        { id: "report-aggregator", name: "Executive Report Aggregation", schedule: "0 6 * * 1", lastRun: new Date(Date.now() - 7 * 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "active" },
+        { id: "sla-checker", name: "SLA Breach Checker", schedule: "*/5 * * * *", lastRun: new Date(Date.now() - 5 * 60 * 1000), nextRun: new Date(Date.now() + 5 * 60 * 1000), status: "success" },
+        { id: "notification-digest", name: "Notification Digest", schedule: "0 9 * * 1-5", lastRun: new Date(Date.now() - 86400 * 1000), nextRun: new Date(Date.now() + 3600 * 1000), status: "success" },
+        { id: "contract-expiry", name: "Contract Expiry Alerts", schedule: "0 8 * * *", lastRun: new Date(Date.now() - 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "success" },
+        { id: "report-aggregator", name: "Executive Report Aggregation", schedule: "0 6 * * 1", lastRun: new Date(Date.now() - 7 * 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "success" },
       ];
     }),
 

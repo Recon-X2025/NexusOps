@@ -2356,7 +2356,7 @@ function BusinessRulesTab() {
                       {r.enabled ? "On" : "Off"}
                     </button>
                   </td>
-                  <td className="text-right space-x-2">
+                  <td className="text-left space-x-2">
                     <button type="button" onClick={() => openEdit(r)} className="text-[11px] text-primary hover:underline">
                       Edit
                     </button>
@@ -2828,6 +2828,7 @@ function GroupsTab() {
   const groups = listQuery.data || [];
   const allUsers = usersQuery.data || [];
   const currentMembers = membersQuery.data || [];
+  const selectedGroup = groups.find(g => g.id === selectedGroupId);
 
   // Filter users for search (exclude those already in the group)
   const memberIds = new Set(currentMembers.map(m => m.id));
@@ -2868,7 +2869,10 @@ function GroupsTab() {
                   className={`p-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedGroupId === g.id ? 'bg-primary/5 border-l-2 border-primary' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[12px] font-medium text-foreground">{g.name}</span>
+                    <span className="text-[12px] font-medium text-foreground">
+                      {g.name}
+                      {g.isArchived && <span className="ml-2 px-1.5 py-0.5 bg-muted text-muted-foreground text-[9px] rounded uppercase font-bold tracking-wider">Archived</span>}
+                    </span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-bold">
                       {g.memberCount}
                     </span>
@@ -2882,18 +2886,26 @@ function GroupsTab() {
 
         {/* Right Pane: Member Management */}
         <div className="flex-1 bg-card overflow-y-auto">
-          {selectedGroupId ? (
+          {selectedGroupId && selectedGroup ? (
             <div className="p-4 space-y-6">
               {/* Group Header Actions */}
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-foreground">
-                  {groups.find(g => g.id === selectedGroupId)?.name} roster
+                  {selectedGroup.name} roster
                 </h3>
                 <div className="flex items-center gap-2">
                   <button 
-                    onClick={() => handleEdit(groups.find(g => g.id === selectedGroupId))}
+                    onClick={() => handleEdit(selectedGroup)}
                     className="text-[11px] text-primary hover:underline"
                   >Edit Details</button>
+                  <button 
+                    onClick={() => { 
+                      if (confirm(selectedGroup.isArchived ? "Unarchive this group?" : "Archive this group?")) {
+                        updateMutation.mutate({ id: selectedGroupId, isArchived: !selectedGroup.isArchived });
+                      }
+                    }}
+                    className="text-[11px] text-orange-500 hover:underline"
+                  >{selectedGroup.isArchived ? "Unarchive Group" : "Archive Group"}</button>
                   <button 
                     onClick={() => { if(confirm("Delete this group?")) deleteMutation.mutate({ id: selectedGroupId }); }}
                     className="text-[11px] text-red-500 hover:underline"

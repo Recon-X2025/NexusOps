@@ -441,6 +441,24 @@ export const authRouter = router({
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
       const inviteEmail = normalizeEmail(input.email);
+
+      const existingUsers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, inviteEmail), eq(users.orgId, org!.id)))
+        .limit(1);
+
+      if (existingUsers.length === 0) {
+        await db.insert(users).values({
+          orgId: org!.id,
+          email: inviteEmail,
+          name: input.name || inviteEmail.split("@")[0] || "User",
+          role: input.role,
+          matrixRole: input.matrixRole,
+          status: "invited",
+        });
+      }
+
       const [invite] = await db
         .insert(invites)
         .values({
@@ -491,17 +509,40 @@ export const authRouter = router({
       }
 
       const passwordHash = await hashPassword(input.password);
-      const [user] = await db
-        .insert(users)
-        .values({
-          orgId: invite.orgId,
-          email: invite.email,
-          name: input.name,
-          passwordHash,
-          role: invite.role,
-          status: "active",
-        })
-        .returning();
+      
+      const existingUsers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, invite.email), eq(users.orgId, invite.orgId)))
+        .limit(1);
+
+      let user;
+      const firstExistingUser = existingUsers[0];
+      if (firstExistingUser) {
+        const [updatedUser] = await db
+          .update(users)
+          .set({
+            name: input.name,
+            passwordHash,
+            status: "active",
+          })
+          .where(eq(users.id, firstExistingUser.id))
+          .returning();
+        user = updatedUser;
+      } else {
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            orgId: invite.orgId,
+            email: invite.email,
+            name: input.name,
+            passwordHash,
+            role: invite.role,
+            status: "active",
+          })
+          .returning();
+        user = newUser;
+      }
 
       await db.update(invites).set({ acceptedAt: new Date() }).where(eq(invites.id, invite.id));
 

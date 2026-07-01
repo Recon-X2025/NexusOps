@@ -325,7 +325,22 @@ export const crmDealsRouter = router({
         const conditions = [eq(crmQuotes.orgId, org!.id)];
         if (input.dealId) conditions.push(eq(crmQuotes.dealId, input.dealId));
         if (input.status) conditions.push(eq(crmQuotes.status, input.status));
-        return db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
+        const rows = await db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
+        return rows.map((q) => {
+          const items = Array.isArray(q.items) ? q.items : [];
+          return {
+            ...q,
+            lineItems: items.map((item, idx) => ({
+              line: idx + 1,
+              product: item.description || "Line Item",
+              description: item.description || "",
+              qty: item.quantity || 1,
+              unitPrice: Number(item.unitPrice || 0),
+              discount: 0,
+              total: Number(item.total || 0),
+            })),
+          };
+        });
       }),
 
     create: permissionProcedure("accounts", "write")
@@ -344,7 +359,19 @@ export const crmDealsRouter = router({
           orgId: org!.id, quoteNumber, ...input, subtotal: String(subtotal), total: String(total),
           validUntil: input.validUntil ? new Date(input.validUntil) : undefined,
         }).returning();
-        return quote;
+        const items = Array.isArray(quote?.items) ? quote.items : [];
+        return {
+          ...quote,
+          lineItems: items.map((item, idx) => ({
+            line: idx + 1,
+            product: item.description || "Line Item",
+            description: item.description || "",
+            qty: item.quantity || 1,
+            unitPrice: Number(item.unitPrice || 0),
+            discount: 0,
+            total: Number(item.total || 0),
+          })),
+        };
       }),
 
     update: permissionProcedure("accounts", "write")
@@ -355,7 +382,19 @@ export const crmDealsRouter = router({
         const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() })
           .where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
         if (!quote) throw new TRPCError({ code: "NOT_FOUND" });
-        return quote;
+        const items = Array.isArray(quote?.items) ? quote.items : [];
+        return {
+          ...quote,
+          lineItems: items.map((item, idx) => ({
+            line: idx + 1,
+            product: item.description || "Line Item",
+            description: item.description || "",
+            qty: item.quantity || 1,
+            unitPrice: Number(item.unitPrice || 0),
+            discount: 0,
+            total: Number(item.total || 0),
+          })),
+        };
       }),
   }),
 });

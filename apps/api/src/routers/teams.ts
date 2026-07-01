@@ -22,6 +22,7 @@ export const teamsRouter = router({
         id: teams.id,
         name: teams.name,
         description: teams.description,
+        isArchived: teams.isArchived,
         createdAt: teams.createdAt,
         memberCount: sql<number>`(SELECT count(*)::int FROM team_members WHERE team_id = ${teams.id})`,
       })
@@ -60,6 +61,7 @@ export const teamsRouter = router({
         id: z.string().uuid(),
         name: z.string().min(1).max(100).optional(),
         description: z.string().max(500).optional(),
+        isArchived: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
