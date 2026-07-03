@@ -3,6 +3,7 @@ import { authRouter } from "./auth";
 import { adminRouter } from "./admin";
 import { ticketsRouter } from "./tickets";
 import { assetsRouter } from "./assets";
+import { depreciationRouter } from "./depreciation";
 import { workflowsRouter } from "./workflows";
 import { hrRouter } from "./hr";
 import { procurementRouter } from "./procurement";
@@ -61,6 +62,7 @@ export const appRouter = router({
   admin: adminRouter,
   tickets: ticketsRouter,
   assets: assetsRouter,
+  depreciation: depreciationRouter,
   workflows: workflowsRouter,
   hr: hrRouter,
   procurement: procurementRouter,

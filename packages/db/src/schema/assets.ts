@@ -2,6 +2,7 @@ import {
   boolean,
   decimal,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -141,6 +142,84 @@ export const assetHistory = pgTable(
   }),
 );
 
+// ── Asset Depreciation ─────────────────────────────────────────────────────
+export const depreciationMethodEnum = pgEnum("depreciation_method", [
+  "SLM", // Straight-line
+  "WDV", // Written-down-value (declining balance)
+]);
+
+/**
+ * Fixed-asset depreciation register — one row per depreciable asset. Holds the
+ * chosen method/life/salvage plus the running accumulated depreciation and net
+ * book value, so the balance-sheet rollup can read book value directly and the
+ * month/year-end run can charge the next period incrementally.
+ */
+export const assetDepreciation = pgTable(
+  "asset_depreciation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    method: depreciationMethodEnum("method").notNull().default("SLM"),
+    /** Capitalised cost basis (defaults to the asset's purchase cost at setup). */
+    cost: decimal("cost", { precision: 14, scale: 2 }).notNull(),
+    salvageValue: decimal("salvage_value", { precision: 14, scale: 2 }).notNull().default("0"),
+    usefulLifeYears: integer("useful_life_years").notNull(),
+    /** Explicit WDV rate as a fraction (nullable → derived from cost/salvage/life). */
+    wdvRate: decimal("wdv_rate", { precision: 6, scale: 4 }),
+    /** Running accumulated depreciation and net book value. */
+    accumulatedDepreciation: decimal("accumulated_depreciation", { precision: 14, scale: 2 }).notNull().default("0"),
+    bookValue: decimal("book_value", { precision: 14, scale: 2 }).notNull(),
+    /** Last period (year index) that has been charged; 0 = none yet. */
+    periodsElapsed: integer("periods_elapsed").notNull().default(0),
+    startDate: timestamp("start_date", { withTimezone: true }).notNull(),
+    /** True once fully depreciated to salvage. */
+    fullyDepreciated: boolean("fully_depreciated").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    assetIdx: uniqueIndex("asset_depreciation_asset_idx").on(t.assetId),
+    orgIdx: index("asset_depreciation_org_idx").on(t.orgId),
+  }),
+);
+
+/**
+ * Depreciation ledger — one immutable row per period charge. Idempotent per
+ * (asset, period) so a re-run of a month/year-end depreciation job cannot
+ * double-charge. Optionally links the journal entry that posted the charge.
+ */
+export const assetDepreciationEntries = pgTable(
+  "asset_depreciation_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id, { onDelete: "cascade" }),
+    /** 1-based period (year) index this charge covers. */
+    period: integer("period").notNull(),
+    openingBookValue: decimal("opening_book_value", { precision: 14, scale: 2 }).notNull(),
+    depreciation: decimal("depreciation", { precision: 14, scale: 2 }).notNull(),
+    accumulatedDepreciation: decimal("accumulated_depreciation", { precision: 14, scale: 2 }).notNull(),
+    closingBookValue: decimal("closing_book_value", { precision: 14, scale: 2 }).notNull(),
+    journalEntryId: uuid("journal_entry_id"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    assetPeriodIdx: uniqueIndex("asset_depreciation_entries_asset_period_idx").on(t.assetId, t.period),
+    orgIdx: index("asset_depreciation_entries_org_idx").on(t.orgId),
+    assetIdx: index("asset_depreciation_entries_asset_idx").on(t.assetId),
+  }),
+);
+
 // ── CI Items (CMDB) ────────────────────────────────────────────────────────
 export const ciItems = pgTable(
   "ci_items",
@@ -237,6 +316,19 @@ export const assetsRelations = relations(assets, ({ one, many }) => ({
   contract: one(contracts, { fields: [assets.contractId], references: [contracts.id] }),
   history: many(assetHistory),
   licenseAssignments: many(licenseAssignments),
+  depreciation: one(assetDepreciation, { fields: [assets.id], references: [assetDepreciation.assetId] }),
+  depreciationEntries: many(assetDepreciationEntries),
+}));
+
+export const assetDepreciationRelations = relations(assetDepreciation, ({ one }) => ({
+  org: one(organizations, { fields: [assetDepreciation.orgId], references: [organizations.id] }),
+  asset: one(assets, { fields: [assetDepreciation.assetId], references: [assets.id] }),
+}));
+
+export const assetDepreciationEntriesRelations = relations(assetDepreciationEntries, ({ one }) => ({
+  org: one(organizations, { fields: [assetDepreciationEntries.orgId], references: [organizations.id] }),
+  asset: one(assets, { fields: [assetDepreciationEntries.assetId], references: [assets.id] }),
+  createdBy: one(users, { fields: [assetDepreciationEntries.createdById], references: [users.id] }),
 }));
 
 export const ciItemsRelations = relations(ciItems, ({ one, many }) => ({
