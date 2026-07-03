@@ -237,6 +237,120 @@ export const assetsRouter = router({
       return updated;
     }),
 
+  /**
+   * Expiry radar: surface asset warranties and software licenses that lapse
+   * within the horizon (default 30 days). Returns a single merged, day-sorted
+   * feed so the CMDB dashboard / alerting worker has one call to poll. Already
+   * expired items (daysUntil < 0) are included so nothing silently drops off.
+   */
+  expiring: permissionProcedure("cmdb", "read")
+    .input(
+      z.object({
+        days: z.coerce.number().min(1).max(365).default(30),
+        kind: z.enum(["warranty", "license", "all"]).default("all"),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const now = Date.now();
+      const horizon = new Date(now + input.days * 86400000);
+
+      const classify = (dueDate: Date) => {
+        const daysUntil = Math.ceil((dueDate.getTime() - now) / 86400000);
+        const urgency: "expired" | "critical" | "warning" =
+          daysUntil < 0 ? "expired" : daysUntil <= 7 ? "critical" : "warning";
+        return { daysUntil, urgency };
+      };
+
+      type ExpiringItem = {
+        kind: "warranty" | "license";
+        id: string;
+        name: string;
+        reference: string | null;
+        vendor: string | null;
+        expiresAt: string;
+        daysUntil: number;
+        urgency: "expired" | "critical" | "warning";
+      };
+      const items: ExpiringItem[] = [];
+
+      if (input.kind === "warranty" || input.kind === "all") {
+        const rows = await db
+          .select({
+            id: assets.id,
+            name: assets.name,
+            assetTag: assets.assetTag,
+            vendor: assets.vendor,
+            warrantyExpiry: assets.warrantyExpiry,
+          })
+          .from(assets)
+          .where(
+            and(
+              eq(assets.orgId, org!.id),
+              sql`${assets.status} <> 'disposed'`,
+              sql`${assets.warrantyExpiry} IS NOT NULL AND ${assets.warrantyExpiry} <= ${horizon.toISOString()}`,
+            ),
+          );
+        for (const r of rows) {
+          const { daysUntil, urgency } = classify(r.warrantyExpiry!);
+          items.push({
+            kind: "warranty",
+            id: r.id,
+            name: r.name,
+            reference: r.assetTag,
+            vendor: r.vendor,
+            expiresAt: r.warrantyExpiry!.toISOString(),
+            daysUntil,
+            urgency,
+          });
+        }
+      }
+
+      if (input.kind === "license" || input.kind === "all") {
+        const rows = await db
+          .select({
+            id: softwareLicenses.id,
+            name: softwareLicenses.name,
+            vendor: softwareLicenses.vendor,
+            expiryDate: softwareLicenses.expiryDate,
+          })
+          .from(softwareLicenses)
+          .where(
+            and(
+              eq(softwareLicenses.orgId, org!.id),
+              sql`${softwareLicenses.isActive} = true`,
+              sql`${softwareLicenses.expiryDate} IS NOT NULL AND ${softwareLicenses.expiryDate} <= ${horizon.toISOString()}`,
+            ),
+          );
+        for (const r of rows) {
+          const { daysUntil, urgency } = classify(r.expiryDate!);
+          items.push({
+            kind: "license",
+            id: r.id,
+            name: r.name,
+            reference: null,
+            vendor: r.vendor,
+            expiresAt: r.expiryDate!.toISOString(),
+            daysUntil,
+            urgency,
+          });
+        }
+      }
+
+      items.sort((a, b) => a.daysUntil - b.daysUntil);
+
+      return {
+        horizonDays: input.days,
+        counts: {
+          total: items.length,
+          expired: items.filter((i) => i.urgency === "expired").length,
+          critical: items.filter((i) => i.urgency === "critical").length,
+          warning: items.filter((i) => i.urgency === "warning").length,
+        },
+        items,
+      };
+    }),
+
   listTypes: permissionProcedure("cmdb", "read").query(async ({ ctx }) => {
     return ctx.db.select().from(assetTypes).where(eq(assetTypes.orgId, ctx.org!.id));
   }),
