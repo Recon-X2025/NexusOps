@@ -342,7 +342,7 @@ export const accountingRouter = router({
       date: z.coerce.date().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      const { journalEntries, journalEntryLines, chartOfAccounts, count: dbCount, eq: dbEq, and: dbAnd, sql } = await import("@coheronconnect/db");
 
       const [je] = await db.select().from(journalEntries)
         .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id))).limit(1);
@@ -389,6 +389,17 @@ export const accountingRouter = router({
           sortOrder: i,
         }));
         await tx.insert(journalEntryLines).values(revLines);
+
+        // A reversal is itself a posted entry, so it must move balances too —
+        // otherwise the ledger stays skewed by the original posting. Applying
+        // net = debit − credit to the reversal lines (which have debit/credit
+        // swapped) exactly undoes the original post()'s balance impact.
+        for (const line of revLines) {
+          const net = Number(line.debitAmount) - Number(line.creditAmount);
+          await tx.update(chartOfAccounts)
+            .set({ currentBalance: sql`current_balance + ${String(net)}`, updatedAt: new Date() })
+            .where(dbEq(chartOfAccounts.id, line.accountId));
+        }
 
         await tx.update(journalEntries).set({ status: "reversed", updatedAt: new Date() }).where(dbEq(journalEntries.id, je.id));
         return revJe!;
