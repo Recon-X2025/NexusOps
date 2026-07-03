@@ -1338,11 +1338,112 @@ export const hrRouter = router({
       ownerId: z.string().uuid(),
       cycle: z.enum(["q1", "q2", "q3", "q4", "annual"]).default("q1"),
       year: z.number().int(),
+      /** Optional alignment: cascade this objective under a parent (team/org) OKR. */
+      parentObjectiveId: z.string().uuid().nullable().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { okrObjectives } = await import("@coheronconnect/db");
+      const { okrObjectives, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      // Tenant guard: a parent objective must belong to the caller's org.
+      if (input.parentObjectiveId) {
+        const [parent] = await db.select({ id: okrObjectives.id }).from(okrObjectives)
+          .where(dbAnd(dbEq(okrObjectives.id, input.parentObjectiveId), dbEq(okrObjectives.orgId, org!.id))).limit(1);
+        if (!parent) throw new TRPCError({ code: "NOT_FOUND", message: "Parent objective not found" });
+      }
       const [obj] = await db.insert(okrObjectives).values({ ...input, orgId: org!.id, status: "active" }).returning();
       return obj!;
+    }),
+
+    /**
+     * Align (or detach) an objective under a parent, forming the org→team→
+     * individual OKR cascade. Guards against cycles: a parent may not be the
+     * objective itself nor any of its descendants.
+     */
+    setParent: permissionProcedure("hr", "write").input(z.object({
+      id: z.string().uuid(),
+      parentObjectiveId: z.string().uuid().nullable(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { okrObjectives, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+
+      const [child] = await db.select().from(okrObjectives)
+        .where(dbAnd(dbEq(okrObjectives.id, input.id), dbEq(okrObjectives.orgId, org!.id))).limit(1);
+      if (!child) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.parentObjectiveId) {
+        if (input.parentObjectiveId === input.id) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "An objective cannot be its own parent" });
+        }
+        const [parent] = await db.select({ id: okrObjectives.id }).from(okrObjectives)
+          .where(dbAnd(dbEq(okrObjectives.id, input.parentObjectiveId), dbEq(okrObjectives.orgId, org!.id))).limit(1);
+        if (!parent) throw new TRPCError({ code: "NOT_FOUND", message: "Parent objective not found" });
+
+        // Cycle guard: walk up from the proposed parent; if we reach the child
+        // we'd create a loop. Bounded by org objective count.
+        const all = await db.select({ id: okrObjectives.id, parentObjectiveId: okrObjectives.parentObjectiveId })
+          .from(okrObjectives).where(dbEq(okrObjectives.orgId, org!.id));
+        const parentOf = new Map(all.map((o: { id: string; parentObjectiveId: string | null }) => [o.id, o.parentObjectiveId]));
+        let cursor: string | null = input.parentObjectiveId;
+        let hops = 0;
+        while (cursor && hops <= all.length) {
+          if (cursor === input.id) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Alignment would create a cycle" });
+          }
+          cursor = parentOf.get(cursor) ?? null;
+          hops++;
+        }
+      }
+
+      const [updated] = await db.update(okrObjectives)
+        .set({ parentObjectiveId: input.parentObjectiveId, updatedAt: new Date() })
+        .where(dbAnd(dbEq(okrObjectives.id, input.id), dbEq(okrObjectives.orgId, org!.id)))
+        .returning();
+      return updated!;
+    }),
+
+    /**
+     * Cascade view: the org's objectives as an alignment forest. Each node
+     * carries its own `overallProgress` plus a `rollupProgress` = average of
+     * its own progress and all descendants' progress, so a parent reflects how
+     * its aligned children are tracking.
+     */
+    cascade: permissionProcedure("hr", "read").input(z.object({
+      year: z.number().int().optional(),
+      cycle: z.enum(["q1", "q2", "q3", "q4", "annual"]).optional(),
+    })).query(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { okrObjectives, users: usersT, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
+      const conds: SQL[] = [dbEq(okrObjectives.orgId, org!.id)];
+      if (input.year) conds.push(dbEq(okrObjectives.year, input.year));
+      if (input.cycle) conds.push(dbEq(okrObjectives.cycle, input.cycle));
+      const rows = await db.select({ objective: okrObjectives, owner: usersT })
+        .from(okrObjectives).leftJoin(usersT, dbEq(okrObjectives.ownerId, usersT.id))
+        .where(dbAnd(...conds)).orderBy(dbDesc(okrObjectives.createdAt));
+
+      type Row = (typeof rows)[number];
+      type Node = Row & { children: Node[]; rollupProgress: number };
+      const nodes = new Map<string, Node>();
+      for (const r of rows) nodes.set(r.objective.id, { ...r, children: [], rollupProgress: r.objective.overallProgress });
+
+      const roots: Node[] = [];
+      for (const node of nodes.values()) {
+        const parentId = node.objective.parentObjectiveId;
+        // Attach to parent only if the parent is in this filtered set; otherwise
+        // treat as a root so nothing is dropped when filtered by cycle/year.
+        if (parentId && nodes.has(parentId)) nodes.get(parentId)!.children.push(node);
+        else roots.push(node);
+      }
+
+      // Post-order rollup: a node's rollupProgress averages its own progress
+      // with every descendant's own progress.
+      const rollup = (node: Node): number[] => {
+        const own = [node.objective.overallProgress];
+        for (const child of node.children) own.push(...rollup(child));
+        node.rollupProgress = Math.round(own.reduce((s, p) => s + p, 0) / own.length);
+        return own;
+      };
+      for (const root of roots) rollup(root);
+
+      return { roots };
     }),
 
     createKeyResult: permissionProcedure("hr", "write").input(z.object({

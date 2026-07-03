@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   decimal,
   index,
@@ -524,6 +525,15 @@ export const okrObjectives = pgTable(
     ownerId: uuid("owner_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    /**
+     * Self-referential alignment link: a child objective (individual/team)
+     * cascades up to a parent objective (team/org). SET NULL so detaching or
+     * deleting a parent orphans the child rather than deleting it.
+     */
+    parentObjectiveId: uuid("parent_objective_id").references(
+      (): AnyPgColumn => okrObjectives.id,
+      { onDelete: "set null" },
+    ),
     title: text("title").notNull(),
     description: text("description"),
     cycle: okrCycleEnum("cycle").notNull().default("q1"),
@@ -536,6 +546,7 @@ export const okrObjectives = pgTable(
   (t) => ({
     orgIdx: index("okr_objectives_org_idx").on(t.orgId),
     ownerIdx: index("okr_objectives_owner_idx").on(t.ownerId),
+    parentIdx: index("okr_objectives_parent_idx").on(t.parentObjectiveId),
   }),
 );
 
