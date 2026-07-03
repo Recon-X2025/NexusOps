@@ -22,7 +22,12 @@ export interface SignButtonProps {
   signers: Array<{ name: string; email: string; phone?: string; role?: string }>;
   message?: string;
   expiresAt?: string;
-  provider?: "emudhra" | "docusign";
+  /**
+   * Only providers with a real adapter are selectable. DocuSign was a stub and
+   * is no longer offered — keep this in sync with the API's
+   * IMPLEMENTED_ESIGN_PROVIDERS / esign.createRequest input enum.
+   */
+  provider?: "emudhra";
   onSent?: (envelopeId: string) => void;
   className?: string;
 }
