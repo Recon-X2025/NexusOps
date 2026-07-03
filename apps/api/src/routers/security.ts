@@ -22,6 +22,7 @@ import {
   sql,
 } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
+import { computeRemediationSla } from "../lib/vuln-sla-policy";
 
 const STATE_MACHINE: Record<string, string[]> = {
   new: ["triage"],
@@ -146,7 +147,16 @@ export const securityRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const [vuln] = await db.insert(vulnerabilities).values({ orgId: org!.id, ...input }).returning();
+      // Derive the remediation SLA from CVSS score (preferred) or severity, so
+      // every finding carries a deadline instead of relying on caller input.
+      const { remediationSlaDays, remediationDueAt } = computeRemediationSla({
+        cvssScore: input.cvssScore,
+        severity: input.severity,
+      });
+      const [vuln] = await db
+        .insert(vulnerabilities)
+        .values({ orgId: org!.id, ...input, remediationSlaDays, remediationDueAt })
+        .returning();
       return vuln;
     }),
 
@@ -253,6 +263,7 @@ export const securityRouter = router({
             title: z.string(),
             cveId: z.string().optional(),
             severity: z.enum(["critical", "high", "medium", "low", "none"]).default("medium"),
+            cvssScore: z.string().optional(),
             remediationSlaDays: z.coerce.number().min(1).max(365).optional(),
           }),
         ),
@@ -263,9 +274,14 @@ export const securityRouter = router({
       const created: string[] = [];
       const updated: string[] = [];
       for (const f of input.findings) {
-        const due = f.remediationSlaDays
-          ? new Date(Date.now() + f.remediationSlaDays * 86400000)
-          : undefined;
+        // Respect an explicit caller SLA, otherwise derive from CVSS/severity so
+        // scanner imports never land without a remediation deadline.
+        const { remediationSlaDays: slaDays, remediationDueAt: due } =
+          computeRemediationSla({
+            cvssScore: f.cvssScore,
+            severity: f.severity,
+            override: f.remediationSlaDays ?? null,
+          });
         const [existing] = await db
           .select({ id: vulnerabilities.id })
           .from(vulnerabilities)
@@ -283,8 +299,9 @@ export const securityRouter = router({
               title: f.title,
               cveId: f.cveId,
               severity: f.severity,
+              cvssScore: f.cvssScore,
               scannerSource: input.source,
-              remediationSlaDays: f.remediationSlaDays,
+              remediationSlaDays: slaDays,
               remediationDueAt: due,
               updatedAt: new Date(),
             })
@@ -299,8 +316,9 @@ export const securityRouter = router({
               title: f.title,
               cveId: f.cveId,
               severity: f.severity,
+              cvssScore: f.cvssScore,
               scannerSource: input.source,
-              remediationSlaDays: f.remediationSlaDays,
+              remediationSlaDays: slaDays,
               remediationDueAt: due,
             })
             .returning();
