@@ -38,7 +38,8 @@ export type SystemRole =
   | "vendor_manager"
   | "catalog_admin"
   | "legal_counsel"         // Legal matters, requests, investigations (not GRC / not CS registers)
-  | "company_secretary";    // Corporate secretarial & India issuer workflows
+  | "company_secretary"     // Corporate secretarial & India issuer workflows
+  | "privacy_officer";      // DPO: DPDP data-subject requests, consent ledger, breach register
 
 export type Module =
   | "incidents"
@@ -60,6 +61,7 @@ export type Module =
   | "policy"
   | "secretarial"           // NEW: Corporate Secretarial & Governance
   | "legal"                 // Legal service delivery (matters, requests, investigations)
+  | "compliance"            // NEW: Data-protection compliance (DPDP DSR / consent / breach)
   | "hr"
   | "onboarding"
   | "procurement"
@@ -308,9 +310,10 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
 
   /** Legal counsel — matters / requests / investigations; orthogonal to GRC and secretarial. */
   legal_counsel: {
-    legal:     ["read", "write", "admin"],
-    contracts: ["read", "write"],
-    reports:   ["read"],
+    legal:      ["read", "write", "admin"],
+    compliance: ["read", "write"],
+    contracts:  ["read", "write"],
+    reports:    ["read"],
     command_center: ["read"],
   },
 
@@ -318,6 +321,20 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
   company_secretary: {
     secretarial:     ["read", "write", "admin"],
     contracts:       ["read"],
+    reports:         ["read"],
+    command_center:  ["read"],
+    workbench:       ["read"],
+  },
+
+  /**
+   * privacy_officer — Data Protection Officer (DPDP Act 2023).
+   * Owns the compliance module: data-subject request lifecycle, consent ledger,
+   * and personal-data breach register. Read-only into legal (privacy matters /
+   * RoPA) for context. Separation of duties: not a GRC/legal/security admin.
+   */
+  privacy_officer: {
+    compliance:      ["read", "write", "admin", "approve", "close"],
+    legal:           ["read"],
     reports:         ["read"],
     command_center:  ["read"],
     workbench:       ["read"],
@@ -499,7 +516,7 @@ export function getVisibleModules(roles: SystemRole[]): Set<Module> {
       "incidents", "requests", "changes", "problems", "work_orders", "escalations",
       "knowledge", "catalog", "approvals", "events",
       "security", "vulnerabilities", "threat_intel",
-      "grc", "risk", "audit", "policy", "secretarial", "legal",
+      "grc", "risk", "audit", "policy", "secretarial", "legal", "compliance",
       "hr", "onboarding", "recruitment", "workforce_analytics",
       "procurement", "inventory", "purchase_orders",
       "financial", "budget", "chargebacks",
