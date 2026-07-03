@@ -27,10 +27,12 @@ The two India-specific standouts pull in opposite directions: **payroll/tax is g
 | 5 — CRM & Customer | `PLATFORM_GAP_CRM_2026-07-03.md` | ~45 | Pipeline real; scoring/CPQ-tax/CSM-health stubbed |
 | 1 — Finance & Accounting | `PLATFORM_GAP_FINANCE_2026-07-03.md` | ~42 | Double-entry real; no balance sheet, GSTR bugs, placeholder accruals |
 | 4 — IT Asset & Config | `PLATFORM_GAP_ITASSET_2026-07-03.md` | ~42 | CMDB genuinely good; depreciation + SAM absent |
+| GRC (companion) | `GRC_GAP_ANALYSIS_2026-07-03.md` | ~55 | Strong system of record; not yet a continuous-assurance engine (no auto evidence/framework mapping) |
+| Legal / Secretarial (companion) | `LEGAL_GOVERNANCE_GAP_ANALYSIS_2026-07-03.md` | ~40 | Broad but shallow; CLM/entity/cap-table/board/matter depth thin; eSign the standout (~70) |
 
-**Cross-cluster average ≈ 52/100** — a capable, well-modelled platform whose value is gated on building the computation/automation layers on top of already-correct schema.
+**Cross-cluster average ≈ 51/100** (9 audits: 7 clusters + GRC + Legal) — a capable, well-modelled platform whose value is gated on building the computation/automation layers on top of already-correct schema.
 
-*(The earlier GRC and Legal/Secretarial deep-dives — `GRC_GAP_ANALYSIS_2026-07-03.md`, `LEGAL_GOVERNANCE_GAP_ANALYSIS_2026-07-03.md` — cover the governance-risk-compliance and legal/contract/secretarial modules and are the companion set to this index.)*
+*(The GRC and Legal/Secretarial deep-dives are now included in the scoreboard above. They have companion detail docs — GRC: `GRC_TIER_WORKITEM_MAP_2026-07-03.md`, `GRC_BASIC_HARDENING_BACKLOG_2026-07-03.md`; Legal: `LEGAL_CONTRACT_CONTENT_AUDIT_2026-07-03.md`, `LEGAL_GOVERNANCE_RUN_WITHOUT_PROFESSIONAL_2026-07-03.md`.)*
 
 ---
 
