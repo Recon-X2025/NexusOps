@@ -163,9 +163,9 @@ export default function InvoiceDetailPage() {
                       <DetailGrid
                         title="Line Items"
                         items={[
-                          { label: "Tax Amount", value: `₹${Number(inv.taxAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
-                          { label: "Discount", value: `₹${Number(inv.discountAmount || 0).toLocaleString("en-IN")}`, icon: TrendingDown },
-                          { label: "Net Amount", value: `₹${Number(inv.amount || inv.totalAmount).toLocaleString("en-IN")}`, icon: Wallet },
+                          { label: "Taxable Value", value: `₹${Number(inv.taxableValue || inv.amount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                          { label: "Tax Amount", value: `₹${Number(inv.totalTaxAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                          { label: "Total Amount", value: `₹${Number(inv.amount || inv.totalAmount).toLocaleString("en-IN")}`, icon: Wallet },
                           { label: "PO Reference", value: inv.poId || "Direct Invoice", icon: ShoppingCart },
                         ]}
                       />
@@ -226,7 +226,7 @@ export default function InvoiceDetailPage() {
                       <DetailGrid
                         title="Amount Breakdown"
                         items={[
-                          { label: "Taxable Value", value: `₹${Number(inv.amount || inv.totalAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                          { label: "Taxable Value", value: `₹${Number(inv.taxableValue || inv.amount || 0).toLocaleString("en-IN")}`, icon: Coins },
                           { label: "CGST", value: `₹${Number(inv.cgstAmount || 0).toLocaleString("en-IN")}`, icon: ArrowUpCircle },
                           { label: "SGST", value: `₹${Number(inv.sgstAmount || 0).toLocaleString("en-IN")}`, icon: ArrowUpCircle },
                           { label: "IGST", value: `₹${Number(inv.igstAmount || 0).toLocaleString("en-IN")}`, icon: ArrowUpCircle },
