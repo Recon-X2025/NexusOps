@@ -542,7 +542,7 @@ export const accountingRouter = router({
       year: z.number().int(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { invoices, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte } = await import("@coheronconnect/db");
+      const { invoices, invoiceLineItems, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte, inArray } = await import("@coheronconnect/db");
       const [gstin] = await db.select().from(gstinRegistry)
         .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
       if (!gstin) throw new TRPCError({ code: "NOT_FOUND" });
@@ -552,6 +552,62 @@ export const accountingRouter = router({
 
       const invs = await db.select().from(invoices)
         .where(dbAnd(dbEq(invoices.orgId, org!.id), gte(invoices.invoiceDate, start), lte(invoices.invoiceDate, end)));
+
+      // Fetch line items for all invoices in the period so GSTR-1 `itms` can be
+      // grouped by actual GST rate (not a hardcoded 18%). Invoices with no line
+      // items fall back to a single rate derived from header tax amounts.
+      const invIds = invs.map((i) => i.id);
+      const allLines = invIds.length
+        ? await db.select().from(invoiceLineItems).where(inArray(invoiceLineItems.invoiceId, invIds))
+        : [];
+      const linesByInvoice = new Map<string, typeof allLines>();
+      for (const ln of allLines) {
+        const bucket = linesByInvoice.get(ln.invoiceId) ?? [];
+        bucket.push(ln);
+        linesByInvoice.set(ln.invoiceId, bucket);
+      }
+
+      /**
+       * Build one GSTR-1 `itm_det` per distinct GST rate for an invoice.
+       * Prefers real per-line data; falls back to a single header-derived rate.
+       */
+      function buildItms(inv: typeof invs[number]): GstrItem[] {
+        const lines = linesByInvoice.get(inv.id) ?? [];
+        if (lines.length > 0) {
+          const byRate = new Map<number, { rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number }>();
+          for (const ln of lines) {
+            const rt = Number(ln.gstRate ?? 0);
+            const agg = byRate.get(rt) ?? { rt, txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 };
+            agg.txval += Number(ln.taxableValue ?? 0);
+            agg.iamt  += Number(ln.igstAmount ?? 0);
+            agg.camt  += Number(ln.cgstAmount ?? 0);
+            agg.samt  += Number(ln.sgstAmount ?? 0);
+            byRate.set(rt, agg);
+          }
+          const round2 = (n: number) => Math.round(n * 100) / 100;
+          return Array.from(byRate.values())
+            .sort((a, b) => a.rt - b.rt)
+            .map((v, idx) => ({
+              num: idx + 1,
+              itm_det: {
+                rt: v.rt,
+                txval: round2(v.txval),
+                iamt: round2(v.iamt),
+                camt: round2(v.camt),
+                samt: round2(v.samt),
+                csamt: 0,
+              },
+            }));
+        }
+        // Fallback: derive the effective rate from header tax amounts.
+        const txval = Number(inv.taxableValue ?? 0);
+        const iamt = Number(inv.igstAmount ?? 0);
+        const camt = Number(inv.cgstAmount ?? 0);
+        const samt = Number(inv.sgstAmount ?? 0);
+        const totalTax = iamt + camt + samt;
+        const rt = txval > 0 ? Math.round((totalTax / txval) * 100) : 0;
+        return [{ num: 1, itm_det: { rt, txval, iamt, camt, samt, csamt: 0 } }];
+      }
 
       type GstrItem = {
         num: number;
@@ -569,18 +625,13 @@ export const accountingRouter = router({
       const b2c: Array<GstrEntry & { ty: string }> = [];
 
       for (const inv of invs) {
-        const igst = Number(inv.igstAmount ?? 0);
-        const cgst = Number(inv.cgstAmount ?? 0);
-        const sgst = Number(inv.sgstAmount ?? 0);
-        const taxableValue = Number(inv.taxableValue ?? 0);
-
         const entry: GstrEntry = {
           inum: inv.invoiceNumber,
           idt: new Date(inv.invoiceDate!).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
           val: Number(inv.amount ?? 0),
           pos: inv.placeOfSupply ?? gstin.stateCode,
           rchrg: (inv.isReverseCharge ?? false) ? "Y" : "N",
-          itms: [{ num: 1, itm_det: { rt: 18, txval: taxableValue, iamt: igst, camt: cgst, samt: sgst, csamt: 0 } }],
+          itms: buildItms(inv),
         };
 
         if (inv.buyerGstin) {
