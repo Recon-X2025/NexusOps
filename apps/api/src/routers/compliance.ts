@@ -2,9 +2,10 @@
  * Compliance router — DPDP Act 2023 data-protection surface.
  *
  * Gated under the new `compliance` module (owned by the `privacy_officer` DPO
- * role; see packages/types/src/rbac-matrix.ts). Sprint 1.1 delivers the
- * Data Subject Request (DSR) lifecycle: intake, a statutory response clock,
- * a guarded status state machine, and an append-only event trail.
+ * role; see packages/types/src/rbac-matrix.ts).
+ *   - dsr     (1.1): Data Subject Request lifecycle + statutory response clock.
+ *   - consent (1.2): §6 consent ledger (grant / withdraw / renew / expire).
+ *   - breach  (1.3): §8(6) personal-data breach register + notification clock.
  */
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
@@ -15,6 +16,11 @@ import {
   dpdpConsentRecords,
   dpdpConsentEvents,
   consentStatusEnum,
+  dpdpBreachIncidents,
+  dpdpBreachEvents,
+  breachSeverityEnum,
+  breachStatusEnum,
+  privacyBreachNotificationProfiles,
   dsrRequestTypeEnum,
   dsrStatusEnum,
   eq,
@@ -36,22 +42,45 @@ const DSR_TRANSITIONS: Record<string, string[]> = {
 };
 
 type DsrStatus = (typeof dsrStatusEnum.enumValues)[number];
+type BreachStatus = (typeof breachStatusEnum.enumValues)[number];
+
+// Breach state machine — allowed transitions. closed is terminal.
+const BREACH_TRANSITIONS: Record<string, string[]> = {
+  detected: ["assessing", "notifying", "contained", "closed"],
+  assessing: ["notifying", "contained", "closed"],
+  notifying: ["notified", "contained"],
+  notified: ["contained", "closed"],
+  contained: ["closed"],
+  closed: [],
+};
+
+/** Generates the next per-org, per-year case reference for a given prefix. */
+async function nextReference(
+  db: any,
+  orgId: string,
+  table: any,
+  refCol: any,
+  prefixBase: string,
+): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `${prefixBase}-${year}-`;
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(table)
+    .where(and(eq(table.orgId, orgId), sql`${refCol} LIKE ${prefix + "%"}`));
+  const seq = (row?.n ?? 0) + 1;
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
 
 /** Generates the next per-org DSR case reference (DSR-YYYY-NNNN). */
 async function nextDsrReference(db: any, orgId: string): Promise<string> {
-  const year = new Date().getFullYear();
-  const prefix = `DSR-${year}-`;
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(dpdpDataSubjectRequests)
-    .where(
-      and(
-        eq(dpdpDataSubjectRequests.orgId, orgId),
-        sql`${dpdpDataSubjectRequests.reference} LIKE ${prefix + "%"}`,
-      ),
-    );
-  const seq = (row?.n ?? 0) + 1;
-  return `${prefix}${String(seq).padStart(4, "0")}`;
+  return nextReference(
+    db,
+    orgId,
+    dpdpDataSubjectRequests,
+    dpdpDataSubjectRequests.reference,
+    "DSR",
+  );
 }
 
 export const complianceRouter = router({
@@ -537,6 +566,337 @@ export const complianceRouter = router({
         }
         return { expired: lapsed.length };
       });
+    }),
+  }),
+
+  // ══ Breach register (DPDP §8(6)) ═══════════════════════════════════════════
+  breach: router({
+    // ── List / filter ─────────────────────────────────────────────────────────
+    list: permissionProcedure("compliance", "read")
+      .input(
+        z
+          .object({
+            status: z.enum(breachStatusEnum.enumValues).optional(),
+            severity: z.enum(breachSeverityEnum.enumValues).optional(),
+            overdueOnly: z.boolean().optional(),
+          })
+          .optional(),
+      )
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conditions = [eq(dpdpBreachIncidents.orgId, org!.id)];
+        if (input?.status) conditions.push(eq(dpdpBreachIncidents.status, input.status));
+        if (input?.severity) conditions.push(eq(dpdpBreachIncidents.severity, input.severity));
+        if (input?.overdueOnly) {
+          // "overdue" = not yet notified and past the notify clock
+          conditions.push(sql`${dpdpBreachIncidents.principalsNotifiedAt} IS NULL`);
+          conditions.push(sql`${dpdpBreachIncidents.notifyDueAt} < now()`);
+          conditions.push(sql`${dpdpBreachIncidents.closedAt} IS NULL`);
+        }
+        return db
+          .select()
+          .from(dpdpBreachIncidents)
+          .where(and(...conditions))
+          .orderBy(asc(dpdpBreachIncidents.notifyDueAt));
+      }),
+
+    // ── Get one (with event trail) ───────────────────────────────────────────
+    get: permissionProcedure("compliance", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select()
+          .from(dpdpBreachIncidents)
+          .where(
+            and(eq(dpdpBreachIncidents.id, input.id), eq(dpdpBreachIncidents.orgId, org!.id)),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Breach not found" });
+        const events = await db
+          .select()
+          .from(dpdpBreachEvents)
+          .where(eq(dpdpBreachEvents.breachId, input.id))
+          .orderBy(asc(dpdpBreachEvents.createdAt));
+        return { ...row, events };
+      }),
+
+    // ── Intake — derives the notify clock from the jurisdiction profile ───────
+    create: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          title: z.string().min(1).max(300),
+          description: z.string().max(4000).optional(),
+          severity: z.enum(breachSeverityEnum.enumValues).default("medium"),
+          jurisdictionCode: z.string().min(2).max(10).default("IN"),
+          affectedDataPrincipals: z.number().int().min(0).optional(),
+          dataCategories: z.string().max(2000).optional(),
+          linkedSecurityIncidentId: z.string().uuid().optional(),
+          assignedToUserId: z.string().uuid().optional(),
+          occurredAt: z.string().datetime().optional(),
+          detectedAt: z.string().datetime().optional(),
+          notificationWindowHours: z.number().int().min(1).max(8760).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const detectedAt = input.detectedAt ? new Date(input.detectedAt) : new Date();
+
+        // Resolve the notification window: explicit override → jurisdiction
+        // profile → statutory default (72h).
+        let windowHours = input.notificationWindowHours;
+        if (windowHours == null) {
+          const [profile] = await db
+            .select({ hours: privacyBreachNotificationProfiles.notificationOffsetHours })
+            .from(privacyBreachNotificationProfiles)
+            .where(
+              and(
+                eq(privacyBreachNotificationProfiles.orgId, org!.id),
+                eq(privacyBreachNotificationProfiles.jurisdictionCode, input.jurisdictionCode),
+              ),
+            )
+            .limit(1);
+          windowHours = profile?.hours ?? 72;
+        }
+        const notifyDueAt = new Date(detectedAt.getTime() + windowHours * 60 * 60 * 1000);
+        const reference = await nextReference(
+          db,
+          org!.id,
+          dpdpBreachIncidents,
+          dpdpBreachIncidents.reference,
+          "BR",
+        );
+
+        return db.transaction(async (tx) => {
+          const [row] = await tx
+            .insert(dpdpBreachIncidents)
+            .values({
+              orgId: org!.id,
+              reference,
+              title: input.title,
+              description: input.description,
+              severity: input.severity,
+              status: "detected",
+              jurisdictionCode: input.jurisdictionCode,
+              affectedDataPrincipals: input.affectedDataPrincipals,
+              dataCategories: input.dataCategories,
+              linkedSecurityIncidentId: input.linkedSecurityIncidentId,
+              assignedToUserId: input.assignedToUserId,
+              occurredAt: input.occurredAt ? new Date(input.occurredAt) : null,
+              detectedAt,
+              notificationWindowHours: windowHours,
+              notifyDueAt,
+            })
+            .returning();
+          await tx.insert(dpdpBreachEvents).values({
+            orgId: org!.id,
+            breachId: row!.id,
+            eventType: "created",
+            toStatus: "detected",
+            note: `Breach ${reference} logged (${input.severity}); notify due within ${windowHours}h`,
+            actorUserId: (user?.id as string) ?? null,
+          });
+          return row!;
+        });
+      }),
+
+    // ── Assign / reassign investigator ────────────────────────────────────────
+    assign: permissionProcedure("compliance", "write")
+      .input(z.object({ id: z.string().uuid(), assignedToUserId: z.string().uuid().nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        return db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(dpdpBreachIncidents)
+            .set({ assignedToUserId: input.assignedToUserId, updatedAt: new Date() })
+            .where(
+              and(eq(dpdpBreachIncidents.id, input.id), eq(dpdpBreachIncidents.orgId, org!.id)),
+            )
+            .returning();
+          if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Breach not found" });
+          await tx.insert(dpdpBreachEvents).values({
+            orgId: org!.id,
+            breachId: row.id,
+            eventType: "assigned",
+            note: input.assignedToUserId ? "Assigned investigator" : "Unassigned",
+            actorUserId: (user?.id as string) ?? null,
+          });
+          return row;
+        });
+      }),
+
+    // ── State machine transition ──────────────────────────────────────────────
+    // Stamps the appropriate clock column as the breach moves through the
+    // notification workflow (notified → principalsNotifiedAt/boardNotifiedAt,
+    // contained → containedAt, closed → closedAt).
+    transition: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          toStatus: z.enum(breachStatusEnum.enumValues),
+          note: z.string().max(4000).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        return db.transaction(async (tx) => {
+          const [current] = await tx
+            .select()
+            .from(dpdpBreachIncidents)
+            .where(
+              and(eq(dpdpBreachIncidents.id, input.id), eq(dpdpBreachIncidents.orgId, org!.id)),
+            )
+            .limit(1);
+          if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Breach not found" });
+
+          const from = current.status as BreachStatus;
+          const to = input.toStatus;
+          if (from === to) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Breach is already ${to}` });
+          }
+          const allowed = BREACH_TRANSITIONS[from] ?? [];
+          if (!allowed.includes(to)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Invalid breach transition ${from} → ${to}`,
+            });
+          }
+
+          const now = new Date();
+          const patch: Record<string, unknown> = { status: to, updatedAt: now };
+          if (to === "notified") {
+            // both audiences are considered notified when the workflow reaches "notified"
+            if (!current.boardNotifiedAt) patch["boardNotifiedAt"] = now;
+            if (!current.principalsNotifiedAt) patch["principalsNotifiedAt"] = now;
+          }
+          if (to === "contained" && !current.containedAt) patch["containedAt"] = now;
+          if (to === "closed") patch["closedAt"] = now;
+
+          const [row] = await tx
+            .update(dpdpBreachIncidents)
+            .set(patch)
+            .where(eq(dpdpBreachIncidents.id, input.id))
+            .returning();
+          await tx.insert(dpdpBreachEvents).values({
+            orgId: org!.id,
+            breachId: input.id,
+            eventType: "status_changed",
+            fromStatus: from,
+            toStatus: to,
+            note: input.note ?? `${from} → ${to}`,
+            actorUserId: (user?.id as string) ?? null,
+          });
+          return row!;
+        });
+      }),
+
+    // ── Record a notification (Board and/or affected Principals) ──────────────
+    notify: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          audience: z.enum(["board", "principals", "both"]),
+          note: z.string().max(4000).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        return db.transaction(async (tx) => {
+          const [current] = await tx
+            .select()
+            .from(dpdpBreachIncidents)
+            .where(
+              and(eq(dpdpBreachIncidents.id, input.id), eq(dpdpBreachIncidents.orgId, org!.id)),
+            )
+            .limit(1);
+          if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Breach not found" });
+
+          const now = new Date();
+          const patch: Record<string, unknown> = { updatedAt: now };
+          if (input.audience === "board" || input.audience === "both")
+            patch["boardNotifiedAt"] = now;
+          if (input.audience === "principals" || input.audience === "both")
+            patch["principalsNotifiedAt"] = now;
+
+          const [row] = await tx
+            .update(dpdpBreachIncidents)
+            .set(patch)
+            .where(eq(dpdpBreachIncidents.id, input.id))
+            .returning();
+          await tx.insert(dpdpBreachEvents).values({
+            orgId: org!.id,
+            breachId: input.id,
+            eventType:
+              input.audience === "board"
+                ? "board_notified"
+                : input.audience === "principals"
+                  ? "principals_notified"
+                  : "notified",
+            note: input.note ?? `Notified: ${input.audience}`,
+            actorUserId: (user?.id as string) ?? null,
+          });
+          return row!;
+        });
+      }),
+
+    // ── Free-form note (no status change) ─────────────────────────────────────
+    addNote: permissionProcedure("compliance", "write")
+      .input(z.object({ id: z.string().uuid(), note: z.string().min(1).max(4000) }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const [exists] = await db
+          .select({ id: dpdpBreachIncidents.id })
+          .from(dpdpBreachIncidents)
+          .where(
+            and(eq(dpdpBreachIncidents.id, input.id), eq(dpdpBreachIncidents.orgId, org!.id)),
+          )
+          .limit(1);
+        if (!exists) throw new TRPCError({ code: "NOT_FOUND", message: "Breach not found" });
+        const [ev] = await db
+          .insert(dpdpBreachEvents)
+          .values({
+            orgId: org!.id,
+            breachId: input.id,
+            eventType: "note",
+            note: input.note,
+            actorUserId: (user?.id as string) ?? null,
+          })
+          .returning();
+        return ev!;
+      }),
+
+    // ── SLA summary (open / overdue / due-soon / notified / closed) ───────────
+    slaSummary: permissionProcedure("compliance", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const rows = await db
+        .select({
+          status: dpdpBreachIncidents.status,
+          notifyDueAt: dpdpBreachIncidents.notifyDueAt,
+          principalsNotifiedAt: dpdpBreachIncidents.principalsNotifiedAt,
+          closedAt: dpdpBreachIncidents.closedAt,
+        })
+        .from(dpdpBreachIncidents)
+        .where(eq(dpdpBreachIncidents.orgId, org!.id));
+
+      const now = Date.now();
+      const soonMs = 24 * 60 * 60 * 1000; // breach clocks are tight — "soon" = 24h
+      let open = 0;
+      let overdue = 0;
+      let dueSoon = 0;
+      let closed = 0;
+      for (const r of rows) {
+        if (r.closedAt || r.status === "closed") {
+          closed++;
+          continue;
+        }
+        open++;
+        // once principals are notified the statutory clock is satisfied
+        if (r.principalsNotifiedAt) continue;
+        const due = new Date(r.notifyDueAt).getTime();
+        if (due < now) overdue++;
+        else if (due - now <= soonMs) dueSoon++;
+      }
+      return { total: rows.length, open, overdue, dueSoon, closed };
     }),
   }),
 });

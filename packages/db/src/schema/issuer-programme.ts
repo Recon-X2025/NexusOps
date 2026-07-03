@@ -604,3 +604,111 @@ export const dpdpConsentEventsRelations = relations(dpdpConsentEvents, ({ one })
     references: [dpdpConsentRecords.id],
   }),
 }));
+
+// ── DPDP Act 2023 — Personal-data breach register (Sprint 1.3) ──────────────
+// §8(6): on a personal-data breach the Data Fiduciary must notify the Data
+// Protection Board and each affected Data Principal. The existing
+// privacyBreachNotificationProfiles hold the per-jurisdiction notification
+// window (default 72h); this register records actual breaches and clocks a
+// notify_due_at from that window.
+
+export const breachSeverityEnum = pgEnum("dpdp_breach_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+export const breachStatusEnum = pgEnum("dpdp_breach_status", [
+  "detected", // logged, triage pending
+  "assessing", // scope / impact assessment in progress
+  "notifying", // notifications being issued (Board + Principals)
+  "notified", // all required notifications sent
+  "contained", // breach contained / remediated
+  "closed", // final state
+]);
+
+/**
+ * dpdp_breach_incidents — one row per personal-data breach. notify_due_at is
+ * derived at intake from detected_at + the jurisdiction's notification window
+ * (privacyBreachNotificationProfiles; falls back to 72h). Optional link to a
+ * security incident (SET NULL) ties the privacy view to the SOC record.
+ */
+export const dpdpBreachIncidents = pgTable(
+  "dpdp_breach_incidents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    reference: text("reference").notNull(), // human-facing case number, unique per org
+    title: text("title").notNull(),
+    description: text("description"),
+    severity: breachSeverityEnum("severity").notNull().default("medium"),
+    status: breachStatusEnum("status").notNull().default("detected"),
+    jurisdictionCode: text("jurisdiction_code").notNull().default("IN"),
+    affectedDataPrincipals: integer("affected_data_principals"),
+    dataCategories: text("data_categories"),
+    linkedSecurityIncidentId: uuid("linked_security_incident_id").references(
+      () => securityIncidents.id,
+      { onDelete: "set null" },
+    ),
+    // clock
+    occurredAt: timestamp("occurred_at", { withTimezone: true }),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+    notificationWindowHours: integer("notification_window_hours").notNull().default(72),
+    notifyDueAt: timestamp("notify_due_at", { withTimezone: true }).notNull(),
+    boardNotifiedAt: timestamp("board_notified_at", { withTimezone: true }),
+    principalsNotifiedAt: timestamp("principals_notified_at", { withTimezone: true }),
+    containedAt: timestamp("contained_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    refUidx: uniqueIndex("dpdp_breach_org_reference_uidx").on(t.orgId, t.reference),
+    orgStatusIdx: index("dpdp_breach_org_status_idx").on(t.orgId, t.status),
+    dueIdx: index("dpdp_breach_org_notify_due_idx").on(t.orgId, t.notifyDueAt),
+  }),
+);
+
+/**
+ * dpdp_breach_events — append-only trail of every state change / notification /
+ * note on a breach (child → parent CASCADE).
+ */
+export const dpdpBreachEvents = pgTable(
+  "dpdp_breach_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    breachId: uuid("breach_id")
+      .notNull()
+      .references(() => dpdpBreachIncidents.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // created | status_changed | board_notified | principals_notified | note
+    fromStatus: breachStatusEnum("from_status"),
+    toStatus: breachStatusEnum("to_status"),
+    note: text("note"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    breachIdx: index("dpdp_breach_events_breach_idx").on(t.breachId, t.createdAt),
+    orgIdx: index("dpdp_breach_events_org_idx").on(t.orgId),
+  }),
+);
+
+export const dpdpBreachIncidentsRelations = relations(dpdpBreachIncidents, ({ many }) => ({
+  events: many(dpdpBreachEvents),
+}));
+
+export const dpdpBreachEventsRelations = relations(dpdpBreachEvents, ({ one }) => ({
+  breach: one(dpdpBreachIncidents, {
+    fields: [dpdpBreachEvents.breachId],
+    references: [dpdpBreachIncidents.id],
+  }),
+}));
