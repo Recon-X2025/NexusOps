@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, numeric } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import { legalMatters } from "./legal";
@@ -392,4 +392,117 @@ export const resourceReadAuditEvents = pgTable(
 
 export const contractEsignEventsRelations = relations(contractEsignEvents, ({ one }) => ({
   contract: one(contracts, { fields: [contractEsignEvents.contractId], references: [contracts.id] }),
+}));
+
+// ── DPDP Act 2023 — Data Subject Request (DSR) lifecycle (Sprint 1.1) ────────
+// A Data Principal (individual) exercises a right against the org as Data
+// Fiduciary. Rights per §11–14: access, correction, erasure, grievance,
+// nomination. The Fiduciary must respond within a prescribed period; we clock
+// a due date from receipt and drive the state machine access→…→closed.
+
+export const dsrRequestTypeEnum = pgEnum("dsr_request_type", [
+  "access", // §11 — right to access information about processing
+  "correction", // §12 — correction / completion / update
+  "erasure", // §12 — erasure of personal data
+  "grievance", // §13 — grievance redressal
+  "nomination", // §14 — nominate another individual
+]);
+
+export const dsrStatusEnum = pgEnum("dsr_status", [
+  "received", // logged, verification pending
+  "verifying", // identity verification in progress
+  "in_progress", // verified, being fulfilled
+  "on_hold", // paused (e.g. awaiting Principal input / legal hold)
+  "fulfilled", // action completed, ready to close
+  "rejected", // refused (with reason) per statutory exemption
+  "closed", // final state
+]);
+
+/**
+ * dpdp_data_subject_requests — one row per DSR from a Data Principal.
+ * requestedByUserId is a nullable actor reference (SET NULL) — most Principals
+ * are external and won't have a platform user; assignedToUserId is the DPO/
+ * handler. A due clock (dueAt) is set from receivedAt + response window.
+ */
+export const dpdpDataSubjectRequests = pgTable(
+  "dpdp_data_subject_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    reference: text("reference").notNull(), // human-facing case number, unique per org
+    requestType: dsrRequestTypeEnum("request_type").notNull(),
+    status: dsrStatusEnum("status").notNull().default("received"),
+    // Data Principal identity (external individual — not necessarily a platform user)
+    principalName: text("principal_name").notNull(),
+    principalEmail: text("principal_email"),
+    principalPhone: text("principal_phone"),
+    requestedByUserId: uuid("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    details: text("details"),
+    // linked privacy matter (RoPA / legal context)
+    linkedPrivacyMatterId: uuid("linked_privacy_matter_id").references(() => legalMatters.id, {
+      onDelete: "set null",
+    }),
+    // response clock
+    responseWindowDays: integer("response_window_days").notNull().default(30),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    rejectionReason: text("rejection_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    refUidx: uniqueIndex("dpdp_dsr_org_reference_uidx").on(t.orgId, t.reference),
+    orgStatusIdx: index("dpdp_dsr_org_status_idx").on(t.orgId, t.status),
+    dueIdx: index("dpdp_dsr_org_due_idx").on(t.orgId, t.dueAt),
+  }),
+);
+
+/**
+ * dpdp_dsr_events — append-only audit trail of every state transition / note on
+ * a DSR (child → parent CASCADE). Gives the DPO a defensible timeline.
+ */
+export const dpdpDsrEvents = pgTable(
+  "dpdp_dsr_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => dpdpDataSubjectRequests.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // created | status_changed | assigned | note | fulfilled | rejected | closed
+    fromStatus: dsrStatusEnum("from_status"),
+    toStatus: dsrStatusEnum("to_status"),
+    note: text("note"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    requestIdx: index("dpdp_dsr_events_request_idx").on(t.requestId, t.createdAt),
+    orgIdx: index("dpdp_dsr_events_org_idx").on(t.orgId),
+  }),
+);
+
+export const dpdpDataSubjectRequestsRelations = relations(
+  dpdpDataSubjectRequests,
+  ({ many }) => ({
+    events: many(dpdpDsrEvents),
+  }),
+);
+
+export const dpdpDsrEventsRelations = relations(dpdpDsrEvents, ({ one }) => ({
+  request: one(dpdpDataSubjectRequests, {
+    fields: [dpdpDsrEvents.requestId],
+    references: [dpdpDataSubjectRequests.id],
+  }),
 }));

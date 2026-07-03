@@ -51,6 +51,7 @@ import { documentsRouter } from "./documents";
 import { agentRouter } from "./agent";
 import { ingestRouter } from "./ingest";
 import { teamsRouter } from "./teams";
+import { complianceRouter } from "./compliance";
 
 export const appRouter = router({
   mac: macRouter,
@@ -116,6 +117,8 @@ export const appRouter = router({
   // Readiness Gap: Bulk Ingest
   ingest: ingestRouter,
   teams: teamsRouter,
+  // Sprint 1 — DPDP data-protection compliance (privacy_officer / compliance module)
+  compliance: complianceRouter,
 });
 
 export type AppRouter = typeof appRouter;
