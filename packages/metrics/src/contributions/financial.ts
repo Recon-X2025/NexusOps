@@ -99,10 +99,19 @@ registerMetric({
       );
     const now = Date.now();
     let aged = 0;
+    // Aging buckets by days-past-due. `current` remains the 60+ total so the
+    // existing risk/attention rules keep working; `categories` powers the
+    // AR aging distribution bar on the Finance hub.
+    const buckets = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
     for (const inv of rows) {
       if (!inv.dueDate) continue;
+      const amount = Number(inv.amount);
       const days = Math.floor((now - new Date(inv.dueDate).getTime()) / 86400000);
-      if (days > 60) aged += Number(inv.amount);
+      if (days <= 30) buckets["0-30"] += amount;
+      else if (days <= 60) buckets["31-60"] += amount;
+      else if (days <= 90) buckets["61-90"] += amount;
+      else buckets["90+"] += amount;
+      if (days > 60) aged += amount;
     }
     if (rows.length === 0) {
       return emptyMetricValue("no_data");
@@ -112,6 +121,12 @@ registerMetric({
       current: aged,
       // Aged AR is a present-state aggregate; previous-period AR isn't tracked.
       series: [],
+      categories: [
+        { label: "0–30d", value: Math.round(buckets["0-30"]), state: "healthy" },
+        { label: "31–60d", value: Math.round(buckets["31-60"]), state: "watch" },
+        { label: "61–90d", value: Math.round(buckets["61-90"]), state: "stressed" },
+        { label: "90d+", value: Math.round(buckets["90+"]), state: "stressed" },
+      ],
       state,
       lastUpdated: new Date(),
     };

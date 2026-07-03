@@ -420,6 +420,8 @@ export async function buildCommandCenterPayload(input: {
       cellState: toCellState(m, v),
       direction: m.direction,
       series: v.series,
+      categories: v.categories,
+      scatter: v.scatter,
       displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };
@@ -713,8 +715,19 @@ export async function buildHubPayload(input: {
 
   const explicitTrends = getMetricsForFunction(fn, "trend");
   // Trends need timeseries — any hub metric whose resolver returned a
-  // non-trivial series is a valid trend card.
-  const seriesCarriers = sortByOwnPriority(uniqueDefs.filter((d) => (byId[d.id]?.series.length ?? 0) >= 1));
+  // non-trivial series is a valid trend card. Distribution/scatter metrics
+  // (categories/scatter) also ride the trend channel so hub primary visuals
+  // can render bucketed bars / bubble matrices from real data.
+  const seriesCarriers = sortByOwnPriority(
+    uniqueDefs.filter((d) => {
+      const v = byId[d.id];
+      return (
+        (v?.series.length ?? 0) >= 1 ||
+        (v?.categories?.length ?? 0) >= 1 ||
+        (v?.scatter?.length ?? 0) >= 1
+      );
+    }),
+  );
   const trendDefs = dedupedAppend(dedupedAppend([], explicitTrends, 6), seriesCarriers, 6);
   const trends: TrendMetric[] = trendDefs.map((m) => {
     const v = byId[m.id]!;
@@ -730,6 +743,8 @@ export async function buildHubPayload(input: {
       cellState: toCellState(m, v),
       direction: m.direction,
       series: v.series,
+      categories: v.categories,
+      scatter: v.scatter,
       displayValue: formatMetricNumber(v.current, m.unit, v.state),
       drillUrl: drillForMetric(m, tenantId),
     };

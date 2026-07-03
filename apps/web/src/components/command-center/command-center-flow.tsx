@@ -11,9 +11,15 @@ export function CommandCenterFlow({ payload }: { payload: Payload }) {
   const totalCreated = flow.reduce((sum, item) => sum + (item.created || 0), 0);
   const totalResolved = flow.reduce((sum, item) => sum + (item.resolved || 0), 0);
 
+  // Operational Load = fulfillment rate (resolved / created). ≥100% means the
+  // team is clearing work as fast as it arrives; below 100% means backlog is
+  // growing. Derived from real flow data — no data ⇒ show "—".
+  const fulfillmentRate = totalCreated > 0 ? Math.round((totalResolved / totalCreated) * 100) : null;
+  const operationalLoad = fulfillmentRate === null ? "—" : `${fulfillmentRate}%`;
+
   const flowItems = [
     { label: "Throughput (Created)", value: totalCreated.toLocaleString(), color: "#00BCFF" },
-    { label: "Operational Load", value: "Nominal", color: "#004FFB" },
+    { label: "Fulfillment Rate", value: operationalLoad, color: "#004FFB" },
     { label: "Fulfillment (Resolved)", value: totalResolved.toLocaleString(), color: "#00C971" },
   ];
 

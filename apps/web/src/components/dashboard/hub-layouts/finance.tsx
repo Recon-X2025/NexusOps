@@ -7,27 +7,19 @@
  */
 
 import type { HubPrimaryProps } from "./types";
-import { HubPrimaryCard, HubEmptyState, findMetric, formatValue, HubStatTile } from "./shared";
-import { AreaChart, BarChart } from "@/components/charts";
-import { cn } from "@/lib/utils";
+import { HubPrimaryCard, HubEmptyState, findMetric, findTrend, formatValue, HubStatTile } from "./shared";
+import { BarChart, CHART_COLORS } from "@/components/charts";
 
 export function FinancePrimary({ payload, granularity }: HubPrimaryProps) {
   const runway = findMetric(payload, "financial.cash_runway_months");
   const burn = findMetric(payload, "financial.burn_rate");
   const margin = findMetric(payload, "financial.gross_margin");
-  const arOver60 = findMetric(payload, "financial.ar_aged_60_plus");
 
-  const marginSeries = margin?.series ?? [];
-  const burnRows = burn && burn.series.length > 1
-    ? burn.series.map((p) => ({
-      x: new Date(p.t).toLocaleDateString("en-US", {
-        month: "short",
-        ...(granularity === "month" ? { year: "2-digit" } : { day: "numeric" }),
-      }),
-      burn: p.v,
-      margin: marginSeries.find((m) => m.t === p.t)?.v ?? null,
-    }))
-    : [];
+  // AR aging distribution — real per-bucket amounts emitted as `categories`
+  // by the financial.ar_aged_60_plus resolver.
+  const arTrend = findTrend(payload, "financial.ar_aged_60_plus");
+  const agingBuckets = arTrend?.categories ?? [];
+  const agingRows = agingBuckets.map((b) => ({ x: b.label, amount: b.value }));
 
   return (
     <HubPrimaryCard
@@ -40,7 +32,19 @@ export function FinancePrimary({ payload, granularity }: HubPrimaryProps) {
           {/* AR Aging Bar */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">AR Aging Distribution</h3>
-            <HubEmptyState message="AR aging data unavailable." />
+            {agingRows.length > 0 ? (
+              <BarChart
+                data={agingRows}
+                xKey="x"
+                bars={[{ key: "amount", label: "Outstanding", color: CHART_COLORS[0] }]}
+                height={200}
+                yFormatter={(v) =>
+                  v >= 1e7 ? `₹${(v / 1e7).toFixed(1)}Cr` : v >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : `₹${(v / 1e3).toFixed(0)}K`
+                }
+              />
+            ) : (
+              <HubEmptyState message="AR aging data unavailable." />
+            )}
           </div>
         </div>
 

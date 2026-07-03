@@ -1,6 +1,6 @@
-import { legalMatters, eq, and, count, ne } from "@coheronconnect/db";
+import { legalMatters, eq, and, count, ne, sql } from "@coheronconnect/db";
 import { registerMetric } from "../registry";
-import { emptyMetricValue } from "../resolve-helpers";
+import { alignSeries, buildTimeBuckets, emptyMetricValue, truncSqlExpression } from "../resolve-helpers";
 import { dbOf } from "./_db";
 
 registerMetric({
@@ -26,10 +26,24 @@ registerMetric({
         .from(legalMatters)
         .where(and(eq(legalMatters.orgId, ctx.tenantId), ne(legalMatters.status, "closed")));
       const n = Number(row?.c ?? 0);
+
+      // Series = matters opened per bucket in the metric range (real history).
+      const trunc = truncSqlExpression(ctx.range.granularity);
+      const rows = (await db.execute(sql`
+        SELECT DATE_TRUNC(${sql.raw(`'${trunc}'`)}, created_at) AS period,
+               COUNT(*)::int AS value
+          FROM legal_matters
+         WHERE org_id = ${ctx.tenantId}
+           AND created_at >= ${ctx.range.start.toISOString()}
+           AND created_at <= ${ctx.range.end.toISOString()}
+         GROUP BY 1
+         ORDER BY 1
+      `)) as Array<{ period: unknown; value: number }>;
+      const series = alignSeries(buildTimeBuckets(ctx.range), rows);
+
       return {
         current: n,
-        // Snapshot — not bucketed without a status-history feed.
-        series: [],
+        series,
         state: n > 15 ? "stressed" : n > 5 ? "watch" : "healthy",
         lastUpdated: new Date(),
       };

@@ -17,6 +17,9 @@ import {
   PieChart as RPieChart,
   Pie,
   Cell,
+  ScatterChart as RScatterChart,
+  Scatter,
+  ZAxis,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -358,5 +361,100 @@ export function Sparkline({ data, color = "hsl(var(--primary))", height = 40, wi
     <RLineChart data={chartData} width={width} height={height} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
       <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
     </RLineChart>
+  );
+}
+
+// ── ScatterChart (bubble matrix) ──────────────────────────────────────────────
+export interface ScatterPointDatum {
+  label: string;
+  x: number;
+  y: number;
+  /** Bubble size input (mapped to radius via ZAxis). */
+  size?: number;
+  color?: string;
+}
+
+export interface ScatterChartProps {
+  data: ScatterPointDatum[];
+  xLabel?: string;
+  yLabel?: string;
+  height?: number;
+  xFormatter?: (v: number) => string;
+  yFormatter?: (v: number) => string;
+}
+
+function ScatterTooltip({
+  active,
+  payload,
+  xLabel,
+  yLabel,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: ScatterPointDatum }>;
+  xLabel?: string;
+  yLabel?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0]?.payload;
+  if (!p) return null;
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-xs">
+      <p className="font-semibold text-foreground mb-1">{p.label}</p>
+      <div className="text-muted-foreground">{xLabel ?? "x"}: <span className="font-medium text-foreground">{p.x}</span></div>
+      <div className="text-muted-foreground">{yLabel ?? "y"}: <span className="font-medium text-foreground">{p.y}</span></div>
+    </div>
+  );
+}
+
+export function ScatterChart({
+  data,
+  xLabel,
+  yLabel,
+  height = 240,
+  xFormatter,
+  yFormatter,
+}: ScatterChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <RScatterChart margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+        <XAxis
+          type="number"
+          dataKey="x"
+          name={xLabel}
+          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={xFormatter}
+        />
+        <YAxis
+          type="number"
+          dataKey="y"
+          name={yLabel}
+          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={yFormatter}
+          width={40}
+        />
+        <ZAxis type="number" dataKey="size" range={[60, 400]} />
+        <Tooltip
+          cursor={{ strokeDasharray: "3 3" }}
+          content={({ active, payload }) => (
+            <ScatterTooltip
+              active={active}
+              payload={payload as Array<{ payload?: ScatterPointDatum }> | undefined}
+              xLabel={xLabel}
+              yLabel={yLabel}
+            />
+          )}
+        />
+        <Scatter data={data}>
+          {data.map((d, i) => (
+            <Cell key={d.label + i} fill={d.color ?? CHART_COLORS[0]} fillOpacity={0.7} />
+          ))}
+        </Scatter>
+      </RScatterChart>
+    </ResponsiveContainer>
   );
 }

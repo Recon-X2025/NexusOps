@@ -7,14 +7,29 @@
  */
 
 import type { HubPrimaryProps } from "./types";
-import { HubPrimaryCard, HubEmptyState, findMetric, formatValue, HubStatTile } from "./shared";
-import { cn } from "@/lib/utils";
+import { HubPrimaryCard, HubEmptyState, findMetric, findTrend, formatValue, HubStatTile } from "./shared";
+import { ScatterChart, CHART_COLORS } from "@/components/charts";
 
 export function StrategyPrimary({ payload, granularity }: HubPrimaryProps) {
   const okr = findMetric(payload, "strategy.okr_progress_avg");
-  const bullets = payload.bullets;
 
   const okrPct = okr && okr.current != null && okr.state !== "no_data" ? Math.round(okr.current) : 0;
+
+  // Portfolio matrix — one bubble per active objective, emitted as `scatter`
+  // by the strategy.okr_progress_avg resolver (x=progress%, y=KR count).
+  const okrTrend = findTrend(payload, "strategy.okr_progress_avg");
+  const stateColor: Record<string, string> = {
+    healthy: CHART_COLORS[3],
+    watch: CHART_COLORS[4],
+    stressed: CHART_COLORS[5],
+  };
+  const portfolioPoints = (okrTrend?.scatter ?? []).map((p) => ({
+    label: p.label,
+    x: p.x,
+    y: p.y,
+    size: p.size,
+    color: stateColor[p.state ?? "healthy"] ?? CHART_COLORS[0],
+  }));
 
   return (
     <HubPrimaryCard
@@ -26,8 +41,18 @@ export function StrategyPrimary({ payload, granularity }: HubPrimaryProps) {
         <div className="lg:col-span-8 space-y-6">
           {/* Portfolio Scatter Matrix */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Portfolio Matrix (Progress vs Health)</h3>
-            <HubEmptyState message="Project portfolio data unavailable." />
+            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Portfolio Matrix (Progress vs Scope)</h3>
+            {portfolioPoints.length > 0 ? (
+              <ScatterChart
+                data={portfolioPoints}
+                xLabel="Progress %"
+                yLabel="Key results"
+                height={220}
+                xFormatter={(v) => `${v}%`}
+              />
+            ) : (
+              <HubEmptyState message="Project portfolio data unavailable." />
+            )}
           </div>
         </div>
 

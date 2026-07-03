@@ -49,11 +49,32 @@ export interface MetricServices {
   db: unknown;
 }
 
+/** A single categorical bucket (e.g. an AR-aging band). */
+export interface CategoryPoint {
+  label: string;
+  value: number;
+  /** Optional qualitative state for per-bucket colouring. */
+  state?: "healthy" | "watch" | "stressed";
+}
+
+/** A single scatter/bubble point (e.g. a project in a portfolio matrix). */
+export interface ScatterPoint {
+  label: string;
+  x: number;
+  y: number;
+  size?: number;
+  state?: "healthy" | "watch" | "stressed";
+}
+
 export interface MetricValue {
   current: number;
   previous?: number;
   target?: number;
   series: Array<{ t: string; v: number }>;
+  /** Categorical distribution (buckets). Present only for distribution metrics. */
+  categories?: CategoryPoint[];
+  /** Scatter/bubble points. Present only for matrix metrics. */
+  scatter?: ScatterPoint[];
   state: "healthy" | "watch" | "stressed" | "no_data";
   lastUpdated: Date;
 }

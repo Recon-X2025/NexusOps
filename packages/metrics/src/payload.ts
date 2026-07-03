@@ -1,4 +1,4 @@
-import type { FunctionKey, MetricDefinition, MetricDimension, RoleViewKey } from "./types";
+import type { CategoryPoint, FunctionKey, MetricDefinition, MetricDimension, RoleViewKey, ScatterPoint } from "./types";
 
 export interface AttentionItem {
   metricId: string;
@@ -48,6 +48,10 @@ export interface TrendMetric {
   cellState: MetricCellState;
   direction: "higher_is_better" | "lower_is_better";
   series: Array<{ t: string; v: number }>;
+  /** Categorical distribution (buckets), when the metric is a distribution. */
+  categories?: CategoryPoint[];
+  /** Scatter/bubble points, when the metric is a matrix. */
+  scatter?: ScatterPoint[];
   displayValue?: string;
   drillUrl?: string;
 }
