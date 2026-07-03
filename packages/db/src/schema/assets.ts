@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
+import { contracts } from "./contracts";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const assetStatusEnum = pgEnum("asset_status", [
@@ -106,6 +107,8 @@ export const assets = pgTable(
     purchaseCost: decimal("purchase_cost", { precision: 12, scale: 2 }),
     warrantyExpiry: timestamp("warranty_expiry", { withTimezone: true }),
     vendor: text("vendor"),
+    /** Optional link to the procurement/warranty/lease contract covering this asset. */
+    contractId: uuid("contract_id").references(() => contracts.id, { onDelete: "set null" }),
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
     parentAssetId: uuid("parent_asset_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -116,6 +119,7 @@ export const assets = pgTable(
     orgIdx: index("assets_org_idx").on(t.orgId),
     ownerIdx: index("assets_owner_idx").on(t.ownerId),
     statusIdx: index("assets_status_idx").on(t.status),
+    contractIdx: index("assets_contract_idx").on(t.contractId),
   }),
 );
 
@@ -230,6 +234,7 @@ export const assetsRelations = relations(assets, ({ one, many }) => ({
   org: one(organizations, { fields: [assets.orgId], references: [organizations.id] }),
   type: one(assetTypes, { fields: [assets.typeId], references: [assetTypes.id] }),
   owner: one(users, { fields: [assets.ownerId], references: [users.id] }),
+  contract: one(contracts, { fields: [assets.contractId], references: [contracts.id] }),
   history: many(assetHistory),
   licenseAssignments: many(licenseAssignments),
 }));

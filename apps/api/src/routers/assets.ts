@@ -12,6 +12,7 @@ import {
   licenseTypeEnum,
   acquisitionTypeEnum,
   licenseAssignments,
+  contracts,
   eq,
   and,
   count,
@@ -182,6 +183,55 @@ export const assetsRouter = router({
         actorId: user!.id,
         action: "retired",
         details: { reason: input.reason },
+      });
+
+      return updated;
+    }),
+
+  /**
+   * Link (or unlink) an asset to the procurement/warranty/lease contract that
+   * covers it. Passing `contractId: null` clears the link. The contract must
+   * belong to the caller's org (tenant isolation).
+   */
+  linkContract: permissionProcedure("cmdb", "write")
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        contractId: z.string().uuid().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+
+      const [existing] = await db
+        .select()
+        .from(assets)
+        .where(and(eq(assets.id, input.id), eq(assets.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Asset not found" });
+
+      if (input.contractId) {
+        const [contract] = await db
+          .select({ id: contracts.id })
+          .from(contracts)
+          .where(and(eq(contracts.id, input.contractId), eq(contracts.orgId, org!.id)));
+        if (!contract)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Contract not found in this organisation",
+          });
+      }
+
+      const [updated] = await db
+        .update(assets)
+        .set({ contractId: input.contractId, updatedAt: new Date() })
+        .where(and(eq(assets.id, input.id), eq(assets.orgId, org!.id)))
+        .returning();
+
+      await db.insert(assetHistory).values({
+        assetId: input.id,
+        actorId: user!.id,
+        action: input.contractId ? "contract_linked" : "contract_unlinked",
+        details: { contractId: input.contractId },
       });
 
       return updated;
