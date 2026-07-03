@@ -195,5 +195,24 @@ Estimates are **engineer-weeks of focused build** (analysis + build + tests, not
 | 6 Governance | `docs/PLATFORM_GAP_GOVERNANCE_2026-07-03.md` |
 | 7 Platform | `docs/PLATFORM_GAP_PLATFORM_2026-07-03.md` |
 | Index (this doc) | `docs/PLATFORM_GAP_INDEX_2026-07-03.md` |
-| GRC (companion) | `docs/GRC_GAP_ANALYSIS_2026-07-03.md` |
-| Legal (companion) | `docs/LEGAL_GOVERNANCE_GAP_ANALYSIS_2026-07-03.md` |
+| GRC (companion — analysis) | `docs/GRC_GAP_ANALYSIS_2026-07-03.md` |
+| GRC (companion — tier→work-item map) | `docs/GRC_TIER_WORKITEM_MAP_2026-07-03.md` |
+| GRC (companion — Basic hardening backlog) | `docs/GRC_BASIC_HARDENING_BACKLOG_2026-07-03.md` |
+| Legal (companion — analysis) | `docs/LEGAL_GOVERNANCE_GAP_ANALYSIS_2026-07-03.md` |
+| Legal (companion — contract content audit) | `docs/LEGAL_CONTRACT_CONTENT_AUDIT_2026-07-03.md` |
+| Legal (companion — run-without-professional) | `docs/LEGAL_GOVERNANCE_RUN_WITHOUT_PROFESSIONAL_2026-07-03.md` |
+
+### 7.1 Don't confuse "3 GRC docs" with "3 GRC tiers"
+
+Two different "threes" appear around GRC — keep them separate:
+
+- **3 GRC *documents*** — the write-up is split across three files (all describe the *one* GRC module): the **analysis** (`GRC_GAP_ANALYSIS`, ~55% overall — the score in §2), the **tier→work-item map** (`GRC_TIER_WORKITEM_MAP`), and the **Basic hardening backlog** (`GRC_BASIC_HARDENING_BACKLOG`).
+- **3 GRC *product tiers*** — one included base plus the **two paid add-on variants** (detail in `GRC_GAP_ANALYSIS` §3.1):
+
+| Tier | Price | % there today | Nature |
+|---|---|---:|---|
+| **GRC Basic** | included | ~85% | Hardening, not a build — calendar/policy/risk-register/audit-trail/India-statutory/approvals all exist |
+| **GRC+** (add-on) | ₹25k | ~50% | Depth/packaging — framework library + multi-framework mapping + real vendor questionnaires + board dashboards |
+| **GRC Advanced** (add-on) | ₹50k | ~25–30% | The heavy build — continuous control monitoring, automated evidence collection, auditor trust center, custom frameworks, ESG |
+
+The **~55%** GRC figure in the §2 scoreboard is the module's *blended* maturity; the tier-by-tier breakdown (85 / 50 / 25–30) is the actionable view for pricing and sequencing.
