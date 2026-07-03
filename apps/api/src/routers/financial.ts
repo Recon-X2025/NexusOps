@@ -9,6 +9,7 @@ import {
   invoiceStatusEnum,
   vendors,
   legalEntities,
+  gstinRegistry,
   organizations,
   eq,
   and,
@@ -22,6 +23,7 @@ import {
   notInArray,
   type DbOrTx,
 } from "@coheronconnect/db";
+import { computeGST, type GSTRate } from "../lib/india/gst-engine";
 import {
   getDuplicatePayablePolicy,
   isInvoicePeriodClosed,
@@ -31,6 +33,67 @@ import {
   enqueueIrnGenerationJob,
 } from "../workflows/irnGenerationWorkflow";
 import { getWorkflowService } from "../services/workflow";
+
+/** GST rates permitted at invoice entry; mirrors the `GSTRate` engine union. */
+const GST_RATE_INPUT = z
+  .union([z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28)])
+  .default(18);
+
+/**
+ * The org's own place-of-supply state, read from its primary (or first active)
+ * GSTIN registration. Returns `null` when the org has no GSTIN on file, in
+ * which case GST falls back to the intra-state split (CGST+SGST) — the total
+ * tax is identical either way; only the CGST/SGST-vs-IGST breakdown differs.
+ */
+async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ stateCode: gstinRegistry.stateCode, stateName: gstinRegistry.stateName })
+    .from(gstinRegistry)
+    .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
+    .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
+    .limit(1);
+  return row?.stateName ?? row?.stateCode ?? null;
+}
+
+/**
+ * Computes CGST/SGST/IGST for an invoice by treating the entered `amount` as
+ * the taxable value and applying `gstRate`. Interstate-vs-intrastate is decided
+ * by comparing the org's state against the counterparty's state; when either is
+ * unknown we treat the supply as intra-state (the safe, most-common default).
+ * Returns numeric-string columns ready to spread into an `invoices` insert.
+ */
+function gstInvoiceColumns(params: {
+  taxableValue: number;
+  gstRate: GSTRate;
+  orgState: string | null;
+  counterpartyState: string | null;
+}): {
+  taxableValue: string;
+  cgstAmount: string;
+  sgstAmount: string;
+  igstAmount: string;
+  totalTaxAmount: string;
+  isInterstate: boolean;
+  amount: string;
+} {
+  const orgState = params.orgState ?? "";
+  const counterpartyState = params.counterpartyState ?? orgState;
+  const gst = computeGST({
+    taxableValue: params.taxableValue,
+    gstRate: params.gstRate,
+    supplierState: orgState,
+    buyerState: counterpartyState,
+  });
+  return {
+    taxableValue: String(gst.taxableValue),
+    cgstAmount: String(gst.cgstAmount),
+    sgstAmount: String(gst.sgstAmount),
+    igstAmount: String(gst.igstAmount),
+    totalTaxAmount: String(gst.totalTaxAmount),
+    isInterstate: gst.isInterstate,
+    amount: String(gst.invoiceTotal),
+  };
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function countDuplicatePayable(db: DbOrTx, orgId: string, vendorId: string, invoiceNumber: string): Promise<number> {
@@ -110,6 +173,7 @@ export const financialRouter = router({
       vendorId: z.string().uuid(),
       invoiceNumber: z.string().min(1),
       amount: z.string(),
+      gstRate: GST_RATE_INPUT,
       dueDate: z.string().optional(),
       invoiceDate: z.string().optional(),
       notes: z.string().optional(),
@@ -134,6 +198,19 @@ export const financialRouter = router({
           .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
         if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
       }
+      // Resolve both states so we split CGST/SGST vs IGST correctly, then let
+      // the GST engine derive tax + gross total from the taxable `amount`.
+      const [vendorRow] = await db
+        .select({ gstin: vendors.gstin, state: vendors.state })
+        .from(vendors)
+        .where(and(eq(vendors.id, input.vendorId), eq(vendors.orgId, org!.id)));
+      const orgState = await resolveOrgState(db, org!.id);
+      const gst = gstInvoiceColumns({
+        taxableValue: Number(input.amount),
+        gstRate: input.gstRate as GSTRate,
+        orgState,
+        counterpartyState: vendorRow?.state ?? null,
+      });
       const [inv] = await db.insert(invoices).values({
         orgId: org!.id,
         vendorId: input.vendorId,
@@ -141,8 +218,14 @@ export const financialRouter = router({
         invoiceFlow: "payable",
         invoiceNumber: input.invoiceNumber,
         invoiceType: "tax_invoice",
-        amount: input.amount,
-        taxableValue: input.amount,
+        supplierGstin: vendorRow?.gstin ?? null,
+        amount: gst.amount,
+        taxableValue: gst.taxableValue,
+        cgstAmount: gst.cgstAmount,
+        sgstAmount: gst.sgstAmount,
+        igstAmount: gst.igstAmount,
+        totalTaxAmount: gst.totalTaxAmount,
+        isInterstate: gst.isInterstate,
         status: "pending",
         matchingStatus: "pending",
         invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
@@ -158,6 +241,7 @@ export const financialRouter = router({
         customerVendorId: z.string().uuid(),
         invoiceNumber: z.string().min(1),
         amount: z.string(),
+        gstRate: GST_RATE_INPUT,
         dueDate: z.string().optional(),
         invoiceDate: z.string().optional(),
         legalEntityId: z.string().uuid().optional(),
@@ -172,6 +256,18 @@ export const financialRouter = router({
           .where(and(eq(legalEntities.id, input.legalEntityId), eq(legalEntities.orgId, org!.id)));
         if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
       }
+      // AR: the org is the supplier, the customer (a `vendors` row) is the buyer.
+      const [customerRow] = await db
+        .select({ gstin: vendors.gstin, state: vendors.state })
+        .from(vendors)
+        .where(and(eq(vendors.id, input.customerVendorId), eq(vendors.orgId, org!.id)));
+      const orgState = await resolveOrgState(db, org!.id);
+      const gst = gstInvoiceColumns({
+        taxableValue: Number(input.amount),
+        gstRate: input.gstRate as GSTRate,
+        orgState,
+        counterpartyState: customerRow?.state ?? null,
+      });
       const [inv] = await db
         .insert(invoices)
         .values({
@@ -181,8 +277,14 @@ export const financialRouter = router({
           invoiceFlow: "receivable",
           invoiceNumber: input.invoiceNumber,
           invoiceType: "tax_invoice",
-          amount: input.amount,
-          taxableValue: input.amount,
+          buyerGstin: customerRow?.gstin ?? null,
+          amount: gst.amount,
+          taxableValue: gst.taxableValue,
+          cgstAmount: gst.cgstAmount,
+          sgstAmount: gst.sgstAmount,
+          igstAmount: gst.igstAmount,
+          totalTaxAmount: gst.totalTaxAmount,
+          isInterstate: gst.isInterstate,
           status: "pending",
           matchingStatus: "pending",
           invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
@@ -190,6 +292,84 @@ export const financialRouter = router({
         })
         .returning();
       return inv;
+    }),
+
+  /**
+   * Recomputes GST for legacy invoices that were saved before the entry path
+   * applied the GST engine (rows with `totalTaxAmount = 0`). The existing
+   * `taxableValue` is preserved and tax is added on top; the gross `amount` is
+   * updated to `taxableValue + tax`. Interstate split is re-derived per row from
+   * the org + counterparty state. Admin-only; scoped to the caller's org.
+   *
+   * Pass `invoiceId` to fix a single invoice, or omit it to backfill every
+   * zero-tax `tax_invoice` row in the org. `gstRate` defaults to 18%.
+   */
+  backfillInvoiceGst: adminProcedure
+    .use(mfaGate)
+    .input(
+      z.object({
+        gstRate: GST_RATE_INPUT,
+        invoiceId: z.string().uuid().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [
+        eq(invoices.orgId, org!.id),
+        eq(invoices.invoiceType, "tax_invoice"),
+        eq(invoices.totalTaxAmount, "0"),
+      ];
+      if (input.invoiceId) conditions.push(eq(invoices.id, input.invoiceId));
+
+      const rows = await db
+        .select({
+          id: invoices.id,
+          invoiceFlow: invoices.invoiceFlow,
+          vendorId: invoices.vendorId,
+          taxableValue: invoices.taxableValue,
+          amount: invoices.amount,
+        })
+        .from(invoices)
+        .where(and(...conditions));
+
+      const orgState = await resolveOrgState(db, org!.id);
+      const updated: Array<{ id: string; taxableValue: number; totalTax: number; total: number }> = [];
+
+      for (const row of rows) {
+        const [counterparty] = await db
+          .select({ state: vendors.state })
+          .from(vendors)
+          .where(and(eq(vendors.id, row.vendorId), eq(vendors.orgId, org!.id)));
+        // Prefer the stored taxable value; older rows set it equal to `amount`.
+        const taxable = Number(row.taxableValue) || Number(row.amount);
+        const gst = gstInvoiceColumns({
+          taxableValue: taxable,
+          gstRate: input.gstRate as GSTRate,
+          orgState,
+          counterpartyState: counterparty?.state ?? null,
+        });
+        await db
+          .update(invoices)
+          .set({
+            taxableValue: gst.taxableValue,
+            cgstAmount: gst.cgstAmount,
+            sgstAmount: gst.sgstAmount,
+            igstAmount: gst.igstAmount,
+            totalTaxAmount: gst.totalTaxAmount,
+            isInterstate: gst.isInterstate,
+            amount: gst.amount,
+            updatedAt: new Date(),
+          })
+          .where(eq(invoices.id, row.id));
+        updated.push({
+          id: row.id,
+          taxableValue: Number(gst.taxableValue),
+          totalTax: Number(gst.totalTaxAmount),
+          total: Number(gst.amount),
+        });
+      }
+
+      return { scanned: rows.length, updated: updated.length, invoices: updated };
     }),
 
   listInvoices: permissionProcedure("financial", "read")

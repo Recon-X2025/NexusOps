@@ -616,6 +616,7 @@ describe("Layer 8: Module Smoke Tests", () => {
         vendorId: vendor.id,
         invoiceNumber: `MATCH-${suffix}`,
         amount: "100",
+        gstRate: 0, // 3-way match asserts on the ₹100 taxable line, not tax
       })) as { id: string };
 
       await db.insert(invoiceLineItems).values({
@@ -1786,6 +1787,7 @@ describe("Layer 8: Module Smoke Tests", () => {
         customerVendorId: customer.id,
         invoiceNumber: `AR-L8-${Date.now()}`,
         amount: "1200.50",
+        gstRate: 0, // shape smoke: asserts on the ₹1200.50 taxable header, not GST
       })) as { id: string };
 
       const arPage = (await caller.financial.listInvoices({

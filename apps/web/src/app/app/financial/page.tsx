@@ -104,8 +104,8 @@ function FinancialPageInner() {
 
   const [showNewInvoice, setShowNewInvoice] = useState(false);
   const [showNewARInvoice, setShowNewARInvoice] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
-  const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
+  const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
   const { data: legalEntitiesList } = trpc.financial.listLegalEntities.useQuery(
     undefined,
     mergeTrpcQueryOpts("financial.listLegalEntities", { refetchOnWindowFocus: false }),
@@ -118,7 +118,7 @@ function FinancialPageInner() {
         toast.success("Invoice created");
       }
       setShowNewInvoice(false);
-      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
+      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
@@ -127,7 +127,7 @@ function FinancialPageInner() {
     onSuccess: () => {
       toast.success("Receivable invoice created");
       setShowNewARInvoice(false);
-      setArInvoiceForm({ customerVendorId: "", invoiceNumber: "", amount: "", dueDate: "", legalEntityId: "" });
+      setArInvoiceForm({ customerVendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create receivable"),
@@ -1074,8 +1074,26 @@ function FinancialPageInner() {
               <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. AR-2026-001" value={arInvoiceForm.invoiceNumber} onChange={(e) => setArInvoiceForm((f) => ({ ...f, invoiceNumber: e.target.value }))} />
             </div>
             <div>
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Amount (₹) *</label>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Taxable amount (₹) *</label>
               <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 250000" value={arInvoiceForm.amount} onChange={(e) => setArInvoiceForm((f) => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">GST rate</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={arInvoiceForm.gstRate}
+                onChange={(e) => setArInvoiceForm((f) => ({ ...f, gstRate: e.target.value }))}
+              >
+                {["0", "5", "12", "18", "28"].map((r) => (
+                  <option key={r} value={r}>{r}%</option>
+                ))}
+              </select>
+              {arInvoiceForm.amount && Number(arInvoiceForm.amount) > 0 && (
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  Tax ₹{(Number(arInvoiceForm.amount) * Number(arInvoiceForm.gstRate) / 100).toLocaleString("en-IN")}
+                  {" · "}Total ₹{(Number(arInvoiceForm.amount) * (1 + Number(arInvoiceForm.gstRate) / 100)).toLocaleString("en-IN")}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
@@ -1109,6 +1127,7 @@ function FinancialPageInner() {
                   customerVendorId: arInvoiceForm.customerVendorId,
                   invoiceNumber: arInvoiceForm.invoiceNumber.trim(),
                   amount: arInvoiceForm.amount,
+                  gstRate: Number(arInvoiceForm.gstRate) as 0 | 5 | 12 | 18 | 28,
                   dueDate: arInvoiceForm.dueDate || undefined,
                   legalEntityId: arInvoiceForm.legalEntityId || undefined,
                 });
@@ -1149,8 +1168,26 @@ function FinancialPageInner() {
               <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. INV-2026-001" value={invoiceForm.invoiceNumber} onChange={(e) => setInvoiceForm((f) => ({ ...f, invoiceNumber: e.target.value }))} />
             </div>
             <div>
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Amount (₹) *</label>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Taxable amount (₹) *</label>
               <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 150000" value={invoiceForm.amount} onChange={(e) => setInvoiceForm((f) => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">GST rate</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={invoiceForm.gstRate}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, gstRate: e.target.value }))}
+              >
+                {["0", "5", "12", "18", "28"].map((r) => (
+                  <option key={r} value={r}>{r}%</option>
+                ))}
+              </select>
+              {invoiceForm.amount && Number(invoiceForm.amount) > 0 && (
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  Tax ₹{(Number(invoiceForm.amount) * Number(invoiceForm.gstRate) / 100).toLocaleString("en-IN")}
+                  {" · "}Total ₹{(Number(invoiceForm.amount) * (1 + Number(invoiceForm.gstRate) / 100)).toLocaleString("en-IN")}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
@@ -1180,6 +1217,7 @@ function FinancialPageInner() {
                   vendorId: invoiceForm.vendorId,
                   invoiceNumber: invoiceForm.invoiceNumber.trim(),
                   amount: invoiceForm.amount,
+                  gstRate: Number(invoiceForm.gstRate) as 0 | 5 | 12 | 18 | 28,
                   dueDate: invoiceForm.dueDate || undefined,
                   legalEntityId: invoiceForm.legalEntityId || undefined,
                 });
