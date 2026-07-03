@@ -6,8 +6,10 @@
  *
  * References:
  *  - Income Tax Act, 1961 (as amended by Finance Act 2025)
- *  - Section 115BAC (New Regime — default from FY 2023-24)
- *  - Section 87A rebate (Old: ≤5L taxable → ₹12,500; New: ≤7L → ₹25,000)
+ *  - Section 115BAC (New Regime — default from FY 2023-24). Finance Act 2025
+ *    revised the New-Regime slabs (₹4L basic exemption, 7 bands) effective
+ *    FY 2025-26.
+ *  - Section 87A rebate (Old: ≤5L taxable → ₹12,500; New: ≤12L → ₹60,000)
  *  - Section 80C, 80D, 80CCD(1B), 80TTA/80TTB, 24(b) (Old Regime only)
  *  - Standard deduction: ₹75,000 (New), ₹50,000 (Old)
  */
@@ -81,13 +83,16 @@ const OLD_REGIME_SLABS = [
   { from: 1_000_000, to: Infinity, rate: 0.30 },
 ];
 
+// New Regime slabs revised by Finance Act 2025 (FY 2025-26 / AY 2026-27):
+// ₹4L basic exemption, then 5/10/15/20/25/30% in ₹4L bands up to ₹24L.
 const NEW_REGIME_SLABS = [
-  { from: 0, to: 300_000, rate: 0 },
-  { from: 300_000, to: 700_000, rate: 0.05 },
-  { from: 700_000, to: 1_000_000, rate: 0.10 },
-  { from: 1_000_000, to: 1_200_000, rate: 0.15 },
-  { from: 1_200_000, to: 1_500_000, rate: 0.20 },
-  { from: 1_500_000, to: Infinity, rate: 0.30 },
+  { from: 0, to: 400_000, rate: 0 },
+  { from: 400_000, to: 800_000, rate: 0.05 },
+  { from: 800_000, to: 1_200_000, rate: 0.10 },
+  { from: 1_200_000, to: 1_600_000, rate: 0.15 },
+  { from: 1_600_000, to: 2_000_000, rate: 0.20 },
+  { from: 2_000_000, to: 2_400_000, rate: 0.25 },
+  { from: 2_400_000, to: Infinity, rate: 0.30 },
 ];
 
 // ─── SURCHARGE SLABS ───────────────────────────────────────────────────────────
@@ -275,8 +280,10 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
   let rebate87A = 0;
   if (regime === "OLD" && taxableIncome <= 500_000) {
     rebate87A = Math.min(taxOnIncome, 12_500);
-  } else if (regime === "NEW" && taxableIncome <= 700_000) {
-    rebate87A = Math.min(taxOnIncome, 25_000);
+  } else if (regime === "NEW" && taxableIncome <= 1_200_000) {
+    // Finance Act 2025: rebate up to ₹60,000 for taxable income ≤ ₹12L,
+    // making income up to ₹12L (₹12.75L incl. standard deduction) tax-free.
+    rebate87A = Math.min(taxOnIncome, 60_000);
   }
 
   const taxAfterRebate = Math.max(0, taxOnIncome - rebate87A);

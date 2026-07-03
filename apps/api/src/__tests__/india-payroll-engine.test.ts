@@ -60,25 +60,21 @@ describe("New Regime — FY 2025-26", () => {
     expect(result.totalTaxLiability).toBe(0);
   });
 
-  it("should apply Section 87A rebate for taxable income ≤ ₹7L", () => {
-    const result = computeTax(
-      makeProfile({ annualCTC: 700_000, basicMonthly: 25_000, hraMonthly: 10_000, specialAllowance: 10_000, lta: 12_000 })
-    );
-    // Taxable = 700K - 75K standard deduction = 625K
-    // Tax on 625K: 0-3L@0 + 3L-6.25L@5% = 16,250
-    // Rebate 87A (taxable ≤ 7L): min(16250, 25000) = 16,250
+  it("should apply Section 87A rebate for taxable income ≤ ₹12L (Finance Act 2025)", () => {
+    // ₹12L CTC → taxable ≈ ₹11.23L (≤ ₹12L) → full rebate up to ₹60,000 → nil tax.
+    const result = computeTax(makeProfile({ annualCTC: 1_200_000 }));
     expect(result.rebate87A).toBeGreaterThan(0);
     expect(result.taxAfterRebate).toBe(0);
     expect(result.totalTaxLiability).toBe(0);
   });
 
-  it("should compute correct tax for ₹12L CTC (no rebate)", () => {
-    const result = computeTax(makeProfile({ annualCTC: 1_200_000 }));
-    // Taxable = 12L - 75K = 11,25,000; slab tax uses per-slab rounding → 68,390
-    expect(result.taxOnIncome).toBe(68_390);
-    expect(result.rebate87A).toBe(0); // taxable > 7L
-    expect(result.cess).toBe(Math.round(68_390 * 0.04));
-    expect(result.totalTaxLiability).toBe(68_390 + Math.round(68_390 * 0.04));
+  it("should compute correct tax for ₹16L CTC (no rebate, taxable > ₹12L)", () => {
+    const result = computeTax(makeProfile({ annualCTC: 1_600_000 }));
+    // Taxable = 16L - 75K = 15,25,000; FY2025-26 slabs, per-slab rounding → 108,390
+    expect(result.taxOnIncome).toBe(108_390);
+    expect(result.rebate87A).toBe(0); // taxable > 12L
+    expect(result.cess).toBe(Math.round(108_390 * 0.04));
+    expect(result.totalTaxLiability).toBe(108_390 + Math.round(108_390 * 0.04));
   });
 
   it("should compute standard deduction of ₹75,000 for New Regime", () => {
@@ -96,8 +92,48 @@ describe("New Regime — FY 2025-26", () => {
   });
 
   it("should compute monthly TDS correctly", () => {
-    const result = computeTax(makeProfile({ annualCTC: 1_200_000 }));
+    const result = computeTax(makeProfile({ annualCTC: 1_600_000 }));
+    expect(result.totalTaxLiability).toBeGreaterThan(0);
     expect(result.monthlyTDS).toBe(Math.round(result.totalTaxLiability / 12));
+  });
+});
+
+// ─── REGULATORY REFRESH: FINANCE ACT 2025 NEW-REGIME CONSTANTS ──────────────────
+// Locks in the Finance Act 2025 revision (effective FY 2025-26): the ₹4L basic
+// exemption, the seven-band slab ladder, and the ₹60,000 / ₹12L Section-87A
+// rebate. Guards against an accidental revert to the FY2024-25 structure.
+describe("Finance Act 2025 — New-Regime slab & rebate refresh", () => {
+  // professionalTax:0 so taxable = annualCTC − ₹75,000 (standard deduction) exactly.
+  it("makes taxable income up to ₹12L fully tax-free (₹12.75L gross)", () => {
+    // taxable exactly ₹12L → tax before rebate = 20k + 40k = 60k, fully rebated.
+    const result = computeTax(makeProfile({ annualCTC: 1_275_000, professionalTax: 0 }));
+    expect(result.taxableIncome).toBe(1_200_000);
+    expect(result.taxOnIncome).toBe(60_000);
+    expect(result.rebate87A).toBe(60_000);
+    expect(result.totalTaxLiability).toBe(0);
+  });
+
+  it("withdraws the rebate the moment taxable income crosses ₹12L", () => {
+    // taxable ₹12,00,100 → rebate no longer applies (ceiling is strict ≤ ₹12L).
+    const result = computeTax(makeProfile({ annualCTC: 1_275_100, professionalTax: 0 }));
+    expect(result.taxableIncome).toBe(1_200_100);
+    expect(result.rebate87A).toBe(0);
+    expect(result.taxAfterRebate).toBeGreaterThan(0);
+  });
+
+  it("applies the ₹4L basic exemption (no tax on the first ₹4L)", () => {
+    // taxable ₹4L → nil tax even without the rebate.
+    const result = computeTax(makeProfile({ annualCTC: 475_000, professionalTax: 0 }));
+    expect(result.taxableIncome).toBe(400_000);
+    expect(result.taxOnIncome).toBe(0);
+  });
+
+  it("walks the seven-band ladder at ₹20L taxable (5/10/15/20%)", () => {
+    // ₹20L taxable: 4-8L@5%=20k + 8-12L@10%=40k + 12-16L@15%=60k + 16-20L@20%=80k
+    const result = computeTax(makeProfile({ annualCTC: 2_075_000, professionalTax: 0 }));
+    expect(result.taxableIncome).toBe(2_000_000);
+    expect(result.taxOnIncome).toBe(200_000);
+    expect(result.rebate87A).toBe(0);
   });
 });
 
@@ -240,15 +276,16 @@ describe("Professional Tax", () => {
 describe("Mid-Year Join TDS", () => {
   it("should annualise income from joining month for TDS computation", () => {
     // Employee joins in October (FY month 7), 6 months in FY — use higher components so
-    // annualised taxable income exceeds ₹7L and Section 87A rebate does not zero out tax.
+    // annualised taxable income exceeds ₹12L and the Section 87A rebate does not zero
+    // out tax (Finance Act 2025 raised the New-Regime rebate ceiling to ₹12L).
     const result = computeTax(
       makeProfile({
         joiningMonth: 7,
         monthsInFY: 6,
-        annualCTC: 2_400_000,
-        basicMonthly: 100_000,
-        hraMonthly: 40_000,
-        specialAllowance: 40_000,
+        annualCTC: 4_800_000,
+        basicMonthly: 200_000,
+        hraMonthly: 80_000,
+        specialAllowance: 80_000,
       })
     );
     expect(result.monthlyTDS).toBeGreaterThan(0);
@@ -256,15 +293,22 @@ describe("Mid-Year Join TDS", () => {
   });
 
   it("should account for previous employer income and TDS", () => {
+    // Base ₹16L + ₹6L previous income keeps taxable income above the ₹12L rebate
+    // ceiling so a positive liability remains to net the prior TDS against.
     const result = computeTax(
       makeProfile({
         joiningMonth: 7,
         monthsInFY: 6,
+        annualCTC: 1_600_000,
+        basicMonthly: 66_667,
+        hraMonthly: 26_667,
+        specialAllowance: 26_666,
         previousEmployerIncome: 600_000,
         previousEmployerTDS: 30_000,
       })
     );
     expect(result.previousEmployerTDS).toBe(30_000);
+    expect(result.totalTaxLiability).toBeGreaterThan(30_000);
     expect(result.remainingTax).toBe(result.totalTaxLiability - 30_000);
   });
 });
@@ -273,12 +317,12 @@ describe("Mid-Year Join TDS", () => {
 
 describe("Salary Revision TDS", () => {
   it("should recompute TDS correctly after mid-year revision", () => {
-    const original = computeTax(makeProfile({ annualCTC: 1_200_000 }));
+    const original = computeTax(makeProfile({ annualCTC: 1_600_000 }));
     const tdsDeducted6Months = original.monthlyTDS * 6;
 
     const revised = recomputeTDSOnRevision(
       original,
-      makeProfile({ annualCTC: 1_500_000, basicMonthly: 62_500, hraMonthly: 25_000 }),
+      makeProfile({ annualCTC: 2_200_000, basicMonthly: 91_667, hraMonthly: 36_667 }),
       6,
       tdsDeducted6Months
     );
@@ -348,9 +392,11 @@ describe("Full Payslip Generation", () => {
       state: "Maharashtra",
       isMetro: true,
       joiningDate: new Date("2024-04-01"),
-      basicMonthly: 50_000,
-      hraMonthly: 20_000,
-      specialAllowance: 20_000,
+      // Salary set above the Finance Act 2025 New-Regime rebate ceiling (taxable
+      // > ₹12L) so a non-zero TDS is exercised alongside every other component.
+      basicMonthly: 90_000,
+      hraMonthly: 36_000,
+      specialAllowance: 36_000,
       ltaAnnual: 30_000,
       regime: "NEW",
       section80C: 0, section80D: 0, section80CCD1B: 0,
@@ -368,7 +414,7 @@ describe("Full Payslip Generation", () => {
     const payslip = computeEmployeePayslip(input, 1);
 
     // Verify LOP adjustment
-    expect(payslip.basicEarned).toBe(Math.round(50_000 * (28 / 30)));
+    expect(payslip.basicEarned).toBe(Math.round(90_000 * (28 / 30)));
     expect(payslip.lopDays).toBe(2);
 
     // Verify all components present
