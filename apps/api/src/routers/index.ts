@@ -43,6 +43,7 @@ import { performanceRouter } from "./performance";
 import { customFieldsRouter } from "./custom-fields";
 import { accountingRouter } from "./accounting";
 import { payrollRouter } from "./payroll";
+import { gratuityRouter } from "./gratuity";
 import { expensesRouter } from "./expenses";
 import { commandCenterRouter } from "./command-center";
 import { workbenchRouter } from "./workbench";
@@ -105,6 +106,8 @@ export const appRouter = router({
   // Phase 7 — Custom Fields
   customFields: customFieldsRouter,
   payroll: payrollRouter,
+  // Sprint 1.4 — Payment of Gratuity Act 1972: accrual provisioning + settlement
+  gratuity: gratuityRouter,
   /** Finance expense reports (`expense_reports`) — distinct from `hr.expenses` (claims). */
   expenseReports: expensesRouter,
   commandCenter: commandCenterRouter,

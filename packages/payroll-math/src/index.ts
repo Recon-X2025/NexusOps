@@ -11,3 +11,4 @@ export * from "./tax-engine";
 export * from "./payroll-cycle";
 export * from "./gst-engine";
 export * from "./validators";
+export * from "./gratuity";

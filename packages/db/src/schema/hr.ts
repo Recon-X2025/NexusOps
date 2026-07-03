@@ -382,6 +382,90 @@ export const payslipsRelations = relations(payslips, ({ one }) => ({
   payrollRun: one(payrollRuns, { fields: [payslips.payrollRunId], references: [payrollRuns.id] }),
 }));
 
+// ── Gratuity (Payment of Gratuity Act, 1972) ───────────────────────────────
+// Monthly accrual provisioning: one row per (employee, year, month) recognising
+// the incremental gratuity liability earned that month, so the liability builds
+// evenly rather than as a lump sum at exit. Idempotent per period.
+export const gratuityAccruals = pgTable(
+  "gratuity_accruals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    month: integer("month").notNull(), // 1-12 calendar month
+    basicPlusDA: decimal("basic_plus_da", { precision: 12, scale: 2 }).notNull().default("0"),
+    accrualAmount: decimal("accrual_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    /** Running provisioned liability for this employee after this period. */
+    cumulativeAccrued: decimal("cumulative_accrued", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    empPeriodIdx: uniqueIndex("gratuity_accruals_emp_period_idx").on(
+      t.employeeId,
+      t.year,
+      t.month,
+    ),
+    orgIdx: index("gratuity_accruals_org_idx").on(t.orgId),
+  }),
+);
+
+// Final gratuity settlement computed at exit (Payment of Gratuity Act §4).
+export const gratuitySettlements = pgTable(
+  "gratuity_settlements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    lastDrawnBasicPlusDA: decimal("last_drawn_basic_plus_da", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
+    completedYears: integer("completed_years").notNull().default(0),
+    trailingMonths: integer("trailing_months").notNull().default(0),
+    countedYears: integer("counted_years").notNull().default(0),
+    eligible: boolean("eligible").notNull().default(false),
+    /** Formula result before the statutory cap. */
+    grossGratuity: decimal("gross_gratuity", { precision: 14, scale: 2 }).notNull().default("0"),
+    /** Payable gratuity after the statutory cap. */
+    gratuityAmount: decimal("gratuity_amount", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    cappedAtCeiling: boolean("capped_at_ceiling").notNull().default(false),
+    reason: text("reason"), // resignation | retirement | death | disablement | termination
+    settledAt: timestamp("settled_at", { withTimezone: true }).notNull().defaultNow(),
+    settledById: uuid("settled_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    empIdx: uniqueIndex("gratuity_settlements_emp_idx").on(t.employeeId),
+    orgIdx: index("gratuity_settlements_org_idx").on(t.orgId),
+  }),
+);
+
+export const gratuityAccrualsRelations = relations(gratuityAccruals, ({ one }) => ({
+  employee: one(employees, {
+    fields: [gratuityAccruals.employeeId],
+    references: [employees.id],
+  }),
+}));
+
+export const gratuitySettlementsRelations = relations(gratuitySettlements, ({ one }) => ({
+  employee: one(employees, {
+    fields: [gratuitySettlements.employeeId],
+    references: [employees.id],
+  }),
+}));
+
 // ── India Public Holiday Calendar ─────────────────────────────────────────
 export const publicHolidayTypeEnum = pgEnum("public_holiday_type", [
   "national",
