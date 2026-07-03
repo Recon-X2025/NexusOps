@@ -482,6 +482,133 @@ export const accountingRouter = router({
     return { income, expenses, totalIncome, totalExpenses, netProfit };
   }),
 
+  /**
+   * Profit & Loss for a date range — the *period-accurate* P&L.
+   *
+   * Unlike `incomeStatement` (which reads the `currentBalance` snapshot and so
+   * always reflects inception-to-date), this sums the movements on posted
+   * journal-entry lines whose entry date falls in [startDate, endDate]. Each
+   * line's net movement is `debit − credit`; for a credit-normal income account
+   * that net is negative, so revenue is surfaced as `−net` and expense as `net`.
+   * This is the query the balance-sheet rollup uses for current-period earnings.
+   */
+  profitAndLoss: permissionProcedure("financial", "read").input(z.object({
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+  })).query(async ({ ctx, input }) => {
+    const { org, db } = ctx;
+    const { chartOfAccounts, journalEntries, journalEntryLines, eq: dbEq, and: dbAnd, gte, lte, sql: dbSql } = await import("@coheronconnect/db");
+
+    // Sum posted line movements per account within the window.
+    const rows = await db
+      .select({
+        accountId: journalEntryLines.accountId,
+        net: dbSql<string>`coalesce(sum(${journalEntryLines.debitAmount} - ${journalEntryLines.creditAmount}), 0)`,
+      })
+      .from(journalEntryLines)
+      .innerJoin(
+        journalEntries,
+        dbAnd(
+          dbEq(journalEntryLines.journalEntryId, journalEntries.id),
+          dbEq(journalEntries.status, "posted"),
+          gte(journalEntries.date, input.startDate),
+          lte(journalEntries.date, input.endDate),
+        ),
+      )
+      .where(dbEq(journalEntryLines.orgId, org!.id))
+      .groupBy(journalEntryLines.accountId);
+
+    const netByAccount = new Map<string, number>();
+    for (const r of rows) netByAccount.set(r.accountId, Number(r.net));
+
+    const accounts = await db.select().from(chartOfAccounts).where(dbEq(chartOfAccounts.orgId, org!.id));
+
+    // Income is credit-normal (net ≤ 0 → revenue = −net); expense is debit-normal.
+    const income = accounts
+      .filter((a: CoaRow) => a.type === "income" || a.type === "contra_income")
+      .map((a: CoaRow) => ({ id: a.id, code: a.code, name: a.name, subType: a.subType, amount: -(netByAccount.get(a.id) ?? 0) }))
+      .filter((a) => a.amount !== 0);
+    const expenses = accounts
+      .filter((a: CoaRow) => a.type === "expense" || a.type === "contra_expense")
+      .map((a: CoaRow) => ({ id: a.id, code: a.code, name: a.name, subType: a.subType, amount: netByAccount.get(a.id) ?? 0 }))
+      .filter((a) => a.amount !== 0);
+
+    const totalIncome   = income.reduce((s, a) => s + a.amount, 0);
+    const totalExpenses = expenses.reduce((s, a) => s + a.amount, 0);
+    const netProfit     = totalIncome - totalExpenses;
+
+    return {
+      startDate: input.startDate,
+      endDate: input.endDate,
+      income,
+      expenses,
+      totalIncome,
+      totalExpenses,
+      netProfit,
+    };
+  }),
+
+  /**
+   * Balance Sheet as at a date — Assets = Liabilities + Equity.
+   *
+   * Balances are taken from the `currentBalance` snapshot (opening + all posted
+   * movements to date), grouped by section. Because the accounting identity only
+   * closes once P&L is swept to retained earnings, the *net income to date*
+   * (income − expense) is folded into equity as a synthetic "Current Period
+   * Earnings" line so the sheet balances without requiring a period-close entry.
+   * Contra-asset balances (e.g. accumulated depreciation) net down assets.
+   */
+  balanceSheet: permissionProcedure("financial", "read").input(z.object({
+    asOfDate: z.coerce.date().optional(),
+  }).optional()).query(async ({ ctx }) => {
+    const { org, db } = ctx;
+    const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
+
+    const accounts = await db.select().from(chartOfAccounts).where(dbEq(chartOfAccounts.orgId, org!.id));
+
+    const section = (a: CoaRow) => ({
+      id: a.id, code: a.code, name: a.name, type: a.type, subType: a.subType,
+      balance: Number(a.currentBalance),
+    });
+
+    // Assets are debit-normal (balance ≥ 0 typical); contra-assets are credit-
+    // normal and reduce the asset total. Present both, net at the total.
+    const assetRows = accounts.filter((a: CoaRow) => a.type === "asset" || a.type === "contra_asset").map(section);
+    const liabilityRows = accounts.filter((a: CoaRow) => a.type === "liability" || a.type === "contra_liability").map(section);
+    const equityRows = accounts.filter((a: CoaRow) => a.type === "equity" || a.type === "contra_equity").map(section);
+
+    // Asset total nets contra-assets (their balance is stored negative).
+    const totalAssets = assetRows.reduce((s, a) => s + a.balance, 0);
+    // Liabilities/equity are credit-normal → stored negative; present as positive.
+    const totalLiabilities = -liabilityRows.reduce((s, a) => s + a.balance, 0);
+    const equityBase = -equityRows.reduce((s, a) => s + a.balance, 0);
+
+    // Net income to date = income − expense (both from snapshot, sign-normalised).
+    const totalIncome = accounts
+      .filter((a: CoaRow) => a.type === "income" || a.type === "contra_income")
+      .reduce((s: number, a: CoaRow) => s - Number(a.currentBalance), 0);
+    const totalExpenses = accounts
+      .filter((a: CoaRow) => a.type === "expense" || a.type === "contra_expense")
+      .reduce((s: number, a: CoaRow) => s + Number(a.currentBalance), 0);
+    const currentPeriodEarnings = totalIncome - totalExpenses;
+
+    const totalEquity = equityBase + currentPeriodEarnings;
+    const isBalanced = Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01;
+
+    return {
+      assets: { rows: assetRows, total: totalAssets },
+      liabilities: { rows: liabilityRows, total: totalLiabilities },
+      equity: {
+        rows: equityRows,
+        currentPeriodEarnings,
+        total: totalEquity,
+      },
+      totalAssets,
+      totalLiabilitiesAndEquity: totalLiabilities + totalEquity,
+      isBalanced,
+    };
+  }),
+
   // ── GSTIN Registry ───────────────────────────────────────────────────────
 
   gstin: router({
