@@ -1,9 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useCallback } from "react";
 import {
   type SystemRole, type Module, type RbacAction, type SystemUser,
-  hasPermission, canAccessModule, MOCK_USERS, getVisibleModules,
+  hasPermission, canAccessModule, getVisibleModules,
 } from "./rbac";
 import { trpc } from "./trpc";
 import { TRPC_PROCEDURE_RBAC, type TrpcProcedureRbacRule } from "./trpc-procedure-rbac.generated";
@@ -24,7 +24,6 @@ const LOADING_USER: SystemUser = {
 
 interface RBACContextValue {
   currentUser: SystemUser;
-  switchUser: (userId: string) => void;
   can: (module: Module, action: RbacAction) => boolean;
   /** Alias for `can` — several app pages use this name for permission checks. */
   hasPermission: (module: Module, action: RbacAction) => boolean;
@@ -32,7 +31,6 @@ interface RBACContextValue {
   isAdmin: () => boolean;
   hasRole: (role: SystemRole) => boolean;
   visibleModules: Set<Module>;
-  allUsers: SystemUser[];
   isLoadingAuth: boolean;
   /** True once auth.me has resolved and confirmed a real session. */
   isAuthenticated: boolean;
@@ -114,8 +112,6 @@ function dbUserToSystemUser(
 }
 
 export function RBACProvider({ children }: { children: React.ReactNode }) {
-  const [overrideUser, setOverrideUser] = useState<SystemUser | null>(null);
-
   const { data: meData, isLoading: isLoadingAuth, isError: isMeError } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
@@ -145,20 +141,7 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
   // momentary admin-level access before identity is confirmed.
   const isDemoMode = !realUser && !isLoadingAuth;
   const isAuthenticated = !!realUser;
-  const effectiveRealUser = isLoadingAuth ? LOADING_USER : (realUser ?? LOADING_USER);
-  const currentUser = overrideUser ?? effectiveRealUser;
-
-  const switchUser = useCallback((userId: string) => {
-    if (!isDemoMode && userId !== realUser?.id) return; // block role-switching in real sessions
-    if (userId === realUser?.id) { setOverrideUser(null); return; }
-    const mock = MOCK_USERS.find((u) => u.id === userId);
-    if (mock) setOverrideUser(mock);
-  }, [realUser, isDemoMode]);
-
-  // When the real user loads, clear any stale override
-  useEffect(() => {
-    if (realUser) setOverrideUser(null);
-  }, [realUser?.id]);
+  const currentUser = isLoadingAuth ? LOADING_USER : (realUser ?? LOADING_USER);
 
   const can = useCallback(
     (module: Module, action: RbacAction) => hasPermission(currentUser.roles, module, action),
@@ -181,10 +164,6 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
   );
 
   const visibleModules = getVisibleModules(currentUser.roles);
-
-  const allUsers: SystemUser[] = realUser
-    ? [realUser, ...MOCK_USERS.filter((u) => u.id !== realUser.id)]
-    : MOCK_USERS;
 
   const mergeTrpcQueryOpts = useCallback(
     (
@@ -215,14 +194,12 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
     <RBACContext.Provider
       value={{
         currentUser,
-        switchUser,
         can,
         hasPermission: can,
         canAccess,
         isAdmin,
         hasRole,
         visibleModules,
-        allUsers,
         isLoadingAuth,
         isAuthenticated,
         isDemoMode,

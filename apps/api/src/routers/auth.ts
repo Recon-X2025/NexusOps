@@ -271,7 +271,17 @@ export const authRouter = router({
   me: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.user || !ctx.org) return null;
     // ctx.user is already ContextUser (passwordHash omitted by auth middleware).
-    return { user: ctx.user, org: ctx.org };
+    // avatarUrl holds an S3 object key; resolve a short-lived signed URL for display.
+    let user = ctx.user;
+    if (ctx.user.avatarUrl && !/^https?:\/\//.test(ctx.user.avatarUrl)) {
+      try {
+        const { signedDownloadUrl } = await import("../services/storage");
+        user = { ...ctx.user, avatarUrl: await signedDownloadUrl(ctx.user.avatarUrl, 3600) };
+      } catch {
+        // storage not configured (e.g. tests) — leave the key as-is
+      }
+    }
+    return { user, org: ctx.org };
   }),
 
   // ── Profile Update ──────────────────────────────────────────────────────
@@ -295,6 +305,38 @@ export const authRouter = router({
         .where(eq(users.id, user!.id))
         .returning();
       return stripPasswordHash(updated!);
+    }),
+
+  // ── Avatar Upload ───────────────────────────────────────────────────────
+
+  uploadAvatar: protectedProcedure
+    .input(
+      z.object({
+        mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+        contentBase64: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, user } = ctx;
+      const body = Buffer.from(input.contentBase64, "base64");
+      if (body.length > 5 * 1024 * 1024) {
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Avatar must be 5MB or smaller" });
+      }
+      const ext = input.mimeType === "image/png" ? "png" : input.mimeType === "image/webp" ? "webp" : "jpg";
+      const { putObject, signedDownloadUrl } = await import("../services/storage");
+      const put = await putObject({
+        orgId: user!.orgId,
+        key: `avatars/${user!.id}.${ext}`,
+        body,
+        mimeType: input.mimeType,
+      });
+      const [updated] = await db
+        .update(users)
+        .set({ avatarUrl: put.key, updatedAt: new Date() })
+        .where(eq(users.id, user!.id))
+        .returning();
+      const signed = await signedDownloadUrl(put.key, 3600);
+      return { ...stripPasswordHash(updated!), avatarUrl: signed };
     }),
 
   // ── Password Change (authenticated) ────────────────────────────────────

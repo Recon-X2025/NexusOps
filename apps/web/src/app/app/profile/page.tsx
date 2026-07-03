@@ -23,6 +23,8 @@ const TABS = [
 function ProfileTab() {
   const { currentUser, mergeTrpcQueryOpts } = useRBAC();
   const utils = trpc.useUtils();
+  const meQ = trpc.auth.me.useQuery(undefined, { refetchOnWindowFocus: false });
+  const avatarUrl = (meQ.data?.user as { avatarUrl?: string | null } | undefined)?.avatarUrl ?? null;
   const [form, setForm] = useState({
     name: currentUser.name,
     email: currentUser.email,
@@ -41,6 +43,36 @@ function ProfileTab() {
     onError: (err) => toast.error(err?.message ?? "Something went wrong"),
   });
 
+  const uploadAvatar = trpc.auth.uploadAvatar.useMutation({
+    onSuccess: () => {
+      toast.success("Profile photo updated");
+      void utils.auth.me.invalidate();
+    },
+    onError: (err) => toast.error(err?.message ?? "Failed to upload photo"),
+  });
+
+  function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      toast.error("Use a PNG, JPEG, or WebP image");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be 5MB or smaller");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(",")[1] ?? "";
+      uploadAvatar.mutate({ mimeType: file.type as "image/png" | "image/jpeg" | "image/webp", contentBase64: base64 });
+    };
+    reader.readAsDataURL(file);
+  }
+
   function handleSave() {
     const { email: _e, ...rest } = form;
     updateProfile.mutate(rest);
@@ -51,12 +83,18 @@ function ProfileTab() {
       {/* Avatar */}
       <div className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg">
         <div className="relative">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
-            {currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-          </div>
-          <button onClick={() => toast.info("Avatar upload coming soon. Profile photos will be supported in the next release.", { duration: 4000 })} className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted border border-border shadow-sm hover:bg-accent transition">
-            <Camera className="h-3 w-3 text-muted-foreground" />
-          </button>
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt={currentUser.name} className="h-16 w-16 rounded-full object-cover" />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
+              {currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+            </div>
+          )}
+          <label className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-muted border border-border shadow-sm hover:bg-accent transition cursor-pointer">
+            {uploadAvatar.isPending ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : <Camera className="h-3 w-3 text-muted-foreground" />}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleAvatarSelect} disabled={uploadAvatar.isPending} />
+          </label>
         </div>
         <div>
           <p className="font-semibold text-sm">{currentUser.name}</p>

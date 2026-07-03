@@ -120,8 +120,109 @@ function CoaTab() {
   );
 }
 
+// ── New Journal Entry Modal ────────────────────────────────────────────────
+type JeLine = { accountId: string; debitAmount: string; creditAmount: string; description: string };
+const EMPTY_JE_LINE: JeLine = { accountId: "", debitAmount: "0", creditAmount: "0", description: "" };
+
+function NewJournalEntryModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
+  const coaQ = trpc.accounting.coa.list.useQuery({ activeOnly: true, limit: 500 }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
+  const accounts = (coaQ.data ?? []) as any[];
+
+  const [header, setHeader] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    description: "",
+    reference: "",
+  });
+  const [lines, setLines] = useState<JeLine[]>([{ ...EMPTY_JE_LINE }, { ...EMPTY_JE_LINE }]);
+
+  const createMut = trpc.accounting.journal.create.useMutation({
+    onSuccess: () => { toast.success("Journal entry created"); onCreated(); onClose(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to create journal entry"),
+  });
+
+  const totalDebit = lines.reduce((s, l) => s + (parseFloat(l.debitAmount) || 0), 0);
+  const totalCredit = lines.reduce((s, l) => s + (parseFloat(l.creditAmount) || 0), 0);
+  const balanced = Math.abs(totalDebit - totalCredit) <= 0.001;
+  const validLines = lines.filter(l => l.accountId && (parseFloat(l.debitAmount) > 0 || parseFloat(l.creditAmount) > 0));
+  const canSubmit = header.description.trim().length > 0 && validLines.length >= 2 && balanced && totalDebit > 0;
+
+  const setLine = (i: number, patch: Partial<JeLine>) => setLines(ls => ls.map((l, idx) => idx === i ? { ...l, ...patch } : l));
+  const addLine = () => setLines(ls => [...ls, { ...EMPTY_JE_LINE }]);
+  const removeLine = (i: number) => setLines(ls => ls.length > 2 ? ls.filter((_, idx) => idx !== i) : ls);
+
+  const submit = () => {
+    createMut.mutate({
+      date: new Date(header.date),
+      description: header.description.trim(),
+      reference: header.reference.trim() || undefined,
+      type: "manual",
+      lines: validLines.map(l => ({
+        accountId: l.accountId,
+        debitAmount: parseFloat(l.debitAmount) || 0,
+        creditAmount: parseFloat(l.creditAmount) || 0,
+        description: l.description.trim() || undefined,
+      })),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+        <h2 className="text-sm font-semibold mb-4">New Journal Entry</h2>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Date *</label><input type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none focus:ring-1 focus:ring-primary/50" /></div>
+          <div className="col-span-2"><label className="text-[11px] font-medium text-muted-foreground block mb-1">Reference</label><input value={header.reference} onChange={e => setHeader(h => ({ ...h, reference: e.target.value }))} placeholder="Optional" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
+          <div className="col-span-3"><label className="text-[11px] font-medium text-muted-foreground block mb-1">Description *</label><input value={header.description} onChange={e => setHeader(h => ({ ...h, description: e.target.value }))} placeholder="e.g. Accrue office rent for June" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
+        </div>
+
+        <div className="border border-border rounded-lg overflow-hidden mb-3">
+          <table className="w-full text-[12px]">
+            <thead className="bg-muted/40 border-b border-border">
+              <tr>{["Account", "Debit (₹)", "Credit (₹)", "Line note", ""].map(h => <th key={h} className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {lines.map((l, i) => (
+                <tr key={i}>
+                  <td className="px-2 py-1.5">
+                    <select value={l.accountId} onChange={e => setLine(i, { accountId: e.target.value })} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none">
+                      <option value="">Select account…</option>
+                      {accounts.map(a => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5"><input type="number" min="0" step="0.01" value={l.debitAmount} onChange={e => setLine(i, { debitAmount: e.target.value, creditAmount: parseFloat(e.target.value) > 0 ? "0" : l.creditAmount })} className="w-28 px-2 py-1.5 text-[11px] border border-border rounded outline-none text-right font-mono" /></td>
+                  <td className="px-2 py-1.5"><input type="number" min="0" step="0.01" value={l.creditAmount} onChange={e => setLine(i, { creditAmount: e.target.value, debitAmount: parseFloat(e.target.value) > 0 ? "0" : l.debitAmount })} className="w-28 px-2 py-1.5 text-[11px] border border-border rounded outline-none text-right font-mono" /></td>
+                  <td className="px-2 py-1.5"><input value={l.description} onChange={e => setLine(i, { description: e.target.value })} placeholder="Optional" className="w-full px-2 py-1.5 text-[11px] border border-border rounded outline-none" /></td>
+                  <td className="px-2 py-1.5 text-center">{lines.length > 2 && <button onClick={() => removeLine(i)} className="text-red-500/70 hover:text-red-600 text-[11px]">✕</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-muted/30 border-t border-border">
+              <tr>
+                <td className="px-2 py-2 text-[11px] font-semibold text-muted-foreground">Totals</td>
+                <td className="px-2 py-2 text-right font-mono text-[11px] font-semibold">{fmtInr(totalDebit)}</td>
+                <td className="px-2 py-2 text-right font-mono text-[11px] font-semibold">{fmtInr(totalCredit)}</td>
+                <td colSpan={2} className="px-2 py-2 text-[11px]">{balanced ? <span className="text-green-700">Balanced</span> : <span className="text-red-600">Off by {fmtInr(Math.abs(totalDebit - totalCredit))}</span>}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <button onClick={addLine} className="flex items-center gap-1 text-[11px] text-primary hover:underline mb-4"><Plus className="w-3 h-3" /> Add line</button>
+
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/50">Cancel</button>
+          <button disabled={!canSubmit || createMut.isPending} onClick={submit} className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white text-[12px] rounded disabled:opacity-50">
+            {createMut.isPending && <Loader2 className="w-3 h-3 animate-spin" />} Create Entry
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Journal Entries Tab ────────────────────────────────────────────────────
-function JournalTab() {
+function JournalTab({ showNew, setShowNew }: { showNew: boolean; setShowNew: (v: boolean) => void }) {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -137,6 +238,7 @@ function JournalTab() {
 
   return (
     <div className="flex flex-col gap-3">
+      {showNew && <NewJournalEntryModal onClose={() => setShowNew(false)} onCreated={() => void utils.accounting.journal.list.invalidate()} />}
       {journalQ.isLoading ? <TableSkeleton rows={8} cols={6} /> : entries.length === 0 ? (
         <EmptyState icon={FileSpreadsheet} title="No journal entries" description="Journal entries are auto-created from invoices, payroll runs, and payments. You can also create manual entries." />
       ) : (
@@ -347,6 +449,7 @@ import { PageHeader } from "@/components/ui/page-header";
 export default function AccountingPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const [tab, setTab] = useState<Tab>("coa");
+  const [showNewJE, setShowNewJE] = useState(false);
 
   if (!can("financial", "read")) return <AccessDenied module="Accounting" />;
 
@@ -366,7 +469,7 @@ export default function AccountingPage() {
             </button>
             <PermissionGate module="financial" action="write">
               <button
-                onClick={() => toast.info("New Journal Entry coming soon", { duration: 3000 })}
+                onClick={() => { setTab("journal"); setShowNewJE(true); }}
                 className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
               >
                 <Plus className="w-4 h-4" /> New Journal Entry
@@ -394,7 +497,7 @@ export default function AccountingPage() {
 
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
         {tab === "coa"           && <CoaTab />}
-        {tab === "journal"       && <JournalTab />}
+        {tab === "journal"       && <JournalTab showNew={showNewJE} setShowNew={setShowNewJE} />}
         {tab === "trial_balance" && <TrialBalanceTab />}
         {tab === "pnl"           && <PnLTab />}
         {tab === "gstr"          && <GSTRTab />}

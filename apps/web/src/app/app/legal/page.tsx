@@ -246,6 +246,11 @@ export default function LegalPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to update article"),
   });
 
+  const archiveKbArticle = trpc.knowledge.archive.useMutation({
+    onSuccess: () => { toast.success("Article archived"); refetchKb(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to archive article"),
+  });
+
   if (visibleTabs.length === 0) return <AccessDenied module="Legal Service Delivery" />;
 
   const matters = (mattersData ?? []) as any[];
@@ -791,14 +796,17 @@ export default function LegalPage() {
                             className="text-[11px] text-muted-foreground/70 hover:underline"
                           >Export</button>
                         </PermissionGate>
-                        <PermissionGate module="knowledge" action="write">
-                          <button
-                            onClick={() => {
-                              toast.info("Archive functionality coming soon");
-                            }}
-                            className="text-[11px] text-red-600/70 hover:text-red-600 hover:underline"
-                          >Archive</button>
-                        </PermissionGate>
+                        {kb.status !== "archived" && (
+                          <PermissionGate module="knowledge" action="write">
+                            <button
+                              onClick={() => {
+                                if (confirm(`Archive "${kb.title}"?`)) archiveKbArticle.mutate({ id: kb.id });
+                              }}
+                              disabled={archiveKbArticle.isPending}
+                              className="text-[11px] text-red-600/70 hover:text-red-600 hover:underline disabled:opacity-50"
+                            >Archive</button>
+                          </PermissionGate>
+                        )}
                       </div>
                     </td>
                     <td>

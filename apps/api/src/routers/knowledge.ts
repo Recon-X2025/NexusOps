@@ -139,6 +139,16 @@ export const knowledgeRouter = router({
     return article;
   }),
 
+  archive: permissionProcedure("knowledge", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const [article] = await ctx.db.update(kbArticles)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(and(eq(kbArticles.id, input.id), eq(kbArticles.orgId, ctx.org!.id))).returning();
+      if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+      return article;
+    }),
+
   recordFeedback: permissionProcedure("knowledge", "write")
     .input(z.object({ articleId: z.string().uuid(), helpful: z.boolean(), comment: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {

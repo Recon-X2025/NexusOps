@@ -99,4 +99,26 @@ describe.sequential("Auth (auth.test)", () => {
       code: "UNAUTHORIZED",
     });
   });
+
+  it("uploadAvatar rejects a non-image mime type (zod enum)", async () => {
+    const token = await createSession(seededUserId);
+    const caller = await authedCaller(token);
+    await expect(
+      caller.auth.uploadAvatar({
+        // @ts-expect-error — deliberately invalid mime to assert the guard
+        mimeType: "application/pdf",
+        contentBase64: Buffer.from("x").toString("base64"),
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("uploadAvatar rejects an oversized image before touching storage", async () => {
+    const token = await createSession(seededUserId);
+    const caller = await authedCaller(token);
+    // 6MB of bytes → base64 → decoded body exceeds the 5MB guard.
+    const big = Buffer.alloc(6 * 1024 * 1024, 1).toString("base64");
+    await expect(
+      caller.auth.uploadAvatar({ mimeType: "image/png", contentBase64: big }),
+    ).rejects.toThrow(/5MB or smaller/i);
+  });
 });

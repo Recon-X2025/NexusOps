@@ -29,9 +29,6 @@ export interface SystemUser {
   orgName?: string;
 }
 
-/** Mock session user — empty in production to ensure total data fidelity */
-export const MOCK_USERS: SystemUser[] = [];
-
 export const SYSTEM_ROLES_CATALOG: Array<{
   role: SystemRole;
   displayName: string;
