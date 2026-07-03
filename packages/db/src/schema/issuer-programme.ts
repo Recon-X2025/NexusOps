@@ -506,3 +506,101 @@ export const dpdpDsrEventsRelations = relations(dpdpDsrEvents, ({ one }) => ({
     references: [dpdpDataSubjectRequests.id],
   }),
 }));
+
+// ── DPDP Act 2023 — Consent ledger (Sprint 1.2) ─────────────────────────────
+// §6: consent must be free, specific, informed, unconditional and unambiguous,
+// and §6(4)–(6): a Data Principal may withdraw it as easily as it was given.
+// We keep a current-state record per (principal, purpose) plus an append-only
+// event ledger so the withdrawal/renewal history is fully auditable.
+
+export const consentStatusEnum = pgEnum("dpdp_consent_status", [
+  "granted",
+  "withdrawn",
+  "expired",
+]);
+
+/**
+ * dpdp_consent_records — current consent state for a Data Principal against a
+ * specific processing purpose. Unique per (org, principalRef, purpose) so there
+ * is exactly one authoritative current state; historical grants/withdrawals live
+ * in dpdp_consent_events.
+ */
+export const dpdpConsentRecords = pgTable(
+  "dpdp_consent_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // Stable principal key (email / external subject id) so consent survives even
+    // when the Principal has no platform user account.
+    principalRef: text("principal_ref").notNull(),
+    principalName: text("principal_name"),
+    purpose: text("purpose").notNull(),
+    // links to the RoPA activity governing this purpose, if any
+    processingActivityId: uuid("processing_activity_id").references(
+      () => dpdpProcessingActivities.id,
+      { onDelete: "set null" },
+    ),
+    lawfulBasis: text("lawful_basis").notNull().default("consent"),
+    status: consentStatusEnum("status").notNull().default("granted"),
+    consentArtifact: text("consent_artifact"), // notice version / form ref shown at collection
+    version: integer("version").notNull().default(1),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uidx: uniqueIndex("dpdp_consent_org_principal_purpose_uidx").on(
+      t.orgId,
+      t.principalRef,
+      t.purpose,
+    ),
+    orgStatusIdx: index("dpdp_consent_org_status_idx").on(t.orgId, t.status),
+    principalIdx: index("dpdp_consent_org_principal_idx").on(t.orgId, t.principalRef),
+  }),
+);
+
+/**
+ * dpdp_consent_events — append-only ledger: one row per grant / withdraw /
+ * renew / expire action (child → parent CASCADE). This is the auditable proof
+ * of when/how consent moved.
+ */
+export const dpdpConsentEvents = pgTable(
+  "dpdp_consent_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    consentId: uuid("consent_id")
+      .notNull()
+      .references(() => dpdpConsentRecords.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // granted | withdrawn | renewed | expired
+    fromStatus: consentStatusEnum("from_status"),
+    toStatus: consentStatusEnum("to_status").notNull(),
+    version: integer("version"),
+    reason: text("reason"),
+    // provenance of the request (self_service portal, email, phone, form, migration…)
+    channel: text("channel"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    consentIdx: index("dpdp_consent_events_consent_idx").on(t.consentId, t.createdAt),
+    orgIdx: index("dpdp_consent_events_org_idx").on(t.orgId),
+  }),
+);
+
+export const dpdpConsentRecordsRelations = relations(dpdpConsentRecords, ({ many }) => ({
+  events: many(dpdpConsentEvents),
+}));
+
+export const dpdpConsentEventsRelations = relations(dpdpConsentEvents, ({ one }) => ({
+  consent: one(dpdpConsentRecords, {
+    fields: [dpdpConsentEvents.consentId],
+    references: [dpdpConsentRecords.id],
+  }),
+}));

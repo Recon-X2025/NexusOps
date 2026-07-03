@@ -12,6 +12,9 @@ import { TRPCError } from "@trpc/server";
 import {
   dpdpDataSubjectRequests,
   dpdpDsrEvents,
+  dpdpConsentRecords,
+  dpdpConsentEvents,
+  consentStatusEnum,
   dsrRequestTypeEnum,
   dsrStatusEnum,
   eq,
@@ -317,6 +320,223 @@ export const complianceRouter = router({
         else if (due - now <= soonMs) dueSoon++;
       }
       return { total: rows.length, open, overdue, dueSoon, closed };
+    }),
+  }),
+
+  // ══ Consent ledger (DPDP §6) ═══════════════════════════════════════════════
+  consent: router({
+    // ── List / filter current consent state ──────────────────────────────────
+    list: permissionProcedure("compliance", "read")
+      .input(
+        z
+          .object({
+            principalRef: z.string().optional(),
+            status: z.enum(consentStatusEnum.enumValues).optional(),
+            purpose: z.string().optional(),
+          })
+          .optional(),
+      )
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conditions = [eq(dpdpConsentRecords.orgId, org!.id)];
+        if (input?.principalRef)
+          conditions.push(eq(dpdpConsentRecords.principalRef, input.principalRef));
+        if (input?.status) conditions.push(eq(dpdpConsentRecords.status, input.status));
+        if (input?.purpose) conditions.push(eq(dpdpConsentRecords.purpose, input.purpose));
+        return db
+          .select()
+          .from(dpdpConsentRecords)
+          .where(and(...conditions))
+          .orderBy(desc(dpdpConsentRecords.updatedAt));
+      }),
+
+    // ── Get one (with ledger) ─────────────────────────────────────────────────
+    get: permissionProcedure("compliance", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [record] = await db
+          .select()
+          .from(dpdpConsentRecords)
+          .where(and(eq(dpdpConsentRecords.id, input.id), eq(dpdpConsentRecords.orgId, org!.id)))
+          .limit(1);
+        if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Consent not found" });
+        const events = await db
+          .select()
+          .from(dpdpConsentEvents)
+          .where(eq(dpdpConsentEvents.consentId, input.id))
+          .orderBy(asc(dpdpConsentEvents.createdAt));
+        return { ...record, events };
+      }),
+
+    // ── Grant (or re-grant / renew) consent ───────────────────────────────────
+    // Idempotent per (principalRef, purpose): a fresh grant on an existing record
+    // renews it (bumps version, records a "renewed" ledger event); a new
+    // (principal, purpose) inserts a "granted" event.
+    grant: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          principalRef: z.string().min(1).max(320),
+          principalName: z.string().max(200).optional(),
+          purpose: z.string().min(1).max(200),
+          lawfulBasis: z.string().max(100).default("consent"),
+          processingActivityId: z.string().uuid().optional(),
+          consentArtifact: z.string().max(200).optional(),
+          channel: z.string().max(60).optional(),
+          expiresAt: z.string().datetime().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+        return db.transaction(async (tx) => {
+          const [existing] = await tx
+            .select()
+            .from(dpdpConsentRecords)
+            .where(
+              and(
+                eq(dpdpConsentRecords.orgId, org!.id),
+                eq(dpdpConsentRecords.principalRef, input.principalRef),
+                eq(dpdpConsentRecords.purpose, input.purpose),
+              ),
+            )
+            .limit(1);
+
+          if (existing) {
+            const nextVersion = existing.version + 1;
+            const [row] = await tx
+              .update(dpdpConsentRecords)
+              .set({
+                status: "granted",
+                principalName: input.principalName ?? existing.principalName,
+                lawfulBasis: input.lawfulBasis,
+                processingActivityId: input.processingActivityId ?? existing.processingActivityId,
+                consentArtifact: input.consentArtifact ?? existing.consentArtifact,
+                version: nextVersion,
+                grantedAt: new Date(),
+                expiresAt,
+                withdrawnAt: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(dpdpConsentRecords.id, existing.id))
+              .returning();
+            await tx.insert(dpdpConsentEvents).values({
+              orgId: org!.id,
+              consentId: existing.id,
+              eventType: "renewed",
+              fromStatus: existing.status,
+              toStatus: "granted",
+              version: nextVersion,
+              channel: input.channel,
+              actorUserId: (user?.id as string) ?? null,
+            });
+            return row!;
+          }
+
+          const [row] = await tx
+            .insert(dpdpConsentRecords)
+            .values({
+              orgId: org!.id,
+              principalRef: input.principalRef,
+              principalName: input.principalName,
+              purpose: input.purpose,
+              lawfulBasis: input.lawfulBasis,
+              processingActivityId: input.processingActivityId,
+              consentArtifact: input.consentArtifact,
+              status: "granted",
+              version: 1,
+              expiresAt,
+            })
+            .returning();
+          await tx.insert(dpdpConsentEvents).values({
+            orgId: org!.id,
+            consentId: row!.id,
+            eventType: "granted",
+            toStatus: "granted",
+            version: 1,
+            channel: input.channel,
+            actorUserId: (user?.id as string) ?? null,
+          });
+          return row!;
+        });
+      }),
+
+    // ── Withdraw consent (§6(4): as easy to withdraw as to give) ──────────────
+    withdraw: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          reason: z.string().max(2000).optional(),
+          channel: z.string().max(60).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        return db.transaction(async (tx) => {
+          const [current] = await tx
+            .select()
+            .from(dpdpConsentRecords)
+            .where(
+              and(eq(dpdpConsentRecords.id, input.id), eq(dpdpConsentRecords.orgId, org!.id)),
+            )
+            .limit(1);
+          if (!current)
+            throw new TRPCError({ code: "NOT_FOUND", message: "Consent not found" });
+          if (current.status === "withdrawn") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Consent already withdrawn" });
+          }
+          const [row] = await tx
+            .update(dpdpConsentRecords)
+            .set({ status: "withdrawn", withdrawnAt: new Date(), updatedAt: new Date() })
+            .where(eq(dpdpConsentRecords.id, input.id))
+            .returning();
+          await tx.insert(dpdpConsentEvents).values({
+            orgId: org!.id,
+            consentId: input.id,
+            eventType: "withdrawn",
+            fromStatus: current.status,
+            toStatus: "withdrawn",
+            reason: input.reason,
+            channel: input.channel,
+            actorUserId: (user?.id as string) ?? null,
+          });
+          return row!;
+        });
+      }),
+
+    // ── Expire lapsed consents (past expiresAt while still granted) ───────────
+    // Idempotent sweep — safe to call from a scheduled worker.
+    expireLapsed: permissionProcedure("compliance", "write").mutation(async ({ ctx }) => {
+      const { db, org, user } = ctx;
+      return db.transaction(async (tx) => {
+        const lapsed = await tx
+          .select({ id: dpdpConsentRecords.id, status: dpdpConsentRecords.status })
+          .from(dpdpConsentRecords)
+          .where(
+            and(
+              eq(dpdpConsentRecords.orgId, org!.id),
+              eq(dpdpConsentRecords.status, "granted"),
+              sql`${dpdpConsentRecords.expiresAt} IS NOT NULL`,
+              sql`${dpdpConsentRecords.expiresAt} < now()`,
+            ),
+          );
+        for (const row of lapsed) {
+          await tx
+            .update(dpdpConsentRecords)
+            .set({ status: "expired", updatedAt: new Date() })
+            .where(eq(dpdpConsentRecords.id, row.id));
+          await tx.insert(dpdpConsentEvents).values({
+            orgId: org!.id,
+            consentId: row.id,
+            eventType: "expired",
+            fromStatus: "granted",
+            toStatus: "expired",
+            channel: "system",
+            actorUserId: (user?.id as string) ?? null,
+          });
+        }
+        return { expired: lapsed.length };
+      });
     }),
   }),
 });
