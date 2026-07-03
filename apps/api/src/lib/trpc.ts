@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import jwt from "jsonwebtoken";
 import { z, ZodError } from "zod";
 import type { Module, RbacAction } from "@coheronconnect/types";
-import { auditLogs, users, organizations, type Db } from "@coheronconnect/db";
+import { users, organizations, type Db } from "@coheronconnect/db";
 import { checkDbUserPermission } from "./rbac-db";
 import { isRetryableTrpcResult, retryDelay, MAX_ATTEMPTS, extractPgCode } from "./db-retry";
 import {
@@ -17,6 +17,7 @@ import {
   type RequestMeta,
 } from "./logger";
 import { sanitizeForAudit } from "./audit-sanitize";
+import { appendAuditEntry } from "./audit-hash";
 import { assertStepUpIfRequired } from "./step-up";
 import { assertMfaIfRequired } from "./mfa-policy";
 
@@ -420,7 +421,9 @@ const auditMutation = t.middleware(async (opts) => {
     // changes: sanitized input (creates get full input; updates get input fields)
     const changes = input ? sanitizeForAudit(input) as Record<string, unknown> : undefined;
 
-    await ctx.db.insert(auditLogs).values({
+    // Append to the org's tamper-evident hash chain (each entry hashes the
+    // previous entry's hash, so silent edits/deletes are detectable).
+    await appendAuditEntry(ctx.db, {
       orgId: ctx.org.id,
       userId: ctx.user.id,
       action: path ?? "mutation",

@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -244,12 +245,24 @@ export const auditLogs = pgTable(
     changes: jsonb("changes").$type<Record<string, unknown>>(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    /**
+     * Tamper-evident hash chain (per org). `entryHash` = SHA-256 over this
+     * entry's canonical payload plus the previous entry's hash; `prevHash` is
+     * the hash of the immediately preceding entry for the same org (NULL for the
+     * first / genesis entry). `seq` is a per-org monotonically increasing index
+     * used to order and verify the chain. Any mutation, deletion, or reordering
+     * of historical rows breaks the chain and is detectable via verifyAuditChain.
+     */
+    seq: integer("seq"),
+    prevHash: text("prev_hash"),
+    entryHash: text("entry_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     orgIdx: index("audit_logs_org_id_idx").on(t.orgId),
     createdAtIdx: index("audit_logs_created_at_idx").on(t.createdAt),
     resourceIdx: index("audit_logs_resource_idx").on(t.resourceType, t.resourceId),
+    orgSeqIdx: uniqueIndex("audit_logs_org_seq_idx").on(t.orgId, t.seq),
   }),
 );
 
