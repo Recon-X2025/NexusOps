@@ -154,13 +154,32 @@ Legend: **R** REAL · **P** PARTIAL · **S** STUB (per-module verdict from the c
 
 ## 6. Suggested sequencing
 
-1. **Sprint 0 (cheap wins, low risk):** GSTR-1 rate fix, real procurement accrual accounts, asset↔contract linking, CMDB cycle detection, tamper-evident audit, remove DocuSign stub, CVSS→SLA policy, OKR cascade exposure, warranty/license expiry alerts.
-2. **Sprint 1 (regulatory must-dos):** DPDP DSR + breach + consent; gratuity + leave accrual; regulatory refresh (Labour Codes / Income Tax Act 2026).
-3. **Sprint 2 (financial intelligence):** depreciation engine → book value → balance sheet; GSTR-2B reconciliation; inventory valuation.
-4. **Sprint 3 (automation loop):** workflow trigger scheduler/event-bus + outbound webhook dispatcher; generalise business-rules beyond tickets; fire ITOM/on-call/MTTR loops.
-5. **Sprint 4 (revenue + audit-defense):** lead scoring + lossless conversion + CPQ tax; SAM reconciliation/ELP; CSM health scoring; customer portal.
+1. **Sprint 0 (cheap wins, low risk) — ~2–3 weeks:** GSTR-1 rate fix, real procurement accrual accounts, asset↔contract linking, CMDB cycle detection, tamper-evident audit, remove DocuSign stub, CVSS→SLA policy, OKR cascade exposure, warranty/license expiry alerts.
+2. **Sprint 1 (regulatory must-dos) — ~5–7 weeks:** DPDP DSR + breach + consent; gratuity + leave accrual; regulatory refresh (Labour Codes / Income Tax Act 2026).
+3. **Sprint 2 (financial intelligence) — ~4–6 weeks:** depreciation engine → book value → balance sheet; GSTR-2B reconciliation; inventory valuation.
+4. **Sprint 3 (automation loop) — ~5–7 weeks:** workflow trigger scheduler/event-bus + outbound webhook dispatcher; generalise business-rules beyond tickets; fire ITOM/on-call/MTTR loops.
+5. **Sprint 4 (revenue + audit-defense) — ~5–7 weeks:** lead scoring + lossless conversion + CPQ tax; SAM reconciliation/ELP; CSM health scoring; customer portal.
 
 Deliver Sprints 0–2 and the platform moves from an average ~52 to a defensible ~65+, with the regulatory exposure closed and the finance system finally able to produce a balance sheet.
+
+### 6.1 How long to fix everything?
+
+Estimates are **engineer-weeks of focused build** (analysis + build + tests, not calendar time). They assume the existing schema is reused wherever it already exists — which, per §4, is most of the time. "Everything" here means bringing all 9 audits up to a defensible category-competitive bar, **not** matching every leader feature-for-feature.
+
+| Scope | Engineer-weeks | Calendar (1 focused eng) | Calendar (small squad, 3 eng) |
+|---|---:|---|---|
+| **Sprint 0** — cheap wins | ~2–3 | ~2–3 weeks | ~1 week |
+| **Sprints 0–2** — regulatory + financial floor (the "defensible ~65" line) | ~11–16 | ~3–4 months | ~5–7 weeks |
+| **Sprints 0–4** — all platform-wide priorities closed | ~21–30 | ~5–7 months | ~2–3 months |
+| **+ GRC + Legal companion depth** (continuous-assurance engine; CLM/entity/cap-table/board/matter depth) | ~+18–28 | ~+4–7 months | ~+6–10 weeks |
+| **Grand total — whole platform to category-competitive** | **~40–58 eng-weeks** | **~9–13 months** | **~4–5 months** |
+
+**Reading the numbers:**
+- The **7 cluster gaps** (Sprints 0–4) are the bulk of the *product* work: **~21–30 eng-weeks (~5–7 months solo, ~2–3 months with a 3-engineer squad).**
+- The **GRC + Legal companion depth** is the biggest single swing (a continuous-assurance engine and deep CLM are near-greenfield builds), adding **~18–28 eng-weeks** on top.
+- **Caveats that move the number:** the DPDP triad and MCA21/XBRL real-filing carry the most *unknown-unknown* risk (external API certification, statutory review) and could each slip 2–4 weeks; the AI/RAG and PMO-scheduling items are genuinely new engines rather than schema-completion. Timeline also assumes the test-DB/CI gates in `CLAUDE.md` stay green throughout (each money-path change needs invariant tests).
+
+**Bottom line:** the *regulatory + financial floor* is ~**1 quarter with a small squad**; the *entire platform to category-competitive across all 9 audits* is ~**4–5 months with a 3-engineer squad** (or ~9–13 months for a single focused engineer).
 
 ---
 
