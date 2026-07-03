@@ -7,6 +7,7 @@ import {
   chargebacks,
   invoices,
   invoiceStatusEnum,
+  journalEntries,
   vendors,
   legalEntities,
   gstinRegistry,
@@ -412,6 +413,82 @@ export const financialRouter = router({
       }
 
       return { scanned: rows.length, updated: updated.length, invoices: updated };
+    }),
+
+  /**
+   * Posts the missing GL journal entry for invoices created before invoice
+   * creation began posting to the ledger. Idempotent: an invoice is skipped
+   * when a `type = "invoice"` journal entry already references its number
+   * (invoice numbers are unique per org). Each posting is atomic per invoice
+   * so a mid-run failure never leaves a half-posted ledger. Admin-only; scoped
+   * to the caller's org. Returns per-invoice results plus a skipped count.
+   */
+  backfillInvoiceJournals: adminProcedure
+    .use(mfaGate)
+    .input(z.object({ invoiceId: z.string().uuid().optional() }).default({}))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conditions = [eq(invoices.orgId, org!.id)];
+      if (input.invoiceId) conditions.push(eq(invoices.id, input.invoiceId));
+
+      const rows = await db
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          invoiceFlow: invoices.invoiceFlow,
+          taxableValue: invoices.taxableValue,
+          cgstAmount: invoices.cgstAmount,
+          sgstAmount: invoices.sgstAmount,
+          igstAmount: invoices.igstAmount,
+          isInterstate: invoices.isInterstate,
+          amount: invoices.amount,
+          invoiceDate: invoices.invoiceDate,
+        })
+        .from(invoices)
+        .where(and(...conditions));
+
+      // Numbers that already carry an invoice-type journal entry — skip these.
+      const existing = await db
+        .select({ reference: journalEntries.reference })
+        .from(journalEntries)
+        .where(and(eq(journalEntries.orgId, org!.id), eq(journalEntries.type, "invoice")));
+      const alreadyPosted = new Set(existing.map((e) => e.reference).filter(Boolean) as string[]);
+
+      const posted: Array<{ id: string; invoiceNumber: string; journalEntryId: string }> = [];
+      let skipped = 0;
+      let unposted = 0; // COA not seeded → helper returned null
+
+      for (const row of rows) {
+        if (alreadyPosted.has(row.invoiceNumber)) {
+          skipped++;
+          continue;
+        }
+        const jeId = await db.transaction((tx) =>
+          postInvoiceJournalEntry(tx, {
+            orgId: org!.id,
+            createdById: ctx.user!.id,
+            invoiceFlow: row.invoiceFlow === "receivable" ? "receivable" : "payable",
+            invoiceNumber: row.invoiceNumber,
+            date: row.invoiceDate ?? new Date(),
+            taxableValue: Number(row.taxableValue),
+            cgstAmount: Number(row.cgstAmount),
+            sgstAmount: Number(row.sgstAmount),
+            igstAmount: Number(row.igstAmount),
+            isInterstate: row.isInterstate,
+            grossTotal: Number(row.amount),
+            financialYear: currentFY(row.invoiceDate ?? new Date()),
+          }),
+        );
+        if (jeId === null) {
+          unposted++;
+          continue;
+        }
+        // Guard against a duplicate number within this same batch.
+        alreadyPosted.add(row.invoiceNumber);
+        posted.push({ id: row.id, invoiceNumber: row.invoiceNumber, journalEntryId: jeId });
+      }
+
+      return { scanned: rows.length, posted: posted.length, skipped, unposted, invoices: posted };
     }),
 
   listInvoices: permissionProcedure("financial", "read")
