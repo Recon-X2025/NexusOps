@@ -33,6 +33,8 @@ import {
   enqueueIrnGenerationJob,
 } from "../workflows/irnGenerationWorkflow";
 import { getWorkflowService } from "../services/workflow";
+import { postInvoiceJournalEntry } from "../lib/invoice-journal";
+import { currentFY } from "./accounting";
 
 /** GST rates permitted at invoice entry; mirrors the `GSTRate` engine union. */
 const GST_RATE_INPUT = z
@@ -211,26 +213,47 @@ export const financialRouter = router({
         orgState,
         counterpartyState: vendorRow?.state ?? null,
       });
-      const [inv] = await db.insert(invoices).values({
-        orgId: org!.id,
-        vendorId: input.vendorId,
-        legalEntityId: input.legalEntityId ?? null,
-        invoiceFlow: "payable",
-        invoiceNumber: input.invoiceNumber,
-        invoiceType: "tax_invoice",
-        supplierGstin: vendorRow?.gstin ?? null,
-        amount: gst.amount,
-        taxableValue: gst.taxableValue,
-        cgstAmount: gst.cgstAmount,
-        sgstAmount: gst.sgstAmount,
-        igstAmount: gst.igstAmount,
-        totalTaxAmount: gst.totalTaxAmount,
-        isInterstate: gst.isInterstate,
-        status: "pending",
-        matchingStatus: "pending",
-        invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
-        dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-      }).returning();
+      const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
+      // Insert the invoice and post its balanced GL journal entry atomically —
+      // so balance-based dashboards (burn rate, cash runway, AP aging) see the
+      // same money the AP/AR page reads directly from `invoices`.
+      const inv = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(invoices).values({
+          orgId: org!.id,
+          vendorId: input.vendorId,
+          legalEntityId: input.legalEntityId ?? null,
+          invoiceFlow: "payable",
+          invoiceNumber: input.invoiceNumber,
+          invoiceType: "tax_invoice",
+          supplierGstin: vendorRow?.gstin ?? null,
+          amount: gst.amount,
+          taxableValue: gst.taxableValue,
+          cgstAmount: gst.cgstAmount,
+          sgstAmount: gst.sgstAmount,
+          igstAmount: gst.igstAmount,
+          totalTaxAmount: gst.totalTaxAmount,
+          isInterstate: gst.isInterstate,
+          status: "pending",
+          matchingStatus: "pending",
+          invoiceDate,
+          dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+        }).returning();
+        await postInvoiceJournalEntry(tx, {
+          orgId: org!.id,
+          createdById: ctx.user!.id,
+          invoiceFlow: "payable",
+          invoiceNumber: input.invoiceNumber,
+          date: invoiceDate,
+          taxableValue: Number(gst.taxableValue),
+          cgstAmount: Number(gst.cgstAmount),
+          sgstAmount: Number(gst.sgstAmount),
+          igstAmount: Number(gst.igstAmount),
+          isInterstate: gst.isInterstate,
+          grossTotal: Number(gst.amount),
+          financialYear: currentFY(invoiceDate),
+        });
+        return row;
+      });
       return { ...inv, duplicatePayableWarning: dup > 0 && policy === "warn" };
     }),
 
@@ -268,29 +291,48 @@ export const financialRouter = router({
         orgState,
         counterpartyState: customerRow?.state ?? null,
       });
-      const [inv] = await db
-        .insert(invoices)
-        .values({
+      const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
+      // Insert + post the balanced AR journal entry atomically (see createInvoice).
+      const inv = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(invoices)
+          .values({
+            orgId: org!.id,
+            vendorId: input.customerVendorId,
+            legalEntityId: input.legalEntityId ?? null,
+            invoiceFlow: "receivable",
+            invoiceNumber: input.invoiceNumber,
+            invoiceType: "tax_invoice",
+            buyerGstin: customerRow?.gstin ?? null,
+            amount: gst.amount,
+            taxableValue: gst.taxableValue,
+            cgstAmount: gst.cgstAmount,
+            sgstAmount: gst.sgstAmount,
+            igstAmount: gst.igstAmount,
+            totalTaxAmount: gst.totalTaxAmount,
+            isInterstate: gst.isInterstate,
+            status: "pending",
+            matchingStatus: "pending",
+            invoiceDate,
+            dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+          })
+          .returning();
+        await postInvoiceJournalEntry(tx, {
           orgId: org!.id,
-          vendorId: input.customerVendorId,
-          legalEntityId: input.legalEntityId ?? null,
+          createdById: ctx.user!.id,
           invoiceFlow: "receivable",
           invoiceNumber: input.invoiceNumber,
-          invoiceType: "tax_invoice",
-          buyerGstin: customerRow?.gstin ?? null,
-          amount: gst.amount,
-          taxableValue: gst.taxableValue,
-          cgstAmount: gst.cgstAmount,
-          sgstAmount: gst.sgstAmount,
-          igstAmount: gst.igstAmount,
-          totalTaxAmount: gst.totalTaxAmount,
+          date: invoiceDate,
+          taxableValue: Number(gst.taxableValue),
+          cgstAmount: Number(gst.cgstAmount),
+          sgstAmount: Number(gst.sgstAmount),
+          igstAmount: Number(gst.igstAmount),
           isInterstate: gst.isInterstate,
-          status: "pending",
-          matchingStatus: "pending",
-          invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
-          dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-        })
-        .returning();
+          grossTotal: Number(gst.amount),
+          financialYear: currentFY(invoiceDate),
+        });
+        return row;
+      });
       return inv;
     }),
 

@@ -27,7 +27,7 @@ type LedgerLineRow = { line: JelRow; je: JeRow };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function currentFY(date: Date = new Date()): string {
+export function currentFY(date: Date = new Date()): string {
   const y = date.getFullYear();
   const m = date.getMonth(); // 0-indexed
   return m >= 3 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
