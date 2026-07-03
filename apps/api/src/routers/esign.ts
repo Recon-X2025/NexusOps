@@ -11,7 +11,7 @@ import {
   desc,
 } from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "../services/encryption";
-import { getEsignProvider } from "../services/esign";
+import { getEsignProvider, IMPLEMENTED_ESIGN_PROVIDERS } from "../services/esign";
 
 /**
  * Universal e-sign router. Source modules (contracts, recruitment, secretarial,
@@ -19,8 +19,9 @@ import { getEsignProvider } from "../services/esign";
  * router persists the envelope, dispatches to the chosen provider, and writes
  * a row to `signature_requests`.
  *
- * Provider selection: per-tenant default lives in `integrations` rows with
- * provider in {emudhra, docusign}. The first connected one is used.
+ * Provider selection: per-tenant default lives in `integrations` rows. Only
+ * providers with a real adapter (see IMPLEMENTED_ESIGN_PROVIDERS) may be
+ * requested — DocuSign remains unimplemented and is not selectable.
  */
 export const esignRouter = router({
   list: permissionProcedure("contracts", "read")
@@ -88,7 +89,7 @@ export const esignRouter = router({
             }),
           )
           .min(1),
-        provider: z.enum(["emudhra", "docusign"]).default("emudhra"),
+        provider: z.enum(IMPLEMENTED_ESIGN_PROVIDERS).default("emudhra"),
         expiresAt: z.string().datetime().optional(),
       }),
     )
