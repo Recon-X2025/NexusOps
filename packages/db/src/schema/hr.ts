@@ -466,6 +466,96 @@ export const gratuitySettlementsRelations = relations(gratuitySettlements, ({ on
   }),
 }));
 
+// ── Leave Accrual Policy & Ledger ──────────────────────────────────────────
+// Per-org, per-leave-type policy that drives monthly accrual, the year-end
+// carry-forward cap and whether the balance is encashable. One row per
+// (org, leave type).
+export const leavePolicies = pgTable(
+  "leave_policies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    type: leaveTypeEnum("type").notNull(),
+    /** Total leave days credited per full year. */
+    annualEntitlementDays: decimal("annual_entitlement_days", { precision: 5, scale: 1 })
+      .notNull()
+      .default("0"),
+    /** Explicit monthly rate; null = annualEntitlementDays / 12. */
+    monthlyAccrualDays: decimal("monthly_accrual_days", { precision: 5, scale: 1 }),
+    /** Maximum unused days that may roll into the next year (0 = none). */
+    maxCarryForwardDays: decimal("max_carry_forward_days", { precision: 5, scale: 1 })
+      .notNull()
+      .default("0"),
+    /** Whether the leave type may be encashed. */
+    encashable: boolean("encashable").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgTypeIdx: uniqueIndex("leave_policies_org_type_idx").on(t.orgId, t.type),
+    orgIdx: index("leave_policies_org_idx").on(t.orgId),
+  }),
+);
+
+// Immutable ledger of leave-accrual events. Each row is one recognised event:
+// a monthly accrual, a year-end carry-forward, a lapse, or an encashment.
+// Monthly accrual is idempotent per (employee, type, year, month).
+export const leaveAccrualEventTypeEnum = pgEnum("leave_accrual_event_type", [
+  "accrual",
+  "carry_forward",
+  "lapse",
+  "encashment",
+]);
+
+export const leaveAccrualEvents = pgTable(
+  "leave_accrual_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    type: leaveTypeEnum("type").notNull(),
+    eventType: leaveAccrualEventTypeEnum("event_type").notNull(),
+    year: integer("year").notNull(),
+    /** Calendar month 1-12 for accrual events; null for year-end events. */
+    month: integer("month"),
+    /** Signed day delta: +accrual/+carry-forward, −lapse/−encashment. */
+    days: decimal("days", { precision: 6, scale: 1 }).notNull().default("0"),
+    /** Rupee value for encashment events; 0 otherwise. */
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Idempotency for the monthly accrual event only.
+    accrualPeriodIdx: uniqueIndex("leave_accrual_events_accrual_period_idx").on(
+      t.employeeId,
+      t.type,
+      t.eventType,
+      t.year,
+      t.month,
+    ),
+    orgIdx: index("leave_accrual_events_org_idx").on(t.orgId),
+    employeeIdx: index("leave_accrual_events_employee_idx").on(t.employeeId),
+  }),
+);
+
+export const leavePoliciesRelations = relations(leavePolicies, ({ one }) => ({
+  org: one(organizations, { fields: [leavePolicies.orgId], references: [organizations.id] }),
+}));
+
+export const leaveAccrualEventsRelations = relations(leaveAccrualEvents, ({ one }) => ({
+  employee: one(employees, {
+    fields: [leaveAccrualEvents.employeeId],
+    references: [employees.id],
+  }),
+}));
+
 // ── India Public Holiday Calendar ─────────────────────────────────────────
 export const publicHolidayTypeEnum = pgEnum("public_holiday_type", [
   "national",
