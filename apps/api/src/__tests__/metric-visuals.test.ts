@@ -77,6 +77,49 @@ describe("financial.ar_aged_60_plus emits aging-bucket categories", () => {
   });
 });
 
+describe("financial.ap_aged_60_plus emits aging-bucket categories", () => {
+  it("distributes payable amounts across 0-30 / 31-60 / 61-90 / 90+", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    const [vendor] = await db
+      .insert(vendors)
+      .values({ orgId, name: "AP bucket vendor" })
+      .returning();
+
+    // One AP invoice per bucket, keyed by days-past-due.
+    const rows = [
+      { due: daysAgo(10), amt: "1500" }, // 0-30
+      { due: daysAgo(45), amt: "3000" }, // 31-60
+      { due: daysAgo(75), amt: "5000" }, // 61-90
+      { due: daysAgo(120), amt: "9000" }, // 90+
+    ];
+    for (let i = 0; i < rows.length; i++) {
+      await db.insert(invoices).values({
+        orgId,
+        vendorId: vendor!.id,
+        invoiceNumber: `AP-AGE-${i}`,
+        invoiceFlow: "payable",
+        amount: rows[i]!.amt,
+        status: "approved",
+        dueDate: rows[i]!.due,
+      });
+    }
+
+    const v = await getMetric("financial.ap_aged_60_plus")!.resolve(ctxFor(orgId, orgId));
+
+    // 60+ total: 61-90 (5000) + 90+ (9000).
+    expect(v.current).toBe(14000);
+
+    const cats = v.categories ?? [];
+    expect(cats).toHaveLength(4);
+    const byLabel = Object.fromEntries(cats.map((c) => [c.label, c.value]));
+    expect(byLabel["0–30d"]).toBe(1500);
+    expect(byLabel["31–60d"]).toBe(3000);
+    expect(byLabel["61–90d"]).toBe(5000);
+    expect(byLabel["90d+"]).toBe(9000);
+  });
+});
+
 describe("strategy.okr_progress_avg emits a portfolio scatter", () => {
   it("returns one bubble per active objective with progress + KR count", async () => {
     const db = testDb();

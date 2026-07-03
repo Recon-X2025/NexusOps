@@ -138,3 +138,65 @@ registerMetric({
     { role: "cfo", surface: "risk", priority: 5 },
   ],
 });
+
+registerMetric({
+  id: "financial.ap_aged_60_plus",
+  label: "AP aged 60+ days",
+  function: "finance",
+  dimension: "risk",
+  direction: "lower_is_better",
+  unit: "currency_inr",
+  target: 0,
+  description: "Outstanding payable amount where due date is more than 60 days ago.",
+  drillUrl: "/app/finance",
+  resolve: async (ctx) => {
+    const db = dbOf(ctx);
+    const rows = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.orgId, ctx.tenantId),
+          eq(invoices.invoiceFlow, "payable"),
+          sql`status IN ('pending','approved','overdue')`,
+        ),
+      );
+    const now = Date.now();
+    let aged = 0;
+    // Same aging buckets as AR: `current` carries the 60+ total for the
+    // risk/attention rules; `categories` powers the AP aging distribution bar.
+    const buckets = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+    for (const inv of rows) {
+      if (!inv.dueDate) continue;
+      const amount = Number(inv.amount);
+      const days = Math.floor((now - new Date(inv.dueDate).getTime()) / 86400000);
+      if (days <= 30) buckets["0-30"] += amount;
+      else if (days <= 60) buckets["31-60"] += amount;
+      else if (days <= 90) buckets["61-90"] += amount;
+      else buckets["90+"] += amount;
+      if (days > 60) aged += amount;
+    }
+    if (rows.length === 0) {
+      return emptyMetricValue("no_data");
+    }
+    const state = aged === 0 ? "healthy" : aged > 500_000 ? "stressed" : "watch";
+    return {
+      current: aged,
+      // Aged AP is a present-state aggregate; previous-period AP isn't tracked.
+      series: [],
+      categories: [
+        { label: "0–30d", value: Math.round(buckets["0-30"]), state: "healthy" },
+        { label: "31–60d", value: Math.round(buckets["31-60"]), state: "watch" },
+        { label: "61–90d", value: Math.round(buckets["61-90"]), state: "stressed" },
+        { label: "90d+", value: Math.round(buckets["90+"]), state: "stressed" },
+      ],
+      state,
+      lastUpdated: new Date(),
+    };
+  },
+  appearsIn: [
+    { role: "ceo", surface: "heatmap", priority: 63 },
+    { role: "ceo", surface: "risk", priority: 11 },
+    { role: "cfo", surface: "risk", priority: 6 },
+  ],
+});
