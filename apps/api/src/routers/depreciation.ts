@@ -248,6 +248,7 @@ export const depreciationRouter = router({
 
   /** Batch: charge the next due period for every enrolled, active asset. */
   runAll: permissionProcedure("cmdb", "write")
+    .input(z.object({}).optional())
     .mutation(async ({ ctx }) => {
       const { db, org, user } = ctx;
       const rows = await db

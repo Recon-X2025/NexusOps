@@ -56,10 +56,10 @@ const BREACH_TRANSITIONS: Record<string, string[]> = {
 
 /** Generates the next per-org, per-year case reference for a given prefix. */
 async function nextReference(
-  db: any,
+  db: any, // any-ratchet-allow: generic over the tx/db handle + any register table
   orgId: string,
-  table: any,
-  refCol: any,
+  table: any, // any-ratchet-allow: reused across DSR/breach tables with differing column sets
+  refCol: any, // any-ratchet-allow: the reference column varies per table
   prefixBase: string,
 ): Promise<string> {
   const year = new Date().getFullYear();
@@ -73,7 +73,7 @@ async function nextReference(
 }
 
 /** Generates the next per-org DSR case reference (DSR-YYYY-NNNN). */
-async function nextDsrReference(db: any, orgId: string): Promise<string> {
+async function nextDsrReference(db: any, orgId: string): Promise<string> { // any-ratchet-allow: forwards the generic db handle to nextReference
   return nextReference(
     db,
     orgId,
@@ -535,7 +535,9 @@ export const complianceRouter = router({
 
     // ── Expire lapsed consents (past expiresAt while still granted) ───────────
     // Idempotent sweep — safe to call from a scheduled worker.
-    expireLapsed: permissionProcedure("compliance", "write").mutation(async ({ ctx }) => {
+    expireLapsed: permissionProcedure("compliance", "write")
+      .input(z.object({}).optional())
+      .mutation(async ({ ctx }) => {
       const { db, org, user } = ctx;
       return db.transaction(async (tx) => {
         const lapsed = await tx
