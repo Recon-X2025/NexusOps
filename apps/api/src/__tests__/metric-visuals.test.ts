@@ -15,7 +15,16 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { getMetric } from "@coheronconnect/metrics";
 import type { MetricResolveCtx } from "@coheronconnect/metrics";
-import { invoices, vendors, okrObjectives, okrKeyResults, legalMatters } from "@coheronconnect/db";
+import {
+  invoices,
+  vendors,
+  okrObjectives,
+  okrKeyResults,
+  legalMatters,
+  crmAccounts,
+  purchaseOrders,
+  goodsReceiptNotes,
+} from "@coheronconnect/db";
 import { initTestEnvironment, testDb, seedTestOrg, seedUser } from "./helpers";
 
 const RANGE: MetricResolveCtx["range"] = {
@@ -117,6 +126,77 @@ describe("financial.ap_aged_60_plus emits aging-bucket categories", () => {
     expect(byLabel["31–60d"]).toBe(3000);
     expect(byLabel["61–90d"]).toBe(5000);
     expect(byLabel["90d+"]).toBe(9000);
+  });
+});
+
+describe("csm.churn_rate_30d computes churn from account archival", () => {
+  it("returns the share of accounts archived within the last 30 days", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+
+    // 3 active + 1 recently churned + 1 churned long ago (out of window).
+    await db.insert(crmAccounts).values([
+      { orgId, name: "Active A", archived: false },
+      { orgId, name: "Active B", archived: false },
+      { orgId, name: "Active C", archived: false },
+      { orgId, name: "Churned recent", archived: true, updatedAt: daysAgo(10) },
+      { orgId, name: "Churned old", archived: true, updatedAt: daysAgo(120) },
+    ]);
+
+    const v = await getMetric("csm.churn_rate_30d")!.resolve(ctxFor(orgId, orgId));
+
+    // base = 3 active + 1 recent churn = 4; rate = 1/4 = 25%.
+    expect(v.current).toBe(25);
+    expect(v.state).toBe("stressed");
+  });
+
+  it("reports no_data when there are no accounts", async () => {
+    const { orgId } = await seedTestOrg();
+    const v = await getMetric("csm.churn_rate_30d")!.resolve(ctxFor(orgId, orgId));
+    expect(v.state).toBe("no_data");
+  });
+});
+
+describe("coo.vendor_sla_breaches counts late deliveries", () => {
+  it("counts GRNs received after the PO expected-delivery date", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    const [vendor] = await db.insert(vendors).values({ orgId, name: "SLA vendor" }).returning();
+
+    // PO1: expected 20d ago, received 5d ago → late (breach).
+    // PO2: expected 5d ago, received 10d ago → on time (no breach).
+    const [po1] = await db
+      .insert(purchaseOrders)
+      .values({ orgId, poNumber: "PO-LATE", vendorId: vendor!.id, totalAmount: "1000", expectedDelivery: daysAgo(20) })
+      .returning();
+    const [po2] = await db
+      .insert(purchaseOrders)
+      .values({ orgId, poNumber: "PO-OK", vendorId: vendor!.id, totalAmount: "1000", expectedDelivery: daysAgo(5) })
+      .returning();
+    await db.insert(goodsReceiptNotes).values([
+      { orgId, grnNumber: "GRN-1", poId: po1!.id, grnDate: daysAgo(5) }, // late
+      { orgId, grnNumber: "GRN-2", poId: po2!.id, grnDate: daysAgo(10) }, // on time
+    ]);
+
+    const v = await getMetric("coo.vendor_sla_breaches")!.resolve(ctxFor(orgId, orgId));
+
+    expect(v.current).toBe(1);
+    expect(v.state).toBe("watch");
+  });
+
+  it("reports healthy when no deliveries are late", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    const [vendor] = await db.insert(vendors).values({ orgId, name: "On-time vendor" }).returning();
+    const [po] = await db
+      .insert(purchaseOrders)
+      .values({ orgId, poNumber: "PO-EARLY", vendorId: vendor!.id, totalAmount: "500", expectedDelivery: daysAgo(2) })
+      .returning();
+    await db.insert(goodsReceiptNotes).values({ orgId, grnNumber: "GRN-E", poId: po!.id, grnDate: daysAgo(5) });
+
+    const v = await getMetric("coo.vendor_sla_breaches")!.resolve(ctxFor(orgId, orgId));
+    expect(v.current).toBe(0);
+    expect(v.state).toBe("healthy");
   });
 });
 

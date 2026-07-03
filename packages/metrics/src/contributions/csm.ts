@@ -1,6 +1,6 @@
 import { registerMetric } from "../registry";
 import { alignSeries, buildTimeBuckets, emptyMetricValue, truncSqlExpression } from "../resolve-helpers";
-import { crmAccounts, surveys, surveyResponses, eq, and, count, avg, sql } from "@coheronconnect/db";
+import { crmAccounts, surveys, surveyResponses, eq, and, count, avg, gte, sql } from "@coheronconnect/db";
 import { dbOf } from "./_db";
 
 registerMetric({
@@ -10,9 +10,47 @@ registerMetric({
   dimension: "risk",
   direction: "lower_is_better",
   unit: "percent",
-  description: "// TODO: contribute from subscription / contract churn signal when available.",
+  target: 0,
+  description: "Share of customer accounts archived (churned) in the last 30 days.",
   drillUrl: "/app/csm",
-  resolve: async () => emptyMetricValue("no_data"),
+  resolve: async (ctx) => {
+    const db = dbOf(ctx);
+    const cutoff = new Date(Date.now() - 30 * 86400000);
+
+    // Churn signal: an account flipped to `archived` within the window. The
+    // denominator is the customers still on the books plus those just lost,
+    // i.e. the base that was at risk of churning this period.
+    const [totalRow] = await db
+      .select({ c: count() })
+      .from(crmAccounts)
+      .where(and(eq(crmAccounts.orgId, ctx.tenantId), eq(crmAccounts.archived, false)));
+    const [churnedRow] = await db
+      .select({ c: count() })
+      .from(crmAccounts)
+      .where(
+        and(
+          eq(crmAccounts.orgId, ctx.tenantId),
+          eq(crmAccounts.archived, true),
+          gte(crmAccounts.updatedAt, cutoff),
+        ),
+      );
+
+    const active = Number(totalRow?.c ?? 0);
+    const churned = Number(churnedRow?.c ?? 0);
+    const base = active + churned;
+    if (base === 0) {
+      return emptyMetricValue("no_data");
+    }
+    const rate = Math.round((churned / base) * 1000) / 10; // one decimal place
+    const state = rate === 0 ? "healthy" : rate < 5 ? "watch" : "stressed";
+    return {
+      current: rate,
+      // Churn is a point-in-time rate; a per-period trend needs archival history.
+      series: [],
+      state,
+      lastUpdated: new Date(),
+    };
+  },
   appearsIn: [
     { role: "ceo", surface: "heatmap", priority: 40 },
     { role: "ceo", surface: "trend", priority: 40 },
