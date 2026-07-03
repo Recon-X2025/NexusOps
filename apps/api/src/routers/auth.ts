@@ -275,7 +275,7 @@ export const authRouter = router({
     let user = ctx.user;
     if (ctx.user.avatarUrl && !/^https?:\/\//.test(ctx.user.avatarUrl)) {
       try {
-        const { signedDownloadUrl } = await import("../services/storage");
+        const { signedDownloadUrl } = await import("../services/storage.js");
         user = { ...ctx.user, avatarUrl: await signedDownloadUrl(ctx.user.avatarUrl, 3600) };
       } catch {
         // storage not configured (e.g. tests) — leave the key as-is
@@ -323,7 +323,7 @@ export const authRouter = router({
         throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Avatar must be 5MB or smaller" });
       }
       const ext = input.mimeType === "image/png" ? "png" : input.mimeType === "image/webp" ? "webp" : "jpg";
-      const { putObject, signedDownloadUrl } = await import("../services/storage");
+      const { putObject, signedDownloadUrl } = await import("../services/storage.js");
       const put = await putObject({
         orgId: user!.orgId,
         key: `avatars/${user!.id}.${ext}`,
