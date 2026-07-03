@@ -18,6 +18,7 @@ import {
   organizations,
   legalEntities,
   budgetLines,
+  chartOfAccounts,
   journalEntries,
   journalEntryLines,
   eq,
@@ -41,6 +42,109 @@ async function determineApproval(amount: number, orgSettings: unknown): Promise<
   if (amount < prAutoApproveBelow) return "auto";
   if (amount < prDeptHeadMax) return "dept_head";
   return "vp_finance";
+}
+
+/**
+ * Resolve (and lazily provision) the two Chart-of-Accounts entries used by the
+ * PO accrual journal: a debit expense account and a credit accounts-payable
+ * liability account. Previously the PO accrual hardcoded fabricated placeholder
+ * UUIDs ("…0001"/"…0002") which do not exist in `chart_of_accounts` and violate
+ * the `journal_entry_lines.account_id` FK (onDelete: restrict). We look up real
+ * accounts by (org, type/subType); if an org has none yet, we create a system
+ * account so the money path always references a valid COA row.
+ *
+ * `tx` is the surrounding Drizzle transaction so provisioning is atomic with the
+ * PO + journal insert.
+ */
+async function resolveAccrualAccounts(
+  tx: any,
+  orgId: string,
+): Promise<{ expenseAccountId: string; payableAccountId: string }> {
+  // Credit side: accounts-payable liability (subType is the strong signal).
+  let [payable] = await tx
+    .select({ id: chartOfAccounts.id })
+    .from(chartOfAccounts)
+    .where(
+      and(
+        eq(chartOfAccounts.orgId, orgId),
+        eq(chartOfAccounts.type, "liability"),
+        eq(chartOfAccounts.subType, "accounts_payable"),
+        eq(chartOfAccounts.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!payable) {
+    [payable] = await tx
+      .insert(chartOfAccounts)
+      .values({
+        orgId,
+        code: "2000",
+        name: "Accounts Payable",
+        type: "liability" as const,
+        subType: "accounts_payable" as const,
+        isSystem: true,
+      })
+      .onConflictDoNothing({ target: [chartOfAccounts.orgId, chartOfAccounts.code] })
+      .returning({ id: chartOfAccounts.id });
+
+    // If code 2000 was already taken by a non-AP account, fall back to any
+    // liability account for the org so the entry stays balanced and valid.
+    if (!payable) {
+      [payable] = await tx
+        .select({ id: chartOfAccounts.id })
+        .from(chartOfAccounts)
+        .where(and(eq(chartOfAccounts.orgId, orgId), eq(chartOfAccounts.type, "liability")))
+        .limit(1);
+    }
+  }
+
+  // Debit side: an expense account (prefer generic subType "expense").
+  let [expense] = await tx
+    .select({ id: chartOfAccounts.id })
+    .from(chartOfAccounts)
+    .where(
+      and(
+        eq(chartOfAccounts.orgId, orgId),
+        eq(chartOfAccounts.type, "expense"),
+        eq(chartOfAccounts.isActive, true),
+      ),
+    )
+    .orderBy(asc(chartOfAccounts.code))
+    .limit(1);
+
+  if (!expense) {
+    [expense] = await tx
+      .insert(chartOfAccounts)
+      .values({
+        orgId,
+        code: "6000",
+        name: "General Expense",
+        type: "expense" as const,
+        subType: "expense" as const,
+        isSystem: true,
+      })
+      .onConflictDoNothing({ target: [chartOfAccounts.orgId, chartOfAccounts.code] })
+      .returning({ id: chartOfAccounts.id });
+
+    if (!expense) {
+      [expense] = await tx
+        .select({ id: chartOfAccounts.id })
+        .from(chartOfAccounts)
+        .where(and(eq(chartOfAccounts.orgId, orgId), eq(chartOfAccounts.type, "expense")))
+        .limit(1);
+    }
+  }
+
+  if (!payable?.id || !expense?.id) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "Unable to resolve accrual accounts: the organisation's Chart of Accounts is missing an expense and/or accounts-payable account.",
+    });
+  }
+
+  return { expenseAccountId: expense.id, payableAccountId: payable.id };
 }
 
 export const procurementRouter = router({
@@ -366,21 +470,26 @@ export const procurementRouter = router({
           }).returning();
 
           if (je) {
-            // Simplified: Debit Expense, Credit Accrued Liability (placeholder accounts)
-            // In a real system, we'd lookup specific COA IDs
-            // For now, we assume standard IDs or just track the link
+            // Debit Expense, Credit Accrued Liability (Accounts Payable) using
+            // the org's real Chart of Accounts. Accounts are resolved by
+            // type/subType and lazily provisioned if the org has none yet, so
+            // the money path never references fabricated placeholder UUIDs.
+            const { expenseAccountId, payableAccountId } = await resolveAccrualAccounts(
+              tx,
+              org!.id,
+            );
             await tx.insert(journalEntryLines).values([
               {
                 journalEntryId: je.id,
                 orgId: org!.id,
-                accountId: "00000000-0000-0000-0000-000000000001", // Placeholder
+                accountId: expenseAccountId,
                 debitAmount: input.totalAmount.toString(),
                 description: `Expense accrual for PO ${po!.poNumber}`,
               },
               {
                 journalEntryId: je.id,
                 orgId: org!.id,
-                accountId: "00000000-0000-0000-0000-000000000002", // Placeholder
+                accountId: payableAccountId,
                 creditAmount: input.totalAmount.toString(),
                 description: `Accrued liability for PO ${po!.poNumber}`,
               }
