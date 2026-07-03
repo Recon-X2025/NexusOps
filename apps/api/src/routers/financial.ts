@@ -708,6 +708,180 @@ export const financialRouter = router({
       return { summary, lines: result };
     }),
 
+  /**
+   * Stateful GSTR-2B ITC reconciliation.
+   *
+   * Unlike `gstr2bReconcile` (which reconciles on the fly and returns a
+   * transient result), this *ingests* a portal GSTR-2B statement for a period,
+   * reconciles it against the book purchase invoices, and persists both the
+   * per-invoice outcome and the period totals. The eligible ITC that may be
+   * claimed in GSTR-3B is the tax on `matched` lines only — mismatches are held
+   * pending correction and `missing_in_2b` invoices aren't yet claimable because
+   * the supplier hasn't filed. Re-ingesting a period replaces the prior run.
+   */
+  gstr2b: router({
+    ingest: permissionProcedure("financial", "write")
+      .input(
+        z.object({
+          gstinId: z.string().uuid().optional(),
+          month: z.number().int().min(1).max(12),
+          year: z.number().int(),
+          lines: z.array(
+            z.object({
+              supplierGstin: z.string().min(1),
+              invoiceNumber: z.string().min(1),
+              invoiceDate: z.string().optional(),
+              taxableValue: z.number().default(0),
+              igst: z.number().default(0),
+              cgst: z.number().default(0),
+              sgst: z.number().default(0),
+            }),
+          ),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+        const { reconcileGSTR2B } = await import("../lib/india/gst-engine.js");
+        const { gstr2bImports, gstr2bReconLines, gstinRegistry } = await import("@coheronconnect/db");
+
+        // Validate the GSTIN (if supplied) belongs to this org.
+        if (input.gstinId) {
+          const [g] = await db
+            .select()
+            .from(gstinRegistry)
+            .where(and(eq(gstinRegistry.id, input.gstinId), eq(gstinRegistry.orgId, org!.id)));
+          if (!g) throw new TRPCError({ code: "NOT_FOUND", message: "GSTIN not found" });
+        }
+
+        const startDate = new Date(input.year, input.month - 1, 1);
+        const endDate = new Date(input.year, input.month, 0, 23, 59, 59);
+
+        const allInvoices = await db.select().from(invoices).where(eq(invoices.orgId, org!.id));
+        const bookLines = allInvoices
+          .filter((inv) => {
+            if (!inv.invoiceDate) return false;
+            const d = new Date(inv.invoiceDate);
+            return d >= startDate && d <= endDate;
+          })
+          .map((inv) => ({
+            supplierGstin: inv.supplierGstin ?? "",
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().slice(0, 10) : "",
+            taxableValue: Number(inv.taxableValue ?? 0),
+            igst: Number(inv.igstAmount ?? 0),
+            cgst: Number(inv.cgstAmount ?? 0),
+            sgst: Number(inv.sgstAmount ?? 0),
+          }));
+
+        const portalLines = input.lines.map((l) => ({ ...l, invoiceDate: l.invoiceDate ?? "" }));
+        const result = reconcileGSTR2B(bookLines, portalLines);
+
+        // Portal ITC = all tax in the 2B statement; eligible = matched-line tax.
+        const portalItc = input.lines.reduce((s, l) => s + l.igst + l.cgst + l.sgst, 0);
+        const eligibleItc = result
+          .filter((r) => r.status === "matched")
+          .reduce((s, r) => s + (r.gstr2bValues ? r.gstr2bValues.igst + r.gstr2bValues.cgst + r.gstr2bValues.sgst : 0), 0);
+
+        const counts = {
+          matched: result.filter((r) => r.status === "matched").length,
+          mismatch: result.filter((r) => r.status === "mismatch").length,
+          missingIn2b: result.filter((r) => r.status === "missing_in_2b").length,
+          missingInBooks: result.filter((r) => r.status === "missing_in_books").length,
+        };
+
+        const fy = input.month >= 4 ? `${input.year}-${input.year + 1}` : `${input.year - 1}-${input.year}`;
+
+        return await db.transaction(async (tx) => {
+          // Re-ingesting a period replaces the prior run (recon lines cascade).
+          const prior = await tx
+            .select({ id: gstr2bImports.id })
+            .from(gstr2bImports)
+            .where(
+              and(
+                eq(gstr2bImports.orgId, org!.id),
+                eq(gstr2bImports.month, input.month),
+                eq(gstr2bImports.year, input.year),
+                input.gstinId ? eq(gstr2bImports.gstinId, input.gstinId) : sql`${gstr2bImports.gstinId} is null`,
+              ),
+            );
+          for (const p of prior) {
+            await tx.delete(gstr2bImports).where(eq(gstr2bImports.id, p.id));
+          }
+
+          const [imp] = await tx
+            .insert(gstr2bImports)
+            .values({
+              orgId: org!.id,
+              gstinId: input.gstinId ?? null,
+              month: input.month,
+              year: input.year,
+              financialYear: fy,
+              totalLines: result.length,
+              matchedCount: counts.matched,
+              mismatchCount: counts.mismatch,
+              missingIn2bCount: counts.missingIn2b,
+              missingInBooksCount: counts.missingInBooks,
+              portalItc: String(portalItc),
+              eligibleItc: String(eligibleItc),
+              createdById: user?.id ?? null,
+            })
+            .returning();
+
+          if (result.length > 0) {
+            await tx.insert(gstr2bReconLines).values(
+              result.map((r) => ({
+                orgId: org!.id,
+                importId: imp!.id,
+                supplierGstin: r.supplierGstin,
+                invoiceNumber: r.invoiceNumber,
+                invoiceDate: r.bookValues?.invoiceDate ?? r.gstr2bValues?.invoiceDate ?? null,
+                status: r.status,
+                bookTaxable: r.bookValues ? String(r.bookValues.taxableValue) : null,
+                bookIgst: r.bookValues ? String(r.bookValues.igst) : null,
+                bookCgst: r.bookValues ? String(r.bookValues.cgst) : null,
+                bookSgst: r.bookValues ? String(r.bookValues.sgst) : null,
+                portalTaxable: r.gstr2bValues ? String(r.gstr2bValues.taxableValue) : null,
+                portalIgst: r.gstr2bValues ? String(r.gstr2bValues.igst) : null,
+                portalCgst: r.gstr2bValues ? String(r.gstr2bValues.cgst) : null,
+                portalSgst: r.gstr2bValues ? String(r.gstr2bValues.sgst) : null,
+              })),
+            );
+          }
+
+          return { import: imp!, counts, portalItc, eligibleItc };
+        });
+      }),
+
+    /** List persisted GSTR-2B import runs (newest first). */
+    list: permissionProcedure("financial", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const { gstr2bImports } = await import("@coheronconnect/db");
+      return db
+        .select()
+        .from(gstr2bImports)
+        .where(eq(gstr2bImports.orgId, org!.id))
+        .orderBy(desc(gstr2bImports.createdAt));
+    }),
+
+    /** Full detail (header + reconciled lines) of one import run. */
+    get: permissionProcedure("financial", "read")
+      .input(z.object({ importId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { gstr2bImports, gstr2bReconLines } = await import("@coheronconnect/db");
+        const [imp] = await db
+          .select()
+          .from(gstr2bImports)
+          .where(and(eq(gstr2bImports.id, input.importId), eq(gstr2bImports.orgId, org!.id)));
+        if (!imp) throw new TRPCError({ code: "NOT_FOUND" });
+        const lines = await db
+          .select()
+          .from(gstr2bReconLines)
+          .where(eq(gstr2bReconLines.importId, imp.id));
+        return { import: imp, lines };
+      }),
+  }),
+
   /** Closed accounting months (`YYYY-MM`) — blocks mark-paid in those periods (US-FIN-007 / US-CRM-007 checklist). */
   periodClose: router({
     get: permissionProcedure("financial", "read").query(async ({ ctx }) => {

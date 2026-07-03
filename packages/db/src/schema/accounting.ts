@@ -251,6 +251,83 @@ export const gstrFilings = pgTable(
   }),
 );
 
+// ── GSTR-2B ITC Reconciliation ─────────────────────────────────────────────
+/** Outcome of matching a supplier invoice in books against the GSTR-2B line. */
+export const gstr2bReconStatusEnum = pgEnum("gstr2b_recon_status", [
+  "matched", // present in both, values within tolerance → ITC eligible
+  "mismatch", // present in both, tax values differ → held pending
+  "missing_in_2b", // in books, not in portal → supplier hasn't filed → not yet claimable
+  "missing_in_books", // in portal, not in books → unrecorded purchase
+]);
+
+/**
+ * One GSTR-2B ingestion run for a (gstin, month, year). Stores the reconciled
+ * totals so the eligible ITC that feeds the GSTR-3B claim is auditable: only
+ * `matched` lines contribute to `eligibleItc`.
+ */
+export const gstr2bImports = pgTable(
+  "gstr2b_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    gstinId: uuid("gstin_id").references(() => gstinRegistry.id, { onDelete: "restrict" }),
+    month: integer("month").notNull(),
+    year: integer("year").notNull(),
+    financialYear: text("financial_year").notNull(),
+    /** Line counts by reconciliation outcome. */
+    totalLines: integer("total_lines").notNull().default(0),
+    matchedCount: integer("matched_count").notNull().default(0),
+    mismatchCount: integer("mismatch_count").notNull().default(0),
+    missingIn2bCount: integer("missing_in_2b_count").notNull().default(0),
+    missingInBooksCount: integer("missing_in_books_count").notNull().default(0),
+    /** ITC available in the 2B statement (sum of all portal tax). */
+    portalItc: decimal("portal_itc", { precision: 15, scale: 2 }).notNull().default("0"),
+    /** ITC eligible to claim now = tax on matched lines only. */
+    eligibleItc: decimal("eligible_itc", { precision: 15, scale: 2 }).notNull().default("0"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgGstinPeriodIdx: uniqueIndex("gstr2b_imports_org_gstin_period_idx").on(t.orgId, t.gstinId, t.month, t.year),
+    orgIdx: index("gstr2b_imports_org_idx").on(t.orgId),
+  }),
+);
+
+/** Per-invoice reconciliation outcome within a GSTR-2B import. */
+export const gstr2bReconLines = pgTable(
+  "gstr2b_recon_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    importId: uuid("import_id")
+      .notNull()
+      .references(() => gstr2bImports.id, { onDelete: "cascade" }),
+    supplierGstin: text("supplier_gstin").notNull(),
+    invoiceNumber: text("invoice_number").notNull(),
+    invoiceDate: text("invoice_date"),
+    status: gstr2bReconStatusEnum("status").notNull(),
+    /** Book-side tax (from our purchase invoices). */
+    bookTaxable: decimal("book_taxable", { precision: 15, scale: 2 }),
+    bookIgst: decimal("book_igst", { precision: 15, scale: 2 }),
+    bookCgst: decimal("book_cgst", { precision: 15, scale: 2 }),
+    bookSgst: decimal("book_sgst", { precision: 15, scale: 2 }),
+    /** Portal-side tax (from the GSTR-2B statement). */
+    portalTaxable: decimal("portal_taxable", { precision: 15, scale: 2 }),
+    portalIgst: decimal("portal_igst", { precision: 15, scale: 2 }),
+    portalCgst: decimal("portal_cgst", { precision: 15, scale: 2 }),
+    portalSgst: decimal("portal_sgst", { precision: 15, scale: 2 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    importIdx: index("gstr2b_recon_lines_import_idx").on(t.importId),
+    orgStatusIdx: index("gstr2b_recon_lines_org_status_idx").on(t.orgId, t.status),
+  }),
+);
+
 // ── Bank Reconciliation ────────────────────────────────────────────────────
 export const bankStatementStatusEnum = pgEnum("bank_statement_status", [
   "importing",
@@ -347,6 +424,17 @@ export const journalEntryLinesRelations = relations(journalEntryLines, ({ one })
 export const gstinRegistryRelations = relations(gstinRegistry, ({ one, many }) => ({
   org: one(organizations, { fields: [gstinRegistry.orgId], references: [organizations.id] }),
   gstrFilings: many(gstrFilings),
+}));
+
+export const gstr2bImportsRelations = relations(gstr2bImports, ({ one, many }) => ({
+  org: one(organizations, { fields: [gstr2bImports.orgId], references: [organizations.id] }),
+  gstin: one(gstinRegistry, { fields: [gstr2bImports.gstinId], references: [gstinRegistry.id] }),
+  lines: many(gstr2bReconLines),
+}));
+
+export const gstr2bReconLinesRelations = relations(gstr2bReconLines, ({ one }) => ({
+  org: one(organizations, { fields: [gstr2bReconLines.orgId], references: [organizations.id] }),
+  import: one(gstr2bImports, { fields: [gstr2bReconLines.importId], references: [gstr2bImports.id] }),
 }));
 
 export const bankStatementsRelations = relations(bankStatements, ({ one, many }) => ({
