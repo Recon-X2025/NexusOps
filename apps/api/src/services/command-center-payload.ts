@@ -352,16 +352,15 @@ export async function buildCommandCenterPayload(input: {
 
   const domainsReporting = heatmap.filter(row => {
     if (!row.inScope) return false;
-    const fn = row.function;
-    const metricsForFn = uniqueDefs.filter(d => d.function === fn);
+    const metricsForFn = uniqueDefs.filter(d => d.function === row.function);
+    // A domain is "reporting" if ANY of its metrics resolved against real data.
+    // `no_data` is the resolver's explicit signal that the underlying source was
+    // empty (e.g. zero invoices, unseeded COA). A legitimately-computed zero —
+    // such as ₹0 aged AP when the only open invoices are recent — still means the
+    // domain is live and must not read as "awaiting data".
     return metricsForFn.some(d => {
       const v = byId[d.id];
-      if (!v || v.state === 'no_data') return false;
-      // If it's a "Healthy 0", check if there's any non-zero history in the series
-      if (v.state === 'healthy' && (v.current === 0 || v.current === null)) {
-        return (v.series && v.series.length > 0 && v.series.some(s => (s.v ?? 0) > 0)) ?? false;
-      }
-      return true;
+      return !!v && v.state !== 'no_data';
     });
   }).length;
 

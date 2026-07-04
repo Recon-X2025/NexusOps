@@ -107,6 +107,85 @@ registerMetric({
 });
 
 registerMetric({
+  id: "financial.ap_open",
+  label: "Open payables",
+  function: "finance",
+  dimension: "volume",
+  direction: "lower_is_better",
+  unit: "currency_inr",
+  description: "Total outstanding payable amount across all open invoices (pending, approved, or overdue).",
+  drillUrl: "/app/workbench/finance-ops",
+  resolve: async (ctx) => {
+    const db = dbOf(ctx);
+    const rows = await db
+      .select({ amount: invoices.amount })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.orgId, ctx.tenantId),
+          eq(invoices.invoiceFlow, "payable"),
+          sql`status IN ('pending','approved','overdue')`,
+        ),
+      );
+    if (rows.length === 0) {
+      return emptyMetricValue("no_data");
+    }
+    const open = rows.reduce((s: number, r: { amount: string | null }) => s + Number(r.amount ?? 0), 0);
+    return {
+      current: open,
+      series: [],
+      // Open AP is a working-capital snapshot, not a breach signal — always healthy.
+      state: "healthy",
+      lastUpdated: new Date(),
+    };
+  },
+  appearsIn: [
+    { role: "ceo", surface: "heatmap", priority: 64 },
+    { role: "ceo", surface: "bullet", priority: 42 },
+    { role: "cfo", surface: "bullet", priority: 11 },
+  ],
+});
+
+registerMetric({
+  id: "financial.ar_open",
+  label: "Open receivables",
+  function: "finance",
+  dimension: "volume",
+  direction: "higher_is_better",
+  unit: "currency_inr",
+  description: "Total outstanding receivable amount across all open invoices (pending, approved, or overdue).",
+  drillUrl: "/app/workbench/finance-ops",
+  resolve: async (ctx) => {
+    const db = dbOf(ctx);
+    const rows = await db
+      .select({ amount: invoices.amount })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.orgId, ctx.tenantId),
+          eq(invoices.invoiceFlow, "receivable"),
+          sql`status IN ('pending','approved','overdue')`,
+        ),
+      );
+    if (rows.length === 0) {
+      return emptyMetricValue("no_data");
+    }
+    const open = rows.reduce((s: number, r: { amount: string | null }) => s + Number(r.amount ?? 0), 0);
+    return {
+      current: open,
+      series: [],
+      // Open AR is a working-capital snapshot, not a breach signal — always healthy.
+      state: "healthy",
+      lastUpdated: new Date(),
+    };
+  },
+  appearsIn: [
+    { role: "ceo", surface: "bullet", priority: 43 },
+    { role: "cfo", surface: "bullet", priority: 12 },
+  ],
+});
+
+registerMetric({
   id: "financial.ar_aged_60_plus",
   label: "AR aged 60+ days",
   function: "finance",
