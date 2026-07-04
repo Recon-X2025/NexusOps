@@ -1,0 +1,61 @@
+# How-To: HR & Payroll
+
+Tasks for HR and payroll administrators. For the full reference see the
+[Payroll](/modules/payroll) and [HR](/modules/hr) guides.
+
+## How do I run payroll?
+
+1. Go to **People & Workplace → Payroll** and open the **Payroll Runs** tab.
+2. Click **Create run**, pick the month and year, and confirm the employee roster.
+3. Work through the 12 steps in order, clicking **Execute** on the current step:
+   Draft → Period locked → Gross → PF → ESI → PT → LWF → TDS → Payslips → HR approval
+   → Finance approval → CFO approval → Statutory → Completed.
+4. Review the KPI cards (gross, deductions, net, employer cost) after each step.
+
+If a step reports errors, open the red error panel, fix the listed employees' data,
+and re-run that step.
+
+## Why is an employee missing from the payroll run?
+
+The most common cause is a **missing salary structure**. Every employee must have a
+salary structure assigned before their gross can be computed. Assign one in the
+**Salary Structures** tab, then re-run the gross step.
+
+## How do I create or edit a salary structure?
+
+Open the **Salary Structures** tab and add or edit a structure. Set the name, annual
+CTC, basic % of CTC, HRA % of basic, LTA, medical and conveyance allowances, bonus,
+and effective dates. A structure that is already used by a run cannot be deleted.
+
+## How is net pay calculated?
+
+```
+gross  = basic + HRA + allowances + LTA + bonus + overtime + arrears − loss-of-pay
+net    = max(0, gross − PF − ESI − PT − LWF − TDS − other deductions)
+```
+
+Net pay is never negative — if deductions exceed earnings it is clamped to zero.
+
+## How do I choose between the Old and New tax regimes?
+
+The system computes tax under **both** regimes; the employee's selected regime
+decides the TDS applied. The Old regime allows itemised deductions (80C, 80D, HRA
+exemption, etc.); the New regime uses lower slabs with a flat standard deduction and no
+itemised deductions. See [GST & TDS](/modules/india-tax) for the slabs.
+
+## How do I send Form 16?
+
+Open the **TDS Declarations** tab, find the employee, and click **Send Form 16**. This
+dispatches the TDS certificate for e-signature.
+
+## How do I approve a leave or expense request?
+
+Open the **Approvals** queue (or the relevant HR tab). Pending items show a sidebar
+badge. Open the request, review the details (for leave you'll see the employee's
+balance; for expenses, policy flags), and **Approve** or **Reject** with a comment.
+
+## How do I pay employees into their bank accounts?
+
+After CFO approval, export a bank disbursement file from the run. Choose your bank
+format (HDFC NEFT, ICICI, SBI CMP, Axis, Kotak, NACH-Credit, or generic NEFT). The
+file contains each employee's name, account, IFSC, net pay, and narration.

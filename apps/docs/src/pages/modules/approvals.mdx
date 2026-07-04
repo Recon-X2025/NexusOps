@@ -1,0 +1,42 @@
+# Approvals & Workflow
+
+Approvals are a cross-cutting capability used by leave, expenses, purchase requests,
+offers, and more. The **Approvals** queue lives at `/app/approvals`; the visual
+**Flow Designer** lives at `/app/flows`.
+
+## The approval queue
+
+| Status | Meaning |
+|--------|---------|
+| **Pending** | Awaiting a decision. |
+| **Approved** | The approver approved. |
+| **Rejected** | The approver rejected. |
+
+Each approval request records the requester, the approver, the entity type (leave,
+expense, purchase request, etc.), the entity it refers to, a comment, and a due date.
+Pending approvals show as a badge in the sidebar so approvers know when action is
+needed.
+
+## How routing works
+
+Approvals route by the org hierarchy. A request goes to the requester's manager; for
+larger amounts a second approver (such as a skip-level manager) can be added. Managers
+can view the pending approvals for everyone in their reporting subtree.
+
+## Multi-step approvals
+
+Approvals can be sequential: step 1 (e.g. department head) must approve before step 2
+(e.g. CFO) becomes active. If any step rejects, the whole request is rejected. The
+[payroll](/modules/payroll) HR → Finance → CFO gates are an example of this pattern.
+
+## Idempotency
+
+Approval decisions accept an idempotency key, so a duplicate submission (e.g. a
+double-click or a retried request) is de-duplicated — the first decision stands.
+
+## Flow Designer
+
+The Flow Designer is a visual, node-based canvas for building automations: triggers
+(an event occurs), conditions (filter on data), and actions (notify, create a task,
+update a record, call an external system). Use it to model approval chains and
+routine automations without writing code.

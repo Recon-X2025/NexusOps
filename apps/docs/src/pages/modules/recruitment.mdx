@@ -1,0 +1,65 @@
+# Recruitment
+
+The Recruitment module manages hiring end-to-end: job requisitions, candidates, the
+application pipeline, interviews, and offers. It lives under **People & Workplace →
+Recruitment** (`/app/recruitment`) with tabs for Dashboard, Job Requisitions,
+Candidate Pipeline, Candidates, Interviews, and Offers.
+
+## Job requisitions
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Being prepared; not yet open to candidates. |
+| **Open** | Accepting applications. |
+| **On hold** | Temporarily paused (budget freeze, internal review). |
+| **Closed** | Filled or no longer accepting applications. |
+| **Cancelled** | Requisition cancelled. |
+
+A requisition captures title, department, location, work mode, employment type
+(full-time, part-time, contract, internship, freelance), level (intern through
+C-level), number of openings, salary range, description, requirements, and a target
+date. Requisitions start as **Draft** and must be explicitly published to become
+**Open**.
+
+## Candidates
+
+Candidate records track name, email, phone, current company and title, years of
+experience, skills, resume and LinkedIn URLs, and notes. The source is captured for
+analytics — LinkedIn, Naukri, Indeed, referral, agency, website, campus, internal, or
+other.
+
+## The application pipeline
+
+Each application moves through an ordered set of stages:
+
+```
+Applied → Screening → Phone screen → Technical → Panel → HR round → Offer → Hired
+```
+
+At any stage an application can branch to a terminal state — **Rejected** (with a
+reason) or **Withdrawn** (candidate exits). You can move a candidate forward, revert
+to a previous stage, reject, or withdraw. Each application supports a **1–5 star
+rating** and a feedback note, which is saved when you move the candidate between
+stages.
+
+## Interviews
+
+Interviews are scheduled against an application and linked to the relevant stage
+(phone screen, technical, panel, HR round). Interviewers record their feedback and
+rating, which feeds the candidate's overall score.
+
+## Offers
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Being prepared. |
+| **Sent** | Delivered to the candidate (email / e-sign). |
+| **Accepted** | Candidate accepted — triggers onboarding. |
+| **Declined** | Candidate declined. |
+| **Expired** | Offer lapsed before response. |
+| **Revoked** | Company withdrew the offer. |
+
+An offer records the candidate, the job, base salary, variable pay, joining bonus,
+start date, benefits, and terms. When a candidate **accepts**, an onboarding HR case
+is created and the employee record is pre-populated. If an offer is declined or
+expires, the requisition remains open for other candidates.

@@ -1,0 +1,102 @@
+# Payroll
+
+The Payroll module runs a full India-statutory payroll cycle for every employee in
+your organisation. It computes earnings, statutory deductions (PF, ESI, PT, LWF),
+income tax (TDS), generates payslips, routes them through HR / Finance / CFO
+approval, and produces statutory and bank-disbursement outputs.
+
+Payroll lives under **People & Workplace → Payroll** (`/app/payroll`). The page has
+three tabs: **Payroll Runs**, **Salary Structures**, and **TDS Declarations**.
+
+## The 12-step payroll run
+
+A payroll run moves through a fixed, ordered pipeline. Each step must complete before
+the next can start, and most steps simply compute one part of the payslip. The
+canonical computation lives in the `@coheronconnect/payroll-math` package and is
+re-exported through `apps/api/src/lib/payroll-cycle.ts`.
+
+| # | Status | What happens |
+|---|--------|--------------|
+| 1 | **Draft** | Run created. You can still add/remove employees and adjust structures. |
+| 2 | **Period locked** | Roster and salary structures are frozen for the period. |
+| 3 | **Gross computed** | Basic + HRA + allowances + LTA + bonus + arrears − loss-of-pay. |
+| 4 | **PF computed** | Employee PF (12% of basic, capped) + employer PF. |
+| 5 | **ESI computed** | Employee ESI (0.75%) where wages are within the ESI ceiling. |
+| 6 | **PT computed** | Professional Tax per state slab. |
+| 7 | **LWF computed** | Labour Welfare Fund per state. |
+| 8 | **TDS computed** | Income tax via the dual-regime tax engine. |
+| 9 | **Payslips generated** | Per-employee payslip rows are created and ready for review. |
+| 10 | **HR approved** | HR approval gate. |
+| 11 | **Finance approved** | Finance approval gate. |
+| 12 | **CFO approved → Statutory generated → Completed** | Final sign-off, statutory outputs, run closed. |
+
+In the UI each step is a numbered circle: **green** = done, **blue** = current,
+**grey** = not yet reached. The current step shows an **Execute** button. You run the
+pipeline one step at a time so you can review the numbers as they build up.
+
+> If any employee fails a computation step, the run is flagged and the errors appear
+> in a red panel listing the affected employees. Fix the underlying data (usually a
+> missing salary structure or bank detail) and re-run the step.
+
+## How net pay is computed
+
+```
+grossEarnings  = basic + HRA + special allowance + LTA + bonus
+                 + overtime + arrears + other earnings − loss-of-pay
+totalDeductions = PF(employee) + ESI(employee) + PT + LWF + TDS + other deductions
+
+netPay = max(0, grossEarnings − totalDeductions)
+```
+
+Net pay can never go negative — if deductions exceed earnings, net pay is clamped to
+zero. This invariant is enforced in `computeEmployeePayslip()` and covered by the
+money-invariant test suite.
+
+## Statutory deductions
+
+| Item | Basis | Notes |
+|------|-------|-------|
+| **PF (EPF)** | 12% of basic salary, employee + employer | Subject to the statutory wage ceiling. |
+| **ESI** | 0.75% employee / 3.25% employer | Applies only where wages are within the ESI ceiling. |
+| **PT** | State-specific monthly slab | Varies by state and salary band. |
+| **LWF** | State-specific | Small monthly contribution; some states only deduct in specific months. |
+| **TDS** | Income-tax engine | See [TDS & Income Tax](/modules/india-tax). |
+
+## Salary structures
+
+Open the **Salary Structures** tab to define reusable templates. Each structure
+captures:
+
+- Structure name
+- Annual CTC
+- Basic as a % of CTC
+- HRA as a % of basic
+- LTA, medical allowance, conveyance allowance, bonus
+- Effective dates (you can version a structure within a financial year)
+
+Every employee must have a salary structure assigned **before** a payroll run can
+compute their gross. A structure that is in use by a run cannot be deleted.
+
+## TDS declarations & Form 16
+
+The **TDS Declarations** tab lists employees and their tax-saving declarations.
+Income tax is computed under both the **Old** and **New** regimes; the employee's
+selected regime determines the final TDS applied. See
+[TDS & Income Tax](/modules/india-tax) for the slab and deduction detail.
+
+From this tab you can **Send Form 16** to an employee, which dispatches the TDS
+certificate for e-signature.
+
+## Bank disbursement
+
+Once a run reaches CFO approval, you can export a bank disbursement file. Supported
+formats include HDFC NEFT, ICICI Connected Banking, SBI CMP, Axis Power Access, Kotak
+Fynn, NACH-Credit, and generic NEFT. Each row carries the employee's name, account
+number, IFSC, net pay, and a narration (e.g. `Payroll 04/2026`).
+
+## Approval gates
+
+Payroll uses a strict three-gate sequence — HR, then Finance, then CFO. Each gate
+must approve before the next becomes available. A rejection at any gate stops the run
+and records the rejecting user and comment. This enforces segregation of duties for
+the money path; see `docs/FINANCE_SOD_MATRIX.md`.

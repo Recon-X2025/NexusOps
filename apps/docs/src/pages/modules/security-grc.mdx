@@ -1,0 +1,64 @@
+# Security & Compliance (GRC)
+
+The Security & Compliance area covers security operations, governance/risk/compliance
+(GRC), ESG reporting, and the approvals queue. It lives under **Security & Compliance**
+in the sidebar.
+
+## Security operations
+
+Security incidents are tracked at `/app/security`, with a detail page per incident.
+Open security incidents surface as a red badge in the sidebar so they are never
+missed. Incidents follow the same investigate → contain → resolve flow as IT tickets,
+with a security-specific lens.
+
+## Risk management
+
+| Status | Meaning |
+|--------|---------|
+| **Identified** | New risk registered. |
+| **Assessed** | Likelihood × impact scored. |
+| **Mitigated** | A control is in place. |
+| **Accepted** | Risk accepted by leadership. |
+| **Monitored** | Tracked on an ongoing basis. |
+
+Risks are categorised as operational, financial, strategic, compliance, technology, or
+reputational. The risk score is:
+
+```
+risk score = likelihood (1–5) × impact (1–5)   →   range 1–25
+```
+
+As a guide: **15+** is high, **6–14** is medium, **1–5** is low. Each risk records a
+treatment (accept, mitigate, transfer, or avoid), a mitigation plan, and an owner.
+
+## Policies
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | In preparation. |
+| **Published** | Approved and distributed. |
+| **Archived** | Superseded or retired. |
+
+## Compliance & audits
+
+- **Compliance calendar** — recurring obligations (audits, filings, assessments) with
+  reminders ahead of each due date.
+- **Audit plans** — scope, dates, auditor, findings, and remediation tracking.
+- **Control evidence** — attach evidence files to controls for SOC 2 / GDPR audit
+  trails.
+
+## Vendor risk
+
+Vendors are risk-tiered (Critical, High, Medium, Low) and assessed via questionnaires
+that move through Pending → Sent → In progress → Completed. This complements the
+commercial view in the [Vendors](/modules/vendors) module.
+
+## ESG reporting
+
+The ESG view (`/app/esg`) captures environmental, social, and governance metrics for
+sustainability and disclosure reporting.
+
+## Approvals & workflow
+
+The **Approvals** queue (`/app/approvals`) and the **Flow Designer** (`/app/flows`)
+power cross-module approval chains. See [Approvals & Workflow](/modules/approvals).

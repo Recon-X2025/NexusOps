@@ -1,0 +1,61 @@
+# Procurement
+
+The Procurement module manages the purchase lifecycle: purchase requests, approvals,
+purchase orders, goods receipt, and the three-way match that gates invoice payment. It
+lives under **Finance & Procurement → Procurement** (`/app/procurement`).
+
+## Purchase requests
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Being created; still editable. |
+| **Pending** | Awaiting approval. |
+| **Approved** | Passed the approval gate(s). |
+| **Rejected** | Approval denied. |
+| **Ordered** | A purchase order was raised from the request. |
+| **Received** | Goods received (a GRN exists). |
+| **Cancelled** | Cancelled by the requester. |
+
+A request has line items (description, quantity, unit price, optional vendor, optional
+asset type). The total is the sum of quantity × unit price across all lines. The
+approval route is decided when the request is created and cannot change afterwards.
+
+### Approval tiers
+
+Approval routing is configurable per organisation. A typical setup:
+
+- **Auto-approve** below a configured threshold (e.g. ₹25,000)
+- **Department head** for the mid band (e.g. ₹25,000 – ₹500,000)
+- **VP Finance** above the upper threshold (e.g. ₹500,000+)
+
+## Purchase orders
+
+A purchase order (PO) is raised from an approved request. It records the vendor, the
+**legal entity** (for tax and invoicing), delivery date, total amount, notes, and line
+items. Tagging the correct legal entity matters: if an invoice is later tagged to a
+different entity, the three-way match flags a mismatch.
+
+## Three-way match
+
+Before an invoice is paid, CoheronConnect checks that the **invoice**, the **PO**, and
+the **goods receipt note (GRN)** agree. The logic lives in
+`apps/api/src/lib/invoice-po-match.ts` and runs within an org-configurable tolerance.
+
+The match proceeds in layers:
+
+1. **Header match** — invoice total ≈ PO total, within tolerance.
+2. **Line match** — invoice lines are paired to PO lines (by position first, then by
+   normalised description, then by a lowest-cost greedy pairing). Each matched line
+   must agree within tolerance.
+3. **GRN match** — the received value on the GRN ≈ the invoice total, within
+   tolerance.
+
+If all three layers pass, the result is **true** and the invoice can be paid. If any
+layer fails, the invoice is flagged for manual review, and the result includes the
+per-line deltas (invoice minus PO, and the three-way gap) so you can see exactly where
+the variance is.
+
+## Vendors
+
+Vendor and contract management has its own guide — see [Vendors &
+Contracts](/modules/vendors).

@@ -1,0 +1,72 @@
+# How-To: Finance & Procurement
+
+Tasks for finance and procurement teams. Full references:
+[Accounting](/modules/accounting), [Procurement](/modules/procurement),
+[Vendors](/modules/vendors), [GST & TDS](/modules/india-tax).
+
+## How do I post a journal entry?
+
+1. Go to **Finance & Procurement → Journal Entries**
+   (`/app/finance/accounting/journal`).
+2. Create an entry and add at least two lines, each with a debit or credit and a
+   description.
+3. Make sure **total debits equal total credits** — they must match within ±0.001 or
+   the entry is rejected.
+4. Post the entry. The affected account balances update immediately.
+
+## Why was my journal entry rejected?
+
+It didn't balance. The sum of debits must equal the sum of credits within a tolerance
+of **0.001**. Check for a missing or mistyped line amount.
+
+## How do I reverse a journal entry?
+
+Select the posted entry and create a reversal. The system creates a new entry with the
+debits and credits **swapped**, marks the original as **reversed**, and posts the
+reversal. You can set a custom reversal date (for example, the next month).
+
+## How do I reconcile a bank statement?
+
+1. Go to **Bank Reconciliation** (`/app/finance/accounting/reconciliation`).
+2. **Create a statement** with the account, period, and the bank's closing balance.
+3. **Import transactions** (CSV or manual).
+4. Click **Suggest matches** — the system proposes links to journal entries by amount,
+   date, and description.
+5. **Confirm** each match, or **Ignore** a transaction booked elsewhere.
+6. Once every transaction is matched or ignored, **Reconcile** to lock the statement.
+
+## How do I generate a GST return?
+
+From the Accounting module you can produce **GSTR-1** (outward supplies, grouped B2B
+and B2C) and **GSTR-3B** (summary with outward supplies, input tax credit, and any
+interest). Both export in a GST-portal-compatible format. See [GST &
+TDS](/modules/india-tax) for how CGST/SGST/IGST are split.
+
+## How do I raise a purchase request?
+
+1. Go to **Finance & Procurement → Procurement**.
+2. Create a purchase request and add line items (description, quantity, unit price).
+3. Submit. Depending on the total, it is auto-approved below the threshold, or routed
+   to a department head or VP Finance.
+
+The approval route is fixed when the request is created and can't be changed
+afterwards.
+
+## Why is an invoice blocked from payment?
+
+It failed the **three-way match**. The invoice, the purchase order, and the goods
+receipt note must agree within tolerance — at the header, at the line level, and on the
+received value. Open the match result to see the per-line deltas and find where the
+variance is. A common cause is the invoice being tagged to a **different legal
+entity** than the PO.
+
+## How do I add vendors in bulk?
+
+On the **Vendors** page, use the CSV import. Map your columns to the vendor fields
+(name, type, GSTIN, PAN, email, phone, address, state, payment terms) and load them all
+at once. To add a single vendor, use **Add Vendor** instead.
+
+## How do I see which contracts are about to expire?
+
+The **Vendors** tab shows a KPI card for contracts **expiring in the next 90 days**.
+The **Contracts** tab lists every contract with its end date and auto-renew flag.

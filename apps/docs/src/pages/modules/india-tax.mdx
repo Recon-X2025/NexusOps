@@ -1,0 +1,82 @@
+# GST & TDS (India Tax)
+
+CoheronConnect includes India-specific tax engines for **GST** (Goods and Services
+Tax) and **TDS / income tax**. These power invoicing, payroll, and the GST returns in
+the Accounting module.
+
+## GST
+
+GST is computed by `computeGST()` in `apps/api/src/lib/india/gst-engine.ts`. The split
+depends on whether the supply is intra-state or inter-state:
+
+| Supply | Components | Split |
+|--------|-----------|-------|
+| **Intra-state** (same state) | CGST + SGST | 50% / 50% of the total GST |
+| **Inter-state** (different state) | IGST | 100% as a single component |
+
+- **Intra-state**: a supply within the same state attracts Central GST (CGST) and
+  State GST (SGST) in equal halves. Input tax credit is tracked separately for each.
+- **Inter-state**: a supply across state lines attracts a single Integrated GST
+  (IGST) — there is no CGST/SGST split.
+- **Reverse charge**: when flagged on an invoice, the buyer (not the seller) is liable
+  for the GST. This affects how the line appears in GSTR-1 / GSTR-3B.
+
+Typical rates are 5%, 12%, 18%, and 28% depending on the goods or service.
+
+## TDS / income tax
+
+Income tax is computed by `computeTax()` in `apps/api/src/lib/india-tax-engine.ts`.
+The engine evaluates **both** the Old and New regimes; the employee's chosen regime
+determines the TDS applied in payroll.
+
+### New regime slabs
+
+| Annual income | Rate |
+|---------------|------|
+| 0 – ₹3 L | 0% |
+| ₹3 L – ₹6 L | 5% |
+| ₹6 L – ₹9 L | 10% |
+| ₹9 L – ₹12 L | 15% |
+| ₹12 L – ₹15 L | 20% |
+| Above ₹15 L | 30% |
+
+The New regime applies a flat standard deduction and does **not** allow itemised
+Chapter VI-A deductions.
+
+### Old regime slabs
+
+| Annual income | Rate |
+|---------------|------|
+| 0 – ₹2.5 L | 0% |
+| ₹2.5 L – ₹5 L | 5% |
+| ₹5 L – ₹10 L | 20% |
+| Above ₹10 L | 30% |
+
+The Old regime allows itemised deductions:
+
+- **80C** — up to ₹1.5 L (LIC, PPF, ELSS, tuition fees, etc.)
+- **80D** — health insurance premiums
+- **80CCD(1B)** — NPS contribution up to ₹50 K (over and above 80C)
+- **80TTA** — savings-account interest up to ₹10 K
+- **Section 24(b)** — home-loan interest (self-occupied) up to ₹2 L
+- **HRA exemption** — the least of: actual HRA, 40% of basic, or rent paid minus 10%
+  of basic
+
+Surcharge and health-&-education cess apply to both regimes.
+
+### Monthly TDS in payroll
+
+Payroll spreads the annual liability evenly across the financial year:
+
+```
+monthly TDS = total tax liability ÷ months remaining in the financial year
+```
+
+For mid-year joiners, the liability is pro-rated across the remaining months. The TDS
+computed here is the deduction applied at step 8 of the
+[payroll run](/modules/payroll).
+
+## Form 16
+
+At year-end, employees receive **Form 16** — their TDS certificate — sent for
+e-signature from the **TDS Declarations** tab in the Payroll module.

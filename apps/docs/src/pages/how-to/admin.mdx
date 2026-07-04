@@ -1,0 +1,47 @@
+# How-To: Admin & Setup
+
+Tasks for platform and organisation administrators. For the full reference see the
+[Admin Guide](/admin-guide).
+
+## How do I get a new organisation set up?
+
+Run the **Setup Wizard** (`/app/onboarding-wizard`). It walks you through the initial
+configuration. After that, the typical first steps are: set your admin profile, invite
+users, define SLA policies, configure categories, and connect integrations — see the
+[Admin Guide](/admin-guide) for detail on each.
+
+## How do I add a custom field?
+
+Go to **Administration → Custom Fields** (`/app/admin/custom-fields`). Add a field and
+choose its type (text, number, date, dropdown, checkbox, or multi-select). You can make
+a field required for specific record types or categories.
+
+## How do I connect an integration?
+
+Open **Settings → Integrations** (`/app/settings/integrations`) and connect the
+third-party services your team uses. Channel-specific options (email, SMS, chat) live
+under **Settings → Omnichannel** (`/app/settings/omnichannel`).
+
+## How do I set up a webhook?
+
+Go to **Settings → Webhooks** (`/app/settings/webhooks`) and register an endpoint
+URL. Webhooks let external systems receive events from CoheronConnect as they happen.
+
+## How do I create an API key?
+
+Open **Settings → API Keys** (`/app/settings/api-keys`) and generate a key. Use it as
+a bearer token when calling the API (see the [API Reference](/api-reference)). Treat
+keys as secrets — store them securely and rotate them periodically.
+
+## How do I configure an approval chain?
+
+Use the **Flow Designer** (`/app/flows`) to model approval routing with triggers,
+conditions, and actions. Approvals route by the org hierarchy by default; multi-step
+chains (e.g. department head → CFO) run sequentially. See [Approvals &
+Workflow](/modules/approvals).
+
+## How is my data kept separate from other tenants?
+
+Every record is scoped to an organisation (`orgId`), and all queries are isolated per
+tenant — there is no cross-organisation data access. Administrative actions are
+recorded in the audit log.

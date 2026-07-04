@@ -1,0 +1,61 @@
+# How-To: Service Desk & IT
+
+Tasks for IT agents and service-desk teams. Full reference:
+[Tickets](/modules/tickets).
+
+## How do I create a ticket?
+
+- **Web:** click **New Ticket**, choose the type (Incident, Service Request, Problem,
+  Change), set a title, description, category, and priority, then submit.
+- **Email:** send to your configured inbound address — the subject becomes the title
+  and the body becomes the description.
+- **API:** `POST` to `tickets.create` with a bearer token.
+
+## What do the priorities mean for SLA?
+
+| Priority | Response | Resolution |
+|----------|---------:|-----------:|
+| Critical | 15 min | 4 hours |
+| High | 1 hour | 8 hours |
+| Medium | 4 hours | 24 hours |
+| Low | 8 hours | 72 hours |
+
+The SLA indicator on each ticket is green (on track), amber (at risk, under 20% time
+left), or red (breached).
+
+## Why did my ticket's SLA clock stop?
+
+Because the ticket's status category is **Pending** — for example waiting on a
+customer or vendor. SLA clocks pause while a ticket is pending and resume when it
+leaves that state.
+
+## How do I find and work the right tickets?
+
+Open **Service Desk** (`/app/tickets`). Switch between **Overview** (KPIs), **Queue**
+(table), and **Board** (Kanban). Use search, the status tabs, and filters (type, SLA,
+date) to narrow the list. Select multiple tickets to **bulk assign**, **bulk close**,
+or **export to CSV**.
+
+## How do I resolve and close a ticket?
+
+Work the ticket and add comments as you go. When you've applied a fix, set the status
+to **Resolved** (this stops the resolution SLA). Once the user confirms — or after your
+configured auto-close window — set it to **Closed**.
+
+## How do I handle a major incident?
+
+Major incidents (`/app/it-services/major-incidents`) get a **war room**
+(`.../war-room/[ticketId]`) for coordinated communications. Comms are recorded against
+the incident so there's a single source of truth during the outage.
+
+## How do I link a ticket to a problem or change?
+
+On the ticket's **Related** tab, add a linked ticket by UUID and choose the relation
+type (related, duplicate, blocks, blocked_by). Formal problems and changes live in
+their own modules and are surfaced here too.
+
+## How do I raise a change?
+
+Go to **Changes** (`/app/changes`), create a change request, assign it, and progress
+it through its lifecycle. Changes are the planned-modification ticket type and follow
+your change-approval (CAB) process.

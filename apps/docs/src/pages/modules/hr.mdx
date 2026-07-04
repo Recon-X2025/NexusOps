@@ -1,0 +1,80 @@
+# HR & Employee Services
+
+The HR module covers day-to-day people operations: HR cases, leave, attendance,
+expense claims, the holiday calendar, OKRs, and employee records. Employees interact
+through the **Employee Portal**; HR staff work from **People & Workplace → HR**.
+
+## Employee Portal (self-service)
+
+The portal (`/portal`) is the front door for every employee. From the home screen
+they can:
+
+- Submit a new request (HR case, IT ticket, equipment, etc.)
+- Track the status of their existing requests
+- Search the Knowledge Base
+- View assets assigned to them
+
+The welcome banner shows a count of the employee's open and resolved requests.
+
+## HR cases
+
+HR cases handle structured people processes such as **onboarding** and
+**offboarding**. A case is made up of templated tasks assigned to the responsible
+teams (IT, Finance, Facilities, etc.), and each task is checked off as it completes.
+
+Typical onboarding tasks: set up email, assign a laptop, grant building access,
+assign a buddy. Typical offboarding tasks: return badge, deactivate accounts,
+knowledge transfer, final clearance.
+
+## Leave requests
+
+| Status | Meaning |
+|--------|---------|
+| **Pending** | Submitted, awaiting manager approval. |
+| **Approved** | Manager approved; leave balance deducted, calendar blocked. |
+| **Rejected** | Manager declined. |
+| **Cancelled** | Withdrawn by the employee or manager after approval. |
+
+**Flow:** the employee submits a request (start date, end date, reason, number of
+days); the manager reviews it — seeing the employee's current balance — and approves
+or rejects with an optional comment. Leave types (sick, casual, PTO, unpaid, etc.)
+and accrual rules are configurable.
+
+## Attendance
+
+Daily attendance is recorded as present, absent, half-day, on-leave, or
+work-from-home, and aggregated to a monthly attendance percentage. Absences drive
+**loss of pay (LOP)**, which reduces gross salary in the next payroll run.
+
+## Expense claims
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Employee is still editing. |
+| **Submitted** | Locked and sent for review. |
+| **Under review** | Manager / Finance reviewing. |
+| **Approved** | Amount locked. |
+| **Rejected** | Declined with a reason. |
+| **Reimbursed → Paid** | Payment processed and cleared. |
+| **Cancelled** | Cancelled by the employee or admin. |
+
+**Flow:** the employee creates a report and adds line items (category, amount,
+receipt, date, merchant), then submits. The manager reviews against policy, Finance
+calculates the reimbursable amount, and once approved Finance generates the payment.
+Expense categories include travel, accommodation, meals, transport, office supplies,
+software, training, and medical. Policy limits (e.g. a daily meal cap, a receipt
+requirement above a threshold) are enforced during review.
+
+## Holiday calendar & OKRs
+
+- **Holiday calendar** (`/app/holidays`) — the org-wide list of public and optional
+  holidays, used by the leave and SLA business calendars.
+- **OKRs & Goals** (`/app/okr`) — objectives and key results for individuals and
+  teams, also surfaced inside Performance.
+
+## Employee records
+
+Each employee record carries name, employee ID, department, title, manager,
+employment type, location, start date, and the assigned salary structure. Employment
+status moves through **Active**, **Probation**, **On leave**, **Resigned**,
+**Terminated**, and **Offboarded**.

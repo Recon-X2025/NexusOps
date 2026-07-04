@@ -1,0 +1,100 @@
+# Accounting
+
+The Accounting module is a double-entry general ledger with a Chart of Accounts,
+journal entries, ledgers, trial balance, financial statements, GST returns, and bank
+reconciliation. It lives under **Finance & Procurement** at
+`/app/finance/accounting/*`.
+
+## Chart of Accounts
+
+The Chart of Accounts (COA) is the master list of accounts, organised as a
+parent-child hierarchy. CoheronConnect ships a standard India COA seed:
+
+| Code range | Type | Examples |
+|------------|------|----------|
+| 1000–1290 | **Asset** | Cash, bank, accounts receivable, input tax credit, fixed assets |
+| 2000–2200 | **Liability** | Accounts payable, GST payable, TDS payable, PF payable |
+| 3000–3200 | **Equity** | Share capital, retained earnings |
+| 4000–4200 | **Income** | Service revenue, product sales, interest income |
+| 5000–5600 | **Expense** | COGS, payroll, office, travel, depreciation |
+
+Each account tracks an opening balance and a current balance. Open
+`/app/finance/accounting/coa` to browse and manage accounts.
+
+## Journal entries
+
+| Status | Meaning |
+|--------|---------|
+| **Draft** | Created but not posted; still editable. |
+| **Posted** | Committed; account balances updated atomically. |
+| **Reversed** | Marked reversed; a separate reversal entry has been created. |
+
+### The balance rule
+
+Every journal entry must balance:
+
+```
+total debits ≈ total credits   (tolerance ±0.001)
+```
+
+If the difference between total debits and total credits exceeds **0.001**, the entry
+is rejected. This invariant is enforced in `accounting.journal.create`
+(`apps/api/src/routers/accounting.ts`).
+
+Each entry has two or more lines, every line carrying a debit or credit amount and a
+description. When you post an entry, the affected COA balances are updated in the same
+transaction.
+
+### Reversing an entry
+
+To reverse a posted entry, select it and create a reversal. The system creates a new
+entry with the **debits and credits swapped**, marks the original as **reversed**, and
+posts the reversal. You can set a custom reversal date (for example, the first day of
+the next month).
+
+## Ledger, trial balance & statements
+
+- **General Ledger** (`/app/finance/accounting/ledger`) — pick an account to see its
+  opening balance plus every posted entry in date order, with a running balance.
+- **Trial balance** — sums all account balances; total debits should equal total
+  credits within the 0.001 tolerance.
+- **Income statement (P&L)** — income accounts minus expense accounts for a period.
+
+## GST returns
+
+The module can generate India GST returns from posted invoices:
+
+- **GSTR-1** (outward supplies) — invoices grouped into B2B (by buyer GSTIN) and B2C,
+  with taxable value and IGST/CGST/SGST per invoice, in a GST-portal-compatible JSON
+  format.
+- **GSTR-3B** (summary return) — total outward supplies, eligible input tax credit,
+  and any interest/late fee payable.
+
+See [GST & TDS](/modules/india-tax) for how the tax amounts themselves are computed.
+
+## Bank reconciliation
+
+Reconcile a bank statement against your ledger at
+`/app/finance/accounting/reconciliation`:
+
+1. **Create a statement** — name, account, period, and the closing balance from the
+   bank.
+2. **Import transactions** — by CSV or manually (date, description, amount; positive =
+   inflow).
+3. **Suggest matches** — the system scores candidate matches (exact amount, date
+   proximity, description overlap) and proposes links to journal entries.
+4. **Confirm or ignore** — link each transaction to a journal entry, or mark it
+   **ignored** if it is booked elsewhere.
+5. **Reconcile** — once every transaction is matched or ignored, the statement is
+   locked.
+
+| Statement status | Meaning |
+|------------------|---------|
+| **In progress** | Transactions still being matched. |
+| **Reconciled** | Every transaction matched or ignored; statement locked. |
+
+| Transaction status | Meaning |
+|--------------------|---------|
+| **Unmatched** | Awaiting a link. |
+| **Matched** | Linked to a journal entry. |
+| **Ignored** | Acknowledged as not needing a match. |

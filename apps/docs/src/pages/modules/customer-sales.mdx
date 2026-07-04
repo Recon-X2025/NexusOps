@@ -1,0 +1,39 @@
+# Customer & Sales
+
+The Customer & Sales area brings together customer service, CRM, the service catalog,
+and surveys. It lives under **Customer & Sales** in the sidebar.
+
+## Customer service (CSM)
+
+Customer Success Management (`/app/csm`) handles customer-facing cases, each with its
+own detail page. CSM cases follow the same lifecycle conventions as IT tickets but are
+oriented toward customer accounts and success outcomes.
+
+## CRM & sales
+
+The CRM (`/app/crm`) tracks accounts and deals:
+
+- **Accounts** — customer organisations, each with a detail page
+  (`/app/crm/accounts/[id]`).
+- **Deals** — sales opportunities, each with a detail page (`/app/crm/deals/[id]`)
+  showing stage, value, and activity.
+
+## Service catalog
+
+The Service Catalog (`/app/catalog`) is where users request standard, pre-approved
+services. It has three tabs:
+
+- **Browse** — the catalog of available services.
+- **My Requests** — the requests the user has submitted.
+- **Catalog Admin** — for administrators to define catalog items and their fulfilment
+  workflows.
+
+Catalog requests flow into the same fulfilment and approval machinery as tickets and
+HR cases.
+
+## Surveys
+
+Surveys (`/app/surveys`) collect feedback — for example CSAT after a ticket is
+resolved. Respondents complete a survey via a tokenised public link
+(`/survey/[token]`) without needing to log in, and results feed satisfaction metrics
+across the platform.

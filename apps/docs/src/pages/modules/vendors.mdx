@@ -1,0 +1,48 @@
+# Vendors & Contracts
+
+The Vendors module is the supplier register and contract tracker. It lives under
+**Finance & Procurement → Vendors** (`/app/vendors`) with two tabs: **Vendors** and
+**Contracts**.
+
+## The vendor register
+
+The Vendors tab is a table of suppliers with their key metrics:
+
+| Column | Description |
+|--------|-------------|
+| **Name / category** | Supplier name and what they provide. |
+| **Tier** | Strategic, Critical, Preferred, or Managed. |
+| **Annual spend** | Total spend with this vendor. |
+| **Contracts** | Number of active contracts. |
+| **Open issues** | Outstanding issues against the vendor. |
+| **SLA score** | Service-level performance (green ≥ 90%, amber 70–89%, red < 70%). |
+| **CSAT** | Satisfaction rating, shown as stars. |
+| **Status** | Active, Under review, At risk, or Inactive. |
+| **Renewal** | Next contract renewal date. |
+
+The top of the page shows KPI cards: total spend, active vendors, vendors at risk / under
+review, and contracts expiring in the next 90 days.
+
+## Adding vendors
+
+- **Single vendor** — click **Add Vendor** and fill in the form: name, type, GSTIN,
+  PAN, email, phone, address, state, and payment terms.
+- **Bulk import** — use the CSV import to map columns to vendor fields (name, type,
+  GSTIN, PAN, email, phone, address, state, payment terms) and load many vendors at
+  once.
+
+## Vendor detail
+
+Click any vendor row to open its detail page, where you can review and edit the
+vendor's information and track its contracts, SLA performance, and open issues over
+time.
+
+## Contracts
+
+The Contracts tab lists agreements with: contract ID, vendor, type, value, start and
+end dates, auto-renew flag, and status. Use it to keep ahead of renewals — contracts
+expiring within 90 days surface in the KPI card on the Vendors tab.
+
+For deeper contract authoring and clause tracking, see the dedicated Contract
+Management area under **Finance & Procurement → Contract Management**
+(`/app/contracts`).
