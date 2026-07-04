@@ -917,31 +917,51 @@ export const financialRouter = router({
         if (!le) throw new TRPCError({ code: "BAD_REQUEST", message: "Legal entity not found" });
       }
 
-      const [invoice] = await db
-        .insert(invoices)
-        .values({
+      // Insert the invoice and post its balanced GL journal entry atomically so
+      // the AP control account and balance-based dashboards track this path too
+      // (mirrors createInvoice). Tax is already computed per line above.
+      const invoice = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(invoices)
+          .values({
+            orgId: org!.id,
+            invoiceNumber: input.invoiceNumber,
+            invoiceType: "tax_invoice",
+            vendorId: input.vendorId,
+            legalEntityId: input.legalEntityId ?? null,
+            poId: input.poId ?? null,
+            supplierGstin: input.supplierGstin,
+            buyerGstin: input.buyerGstin ?? null,
+            placeOfSupply: input.placeOfSupply,
+            isInterstate,
+            isReverseCharge: input.isReverseCharge,
+            taxableValue: String(totalTaxableValue),
+            cgstAmount: String(totalCgst),
+            sgstAmount: String(totalSgst),
+            igstAmount: String(totalIgst),
+            totalTaxAmount: String(totalTax),
+            amount: String(totalAmount),
+            invoiceDate: input.invoiceDate,
+            status: "confirmed",
+            matchingStatus: "pending",
+          })
+          .returning();
+        await postInvoiceJournalEntry(tx, {
           orgId: org!.id,
+          createdById: ctx.user!.id,
+          invoiceFlow: "payable",
           invoiceNumber: input.invoiceNumber,
-          invoiceType: "tax_invoice",
-          vendorId: input.vendorId,
-          legalEntityId: input.legalEntityId ?? null,
-          poId: input.poId ?? null,
-          supplierGstin: input.supplierGstin,
-          buyerGstin: input.buyerGstin ?? null,
-          placeOfSupply: input.placeOfSupply,
+          date: input.invoiceDate,
+          taxableValue: totalTaxableValue,
+          cgstAmount: totalCgst,
+          sgstAmount: totalSgst,
+          igstAmount: totalIgst,
           isInterstate,
-          isReverseCharge: input.isReverseCharge,
-          taxableValue: String(totalTaxableValue),
-          cgstAmount: String(totalCgst),
-          sgstAmount: String(totalSgst),
-          igstAmount: String(totalIgst),
-          totalTaxAmount: String(totalTax),
-          amount: String(totalAmount),
-          invoiceDate: input.invoiceDate,
-          status: "confirmed",
-          matchingStatus: "pending",
-        })
-        .returning();
+          grossTotal: totalAmount,
+          financialYear: currentFY(input.invoiceDate),
+        });
+        return row;
+      });
 
       const eInvoiceRequired = isEInvoiceRequired(0);
       const eWayBillRequired = isEWayBillRequired({ isGoods: true, consignmentValue: totalTaxableValue });

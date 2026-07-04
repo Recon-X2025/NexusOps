@@ -173,6 +173,27 @@ describe("AP/AR reconciliation — control account ties out to the invoice suble
     expect(Math.abs(await coaBalance(orgId, "2110"))).toBeLessThan(TOL);
   });
 
+  it("createGSTInvoice raises AP by the gross total (line-itemised path posts a JE too)", async () => {
+    const vendorId = await seedCounterparty(orgId);
+    const before = await coaBalance(orgId, "2110");
+    // Intra-state (org === vendor state) 18% GST on 10,000 → CGST+SGST 1,800, gross 11,800.
+    const inv = await fin.createGSTInvoice({
+      vendorId,
+      invoiceNumber: `GST-${nanoid(6)}`,
+      invoiceDate: new Date(),
+      supplierGstin: "27ABCDE1234F1Z5",
+      placeOfSupply: "27",
+      orgState: "27",
+      vendorState: "27",
+      lineItems: [{ description: "Widget", quantity: 10, unitPrice: 1000, gstRate: 18 }],
+    });
+    const after = await coaBalance(orgId, "2110");
+    const gross = inv.summary.totalAmount;
+    // AP is credit-normal → currentBalance moves by -(gross) under the debit-positive convention.
+    expect(Math.abs(after - before - -gross)).toBeLessThan(TOL);
+    expect(gross).toBeCloseTo(11800, 2);
+  });
+
   it("backfillInvoiceGst reposts the ledger so AP tracks the rewritten amount (no drift)", async () => {
     // Create a zero-tax payable (0% GST) → gross == taxable, JE posted at that amount.
     const vendorId = await seedCounterparty(orgId);

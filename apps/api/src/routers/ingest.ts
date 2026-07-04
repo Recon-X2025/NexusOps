@@ -8,10 +8,16 @@ import {
     crmDeals,
     vendors,
     invoices,
+    gstinRegistry,
     eq,
     and,
+    desc,
+    type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextNumber, syncOrgCounters } from "../lib/auto-number";
+import { computeGST, type GSTRate } from "../lib/india/gst-engine";
+import { postInvoiceJournalEntry } from "../lib/invoice-journal";
+import { currentFY } from "./accounting";
 
 const MatterIngestSchema = z.object({
     title: z.string().min(1),
@@ -88,10 +94,29 @@ const VendorIngestSchema = z.object({
 const InvoiceIngestSchema = z.object({
     invoiceNumber: z.string().min(1),
     vendorId: z.string().uuid(),
+    // `amount` is the taxable value; GST is derived on top (mirrors createInvoice).
     amount: z.string().min(1),
+    gstRate: z.union([z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28)]).default(18),
     invoiceDate: z.string().optional(),
     dueDate: z.string().optional(),
 });
+
+/**
+ * The org's own place-of-supply state (primary/first active GSTIN registration),
+ * used to decide the intra-vs-inter-state GST split. Returns `null` when the org
+ * has no GSTIN on file — the intra-state split is then the safe default (total
+ * tax is identical either way; only the CGST/SGST-vs-IGST breakdown differs).
+ * Mirrors `resolveOrgState` in `routers/financial.ts`.
+ */
+async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string | null> {
+    const [row] = await db
+        .select({ stateCode: gstinRegistry.stateCode, stateName: gstinRegistry.stateName })
+        .from(gstinRegistry)
+        .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
+        .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
+        .limit(1);
+    return row?.stateName ?? row?.stateCode ?? null;
+}
 
 export const ingestRouter = router({
     /**
@@ -256,14 +281,18 @@ export const ingestRouter = router({
     importInvoices: permissionProcedure("financial", "write")
         .input(z.array(InvoiceIngestSchema))
         .mutation(async ({ ctx, input }) => {
-            const { db, org } = ctx;
+            const { db, org, user } = ctx;
             const results: string[] = [];
             const skipped: Array<{ invoiceNumber: string; reason: string }> = [];
 
+            // Org place-of-supply state is stable across the batch — resolve once.
+            const orgState = await resolveOrgState(db, org!.id);
+
             for (const item of input) {
-                // Vendor must belong to this org.
+                // Vendor must belong to this org. Pull its state so GST splits
+                // intra-vs-inter-state correctly (as createInvoice does).
                 const [vendor] = await db
-                    .select({ id: vendors.id })
+                    .select({ id: vendors.id, gstin: vendors.gstin, state: vendors.state })
                     .from(vendors)
                     .where(and(eq(vendors.id, item.vendorId), eq(vendors.orgId, org!.id)));
                 if (!vendor) {
@@ -285,19 +314,56 @@ export const ingestRouter = router({
                     continue;
                 }
 
-                const [row] = await db.insert(invoices).values({
-                    orgId: org!.id,
-                    vendorId: item.vendorId,
-                    invoiceFlow: "payable",
-                    invoiceNumber: item.invoiceNumber,
-                    invoiceType: "tax_invoice",
-                    amount: item.amount,
-                    taxableValue: item.amount,
-                    status: "pending",
-                    matchingStatus: "pending",
-                    invoiceDate: item.invoiceDate ? new Date(item.invoiceDate) : new Date(),
-                    dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
-                }).returning();
+                // Treat the imported `amount` as the taxable value and derive GST
+                // on top — the bulk path previously stored zero tax and posted no
+                // journal entry, so GL-balance dashboards drifted from AP/AR.
+                const supplierState = orgState ?? "";
+                const gst = computeGST({
+                    taxableValue: Number(item.amount),
+                    gstRate: item.gstRate as GSTRate,
+                    supplierState,
+                    buyerState: vendor.state ?? supplierState,
+                });
+                const invoiceDate = item.invoiceDate ? new Date(item.invoiceDate) : new Date();
+
+                // Insert the invoice and post its balanced GL journal entry
+                // atomically, mirroring financial.createInvoice.
+                const row = await db.transaction(async (tx) => {
+                    const [inserted] = await tx.insert(invoices).values({
+                        orgId: org!.id,
+                        vendorId: item.vendorId,
+                        invoiceFlow: "payable",
+                        invoiceNumber: item.invoiceNumber,
+                        invoiceType: "tax_invoice",
+                        supplierGstin: vendor.gstin ?? null,
+                        amount: String(gst.invoiceTotal),
+                        taxableValue: String(gst.taxableValue),
+                        cgstAmount: String(gst.cgstAmount),
+                        sgstAmount: String(gst.sgstAmount),
+                        igstAmount: String(gst.igstAmount),
+                        totalTaxAmount: String(gst.totalTaxAmount),
+                        isInterstate: gst.isInterstate,
+                        status: "pending",
+                        matchingStatus: "pending",
+                        invoiceDate,
+                        dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
+                    }).returning();
+                    await postInvoiceJournalEntry(tx, {
+                        orgId: org!.id,
+                        createdById: user!.id,
+                        invoiceFlow: "payable",
+                        invoiceNumber: item.invoiceNumber,
+                        date: invoiceDate,
+                        taxableValue: gst.taxableValue,
+                        cgstAmount: gst.cgstAmount,
+                        sgstAmount: gst.sgstAmount,
+                        igstAmount: gst.igstAmount,
+                        isInterstate: gst.isInterstate,
+                        grossTotal: gst.invoiceTotal,
+                        financialYear: currentFY(invoiceDate),
+                    });
+                    return inserted;
+                });
                 results.push(row!.id);
             }
 
