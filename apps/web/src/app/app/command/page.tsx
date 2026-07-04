@@ -12,6 +12,7 @@ import { CommandCenterBullets } from "@/components/command-center/command-center
 import { CommandCenterTrends } from "@/components/command-center/command-center-trends";
 import { CommandCenterFlow } from "@/components/command-center/command-center-flow";
 import { CommandCenterRisks } from "@/components/command-center/command-center-risks";
+import { OnboardingChecklist } from "@/components/command-center/onboarding-checklist";
 import { trpc } from "@/lib/trpc";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { executiveDefaultQuickRangeId, granularityForRange, resolveExecutiveQuickRange } from "@/lib/executive-quick-ranges";
@@ -179,6 +180,9 @@ function CommandCenterBody({
       ) : (
         <CommandCenterSectionBoundary>
           <div className="flex flex-col gap-8">
+            {/* First-run onboarding checklist (self-hides once complete/dismissed) */}
+            <OnboardingChecklist />
+
             {/* Top Band: KPI Strip */}
             <div className="w-full">
               <CommandCenterKpiStrip payload={displayPayload} />

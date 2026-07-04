@@ -55,6 +55,7 @@ import { agentRouter } from "./agent";
 import { ingestRouter } from "./ingest";
 import { teamsRouter } from "./teams";
 import { complianceRouter } from "./compliance";
+import { onboardingRouter } from "./onboarding";
 
 export const appRouter = router({
   mac: macRouter,
@@ -127,6 +128,8 @@ export const appRouter = router({
   teams: teamsRouter,
   // Sprint 1 — DPDP data-protection compliance (privacy_officer / compliance module)
   compliance: complianceRouter,
+  // First-run "getting started" checklist (derived; no persistence)
+  onboarding: onboardingRouter,
 });
 
 export type AppRouter = typeof appRouter;
