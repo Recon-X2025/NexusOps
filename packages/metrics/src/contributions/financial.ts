@@ -5,32 +5,63 @@ import { dbOf } from "./_db";
 
 type CoaRow = { type: string; currentBalance: string | null };
 
+/** Trailing window (months) used to derive an average monthly burn rate. */
+const BURN_WINDOW_MONTHS = 3;
+
 registerMetric({
   id: "financial.cash_runway_months",
   label: "Cash runway (months)",
   function: "finance",
   dimension: "trend",
   direction: "higher_is_better",
-  unit: "days",
-  description: "// TODO: contribute from treasury / cash ledger when a canonical balance feed exists.",
+  unit: "months",
+  description:
+    "Liquid cash (bank + cash accounts) divided by average monthly burn from posted expense journals over the trailing 3 months.",
   drillUrl: "/app/accounting",
   resolve: async (ctx) => {
     const db = dbOf(ctx);
-    const accounts = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.orgId, ctx.tenantId));
-    const assets = (accounts as CoaRow[]).filter((a) => a.type === "asset");
-    const expenses = (accounts as CoaRow[]).filter((a) => a.type === "expense");
-    
-    const totalAssets = assets.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
-    const monthlyBurn = expenses.reduce((s, a) => s + Math.abs(Number(a.currentBalance)), 0);
-    
-    if (totalAssets === 0 || monthlyBurn === 0) {
+
+    // Liquidity: current balance of cash/bank accounts only — not every asset
+    // (receivables, fixed assets, etc. aren't spendable runway).
+    const cashAccounts = (await db
+      .select({ currentBalance: chartOfAccounts.currentBalance })
+      .from(chartOfAccounts)
+      .where(
+        and(
+          eq(chartOfAccounts.orgId, ctx.tenantId),
+          sql`${chartOfAccounts.subType} IN ('bank', 'cash')`,
+        ),
+      )) as Array<{ currentBalance: string | null }>;
+    const cash = cashAccounts.reduce((s, a) => s + Number(a.currentBalance ?? 0), 0);
+
+    // Burn: net spend on expense accounts (debit increases an expense) from
+    // POSTED journal lines over the trailing window, averaged per month. Using
+    // dated postings — not cumulative COA balances — makes this a real rate.
+    const windowStart = new Date();
+    windowStart.setUTCMonth(windowStart.getUTCMonth() - BURN_WINDOW_MONTHS);
+    const [burnRow] = (await db.execute(sql`
+      SELECT COALESCE(SUM(jel.debit_amount - jel.credit_amount), 0)::float8 AS net_expense
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        JOIN chart_of_accounts coa ON coa.id = jel.account_id
+       WHERE jel.org_id = ${ctx.tenantId}
+         AND je.status = 'posted'
+         AND coa.type = 'expense'
+         AND je.date >= ${windowStart.toISOString()}
+    `)) as Array<{ net_expense: number }>;
+    const windowExpense = Math.max(0, Number(burnRow?.net_expense ?? 0));
+    const monthlyBurn = windowExpense / BURN_WINDOW_MONTHS;
+
+    // No liquidity or no burn signal → nothing meaningful to divide.
+    if (cash <= 0 || monthlyBurn <= 0) {
       return emptyMetricValue("no_data");
     }
-    
-    const runway = Math.round((totalAssets / monthlyBurn) * 10) / 10;
-    
+
+    const runway = Math.round((cash / monthlyBurn) * 10) / 10;
+
     return {
       current: runway,
+      // Point-in-time ratio; a per-period runway trend needs historical cash snapshots.
       series: [],
       state: runway > 12 ? "healthy" : runway > 6 ? "watch" : "stressed",
       lastUpdated: new Date(),

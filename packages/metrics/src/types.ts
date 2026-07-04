@@ -22,7 +22,7 @@ export interface MetricDefinition<TCtx = unknown> {
   function: FunctionKey;
   dimension: MetricDimension;
   direction: MetricDirection;
-  unit?: "count" | "percent" | "currency_inr" | "days" | "hours" | "minutes" | "ratio" | "score";
+  unit?: "count" | "percent" | "currency_inr" | "days" | "hours" | "minutes" | "months" | "ratio" | "score";
   target?: number;
   description?: string;
   drillUrl?: string | ((ctx: TCtx) => string);

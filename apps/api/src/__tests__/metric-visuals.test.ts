@@ -24,7 +24,12 @@ import {
   crmAccounts,
   purchaseOrders,
   goodsReceiptNotes,
+  chartOfAccounts,
+  journalEntries,
+  journalEntryLines,
+  employees,
 } from "@coheronconnect/db";
+import { nanoid } from "nanoid";
 import { initTestEnvironment, testDb, seedTestOrg, seedUser } from "./helpers";
 
 const RANGE: MetricResolveCtx["range"] = {
@@ -253,5 +258,109 @@ describe("legal.open_matters emits a real created-at series", () => {
     expect(v.series.length).toBeGreaterThan(0);
     const total = v.series.reduce((s, p) => s + p.v, 0);
     expect(total).toBe(3);
+  });
+});
+
+describe("financial.cash_runway_months divides liquid cash by trailing burn", () => {
+  /** Seed a posted expense journal of `amount` dated `date`. */
+  async function seedExpensePosting(
+    orgId: string,
+    expenseAccountId: string,
+    cashAccountId: string,
+    amount: string,
+    date: Date,
+    n: number,
+  ) {
+    const db = testDb();
+    const [je] = await db
+      .insert(journalEntries)
+      .values({ orgId, number: `JE-BURN-${n}`, date, type: "manual", status: "posted" })
+      .returning();
+    await db.insert(journalEntryLines).values([
+      { orgId, journalEntryId: je!.id, accountId: expenseAccountId, debitAmount: amount, creditAmount: "0" },
+      { orgId, journalEntryId: je!.id, accountId: cashAccountId, debitAmount: "0", creditAmount: amount },
+    ]);
+  }
+
+  it("computes cash ÷ average monthly burn over the trailing 3 months", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+
+    // Liquid cash = 600,000 across a bank + a cash account.
+    const [bank] = await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "1000", name: "Bank", type: "asset", subType: "bank", currentBalance: "500000" })
+      .returning();
+    await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "1010", name: "Cash", type: "asset", subType: "cash", currentBalance: "100000" });
+    // A non-liquid asset that must NOT count toward runway.
+    await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "1200", name: "AR", type: "asset", subType: "accounts_receivable", currentBalance: "9000000" });
+    const [expense] = await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "5000", name: "Opex", type: "expense", subType: "expense", currentBalance: "0" })
+      .returning();
+
+    // 300,000 of posted expense across the last 3 months → 100,000/mo burn.
+    await seedExpensePosting(orgId, expense!.id, bank!.id, "100000", daysAgo(10), 1);
+    await seedExpensePosting(orgId, expense!.id, bank!.id, "100000", daysAgo(40), 2);
+    await seedExpensePosting(orgId, expense!.id, bank!.id, "100000", daysAgo(70), 3);
+    // Out-of-window posting must be ignored.
+    await seedExpensePosting(orgId, expense!.id, bank!.id, "500000", daysAgo(200), 4);
+
+    const v = await getMetric("financial.cash_runway_months")!.resolve(ctxFor(orgId, orgId));
+
+    // 600,000 cash ÷ 100,000/mo = 6.0 months.
+    expect(v.current).toBe(6);
+    // Thresholds: >12 healthy, >6 watch, else stressed — exactly 6 is stressed.
+    expect(v.state).toBe("stressed");
+  });
+
+  it("reports no_data when there is no cash or no burn", async () => {
+    const db = testDb();
+    const { orgId } = await seedTestOrg();
+    // Cash but zero expense postings → no burn signal.
+    await db
+      .insert(chartOfAccounts)
+      .values({ orgId, code: "1000", name: "Bank", type: "asset", subType: "bank", currentBalance: "500000" });
+
+    const v = await getMetric("financial.cash_runway_months")!.resolve(ctxFor(orgId, orgId));
+    expect(v.state).toBe("no_data");
+  });
+});
+
+describe("hr.headcount_active counts active employees with a trend", () => {
+  async function seedEmployee(orgId: string, status: "active" | "terminated", startDate: Date, endDate?: Date) {
+    const db = testDb();
+    const { userId } = await seedUser(orgId);
+    await db.insert(employees).values({
+      orgId,
+      userId,
+      employeeId: `EMP-${nanoid(6)}`,
+      status,
+      startDate,
+      endDate: endDate ?? null,
+    });
+  }
+
+  it("returns the active headcount as current", async () => {
+    const { orgId } = await seedTestOrg();
+    await seedEmployee(orgId, "active", daysAgo(300));
+    await seedEmployee(orgId, "active", daysAgo(200));
+    await seedEmployee(orgId, "terminated", daysAgo(400), daysAgo(30));
+
+    const v = await getMetric("hr.headcount_active")!.resolve(ctxFor(orgId, orgId));
+
+    expect(v.current).toBe(2);
+    expect(v.state).toBe("healthy");
+    expect(v.series.length).toBeGreaterThan(0);
+  });
+
+  it("reports no_data when there are no active employees", async () => {
+    const { orgId } = await seedTestOrg();
+    const v = await getMetric("hr.headcount_active")!.resolve(ctxFor(orgId, orgId));
+    expect(v.state).toBe("no_data");
   });
 });

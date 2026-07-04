@@ -10,13 +10,13 @@ import {
 import { dbOf } from "./_db";
 
 registerMetric({
-  id: "hr.headcount_actual_vs_plan",
+  id: "hr.headcount_active",
   label: "Active headcount",
   function: "people",
   dimension: "trend",
   direction: "higher_is_better",
   unit: "count",
-  description: "Active employees; plan target // TODO when workforce planning feed exists.",
+  description: "Active employees now, with a per-period trend of headcount over the range.",
   drillUrl: "/app/hr",
   resolve: async (ctx) => {
     const db = dbOf(ctx);

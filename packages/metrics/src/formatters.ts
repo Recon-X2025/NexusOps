@@ -24,6 +24,10 @@ export function formatMetricNumber(
   if (unit === "hours" || unit === "minutes" || unit === "days") {
     return `${Math.round(value)} ${unit}`;
   }
+  if (unit === "months") {
+    // Runway-style ratios keep one decimal (e.g. "8.4 months").
+    return `${(Math.round(value * 10) / 10).toFixed(1)} months`;
+  }
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: unit === "score" ? 1 : 0 }).format(value);
 }
 
