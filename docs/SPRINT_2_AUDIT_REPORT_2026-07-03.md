@@ -235,20 +235,39 @@ npx vitest run depreciation inventory-valuation
   snapshot readers were intentionally left in place. Deciding whether to retire the
   snapshot readers (or re-point the web UI at the new statements) is a UI/product
   call, not done here.
-- **Depreciation ↔ GL posting.** The depreciation register maintains book value +
-  accumulated depreciation and the balance sheet reads them, but **charging a
-  period does not yet auto-post a journal entry** (expense debit / accumulated-
-  depreciation credit). Auto-posting the GL side is a natural next step (Phase 5
-  money-math wiring).
-- **Inventory ↔ GL posting.** Likewise, costed issue computes COGS but does not yet
-  post a COGS/inventory journal entry — the value is on the transaction row and the
-  item's `stock_value`, ready to be wired to the ledger.
+- **Depreciation ↔ GL posting — CLOSED (carry-over).** Charging a period now
+  auto-posts a balanced journal entry (`postDepreciationJournalEntry`,
+  `apps/api/src/lib/depreciation-journal.ts`): Dr `5500` Depreciation / Cr `1290`
+  Accumulated Depreciation = charge, `type:"depreciation"`. Wired into both
+  `depreciation.run` and `depreciation.runAll`; `assetDepreciationEntries.journalEntryId`
+  is back-populated. Idempotent — a re-charged period returns before posting, so no
+  duplicate JE. When 5500/1290 are unseeded the charge still applies and the helper
+  no-ops (returns null). Covered by `__tests__/depreciation-journal.test.ts`.
+- **Inventory ↔ GL posting — CLOSED (carry-over).** Costed issue now auto-posts a COGS
+  journal entry (`postInventoryCogsJournalEntry`, `apps/api/src/lib/inventory-journal.ts`):
+  Dr `5100` COGS / Cr `1170` Inventory = cogs, `type:"manual"`. A new `1170 Inventory`
+  COA account was added to `INDIA_COA_SEED` (idempotent per-org seed, no migration).
+  Zero-cogs / unseeded accounts → no JE, issue still decrements stock. Covered by
+  `__tests__/inventory-journal.test.ts`.
 - **GRC tiers excluded.** Per the standing instruction, the GRC Add-on (₹25k) and
   GRC Advanced (₹50k) product tiers remain out of scope for this build.
-- **Carried from Sprint 0/1 (still open):** CMDB cycle detection
-  (`assets.cmdb.getTopology` has no cycle guard) and GST-on-invoice-entry
-  (`financial.createInvoice` should run `computeGST()`). Neither was in the Sprint 2
-  plan; both are still parked.
+- **Carried from Sprint 0/1 — CLOSED.** CMDB cycle detection now guards
+  `assets.cmdb.linkCi`: a directed DFS over the org-scoped relationship graph rejects
+  any edge that would close a cycle (`BAD_REQUEST` "Relationship would create a
+  dependency cycle"), across all `relationType` values; the self-loop guard remains.
+  Covered by `__tests__/cmdb-cycle.test.ts`. GST-on-invoice-entry is likewise closed:
+  `createInvoice`/`createReceivableInvoice` post GST-inclusive journal entries, and the
+  residual `createGSTInvoice` gap is fixed — it now wraps the insert in a transaction and
+  posts a balanced JE (raising the `2110` AP control by the gross total). Covered by the
+  new case in `__tests__/ap-ar-reconciliation.test.ts`.
+- **Bulk invoice ingest ↔ GST + GL — CLOSED.** `ingest.importInvoices` previously
+  wrote invoices with zero tax and posted no journal entry, so GL-balance dashboards
+  drifted from the AP/AR subledger. It now treats the imported `amount` as the taxable
+  value, derives GST via `computeGST()` (optional `gstRate`, default 18%; org place-of-
+  supply state resolved once per batch), and posts a balanced payable JE via
+  `postInvoiceJournalEntry()` inside the same transaction as each insert — mirroring
+  `financial.createInvoice`. Skipped rows (unknown vendor / duplicate) post nothing.
+  Covered by `__tests__/ingest-invoice-journal.test.ts`.
 
 ## 6. Git / deploy state
 
