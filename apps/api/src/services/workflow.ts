@@ -46,6 +46,18 @@ import {
   startNotificationDispatchWorker,
   type NotificationDispatchJobData,
 } from "../workflows/notificationDispatchWorkflow";
+import {
+  createWorkflowTriggerQueue,
+  scheduleWorkflowTriggerSweep,
+  startWorkflowTriggerWorker,
+  type WorkflowTriggerJobData,
+} from "../workflows/workflowTriggerWorkflow";
+import {
+  createWebhookDispatchQueue,
+  scheduleWebhookDispatchSweep,
+  startWebhookDispatchWorker,
+  type WebhookDispatchJobData,
+} from "../workflows/webhookDispatchWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -55,6 +67,8 @@ interface WorkflowServiceInstance {
   irnQueue: Queue<IrnJobData>;
   ticketEmbeddingQueue: Queue<TicketEmbeddingJobData>;
   notificationDispatchQueue: Queue<NotificationDispatchJobData>;
+  workflowTriggerQueue: Queue<WorkflowTriggerJobData>;
+  webhookDispatchQueue: Queue<WebhookDispatchJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -71,6 +85,8 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const irnQueue = createIrnQueue();
   const ticketEmbeddingQueue = createTicketEmbeddingQueue();
   const notificationDispatchQueue = createNotificationDispatchQueue();
+  const workflowTriggerQueue = createWorkflowTriggerQueue();
+  const webhookDispatchQueue = createWebhookDispatchQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -79,9 +95,20 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const irnWorker = startIrnWorker(db);
   const ticketEmbeddingWorker = startTicketEmbeddingWorker(db);
   const notificationDispatchWorker = startNotificationDispatchWorker(db);
+  const workflowTriggerWorker = startWorkflowTriggerWorker(db);
+  const webhookDispatchWorker = startWebhookDispatchWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
+  });
+
+  // Automation-loop sweepers (Sprint 3.1 / 3.2). Idempotent repeatable jobs;
+  // failure to register is non-fatal (workers still serve one-shot enqueues).
+  scheduleWorkflowTriggerSweep(workflowTriggerQueue).catch((err) => {
+    console.warn("[workflow:trigger] Failed to register scheduled-workflow sweeper:", err);
+  });
+  scheduleWebhookDispatchSweep(webhookDispatchQueue).catch((err) => {
+    console.warn("[workflow:webhook] Failed to register outbound webhook dispatcher:", err);
   });
 
   approvalWorker.on("failed", (job, err) => {
@@ -105,6 +132,12 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   notificationDispatchWorker.on("failed", (job, err) => {
     console.error(`[workflow:notify-dispatch] Job ${job?.id} failed:`, err.message);
   });
+  workflowTriggerWorker.on("failed", (job, err) => {
+    console.error(`[workflow:trigger] Job ${job?.id} failed:`, err.message);
+  });
+  webhookDispatchWorker.on("failed", (job, err) => {
+    console.error(`[workflow:webhook] Job ${job?.id} failed:`, err.message);
+  });
 
   _instance = {
     approvalQueue,
@@ -114,6 +147,8 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     irnQueue,
     ticketEmbeddingQueue,
     notificationDispatchQueue,
+    workflowTriggerQueue,
+    webhookDispatchQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -123,6 +158,8 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         irnWorker.close(),
         ticketEmbeddingWorker.close(),
         notificationDispatchWorker.close(),
+        workflowTriggerWorker.close(),
+        webhookDispatchWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
@@ -130,6 +167,8 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         irnQueue.close(),
         ticketEmbeddingQueue.close(),
         notificationDispatchQueue.close(),
+        workflowTriggerQueue.close(),
+        webhookDispatchQueue.close(),
       ]);
       _instance = undefined;
     },

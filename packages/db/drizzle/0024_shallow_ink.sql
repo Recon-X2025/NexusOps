@@ -1,0 +1,1 @@
+ALTER TABLE "workflows" ADD COLUMN "last_run_at" timestamp with time zone;

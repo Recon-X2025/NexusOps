@@ -54,6 +54,10 @@ export const workflows = pgTable(
     triggerConfig: jsonb("trigger_config").$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean("is_active").notNull().default(false),
     currentVersion: integer("current_version").notNull().default(0),
+    // Last time the scheduled-trigger sweeper fired this workflow. Nullable:
+    // null means "never run" so a freshly-activated scheduled workflow is due
+    // on the next sweep. Used by the trigger scheduler to avoid double-firing.
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     createdById: uuid("created_by_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),

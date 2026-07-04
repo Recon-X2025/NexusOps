@@ -70,10 +70,24 @@ function FinancialPageInner() {
   const visibleTabs = FIN_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "budget");
 
+  // Sync the active tab from the URL. Depend on the primitive param string, not
+  // the freshly-filtered `visibleTabs` array (a new reference each render, which
+  // made this effect re-fire and clobber in-page tab clicks). `selectTab` writes
+  // the URL, so state and URL stay in agreement instead of fighting.
+  const tabParam = searchParams.get("tab");
   useEffect(() => {
-    const fromUrl = normalizeFinTabParam(searchParams.get("tab"));
-    if (fromUrl && visibleTabs.some((t) => t.key === fromUrl)) setTab(fromUrl);
-  }, [searchParams, visibleTabs]);
+    const fromUrl = normalizeFinTabParam(tabParam);
+    if (fromUrl && FIN_TABS.some((t) => t.key === fromUrl)) setTab(fromUrl);
+  }, [tabParam]);
+
+  // Single source of truth for changing tab: update state AND the URL so a later
+  // render of the URL-sync effect reads the tab the user just picked.
+  const selectTab = (key: string) => {
+    setTab(key);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", key);
+    router.replace(`/app/financial?${params.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -236,7 +250,7 @@ function FinancialPageInner() {
 
       <div className="flex border-b border-border gap-6">
         {visibleTabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => selectTab(t.key)}
             className={cn(
               "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -737,15 +751,15 @@ function FinancialPageInner() {
                 </ul>
 
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-                  <button type="button" className="text-primary hover:underline" onClick={() => setTab("ap")}>
+                  <button type="button" className="text-primary hover:underline" onClick={() => selectTab("ap")}>
                     Accounts Payable tab
                   </button>
                   <span className="text-muted-foreground">·</span>
-                  <button type="button" className="text-primary hover:underline" onClick={() => setTab("ar")}>
+                  <button type="button" className="text-primary hover:underline" onClick={() => selectTab("ar")}>
                     Accounts Receivable tab
                   </button>
                   <span className="text-muted-foreground">·</span>
-                  <button type="button" className="text-primary hover:underline" onClick={() => setTab("invoices")}>
+                  <button type="button" className="text-primary hover:underline" onClick={() => selectTab("invoices")}>
                     Invoices tab
                   </button>
                   <span className="text-muted-foreground">·</span>
