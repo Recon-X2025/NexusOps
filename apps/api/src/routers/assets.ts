@@ -583,6 +583,37 @@ export const assetsRouter = router({
           .from(ciItems)
           .where(and(eq(ciItems.id, input.targetId), eq(ciItems.orgId, org!.id)));
         if (!a || !b) throw new TRPCError({ code: "NOT_FOUND", message: "CI not found" });
+
+        // Directed-cycle guard: adding source→target closes a cycle iff `target`
+        // can already reach `source` via existing directed edges. Load all
+        // org-scoped relationships, build a directed adjacency, DFS from target.
+        const rels = await db
+          .select({ sourceId: ciRelationships.sourceId, targetId: ciRelationships.targetId })
+          .from(ciRelationships)
+          .where(
+            sql`${ciRelationships.sourceId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id}) AND ${ciRelationships.targetId} IN (SELECT id FROM ci_items WHERE org_id = ${org!.id})`,
+          );
+        const adj = new Map<string, string[]>();
+        for (const r of rels) {
+          const list = adj.get(r.sourceId);
+          if (list) list.push(r.targetId);
+          else adj.set(r.sourceId, [r.targetId]);
+        }
+        const stack = [input.targetId];
+        const seen = new Set<string>();
+        while (stack.length) {
+          const node = stack.pop()!;
+          if (node === input.sourceId) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Relationship would create a dependency cycle",
+            });
+          }
+          if (seen.has(node)) continue;
+          seen.add(node);
+          for (const next of adj.get(node) ?? []) stack.push(next);
+        }
+
         const [rel] = await db
           .insert(ciRelationships)
           .values({
