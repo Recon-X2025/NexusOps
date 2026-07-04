@@ -9,7 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import type { InferSelectModel } from "drizzle-orm";
-import type { SQL } from "@coheronconnect/db";
+import type { SQL, DbOrTx } from "@coheronconnect/db";
 import {
   chartOfAccounts as chartOfAccountsTbl,
   journalEntries as journalEntriesTbl,
@@ -91,6 +91,48 @@ const INDIA_COA_SEED = [
   { code: "5600", name: "Finance Charges",             type: "expense",   subType: "expense",             isSystem: false, parentCode: "5000" },
 ] as const;
 
+/**
+ * Idempotently seed the default India chart of accounts for an org. Safe to
+ * call repeatedly — accounts already present (by code) are skipped. Used both
+ * by the `coa.seed` mutation and at self-serve signup so a brand-new org can
+ * post journal entries (depreciation, COGS, invoice GST) from day one.
+ * Returns the number of accounts inserted.
+ */
+export async function seedChartOfAccountsForOrg(
+  db: DbOrTx,
+  orgId: string,
+): Promise<number> {
+  const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
+  const existing = await db
+    .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
+    .from(chartOfAccounts)
+    .where(dbEq(chartOfAccounts.orgId, orgId));
+  const codeToId = new Map<string, string>(existing.map((r) => [r.code, r.id]));
+
+  let seeded = 0;
+  for (const acct of INDIA_COA_SEED) {
+    if (codeToId.has(acct.code)) continue;
+    const parentId = acct.parentCode ? (codeToId.get(acct.parentCode) ?? undefined) : undefined;
+    const [inserted] = await db
+      .insert(chartOfAccounts)
+      .values({
+        orgId,
+        code: acct.code,
+        name: acct.name,
+        type: acct.type,
+        subType: acct.subType,
+        parentId,
+        isSystem: acct.isSystem,
+        openingBalance: "0",
+        currentBalance: "0",
+      })
+      .returning();
+    if (inserted) codeToId.set(acct.code, inserted.id);
+    seeded++;
+  }
+  return seeded;
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export const accountingRouter = router({
@@ -153,36 +195,8 @@ export const accountingRouter = router({
     /** Seed standard India COA (idempotent). */
     seed: permissionProcedure("financial", "write").input(z.object({}).optional()).mutation(async ({ ctx }) => {
       const { org, db } = ctx;
-      const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
       try {
-        // Build id map for parent resolution
-        const existing = await db
-          .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
-          .from(chartOfAccounts)
-          .where(dbEq(chartOfAccounts.orgId, org!.id));
-        const codeToId = new Map<string, string>(existing.map((r) => [r.code, r.id]));
-
-        let seeded = 0;
-        for (const acct of INDIA_COA_SEED) {
-          if (codeToId.has(acct.code)) continue;
-          const parentId = acct.parentCode ? (codeToId.get(acct.parentCode) ?? undefined) : undefined;
-          const [inserted] = await db
-            .insert(chartOfAccounts)
-            .values({
-              orgId: org!.id,
-              code: acct.code,
-              name: acct.name,
-              type: acct.type,
-              subType: acct.subType,
-              parentId,
-              isSystem: acct.isSystem,
-              openingBalance: "0",
-              currentBalance: "0",
-            })
-            .returning();
-          if (inserted) codeToId.set(acct.code, inserted.id);
-          seeded++;
-        }
+        const seeded = await seedChartOfAccountsForOrg(db, org!.id);
         return { seeded, total: INDIA_COA_SEED.length };
       } catch (e: unknown) {
         const err = e as { code?: string; cause?: { code?: string }; message?: string };

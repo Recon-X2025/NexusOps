@@ -19,6 +19,7 @@ import {
   desc,
 } from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
+import { seedChartOfAccountsForOrg } from "./accounting";
 import {
   SignupSchema,
   LoginSchema,
@@ -121,6 +122,16 @@ export const authRouter = router({
       .returning();
 
     await ensureDefaultTicketStatusesForOrg(db, org!.id);
+
+    // Seed the default India chart of accounts so a brand-new org can post
+    // journal entries (invoice GST, depreciation, COGS) from day one. Best-effort:
+    // if accounting tables are absent (e.g. partial migration) signup must still
+    // succeed — the COA can be seeded later via acc.coa.seed.
+    try {
+      await seedChartOfAccountsForOrg(db, org!.id);
+    } catch (err) {
+      logWarn("signup.seedChartOfAccounts.failed", { orgId: org!.id, err: String(err) });
+    }
 
     const passwordHash = await hashPassword(input.password);
     const [user] = await db
