@@ -127,7 +127,7 @@ export default function ReportsPage() {
           total: r.total,
           breached: r.breached,
           breachRate: `${r.breachRate ?? 0}%`,
-          compliance: `${r.mtd}%`,
+          compliance: r.mtd === null ? "—" : `${r.mtd}%`,
           target: r.target,
         }));
         downloadCSV(rows, fileBase, ["priority", "total", "breached", "breachRate", "compliance", "target"]);
@@ -323,10 +323,10 @@ export default function ReportsPage() {
                 <div key={row.priorityId ?? row.priority} className="border border-border rounded p-3">
                   <div className="text-[11px] font-semibold text-foreground/80 mb-1">{row.priorityName ?? row.priority}</div>
                   <div className="text-[11px] text-muted-foreground mb-2">Target: Resolve &lt; {row.target}</div>
-                  <div className={`text-3xl font-bold ${row.mtd >= 90 ? "text-green-700" : row.mtd >= 75 ? "text-yellow-600" : "text-red-600"}`}>{row.mtd}%</div>
+                  <div className={`text-3xl font-bold ${row.mtd === null ? "text-muted-foreground" : row.mtd >= 90 ? "text-green-700" : row.mtd >= 75 ? "text-yellow-600" : "text-red-600"}`}>{row.mtd === null ? "—" : `${row.mtd}%`}</div>
                   <div className="h-1.5 bg-border rounded-full overflow-hidden mt-2">
-                    <div className={`h-full rounded-full ${row.mtd >= 90 ? "bg-green-500" : row.mtd >= 75 ? "bg-yellow-400" : "bg-red-500"}`}
-                      style={{ width: `${row.mtd}%` }} />
+                    <div className={`h-full rounded-full ${row.mtd === null ? "bg-border" : row.mtd >= 90 ? "bg-green-500" : row.mtd >= 75 ? "bg-yellow-400" : "bg-red-500"}`}
+                      style={{ width: `${row.mtd ?? 0}%` }} />
                   </div>
                   <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
                     {row.trend === "up" ? <TrendingUp className="w-3 h-3 text-green-600" /> : <TrendingDown className="w-3 h-3 text-red-600" />}

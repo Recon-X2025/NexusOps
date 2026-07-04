@@ -145,8 +145,12 @@ export default function ITSMServiceDeskAnalyticsPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <MetricCard
             title="SLA compliance"
-            value={`${data.slaCompliancePct}%`}
-            hint={`${data.ticketsCreated} tickets created in window · ${data.slaBreaches} breached`}
+            value={data.slaCompliancePct === null ? "—" : `${data.slaCompliancePct}%`}
+            hint={
+              data.slaCompliancePct === null
+                ? "No tickets created in this window yet"
+                : `${data.ticketsCreated} tickets created in window · ${data.slaBreaches} breached`
+            }
           />
           <MetricCard
             title="Reopen rate"

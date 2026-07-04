@@ -203,12 +203,34 @@ export const csmRouter = router({
       /* csm_cases */
     }
 
+    // Average CSAT from submitted CSAT survey responses (null when none exist —
+    // a fresh org has no responses and should not show a fabricated 0.0).
+    let avgCsat: number | null = null;
+    try {
+      const csatRows = await db.execute(sql`
+        SELECT AVG(sr.score)::text AS avg_score, COUNT(sr.score)::text AS n
+        FROM survey_responses sr
+        JOIN surveys s ON s.id = sr.survey_id
+        WHERE s.org_id = ${org!.id}
+          AND s.type = 'csat'
+          AND sr.score IS NOT NULL
+      `);
+      const cr = (csatRows as unknown as { avg_score: string | null; n: string }[])[0];
+      if (cr && Number(cr.n) > 0 && cr.avg_score != null) {
+        avgCsat = Math.round(Number(cr.avg_score) * 100) / 100;
+      }
+    } catch {
+      /* survey_responses */
+    }
+
     return {
       totalCases,
       openCases,
       resolvedToday,
-      slaBreached: 0,
-      avgCsat: 0,
+      // csm_cases has no SLA-breach column, so this is genuinely unmeasured
+      // rather than zero. Null keeps the metric honest until a source exists.
+      slaBreached: null as number | null,
+      avgCsat,
       totalAccounts: Number(totalAccounts),
       totalContacts: Number(totalContacts),
     };

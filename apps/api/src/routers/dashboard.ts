@@ -162,10 +162,13 @@ export const dashboardRouter = router({
           .where(and(eq(okrObjectives.orgId, org!.id), eq(okrObjectives.status, "active"))),
       ]);
 
+      // No tickets ⇒ no compliance figure. Returning 100% here fabricates a
+      // green health metric for brand-new orgs; expose null so the UI can show
+      // "no data yet" instead of a misleading perfect score.
       const slaCompliance =
         totalCount && totalCount.count > 0
           ? Math.round(((totalCount.count - (slaBreachedCount?.count ?? 0)) / totalCount.count) * 100)
-          : 100;
+          : null;
 
       return {
         openTickets: openCount?.count ?? 0,

@@ -262,7 +262,7 @@ export const reportsRouter = router({
       const byPriority = priorityCounts.map((row: (typeof priorityCounts)[number]) => {
         const total = Number(row.total);
         const breached = Number(row.breached);
-        const mtd = total > 0 ? Math.round(((total - breached) / total) * 100) : 100;
+        const mtd = total > 0 ? Math.round(((total - breached) / total) * 100) : null;
         return {
           priorityId: row.priorityId,
           priorityName: row.priorityName ?? "No Priority",
@@ -273,7 +273,7 @@ export const reportsRouter = router({
           breachRate: total > 0 ? Math.round((breached / total) * 100) : 0,
           mtd,
           target: "8h",
-          trend: mtd >= 90 ? "up" : "down",
+          trend: mtd !== null && mtd >= 90 ? "up" : "down",
         };
       });
 
@@ -561,7 +561,9 @@ export const reportsRouter = router({
 
       const created = Number(createdNRow?.createdN ?? 0);
       const breached = Number(breachedNRow?.breachedN ?? 0);
-      const slaCompliancePct = created > 0 ? Math.round(((created - breached) / created) * 100) : 100;
+      // Null (not 100%) when no tickets were created in the window, so a fresh
+      // org doesn't display a fabricated perfect SLA score.
+      const slaCompliancePct = created > 0 ? Math.round(((created - breached) / created) * 100) : null;
 
       const openAgeRows = await db
         .select({
