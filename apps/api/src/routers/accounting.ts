@@ -51,6 +51,7 @@ const INDIA_COA_SEED = [
   { code: "1143", name: "SGST ITC",                    type: "asset",     subType: "other_current_asset", isSystem: true, parentCode: "1140" },
   { code: "1150", name: "TDS Receivable",              type: "asset",     subType: "other_current_asset", isSystem: true, parentCode: "1100" },
   { code: "1160", name: "Prepaid Expenses",            type: "asset",     subType: "other_current_asset", isSystem: false, parentCode: "1100" },
+  { code: "1170", name: "Inventory",                   type: "asset",     subType: "other_current_asset", isSystem: false, parentCode: "1100" },
   { code: "1200", name: "Fixed Assets",                type: "asset",     subType: "fixed_asset",         isSystem: false, parentCode: "1000" },
   { code: "1210", name: "Computer Equipment",          type: "asset",     subType: "fixed_asset",         isSystem: false, parentCode: "1200" },
   { code: "1220", name: "Furniture & Fixtures",        type: "asset",     subType: "fixed_asset",         isSystem: false, parentCode: "1200" },

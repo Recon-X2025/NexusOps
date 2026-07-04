@@ -31,6 +31,8 @@ import {
   generateDepreciationSchedule,
   type DepreciationMethod,
 } from "@coheronconnect/payroll-math";
+import { postDepreciationJournalEntry } from "../lib/depreciation-journal";
+import { currentFY } from "./accounting";
 
 type DepreciationRow = typeof assetDepreciation.$inferSelect;
 
@@ -231,6 +233,25 @@ export const depreciationRouter = router({
           return { charged: false, period, depreciation: 0, bookValue: opening };
         }
 
+        // Post the depreciation GL journal entry (Dr 5500 / Cr 1290) and link it
+        // back to the ledger row so the balance-sheet rollup ties out.
+        const jeDate = new Date();
+        const journalEntryId = await postDepreciationJournalEntry(tx, {
+          orgId: org!.id,
+          createdById: user?.id ?? null,
+          assetId: input.assetId,
+          period,
+          charge,
+          date: jeDate,
+          financialYear: currentFY(jeDate),
+        });
+        if (journalEntryId) {
+          await tx
+            .update(assetDepreciationEntries)
+            .set({ journalEntryId })
+            .where(eq(assetDepreciationEntries.id, entry.id));
+        }
+
         await tx
           .update(assetDepreciation)
           .set({
@@ -296,6 +317,25 @@ export const depreciationRouter = router({
             })
             .returning();
           if (!entry) return;
+
+          // Post the depreciation GL journal entry (Dr 5500 / Cr 1290) and link
+          // it back to the ledger row (same as `run`).
+          const jeDate = new Date();
+          const journalEntryId = await postDepreciationJournalEntry(tx, {
+            orgId: org!.id,
+            createdById: user?.id ?? null,
+            assetId: locked.assetId,
+            period,
+            charge,
+            date: jeDate,
+            financialYear: currentFY(jeDate),
+          });
+          if (journalEntryId) {
+            await tx
+              .update(assetDepreciationEntries)
+              .set({ journalEntryId })
+              .where(eq(assetDepreciationEntries.id, entry.id));
+          }
 
           await tx
             .update(assetDepreciation)
