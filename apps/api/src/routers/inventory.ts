@@ -18,6 +18,8 @@ import {
   issueWac,
   type CostLayer,
 } from "@coheronconnect/payroll-math";
+import { postInventoryCogsJournalEntry } from "../lib/inventory-journal";
+import { currentFY } from "./accounting";
 
 export const inventoryRouter = router({
   list: permissionProcedure("inventory", "read")
@@ -457,6 +459,20 @@ export const inventoryRouter = router({
               performedById: ctx.user!.id,
             })
             .returning();
+
+          // Post the COGS GL journal entry (Dr 5100 / Cr 1170) so the ledger
+          // reflects the expensed stock. Skipped (null) when the accounts aren't
+          // seeded or cogs is a no-op; the issue itself still succeeds.
+          const jeDate = new Date();
+          await postInventoryCogsJournalEntry(tx, {
+            orgId: org!.id,
+            createdById: ctx.user?.id ?? null,
+            itemId: input.itemId,
+            cogs,
+            date: jeDate,
+            financialYear: currentFY(jeDate),
+            reference: input.reference,
+          });
 
           return { transaction: txRow, cogs, qty: newQty, avgUnitCost, stockValue };
         });
