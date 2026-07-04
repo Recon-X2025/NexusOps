@@ -34,7 +34,11 @@ import {
   enqueueIrnGenerationJob,
 } from "../workflows/irnGenerationWorkflow";
 import { getWorkflowService } from "../services/workflow";
-import { postInvoiceJournalEntry } from "../lib/invoice-journal";
+import {
+  postInvoiceJournalEntry,
+  postInvoiceSettlementEntry,
+  reverseInvoiceJournalEntry,
+} from "../lib/invoice-journal";
 import { currentFY } from "./accounting";
 
 /** GST rates permitted at invoice entry; mirrors the `GSTRate` engine union. */
@@ -367,10 +371,12 @@ export const financialRouter = router({
       const rows = await db
         .select({
           id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
           invoiceFlow: invoices.invoiceFlow,
           vendorId: invoices.vendorId,
           taxableValue: invoices.taxableValue,
           amount: invoices.amount,
+          invoiceDate: invoices.invoiceDate,
         })
         .from(invoices)
         .where(and(...conditions));
@@ -391,19 +397,53 @@ export const financialRouter = router({
           orgState,
           counterpartyState: counterparty?.state ?? null,
         });
-        await db
-          .update(invoices)
-          .set({
-            taxableValue: gst.taxableValue,
-            cgstAmount: gst.cgstAmount,
-            sgstAmount: gst.sgstAmount,
-            igstAmount: gst.igstAmount,
-            totalTaxAmount: gst.totalTaxAmount,
-            isInterstate: gst.isInterstate,
-            amount: gst.amount,
-            updatedAt: new Date(),
-          })
-          .where(eq(invoices.id, row.id));
+        const flow = row.invoiceFlow === "receivable" ? "receivable" : "payable";
+        const jeDate = row.invoiceDate ?? new Date();
+        // Rewrite the amounts, reverse any stale invoice JE, and re-post at the
+        // new figures — all atomically so the ledger never diverges from the
+        // invoice. If no JE was ever posted, the reversal is a no-op and we
+        // simply post the fresh entry.
+        await db.transaction(async (tx) => {
+          await tx
+            .update(invoices)
+            .set({
+              taxableValue: gst.taxableValue,
+              cgstAmount: gst.cgstAmount,
+              sgstAmount: gst.sgstAmount,
+              igstAmount: gst.igstAmount,
+              totalTaxAmount: gst.totalTaxAmount,
+              isInterstate: gst.isInterstate,
+              amount: gst.amount,
+              updatedAt: new Date(),
+            })
+            .where(eq(invoices.id, row.id));
+          const reversed = await reverseInvoiceJournalEntry(tx, {
+            orgId: org!.id,
+            createdById: ctx.user!.id,
+            invoiceNumber: row.invoiceNumber,
+            date: jeDate,
+            financialYear: currentFY(jeDate),
+          });
+          // Only re-post when we reversed an existing entry; otherwise the
+          // create/receivable path (or a later backfillInvoiceJournals run) owns
+          // the initial posting.
+          if (reversed) {
+            await postInvoiceJournalEntry(tx, {
+              orgId: org!.id,
+              createdById: ctx.user!.id,
+              invoiceFlow: flow,
+              invoiceNumber: row.invoiceNumber,
+              date: jeDate,
+              taxableValue: Number(gst.taxableValue),
+              cgstAmount: Number(gst.cgstAmount),
+              sgstAmount: Number(gst.sgstAmount),
+              igstAmount: Number(gst.igstAmount),
+              isInterstate: gst.isInterstate,
+              grossTotal: Number(gst.amount),
+              financialYear: currentFY(jeDate),
+            });
+          }
+        });
         updated.push({
           id: row.id,
           taxableValue: Number(gst.taxableValue),
@@ -596,10 +636,25 @@ export const financialRouter = router({
         });
       }
 
-      const [inv] = await db.update(invoices)
-        .set({ status: "paid", paidAt: new Date(), paymentMethod: input.paymentMethod, updatedAt: new Date() })
-        .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)))
-        .returning();
+      // Flip the status and post the settlement entry atomically so the AP/AR
+      // control account is relieved against cash in the same transaction.
+      const paidAt = new Date();
+      const inv = await db.transaction(async (tx) => {
+        const [row] = await tx.update(invoices)
+          .set({ status: "paid", paidAt, paymentMethod: input.paymentMethod, updatedAt: paidAt })
+          .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)))
+          .returning();
+        await postInvoiceSettlementEntry(tx, {
+          orgId: org!.id,
+          createdById: user!.id,
+          invoiceFlow: existing.invoiceFlow === "receivable" ? "receivable" : "payable",
+          invoiceNumber: existing.invoiceNumber,
+          date: paidAt,
+          grossTotal: Number(existing.amount),
+          financialYear: currentFY(paidAt),
+        });
+        return row;
+      });
       return inv;
     }),
 
