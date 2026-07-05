@@ -15,6 +15,7 @@ import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import { ciItems } from "./assets";
 import { knownErrors } from "./changes";
+import { deployments } from "./devops";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const ticketTypeEnum = pgEnum("ticket_type", [
@@ -176,6 +177,8 @@ export const tickets = pgTable(
     parentTicketId: uuid("parent_ticket_id").references((): AnyPgColumn => tickets.id, {
       onDelete: "set null",
     }),
+    /** Deploy→incident linkage for MTTR (Sprint 3.4b). Nullable ref → SET NULL. */
+    deploymentId: uuid("deployment_id").references(() => deployments.id, { onDelete: "set null" }),
     intakeChannel: text("intake_channel").notNull().default("portal"),
     resolutionNotes: text("resolution_notes"),
     escalationLevel: integer("escalation_level").notNull().default(0),
@@ -208,6 +211,7 @@ export const tickets = pgTable(
     requesterIdx: index("tickets_requester_idx").on(t.requesterId),
     createdAtIdx: index("tickets_created_at_idx").on(t.createdAt),
     parentIdx: index("tickets_parent_ticket_id_idx").on(t.parentTicketId),
+    deploymentIdx: index("tickets_deployment_idx").on(t.deploymentId),
     // Partial unique index: only enforce uniqueness when the key is non-null.
     // Allows unlimited inserts without a key while deduplicating keyed requests.
     idempotencyKeyIdx: uniqueIndex("tickets_idempotency_key_idx")

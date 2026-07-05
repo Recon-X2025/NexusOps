@@ -183,6 +183,13 @@
       "when": 1783189810868,
       "tag": "0025_mean_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783274142121,
+      "tag": "0026_redundant_daredevil",
+      "breakpoints": true
     }
   ]
 }

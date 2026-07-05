@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
-import { pipelineRuns, deployments, pipelineStatusEnum, deploymentEnvEnum, deploymentStatusEnum, eq, and, desc, count, avg, sql } from "@coheronconnect/db";
+import { pipelineRuns, deployments, tickets, pipelineStatusEnum, deploymentEnvEnum, deploymentStatusEnum, eq, and, desc, count, avg, sql, isNotNull } from "@coheronconnect/db";
+import { createIncidentFromSystem } from "../services/itom-correlation";
 
 export const devopsRouter = router({
   // ── Pipeline Runs ──────────────────────────────────────────────────────────
@@ -68,6 +69,28 @@ export const devopsRouter = router({
       const [dep] = await db.update(deployments)
         .set({ status: input.status, durationSeconds: input.durationSeconds, completedAt: new Date() })
         .where(and(eq(deployments.id, input.id), eq(deployments.orgId, org!.id))).returning();
+
+      // Deploy→incident linkage for MTTR (Sprint 3.4b). On a failed deployment,
+      // auto-create a linked incident. Guarded: runs AFTER the status update has
+      // returned and never rolls it back (mirrors the invoice post-commit hook).
+      if (dep && input.status === "failed") {
+        try {
+          await createIncidentFromSystem(db, {
+            orgId: org!.id,
+            title: `Deployment failed: ${dep.appName} ${dep.version} (${dep.environment})`,
+            description:
+              `Auto-created by the deploy pipeline.\n` +
+              `App: ${dep.appName}\nVersion: ${dep.version}\nEnvironment: ${dep.environment}`,
+            isMajorIncident: dep.environment === "production",
+            deploymentId: dep.id,
+            intakeChannel: "devops",
+            source: "devops",
+          });
+        } catch (err) {
+          console.error("[devops] auto-incident on deploy failure failed", dep.id, (err as Error).message);
+        }
+      }
+
       return dep;
     }),
 
@@ -85,17 +108,39 @@ export const devopsRouter = router({
     const [avgDuration] = await db.select({ avg: avg(deployments.durationSeconds) }).from(deployments)
       .where(and(eq(deployments.orgId, org!.id), eq(deployments.environment, "production"), eq(deployments.status, "success"), sql`started_at >= ${thirtyDaysAgo.toISOString()}`));
 
+    // MTTR (Sprint 3.4b): mean time to restore for production deployments in the
+    // last 30d that FAILED and have a linked incident that has been resolved.
+    // avg(resolved_at − deployment.completed_at) in minutes; null when none.
+    const [mttrRow] = await db
+      .select({
+        avgMinutes: sql<number | null>`avg(extract(epoch from (${tickets.resolvedAt} - ${deployments.completedAt})) / 60)`,
+      })
+      .from(deployments)
+      .innerJoin(tickets, eq(tickets.deploymentId, deployments.id))
+      .where(
+        and(
+          eq(deployments.orgId, org!.id),
+          eq(deployments.environment, "production"),
+          eq(deployments.status, "failed"),
+          isNotNull(deployments.completedAt),
+          isNotNull(tickets.resolvedAt),
+          sql`${deployments.startedAt} >= ${thirtyDaysAgo.toISOString()}`,
+        ),
+      );
+
     const totalDeploys = Number(deplCount?.cnt ?? 0);
     const failedDeploys = Number(failCount?.cnt ?? 0);
     const changeFailureRate = totalDeploys > 0 ? ((failedDeploys / totalDeploys) * 100).toFixed(1) : null;
     const avgSec = Number(avgDuration?.avg ?? 0);
     const leadTimeMinutes = totalDeploys > 0 && avgSec > 0 ? Math.round(avgSec / 60) : null;
+    const mttrRaw = mttrRow?.avgMinutes;
+    const mttrMinutes = mttrRaw != null && Number(mttrRaw) > 0 ? Math.round(Number(mttrRaw)) : null;
 
     return {
       deploymentFrequency: totalDeploys > 0 ? (totalDeploys / 30).toFixed(2) : "0",
       leadTimeMinutes,
       changeFailureRate: changeFailureRate != null ? `${changeFailureRate}%` : null,
-      mttrMinutes: null,
+      mttrMinutes,
       totalDeploys30d: totalDeploys,
     };
   }),

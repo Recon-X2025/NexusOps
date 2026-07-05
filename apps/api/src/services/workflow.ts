@@ -64,6 +64,12 @@ import {
   startEscalationWorker,
   type EscalationJobData,
 } from "../workflows/escalationWorkflow";
+import {
+  createCorrelationQueue,
+  scheduleCorrelationSweep,
+  startCorrelationWorker,
+  type CorrelationJobData,
+} from "../workflows/correlationWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -76,6 +82,7 @@ interface WorkflowServiceInstance {
   workflowTriggerQueue: Queue<WorkflowTriggerJobData>;
   webhookDispatchQueue: Queue<WebhookDispatchJobData>;
   escalationQueue: Queue<EscalationJobData>;
+  correlationQueue: Queue<CorrelationJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -95,6 +102,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const workflowTriggerQueue = createWorkflowTriggerQueue();
   const webhookDispatchQueue = createWebhookDispatchQueue();
   const escalationQueue = createEscalationQueue();
+  const correlationQueue = createCorrelationQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -106,6 +114,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const workflowTriggerWorker = startWorkflowTriggerWorker(db);
   const webhookDispatchWorker = startWebhookDispatchWorker(db);
   const escalationWorker = startEscalationWorker(db);
+  const correlationWorker = startCorrelationWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -122,6 +131,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   // On-call escalation sweeper (Sprint 3.4a).
   scheduleEscalationSweep(escalationQueue).catch((err) => {
     console.warn("[workflow:escalation] Failed to register escalation sweeper:", err);
+  });
+  // ITOM correlation sweeper (Sprint 3.4b).
+  scheduleCorrelationSweep(correlationQueue).catch((err) => {
+    console.warn("[workflow:correlation] Failed to register correlation sweeper:", err);
   });
 
   approvalWorker.on("failed", (job, err) => {
@@ -154,6 +167,9 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   escalationWorker.on("failed", (job, err) => {
     console.error(`[workflow:escalation] Job ${job?.id} failed:`, err.message);
   });
+  correlationWorker.on("failed", (job, err) => {
+    console.error(`[workflow:correlation] Job ${job?.id} failed:`, err.message);
+  });
 
   _instance = {
     approvalQueue,
@@ -166,6 +182,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     workflowTriggerQueue,
     webhookDispatchQueue,
     escalationQueue,
+    correlationQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -178,6 +195,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         workflowTriggerWorker.close(),
         webhookDispatchWorker.close(),
         escalationWorker.close(),
+        correlationWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
@@ -188,6 +206,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         workflowTriggerQueue.close(),
         webhookDispatchQueue.close(),
         escalationQueue.close(),
+        correlationQueue.close(),
       ]);
       _instance = undefined;
     },
