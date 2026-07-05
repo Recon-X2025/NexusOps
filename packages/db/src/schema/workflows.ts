@@ -21,6 +21,12 @@ export const workflowTriggerTypeEnum = pgEnum("workflow_trigger_type", [
   "scheduled",
   "manual",
   "webhook",
+  // Sprint 3.3 — event-triggered workflows for non-ticket entities.
+  "employee_created",
+  "employee_updated",
+  "asset_created",
+  "invoice_created",
+  "contract_created",
 ]);
 
 export const workflowRunStatusEnum = pgEnum("workflow_run_status", [

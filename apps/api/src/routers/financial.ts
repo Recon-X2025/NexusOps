@@ -40,6 +40,8 @@ import {
   reverseInvoiceJournalEntry,
 } from "../lib/invoice-journal";
 import { currentFY } from "./accounting";
+import { runEntityBusinessRules } from "../services/business-rules-engine";
+import { emitDomainEvent } from "../services/workflow-events";
 
 /** GST rates permitted at invoice entry; mirrors the `GSTRate` engine union. */
 const GST_RATE_INPUT = z
@@ -259,6 +261,15 @@ export const financialRouter = router({
         });
         return row;
       });
+
+      // Fire-and-forget automation hooks — AFTER the TX commits, so a failing
+      // rule/webhook can never roll back the invoice + its journal entry.
+      if (inv) {
+        const entity = inv as unknown as Record<string, unknown>;
+        void runEntityBusinessRules(db, { orgId: org!.id, entityType: "invoice", event: "created", entity, changes: {} });
+        void emitDomainEvent(db, { orgId: org!.id, type: "invoice_created", payload: { invoiceId: inv.id } });
+      }
+
       return { ...inv, duplicatePayableWarning: dup > 0 && policy === "warn" };
     }),
 

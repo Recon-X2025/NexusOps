@@ -35,6 +35,8 @@ import {
 } from "@coheronconnect/db";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { CreateLeaveRequestSchema } from "@coheronconnect/types";
+import { runEntityBusinessRules } from "../services/business-rules-engine";
+import { emitDomainEvent } from "../services/workflow-events";
 
 export const hrRouter = router({
   /** Compact counts for platform home (US-HCM-004). */
@@ -233,6 +235,13 @@ export const hrRouter = router({
           })
           .returning();
 
+        // Fire-and-forget automation hooks (never roll back the create).
+        if (employee) {
+          const entity = employee as unknown as Record<string, unknown>;
+          void runEntityBusinessRules(db, { orgId: org!.id, entityType: "employee", event: "created", entity, changes: {} });
+          void emitDomainEvent(db, { orgId: org!.id, type: "employee_created", payload: { employeeId: employee.id } });
+        }
+
         return employee;
       }),
 
@@ -255,6 +264,15 @@ export const hrRouter = router({
           .where(and(eq(employees.id, id), eq(employees.orgId, org!.id)))
           .returning();
         if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
+
+        // Fire-and-forget automation hooks. `changes` keys off the supplied
+        // update fields (the columns the caller intended to change).
+        const changes: Record<string, { from: unknown; to: unknown }> = {};
+        for (const [k, v] of Object.entries(data)) changes[k] = { from: undefined, to: v };
+        const entity = emp as unknown as Record<string, unknown>;
+        void runEntityBusinessRules(db, { orgId: org!.id, entityType: "employee", event: "updated", entity, changes });
+        void emitDomainEvent(db, { orgId: org!.id, type: "employee_updated", payload: { employeeId: emp.id } });
+
         return emp;
       }),
   }),

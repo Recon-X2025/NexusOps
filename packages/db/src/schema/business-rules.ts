@@ -3,7 +3,7 @@ import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
 
 /** Supported record types for rule evaluation (extend over time). */
-export type BusinessRuleEntityType = "ticket";
+export type BusinessRuleEntityType = "ticket" | "employee" | "asset" | "invoice" | "contract";
 
 /**
  * Org-scoped automation: when `events` fire on `entity_type`, if all `conditions`

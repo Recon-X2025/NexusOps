@@ -6,9 +6,8 @@
  * this bus finds active `workflows` whose `triggerType` matches the event and
  * dispatches their action nodes via the entity-agnostic action runtime.
  *
- * This module wires the emitter. Invoking `emitDomainEvent` from the actual
- * entity create/update hooks (ticket/HR/asset/invoice/contract) is Sprint 3.3
- * and intentionally out of scope here — so no existing hook is touched yet.
+ * This module wires the emitter. As of Sprint 3.3 it is invoked (fire-and-forget)
+ * from the ticket/HR/asset/invoice/contract create/update hooks.
  *
  * Also fans the event out to the outbound webhook dispatcher via
  * `enqueueWebhookEvent`, so a single domain event both runs internal workflows
@@ -32,7 +31,12 @@ import { enqueueWebhookEvent } from "../workflows/webhookDispatchWorkflow";
 export type DomainEventType =
   | "ticket_created"
   | "ticket_updated"
-  | "status_changed";
+  | "status_changed"
+  | "employee_created"
+  | "employee_updated"
+  | "asset_created"
+  | "invoice_created"
+  | "contract_created";
 
 export interface EmitDomainEventParams {
   orgId: string;

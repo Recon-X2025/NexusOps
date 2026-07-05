@@ -4,6 +4,8 @@ import { z } from "zod";
 import { contracts, contractObligations, contractStatusEnum, contractTypeEnum, obligationStatusEnum, obligationFrequencyEnum, eq, and, desc, count, inArray, sql } from "@coheronconnect/db";
 import { supportedCurrencyCodeSchema } from "@coheronconnect/types";
 import { getNextNumber } from "../lib/auto-number";
+import { runEntityBusinessRules } from "../services/business-rules-engine";
+import { emitDomainEvent } from "../services/workflow-events";
 
 const CONTRACT_STATE_MACHINE: Record<string, string[]> = {
   // FIX: 2026-03-25 — "cancelled" not in DB enum; replaced with "terminated" for draft→exit
@@ -78,6 +80,14 @@ export const contractsRouter = router({
         startDate: input.startDate ? new Date(input.startDate) : undefined,
         endDate: input.endDate ? new Date(input.endDate) : undefined,
       }).returning();
+
+      // Fire-and-forget automation hooks (never roll back the create).
+      if (contract) {
+        const entity = contract as unknown as Record<string, unknown>;
+        void runEntityBusinessRules(db, { orgId: org!.id, entityType: "contract", event: "created", entity, changes: {} });
+        void emitDomainEvent(db, { orgId: org!.id, type: "contract_created", payload: { contractId: contract.id } });
+      }
+
       return contract;
     }),
 

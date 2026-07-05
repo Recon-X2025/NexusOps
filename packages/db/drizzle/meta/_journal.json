@@ -176,6 +176,13 @@
       "when": 1783179901473,
       "tag": "0024_shallow_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783189810868,
+      "tag": "0025_mean_shriek",
+      "breakpoints": true
     }
   ]
 }

@@ -58,6 +58,12 @@ import {
   startWebhookDispatchWorker,
   type WebhookDispatchJobData,
 } from "../workflows/webhookDispatchWorkflow";
+import {
+  createEscalationQueue,
+  scheduleEscalationSweep,
+  startEscalationWorker,
+  type EscalationJobData,
+} from "../workflows/escalationWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -69,6 +75,7 @@ interface WorkflowServiceInstance {
   notificationDispatchQueue: Queue<NotificationDispatchJobData>;
   workflowTriggerQueue: Queue<WorkflowTriggerJobData>;
   webhookDispatchQueue: Queue<WebhookDispatchJobData>;
+  escalationQueue: Queue<EscalationJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -87,6 +94,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const notificationDispatchQueue = createNotificationDispatchQueue();
   const workflowTriggerQueue = createWorkflowTriggerQueue();
   const webhookDispatchQueue = createWebhookDispatchQueue();
+  const escalationQueue = createEscalationQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -97,6 +105,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const notificationDispatchWorker = startNotificationDispatchWorker(db);
   const workflowTriggerWorker = startWorkflowTriggerWorker(db);
   const webhookDispatchWorker = startWebhookDispatchWorker(db);
+  const escalationWorker = startEscalationWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -109,6 +118,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   });
   scheduleWebhookDispatchSweep(webhookDispatchQueue).catch((err) => {
     console.warn("[workflow:webhook] Failed to register outbound webhook dispatcher:", err);
+  });
+  // On-call escalation sweeper (Sprint 3.4a).
+  scheduleEscalationSweep(escalationQueue).catch((err) => {
+    console.warn("[workflow:escalation] Failed to register escalation sweeper:", err);
   });
 
   approvalWorker.on("failed", (job, err) => {
@@ -138,6 +151,9 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   webhookDispatchWorker.on("failed", (job, err) => {
     console.error(`[workflow:webhook] Job ${job?.id} failed:`, err.message);
   });
+  escalationWorker.on("failed", (job, err) => {
+    console.error(`[workflow:escalation] Job ${job?.id} failed:`, err.message);
+  });
 
   _instance = {
     approvalQueue,
@@ -149,6 +165,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     notificationDispatchQueue,
     workflowTriggerQueue,
     webhookDispatchQueue,
+    escalationQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -160,6 +177,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         notificationDispatchWorker.close(),
         workflowTriggerWorker.close(),
         webhookDispatchWorker.close(),
+        escalationWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
@@ -169,6 +187,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         notificationDispatchQueue.close(),
         workflowTriggerQueue.close(),
         webhookDispatchQueue.close(),
+        escalationQueue.close(),
       ]);
       _instance = undefined;
     },

@@ -25,6 +25,8 @@ type CIItem = typeof ciItems.$inferSelect;
 type CIRelationship = typeof ciRelationships.$inferSelect;
 type SoftwareLicense = typeof softwareLicenses.$inferSelect;
 import { CreateAssetSchema } from "@coheronconnect/types";
+import { runEntityBusinessRules } from "../services/business-rules-engine";
+import { emitDomainEvent } from "../services/workflow-events";
 
 export const assetsRouter = router({
   list: permissionProcedure("cmdb", "read")
@@ -122,6 +124,13 @@ export const assetsRouter = router({
       action: "created",
       details: { assetTag },
     });
+
+    // Fire-and-forget automation hooks (never roll back the create).
+    if (asset) {
+      const entity = asset as unknown as Record<string, unknown>;
+      void runEntityBusinessRules(db, { orgId: org!.id, entityType: "asset", event: "created", entity, changes: {} });
+      void emitDomainEvent(db, { orgId: org!.id, type: "asset_created", payload: { assetId: asset.id } });
+    }
 
     return asset;
   }),
