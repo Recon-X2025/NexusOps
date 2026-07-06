@@ -8,12 +8,16 @@ import {
   invoices,
   projects,
   okrObjectives,
+  surveys,
+  surveyResponses,
   eq,
   and,
   count,
   sum,
+  avg,
   sql,
   gte,
+  isNotNull,
 } from "@coheronconnect/db";
 import { getRedis } from "../lib/redis";
 import { rateLimit } from "../lib/rate-limit";
@@ -53,6 +57,7 @@ export const dashboardRouter = router({
 
     return getCached(cacheKey, async () => {
       const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
+      const csatSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
       const [
         [openCount],
@@ -69,6 +74,7 @@ export const dashboardRouter = router({
         [assetsCountRow],
         [activeProjectsCount],
         [activeOkrsCount],
+        [csatRow],
       ] = await Promise.all([
         db
           .select({ count: count() })
@@ -160,6 +166,19 @@ export const dashboardRouter = router({
           .select({ count: count() })
           .from(okrObjectives)
           .where(and(eq(okrObjectives.orgId, org!.id), eq(okrObjectives.status, "active"))),
+        // CSAT (last 30d): org + type + non-null score scoped. Returns avg + count.
+        db
+          .select({ avgScore: avg(surveyResponses.score), n: count(surveyResponses.score) })
+          .from(surveyResponses)
+          .innerJoin(surveys, eq(surveyResponses.surveyId, surveys.id))
+          .where(
+            and(
+              eq(surveys.orgId, org!.id),
+              eq(surveys.type, "csat"),
+              isNotNull(surveyResponses.score),
+              gte(surveyResponses.submittedAt, csatSince),
+            ),
+          ),
       ]);
 
       // No tickets ⇒ no compliance figure. Returning 100% here fabricates a
@@ -168,6 +187,13 @@ export const dashboardRouter = router({
       const slaCompliance =
         totalCount && totalCount.count > 0
           ? Math.round(((totalCount.count - (slaBreachedCount?.count ?? 0)) / totalCount.count) * 100)
+          : null;
+
+      // No CSAT responses ⇒ null (never a fabricated score). Rounded to 1dp on a 1–5 scale.
+      const csatCount = Number(csatRow?.n ?? 0);
+      const csatAvg =
+        csatCount > 0 && csatRow?.avgScore != null
+          ? Math.round(Number(csatRow.avgScore) * 10) / 10
           : null;
 
       return {
@@ -186,6 +212,8 @@ export const dashboardRouter = router({
         totalAssets: assetsCountRow?.count ?? 0,
         activeProjects: activeProjectsCount?.count ?? 0,
         activeOkrs: activeOkrsCount?.count ?? 0,
+        csatScore: csatAvg,
+        csatResponses: csatCount,
       };
     }).then((v) => {
       console.info("dashboard.getMetrics", { duration: Date.now() - start, orgId: org?.id });
