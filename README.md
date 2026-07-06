@@ -49,19 +49,33 @@ coheronconnect/
 
 ## Modules
 
-| Module | Status | Description |
-|---|---|---|
-| ITSM — Ticket Engine | ✅ | Incidents, requests, problems, changes with SLA tracking |
-| Visual Workflow Engine | ✅ | No-code automation with Temporal.io backend |
-| Asset Management + CMDB | ✅ | ITAM, topology graph, license management |
-| Self-Service Portal | ✅ | Employee-facing portal with KB and request templates |
-| Dashboards + Reports | ✅ | Real-time metrics, time-series charts, CSV/PDF export |
-| People Ops (HR) | ✅ | Onboarding, leave management, org chart |
-| Procurement | ✅ | PR → PO → invoice 3-way match, vendor management |
-| AI Layer | ✅ | Smart classification, NL search, resolution suggestions |
-| Integrations | ✅ | Slack, Teams, Email, Jira, SAP, webhooks |
-| Self-Hosted Deploy | ✅ | Docker Compose + Helm + CLI |
-| Coheron-Managed | ✅ | Terraform IaC for AWS/GCP/Azure |
+Status is scored against category leaders, not marked "done": **REAL** (production-grade),
+**PARTIAL** (usable, known gaps), **STUB** (schema/scaffold only). The maturity number is
+from the 2026-07-03 code-grounded gap audit. The recurring pattern across the platform is
+*correct data model, missing computation/automation* — the schema usually stores the right
+thing, but the intelligence (depreciation, balance sheet, health scores) or the closing of
+automation loops (triggers, webhooks, escalation timers) is what lags. Cross-cluster average
+maturity is **≈50/100**.
+
+| Module / cluster | Status | Maturity | Notes |
+|---|---|---|---|
+| People Ops (HR) | PARTIAL | ~68 | Onboarding, leave, org chart; India payroll/tax is production-grade (~80). Gratuity + leave accrual/carry-forward are the statutory holes. |
+| Platform (workflow / integrations) | PARTIAL | ~60 | Visual workflow engine (Temporal); scheduled triggers + outbound webhooks + generalised business-rule engine now shipped (commits `6bfb7bf`, `4128906`). Slack/Teams/Email/Jira/SAP connectors. |
+| ITSM — Ticket Engine + CMDB | PARTIAL | ~55 | Incidents/requests/problems/changes + SLA; CMDB with cycle detection. ITOM event correlation, on-call escalation timers, and deploy→incident MTTR now fired (commits `4128906`, `7ca2ab2`); CSAT loop in flight on `feat/csat-loop`. |
+| Governance | PARTIAL | ~55 | Approvals, audit log (redacted keys). Tamper-evident (hash-chain / WORM) audit still open. |
+| GRC | PARTIAL | ~55 | Risks, controls, security incidents, vulnerabilities. **DPDP privacy (consent / DSR / breach) is the largest regulatory hole.** |
+| CRM | PARTIAL | ~45 | Accounts/contacts/deals/leads. Lead scoring + lossless lead→deal conversion + CPQ tax/GST are gaps. |
+| Finance / Procurement | PARTIAL | ~42 | PR→PO→invoice 3-way match; GST/GL posting, depreciation + COGS journals now auto-posted. Balance sheet + real accrual accounts still to close. |
+| IT Asset (ITAM / SAM) | PARTIAL | ~42 | Asset register, license management. SAM installed-vs-entitled reconciliation is the audit-risk gap. |
+| Legal | PARTIAL | ~40 | Matters, requests, contract obligations, investigations. |
+| Self-Service Portal | REAL | — | Employee-facing portal with KB + request templates. |
+| Dashboards + Reports | REAL | — | Real-time metrics, time-series, CSV/PDF export; empty orgs report `null`, never fabricated scores. |
+| AI Layer | PARTIAL | — | Smart classification, NL search, resolution suggestions (Anthropic Claude API). |
+| Self-Hosted Deploy | REAL | — | Docker Compose + Helm + CLI. |
+| Coheron-Managed | REAL | — | Terraform IaC for AWS/GCP/Azure. |
+
+> **Full gap detail:** `docs/PLATFORM_GAP_INDEX_2026-07-03.md` (module-by-module, `file:line`-cited)
+> and `docs/COMPETITIVE_GAP_ANALYSIS_2026-06-30.md` (benchmarked vs 2026 category leaders).
 
 ## API surfaces (for developers)
 
@@ -74,9 +88,12 @@ coheronconnect/
 | **Payslip PDF** | Browser: `/api/payroll/payslip-pdf/<payslipId>` (Next proxy) → API `GET /payroll/payslip-pdf/<id>`. Only the payslip’s employee may download. |
 | **Payroll run pipeline** | `payroll.runs.lockPeriod` (draft → period locked + run totals), `advanceComputationStep` (gross → TDS), `computePayslips` (persist `payslips` rows), then HR / Finance / CFO approvals. |
 | **AP / AR invoices** | `invoices.invoice_flow` is **`payable`** or **`receivable`**. **`financial.listInvoices`** supports optional **`direction`**, joins vendor for display names, and returns **`totalAmount`** / **`direction`** for each row. **`financial.createReceivableInvoice`** creates AR rows (customer as a `vendors` row). Web **Financial** area includes AP + AR flows; **`financial.apAging`** is **payable** outstanding only. |
-| **Dashboard metrics** | **`dashboard.getMetrics`** includes org KPIs such as open incidents, AP/AR outstanding, and asset counts (consumers: web dashboard, mobile). |
+| **Dashboard metrics** | **`dashboard.getMetrics`** includes org KPIs such as open incidents, AP/AR outstanding, asset counts, and (for orgs with responses) org-scoped, type-filtered **`csatScore`** / **`csatResponses`** — `null` when there are no responses, never a fabricated score (consumers: web dashboard, mobile). |
 | **Workflow publish + Temporal** | By default, **`workflows.publish`** tolerates a missing Temporal worker (degraded run metadata). Set **`COHERONCONNECT_WORKFLOW_ENGINE_REQUIRED=true`** (or **`WORKFLOW_ENGINE_REQUIRED`**) in `.env` to **fail publish** with **`PRECONDITION_FAILED`** and roll back activation if Temporal cannot start the run. See `.env.example` near **`TEMPORAL_*`**. |
 | **Audit logs** | Successful mutations write **`audit_logs`** with **redacted** sensitive keys (passwords, tokens, API keys, etc.) via shared sanitization in the API. **`admin.auditLog.list`** paginates entries for admins. |
+| **Workflow automation loop** | Scheduled triggers + an outbound webhook dispatcher close the automation loop (commit `6bfb7bf`); the business-rule engine is generalised beyond tickets (commit `4128906`). Dispatch is best-effort and never rolls back the source mutation. |
+| **ITSM loops** | **ITOM event correlation** auto-populates `itom_events.linked_incident_id` and evaluates suppression/correlation policies; **on-call escalation timers** and **deploy→incident MTTR** (via a `tickets.deploymentId` link, surfaced in `devops.doraMetrics`) are wired (commits `4128906`, `7ca2ab2`). All loops are best-effort — they never roll back the triggering write. |
+| **CSAT loop** (branch `feat/csat-loop`, not yet merged) | On ticket resolve, **`services/csat.ts::triggerCsatForResolvedTicket`** mints a one-time survey invite + notifies the requester (in-app / email per config). Per-org config lives in **`csat_settings`** (`enabled`, `channel`, `suppressionWindowHours`, `expiryDays`) via **`surveys.getCsatSettings`** / **`updateCsatSettings`**. Public capture at `GET/POST /public/surveys/:token`. Aggregation is org-scoped + `type='csat'` filtered across `dashboard`, `reports`, and `csm`. |
 
 ## Run everything locally
 

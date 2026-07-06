@@ -1,6 +1,8 @@
 import {
+  boolean,
   decimal,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -97,6 +99,28 @@ export const surveyInvites = pgTable(
     tokenUidx: index("survey_invites_token_hash_uidx").on(t.tokenHash),
     orgIdx: index("survey_invites_org_idx").on(t.orgId, t.createdAt),
     ticketIdx: index("survey_invites_ticket_idx").on(t.ticketId),
+  }),
+);
+
+// ── CSAT settings (per-org config for the ticket-resolve CSAT loop) ─────────
+export const csatChannelEnum = pgEnum("csat_channel", ["in_app", "email", "both"]);
+
+export const csatSettings = pgTable(
+  "csat_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    channel: csatChannelEnum("channel").notNull().default("both"),
+    // Don't survey the same requester more than once per this many hours.
+    suppressionWindowHours: integer("suppression_window_hours").notNull().default(24),
+    // Invite deeplink validity.
+    expiryDays: integer("expiry_days").notNull().default(14),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("csat_settings_org_idx").on(t.orgId),
   }),
 );
 

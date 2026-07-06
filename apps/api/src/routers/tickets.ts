@@ -1,9 +1,10 @@
 import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { sendNotification } from "../services/notifications";
 import { runTicketBusinessRules } from "../services/business-rules-engine";
+import { triggerCsatForResolvedTicket } from "../services/csat";
 import { checkDbUserPermission } from "../lib/rbac-db";
 import { getNextSeq } from "../lib/auto-number";
 import { resolveAssignment } from "../services/assignment";
@@ -1480,88 +1481,19 @@ export const ticketsRouter = router({
         }
       }
 
-      // CSAT trigger on resolve (P1-10). Best-effort: create/reuse an active CSAT survey,
-      // generate a one-time public invite token, and notify requester via in-app + email.
+      // CSAT trigger on resolve (P1-10). Best-effort, config-enforced, extracted to
+      // services/csat.ts. Never throws / never rolls back the ticket update above.
       if (shouldTriggerCsat) {
-        try {
-          const { surveys, surveyInvites } = await import("@coheronconnect/db");
-
-          // One survey per ticket: skip if an invite already exists for this ticket
-          // (e.g. ticket re-opened and resolved again). Enforces one-response per ticket.
-          const [existingInvite] = await db
-            .select({ id: surveyInvites.id })
-            .from(surveyInvites)
-            .where(and(eq(surveyInvites.orgId, org!.id), eq(surveyInvites.ticketId, updated.id)))
-            .limit(1);
-
-          if (!existingInvite) {
-            let [csat] = await db
-              .select()
-              .from(surveys)
-              .where(
-                and(
-                  eq(surveys.orgId, org!.id),
-                  eq(surveys.type, "csat"),
-                  eq(surveys.status, "active"),
-                ),
-              )
-              .limit(1);
-
-            if (!csat) {
-              const [created] = await db
-                .insert(surveys)
-                .values({
-                  orgId: org!.id,
-                  title: "Ticket CSAT (auto)",
-                  description: "Auto-triggered after ticket resolution.",
-                  type: "csat",
-                  status: "active",
-                  questions: [],
-                  triggerEvent: "ticket.resolved",
-                  createdById: user!.id,
-                })
-                .returning();
-              csat = created;
-            }
-
-            const token = randomBytes(24).toString("hex");
-            const tokenHash = createHash("sha256").update(token).digest("hex");
-            const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-
-            await db.insert(surveyInvites).values({
-              orgId: org!.id,
-              surveyId: csat!.id,
-              ticketId: updated.id,
-              requesterId: updated.requesterId ?? null,
-              tokenHash,
-              status: "sent",
-              expiresAt,
-            });
-
-            const [reqUser] = await db
-              .select({ email: users.email })
-              .from(users)
-              .where(and(eq(users.id, updated.requesterId), eq(users.orgId, org!.id)))
-              .limit(1);
-
-            const link = `/survey/${token}`;
-            await sendNotification(
-              {
-                orgId: org!.id,
-                userId: updated.requesterId,
-                title: `Rate your ticket experience: ${updated.number}`,
-                body: `How was the support you received for “${updated.title}”? It takes 5 seconds.`,
-                link,
-                type: "info",
-                sourceType: "ticket",
-                sourceId: updated.id,
-              },
-              reqUser?.email,
-            );
-          }
-        } catch (err) {
-          console.warn("[tickets.update] CSAT trigger failed (non-fatal):", err);
-        }
+        await triggerCsatForResolvedTicket(db, {
+          orgId: org!.id,
+          createdById: user!.id,
+          ticket: {
+            id: updated.id,
+            number: updated.number,
+            title: updated.title,
+            requesterId: updated.requesterId ?? null,
+          },
+        });
       }
 
       // Enqueue embedding refresh when meaningful content changes or when the

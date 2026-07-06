@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { surveys, surveyResponses, surveyStatusEnum, surveyTypeEnum, eq, and, desc, count, avg } from "@coheronconnect/db";
+import { surveys, surveyResponses, surveyStatusEnum, surveyTypeEnum, csatSettings, csatChannelEnum, eq, and, desc, count, avg } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 
 export const surveysRouter = router({
@@ -113,4 +113,41 @@ export const surveysRouter = router({
 
     return { survey, totalResponses: Number(cnt), averageScore: avgScore ? Number(avgScore).toFixed(1) : null, responses };
   }),
+
+  // ── CSAT settings (per-org config for the ticket-resolve CSAT loop) ────────
+  getCsatSettings: permissionProcedure("surveys", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const [row] = await db.select().from(csatSettings).where(eq(csatSettings.orgId, org!.id));
+    // No row yet ⇒ surface the schema defaults so the UI has a stable shape.
+    return (
+      row ?? {
+        enabled: true,
+        channel: "both" as const,
+        suppressionWindowHours: 24,
+        expiryDays: 14,
+      }
+    );
+  }),
+
+  updateCsatSettings: permissionProcedure("surveys", "write")
+    .input(
+      z.object({
+        enabled: z.boolean().optional(),
+        channel: z.enum(csatChannelEnum.enumValues).optional(),
+        suppressionWindowHours: z.coerce.number().int().min(0).max(8760).optional(),
+        expiryDays: z.coerce.number().int().min(1).max(365).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .insert(csatSettings)
+        .values({ orgId: org!.id, ...input })
+        .onConflictDoUpdate({
+          target: csatSettings.orgId,
+          set: { ...input, updatedAt: new Date() },
+        })
+        .returning();
+      return row;
+    }),
 });

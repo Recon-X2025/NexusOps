@@ -11,6 +11,7 @@ import {
   securityIncidents,
   budgetLines,
   surveyResponses,
+  surveys,
   ticketPriorities,
   users,
   catalogRequests,
@@ -147,10 +148,20 @@ export const reportsRouter = router({
       const avgMs = avgMsRow?.avgMs ?? null;
       const avgHours = avgMs ? (Number(avgMs) / 3600000).toFixed(1) : null;
 
+      // CSAT: org-scoped + type-filtered. The previous query joined nothing and
+      // filtered only on submittedAt — it averaged EVERY org's responses of EVERY
+      // survey type into this org's number (cross-tenant leak + type mixing). Scope
+      // to this org's CSAT surveys with a non-null score.
       const [avgCsatRow] = await db.select({
         avgCsat: avg(surveyResponses.score),
       }).from(surveyResponses)
-        .where(gte(surveyResponses.submittedAt, since));
+        .innerJoin(surveys, eq(surveyResponses.surveyId, surveys.id))
+        .where(and(
+          eq(surveys.orgId, org!.id),
+          eq(surveys.type, "csat"),
+          isNotNull(surveyResponses.score),
+          gte(surveyResponses.submittedAt, since),
+        ));
       const avgCsat = avgCsatRow?.avgCsat ?? null;
       const csatScore = avgCsat ? `${Number(avgCsat).toFixed(1)}/5` : null;
 
@@ -303,6 +314,33 @@ export const reportsRouter = router({
         .groupBy(tickets.assigneeId, users.name)
         .orderBy(desc(count()));
 
+      // Per-assignee CSAT: responses → invites (ticketId) → tickets (assigneeId).
+      // Org + type + score scoped; keyed by the assignee of the surveyed ticket.
+      // (Was a hardcoded `csat: 0` placeholder.)
+      const csatRows = await db.execute(sql`
+        SELECT t.assignee_id AS assignee_id, AVG(sr.score)::text AS avg_score
+        FROM survey_responses sr
+        JOIN survey_invites si ON si.survey_id = sr.survey_id AND si.ticket_id IS NOT NULL
+        JOIN surveys s ON s.id = sr.survey_id
+        JOIN tickets t ON t.id = si.ticket_id
+        WHERE s.org_id = ${org!.id}
+          AND s.type = 'csat'
+          AND sr.score IS NOT NULL
+          AND sr.submitted_at >= ${since.toISOString()}
+          AND t.assignee_id IS NOT NULL
+        GROUP BY t.assignee_id
+      `);
+      const csatByAssignee = new Map<string, number>();
+      const rows = (Array.isArray(csatRows) ? csatRows : (csatRows as { rows?: unknown[] }).rows ?? []) as Array<{
+        assignee_id: string | null;
+        avg_score: string | null;
+      }>;
+      for (const r of rows) {
+        if (r.assignee_id && r.avg_score != null) {
+          csatByAssignee.set(r.assignee_id, Math.round(Number(r.avg_score) * 10) / 10);
+        }
+      }
+
       return {
         byAssignee: workload.map((row: (typeof workload)[number]) => ({
           assigneeId: row.assigneeId,
@@ -311,7 +349,7 @@ export const reportsRouter = router({
           resolved: Number(row.resolved),
           total: Number(row.total),
           avgRes: row.avgResMs ? `${(Number(row.avgResMs) / 3600000).toFixed(1)}h` : "—",
-          csat: 0,
+          csat: row.assigneeId ? csatByAssignee.get(row.assigneeId) ?? null : null,
         })),
       };
     }),
