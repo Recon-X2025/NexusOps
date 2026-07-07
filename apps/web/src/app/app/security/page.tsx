@@ -42,6 +42,26 @@ const VULN_STATE_COLOR: Record<string, string> = {
   false_positive: "text-muted-foreground bg-muted",
 };
 
+// Mirrors STATE_MACHINE in apps/api/src/routers/security.ts (transition mutation).
+const SEC_INCIDENT_TRANSITIONS: Record<string, string[]> = {
+  new:            ["triage"],
+  triage:         ["containment", "false_positive"],
+  containment:    ["eradication"],
+  eradication:    ["recovery"],
+  recovery:       ["closed"],
+  closed:         [],
+  false_positive: [],
+};
+
+const SEC_TRANSITION_LABEL: Record<string, string> = {
+  triage:         "Start Triage",
+  containment:    "Mark Contained",
+  eradication:    "Begin Eradication",
+  recovery:       "Move to Recovery",
+  closed:         "Close Incident",
+  false_positive: "Mark False Positive",
+};
+
 export default function SecurityOpsPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
   const visibleTabs = SEC_TABS.filter((t) => can(t.module, t.action));
@@ -57,7 +77,7 @@ export default function SecurityOpsPage() {
   }, [visibleTabs, tab]);
 
 
-  const { data: vulns, isLoading: vulnsLoading } = trpc.security.listVulnerabilities.useQuery({ limit: 100 }, mergeTrpcQueryOpts("security.listVulnerabilities", { refetchOnWindowFocus: false },));
+  const { data: vulns, isLoading: vulnsLoading, refetch: refetchVulns } = trpc.security.listVulnerabilities.useQuery({ limit: 100 }, mergeTrpcQueryOpts("security.listVulnerabilities", { refetchOnWindowFocus: false },));
   const { data: incidents, isLoading: incidentsLoading, refetch: refetchIncidents } = trpc.security.listIncidents.useQuery({ limit: 100 }, mergeTrpcQueryOpts("security.listIncidents", { refetchOnWindowFocus: false },));
 
   // GRC data for Config Compliance tab
@@ -70,8 +90,13 @@ export default function SecurityOpsPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
+  const transitionIncident = trpc.security.transition.useMutation({
+    onSuccess: (inc: any) => { toast.success(`Incident moved to ${String(inc?.status ?? "").replace(/_/g, " ")}`); refetchIncidents(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to update incident"),
+  });
+
   const remediateVuln = trpc.security.remediateVulnerability.useMutation({
-    onSuccess: () => { toast.success("Vulnerability marked as remediated"); setRemediatingId(null); setRemediateNote(""); },
+    onSuccess: () => { toast.success("Vulnerability marked as remediated"); setRemediatingId(null); setRemediateNote(""); refetchVulns(); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to remediate"),
   });
 
@@ -328,16 +353,16 @@ export default function SecurityOpsPage() {
                           <div className="col-span-2"><span className="text-muted-foreground/70">IOCs:</span> {inc.iocs.join(", ")}</div>
                         )}
                       </div>
-                      {can("security", "write") && !["closed", "false_positive"].includes(inc.status) && (
+                      {can("security", "write") && (SEC_INCIDENT_TRANSITIONS[inc.status] ?? []).length > 0 && (
                         <div className="flex gap-2 pt-1">
-                          <button
-                            onClick={() => { toast.info("Use the tRPC API to transition incident status: security.transition"); }}
-                            className="text-[10px] px-2 py-1 border border-border rounded hover:bg-accent"
-                          >Mark Contained</button>
-                          <button
-                            onClick={() => { toast.info("Use the tRPC API to transition incident status: security.transition"); }}
-                            className="text-[10px] px-2 py-1 border border-border rounded hover:bg-accent"
-                          >Close Incident</button>
+                          {(SEC_INCIDENT_TRANSITIONS[inc.status] ?? []).map((next) => (
+                            <button
+                              key={next}
+                              onClick={() => transitionIncident.mutate({ id: inc.id, toStatus: next as any })}
+                              disabled={transitionIncident.isPending}
+                              className="text-[10px] px-2 py-1 border border-border rounded hover:bg-accent disabled:opacity-50"
+                            >{SEC_TRANSITION_LABEL[next] ?? next}</button>
+                          ))}
                         </div>
                       )}
                     </div>
