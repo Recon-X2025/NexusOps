@@ -1,9 +1,65 @@
 import { router, publicProcedure, macProcedure } from "../lib/trpc";
+import type { Context } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { organizations, users, sessions, eq, desc, count, and, sql } from "@coheronconnect/db";
+import { organizations, users, sessions, macAuditLogs, eq, desc, count, and, sql, inArray } from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
+import {
+  appendMacAuditEntry,
+  verifyMacAuditChain,
+  type MacAuditAction,
+} from "../lib/mac-audit-hash";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+
+/**
+ * Decode the operator email from the verified MAC token. The token has already
+ * been verified by `enforceMacOperator` (macProcedure), so we only decode here —
+ * a malformed token cannot reach a macProcedure. Returns "unknown" defensively.
+ */
+function operatorEmailFromCtx(ctx: Context): string {
+  const token = ctx.macToken;
+  if (!token) return "unknown";
+  try {
+    const payload = jwt.decode(token);
+    if (payload && typeof payload === "object" && typeof payload["email"] === "string") {
+      return payload["email"];
+    }
+  } catch {
+    /* fall through */
+  }
+  return "unknown";
+}
+
+/**
+ * Record a MAC operator action to the platform-global tamper-evident audit
+ * chain. Best-effort: a failed audit write must NEVER fail the underlying
+ * action (mirrors the per-org auditMutation contract), so all errors are
+ * swallowed.
+ */
+async function recordMacAudit(
+  ctx: Context,
+  entry: {
+    action: MacAuditAction;
+    targetOrgId?: string | null;
+    targetOrgName?: string | null;
+    details?: Record<string, unknown> | null;
+  },
+): Promise<void> {
+  try {
+    await appendMacAuditEntry(ctx.db, {
+      operatorEmail: operatorEmailFromCtx(ctx),
+      action: entry.action,
+      targetOrgId: entry.targetOrgId ?? null,
+      targetOrgName: entry.targetOrgName ?? null,
+      details: entry.details ?? null,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+  } catch {
+    /* non-fatal — never block the actual MAC action */
+  }
+}
 
 /**
  * The MAC (platform super-admin) surface is disabled unless `MAC_ENABLED` is
@@ -27,29 +83,60 @@ function getPlanFeatureDefaults(plan: string): Record<string, boolean> {
 }
 
 export const macRouter = router({
-  // MAC operator login — validates against MAC_OPERATOR_EMAIL + MAC_OPERATOR_PASSWORD
+  // MAC operator login. Credentials are checked against MAC_OPERATOR_EMAIL plus
+  // EITHER a bcrypt hash (MAC_OPERATOR_PASSWORD_HASH, preferred) OR a plaintext
+  // MAC_OPERATOR_PASSWORD (back-compat fallback). Every attempt — success and
+  // failure — is written to the platform audit chain. Token TTL is short (1h)
+  // so a leaked operator token expires quickly.
   login: publicProcedure
     .input(z.object({ email: z.string().email(), password: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       assertMacEnabled();
       const macEmail = process.env["MAC_OPERATOR_EMAIL"];
+      const macPasswordHash = process.env["MAC_OPERATOR_PASSWORD_HASH"];
       const macPassword = process.env["MAC_OPERATOR_PASSWORD"];
       const macSecret = process.env["MAC_JWT_SECRET"];
 
-      if (!macEmail || !macPassword || !macSecret) {
+      if (!macEmail || !macSecret || (!macPasswordHash && !macPassword)) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "MAC not configured — set MAC_OPERATOR_EMAIL, MAC_OPERATOR_PASSWORD, MAC_JWT_SECRET",
+          message:
+            "MAC not configured — set MAC_OPERATOR_EMAIL, MAC_JWT_SECRET, and MAC_OPERATOR_PASSWORD_HASH (or MAC_OPERATOR_PASSWORD)",
         });
       }
-      if (input.email !== macEmail || input.password !== macPassword) {
+
+      // Log the attempt regardless of outcome. Best-effort — a failed audit
+      // write must not turn a valid login into an error.
+      const logAttempt = async (success: boolean): Promise<void> => {
+        try {
+          await appendMacAuditEntry(ctx.db, {
+            operatorEmail: input.email,
+            action: "operator_login",
+            details: { success },
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+          });
+        } catch {
+          /* non-fatal */
+        }
+      };
+
+      const emailOk = input.email === macEmail;
+      const passwordOk = macPasswordHash
+        ? await bcrypt.compare(input.password, macPasswordHash)
+        : input.password === macPassword;
+
+      if (!emailOk || !passwordOk) {
+        await logAttempt(false);
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
       }
+
+      await logAttempt(true);
 
       const token = jwt.sign(
         { email: input.email, role: "mac_operator" },
         macSecret,
-        { expiresIn: "8h" },
+        { expiresIn: "1h" },
       );
       return { token };
     }),
@@ -177,6 +264,13 @@ export const macRouter = router({
 
       await ensureDefaultTicketStatusesForOrg(db, org!.id);
 
+      await recordMacAudit(ctx, {
+        action: "org_created",
+        targetOrgId: org!.id,
+        targetOrgName: org!.name,
+        details: { plan: input.plan, adminEmail: input.adminEmail },
+      });
+
       return { org, adminEmail: input.adminEmail };
     }),
 
@@ -203,6 +297,8 @@ export const macRouter = router({
           updatedAt: new Date(),
         })
         .where(eq(organizations.id, input.id));
+
+      await recordMacAudit(ctx, { action: "org_suspended", targetOrgId: input.id });
 
       return { ok: true };
     }),
@@ -233,6 +329,8 @@ export const macRouter = router({
         })
         .where(eq(organizations.id, input.id));
 
+      await recordMacAudit(ctx, { action: "org_resumed", targetOrgId: input.id });
+
       return { ok: true };
     }),
 
@@ -260,6 +358,12 @@ export const macRouter = router({
         revoked += deleted.length;
       }
 
+      await recordMacAudit(ctx, {
+        action: "sessions_revoked",
+        targetOrgId: input.id,
+        details: { revoked },
+      });
+
       return { ok: true, revoked };
     }),
 
@@ -284,6 +388,11 @@ export const macRouter = router({
         acceptedAt: input.acceptedAt,
       };
       await db.update(organizations).set({ settings: { ...existing, legalAcceptance } }).where(eq(organizations.id, input.orgId));
+      await recordMacAudit(ctx, {
+        action: "legal_recorded",
+        targetOrgId: input.orgId,
+        details: { documentType: input.documentType, version: input.version },
+      });
       return { ok: true };
     }),
 
@@ -332,6 +441,14 @@ export const macRouter = router({
       } else {
         await db.update(organizations).set({ settings: existing }).where(eq(organizations.id, input.orgId));
       }
+      await recordMacAudit(ctx, {
+        action: "billing_updated",
+        targetOrgId: input.orgId,
+        details: {
+          plan: input.plan ?? null,
+          subscriptionStatus: input.subscriptionStatus ?? null,
+        },
+      });
       return { ok: true };
     }),
 
@@ -362,7 +479,65 @@ export const macRouter = router({
       const flags = (existing.featureFlags ?? {}) as Record<string, boolean>;
       flags[input.flag] = input.enabled;
       await db.update(organizations).set({ settings: { ...existing, featureFlags: flags } }).where(eq(organizations.id, input.orgId));
+      await recordMacAudit(ctx, {
+        action: "feature_flag_set",
+        targetOrgId: input.orgId,
+        details: { flag: input.flag, enabled: input.enabled },
+      });
       return { ok: true };
+    }),
+
+  // Bulk feature-flag rollout — set one flag across many orgs (or all of them)
+  // in a single operation. Used by the console's phased-rollout workflow.
+  setFeatureFlagBulk: macProcedure
+    .input(
+      z.object({
+        flag: z.string().min(1),
+        enabled: z.boolean(),
+        orgIds: z.array(z.string().uuid()).optional(),
+        allOrgs: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db } = ctx;
+
+      if (!input.allOrgs && (!input.orgIds || input.orgIds.length === 0)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Provide orgIds or set allOrgs: true",
+        });
+      }
+
+      const targets = input.allOrgs
+        ? await db.select({ id: organizations.id, settings: organizations.settings }).from(organizations)
+        : await db
+            .select({ id: organizations.id, settings: organizations.settings })
+            .from(organizations)
+            .where(inArray(organizations.id, input.orgIds ?? []));
+
+      let updated = 0;
+      for (const org of targets) {
+        const existing = (org.settings ?? {}) as Record<string, unknown>;
+        const flags = (existing.featureFlags ?? {}) as Record<string, boolean>;
+        flags[input.flag] = input.enabled;
+        await db
+          .update(organizations)
+          .set({ settings: { ...existing, featureFlags: flags } })
+          .where(eq(organizations.id, org.id));
+        updated += 1;
+      }
+
+      await recordMacAudit(ctx, {
+        action: "feature_flag_bulk_set",
+        details: {
+          flag: input.flag,
+          enabled: input.enabled,
+          count: updated,
+          scope: input.allOrgs ? "all" : "selected",
+        },
+      });
+
+      return { updated };
     }),
 
   resetFeatureFlags: macProcedure
@@ -401,7 +576,7 @@ export const macRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db } = ctx;
-      const [targetUser] = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, input.targetUserId));
+      const [targetUser] = await db.select({ id: users.id, email: users.email, name: users.name, orgId: users.orgId }).from(users).where(eq(users.id, input.targetUserId));
       if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
 
       const jwtSecret = process.env["JWT_SECRET"];
@@ -413,6 +588,17 @@ export const macRouter = router({
         { sub: input.targetUserId, impersonated: true, reason: input.reason, exp: Math.floor(expiresAt.getTime() / 1000) },
         jwtSecret,
       );
+
+      await recordMacAudit(ctx, {
+        action: "user_impersonated",
+        targetOrgId: targetUser.orgId ?? null,
+        details: {
+          targetUserId: input.targetUserId,
+          targetEmail: targetUser.email,
+          reason: input.reason,
+          durationMinutes: input.durationMinutes,
+        },
+      });
 
       return { impersonationToken, expiresAt: expiresAt.toISOString(), redirectUrl: `${process.env["WEB_URL"] ?? "http://localhost:3000"}/app?token=${impersonationToken}` };
     }),
@@ -434,6 +620,56 @@ export const macRouter = router({
         .from(users)
         .where(sql`lower(${users.email}) like ${"%" + input.email.toLowerCase() + "%"}`)
         .limit(20);
+    }),
+
+  // Platform-wide user directory (paginated, optional search across name/email),
+  // joined to the owning org's name.
+  listAllUsers: macProcedure
+    .input(
+      z.object({
+        page: z.number().int().min(1).default(1),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db } = ctx;
+      const limit = 50;
+      const offset = (input.page - 1) * limit;
+
+      const where = input.search
+        ? sql`(lower(${users.name}) like ${"%" + input.search.toLowerCase() + "%"} or lower(${users.email}) like ${"%" + input.search.toLowerCase() + "%"})`
+        : undefined;
+
+      const rows = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          status: users.status,
+          lastLoginAt: users.lastLoginAt,
+          createdAt: users.createdAt,
+          orgId: users.orgId,
+          orgName: organizations.name,
+        })
+        .from(users)
+        .leftJoin(organizations, eq(users.orgId, organizations.id))
+        .where(where)
+        .orderBy(desc(users.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      const [total] = await db.select({ count: count() }).from(users).where(where);
+
+      return {
+        users: rows.map((r) => ({
+          ...r,
+          lastLoginAt: r.lastLoginAt ? r.lastLoginAt.toISOString() : null,
+          createdAt: r.createdAt.toISOString(),
+        })),
+        total: total?.count ?? 0,
+        page: input.page,
+      };
     }),
 
   // P3.1 — Analytics overview
@@ -468,5 +704,188 @@ export const macRouter = router({
       ...org,
       userCount: ucMap.get(org.id) ?? 0,
     }));
+  }),
+
+  // ── MAC audit trail ───────────────────────────────────────────────────────
+
+  // Paginated, filterable view of the platform audit chain. Flattened to the
+  // shape the console's Audit Log page renders.
+  listAuditLog: macProcedure
+    .input(
+      z.object({
+        page: z.number().int().min(1).default(1),
+        action: z.string().optional(),
+        search: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { db } = ctx;
+      const limit = 50;
+      const offset = (input.page - 1) * limit;
+
+      const conds = [];
+      if (input.action && input.action !== "all") {
+        conds.push(eq(macAuditLogs.action, input.action));
+      }
+      if (input.search) {
+        const q = `%${input.search.toLowerCase()}%`;
+        conds.push(
+          sql`(lower(${macAuditLogs.operatorEmail}) like ${q} or lower(coalesce(${macAuditLogs.targetOrgName}, '')) like ${q})`,
+        );
+      }
+      if (input.dateFrom) {
+        conds.push(sql`${macAuditLogs.createdAt} >= ${input.dateFrom}`);
+      }
+      if (input.dateTo) {
+        conds.push(sql`${macAuditLogs.createdAt} <= ${input.dateTo}`);
+      }
+      const where = conds.length > 0 ? and(...conds) : undefined;
+
+      const rows = await db
+        .select()
+        .from(macAuditLogs)
+        .where(where)
+        .orderBy(desc(macAuditLogs.seq))
+        .limit(limit)
+        .offset(offset);
+
+      const [total] = await db
+        .select({ count: count() })
+        .from(macAuditLogs)
+        .where(where);
+
+      const entries = rows.map((r) => ({
+        id: r.id,
+        timestamp: r.createdAt.toISOString(),
+        operator: r.operatorEmail,
+        action: r.action,
+        targetOrg: r.targetOrgName ?? (r.targetOrgId ? r.targetOrgId : "—"),
+        details: r.details ?? {},
+        ipAddress: r.ipAddress ?? "—",
+      }));
+
+      return { entries, total: total?.count ?? 0, page: input.page };
+    }),
+
+  // Verify the platform audit chain's integrity (tamper/deletion/reorder).
+  verifyAuditChain: macProcedure.query(async ({ ctx }) => {
+    return verifyMacAuditChain(ctx.db);
+  }),
+
+  // ── Deployment control ──────────────────────────────────────────────────────
+
+  // Trigger the Vultr deploy GitHub Action (workflow_dispatch). Requires a
+  // GITHUB_PAT (actions:write) env var — the operator provisions this out of
+  // band; it is never entered through the UI.
+  triggerDeploy: macProcedure
+    .input(
+      z.object({
+        imageTag: z.string().min(1).default("latest"),
+        deployMode: z.enum(["pull", "build"]).default("pull"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const pat = process.env["GITHUB_PAT"];
+      if (!pat) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "GITHUB_PAT not configured — cannot trigger deploy",
+        });
+      }
+      const repo = process.env["GITHUB_REPO"] ?? "Recon-X2025/NexusOps";
+      const workflow = "deploy-vultr.yml";
+      const ref = process.env["GITHUB_DEPLOY_REF"] ?? "main";
+
+      const res = await fetch(
+        `https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${pat}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "coheronconnect-mac",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ref,
+            inputs: { image_tag: input.imageTag, deploy_mode: input.deployMode },
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: `GitHub dispatch failed (${res.status}): ${body.slice(0, 200)}`,
+        });
+      }
+
+      await recordMacAudit(ctx, {
+        action: "deploy_triggered",
+        details: { imageTag: input.imageTag, deployMode: input.deployMode, ref },
+      });
+
+      return { ok: true };
+    }),
+
+  // Live deployment status: version + component health from the API's own
+  // health endpoints, plus recent workflow runs when a GITHUB_PAT is present.
+  getDeployStatus: macProcedure.query(async () => {
+    const self = process.env["API_SELF_URL"] ?? "http://localhost:3001";
+
+    let version = "unknown";
+    let health: unknown = null;
+    try {
+      const [h, detailed] = await Promise.all([
+        fetch(`${self}/health`).then((r) => r.json() as Promise<Record<string, unknown>>),
+        fetch(`${self}/health/detailed`)
+          .then((r) => r.json() as Promise<Record<string, unknown>>)
+          .catch(() => null),
+      ]);
+      version = typeof h["version"] === "string" ? h["version"] : "unknown";
+      health = detailed ?? h;
+    } catch {
+      /* health unreachable — leave defaults */
+    }
+
+    let recentRuns: unknown = null;
+    const pat = process.env["GITHUB_PAT"];
+    if (pat) {
+      const repo = process.env["GITHUB_REPO"] ?? "Recon-X2025/NexusOps";
+      try {
+        const runsRes = await fetch(
+          `https://api.github.com/repos/${repo}/actions/workflows/deploy-vultr.yml/runs?per_page=5`,
+          {
+            headers: {
+              Authorization: `Bearer ${pat}`,
+              Accept: "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "coheronconnect-mac",
+            },
+          },
+        );
+        if (runsRes.ok) {
+          const json = (await runsRes.json()) as {
+            workflow_runs?: Array<Record<string, unknown>>;
+          };
+          recentRuns = (json.workflow_runs ?? []).map((r) => ({
+            id: r["id"],
+            status: r["status"],
+            conclusion: r["conclusion"],
+            createdAt: r["created_at"],
+            htmlUrl: r["html_url"],
+            displayTitle: r["display_title"],
+          }));
+        }
+      } catch {
+        /* GitHub unreachable — omit runs */
+      }
+    }
+
+    return { version, health, recentRuns };
   }),
 });

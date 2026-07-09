@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   BookOpen,
   UserCog,
+  Rocket,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/playbooks", label: "Playbooks", icon: BookOpen },
   { href: "/impersonation", label: "Impersonation", icon: UserCog },
   { href: "/audit", label: "Audit Log", icon: ScrollText },
+  { href: "/deploy", label: "Deploy", icon: Rocket },
   { href: "/health", label: "System Health", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

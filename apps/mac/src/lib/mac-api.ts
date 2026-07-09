@@ -31,12 +31,14 @@ export async function macFetch<T = unknown>(
   return res.json() as Promise<T>;
 }
 
-type TrpcResponse<T> = { result?: { data?: { json?: T } }; error?: { message?: string } };
+// This API has no superjson transformer, so tRPC input/output is raw JSON
+// (no { json: ... } envelope).
+type TrpcResponse<T> = { result?: { data?: T }; error?: { message?: string } };
 
 async function trpcQuery<T>(procedure: string, input?: unknown): Promise<T> {
   const token = getToken();
   const url = input !== undefined
-    ? `${API_URL}/trpc/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: input }))}`
+    ? `${API_URL}/trpc/${procedure}?input=${encodeURIComponent(JSON.stringify(input))}`
     : `${API_URL}/trpc/${procedure}`;
 
   const res = await fetch(url, {
@@ -47,7 +49,7 @@ async function trpcQuery<T>(procedure: string, input?: unknown): Promise<T> {
   });
   const json = await res.json() as TrpcResponse<T>;
   if (json.error) throw new Error(json.error.message ?? "Request failed");
-  const data = json?.result?.data?.json;
+  const data = json?.result?.data;
   if (data === undefined) throw new Error("Empty response");
   return data;
 }
@@ -60,11 +62,11 @@ async function trpcMutate<T>(procedure: string, input: unknown): Promise<T> {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ json: input }),
+    body: JSON.stringify(input),
   });
   const json = await res.json() as TrpcResponse<T>;
   if (json.error) throw new Error(json.error.message ?? "Request failed");
-  const data = json?.result?.data?.json;
+  const data = json?.result?.data;
   if (data === undefined) throw new Error("Empty response");
   return data;
 }
@@ -218,4 +220,115 @@ export interface OrgWithHealth extends OrgRow {
 
 export async function listOrgsWithHealth() {
   return trpcQuery<OrgWithHealth[]>("mac.listOrgsWithHealth");
+}
+
+// Bulk feature-flag rollout
+export async function setFeatureFlagBulk(data: {
+  flag: string;
+  enabled: boolean;
+  orgIds?: string[];
+  allOrgs?: boolean;
+}) {
+  return trpcMutate<{ updated: number }>("mac.setFeatureFlagBulk", data);
+}
+
+// MAC action audit trail
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  operator: string;
+  action: string;
+  targetOrg: string | null;
+  details: Record<string, unknown> | null;
+  ipAddress: string | null;
+}
+
+export async function getAuditLog(params: {
+  page?: number;
+  action?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+} = {}) {
+  return trpcQuery<{ entries: AuditEntry[]; total: number; page: number }>(
+    "mac.listAuditLog",
+    { page: params.page ?? 1, ...params },
+  );
+}
+
+export interface ChainVerification {
+  ok: boolean;
+  entries: number;
+  brokenAtSeq: number | null;
+  reason?: string;
+}
+
+export async function verifyAuditChain() {
+  return trpcQuery<ChainVerification>("mac.verifyAuditChain");
+}
+
+// Deploy
+export interface DeployRun {
+  id: number;
+  status: string;
+  conclusion: string | null;
+  createdAt: string;
+  htmlUrl: string;
+  displayTitle: string;
+}
+
+export interface DeployStatus {
+  version: string;
+  health: Record<string, unknown> | null;
+  recentRuns: DeployRun[] | null;
+}
+
+export async function getDeployStatus() {
+  return trpcQuery<DeployStatus>("mac.getDeployStatus");
+}
+
+export async function triggerDeploy(data: {
+  imageTag?: string;
+  deployMode?: "pull" | "build";
+}) {
+  return trpcMutate<{ ok: true }>("mac.triggerDeploy", data);
+}
+
+// Platform-wide user directory
+export interface PlatformUser {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+  status: string;
+  lastLoginAt: string | null;
+  createdAt: string;
+  orgId: string | null;
+  orgName: string | null;
+}
+
+export async function getAllUsers(params: { page?: number; search?: string } = {}) {
+  return trpcQuery<{ users: PlatformUser[]; total: number; page: number }>(
+    "mac.listAllUsers",
+    { page: params.page ?? 1, ...(params.search ? { search: params.search } : {}) },
+  );
+}
+
+// Typed platform stats (orgs + users counts + recent orgs)
+export interface StatOrg {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  createdAt: string;
+}
+
+export interface PlatformStats {
+  orgs: number;
+  users: number;
+  recentOrgs: StatOrg[];
+}
+
+export async function getStatsTyped() {
+  return trpcQuery<PlatformStats>("mac.stats");
 }

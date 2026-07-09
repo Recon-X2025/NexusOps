@@ -80,6 +80,21 @@ export type OrgSsoSettings = {
   saml?: OrgSamlSettings;
 };
 
+/**
+ * Market/localization preferences. The authoritative market is
+ * `organizations.country`; this block holds the softer, tunable knobs that
+ * behavior reads (base ledger currency, how tax is computed, CCPA sale
+ * tracking). Absent → India defaults (INR / GST).
+ */
+export type OrgMarketSettings = {
+  /** Base ledger currency (e.g. "INR", "USD"). Defaults per country. */
+  baseCurrency?: string;
+  /** How invoice tax is computed & posted: India GST split, US sales tax, or none. */
+  taxMode?: "gst" | "sales_tax" | "none";
+  /** CCPA/CPRA: org sells/shares personal information and must track it. */
+  trackSaleOfPersonalInfo?: boolean;
+};
+
 /** Platform-admin (MAC) billing fields stamped onto org settings. */
 export type OrgBillingSettings = {
   stripeCustomerId?: string;
@@ -127,4 +142,6 @@ export type OrgSettings = {
   peopleWorkplace?: OrgPeopleWorkplaceSettings;
   /** Legal document acceptance records (MAC). */
   legalAcceptance?: OrgLegalAcceptance;
+  /** Market/localization preferences (base currency, tax mode). */
+  market?: OrgMarketSettings;
 };

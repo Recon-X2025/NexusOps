@@ -25,10 +25,10 @@ export default function MacLoginPage() {
       const res = await fetch(`${apiUrl}/trpc/mac.login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { email, password } }),
+        body: JSON.stringify({ email, password }),
       });
-      const json = await res.json() as { result?: { data?: { json?: { token?: string } } }; error?: { message?: string } };
-      const token = json?.result?.data?.json?.token;
+      const json = await res.json() as { result?: { data?: { token?: string } }; error?: { message?: string } };
+      const token = json?.result?.data?.token;
       if (!token) {
         const msg = json?.error?.message ?? "Invalid credentials";
         toast.error(msg);

@@ -42,6 +42,21 @@ export const organizations = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     plan: orgPlanEnum("plan").notNull().default("free"),
+    /**
+     * ISO-3166 alpha-2 market the org operates in. Drives server-side branching
+     * in money paths (COA seed selection, invoice→GL tax posting) and defaults
+     * the compliance regime. Real column (not settings JSONB) so a NOT NULL
+     * DEFAULT backfills every existing org to India and it can never be silently
+     * undefined in a money-posting path.
+     */
+    country: text("country").notNull().default("IN"),
+    /**
+     * Data-protection regime the org is subject to: `dpdp` (India), `ccpa`
+     * (US / California CPRA), or `none`. Stored explicitly rather than derived
+     * from `country` so a US-market org can still carry DPDP duties for an
+     * Indian subsidiary. Defaulted by country at signup.
+     */
+    complianceRegime: text("compliance_regime").notNull().default("dpdp"),
     settings: jsonb("settings").$type<OrgSettings>(),
     logoUrl: text("logo_url"),
     primaryColor: text("primary_color").default("#6366f1"),
@@ -50,6 +65,7 @@ export const organizations = pgTable(
   },
   (t) => ({
     slugIdx: uniqueIndex("organizations_slug_idx").on(t.slug),
+    countryIdx: index("organizations_country_idx").on(t.country),
   }),
 );
 
@@ -263,6 +279,43 @@ export const auditLogs = pgTable(
     createdAtIdx: index("audit_logs_created_at_idx").on(t.createdAt),
     resourceIdx: index("audit_logs_resource_idx").on(t.resourceType, t.resourceId),
     orgSeqIdx: uniqueIndex("audit_logs_org_seq_idx").on(t.orgId, t.seq),
+  }),
+);
+
+// ── MAC (platform super-admin) Audit Log ────────────────────────────────────
+/**
+ * Platform-global tamper-evident audit chain for MAC (cross-tenant super-admin)
+ * operator actions. Distinct from `auditLogs`, which is per-org (its `orgId` is
+ * NOT NULL) — MAC operators have no org, so their actions cannot live in a
+ * per-org chain. This is a SINGLE global chain: `seq` is globally monotonic and
+ * `entryHash` = SHA-256(prevHash || canonicalPayload), so any edit/delete/reorder
+ * of history is detectable via `verifyMacAuditChain`.
+ *
+ * `target_org_id` is a PLAIN uuid with NO foreign key on purpose: suspending or
+ * deleting an org must NOT cascade-delete its audit trail — the record has to
+ * survive org deletion for the log to be trustworthy.
+ */
+export const macAuditLogs = pgTable(
+  "mac_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    operatorEmail: text("operator_email").notNull(),
+    action: text("action").notNull(),
+    targetOrgId: uuid("target_org_id"), // NO .references() — intentional (see above)
+    targetOrgName: text("target_org_name"),
+    details: jsonb("details").$type<Record<string, unknown>>(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    seq: integer("seq"),
+    prevHash: text("prev_hash"),
+    entryHash: text("entry_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    actionIdx: index("mac_audit_logs_action_idx").on(t.action),
+    createdAtIdx: index("mac_audit_logs_created_at_idx").on(t.createdAt),
+    seqIdx: uniqueIndex("mac_audit_logs_seq_idx").on(t.seq),
+    targetOrgIdx: index("mac_audit_logs_target_org_idx").on(t.targetOrgId),
   }),
 );
 

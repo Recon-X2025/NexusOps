@@ -1,73 +1,57 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Filter,
   Search,
   ChevronLeft,
   ChevronRight,
-  Info,
+  Loader2,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import { format } from "date-fns";
-
-interface AuditEntry {
-  id: string;
-  timestamp: string;
-  operator: string;
-  action: string;
-  targetOrg: string;
-  details: string;
-  ipAddress: string;
-}
+import { toast } from "sonner";
+import { getAuditLog, verifyAuditChain } from "@/lib/mac-api";
+import type { AuditEntry, ChainVerification } from "@/lib/mac-api";
 
 const ACTION_TYPES = [
   "all",
+  "operator_login",
   "org_created",
   "org_suspended",
   "org_resumed",
-  "user_impersonated",
   "sessions_revoked",
-  "operator_login",
-];
-
-const MOCK_AUDIT: AuditEntry[] = [
-  {
-    id: "1",
-    timestamp: new Date(Date.now() - 60000).toISOString(),
-    operator: "operator@coheron.com",
-    action: "operator_login",
-    targetOrg: "—",
-    details: "MAC operator authenticated",
-    ipAddress: "10.0.0.1",
-  },
-  {
-    id: "2",
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    operator: "operator@coheron.com",
-    action: "org_created",
-    targetOrg: "Acme Corp",
-    details: 'Created org "Acme Corp" with plan: enterprise',
-    ipAddress: "10.0.0.1",
-  },
-  {
-    id: "3",
-    timestamp: new Date(Date.now() - 7200000).toISOString(),
-    operator: "operator@coheron.com",
-    action: "org_suspended",
-    targetOrg: "Inactive Ltd",
-    details: 'Suspended org "Inactive Ltd" due to non-payment',
-    ipAddress: "10.0.0.2",
-  },
+  "user_impersonated",
+  "feature_flag_set",
+  "feature_flag_bulk_set",
+  "billing_updated",
+  "deploy_triggered",
+  "legal_recorded",
 ];
 
 const ACTION_STYLES: Record<string, string> = {
+  operator_login: "bg-slate-100 text-slate-600",
   org_created: "bg-emerald-50 text-emerald-700",
   org_suspended: "bg-red-50 text-red-700",
   org_resumed: "bg-blue-50 text-blue-700",
-  user_impersonated: "bg-amber-50 text-amber-700",
   sessions_revoked: "bg-orange-50 text-orange-700",
-  operator_login: "bg-slate-100 text-slate-600",
+  user_impersonated: "bg-amber-50 text-amber-700",
+  feature_flag_set: "bg-violet-50 text-violet-700",
+  feature_flag_bulk_set: "bg-purple-50 text-purple-700",
+  billing_updated: "bg-teal-50 text-teal-700",
+  deploy_triggered: "bg-indigo-50 text-indigo-700",
+  legal_recorded: "bg-cyan-50 text-cyan-700",
 };
+
+function formatDetails(details: Record<string, unknown> | null): string {
+  if (!details || Object.keys(details).length === 0) return "—";
+  return Object.entries(details)
+    .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+    .join(", ");
+}
+
+const PER_PAGE = 50;
 
 export default function AuditLogPage() {
   const [search, setSearch] = useState("");
@@ -76,35 +60,65 @@ export default function AuditLogPage() {
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
 
-  const PER_PAGE = 25;
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [chain, setChain] = useState<ChainVerification | null>(null);
 
-  const filtered = MOCK_AUDIT.filter((entry) => {
-    if (search && !entry.operator.includes(search) && !entry.targetOrg.toLowerCase().includes(search.toLowerCase())) {
-      return false;
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getAuditLog({
+        page,
+        action: actionFilter,
+        search: search.trim() || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      setEntries(data.entries);
+      setTotal(data.total);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load audit log");
+    } finally {
+      setLoading(false);
     }
-    if (actionFilter !== "all" && entry.action !== actionFilter) return false;
-    if (dateFrom && new Date(entry.timestamp) < new Date(dateFrom)) return false;
-    if (dateTo && new Date(entry.timestamp) > new Date(dateTo)) return false;
-    return true;
-  });
+  }, [page, actionFilter, search, dateFrom, dateTo]);
 
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setChain(await verifyAuditChain());
+      } catch {
+        /* integrity badge is best-effort */
+      }
+    })();
+  }, []);
+
+  const totalPages = Math.ceil(total / PER_PAGE) || 1;
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800">Audit Log</h1>
-        <p className="text-sm text-slate-500">MAC operator actions across the platform</p>
-      </div>
-
-      {/* Note */}
-      <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <span>
-          Connected to MAC audit backend. Displaying demo data — live audit events are loaded from the{" "}
-          <code className="rounded bg-blue-100 px-1 py-0.5 font-mono text-xs">/mac/audit</code> endpoint in production.
-        </span>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">Audit Log</h1>
+          <p className="text-sm text-slate-500">MAC operator actions across the platform</p>
+        </div>
+        {chain && (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+              chain.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+            }`}
+          >
+            {chain.ok ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+            {chain.ok
+              ? `Chain verified · ${chain.entries} entries`
+              : `Tamper detected at seq ${chain.brokenAtSeq}`}
+          </span>
+        )}
       </div>
 
       {/* Filters */}
@@ -161,14 +175,20 @@ export default function AuditLogPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {paginated.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center">
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
+                </td>
+              </tr>
+            ) : entries.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-12 text-center text-sm text-slate-400">
                   No audit entries match your filters.
                 </td>
               </tr>
             ) : (
-              paginated.map((entry) => (
+              entries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">
                     {format(new Date(entry.timestamp), "dd MMM HH:mm:ss")}
@@ -179,9 +199,9 @@ export default function AuditLogPage() {
                       {entry.action.replace(/_/g, " ")}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{entry.targetOrg}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{entry.details}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{entry.ipAddress}</td>
+                  <td className="px-4 py-3 text-slate-600">{entry.targetOrg ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{formatDetails(entry.details)}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{entry.ipAddress ?? "—"}</td>
                 </tr>
               ))
             )}
@@ -191,19 +211,19 @@ export default function AuditLogPage() {
         {/* Pagination */}
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
           <p className="text-xs text-slate-500">
-            {filtered.length} {filtered.length === 1 ? "entry" : "entries"} · Page {page} of {totalPages || 1}
+            {total} {total === 1 ? "entry" : "entries"} · Page {page} of {totalPages}
           </p>
           <div className="flex gap-1">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
+              disabled={page === 1 || loading}
               className="rounded p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-40 transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
+              disabled={page >= totalPages || loading}
               className="rounded p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-40 transition-colors"
             >
               <ChevronRight className="h-4 w-4" />

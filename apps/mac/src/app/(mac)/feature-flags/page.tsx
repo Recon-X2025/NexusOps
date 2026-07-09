@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Search, Loader2, RotateCcw } from "lucide-react";
-import { getOrganizations, getFeatureFlags, setFeatureFlag, resetFeatureFlags } from "@/lib/mac-api";
+import { Search, Loader2, RotateCcw, Rocket } from "lucide-react";
+import { getOrganizations, getFeatureFlags, setFeatureFlag, resetFeatureFlags, setFeatureFlagBulk } from "@/lib/mac-api";
 import type { OrgRow } from "@/lib/mac-api";
 
 const FLAG_DESCRIPTIONS: Record<string, { label: string; description: string }> = {
@@ -23,6 +23,11 @@ export default function FeatureFlagsPage() {
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [loadingFlags, setLoadingFlags] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+
+  // Bulk rollout
+  const [bulkFlag, setBulkFlag] = useState("ai_features");
+  const [bulkEnabled, setBulkEnabled] = useState(true);
+  const [bulkRunning, setBulkRunning] = useState(false);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -77,11 +82,82 @@ export default function FeatureFlagsPage() {
     }
   }
 
+  async function handleBulkRollout() {
+    const meta = FLAG_DESCRIPTIONS[bulkFlag];
+    const label = meta?.label ?? bulkFlag;
+    if (
+      !window.confirm(
+        `${bulkEnabled ? "Enable" : "Disable"} "${label}" for ALL organizations? This overrides each org's current setting.`,
+      )
+    ) {
+      return;
+    }
+    setBulkRunning(true);
+    try {
+      const { updated } = await setFeatureFlagBulk({
+        flag: bulkFlag,
+        enabled: bulkEnabled,
+        allOrgs: true,
+      });
+      toast.success(
+        `${label} ${bulkEnabled ? "enabled" : "disabled"} for ${updated} org${updated === 1 ? "" : "s"}`,
+      );
+      if (selectedOrg) await loadFlags(selectedOrg);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk rollout failed");
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Feature Flags</h1>
         <p className="text-sm text-slate-500">Manage per-org feature overrides</p>
+      </div>
+
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Rocket className="h-4 w-4 text-indigo-600" />
+          <h2 className="text-sm font-semibold text-slate-800">Bulk rollout</h2>
+        </div>
+        <p className="mb-3 text-xs text-slate-500">
+          Set a flag across <strong>every</strong> organization at once. This overrides each org&apos;s current value.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+            Flag
+            <select
+              value={bulkFlag}
+              onChange={(e) => setBulkFlag(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            >
+              {Object.entries(FLAG_DESCRIPTIONS).map(([flag, meta]) => (
+                <option key={flag} value={flag}>{meta.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+            Action
+            <select
+              value={bulkEnabled ? "enable" : "disable"}
+              onChange={(e) => setBulkEnabled(e.target.value === "enable")}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            >
+              <option value="enable">Enable</option>
+              <option value="disable">Disable</option>
+            </select>
+          </label>
+          <button
+            onClick={() => void handleBulkRollout()}
+            disabled={bulkRunning}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
+          >
+            {bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+            Roll out to all orgs
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2 max-w-sm">
