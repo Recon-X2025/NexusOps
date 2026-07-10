@@ -96,7 +96,7 @@ type TicketRow = {
 type StatusCountCol = { statusId: string; name: string; count?: unknown; color?: string | null };
 
 export default function TicketsPage() {
-  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const { can, mergeTrpcQueryOpts, currentUser } = useRBAC();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"overview" | "queue" | "board">("queue");
@@ -112,6 +112,7 @@ export default function TicketsPage() {
   const [filterType, setFilterType] = useState<string>("");
   const [filterSla, setFilterSla] = useState<"" | "breached" | "ok">("");
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
   // Debounce search input so the query only fires after the user stops typing
   useEffect(() => {
@@ -136,7 +137,16 @@ export default function TicketsPage() {
   });
 
   const { data: statusCounts } = trpc.tickets.statusCounts.useQuery(undefined, mergeTrpcQueryOpts("tickets.statusCounts", { staleTime: STALE_TIME.LIVE }));
-  const statusCountRows = (statusCounts ?? []) as StatusCountCol[];
+  
+  const rawStatusCountRows = (statusCounts ?? []) as StatusCountCol[];
+  const orderedStatuses = ["pending", "open", "in progress", "resolved", "closed"];
+  const statusCountRows = [...rawStatusCountRows].sort((a, b) => {
+    const idxA = orderedStatuses.indexOf((a.name ?? "").toLowerCase());
+    const idxB = orderedStatuses.indexOf((b.name ?? "").toLowerCase());
+    const orderA = idxA === -1 ? 999 : idxA;
+    const orderB = idxB === -1 ? 999 : idxB;
+    return orderA - orderB;
+  });
 
   const handleBulkClose = () => {
     const closedStatus = statusCountRows.find((s) =>
@@ -272,10 +282,13 @@ export default function TicketsPage() {
                       <button
                         disabled={bulkUpdate.isPending}
                         onClick={() => {
+                          if (!bulkAssigneeEmail) return;
                           if (bulkAssigneeEmail === "unassign") {
                             bulkUpdate.mutate({ ids: Array.from(selectedRows), data: { assigneeId: null } });
+                          } else if (bulkAssigneeEmail === "self") {
+                            bulkUpdate.mutate({ ids: Array.from(selectedRows), data: { assigneeId: currentUser.id } });
                           } else {
-                            bulkUpdate.mutate({ ids: Array.from(selectedRows), data: {} });
+                            bulkUpdate.mutate({ ids: Array.from(selectedRows), data: { assigneeId: bulkAssigneeEmail } });
                           }
                         }}
                         className="flex-1 rounded bg-primary text-white text-[11px] py-1 hover:bg-primary/90 disabled:opacity-50"
@@ -892,7 +905,23 @@ export default function TicketsPage() {
                 return (
                   <div
                     key={col.statusId ?? col.name}
-                    className="flex-shrink-0 w-64 flex flex-col rounded-lg border border-border bg-muted/30 overflow-hidden"
+                    className={cn(
+                      "flex-shrink-0 w-64 flex flex-col rounded-lg border overflow-hidden transition-colors",
+                      dragOverCol === col.statusId ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+                    )}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverCol !== col.statusId) setDragOverCol(col.statusId);
+                    }}
+                    onDragLeave={() => setDragOverCol(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverCol(null);
+                      const ticketId = e.dataTransfer.getData("text/plain");
+                      if (ticketId && col.statusId) {
+                        bulkUpdate.mutate({ ids: [ticketId], data: { statusId: col.statusId } });
+                      }
+                    }}
                   >
                     {/* Column header */}
                     <div
@@ -927,7 +956,11 @@ export default function TicketsPage() {
                             <Link
                               key={ticket.id}
                               href={`/app/tickets/${ticket.id}`}
-                              className="block rounded-lg border border-border bg-card p-3 hover:shadow-sm hover:border-primary/30 transition-all group"
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/plain", ticket.id);
+                              }}
+                              className="block rounded-lg border border-border bg-card p-3 hover:shadow-sm hover:border-primary/30 transition-all group cursor-grab active:cursor-grabbing"
                             >
                               {/* Ticket number + type */}
                               <div className="flex items-center justify-between mb-1.5">

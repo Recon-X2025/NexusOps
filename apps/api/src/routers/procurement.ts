@@ -357,9 +357,11 @@ export const procurementRouter = router({
           ...getTableColumns(purchaseOrders),
           legalEntityCode: legalEntities.code,
           legalEntityName: legalEntities.name,
+          vendorName: vendors.name,
         })
         .from(purchaseOrders)
         .leftJoin(legalEntities, eq(purchaseOrders.legalEntityId, legalEntities.id))
+        .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
         .where(eq(purchaseOrders.orgId, org!.id))
         .orderBy(desc(purchaseOrders.createdAt));
     }),

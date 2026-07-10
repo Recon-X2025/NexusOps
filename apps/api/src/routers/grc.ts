@@ -106,6 +106,16 @@ export const grcRouter = router({
       return policy;
     }),
 
+  unpublishPolicy: permissionProcedure("grc", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [policy] = await db.update(policies)
+        .set({ status: "draft", updatedAt: new Date() })
+        .where(and(eq(policies.id, input.id), eq(policies.orgId, org!.id))).returning();
+      return policy;
+    }),
+
   // ── Audit Plans ────────────────────────────────────────────────────────────
   listAudits: permissionProcedure("grc", "read").query(async ({ ctx }) => {
     return ctx.db.select().from(auditPlans).where(eq(auditPlans.orgId, ctx.org!.id)).orderBy(desc(auditPlans.createdAt));
@@ -123,10 +133,29 @@ export const grcRouter = router({
       return audit;
     }),
 
+  updateAuditStatus: permissionProcedure("grc", "write")
+    .input(z.object({ id: z.string().uuid(), status: z.enum(["planned", "in_progress", "completed", "cancelled"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [audit] = await db.update(auditPlans)
+        .set({ status: input.status, updatedAt: new Date() })
+        .where(and(eq(auditPlans.id, input.id), eq(auditPlans.orgId, org!.id))).returning();
+      return audit;
+    }),
+
   // ── Vendor Risks ───────────────────────────────────────────────────────────
   listVendorRisks: permissionProcedure("grc", "read").query(async ({ ctx }) => {
     return ctx.db.select().from(vendorRisks).where(eq(vendorRisks.orgId, ctx.org!.id)).orderBy(desc(vendorRisks.riskScore));
   }),
+
+  listControls: permissionProcedure("grc", "read")
+    .input(z.object({ limit: z.coerce.number().default(200) }).optional())
+    .query(async ({ ctx, input }) => {
+      return ctx.db.select().from(riskControls)
+        .where(eq(riskControls.orgId, ctx.org!.id))
+        .orderBy(riskControls.controlNumber)
+        .limit(input?.limit ?? 200);
+    }),
 
   createVendorRisk: permissionProcedure("grc", "write")
     .input(z.object({ vendorName: z.string(), tier: z.enum(["critical", "high", "medium", "low"]).default("medium") }))
@@ -195,4 +224,42 @@ export const grcRouter = router({
         .returning();
       return row;
     }),
+
+  updatePolicy: permissionProcedure("grc", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      title: z.string().min(1).optional(),
+      content: z.string().optional(),
+      category: z.string().optional(),
+      status: z.enum(policyStatusEnum.enumValues).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...data } = input;
+      const [row] = await db.update(policies)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(eq(policies.id, id), eq(policies.orgId, org!.id)))
+        .returning();
+      return row;
+    }),
+
+  deletePolicy: permissionProcedure("grc", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await db.delete(policies).where(and(eq(policies.id, input.id), eq(policies.orgId, org!.id)));
+      return { success: true };
+    }),
+
+  archivePolicy: permissionProcedure("grc", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [row] = await db.update(policies)
+        .set({ status: "retired", updatedAt: new Date() })
+        .where(and(eq(policies.id, input.id), eq(policies.orgId, org!.id)))
+        .returning();
+      return row;
+    }),
 });
+

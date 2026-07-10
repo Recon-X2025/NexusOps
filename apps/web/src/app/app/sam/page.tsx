@@ -36,14 +36,15 @@ export default function SAMPage() {
 
   // @ts-ignore
   const licensesQuery = trpc.assets.licenses.list.useQuery(undefined, mergeTrpcQueryOpts("assets.licenses.list", { refetchOnWindowFocus: false }));
+  const vendorsQuery = trpc.procurement.vendors.list.useQuery(undefined, mergeTrpcQueryOpts("procurement.vendors.list", { refetchOnWindowFocus: false }));
+  const cmdbQuery = trpc.assets.cmdb.list.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.list", { refetchOnWindowFocus: false }));
 
   const createLicense = trpc.assets.licenses.create.useMutation({
     onSuccess: () => { toast.success("License added to SAM registry"); setShowAddLicense(false); setLicForm({ productName: "", vendor: "", licenseType: "subscription", totalSeats: "", costPerSeat: "", expiresAt: "" }); licensesQuery.refetch(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
-  // @ts-ignore — must be declared BEFORE the access-denied guard to satisfy Rules of Hooks
-  const assignLicense = trpc.assets.licenses.assign?.useMutation?.({
+  const assignLicense = trpc.assets.licenses.assign.useMutation({
     onSuccess: () => { void licensesQuery.refetch(); toast.success("License assigned"); },
     onError: (e: any) => { console.error("sam.licenses.assign failed:", e); toast.error(e.message || "Failed to assign license"); },
   });
@@ -55,7 +56,7 @@ export default function SAMPage() {
 
   const filteredLicenses = licenses.filter((l) =>
     !search ||
-    (l.productName ?? l.software ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (l.name ?? l.productName ?? l.software ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (l.vendor ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -93,8 +94,9 @@ export default function SAMPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
         {[
+          { label: "Total Licenses",        value: licenses.length,                               color: "text-foreground/80" },
           { label: "Annual License Cost",   value: `₹${(totalCost / 1000).toFixed(0)}K`,         color: "text-foreground/80" },
           { label: "Non-Compliant Titles",  value: nonCompliant.length,                           color: "text-red-700" },
           { label: "Titles With Overage",   value: overageCount,                                  color: "text-orange-700" },
@@ -125,7 +127,7 @@ export default function SAMPage() {
       </div>
 
       <div className="bg-card border border-border rounded-b overflow-hidden">
-        {(tab === "dashboard" || tab === "software" || tab === "compliance") && (
+        {(tab === "dashboard" || tab === "compliance") && (
           <>
             <div className="px-3 py-2 border-b border-border bg-muted/30 flex items-center gap-2">
               <Search className="w-3 h-3 text-muted-foreground/70" />
@@ -175,7 +177,7 @@ export default function SAMPage() {
                   {filteredLicenses.map((l: any) => (
                     <tr key={l.id} className={l.compliance === "non_compliant" ? "bg-red-50/30" : ""}>
                       <td className="p-0"><div className={`priority-bar ${l.compliance === "non_compliant" ? "bg-red-600" : (l.unused ?? 0) > 30 ? "bg-yellow-500" : "bg-green-500"}`} /></td>
-                      <td className="font-medium text-foreground">{l.software}</td>
+                      <td className="font-medium text-foreground">{l.name ?? l.productName ?? l.software}</td>
                       <td className="text-muted-foreground">{l.vendor}</td>
                       <td><span className="status-badge text-muted-foreground bg-muted">{l.type}</span></td>
                       <td className="text-center font-mono text-foreground/80">{l.purchased ?? 0}</td>
@@ -189,7 +191,7 @@ export default function SAMPage() {
                       <td>
                         <button
                           className="px-2 py-0.5 text-[10px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-                          onClick={() => assignLicense?.mutate?.({ licenseId: l.id } as any)}
+                          onClick={() => assignLicense.mutate({ licenseId: l.id })}
                         >
                           Assign
                         </button>
@@ -200,6 +202,53 @@ export default function SAMPage() {
               </table>
             )}
           </>
+        )}
+
+        {tab === "software" && (
+          <div className="p-0">
+            {cmdbQuery.isLoading ? (
+              <div className="animate-pulse p-4 space-y-2">
+                {[...Array(5)].map((_, i) => <div key={i} className="h-8 bg-muted rounded" />)}
+              </div>
+            ) : cmdbQuery.isError ? (
+              <div className="text-center py-8 text-muted-foreground text-[12px]">
+                <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-red-500" />
+                Failed to load software catalog. Please try again.
+              </div>
+            ) : (
+              <table className="ent-table w-full">
+                <thead>
+                  <tr>
+                    <th>Software / Application Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Owner</th>
+                    <th>Environment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(cmdbQuery.data ?? []).filter((c: any) => c.ciType === "application" || c.ciType === "software").map((c: any) => (
+                    <tr key={c.id}>
+                      <td className="font-medium text-foreground">{c.name}</td>
+                      <td><span className="status-badge text-muted-foreground bg-muted capitalize">{c.ciType}</span></td>
+                      <td><span className={`status-badge capitalize ${c.status === "operational" ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{c.status}</span></td>
+                      <td className="text-muted-foreground">{c.ownerId ?? "—"}</td>
+                      <td className="text-muted-foreground">{c.environment ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {(cmdbQuery.data ?? []).filter((c: any) => c.ciType === "application" || c.ciType === "software").length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <Key className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                        <p className="text-[13px]">No software CIs found in the CMDB.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
 
         {tab === "optimization" && (
@@ -226,7 +275,12 @@ export default function SAMPage() {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium">Vendor</label>
-                <input value={licForm.vendor} onChange={(e) => setLicForm(f => ({...f, vendor: e.target.value}))} placeholder="Microsoft, Adobe…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <select value={licForm.vendor} onChange={(e) => setLicForm(f => ({...f, vendor: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  <option value="">Select Vendor...</option>
+                  {(vendorsQuery.data ?? []).map((v: any) => (
+                    <option key={v.id} value={v.name}>{v.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium">License Type</label>

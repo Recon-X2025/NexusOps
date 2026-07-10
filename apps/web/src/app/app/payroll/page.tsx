@@ -123,6 +123,7 @@ function inr(v: string | number | null | undefined): string {
 // ─── MAIN PAGE COMPONENT ──────────────────────────────────────────────────────
 
 export default function PayrollPage() {
+  const utils = trpc.useUtils();
   const { mergeTrpcQueryOpts, can } = useRBAC();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -142,9 +143,20 @@ export default function PayrollPage() {
   const upsertStructure = trpc.payroll.salaryStructures.upsert.useMutation({
     onSuccess: () => { setStructureEditor(null); void structuresQuery.refetch(); },
   });
+  const archiveStructure = trpc.payroll.salaryStructures.archive.useMutation({
+    onSuccess: () => { void structuresQuery.refetch(); },
+  });
   const deleteStructure = trpc.payroll.salaryStructures.delete.useMutation({
     onSuccess: () => { void structuresQuery.refetch(); },
   });
+
+  const [generateFy, setGenerateFy] = useState("2025-2026");
+  const generateForm16 = trpc.payroll.generateForm16ToDms.useMutation({
+    onSuccess: () => {
+      utils.documents.list.invalidate();
+    },
+  });
+
   // Employees drive the Form 16 e-sign list under the Declarations tab.
   const employeesQuery = trpc.hr.employees.list.useQuery(
     { limit: 200 },
@@ -409,7 +421,7 @@ export default function PayrollPage() {
                           </span>
 
                           {/* Action button for current step */}
-                          {isCurrent && run.status !== "COMPLETED" && run.status !== "FAILED" && (
+                          {isCurrent && run.status !== "COMPLETED" && run.status !== "FAILED" && can("hr", "write") && (
                             <button
                               onClick={() => {
                                 if (step.key === "PERIOD_LOCKED") {
@@ -561,12 +573,28 @@ export default function PayrollPage() {
                             <button
                               type="button"
                               onClick={() => {
+                                if (confirm(`Archive salary structure "${s.structureName}"?`)) {
+                                  archiveStructure.mutate({ id: s.id });
+                                }
+                              }}
+                              className="p-1.5 rounded text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                              aria-label="Archive"
+                              title="Archive"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
                                 if (confirm(`Delete salary structure "${s.structureName}"?`)) {
                                   deleteStructure.mutate({ id: s.id });
                                 }
                               }}
                               className="p-1.5 rounded text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
                               aria-label="Delete"
+                              title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -763,11 +791,39 @@ export default function PayrollPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Generate Form 16
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={generateFy}
+                  onChange={(e) => setGenerateFy(e.target.value)}
+                  placeholder="YYYY-YYYY"
+                  className="w-32 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={generateForm16.isPending || !generateFy}
+                  onClick={() => generateForm16.mutate({ employeeId: form16For.id as string, fy: generateFy })}
+                  className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {generateForm16.isPending ? "Generating..." : "Generate PDF"}
+                </button>
+              </div>
+              {generateForm16.error && (
+                <p className="mt-2 text-sm text-red-600">{generateForm16.error.message}</p>
+              )}
+            </div>
+
             <EsignPanel
               sourceType="form16"
               sourceId={form16For.id as string}
               defaultTitle={`Form 16 — ${(form16For.name as string) ?? "Employee"}`}
               subject="Form 16 — TDS certificate"
+              hideUpload={true}
               defaultSigners={
                 form16For.email
                   ? [{ name: (form16For.name as string) ?? "Employee", email: form16For.email as string, role: "employee" }]

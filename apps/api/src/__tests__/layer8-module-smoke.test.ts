@@ -1133,7 +1133,7 @@ describe("Layer 8: Module Smoke Tests", () => {
       expect(
         listed.some((row: { hrCase: { id: string } }) => row.hrCase.id === hrCase.id),
       ).toBe(true);
-      await adminCaller.hr.cases.resolve({ id: hrCase.id, resolution: "Explained policy" });
+      await adminCaller.hr.cases.archive({ id: hrCase.id, resolution: "Explained policy" });
 
       const requesterToken = await createSession(orgCtx.requesterId);
       const requesterCaller = await authedCaller(requesterToken);

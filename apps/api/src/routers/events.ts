@@ -167,6 +167,62 @@ export const eventsRouter = router({
         .limit(input.limit).offset(input.offset);
     }),
 
+  createSuppressionRule: permissionProcedure("events", "write")
+    .input(z.object({
+      name: z.string().min(1),
+      condition: z.string().min(1),
+      suppressUntil: z.string().optional().nullable(),
+      active: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      const [rule] = await db.insert(itomSuppressionRules).values({
+        orgId: org!.id,
+        name: input.name,
+        condition: input.condition,
+        suppressUntil: input.suppressUntil ? new Date(input.suppressUntil) : null,
+        active: input.active,
+        createdBy: user!.id,
+      }).returning();
+      return rule;
+    }),
+
+  createCorrelationPolicy: permissionProcedure("events", "write")
+    .input(z.object({
+      name: z.string().min(1),
+      condition: z.string().min(1),
+      action: z.string().min(1),
+      active: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [policy] = await db.insert(itomCorrelationPolicies).values({
+        orgId: org!.id,
+        name: input.name,
+        condition: input.condition,
+        action: input.action,
+        active: input.active,
+      }).returning();
+      return policy;
+    }),
+
+  createIntegration: permissionProcedure("events", "write")
+    .input(z.object({
+      provider: z.string().min(1),
+      status: z.string().default("connected"),
+      config: z.any().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [integration] = await db.insert(integrations).values({
+        orgId: org!.id,
+        provider: input.provider,
+        status: input.status as any,
+        configEncrypted: JSON.stringify(input.config || {}),
+      }).returning();
+      return integration;
+    }),
+
   listIntegrations: permissionProcedure("events", "read")
     .input(paginationInput)
     .query(async ({ ctx, input }) => {

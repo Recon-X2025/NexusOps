@@ -28,7 +28,7 @@ export default function PartsInventoryPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "low_stock">("all");
   const [modal, setModal] = useState<ActionModal | null>(null);
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState<number | string>(1);
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [newItem, setNewItem] = useState({ partNumber: "", name: "", category: "spare", unit: "each", qty: 0, minQty: 5, location: "" });
@@ -72,12 +72,13 @@ export default function PartsInventoryPage() {
 
   function handleSubmit() {
     if (!modal) return;
+    const parsedQty = Math.max(1, parseInt(String(qty)) || 1);
     if (modal.type === "issue") {
-      issueStock.mutate({ itemId: modal.itemId!, qty, reference: reference || undefined, notes: notes || undefined });
+      issueStock.mutate({ itemId: modal.itemId!, qty: parsedQty, reference: reference || undefined, notes: notes || undefined });
     } else if (modal.type === "reorder") {
-      reorder.mutate({ itemId: modal.itemId!, qty, notes: notes || undefined });
+      reorder.mutate({ itemId: modal.itemId!, qty: parsedQty, notes: notes || undefined });
     } else if (modal.type === "intake") {
-      intake.mutate({ itemId: modal.itemId!, qty, reference: reference || undefined, notes: notes || undefined });
+      intake.mutate({ itemId: modal.itemId!, qty: parsedQty, reference: reference || undefined, notes: notes || undefined });
     } else if (modal.type === "create") {
       if (!newItem.partNumber || !newItem.name) { toast.error("Part number and name are required"); return; }
       createItem.mutate(newItem);
@@ -137,7 +138,7 @@ export default function PartsInventoryPage() {
                       type="number"
                       min={1}
                       value={qty}
-                      onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => setQty(e.target.value)}
                       className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>

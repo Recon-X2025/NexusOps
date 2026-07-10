@@ -5,12 +5,19 @@ import {
   changeRequests,
   changeApprovals,
   changeBlackoutWindows,
+  tickets,
   problems,
   knownErrors,
   releases,
   kbArticles,
   eq,
   and,
+  or,
+  isNull,
+  isNotNull,
+  gt,
+  gte,
+  lte,
   desc,
   asc,
   count,
@@ -55,7 +62,6 @@ function assertChangeTransition(from: string, to: string) {
 
 const CAB_RISK_Q_KEYS = ["impact", "likelihood", "rollbackValidated"] as const;
 
-/** US-ITSM-007: high/critical CAB approval requires score + structured questionnaire. */
 function assertCabRiskForApprove(
   risk: string,
   riskScore: number | null | undefined,
@@ -77,6 +83,33 @@ function assertCabRiskForApprove(
         message: `CAB approval requires risk questionnaire field: ${k}`,
       });
     }
+  }
+}
+
+async function assertNoBlackoutOverlap(db: any, orgId: string, type: string | undefined, start?: Date, end?: Date) {
+  if (!start) return;
+  if (type === "emergency") return; // Emergency changes can bypass blackouts
+
+  const endLimit = end || start;
+  const blackouts = await db
+    .select()
+    .from(changeBlackoutWindows)
+    .where(eq(changeBlackoutWindows.orgId, orgId));
+
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const endLimitDay = new Date(endLimit.getFullYear(), endLimit.getMonth(), endLimit.getDate()).getTime();
+
+  const overlap = blackouts.find((b: { startsAt: Date; endsAt: Date }) => {
+    const bStartDay = new Date(b.startsAt.getFullYear(), b.startsAt.getMonth(), b.startsAt.getDate()).getTime();
+    const bEndDay = new Date(b.endsAt.getFullYear(), b.endsAt.getMonth(), b.endsAt.getDate()).getTime();
+    return bStartDay <= endLimitDay && bEndDay >= startDay;
+  });
+
+  if (overlap) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Cannot schedule change during blackout window: ${overlap.name}`,
+    });
   }
 }
 
@@ -112,7 +145,27 @@ export const changesRouter = router({
       }
 
       const conditions = [eq(changeRequests.orgId, org!.id)];
-      if (input.status) conditions.push(eq(changeRequests.status, input.status));
+      if (input.status === "approved") {
+        conditions.push(
+          and(
+            eq(changeRequests.status, "approved"),
+            or(isNull(changeRequests.scheduledStart), gt(changeRequests.scheduledStart, new Date()))
+          )!
+        );
+      } else if (input.status === "scheduled") {
+        conditions.push(
+          or(
+            eq(changeRequests.status, "scheduled"),
+            and(
+              eq(changeRequests.status, "approved"),
+              isNotNull(changeRequests.scheduledStart),
+              lte(changeRequests.scheduledStart, new Date())
+            )
+          )!
+        );
+      } else if (input.status) {
+        conditions.push(eq(changeRequests.status, input.status));
+      }
       if (input.type) conditions.push(eq(changeRequests.type, input.type));
       if (input.risk) conditions.push(eq(changeRequests.risk, input.risk));
 
@@ -125,7 +178,12 @@ export const changesRouter = router({
         .offset(input.cursor ? parseInt(input.cursor) : 0);
 
       const hasMore = rows.length > input.limit;
-      const items = hasMore ? rows.slice(0, -1) : rows;
+      const items = (hasMore ? rows.slice(0, -1) : rows).map(row => {
+        if (row.status === "approved" && row.scheduledStart && row.scheduledStart <= new Date()) {
+          return { ...row, status: "scheduled" as const };
+        }
+        return row;
+      });
       const result = { items, nextCursor: hasMore ? String((input.cursor ? parseInt(input.cursor) : 0) + items.length) : null };
       if (cacheKey)
         getRedis().setex(cacheKey, 90, JSON.stringify(result)).catch(() => {});
@@ -148,7 +206,11 @@ export const changesRouter = router({
         .where(eq(changeApprovals.changeId, change.id))
         .orderBy(asc(changeApprovals.createdAt));
 
-      return { ...change, approvals };
+      const effectiveStatus = change.status === "approved" && change.scheduledStart && change.scheduledStart <= new Date()
+        ? "scheduled" 
+        : change.status;
+
+      return { ...change, status: effectiveStatus, approvals };
     }),
 
   create: permissionProcedure("changes", "write")
@@ -162,9 +224,16 @@ export const changesRouter = router({
       rollbackPlan: z.string().optional(),
       implementationPlan: z.string().optional(),
       testPlan: z.string().optional(),
+      releaseId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      
+      const scheduledStart = input.scheduledStart ? new Date(input.scheduledStart) : undefined;
+      const scheduledEnd = input.scheduledEnd ? new Date(input.scheduledEnd) : undefined;
+      
+      await assertNoBlackoutOverlap(db, org!.id, input.type, scheduledStart, scheduledEnd);
+      
       const number = await getNextNumber(db, org!.id, "CHG");
       const [change] = await db
         .insert(changeRequests)
@@ -176,11 +245,12 @@ export const changesRouter = router({
           type: input.type,
           risk: input.risk,
           requesterId: user!.id,
-          scheduledStart: input.scheduledStart ? new Date(input.scheduledStart) : undefined,
-          scheduledEnd: input.scheduledEnd ? new Date(input.scheduledEnd) : undefined,
+          scheduledStart,
+          scheduledEnd,
           rollbackPlan: input.rollbackPlan,
           implementationPlan: input.implementationPlan,
           testPlan: input.testPlan,
+          releaseId: input.releaseId,
         })
         .returning();
       return change;
@@ -199,16 +269,33 @@ export const changesRouter = router({
       scheduledEnd: z.string().optional(),
       rollbackPlan: z.string().optional(),
       cabDecision: z.string().optional(),
+      releaseId: z.string().uuid().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, scheduledStart, scheduledEnd, ...rest } = input;
+      
+      const parsedStart = scheduledStart !== undefined ? new Date(scheduledStart) : undefined;
+      const parsedEnd = scheduledEnd !== undefined ? new Date(scheduledEnd) : undefined;
+
+      // If we are updating dates, fetch current change to get the type and validate against blackouts
+      if (parsedStart !== undefined || parsedEnd !== undefined) {
+        const [current] = await db.select({ type: changeRequests.type, scheduledStart: changeRequests.scheduledStart, scheduledEnd: changeRequests.scheduledEnd })
+          .from(changeRequests).where(and(eq(changeRequests.id, id), eq(changeRequests.orgId, org!.id)));
+          
+        if (current) {
+          const finalStart = parsedStart !== undefined ? parsedStart : current.scheduledStart ?? undefined;
+          const finalEnd = parsedEnd !== undefined ? parsedEnd : current.scheduledEnd ?? undefined;
+          await assertNoBlackoutOverlap(db, org!.id, current.type, finalStart, finalEnd);
+        }
+      }
+
       const [change] = await db
         .update(changeRequests)
         .set({
           ...rest,
-          ...(scheduledStart !== undefined ? { scheduledStart: new Date(scheduledStart) } : {}),
-          ...(scheduledEnd !== undefined ? { scheduledEnd: new Date(scheduledEnd) } : {}),
+          ...(scheduledStart !== undefined ? { scheduledStart: parsedStart } : {}),
+          ...(scheduledEnd !== undefined ? { scheduledEnd: parsedEnd } : {}),
           updatedAt: new Date(),
         })
         .where(and(eq(changeRequests.id, id), eq(changeRequests.orgId, org!.id)))
@@ -359,11 +446,20 @@ export const changesRouter = router({
 
   statusCounts: permissionProcedure("changes", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
+    const effectiveStatus = sql<string>`
+      CASE 
+        WHEN ${changeRequests.status} = 'approved' AND ${changeRequests.scheduledStart} IS NOT NULL AND ${changeRequests.scheduledStart} <= NOW() 
+        THEN 'scheduled' 
+        ELSE ${changeRequests.status} 
+      END
+    `.as("effective_status");
+    
     const rows = await db
-      .select({ status: changeRequests.status, cnt: count() })
+      .select({ status: effectiveStatus, cnt: count() })
       .from(changeRequests)
       .where(eq(changeRequests.orgId, org!.id))
-      .groupBy(changeRequests.status);
+      .groupBy(effectiveStatus);
+      
     return Object.fromEntries(
       rows.map((r: { status: string; cnt: unknown }) => [r.status, Number(r.cnt)]),
     );
@@ -411,13 +507,92 @@ export const changesRouter = router({
       rootCause: z.string().optional(),
       workaround: z.string().optional(),
       resolution: z.string().optional(),
+      releaseId: z.string().uuid().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
       const [problem] = await db.update(problems).set({ ...data, updatedAt: new Date() })
         .where(and(eq(problems.id, id), eq(problems.orgId, org!.id))).returning();
+      if (!problem) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Ensure KEDB record exists if status is known_error or workaround is documented
+      if (problem.status === "known_error" || problem.workaround) {
+        const [existingKe] = await db.select().from(knownErrors)
+          .where(and(eq(knownErrors.problemId, problem.id), eq(knownErrors.orgId, org!.id)));
+        
+        if (existingKe) {
+          await db.update(knownErrors).set({ title: problem.title, workaround: problem.workaround || null })
+            .where(eq(knownErrors.id, existingKe.id));
+        } else {
+          await db.insert(knownErrors).values({
+            orgId: org!.id,
+            problemId: problem.id,
+            title: problem.title,
+            workaround: problem.workaround || null,
+            status: "active"
+          });
+        }
+      }
+
       return problem;
+    }),
+
+  linkIncidentToProblem: permissionProcedure("problems", "write")
+    .input(z.object({
+      problemId: z.string().uuid(),
+      ticketNumber: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      
+      // 1. Find the incident (ticket)
+      const [ticket] = await db.select().from(tickets)
+        .where(
+          and(
+            eq(tickets.orgId, org!.id),
+            or(
+              eq(tickets.number, input.ticketNumber.toUpperCase().trim()),
+              eq(tickets.id, input.ticketNumber)
+            )
+          )
+        );
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Incident not found" });
+
+      // 2. Find or create the known error record for this problem
+      const [problem] = await db.select().from(problems)
+        .where(and(eq(problems.id, input.problemId), eq(problems.orgId, org!.id)));
+      if (!problem) throw new TRPCError({ code: "NOT_FOUND", message: "Problem not found" });
+
+      let [ke] = await db.select().from(knownErrors)
+        .where(and(eq(knownErrors.problemId, problem.id), eq(knownErrors.orgId, org!.id)));
+      
+      if (!ke) {
+        [ke] = await db.insert(knownErrors).values({
+          orgId: org!.id,
+          problemId: problem.id,
+          title: problem.title,
+          workaround: problem.workaround || null,
+          status: "active"
+        }).returning();
+      }
+
+      // 3. Link the ticket to this known error
+      await db.update(tickets).set({ knownErrorId: ke!.id, updatedAt: new Date() })
+        .where(eq(tickets.id, ticket.id));
+      
+      return { success: true };
+    }),
+
+  unlinkIncident: permissionProcedure("problems", "write")
+    .input(z.object({
+      ticketId: z.string().uuid(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await db.update(tickets).set({ knownErrorId: null, updatedAt: new Date() })
+        .where(and(eq(tickets.id, input.ticketId), eq(tickets.orgId, org!.id)));
+      return { success: true };
     }),
 
   addProblemNote: permissionProcedure("problems", "write")
@@ -469,6 +644,7 @@ export const changesRouter = router({
       status: z.enum(["planning", "build", "test", "deploy", "completed", "cancelled"]).optional(),
       notes: z.string().optional(),
       actualDate: z.string().optional(),
+      deploymentPlan: z.any().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -490,7 +666,27 @@ export const changesRouter = router({
       const { db, org } = ctx;
       const conditions = [eq(releases.orgId, org!.id)];
       if (input.status) conditions.push(eq(releases.status, input.status));
-      return db.select().from(releases).where(and(...conditions)).orderBy(desc(releases.createdAt)).limit(input.limit);
+      const rels = await db.select().from(releases).where(and(...conditions)).orderBy(desc(releases.createdAt)).limit(input.limit);
+
+      if (rels.length === 0) return [];
+
+      const releaseIds = rels.map(r => r.id);
+
+      const linkedChanges = await db.select({ id: changeRequests.id, number: changeRequests.number, releaseId: changeRequests.releaseId })
+        .from(changeRequests)
+        .where(and(eq(changeRequests.orgId, org!.id), isNotNull(changeRequests.releaseId), inArray(changeRequests.releaseId, releaseIds)));
+        
+      const linkedProblems = await db.select({ id: problems.id, number: problems.number, releaseId: problems.releaseId })
+        .from(problems)
+        .where(and(eq(problems.orgId, org!.id), isNotNull(problems.releaseId), inArray(problems.releaseId, releaseIds)));
+
+      return rels.map(r => ({
+        ...r,
+        linkedItems: [
+          ...linkedChanges.filter(c => c.releaseId === r.id).map(c => c.number),
+          ...linkedProblems.filter(p => p.releaseId === r.id).map(p => p.number)
+        ]
+      }));
     }),
 
   createRelease: permissionProcedure("changes", "write")

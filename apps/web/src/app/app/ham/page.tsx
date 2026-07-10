@@ -14,9 +14,9 @@ const HAM_TABS = [
 ];
 
 const STATUS_COLOR: Record<string, string> = {
-  in_use:     "text-green-700 bg-green-100",
+  deployed:     "text-green-700 bg-green-100",
   in_stock:   "text-blue-700 bg-blue-100",
-  in_repair:  "text-orange-700 bg-orange-100",
+  maintenance:  "text-orange-700 bg-orange-100",
   retired:    "text-muted-foreground bg-muted",
   disposed:   "text-red-700 bg-red-100",
 };
@@ -32,7 +32,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
 };
 
 export default function HAMPage() {
-  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const { can, mergeTrpcQueryOpts, currentUser } = useRBAC();
   const visibleTabs = HAM_TABS.filter((t) => can(t.module, t.action));
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "assets");
   const [search, setSearch] = useState("");
@@ -43,24 +43,27 @@ export default function HAMPage() {
 
 
   // @ts-ignore
-  const assetsQuery = trpc.assets.ham.list.useQuery({ limit: 50, search: search || undefined }, mergeTrpcQueryOpts("assets.ham.list", undefined));
+  const assetsQuery = trpc.assets.list.useQuery({ limit: 50, search: search || undefined }, mergeTrpcQueryOpts("assets.list", undefined));
   // @ts-ignore
-  const assignAsset = trpc.assets.ham.assign?.useMutation?.({
+  const assignAsset = trpc.assets.assign.useMutation({
     onSuccess: () => { void assetsQuery.refetch(); toast.success("Asset assigned"); },
-    onError: (e: any) => { console.error("ham.assign failed:", e); toast.error(e.message || "Failed to assign asset"); },
+    onError: (e: any) => { console.error("assets.assign failed:", e); toast.error(e.message || "Failed to assign asset"); },
   });
 
   const assetTypesQuery = trpc.assets.listTypes.useQuery(undefined, mergeTrpcQueryOpts("assets.listTypes", { staleTime: 60000 }));
   const [showAddAsset, setShowAddAsset] = useState(false);
-  const [assetForm, setAssetForm] = useState({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "" });
+  const [assetForm, setAssetForm] = useState({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "", status: "in_stock", document: null as any });
   const [assetMsg, setAssetMsg] = useState<string | null>(null);
+
+  const documentsQuery = trpc.assets.listDocuments.useQuery(undefined, mergeTrpcQueryOpts("assets.listDocuments", { refetchOnWindowFocus: false }));
 
   const createAsset = trpc.assets.create.useMutation({
     onSuccess: (a) => {
       setAssetMsg(`Asset ${(a as any).assetTag ?? "new"} added`);
       setShowAddAsset(false);
-      setAssetForm({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "" });
+      setAssetForm({ name: "", typeId: "", location: "", vendor: "", purchaseCost: "", purchaseDate: "", status: "in_stock", document: null });
       assetsQuery.refetch();
+      documentsQuery.refetch();
       setTimeout(() => setAssetMsg(null), 4000);
     },
     onError: (e) => { toast.error(e.message || "Failed to add asset"); },
@@ -147,15 +150,54 @@ export default function HAMPage() {
               <label className="text-[11px] text-muted-foreground">Purchase Date</label>
               <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={assetForm.purchaseDate} onChange={(e) => setAssetForm((f) => ({ ...f, purchaseDate: e.target.value }))} />
             </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Asset Status *</label>
+              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={assetForm.status} onChange={(e) => setAssetForm((f) => ({ ...f, status: e.target.value }))}>
+                <option value="in_stock">In Stock</option>
+                <option value="deployed">Deployed</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="retired">Retired</option>
+                <option value="disposed">Disposed</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Contract / Warranty Docs</label>
+              <input type="file" className="w-full mt-0.5 text-[11px] border border-border rounded px-2 py-1 bg-background file:border-0 file:bg-muted file:text-muted-foreground file:mr-2 file:px-2 file:py-0.5 file:rounded" onChange={(e) => setAssetForm((f) => ({ ...f, document: e.target.files?.[0] || null }))} />
+            </div>
           </div>
           <div className="flex gap-2 mt-3">
-            <button
-              disabled={!assetForm.name || !assetForm.typeId || createAsset.isPending}
-              onClick={() => createAsset.mutate({ name: assetForm.name, typeId: assetForm.typeId, location: assetForm.location || undefined, vendor: assetForm.vendor || undefined, purchaseCost: assetForm.purchaseCost ? parseFloat(assetForm.purchaseCost) : undefined, purchaseDate: assetForm.purchaseDate ? new Date(assetForm.purchaseDate) : undefined })}
-              className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
-            >
-              {createAsset.isPending ? "Adding…" : "Add Asset"}
-            </button>
+              <button
+                onClick={async () => {
+                  if (!assetForm.name.trim()) return;
+                  let documentBase64 = undefined;
+                  let documentName = undefined;
+
+                  if (assetForm.document) {
+                    const file = assetForm.document as File;
+                    documentName = file.name;
+                    documentBase64 = await new Promise<string>((resolve) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => resolve(reader.result as string);
+                      reader.readAsDataURL(file);
+                    });
+                  }
+
+                  createAsset.mutate({
+                    name: assetForm.name.trim(),
+                    typeId: assetForm.typeId,
+                    location: assetForm.location,
+                    vendor: assetForm.vendor,
+                    purchaseCost: assetForm.purchaseCost ? parseFloat(assetForm.purchaseCost) : undefined,
+                    purchaseDate: assetForm.purchaseDate ? new Date(assetForm.purchaseDate) : undefined,
+                    status: assetForm.status as any,
+                    documentName,
+                    documentBase64,
+                  } as any);
+                }}
+                disabled={createAsset.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                {createAsset.isPending ? "Adding…" : "Add Asset"}
+              </button>
             <button onClick={() => setShowAddAsset(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
           </div>
         </div>
@@ -233,9 +275,11 @@ export default function HAMPage() {
                     <th>Owner</th>
                     <th>Location</th>
                     <th>Status</th>
+                    <th>Vendor</th>
                     <th>OS / Firmware</th>
                     <th>Specs</th>
                     <th>Purchase Cost</th>
+                    <th>Purchase Date</th>
                     <th>Warranty End</th>
                     <th>Last Seen</th>
                     <th>Actions</th>
@@ -260,9 +304,11 @@ export default function HAMPage() {
                         <td className="text-muted-foreground">{a.owner ?? a.ownerId ?? "Unassigned"}</td>
                         <td className="text-muted-foreground text-[11px]">{a.location ?? "—"}</td>
                         <td><span className={`status-badge capitalize ${STATUS_COLOR[a.status as string] ?? "text-muted-foreground bg-muted"}`}>{(a.status as string)?.replace(/_/g, " ") ?? "—"}</span></td>
+                        <td className="text-[11px] text-muted-foreground">{a.vendor ?? "—"}</td>
                         <td className="text-muted-foreground text-[11px]">{a.os ?? "—"}</td>
                         <td className="text-[11px] text-muted-foreground">{a.cpuCores ? `${a.cpuCores}c ` : ""}{a.ram ?? ""}{a.storage ? ` · ${a.storage}` : ""}</td>
                         <td className="font-mono text-[11px] text-foreground/80">{a.cost ? `$${(a.cost as number).toLocaleString()}` : "—"}</td>
+                        <td className="text-[11px] text-muted-foreground/80">{a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString("en-IN") : "—"}</td>
                         <td className={`text-[11px] ${warrantyExpired ? "text-red-600 font-semibold" : a.warrantyEnd && new Date(a.warrantyEnd) < new Date(Date.now() + 180 * 86400000) ? "text-orange-500 font-semibold" : "text-muted-foreground"}`}>
                           {a.warrantyEnd ?? "—"}{warrantyExpired ? " ⚠" : ""}
                         </td>
@@ -271,7 +317,9 @@ export default function HAMPage() {
                           {a.status === "in_stock" && (
                             <button
                               className="px-2 py-0.5 text-[10px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-                              onClick={() => assignAsset?.mutate?.({ assetId: a.id })}
+                              onClick={() => {
+                                assignAsset?.mutate?.({ id: a.id, ownerId: currentUser.id });
+                              }}
                             >
                               Assign
                             </button>
@@ -290,9 +338,9 @@ export default function HAMPage() {
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { stage: "In Stock",          count: assets.filter((a) => a.status === "in_stock").length,   color: "bg-blue-100 text-blue-700",    border: "border-blue-200" },
-              { stage: "Deployed",          count: assets.filter((a) => a.status === "in_use").length,     color: "bg-green-100 text-green-700",  border: "border-green-200" },
-              { stage: "In Repair",         count: assets.filter((a) => a.status === "in_repair").length,  color: "bg-orange-100 text-orange-700", border: "border-orange-200" },
-              { stage: "Awaiting Disposal", count: assets.filter((a) => a.status === "retired").length,    color: "bg-yellow-100 text-yellow-700", border: "border-yellow-200" },
+              { stage: "Deployed",          count: assets.filter((a) => a.status === "deployed").length,     color: "bg-green-100 text-green-700",  border: "border-green-200" },
+              { stage: "Maintenance",       count: assets.filter((a) => a.status === "maintenance").length,  color: "bg-orange-100 text-orange-700", border: "border-orange-200" },
+              { stage: "Retired",           count: assets.filter((a) => a.status === "retired").length,    color: "bg-yellow-100 text-yellow-700", border: "border-yellow-200" },
               { stage: "Disposed / EOL",    count: assets.filter((a) => a.status === "disposed").length,   color: "bg-muted text-muted-foreground",    border: "border-border" },
             ].map((s) => (
               <div key={s.stage} className={`border rounded p-3 text-center ${s.border}`}>
@@ -304,9 +352,30 @@ export default function HAMPage() {
         )}
 
         {tab === "contracts" && (
-          <div className="p-4 text-center text-muted-foreground text-[12px]">
-            <p className="mb-3">Hardware contracts, vendor SLAs, maintenance agreements, and renewal tracking.</p>
-            <p className="text-[11px] text-muted-foreground/70">Integrated with Vendor Management module</p>
+          <div className="p-4">
+            {!documentsQuery.data || documentsQuery.data.length === 0 ? (
+              <div className="text-center text-muted-foreground text-[12px] py-8">
+                <p className="mb-3">Hardware contracts, vendor SLAs, maintenance agreements, and renewal tracking.</p>
+                <p className="text-[11px] text-muted-foreground/70">Integrated with Vendor Management module. No documents uploaded yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <h3 className="text-[13px] font-semibold">Uploaded Documents</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {documentsQuery.data.map((doc: any) => (
+                    <div key={doc.id} className="flex items-center gap-3 p-3 border border-border rounded bg-card/50">
+                      <div className="p-2 bg-primary/10 text-primary rounded">
+                        <Download className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-[11px] font-medium truncate">{doc.fileName}</p>
+                        <p className="text-[10px] text-muted-foreground">Asset: <span className="font-mono text-primary">{doc.assetTag}</span> - {doc.name} · {new Date(doc.date).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

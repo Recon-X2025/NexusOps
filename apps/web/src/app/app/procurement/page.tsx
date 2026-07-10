@@ -109,6 +109,8 @@ export default function ProcurementPage() {
   const createDirectPO = trpc.procurement.purchaseOrders.create.useMutation({ onSuccess: () => { refetchPOs(); setShowNewPO(false); toast.success("Purchase Order created"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   
   const createInventoryItem = trpc.inventory.create.useMutation({ onSuccess: () => { refetchInv(); setShowNewItem(false); toast.success("Item added to catalog"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const updateInventoryItem = trpc.inventory.update.useMutation({ onSuccess: () => { refetchInv(); setEditingItem(null); toast.success("Item updated"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
+  const deleteInventoryItem = trpc.inventory.delete.useMutation({ onSuccess: () => { refetchInv(); toast.success("Item deleted"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const createPolicy = trpc.inventory.createPolicy.useMutation({ onSuccess: () => { refetchPolicies(); setShowNewPolicy(false); toast.success("Reorder policy created"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
   const recordIntake = trpc.inventory.intake.useMutation({ onSuccess: () => { refetchInv(); setShowIntake(false); toast.success("Stock intake recorded"); }, onError: (err: any) => toast.error(err?.message ?? "Something went wrong") });
 
@@ -123,10 +125,12 @@ export default function ProcurementPage() {
   const [showNewItem, setShowNewItem] = useState(false);
   const [showNewPolicy, setShowNewPolicy] = useState(false);
   const [showIntake, setShowIntake] = useState(false);
+  const [editingItem, setEditingItem] = useState<Record<string, any> | null>(null);
+  const [editItemForm, setEditItemForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", minQty: "5", location: "", unitCost: "" });
 
   const [prForm, setPrForm] = useState({ title: "", justification: "", priority: "medium", department: "", itemDesc: "", itemQty: "1", itemPrice: "" });
   const [poForm, setPoForm] = useState({ vendorId: "", notes: "", expectedDelivery: "", items: [{ desc: "", qty: "1", price: "" }] });
-  const [invForm, setInvForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", qty: "0", minQty: "5", unitCost: "" });
+  const [invForm, setInvForm] = useState({ partNumber: "", name: "", description: "", category: "spare", unit: "each", qty: "0", minQty: "5", unitCost: "", poReference: "" });
   const [policyForm, setPolicyForm] = useState({ itemId: "", thresholdQty: "5", reorderQty: "20", isAutomated: false });
   const [intakeForm, setIntakeForm] = useState({ itemId: "", qty: "1", reference: "", notes: "" });
 
@@ -855,7 +859,34 @@ export default function ProcurementPage() {
                         <td className="font-mono text-[11px]">₹{Number(item.unitCost ?? 0).toLocaleString("en-IN")}</td>
                         <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
                         <td>
-                          <button onClick={() => { setIntakeForm({...intakeForm, itemId: item.id}); setShowIntake(true); }} className="text-primary hover:underline text-[11px] font-bold">Add Stock</button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => { setIntakeForm({...intakeForm, itemId: item.id}); setShowIntake(true); }} className="text-primary hover:underline text-[11px] font-bold">Add Stock</button>
+                            <button
+                              onClick={() => {
+                                setEditingItem(item);
+                                setEditItemForm({
+                                  partNumber: item.partNumber,
+                                  name: item.name,
+                                  description: item.description ?? "",
+                                  category: item.category,
+                                  unit: item.unit,
+                                  minQty: String(item.minQty),
+                                  location: item.location ?? "",
+                                  unitCost: item.unitCost ?? "",
+                                });
+                              }}
+                              className="text-blue-600 hover:underline text-[11px] font-bold"
+                            >Edit</button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete "${item.name}"? This cannot be undone.`)) {
+                                  deleteInventoryItem.mutate({ id: item.id });
+                                }
+                              }}
+                              disabled={deleteInventoryItem.isPending}
+                              className="text-red-600 hover:underline text-[11px] font-bold disabled:opacity-50"
+                            >Delete</button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -950,6 +981,73 @@ export default function ProcurementPage() {
         )}
 
         {/* MODALS */}
+
+        {/* EDIT INVENTORY ITEM MODAL */}
+        {editingItem && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6">
+                <h3 className="text-lg font-bold text-foreground mb-1">Edit Inventory Item</h3>
+                <p className="text-[11px] text-muted-foreground mb-4">Updating <span className="font-mono text-primary">{editingItem.partNumber}</span> — stock quantity is not editable here (use Add Stock / Issue)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Part Number *</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.partNumber} onChange={e => setEditItemForm({...editItemForm, partNumber: e.target.value})} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Name *</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.name} onChange={e => setEditItemForm({...editItemForm, name: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Category</label>
+                    <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.category} onChange={e => setEditItemForm({...editItemForm, category: e.target.value})}>
+                      <option value="spare">Spare Parts</option>
+                      <option value="it_hardware">IT Hardware</option>
+                      <option value="consumable">Consumables</option>
+                      <option value="asset">Fixed Asset</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Unit</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.unit} onChange={e => setEditItemForm({...editItemForm, unit: e.target.value})} placeholder="each / box / kg" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min Qty (Safety)</label>
+                    <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.minQty} onChange={e => setEditItemForm({...editItemForm, minQty: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Unit Cost (₹)</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.unitCost} onChange={e => setEditItemForm({...editItemForm, unitCost: e.target.value})} placeholder="0.00" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Location / Bin</label>
+                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.location} onChange={e => setEditItemForm({...editItemForm, location: e.target.value})} placeholder="e.g. Warehouse A / Shelf 3" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Description</label>
+                    <textarea rows={2} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background resize-none" value={editItemForm.description} onChange={e => setEditItemForm({...editItemForm, description: e.target.value})} />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+                  <button
+                    disabled={!editItemForm.partNumber || !editItemForm.name || updateInventoryItem.isPending}
+                    onClick={() => updateInventoryItem.mutate({
+                      id: editingItem.id,
+                      ...editItemForm,
+                      minQty: parseInt(editItemForm.minQty) || 0,
+                      unitCost: editItemForm.unitCost?.trim() || undefined,
+                    })}
+                    className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
+                  >
+                    {updateInventoryItem.isPending ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showNewItem && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
@@ -985,6 +1083,34 @@ export default function ProcurementPage() {
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min Qty (Safety)</label>
                     <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.minQty} onChange={e => setInvForm({...invForm, minQty: e.target.value})} />
                   </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reference (PO / Invoice #)</label>
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        value={purchaseOrders.find((po: any) => po.number === invForm.poReference || po.id === invForm.poReference) ? invForm.poReference : "__manual__"}
+                        onChange={e => {
+                          if (e.target.value === "__manual__") {
+                            setInvForm({...invForm, poReference: ""});
+                          } else {
+                            const po = purchaseOrders.find((p: any) => p.id === e.target.value);
+                            setInvForm({...invForm, poReference: po?.number ?? e.target.value});
+                          }
+                        }}
+                      >
+                        <option value="__manual__">— Enter manually —</option>
+                        {purchaseOrders.map((po: any) => (
+                          <option key={po.id} value={po.id}>{po.number}{po.vendorName ? ` · ${po.vendorName}` : ""}</option>
+                        ))}
+                      </select>
+                      <input
+                        className="w-36 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        placeholder="or type ref…"
+                        value={invForm.poReference}
+                        onChange={e => setInvForm({...invForm, poReference: e.target.value})}
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-8">
                   <button onClick={() => setShowNewItem(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
@@ -994,6 +1120,8 @@ export default function ProcurementPage() {
                       ...invForm,
                       qty: parseInt(invForm.qty) || 0,
                       minQty: parseInt(invForm.minQty) || 5,
+                      unitCost: invForm.unitCost?.trim() || undefined,
+                      poReference: invForm.poReference?.trim() || undefined,
                     })}
                     className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                   >
@@ -1070,7 +1198,30 @@ export default function ProcurementPage() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reference (PO / Invoice #)</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={intakeForm.reference} onChange={e => setIntakeForm({...intakeForm, reference: e.target.value})} placeholder="e.g. PO-12345" />
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        value={purchaseOrders.find((po: any) => po.poNumber === intakeForm.reference) ? intakeForm.reference : "__manual__"}
+                        onChange={e => {
+                          if (e.target.value === "__manual__") {
+                            setIntakeForm({...intakeForm, reference: ""});
+                          } else {
+                            setIntakeForm({...intakeForm, reference: e.target.value});
+                          }
+                        }}
+                      >
+                        <option value="__manual__">— Enter manually —</option>
+                        {purchaseOrders.map((po: any) => (
+                          <option key={po.id} value={po.poNumber}>{po.poNumber}{po.vendorName ? ` · ${po.vendorName}` : ""}</option>
+                        ))}
+                      </select>
+                      <input
+                        className="w-36 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        placeholder="or type ref…"
+                        value={intakeForm.reference}
+                        onChange={e => setIntakeForm({...intakeForm, reference: e.target.value})}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Notes</label>

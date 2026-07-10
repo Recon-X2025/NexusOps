@@ -14,6 +14,9 @@ import {
   payslips,
   employees,
   salaryStructures,
+  users,
+  documents,
+  documentVersions,
   eq,
   and,
   or,
@@ -23,6 +26,9 @@ import {
   max,
   type PayrollWorkflowMeta,
 } from "@coheronconnect/db";
+import { putObject, buildDocumentKey, enqueueVirusScan } from "../services/storage";
+import { generateForm16PDF } from "../services/form16-pdf";
+import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
@@ -568,7 +574,7 @@ const salaryStructuresRouter = router({
     return db
       .select()
       .from(salaryStructures)
-      .where(eq(salaryStructures.orgId, org!.id))
+      .where(and(eq(salaryStructures.orgId, org!.id), eq(salaryStructures.isArchived, false)))
       .orderBy(desc(salaryStructures.createdAt));
   }),
 
@@ -640,12 +646,93 @@ const salaryStructuresRouter = router({
       if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
       return { ok: true };
     }),
+
+  archive: permissionProcedure("hr", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [archived] = await db
+        .update(salaryStructures)
+        .set({ isArchived: true })
+        .where(and(eq(salaryStructures.id, input.id), eq(salaryStructures.orgId, org!.id)))
+        .returning();
+      if (!archived) throw new TRPCError({ code: "NOT_FOUND" });
+      return { ok: true };
+    }),
 });
 
 export const payrollRouter = router({
   runs: runsRouter,
   payslips: payslipsRouter,
   salaryStructures: salaryStructuresRouter,
+
+  generateForm16ToDms: permissionProcedure("hr", "write")
+    .input(z.object({ employeeId: z.string().uuid(), fy: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org, user } = ctx;
+      if (!/^\d{4}-\d{4}$/.test(input.fy)) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid fy (expected YYYY-YYYY)" });
+      const fyStart = Number(input.fy.split("-")[0]);
+      const fyEnd = fyStart + 1;
+      
+      const [empRow] = await db
+        .select({ emp: employees, userRow: users })
+        .from(employees)
+        .innerJoin(users, eq(employees.userId, users.id))
+        .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)))
+        .limit(1);
+      if (!empRow) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+
+      const slips = await db
+        .select()
+        .from(payslips)
+        .where(
+          and(
+            eq(payslips.orgId, org!.id),
+            eq(payslips.employeeId, empRow.emp.id),
+            or(
+              and(eq(payslips.year, fyStart), gte(payslips.month, 4)),
+              and(eq(payslips.year, fyEnd), lte(payslips.month, 3)),
+            ),
+          ),
+        );
+      if (slips.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: `No payslips on file for FY ${input.fy}` });
+
+      const orgRow = org as { name?: string; settings?: unknown } & Record<string, unknown>;
+      const pdfInput = buildForm16Input({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        org: orgRow as any,
+        employee: { ...empRow.emp, name: empRow.userRow.name as string },
+        fySlips: slips,
+        financialYear: input.fy,
+      });
+      const buffer = await generateForm16PDF(pdfInput);
+
+      const [doc] = await db.insert(documents).values({
+        orgId: org!.id,
+        name: `Form16_${empRow.emp.employeeId ?? empRow.emp.id}_${input.fy}.pdf`,
+        mimeType: "application/pdf",
+        sizeBytes: buffer.length,
+        storageKey: "",
+        sha256: "",
+        currentVersion: 1,
+        folderPath: null,
+        classification: "internal",
+        scanStatus: "pending",
+        retentionPolicyId: null,
+        sourceType: "form16",
+        sourceId: empRow.emp.id,
+        ownerId: user!.id,
+      }).returning();
+      if (!doc) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create document" });
+
+      const key = buildDocumentKey(doc.id, 1, "pdf");
+      const put = await putObject({ orgId: org!.id, key, body: buffer, mimeType: "application/pdf" });
+      await db.update(documents).set({ storageKey: put.key, sha256: put.sha256, updatedAt: new Date() }).where(eq(documents.id, doc.id));
+      await db.insert(documentVersions).values({ documentId: doc.id, version: 1, storageKey: put.key, sha256: put.sha256, sizeBytes: put.sizeBytes, uploadedById: user!.id });
+      await enqueueVirusScan(doc.id);
+
+      return { ok: true, documentId: doc.id };
+    }),
 
   /**
    * Export a payroll run to a bank-disbursement file (NEFT / NACH-Credit).

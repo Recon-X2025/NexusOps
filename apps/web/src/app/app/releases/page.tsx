@@ -8,15 +8,12 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 const STATE_CFG: Record<string, { label: string; color: string }> = {
-  planning:        { label: "Planning",        color: "text-muted-foreground bg-muted" },
-  testing:         { label: "Testing",         color: "text-blue-700 bg-blue-100" },
-  cab_approval:    { label: "CAB Review",      color: "text-yellow-700 bg-yellow-100" },
-  scheduled:       { label: "Scheduled",       color: "text-indigo-700 bg-indigo-100" },
-  deployment:      { label: "Deploying",       color: "text-orange-700 bg-orange-100" },
-  post_deployment: { label: "Post Deploy",     color: "text-green-700 bg-green-100" },
-  complete:        { label: "Complete",        color: "text-green-700 bg-green-100" },
-  failed:          { label: "Failed",          color: "text-red-700 bg-red-100" },
-  rolled_back:     { label: "Rolled Back",     color: "text-red-700 bg-red-100" },
+  planning:  { label: "Planning",   color: "text-muted-foreground bg-muted" },
+  build:     { label: "Build",      color: "text-blue-700 bg-blue-100" },
+  test:      { label: "Testing",    color: "text-yellow-700 bg-yellow-100" },
+  deploy:    { label: "Deploying",  color: "text-orange-700 bg-orange-100" },
+  completed: { label: "Completed",  color: "text-green-700 bg-green-100" },
+  cancelled: { label: "Cancelled",  color: "text-red-700 bg-red-100" },
 };
 
 const RISK_COLOR: Record<string, string> = {
@@ -36,7 +33,26 @@ export default function ReleasesPage() {
   const [newReleaseType, setNewReleaseType] = useState("Minor");
   const [newReleaseEnv, setNewReleaseEnv] = useState("Production");
 
+  const [linkChangeOpen, setLinkChangeOpen] = useState<string | null>(null);
+  const [selectedChangeId, setSelectedChangeId] = useState("");
+
   const releasesQuery = trpc.changes.listReleases.useQuery({ limit: 50 }, mergeTrpcQueryOpts("changes.listReleases", undefined));
+  
+  const changesQuery = trpc.changes.list.useQuery(
+    { limit: 100 },
+    { enabled: !!linkChangeOpen }
+  );
+
+  const updateChangeMutation = trpc.changes.update.useMutation({
+    onSuccess: () => {
+      void releasesQuery.refetch();
+      setLinkChangeOpen(null);
+      setSelectedChangeId("");
+      toast.success("Change linked to release successfully");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to link change"),
+  });
+
   const createRelease = trpc.changes.createRelease.useMutation({
     onSuccess: () => {
       void releasesQuery.refetch();
@@ -47,14 +63,51 @@ export default function ReleasesPage() {
     onError: (e: any) => { console.error("changes.createRelease failed:", e); toast.error(e.message || "Failed to create release"); },
   });
 
+  const createIncidentMutation = trpc.tickets.create.useMutation();
+  const updateReleaseMutation = trpc.changes.updateRelease.useMutation();
+
+  const handleRollback = async (rel: any) => {
+    try {
+      // 1. Create incident
+      const inc = await createIncidentMutation.mutateAsync({
+        title: `Release Rollback: ${rel.name || rel.id}`,
+        description: `Automated incident created due to release rollback.\nRelease ID: ${rel.id}\nPlanned Date: ${rel.plannedDate ? new Date(rel.plannedDate).toLocaleString() : "N/A"}`,
+        type: "incident",
+      });
+
+      // 2. Add log to deployment plan & update status
+      const existingPlan = Array.isArray(rel.deploymentPlan) ? rel.deploymentPlan : [];
+      const newPlan = [
+        ...existingPlan,
+        {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: "failed",
+          step: `Rollback initiated. Incident created: ${inc?.number || "INC-..."}`,
+          duration: "—"
+        }
+      ];
+
+      await updateReleaseMutation.mutateAsync({
+        id: rel.id,
+        status: "cancelled",
+        deploymentPlan: newPlan,
+      });
+
+      toast.success("Rollback initiated. Incident created and attached.");
+      void releasesQuery.refetch();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to rollback release");
+    }
+  };
+
   const releases = releasesQuery.data ?? [];
 
   if (!can("changes", "read")) return <AccessDenied module="Release Management" />;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const inFlight = releases.filter((r: any) => ["deployment", "post_deployment"].includes(r.state)).length;
+  const inFlight = releases.filter((r: any) => r.status === "deploy").length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const awaitingCAB = releases.filter((r: any) => r.state === "cab_approval").length;
+  const awaitingCAB = releases.filter((r: any) => r.status === "build").length;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const failedTests = releases.filter((r: any) => (r.testsFailed ?? 0) > 0).length;
 
@@ -88,7 +141,7 @@ export default function ReleasesPage() {
           { label: "Awaiting CAB",           value: awaitingCAB, color: "text-yellow-700" },
           { label: "Failing Tests",          value: failedTests, color: "text-red-700" },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { label: "Planned This Week",      value: releases.filter((r: any) => r.state === "scheduled").length, color: "text-blue-700" },
+          { label: "Planned This Week",      value: releases.filter((r: any) => r.status === "planning").length, color: "text-blue-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -122,7 +175,7 @@ export default function ReleasesPage() {
         <div className="space-y-2">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {releases.map((rel: any) => {
-            const sCfg = STATE_CFG[rel.state as string];
+            const sCfg = STATE_CFG[rel.status as string];
             const isExpanded = expandedId === rel.id;
             const deploymentSteps = (rel.deploymentSteps as number) ?? 0;
             const completedSteps = (rel.completedSteps as number) ?? 0;
@@ -148,6 +201,13 @@ export default function ReleasesPage() {
                           <span className={`status-badge ${sCfg?.color}`}>{sCfg?.label}</span>
                           {rel.changeRef && <span className="font-mono text-[11px] text-muted-foreground/70">{rel.changeRef as string}</span>}
                           {!rollbackPlan && <span className="status-badge text-red-700 bg-red-100">⚠ No Rollback Plan</span>}
+                          {rel.linkedItems && rel.linkedItems.length > 0 && (
+                            rel.linkedItems.map((item: string) => (
+                              <span key={item} className="ml-1.5 px-1 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[9px] font-medium whitespace-nowrap">
+                                {item}
+                              </span>
+                            ))
+                          )}
                         </div>
                         <p className="text-[13px] font-semibold text-foreground">{rel.name as string}</p>
                       </div>
@@ -156,7 +216,13 @@ export default function ReleasesPage() {
                           Planned: {rel.plannedDate ? new Date(rel.plannedDate as string).toLocaleString() : "—"}
                         </div>
                         <div className="text-[11px] text-muted-foreground">{(rel.owner as string) ?? (rel.ownerId as string) ?? "—"}</div>
-                        <div className="flex items-center gap-1.5 mt-1 justify-end">
+                        <div className="flex items-center gap-2 mt-1 justify-end">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setLinkChangeOpen(rel.id); }} 
+                            className="text-[10px] text-primary hover:underline font-medium whitespace-nowrap"
+                          >
+                            + Link Change
+                          </button>
                           {testsFailed > 0 ? (
                             <span className="text-[10px] text-red-600 font-semibold">⚠ {testsFailed} test failures</span>
                           ) : testsPassed > 0 ? (
@@ -201,7 +267,7 @@ export default function ReleasesPage() {
                     )}
                     <div className="flex items-center gap-3 mt-3">
                       <button onClick={() => router.push(`/app/changes?search=${encodeURIComponent((rel.changeRef as string) ?? rel.id ?? "")}`)} className="px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">View Full Pipeline</button>
-                      <button onClick={() => router.push(`/app/changes/new?type=emergency&source=rollback&release=${rel.id ?? ""}`)} className="px-3 py-1 border border-red-300 text-red-600 text-[11px] rounded hover:bg-red-50">Rollback</button>
+                      <button onClick={() => handleRollback(rel)} disabled={updateReleaseMutation.isPending || createIncidentMutation.isPending} className="px-3 py-1 border border-red-300 text-red-600 text-[11px] rounded hover:bg-red-50 disabled:opacity-50">Rollback</button>
                       <button onClick={() => router.push(`/app/changes?search=${encodeURIComponent((rel.changeRef as string) ?? rel.id ?? "")}`)} className="px-3 py-1 border border-border text-[11px] rounded hover:bg-muted/30 text-muted-foreground">View Logs</button>
                       <button onClick={() => router.push(`/app/releases/${rel.id}`)} className="px-3 py-1 border border-border text-primary text-[11px] rounded hover:bg-primary/10">View Details</button>
                     </div>
@@ -269,6 +335,51 @@ export default function ReleasesPage() {
                 className="px-4 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >
                 {createRelease.isPending ? "Creating..." : "Create Release"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Link Change Modal */}
+      {linkChangeOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-foreground">Link Change to Release</h2>
+              <button onClick={() => { setLinkChangeOpen(null); setSelectedChangeId(""); }} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide block mb-1">Select Change Request</label>
+                <select
+                  value={selectedChangeId}
+                  onChange={(e) => setSelectedChangeId(e.target.value)}
+                  className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none focus:border-primary"
+                  disabled={changesQuery.isLoading}
+                >
+                  <option value="" disabled>-- Select a Change Request --</option>
+                  {changesQuery.data?.items?.filter((c: any) => !c.releaseId).map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.number} - {c.title}</option>
+                  ))}
+                </select>
+                {changesQuery.isLoading && <p className="text-[10px] text-muted-foreground mt-1">Loading changes...</p>}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={() => { setLinkChangeOpen(null); setSelectedChangeId(""); }}
+                className="px-3 py-1.5 text-[11px] border border-border rounded text-muted-foreground hover:bg-muted/30"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!selectedChangeId || updateChangeMutation.isPending}
+                onClick={() => updateChangeMutation.mutate({ id: selectedChangeId, releaseId: linkChangeOpen })}
+                className="px-4 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              >
+                {updateChangeMutation.isPending ? "Linking..." : "Link Change"}
               </button>
             </div>
           </div>

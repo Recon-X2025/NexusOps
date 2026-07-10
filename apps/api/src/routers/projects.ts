@@ -535,4 +535,13 @@ export const projectsRouter = router({
       };
     });
   }),
+
+  delete: permissionProcedure("projects", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await db.delete(projects).where(and(eq(projects.id, input.id), eq(projects.orgId, org!.id)));
+      return { success: true };
+    }),
 });
+

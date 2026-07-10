@@ -367,7 +367,7 @@ export default function CompliancePage() {
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => setShowAddBaseline(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!baselineForm.name.trim()) { toast.error("Audit name is required"); return; } createAudit.mutate({ name: baselineForm.name.trim(), type: "compliance" as any, framework: baselineForm.framework, scope: baselineForm.scope || undefined } as any); }}
+                onClick={() => { if (!baselineForm.name.trim()) { toast.error("Audit name is required"); return; } createAudit.mutate({ title: baselineForm.name.trim(), scope: baselineForm.scope || undefined } as any); }}
                 disabled={createAudit.isPending}
                 className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createAudit.isPending ? "Creating…" : "Create Baseline"}

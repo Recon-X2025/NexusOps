@@ -1,4 +1,4 @@
-import { router, permissionProcedure, adminProcedure } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure, adminProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -16,6 +16,7 @@ import {
   buildDocumentKey,
   enqueueVirusScan,
 } from "../services/storage";
+import { checkDbUserPermission } from "../lib/rbac-db";
 
 /**
  * DMS router. All file attachments across CoheronConnect go through this.
@@ -27,7 +28,7 @@ import {
  *   3. Source modules (tickets, contracts, …) reference the doc id.
  */
 export const documentsRouter = router({
-  list: permissionProcedure("settings", "read")
+  list: protectedProcedure
     .input(
       z.object({
         sourceType: z.string().optional(),
@@ -37,7 +38,19 @@ export const documentsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
+      
+      const moduleMap: Record<string, import("@coheronconnect/types").Module> = {
+        "form16": "hr",
+        "hr.policies": "hr",
+        "recruitment.offers": "recruitment",
+        "secretarial.resolutions": "secretarial",
+        "procurement.vendor-onboarding": "procurement",
+      };
+      const moduleName = input.sourceType ? (moduleMap[input.sourceType] ?? "settings") : "settings";
+      const hasPerm = checkDbUserPermission(user!.role, moduleName, "read", user!.matrixRole as string | undefined);
+      if (!hasPerm) throw new TRPCError({ code: "FORBIDDEN", message: `Missing read permission for ${moduleName}` });
+
       const conditions = [eq(documents.orgId, org!.id), isNull(documents.deletedAt)];
       if (input.sourceType) conditions.push(eq(documents.sourceType, input.sourceType));
       if (input.sourceId) conditions.push(eq(documents.sourceId, input.sourceId));

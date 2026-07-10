@@ -5,7 +5,6 @@ import { sendNotification } from "../services/notifications";
 import { getNextSeq } from "../lib/auto-number";
 import { resolveAssignment } from "../services/assignment";
 import {
-
   workOrders,
   workOrderTasks,
   workOrderActivityLogs,
@@ -135,7 +134,8 @@ export const workOrdersRouter = router({
             console.info("[assignment] Work order parked at capacity — team queue:", assignment.teamId);
           }
         }
-      }
+      }                                                            
+                                            
 
       // Atomicity: the work order row and its initial activity-log entry must
       // be committed together. Wrapping both writes in a transaction prevents a
@@ -227,19 +227,30 @@ export const workOrdersRouter = router({
     .input(z.object({
       id: z.string().uuid(),
       shortDescription: z.string().min(3).max(500).optional(),
-      description: z.string().optional(),
+      description: z.string().optional().nullable(),
       priority: WOPriorityEnum.optional(),
-      location: z.string().optional(),
+      location: z.string().optional().nullable(),
+      category: z.string().optional().nullable(),
+      subcategory: z.string().optional().nullable(),
+      cmdbCi: z.string().optional().nullable(),
+      scheduledStartDate: z.string().datetime().optional().nullable(),
+      scheduledEndDate: z.string().datetime().optional().nullable(),
+      estimatedHours: z.coerce.number().optional().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const { id, ...updates } = input;
+      const { id, scheduledStartDate, scheduledEndDate, ...updates } = input;
       // Atomicity: the field update and its audit-log entry must commit together
       // so an "updated" log is never recorded without the change (or vice versa).
       return await db.transaction(async (tx) => {
         const [wo] = await tx
           .update(workOrders)
-          .set({ ...updates, updatedAt: new Date() })
+          .set({
+            ...updates,
+            ...(scheduledStartDate !== undefined ? { scheduledStartDate: scheduledStartDate ? new Date(scheduledStartDate) : null } : {}),
+            ...(scheduledEndDate !== undefined ? { scheduledEndDate: scheduledEndDate ? new Date(scheduledEndDate) : null } : {}),
+            updatedAt: new Date(),
+          })
           .where(and(eq(workOrders.id, id), eq(workOrders.orgId, org!.id)))
           .returning();
         await tx.insert(workOrderActivityLogs).values({
@@ -321,6 +332,26 @@ export const workOrdersRouter = router({
         })
         .returning();
       return log;
+    }),
+
+  delete: permissionProcedure("work_orders", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await db.delete(workOrderActivityLogs).where(eq(workOrderActivityLogs.workOrderId, input.id));
+      await db.delete(workOrderTasks).where(eq(workOrderTasks.workOrderId, input.id));
+      await db.delete(workOrders).where(and(eq(workOrders.id, input.id), eq(workOrders.orgId, org!.id)));
+      return { success: true };
+    }),
+
+  archive: permissionProcedure("work_orders", "write")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      await db.update(workOrders)
+        .set({ state: "closed", updatedAt: new Date() })
+        .where(and(eq(workOrders.id, input.id), eq(workOrders.orgId, org!.id)));
+      return { success: true };
     }),
 
   metrics: permissionProcedure("work_orders", "read").query(async ({ ctx }) => {

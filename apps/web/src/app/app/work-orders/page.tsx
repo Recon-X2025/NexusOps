@@ -27,6 +27,9 @@ import {
   Truck,
   PlayCircle,
   PauseCircle,
+  Edit2,
+  Trash2,
+  Archive,
 } from "lucide-react";
 
 type WOState =
@@ -122,6 +125,22 @@ export default function WorkOrdersPage() {
       refetch(); setTimeout(() => setWoActionMsg(null), 3000);
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  const deleteMutation = trpc.workOrders.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Work order deleted successfully");
+      refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to delete work order"),
+  });
+
+  const archiveMutation = trpc.workOrders.archive.useMutation({
+    onSuccess: () => {
+      toast.success("Work order archived successfully");
+      refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to archive work order"),
   });
 
   const handleBulkStateChange = (state: string) => {
@@ -310,6 +329,7 @@ export default function WorkOrdersPage() {
                   </button>
                 </th>
                 <th>Scheduled End</th>
+                <th className="text-right uppercase">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -393,6 +413,41 @@ export default function WorkOrdersPage() {
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/app/work-orders/${wo.id}`}
+                          className="p-1 text-muted-foreground hover:text-primary rounded hover:bg-muted"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Link>
+                        <button
+                          className="p-1 text-muted-foreground hover:text-red-600 rounded hover:bg-red-50"
+                          title="Delete"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => {
+                            if (confirm("Are you sure you want to delete this work order?")) {
+                              deleteMutation.mutate({ id: wo.id });
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          className="p-1 text-muted-foreground hover:text-orange-600 rounded hover:bg-orange-50"
+                          title="Archive"
+                          disabled={archiveMutation.isPending}
+                          onClick={() => {
+                            if (confirm("Are you sure you want to archive this work order?")) {
+                              archiveMutation.mutate({ id: wo.id });
+                            }
+                          }}
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

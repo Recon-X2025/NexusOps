@@ -61,9 +61,10 @@
     "@coheronconnect/db": "workspace:*",
     "@coheronconnect/types": "workspace:*",
     "@playwright/test": "^1.58.2",
-    "bcryptjs": "^2.4.3",
     "@types/node": "^22.0.0",
+    "bcryptjs": "^2.4.3",
     "dotenv-cli": "^11.0.0",
+    "drizzle-orm": "^0.45.2",
     "prettier": "^3.3.0",
     "turbo": "^2.0.0",
     "typescript": "^5.5.0"
@@ -82,5 +83,8 @@
       "sharp",
       "unrs-resolver"
     ]
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }

@@ -52,6 +52,10 @@ export default function GRCPage() {
     onSuccess: () => { utils.grc.listRisks.invalidate(); setShowNewRisk(false); setRiskForm(EMPTY_RISK); toast.success("Risk created"); },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
+  const updateRiskMutation = trpc.grc.updateRisk.useMutation({
+    onSuccess: () => { utils.grc.listRisks.invalidate(); toast.success("Risk updated"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to update risk"),
+  });
   const createPolicyMutation = trpc.grc.createPolicy.useMutation({
     onSuccess: () => { utils.grc.listPolicies.invalidate(); setShowNewPolicy(false); setPolicyForm({ title: "", content: "", category: "" }); toast.success("Policy created"); },
     onError: (err: any) => toast.error(err?.message ?? "Failed to create policy"),
@@ -60,15 +64,47 @@ export default function GRCPage() {
     onSuccess: () => { utils.grc.listPolicies.invalidate(); toast.success("Policy published"); },
     onError: (err: any) => toast.error(err?.message ?? "Failed to publish"),
   });
+  const unpublishPolicyMutation = trpc.grc.unpublishPolicy.useMutation({
+    onSuccess: () => { utils.grc.listPolicies.invalidate(); toast.success("Policy unpublished"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to unpublish"),
+  });
+  const updatePolicyMutation = trpc.grc.updatePolicy.useMutation({
+    onSuccess: () => { utils.grc.listPolicies.invalidate(); setEditPolicy(null); toast.success("Policy updated"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to update policy"),
+  });
+  const deletePolicyMutation = trpc.grc.deletePolicy.useMutation({
+    onSuccess: () => { utils.grc.listPolicies.invalidate(); toast.success("Policy deleted"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to delete policy"),
+  });
+  const archivePolicyMutation = trpc.grc.archivePolicy.useMutation({
+    onSuccess: () => { utils.grc.listPolicies.invalidate(); toast.success("Policy archived"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to archive policy"),
+  });
   const createAuditMutation = trpc.grc.createAudit.useMutation({
     onSuccess: () => { utils.grc.listAudits.invalidate(); setShowNewAudit(false); setAuditForm({ title: "", scope: "", startDate: "", endDate: "" }); toast.success("Audit plan created"); },
     onError: (err: any) => toast.error(err?.message ?? "Failed to create audit"),
   });
+  const updateAuditStatusMutation = trpc.grc.updateAuditStatus.useMutation({
+    onSuccess: () => { utils.grc.listAudits.invalidate(); toast.success("Audit status updated"); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to update audit status"),
+  });
+
+  const MODULE_OPTIONS = [
+    "Platform",
+    "IT Services",
+    "Security & Compliance",
+    "People & Workplace",
+    "Customer & Sales",
+    "Finance & Procurement",
+    "Supply Chain & Manufacturing"
+  ];
   const EMPTY_RISK = { title: "", category: "operational" as const, likelihood: 3, impact: 3, treatment: "mitigate" as const, description: "", mitigationPlan: "" };
   const [showNewRisk, setShowNewRisk] = useState(false);
   const [riskForm, setRiskForm]       = useState(EMPTY_RISK);
   const [showNewPolicy, setShowNewPolicy] = useState(false);
   const [policyForm, setPolicyForm] = useState({ title: "", content: "", category: "" });
+  const [editPolicy, setEditPolicy] = useState<PolicyItem | null>(null);
+  const [editPolicyForm, setEditPolicyForm] = useState({ title: "", content: "", category: "" });
   const [showNewAudit, setShowNewAudit] = useState(false);
   const [auditForm, setAuditForm] = useState({ title: "", scope: "", startDate: "", endDate: "" });
 
@@ -100,7 +136,10 @@ export default function GRCPage() {
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Category</label>
-                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. Security, HR, Finance" value={policyForm.category} onChange={(e) => setPolicyForm(f => ({ ...f, category: e.target.value }))} />
+                <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={policyForm.category} onChange={(e) => setPolicyForm(f => ({ ...f, category: e.target.value }))}>
+                  <option value="">Select a category...</option>
+                  {MODULE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Content / Description</label>
@@ -112,6 +151,41 @@ export default function GRCPage() {
                 {createPolicyMutation.isPending ? "Creating…" : "Create Policy"}
               </button>
               <button onClick={() => setShowNewPolicy(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Policy Modal */}
+      {editPolicy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-semibold">Edit Policy</h3>
+              <button onClick={() => setEditPolicy(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground">Policy Title *</label>
+                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editPolicyForm.title} onChange={(e) => setEditPolicyForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Category</label>
+                <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editPolicyForm.category} onChange={(e) => setEditPolicyForm(f => ({ ...f, category: e.target.value }))}>
+                  <option value="">Select a category...</option>
+                  {MODULE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Content / Description</label>
+                <textarea rows={3} className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none" value={editPolicyForm.content} onChange={(e) => setEditPolicyForm(f => ({ ...f, content: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button disabled={!editPolicyForm.title || updatePolicyMutation.isPending} onClick={() => updatePolicyMutation.mutate({ id: editPolicy.id, title: editPolicyForm.title, content: editPolicyForm.content || undefined, category: editPolicyForm.category || undefined })} className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50">
+                {updatePolicyMutation.isPending ? "Saving…" : "Save Policy"}
+              </button>
+              <button onClick={() => setEditPolicy(null)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent ml-auto">Cancel</button>
             </div>
           </div>
         </div>
@@ -132,7 +206,10 @@ export default function GRCPage() {
               </div>
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Scope</label>
-                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. IT Security, Financial Controls" value={auditForm.scope} onChange={(e) => setAuditForm(f => ({ ...f, scope: e.target.value }))} />
+                <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.scope} onChange={(e) => setAuditForm(f => ({ ...f, scope: e.target.value }))}>
+                  <option value="">Select a module...</option>
+                  {MODULE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Start Date</label>
@@ -207,11 +284,11 @@ export default function GRCPage() {
             </div>
             <div>
               <label className="block text-[10px] font-medium text-muted-foreground mb-1">Likelihood (1–5)</label>
-              <input type="number" min={1} max={5} className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.likelihood} onChange={e => setRiskForm(f => ({ ...f, likelihood: Number(e.target.value) }))} />
+              <input type="number" min={1} max={5} className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.likelihood} onChange={e => setRiskForm(f => ({ ...f, likelihood: Math.min(5, Math.max(1, Number(e.target.value) || 1)) }))} />
             </div>
             <div>
               <label className="block text-[10px] font-medium text-muted-foreground mb-1">Impact (1–5)</label>
-              <input type="number" min={1} max={5} className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.impact} onChange={e => setRiskForm(f => ({ ...f, impact: Number(e.target.value) }))} />
+              <input type="number" min={1} max={5} className="w-full border border-border rounded px-2 py-1.5 text-[12px]" value={riskForm.impact} onChange={e => setRiskForm(f => ({ ...f, impact: Math.min(5, Math.max(1, Number(e.target.value) || 1)) }))} />
             </div>
             <div>
               <label className="block text-[10px] font-medium text-muted-foreground mb-1">Treatment</label>
@@ -291,9 +368,18 @@ export default function GRCPage() {
                       <td><span className="status-badge text-blue-700 bg-blue-100 capitalize">{r.treatment ?? "—"}</span></td>
                       <td className="text-muted-foreground">{r.ownerId ? `ID:${r.ownerId.slice(-6)}` : "—"}</td>
                       <td>
-                        <span className={`status-badge capitalize ${rStatus === "identified" || rStatus === "assessed" ? "text-red-700 bg-red-100" : rStatus === "mitigating" ? "text-blue-700 bg-blue-100" : "text-green-700 bg-green-100"}`}>
-                          {rStatus.replace(/_/g, " ")}
-                        </span>
+                        <select
+                          className={`text-xs px-2 py-1 rounded border border-transparent hover:border-border cursor-pointer focus:outline-none capitalize ${rStatus === "identified" || rStatus === "assessed" ? "text-red-700 bg-red-100" : rStatus === "mitigating" ? "text-blue-700 bg-blue-100" : "text-green-700 bg-green-100"}`}
+                          value={rStatus}
+                          onChange={(e) => updateRiskMutation.mutate({ id: r.id, status: e.target.value as any })}
+                          disabled={updateRiskMutation.isPending}
+                        >
+                          <option value="identified">Identified</option>
+                          <option value="assessed">Assessed</option>
+                          <option value="mitigating">Mitigating</option>
+                          <option value="accepted">Accepted</option>
+                          <option value="closed">Closed</option>
+                        </select>
                       </td>
                       <td className={`text-[11px] ${dueDate && new Date(dueDate) < new Date() ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>{dueDate || "—"}</td>
                       <td className="text-center"><span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px]">{Array.isArray(r.controls) ? r.controls.length : 0}</span></td>
@@ -385,17 +471,56 @@ export default function GRCPage() {
                           <span className="text-[11px] text-muted-foreground">{pct}%</span>
                         </div>
                       </td>
-                      <td>
-                        {(pStatus === "draft" || !pStatus || pStatus === "review") && (
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                          {(pStatus === "draft" || !pStatus || pStatus === "review") && (
+                            <PermissionGate module="policy" action="write">
+                              <button
+                                onClick={() => publishPolicyMutation.mutate({ id: p.id })}
+                                disabled={publishPolicyMutation.isPending}
+                                className="text-[11px] text-primary hover:underline disabled:opacity-50 font-medium"
+                              >Publish</button>
+                            </PermissionGate>
+                          )}
+                          {pStatus === "published" && (
+                            <PermissionGate module="policy" action="write">
+                              <button
+                                onClick={() => unpublishPolicyMutation.mutate({ id: p.id })}
+                                disabled={unpublishPolicyMutation.isPending}
+                                className="text-[11px] text-orange-600 hover:underline disabled:opacity-50 font-medium"
+                              >Unpublish</button>
+                            </PermissionGate>
+                          )}
                           <PermissionGate module="policy" action="write">
                             <button
-                              onClick={() => publishPolicyMutation.mutate({ id: p.id })}
-                              disabled={publishPolicyMutation.isPending}
-                              className="text-[11px] text-primary hover:underline disabled:opacity-50"
-                            >Publish</button>
+                              onClick={() => {
+                                setEditPolicy(p);
+                                setEditPolicyForm({ title: p.title, content: p.content ?? "", category: p.category ?? "" });
+                              }}
+                              className="text-[11px] text-blue-600 hover:underline"
+                            >Edit</button>
+                            {pStatus !== "retired" && (
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Are you sure you want to archive policy "${p.title}"?`)) {
+                                    archivePolicyMutation.mutate({ id: p.id });
+                                  }
+                                }}
+                                disabled={archivePolicyMutation.isPending}
+                                className="text-[11px] text-amber-600 hover:underline"
+                              >Archive</button>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete policy "${p.title}"?`)) {
+                                  deletePolicyMutation.mutate({ id: p.id });
+                                }
+                              }}
+                              disabled={deletePolicyMutation.isPending}
+                              className="text-[11px] text-red-600 hover:underline"
+                            >Delete</button>
                           </PermissionGate>
-                        )}
-                        {pStatus === "published" && <span className="text-[10px] text-green-600">✓ Published</span>}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -464,9 +589,16 @@ export default function GRCPage() {
                         <td><span className={`status-badge ${aType === "External" ? "text-purple-700 bg-purple-100" : "text-blue-700 bg-blue-100"}`}>{aType}</span></td>
                         <td className="text-muted-foreground">{a.auditorId ? `ID:${a.auditorId.slice(-6)}` : "—"}</td>
                         <td>
-                          <span className={`status-badge capitalize ${aState === "completed" ? "text-green-700 bg-green-100" : aState === "in_progress" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>
-                            {aState.replace(/_/g, " ")}
-                          </span>
+                          <select
+                            className={`text-xs px-2 py-1 rounded border border-transparent hover:border-border cursor-pointer focus:outline-none capitalize ${aState === "completed" ? "text-green-700 bg-green-100" : aState === "in_progress" ? "text-blue-700 bg-blue-100" : aState === "cancelled" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}
+                            value={aState}
+                            onChange={(e) => updateAuditStatusMutation.mutate({ id: a.id, status: e.target.value as any })}
+                            disabled={updateAuditStatusMutation.isPending}
+                          >
+                            <option value="planned">Planned</option> 
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
                         </td>
                         <td className="text-muted-foreground text-[11px]">{a.startDate ? new Date(a.startDate).toISOString().split("T")[0] : "—"}</td>
                         <td className="text-muted-foreground text-[11px]">{a.endDate ? new Date(a.endDate).toISOString().split("T")[0] : "—"}</td>

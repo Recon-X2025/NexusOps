@@ -17,16 +17,16 @@ import {
   BookOpen,
   Loader2,
   X,
+  Package,
 } from "lucide-react";
 
 const STATE_CONFIG: Record<string, { label: string; color: string }> = {
-  new:                 { label: "New",          color: "text-muted-foreground bg-muted" },
-  in_progress:         { label: "In Progress",  color: "text-blue-700 bg-blue-100" },
-  root_cause_analysis: { label: "RCA",          color: "text-orange-700 bg-orange-100" },
-  known_error:         { label: "Known Error",  color: "text-red-700 bg-red-100" },
-  change_raised:       { label: "Change Raised",color: "text-indigo-700 bg-indigo-100" },
-  resolved:            { label: "Resolved",     color: "text-green-700 bg-green-100" },
-  closed:              { label: "Closed",       color: "text-muted-foreground bg-muted" },
+  new:                   { label: "New",          color: "text-muted-foreground bg-muted" },
+  investigation:         { label: "In Progress",  color: "text-blue-700 bg-blue-100" },
+  root_cause_identified: { label: "RCA",          color: "text-orange-700 bg-orange-100" },
+  known_error:           { label: "Known Error",  color: "text-red-700 bg-red-100" },
+  resolved:              { label: "Resolved",     color: "text-green-700 bg-green-100" },
+  closed:                { label: "Closed",       color: "text-muted-foreground bg-muted" },
 };
 
 const PRIORITY_CONFIG: Record<string, { label: string; bar: string }> = {
@@ -41,11 +41,11 @@ const PRIORITY_CONFIG: Record<string, { label: string; bar: string }> = {
 };
 
 const TABS = [
-  { key: "all",                 label: "All Problems", status: undefined,              module: "problems" as const, action: "read"  as const },
-  { key: "root_cause_analysis", label: "RCA",          status: "root_cause_analysis",  module: "problems" as const, action: "write" as const },
-  { key: "known_error",         label: "Known Errors", status: "known_error",          module: "problems" as const, action: "write" as const },
-  { key: "in_progress",         label: "In Progress",  status: "in_progress",          module: "problems" as const, action: "read"  as const },
-  { key: "resolved",            label: "Resolved",     status: "resolved",             module: "problems" as const, action: "read"  as const },
+  { key: "all",                   label: "All Problems", status: undefined,                module: "problems" as const, action: "read"  as const },
+  { key: "root_cause_identified", label: "RCA",          status: "root_cause_identified",  module: "problems" as const, action: "write" as const },
+  { key: "known_error",           label: "Known Errors", status: "known_error",            module: "problems" as const, action: "write" as const },
+  { key: "investigation",         label: "In Progress",  status: "investigation",          module: "problems" as const, action: "read"  as const },
+  { key: "resolved",              label: "Resolved",     status: "resolved",               module: "problems" as const, action: "read"  as const },
 ];
 
 export default function ProblemsPage() {
@@ -78,14 +78,28 @@ export default function ProblemsPage() {
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
+  const updateProblem = trpc.changes.updateProblem.useMutation({
+    onSuccess: () => { toast.success("Problem updated"); refetch(); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const { data: releasesData } = trpc.changes.listReleases.useQuery({ limit: 100 }, mergeTrpcQueryOpts("changes.listReleases", undefined));
+  const releases = releasesData ?? [];
+
   if (!can("problems", "read")) return <AccessDenied module="Problem Management" />;
 
   type ProblemItem = NonNullable<typeof allData>[number];
   const allProblems: ProblemItem[] = allData ?? [];
 
-  const displayed = activeStatus
-    ? allProblems.filter((p) => p.status === activeStatus)
-    : allProblems;
+  const displayed = activeTab === "all"
+    ? allProblems
+    : activeTab === "root_cause_identified"
+      ? allProblems.filter((p) => !!p.rootCause)
+      : activeTab === "known_error"
+        ? allProblems.filter((p) => p.status === "known_error" || !!p.workaround)
+        : activeStatus
+          ? allProblems.filter((p) => p.status === activeStatus)
+          : allProblems;
 
   const knownErrors = allProblems.filter((p) => p.status === "known_error");
   const openProblems = allProblems.filter((p) => !["resolved", "closed"].includes(p.status));
@@ -182,9 +196,13 @@ export default function ProblemsPage() {
       {/* Tabs */}
       <div className="flex items-center gap-0 border-b border-border bg-card rounded-t">
         {visibleTabs.map((tab) => {
-          const cnt = tab.status
-            ? allProblems.filter((p) => p.status === tab.status).length
-            : undefined;
+          const cnt = tab.key === "root_cause_identified"
+            ? allProblems.filter((p) => !!p.rootCause).length
+            : tab.key === "known_error"
+              ? allProblems.filter((p) => p.status === "known_error" || !!p.workaround).length
+              : tab.status
+                ? allProblems.filter((p) => p.status === tab.status).length
+                : undefined;
           return (
             <button
               key={tab.key}
@@ -196,9 +214,14 @@ export default function ProblemsPage() {
                 }`}
             >
               {tab.label}
-              {tab.key === "known_error" && knownErrors.length > 0 && (
+              {tab.key === "known_error" && cnt !== undefined && cnt > 0 && (
                 <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">
-                  {knownErrors.length}
+                  {cnt}
+                </span>
+              )}
+              {tab.key === "root_cause_identified" && cnt !== undefined && cnt > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold">
+                  {cnt}
                 </span>
               )}
             </button>
@@ -224,11 +247,22 @@ export default function ProblemsPage() {
               <tr>
                 <th className="w-4" />
                 <th>Problem #</th>
-                <th>Title</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Workaround</th>
-                <th>Assignee</th>
+                {activeTab !== "root_cause_identified" && activeTab !== "known_error" && (
+                  <th>Title</th>
+                )}
+                {activeTab !== "root_cause_identified" && activeTab !== "known_error" ? (
+                  <>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Workaround</th>
+                    <th>Assignee</th>
+                    <th className="text-right uppercase">Action</th>
+                  </>
+                ) : activeTab === "root_cause_identified" ? (
+                  <th>Root Cause Analysis</th>
+                ) : (
+                  <th>Known Error Database (KEDB)</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -254,35 +288,79 @@ export default function ProblemsPage() {
                           {prob.number}
                         </Link>
                       </td>
-                      <td className="max-w-xs">
-                        <div className="flex items-center gap-1">
-                          {isKnownError && (
-                            <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" aria-hidden />
-                          )}
-                          <span className="truncate text-foreground">{prob.title}</span>
-                        </div>
-                      </td>
-                      <td className="text-muted-foreground text-[11px]">{pCfg.label}</td>
-                      <td>
-                        <span className={`status-badge ${sCfg?.color ?? "text-muted-foreground bg-muted"}`}>
-                          {sCfg?.label ?? prob.status}
-                        </span>
-                      </td>
-                      <td className="max-w-[200px]">
-                        {prob.workaround ? (
-                          <span className="truncate block text-[11px] text-muted-foreground">{prob.workaround}</span>
-                        ) : (
-                          <span className="text-muted-foreground/50">—</span>
-                        )}
-                      </td>
-                      <td className="text-muted-foreground text-[11px]">
-                        {prob.assigneeId ? prob.assigneeId.slice(0, 8) + "…" : "—"}
-                      </td>
+                      {activeTab !== "root_cause_identified" && activeTab !== "known_error" && (
+                        <td className="max-w-xs">
+                          <div className="flex items-center gap-1">
+                            {isKnownError && (
+                              <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" aria-hidden />
+                            )}
+                            <span className="truncate text-foreground">{prob.title}</span>
+                            {prob.releaseId && (
+                              (() => {
+                                const rel = releases.find((r) => r.id === prob.releaseId);
+                                return rel ? (
+                                  <span className="ml-1.5 px-1 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[9px] font-medium whitespace-nowrap">
+                                    Rel: {rel.version}
+                                  </span>
+                                ) : null;
+                              })()
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {activeTab !== "root_cause_identified" && activeTab !== "known_error" ? (
+                        <>
+                          <td className="text-muted-foreground text-[11px]">{pCfg.label}</td>
+                          <td>
+                            <span className={`status-badge ${sCfg?.color ?? "text-muted-foreground bg-muted"}`}>
+                              {sCfg?.label ?? prob.status}
+                            </span>
+                          </td>
+                          <td className="max-w-[200px]">
+                            {prob.workaround ? (
+                              <span className="truncate block text-[11px] text-muted-foreground">{prob.workaround}</span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </td>
+                          <td className="text-muted-foreground text-[11px]">
+                            {prob.assigneeId ? prob.assigneeId.slice(0, 8) + "…" : "—"}
+                          </td>
+                          <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-2">
+                              <select
+                                value={prob.releaseId || ""}
+                                onChange={(e) => {
+                                  const relId = e.target.value || null;
+                                  updateProblem.mutate({ id: prob.id, releaseId: relId });
+                                }}
+                                disabled={updateProblem.isPending}
+                                className="text-[11px] bg-background border border-border rounded px-2 py-1 text-blue-500 outline-none font-medium cursor-pointer hover:bg-accent/50"
+                              >
+                                <option value="">Link Release</option>
+                                {releases.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.name} ({r.version})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                        </>
+                      ) : activeTab === "root_cause_identified" ? (
+                        <td className="max-w-xs text-foreground text-[12px] truncate">
+                          {prob.rootCause || <span className="text-muted-foreground/50 italic">Under investigation.</span>}
+                        </td>
+                      ) : (
+                        <td className="max-w-xs text-foreground text-[12px] truncate">
+                          {prob.workaround || <span className="text-muted-foreground/50 italic">None documented.</span>}
+                        </td>
+                      )}
                     </tr>
                     {expandedId === prob.id && (
                       <tr key={`${prob.id}-expanded`} className="bg-muted/20">
                         <td />
-                        <td colSpan={6} className="py-3 px-4">
+                        <td colSpan={activeTab === "root_cause_identified" || activeTab === "known_error" ? 2 : 7} className="py-3 px-4">
                           <div className="grid grid-cols-2 gap-4 text-[12px]">
                             <div>
                               <p className="field-label">Workaround</p>
@@ -315,9 +393,12 @@ export default function ProblemsPage() {
                             <button
                               onClick={() => publishToKB.mutate({ problemId: prob.id })}
                               disabled={publishToKB.isPending}
-                              className="text-[11px] text-primary hover:underline flex items-center gap-1 disabled:opacity-50">
+                              className="text-[11px] text-primary hover:underline flex items-center gap-1 disabled:opacity-50 font-medium">
                               <BookOpen className="w-3 h-3" /> Publish KB Article
                             </button>
+                            <div className="flex items-center gap-1 ml-auto border-l border-border pl-3">
+                              {/* Release linking is now in the main table row */}
+                            </div>
                           </div>
                         </td>
                       </tr>

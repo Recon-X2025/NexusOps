@@ -73,7 +73,7 @@ function relativeTime(d: string | Date) {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { currentUser, can, mergeTrpcQueryOpts } = useRBAC();
+  const { currentUser, can, mergeTrpcQueryOpts, isAdmin } = useRBAC();
   const [activeTab, setActiveTab] = useState<"notes" | "activity" | "related">("notes");
   const [commentBody, setCommentBody] = useState("");
   const [warRoomBody, setWarRoomBody] = useState("");
@@ -234,74 +234,76 @@ export default function TicketDetailPage() {
                 actions={
                   <div className="flex items-center gap-2 relative">
                     <button
-                      disabled={isTerminal}
+                      disabled={isTerminal && !isAdmin()}
                       onClick={() => { setEditingField("title"); setEditValues({ title: ticket.title }); }}
                       className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40"
                     >
                       <Edit2 className="w-4 h-4" /> Edit
                     </button>
                     
-                    <div className="relative">
-                      <button
-                        disabled={isTerminal}
-                        onClick={() => setShowAssignPanel(!showAssignPanel)}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40",
-                          showAssignPanel && "bg-muted border-primary/50"
+                    {!isTerminal && (
+                      <div className="relative">
+                        <button
+                          disabled={isTerminal}
+                          onClick={() => setShowAssignPanel(!showAssignPanel)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40",
+                            showAssignPanel && "bg-muted border-primary/50"
+                          )}
+                        >
+                          <User className="w-4 h-4" /> Assign
+                        </button>
+                        
+                        {showAssignPanel && (
+                          <div className="absolute top-10 right-0 z-50 w-64 bg-card border border-border rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Assign to Agent</span>
+                              <button onClick={() => setShowAssignPanel(false)}><X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                                <input 
+                                  autoFocus
+                                  placeholder="Search agents..."
+                                  className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted/30 border border-border rounded-lg outline-none focus:border-primary"
+                                  onChange={(e) => setAssigneeId(e.target.value)} // Local search could go here
+                                />
+                              </div>
+                              <div className="max-h-48 overflow-y-auto space-y-1 py-1">
+                                {usersData?.map((user: any) => (
+                                  <button
+                                    key={user.id}
+                                    onClick={() => assignTicket.mutate({ id, assigneeId: user.id })}
+                                    className="w-full text-left px-2 py-1.5 text-xs rounded-lg hover:bg-muted flex items-center gap-2 transition-colors"
+                                  >
+                                    <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px]">
+                                      {user.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 truncate">
+                                      <div className="font-medium">{user.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{user.email}</div>
+                                    </div>
+                                    {ticket.assigneeId === user.id && <Check className="w-3 h-3 text-primary" />}
+                                  </button>
+                                ))}
+                                {assignTicket.isPending && (
+                                  <div className="flex items-center justify-center py-2">
+                                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => assignTicket.mutate({ id, assigneeId: null })}
+                                className="w-full py-1.5 text-[10px] font-bold uppercase text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-dashed border-red-200"
+                              >
+                                Unassign Ticket
+                              </button>
+                            </div>
+                          </div>
                         )}
-                      >
-                        <User className="w-4 h-4" /> Assign
-                      </button>
-                      
-                      {showAssignPanel && (
-                        <div className="absolute top-10 right-0 z-50 w-64 bg-card border border-border rounded-xl shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Assign to Agent</span>
-                            <button onClick={() => setShowAssignPanel(false)}><X className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="relative">
-                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                              <input 
-                                autoFocus
-                                placeholder="Search agents..."
-                                className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted/30 border border-border rounded-lg outline-none focus:border-primary"
-                                onChange={(e) => setAssigneeId(e.target.value)} // Local search could go here
-                              />
-                            </div>
-                            <div className="max-h-48 overflow-y-auto space-y-1 py-1">
-                              {usersData?.map((user: any) => (
-                                <button
-                                  key={user.id}
-                                  onClick={() => assignTicket.mutate({ id, assigneeId: user.id })}
-                                  className="w-full text-left px-2 py-1.5 text-xs rounded-lg hover:bg-muted flex items-center gap-2 transition-colors"
-                                >
-                                  <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px]">
-                                    {user.name.charAt(0)}
-                                  </div>
-                                  <div className="flex-1 truncate">
-                                    <div className="font-medium">{user.name}</div>
-                                    <div className="text-[10px] text-muted-foreground truncate">{user.email}</div>
-                                  </div>
-                                  {ticket.assigneeId === user.id && <Check className="w-3 h-3 text-primary" />}
-                                </button>
-                              ))}
-                              {assignTicket.isPending && (
-                                <div className="flex items-center justify-center py-2">
-                                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => assignTicket.mutate({ id, assigneeId: null })}
-                              className="w-full py-1.5 text-[10px] font-bold uppercase text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-dashed border-red-200"
-                            >
-                              Unassign Ticket
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {!isTerminal && (
                       <button
@@ -495,7 +497,7 @@ export default function TicketDetailPage() {
                       </div>
 
                       {/* Comment Composer */}
-                      {!isTerminal && (
+                      {(!isTerminal || isAdmin()) && (
                         <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 transition-all">
                           <div className="flex items-center gap-4 border-b border-border pb-2">
                             <button
@@ -639,7 +641,7 @@ export default function TicketDetailPage() {
                           <select
                             data-testid="ticket-status-select"
                             value={ticket.statusId}
-                            disabled={isTerminal || updateTicket.isPending}
+                            disabled={(isTerminal && !isAdmin()) || updateTicket.isPending}
                             onChange={(e) => {
                               updateTicket.mutate({
                                 id,

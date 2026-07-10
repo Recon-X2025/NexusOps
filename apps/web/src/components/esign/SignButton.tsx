@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Loader2, FileSignature, Check } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * Universal SignButton — drops into any page that has a document worth
@@ -40,19 +41,24 @@ export function SignButton(props: SignButtonProps) {
   const create = trpc.esign.createRequest.useMutation();
 
   const send = async () => {
-    const res = await create.mutateAsync({
-      sourceType: props.sourceType,
-      sourceId: props.sourceId,
-      title: props.title,
-      documentStorageKey: props.documentStorageKey,
-      documentSha256: props.documentSha256,
-      signers: props.signers,
-      provider: props.provider ?? "emudhra",
-      ...(props.message ? { message: props.message } : {}),
-      ...(props.expiresAt ? { expiresAt: props.expiresAt } : {}),
-    });
-    setDone(res);
-    props.onSent?.(res.envelopeId);
+    try {
+      const res = await create.mutateAsync({
+        sourceType: props.sourceType,
+        sourceId: props.sourceId,
+        title: props.title,
+        documentStorageKey: props.documentStorageKey,
+        documentSha256: props.documentSha256,
+        signers: props.signers,
+        provider: props.provider ?? "emudhra",
+        ...(props.message ? { message: props.message } : {}),
+        ...(props.expiresAt ? { expiresAt: props.expiresAt } : {}),
+      });
+      setDone(res);
+      props.onSent?.(res.envelopeId);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message ?? "Failed to send for e-signature");
+    }
   };
 
   return (

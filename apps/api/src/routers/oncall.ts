@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   oncallSchedules,
+  oncallIncidents,
   eq,
   and,
   desc,
@@ -95,6 +96,29 @@ export const oncallRouter = router({
             ...step,
           }))
         );
+      }),
+  }),
+
+  incidents: router({
+    list: permissionProcedure("incidents", "read")
+      .input(z.object({ limit: z.coerce.number().default(100) }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        return db.select().from(oncallIncidents)
+          .where(eq(oncallIncidents.orgId, org!.id))
+          .orderBy(desc(oncallIncidents.createdAt))
+          .limit(input.limit);
+      }),
+    create: permissionProcedure("incidents", "write")
+      .input(z.object({ scheduleId: z.string().uuid(), userId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [incident] = await db.insert(oncallIncidents).values({
+          orgId: org!.id,
+          scheduleId: input.scheduleId,
+          userId: input.userId,
+        }).returning();
+        return incident;
       }),
   }),
 

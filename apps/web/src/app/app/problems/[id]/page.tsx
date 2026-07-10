@@ -13,11 +13,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const STATE_CONFIG: Record<string, { label: string; color: string }> = {
-  new:                 { label: "New",           color: "text-muted-foreground bg-muted" },
-  in_progress:         { label: "In Progress",   color: "text-blue-700 bg-blue-100" },
-  root_cause_analysis: { label: "RCA",           color: "text-orange-700 bg-orange-100" },
+  new:                   { label: "New",           color: "text-muted-foreground bg-muted" },
+  investigation:         { label: "In Progress",   color: "text-blue-700 bg-blue-100" },
+  root_cause_identified: { label: "RCA",           color: "text-orange-700 bg-orange-100" },
   known_error:         { label: "Known Error",   color: "text-red-700 bg-red-100" },
-  change_raised:       { label: "Change Raised", color: "text-indigo-700 bg-indigo-100" },
   resolved:            { label: "Resolved",      color: "text-green-700 bg-green-100" },
   closed:              { label: "Closed",        color: "text-muted-foreground bg-muted" },
 };
@@ -35,6 +34,7 @@ export default function ProblemDetailPage() {
   const [rcaDraft, setRcaDraft] = useState("");
   const [editingWorkaround, setEditingWorkaround] = useState(false);
   const [workaroundDraft, setWorkaroundDraft] = useState("");
+  const [incidentInput, setIncidentInput] = useState("");
 
   const addNote = trpc.changes.addProblemNote.useMutation({
     onSuccess: () => { setComment(""); toast.success("Update posted"); refetch(); },
@@ -43,17 +43,36 @@ export default function ProblemDetailPage() {
 
   const { data: allProblems, isLoading, refetch } = trpc.changes.listProblems.useQuery({ limit: 200 }, mergeTrpcQueryOpts("changes.listProblems", { enabled: can("problems", "read") }));
 
-  const { data: allKnownErrors } = trpc.changes.listKnownErrors.useQuery(undefined, mergeTrpcQueryOpts("changes.listKnownErrors", {
+  const { data: allKnownErrors, refetch: refetchKnownErrors } = trpc.changes.listKnownErrors.useQuery(undefined, mergeTrpcQueryOpts("changes.listKnownErrors", {
     enabled: can("problems", "read"),
   }));
   const kedbForProblem = (allKnownErrors as { id: string; title?: string; problemId?: string | null }[] | undefined)?.filter(
     (ke) => ke.problemId === id,
   ) ?? [];
 
-  const { data: linkedIncidentsPage } = trpc.tickets.list.useQuery({ problemId: id, type: "incident", limit: 30, orderBy: "updatedAt", order: "desc" }, mergeTrpcQueryOpts("tickets.list", { enabled: !!id && can("incidents", "read") },));
+  const { data: linkedIncidentsPage, refetch: refetchIncidents } = trpc.tickets.list.useQuery({ problemId: id, type: "incident", limit: 30, orderBy: "updatedAt", order: "desc" }, mergeTrpcQueryOpts("tickets.list", { enabled: !!id && can("incidents", "read") },));
+
+  const linkIncident = trpc.changes.linkIncidentToProblem.useMutation({
+    onSuccess: () => {
+      setIncidentInput("");
+      toast.success("Incident linked successfully");
+      refetchIncidents();
+      refetchKnownErrors();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+
+  const unlinkIncident = trpc.changes.unlinkIncident.useMutation({
+    onSuccess: () => {
+      toast.success("Incident unlinked");
+      refetchIncidents();
+      refetchKnownErrors();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
 
   const updateStatus = trpc.changes.updateProblem.useMutation({
-    onSuccess: () => { toast.success("Status updated"); refetch(); },
+    onSuccess: () => { toast.success("Status updated"); refetch(); refetchKnownErrors(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
@@ -77,13 +96,12 @@ export default function ProblemDetailPage() {
 
   const stateInfo = STATE_CONFIG[problem.status ?? "new"] ?? { label: problem.status, color: "bg-muted text-muted-foreground" };
   const TRANSITIONS: Record<string, string[]> = {
-    new:                 ["in_progress"],
-    in_progress:         ["root_cause_analysis", "resolved"],
-    root_cause_analysis: ["known_error", "change_raised", "resolved"],
-    known_error:         ["change_raised", "resolved"],
-    change_raised:       ["resolved"],
-    resolved:            ["closed"],
-    closed:              [],
+    new:                   ["investigation"],
+    investigation:         ["root_cause_identified", "resolved"],
+    root_cause_identified: ["known_error", "resolved"],
+    known_error:           ["resolved"],
+    resolved:              ["closed"],
+    closed:                [],
   };
   const nextStates = TRANSITIONS[problem.status ?? "new"] ?? [];
   const isClosed = problem.status === "closed";
@@ -223,16 +241,44 @@ export default function ProblemDetailPage() {
           </PermissionGate>
 
           {can("incidents", "read") && (
-            <div className="bg-card border border-border rounded p-4">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            <div className="bg-card border border-border rounded p-4 flex flex-col gap-3">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Linked service desk work
               </h2>
+              
+              {can("problems", "write") && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!incidentInput.trim()) return;
+                    linkIncident.mutate({ problemId: id, ticketNumber: incidentInput });
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    value={incidentInput}
+                    onChange={(e) => setIncidentInput(e.target.value)}
+                    placeholder="Link incident (e.g. COHE-0001)"
+                    className="flex-1 rounded border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                    disabled={linkIncident.isPending}
+                  />
+                  <button
+                    type="submit"
+                    disabled={linkIncident.isPending || !incidentInput.trim()}
+                    className="rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition shrink-0"
+                  >
+                    {linkIncident.isPending ? "Linking..." : "Link"}
+                  </button>
+                </form>
+              )}
+
               {kedbForProblem.length > 0 && (
-                <div className="mb-3">
+                <div>
                   <p className="text-[10px] text-muted-foreground mb-1">Known error records (this problem)</p>
                   <ul className="space-y-1">
                     {kedbForProblem.map((ke) => (
-                      <li key={ke.id} className="text-xs flex justify-between gap-2">
+                      <li key={ke.id} className="text-xs flex justify-between gap-2 bg-muted/20 px-2 py-1 rounded">
                         <span className="truncate font-medium text-foreground/90">{ke.title ?? "Known error"}</span>
                         <span className="text-muted-foreground shrink-0 font-mono text-[10px]">{ke.id.slice(0, 8)}…</span>
                       </li>
@@ -240,24 +286,37 @@ export default function ProblemDetailPage() {
                   </ul>
                 </div>
               )}
-              <p className="text-[10px] text-muted-foreground mb-1">Incidents linked via known error</p>
-              {!linkedIncidentsPage?.items?.length ? (
-                <p className="text-sm text-muted-foreground/70 italic">No linked incidents yet.</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {(linkedIncidentsPage.items as { id: string; number: string; title: string }[]).map((t) => (
-                    <li key={t.id}>
-                      <Link
-                        href={`/app/tickets/${t.id}`}
-                        className="text-xs text-primary hover:underline flex min-w-0 gap-1"
-                      >
-                        <span className="font-mono shrink-0">{t.number}</span>
-                        <span className="truncate">{t.title}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">Incidents linked via known error</p>
+                {!linkedIncidentsPage?.items?.length ? (
+                  <p className="text-sm text-muted-foreground/70 italic">No linked incidents yet.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {(linkedIncidentsPage.items as { id: string; number: string; title: string }[]).map((t) => (
+                      <li key={t.id} className="text-xs flex items-center justify-between gap-2 p-1.5 rounded border border-border hover:bg-muted/10">
+                        <Link
+                          href={`/app/tickets/${t.id}`}
+                          className="text-primary hover:underline flex min-w-0 gap-1 truncate"
+                        >
+                          <span className="font-mono font-medium shrink-0">{t.number}:</span>
+                          <span className="truncate text-foreground/80">{t.title}</span>
+                        </Link>
+                        {can("problems", "write") && (
+                          <button
+                            onClick={() => unlinkIncident.mutate({ ticketId: t.id })}
+                            disabled={unlinkIncident.isPending}
+                            className="text-muted-foreground hover:text-red-600 transition shrink-0 p-0.5 rounded hover:bg-red-50"
+                            title="Unlink incident"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 

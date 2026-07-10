@@ -64,6 +64,8 @@ export const acquisitionTypeEnum = pgEnum("acquisition_type", [
   "freeware",
 ]);
 
+export const discoveryRunStatusEnum = pgEnum("discovery_run_status", ["running", "completed", "failed"]);
+
 // ── Asset Types ────────────────────────────────────────────────────────────
 export const assetTypes = pgTable(
   "asset_types",
@@ -265,6 +267,24 @@ export const ciRelationships = pgTable(
   }),
 );
 
+// ── Discovery Runs (CMDB) ──────────────────────────────────────────────────
+export const discoveryRuns = pgTable(
+  "discovery_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    target: text("target").notNull(),
+    status: discoveryRunStatusEnum("status").notNull().default("running"),
+    discoveredCount: integer("discovered_count").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    orgIdx: index("discovery_runs_org_idx").on(t.orgId),
+    statusIdx: index("discovery_runs_status_idx").on(t.status),
+  })
+);
+
 // ── Software Licenses ──────────────────────────────────────────────────────
 export const softwareLicenses = pgTable(
   "software_licenses",
@@ -335,4 +355,8 @@ export const ciItemsRelations = relations(ciItems, ({ one, many }) => ({
   org: one(organizations, { fields: [ciItems.orgId], references: [organizations.id] }),
   outgoing: many(ciRelationships, { relationName: "source" }),
   incoming: many(ciRelationships, { relationName: "target" }),
+}));
+
+export const discoveryRunsRelations = relations(discoveryRuns, ({ one }) => ({
+  org: one(organizations, { fields: [discoveryRuns.orgId], references: [organizations.id] }),
 }));

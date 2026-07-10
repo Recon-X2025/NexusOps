@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { generateUUID } from "@/lib/uuid";
 
 const TICKET_TYPES = [
-  { value: "incident",        label: "Incident",        desc: "Unplanned interruption or reduction in quality of service" },
+  { value: "incident",        label: "Incident",         desc: "Unplanned interruption or reduction in quality of service" },
   { value: "request",         label: "Service Request",  desc: "Request for information, access, or a standard change" },
   { value: "problem",         label: "Problem",          desc: "Root cause of one or more incidents" },
   { value: "change",          label: "Change Request",   desc: "Request to add, modify, or remove something" },
@@ -108,6 +108,7 @@ export default function NewTicketPage() {
     tags: "",
     watchMe: false,
     notifyRequester: true,
+    isMajorIncident: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -235,6 +236,7 @@ export default function NewTicketPage() {
       idempotencyKey: idempotencyKeyRef.current,
       impact: impactForApi,
       urgency: urgencyForApi,
+      isMajorIncident: form.isMajorIncident,
       customFields: {
         impact: form.impact,
         urgency: form.urgency,
@@ -562,6 +564,29 @@ export default function NewTicketPage() {
 
           {/* Right panel — Priority & Assignment */}
           <div className="w-64 flex-shrink-0 space-y-3">
+            {/* Major Incident Toggle */}
+            <div className="bg-red-50/50 border border-red-200 rounded">
+              <div className="px-3 py-2 border-b border-red-200 bg-red-100/50">
+                <span className="text-[10px] font-semibold text-red-800 uppercase tracking-wider flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> Major Incident
+                </span>
+              </div>
+              <div className="px-3 py-3">
+                <label className="flex items-center gap-2 text-[12px] font-medium text-red-900 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.isMajorIncident}
+                    onChange={(e) => set("isMajorIncident", e.target.checked)}
+                    className="accent-red-600 w-4 h-4"
+                  />
+                  Flag as Major Incident
+                </label>
+                <p className="text-[10px] text-red-700/80 mt-1.5 leading-relaxed">
+                  Checking this will escalate the ticket and immediately show it on the Major Incidents dashboard.
+                </p>
+              </div>
+            </div>
+
             {/* Priority calculator */}
             <div className="bg-card border border-border rounded">
               <div className="px-3 py-2 border-b border-border bg-muted/30">

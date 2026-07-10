@@ -8,6 +8,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
@@ -88,6 +89,7 @@ export const changeRequests = pgTable(
     riskScore: integer("risk_score"),
     riskQuestionnaire: jsonb("risk_questionnaire").$type<Record<string, unknown>>(),
     version: integer("version").notNull().default(1),
+    releaseId: uuid("release_id").references((): AnyPgColumn => releases.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -133,6 +135,7 @@ export const problems = pgTable(
     resolution: text("resolution"),
     notes: jsonb("notes").$type<Array<{ body: string; authorId: string; createdAt: string }>>(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    releaseId: uuid("release_id").references((): AnyPgColumn => releases.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

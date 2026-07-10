@@ -97,6 +97,14 @@ export default function ProjectsPage() {
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
   });
 
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Project deleted successfully");
+      refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Delete failed"),
+  });
+
   const projectList: ProjectItem[] = data ?? [];
 
   if (!can("projects", "read")) return <AccessDenied module="Initiatives" />;
@@ -371,12 +379,40 @@ export default function ProjectsPage() {
                     </td>
                     <td onClick={(e) => e.stopPropagation()} className="text-right pr-2">
                       <PermissionGate module="projects" action="write">
-                        <button
-                          onClick={(e) => openEdit(e, p)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] border border-border rounded hover:bg-muted/50 text-muted-foreground"
-                        >
-                          <Pencil className="w-2.5 h-2.5" /> Edit
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={(e) => openEdit(e, p)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] border border-border rounded hover:bg-muted/50 text-muted-foreground"
+                          >
+                            <Pencil className="w-2.5 h-2.5" /> Edit
+                          </button>
+                          {p.status !== "completed" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Are you sure you want to archive project ${p.number}?`)) {
+                                  updateProject.mutate({ id: p.id, status: "completed" });
+                                }
+                              }}
+                              disabled={updateProject.isPending}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] border border-border rounded hover:bg-amber-50 hover:text-amber-700 text-muted-foreground"
+                            >
+                              Archive
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Are you sure you want to delete project ${p.number}?`)) {
+                                deleteProject.mutate({ id: p.id });
+                              }
+                            }}
+                            disabled={deleteProject.isPending}
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] border border-red-200 rounded hover:bg-red-50 text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </PermissionGate>
                     </td>
                   </tr>

@@ -20,18 +20,21 @@ import {
   desc,
   count,
   sql,
+  threatIntelligence,
+  complianceEvidence,
 } from "@coheronconnect/db";
 import { getNextNumber } from "../lib/auto-number";
 import { computeRemediationSla } from "../lib/vuln-sla-policy";
 
+const ALL_STATUSES = ["new", "triage", "containment", "eradication", "recovery", "closed", "false_positive"];
 const STATE_MACHINE: Record<string, string[]> = {
-  new: ["triage"],
-  triage: ["containment", "false_positive"],
-  containment: ["eradication"],
-  eradication: ["recovery"],
-  recovery: ["closed"],
-  closed: [],
-  false_positive: [],
+  new: ALL_STATUSES,
+  triage: ALL_STATUSES,
+  containment: ALL_STATUSES,
+  eradication: ALL_STATUSES,
+  recovery: ALL_STATUSES,
+  closed: ["new", "triage", "containment", "eradication", "recovery"], // allow reopen
+  false_positive: ["new", "triage", "containment", "eradication", "recovery"], // allow reopen
 };
 
 export const securityRouter = router({
@@ -108,6 +111,23 @@ export const securityRouter = router({
       return updated;
     }),
 
+  updateIncident: permissionProcedure("security", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      attackVector: z.string().optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...updates } = input;
+      const [incident] = await db.update(securityIncidents)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(and(eq(securityIncidents.id, id), eq(securityIncidents.orgId, org!.id)))
+        .returning();
+      if (!incident) throw new TRPCError({ code: "NOT_FOUND" });
+      return incident;
+    }),
+
   addContainment: permissionProcedure("security", "write")
     .input(z.object({ id: z.string().uuid(), action: z.string(), performedBy: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -124,14 +144,79 @@ export const securityRouter = router({
       return updated;
     }),
 
+  // ── Threat Intelligence ──────────────────────────────────────────────────
+  listThreatIntel: permissionProcedure("security", "read")
+    .input(z.object({ incidentId: z.string().uuid().optional(), limit: z.coerce.number().default(50) }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const conds = [eq(threatIntelligence.orgId, org!.id)];
+      if (input.incidentId) conds.push(eq(threatIntelligence.incidentId, input.incidentId));
+      return db.select()
+        .from(threatIntelligence)
+        .where(and(...conds))
+        .limit(input.limit)
+        .orderBy(desc(threatIntelligence.createdAt));
+    }),
+
+
+  createThreatIntel: permissionProcedure("security", "write")
+    .input(z.object({
+      incidentId: z.string().uuid(),
+      description: z.string().min(1),
+      documentUri: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const number = await getNextNumber(db, org!.id, "TI");
+      const [ti] = await db.insert(threatIntelligence).values({
+        orgId: org!.id,
+        number,
+        ...input,
+      }).returning();
+      return ti;
+    }),
+
+  // ── Compliance Evidence ──────────────────────────────────────────────────
+  listComplianceEvidence: permissionProcedure("security", "read")
+    .input(z.object({ incidentId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db.select().from(complianceEvidence)
+        .where(and(eq(complianceEvidence.incidentId, input.incidentId), eq(complianceEvidence.orgId, org!.id)))
+        .orderBy(desc(complianceEvidence.createdAt));
+    }),
+
+  createComplianceEvidence: permissionProcedure("security", "write")
+    .input(z.object({
+      incidentId: z.string().uuid(),
+      riskId: z.string().uuid().optional(),
+      complianceFrameworkId: z.string().uuid().optional(),
+      auditId: z.string().uuid().optional(),
+      auditDocUri: z.string().optional(),
+      failedControlId: z.string().uuid().optional(),
+      failedControlDocUri: z.string().optional(),
+      securityPolicyId: z.string().uuid().optional(),
+      securityPolicyDocUri: z.string().optional(),
+      supportingDocUri: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [ev] = await db.insert(complianceEvidence).values({
+        orgId: org!.id,
+        ...input,
+      }).returning();
+      return ev;
+    }),
+
   // ── Vulnerabilities ───────────────────────────────────────────────────────
   listVulnerabilities: permissionProcedure("vulnerabilities", "read")
-    .input(z.object({ severity: z.enum(vulnSeverityEnum.enumValues).optional(), status: z.enum(vulnStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50) }))
+    .input(z.object({ severity: z.enum(vulnSeverityEnum.enumValues).optional(), status: z.enum(vulnStatusEnum.enumValues).optional(), limit: z.coerce.number().default(50), incidentId: z.string().uuid().optional() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const conditions = [eq(vulnerabilities.orgId, org!.id)];
       if (input.severity) conditions.push(eq(vulnerabilities.severity, input.severity));
       if (input.status) conditions.push(eq(vulnerabilities.status, input.status));
+      if (input.incidentId) conditions.push(eq(vulnerabilities.incidentId, input.incidentId));
       return db.select().from(vulnerabilities).where(and(...conditions)).orderBy(desc(vulnerabilities.createdAt)).limit(input.limit);
     }),
 
@@ -144,6 +229,7 @@ export const securityRouter = router({
       cvssScore: z.string().optional(),
       affectedAssets: z.array(z.string()).default([]),
       remediation: z.string().optional(),
+      incidentId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;

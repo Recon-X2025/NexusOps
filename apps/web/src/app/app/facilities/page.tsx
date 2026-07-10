@@ -39,6 +39,18 @@ export default function FacilitiesPage() {
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [bookingForm, setBookingForm] = useState({ roomId: "", title: "", startTime: "", endTime: "", attendeeCount: "" });
 
+  const [showSpaceForm, setShowSpaceForm] = useState(false);
+  const [spaceForm, setSpaceForm] = useState({ spaceId: "", name: "", building: "", floor: "", type: "", area: "", capacity: "", assignedTo: "", occupancy: "", status: "acquired" });
+
+  const [showMoveForm, setShowMoveForm] = useState(false);
+  const [moveForm, setMoveForm] = useState({ fromLocation: "", toLocation: "", moveDate: "", notes: "" });
+
+  const [showFacReqForm, setShowFacReqForm] = useState(false);
+  const [facReqForm, setFacReqForm] = useState({ type: "maintenance", title: "", description: "", spaceId: "" });
+
+  // @ts-ignore
+  const spacesQuery = trpc.facilities.spaces.list.useQuery({}, mergeTrpcQueryOpts("facilities.spaces.list", undefined));
+
   // @ts-ignore — facilities router is being created in a parallel task
   const buildingsQuery = trpc.facilities.buildings.list.useQuery({}, mergeTrpcQueryOpts("facilities.buildings.list", undefined));
 
@@ -48,8 +60,35 @@ export default function FacilitiesPage() {
   // @ts-ignore — facilities router is being created in a parallel task
   const movesQuery = trpc.facilities.moveRequests.list.useQuery({}, mergeTrpcQueryOpts("facilities.moveRequests.list", undefined));
 
-  // @ts-ignore — facilities router is being created in a parallel task
+  const [showBuildingForm, setShowBuildingForm] = useState(false);
+  const [buildingForm, setBuildingForm] = useState({ name: "", address: "", floors: "", totalDesks: "", meetingRooms: "", type: "Office", isDataCenter: false });
+
+  // @ts-ignore
   const facilityReqsQuery = trpc.facilities.facilityRequests.list.useQuery({}, mergeTrpcQueryOpts("facilities.facilityRequests.list", undefined));
+
+  // @ts-ignore
+  const createBuildingMutation = trpc.facilities.buildings.create.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.facilities.buildings.list.invalidate();
+      toast.success("Building added successfully");
+      setShowBuildingForm(false);
+      setBuildingForm({ name: "", address: "", floors: "", totalDesks: "", meetingRooms: "", type: "Office", isDataCenter: false });
+    },
+    onError: (e: any) => { console.error("facilities.buildings.create failed:", e); toast.error(e.message || "Failed to add building"); },
+  });
+
+  // @ts-ignore
+  const createSpaceMutation = trpc.facilities.spaces.create.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.facilities.spaces.list.invalidate();
+      toast.success("Space added successfully");
+      setShowSpaceForm(false);
+      setSpaceForm({ spaceId: "", name: "", building: "", floor: "", type: "", area: "", capacity: "", assignedTo: "", occupancy: "", status: "acquired" });
+    },
+    onError: (e: any) => { console.error("facilities.spaces.create failed:", e); toast.error(e.message || "Failed to add space"); },
+  });
 
   // @ts-ignore — facilities router is being created in a parallel task
   const createBookingMutation = trpc.facilities.bookings.create.useMutation({
@@ -69,8 +108,22 @@ export default function FacilitiesPage() {
       // @ts-ignore
       utils.facilities.moveRequests.list.invalidate();
       toast.success("Move request submitted");
+      setShowMoveForm(false);
+      setMoveForm({ fromLocation: "", toLocation: "", moveDate: "", notes: "" });
     },
     onError: (e: any) => { console.error("facilities.moveRequests.create failed:", e); toast.error(e.message || "Failed to submit move request"); },
+  });
+
+  // @ts-ignore
+  const createFacReqMutation = trpc.facilities.facilityRequests.create.useMutation({
+    onSuccess: () => {
+      // @ts-ignore
+      utils.facilities.facilityRequests.list.invalidate();
+      toast.success("Facility request submitted");
+      setShowFacReqForm(false);
+      setFacReqForm({ type: "maintenance", title: "", description: "", spaceId: "" });
+    },
+    onError: (e: any) => { console.error("facilities.facilityRequests.create failed:", e); toast.error(e.message || "Failed to submit facility request"); },
   });
 
   useEffect(() => {
@@ -79,14 +132,22 @@ export default function FacilitiesPage() {
 
   if (!can("facilities", "read")) return <AccessDenied module="Facilities & Real Estate" />;
 
-  const BUILDINGS = (Array.isArray(buildingsQuery.data) ? buildingsQuery.data : (buildingsQuery.data as any)?.items ?? []) as any[];
-  const ROOMS = (bookingsQuery.data as any)?.items ?? (Array.isArray(bookingsQuery.data) ? bookingsQuery.data : []) as any[];
+  const RAW_BUILDINGS = (Array.isArray(buildingsQuery.data) ? buildingsQuery.data : (buildingsQuery.data as any)?.items ?? []) as any[];
+  const BUILDINGS = RAW_BUILDINGS.map(b => ({
+    ...b,
+    totalDesks: b.capacity ?? b.totalDesks,
+    rooms: b.rooms ?? (b.amenities?.find((a: string) => a.startsWith("Rooms:"))?.split(":")[1]),
+    badge: b.badge ?? (b.amenities?.find((a: string) => a.startsWith("Type:"))?.split(":")[1]) ?? "Office",
+    datacenterFloors: b.datacenterFloors ?? (b.amenities?.includes("Data Center") ? ["1"] : []),
+  }));
+  const BOOKINGS = (bookingsQuery.data as any)?.items ?? (Array.isArray(bookingsQuery.data) ? bookingsQuery.data : []) as any[];
   const MOVE_REQUESTS = (movesQuery.data as any)?.items ?? (Array.isArray(movesQuery.data) ? movesQuery.data : []) as any[];
   const FAC_REQUESTS = (facilityReqsQuery.data as any)?.items ?? (Array.isArray(facilityReqsQuery.data) ? facilityReqsQuery.data : []) as any[];
+  const SPACES = (Array.isArray(spacesQuery.data) ? spacesQuery.data : (spacesQuery.data as any)?.items ?? []) as any[];
 
   const totalDesks = BUILDINGS.reduce((s: number, b: any) => s + (b.totalDesks ?? 0), 0);
   const occupiedDesks = BUILDINGS.reduce((s: number, b: any) => s + (b.occupiedDesks ?? 0), 0);
-  const availableRooms = ROOMS.filter((r: any) => r.status === "available").length;
+  const upcomingBookings = BOOKINGS.filter((b: any) => new Date(b.startTime) > new Date()).length;
 
   return (
     <>
@@ -99,8 +160,7 @@ export default function FacilitiesPage() {
         </div>
         <PermissionGate module="facilities" action="write">
           <button
-            onClick={() => createMoveMutation.mutate({ toLocation: "Default Location" })}
-            disabled={createMoveMutation.isPending}
+            onClick={() => setShowFacReqForm(true)}
             className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
             <Plus className="w-3 h-3" /> New Facilities Request
           </button>
@@ -111,7 +171,7 @@ export default function FacilitiesPage() {
         {[
           { label: "Total Desks",         value: totalDesks, color: "text-foreground/80", loading: buildingsQuery.isLoading },
           { label: "Occupied Desks",      value: totalDesks > 0 ? `${occupiedDesks} (${Math.round(occupiedDesks/totalDesks*100)}%)` : "—", color: "text-blue-700", loading: buildingsQuery.isLoading },
-          { label: "Available Rooms Now", value: availableRooms, color: "text-green-700", loading: bookingsQuery.isLoading },
+          { label: "Upcoming Bookings",   value: upcomingBookings, color: "text-green-700", loading: bookingsQuery.isLoading },
           { label: "Open Move Requests",  value: MOVE_REQUESTS.filter((m: any) => m.state !== "completed").length, color: "text-orange-700", loading: movesQuery.isLoading },
           { label: "Open Fac. Requests",  value: FAC_REQUESTS.filter((r: any) => r.state !== "completed").length, color: "text-foreground/80", loading: facilityReqsQuery.isLoading },
         ].map((k) => (
@@ -138,7 +198,17 @@ export default function FacilitiesPage() {
 
       <div className="bg-card border border-border rounded-b overflow-hidden">
         {tab === "buildings" && (
-          <>
+          <div>
+            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-foreground/80">Buildings & Sites</span>
+              <PermissionGate module="facilities" action="write">
+                <button
+                  onClick={() => setShowBuildingForm(true)}
+                  className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> New Building
+                </button>
+              </PermissionGate>
+            </div>
             {buildingsQuery.isLoading ? (
               <div className="animate-pulse p-4 space-y-2">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -184,7 +254,15 @@ export default function FacilitiesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="text-center text-muted-foreground">{b.rooms ?? "—"}</td>
+                      <td className="text-center">
+                        <button
+                          onClick={() => setShowBookingForm(true)}
+                          className="text-[11px] text-primary hover:underline font-medium"
+                          title="Book a meeting room"
+                        >
+                          {b.rooms ?? "Book Room"}
+                        </button>
+                      </td>
                       <td>{(b.datacenterFloors ?? []).length > 0 ? <span className="text-[11px] text-blue-600">Floors: {b.datacenterFloors.join(", ")}</span> : <span className="text-slate-300">—</span>}</td>
                       <td>
                         <span className={`status-badge ${b.badge === "HQ" ? "text-purple-700 bg-purple-100" : b.badge === "DC" ? "text-blue-700 bg-blue-100" : "text-muted-foreground bg-muted"}`}>
@@ -199,10 +277,21 @@ export default function FacilitiesPage() {
                 </tbody>
               </table>
             )}
-          </>
+          </div>
         )}
 
         {tab === "spaces" && (
+          <div>
+            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-foreground/80">Space Inventory</span>
+              <PermissionGate module="facilities" action="write">
+                <button
+                  onClick={() => setShowSpaceForm(true)}
+                  className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> Add Space
+                </button>
+              </PermissionGate>
+            </div>
           <table className="ent-table w-full">
             <thead>
               <tr>
@@ -220,9 +309,33 @@ export default function FacilitiesPage() {
               </tr>
             </thead>
             <tbody>
-              <tr><td colSpan={11} className="text-center py-6 text-[11px] text-muted-foreground/50">No space inventory data available yet</td></tr>
+              {SPACES.map((s: any) => (
+                <tr key={s.id}>
+                  <td className="p-0"><div className={`priority-bar ${s.status === "acquired" ? "bg-blue-500" : s.status === "occupied" ? "bg-green-500" : "bg-gray-400"}`} /></td>
+                  <td className="font-mono text-[11px] text-primary">{s.spaceId}</td>
+                  <td className="font-medium text-foreground">{s.name}</td>
+                  <td className="text-muted-foreground text-[11px]">{s.building || "—"}</td>
+                  <td className="text-muted-foreground text-[11px]">{s.floor || "—"}</td>
+                  <td><span className="status-badge text-muted-foreground bg-muted">{s.type || "—"}</span></td>
+                  <td className="text-muted-foreground text-[11px]">{s.area || "—"}</td>
+                  <td className="text-center font-mono font-semibold">{s.capacity ?? "—"}</td>
+                  <td className="text-muted-foreground text-[11px]">{s.assignedTo || "—"}</td>
+                  <td className="text-muted-foreground text-[11px]">{s.occupancy || "—"}</td>
+                  <td>
+                    <span className={`status-badge capitalize ${
+                      s.status === "acquired" ? "text-blue-700 bg-blue-100"
+                      : s.status === "occupied" ? "text-green-700 bg-green-100"
+                      : "text-gray-700 bg-gray-100"
+                    }`}>{s.status}</span>
+                  </td>
+                </tr>
+              ))}
+              {SPACES.length === 0 && (
+                <tr><td colSpan={11} className="text-center py-6 text-[11px] text-muted-foreground/50">No space inventory data available yet</td></tr>
+              )}
             </tbody>
           </table>
+          </div>
         )}
 
         {tab === "bookings" && (
@@ -254,50 +367,32 @@ export default function FacilitiesPage() {
                 <thead>
                   <tr>
                     <th className="w-4" />
-                    <th>Room</th>
+                    <th>Meeting Title</th>
+                    <th>Space</th>
                     <th>Building</th>
-                    <th>Floor</th>
-                    <th className="text-center">Capacity</th>
-                    <th className="text-center">AV</th>
-                    <th className="text-center">VC / Video</th>
-                    <th className="text-center">Whiteboard</th>
+                    <th className="text-center">Start Time</th>
+                    <th className="text-center">End Time</th>
+                    <th className="text-center">Attendees</th>
                     <th>Status</th>
-                    <th>Next Booking</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ROOMS.map((room: any) => {
-                    const sCfg = (ROOM_STATUS_CFG[room.status] ?? ROOM_STATUS_CFG.available)!;
+                  {BOOKINGS.map((booking: any) => {
                     return (
-                      <tr key={room.id} className={room.status === "in_use" ? "bg-red-50/20" : ""}>
-                        <td className="p-0"><div className={`priority-bar ${sCfg.dot}`} /></td>
-                        <td className="font-medium text-foreground">{room.name}</td>
-                        <td className="text-muted-foreground text-[11px]">{room.building}</td>
-                        <td className="text-muted-foreground">{room.floor}</td>
-                        <td className="text-center font-mono font-semibold text-foreground/80">{room.capacity}</td>
-                        <td className="text-center">{room.av ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <span className="text-slate-300 text-[11px]">—</span>}</td>
-                        <td className="text-center">{room.vc ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <span className="text-slate-300 text-[11px]">—</span>}</td>
-                        <td className="text-center">{room.whiteboard ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <span className="text-slate-300 text-[11px]">—</span>}</td>
-                        <td><span className={`status-badge ${sCfg.color}`}><span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${sCfg.dot}`} />{sCfg.label}</span></td>
-                        <td className="text-[11px] text-muted-foreground">{room.nextBooking}</td>
-                        <td>
-                          {room.status === "available" && (
-                            <PermissionGate module="facilities" action="write">
-                              <button
-                                onClick={() => createBookingMutation.mutate({ roomId: room.id, startTime: new Date().toISOString(), endTime: new Date(Date.now() + 3600000).toISOString() })}
-                                disabled={createBookingMutation.isPending}
-                                className="text-[11px] text-primary hover:underline disabled:opacity-50">
-                                Book Now
-                              </button>
-                            </PermissionGate>
-                          )}
-                        </td>
+                      <tr key={booking.id}>
+                        <td className="p-0"><div className="priority-bar bg-primary" /></td>
+                        <td className="font-medium text-foreground">{booking.title || "Untitled Meeting"}</td>
+                        <td className="text-primary font-medium text-[12px]">{booking.spaceName || booking.roomId}</td>
+                        <td className="text-muted-foreground text-[11px]">{booking.spaceBuilding || "—"}</td>
+                        <td className="text-center font-mono text-[11px]">{new Date(booking.startTime).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</td>
+                        <td className="text-center font-mono text-[11px]">{new Date(booking.endTime).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</td>
+                        <td className="text-center font-mono font-semibold text-foreground/80">{booking.attendeeCount || "—"}</td>
+                        <td><span className={`status-badge capitalize ${booking.status === "confirmed" ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100"}`}>{booking.status}</span></td>
                       </tr>
                     );
                   })}
-                  {ROOMS.length === 0 && (
-                    <tr><td colSpan={11} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">No rooms found.</td></tr>
+                  {BOOKINGS.length === 0 && (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">No bookings found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -311,10 +406,9 @@ export default function FacilitiesPage() {
               <span className="text-[12px] font-semibold text-foreground/80">Move Requests</span>
               <PermissionGate module="facilities" action="write">
                 <button
-                  onClick={() => createMoveMutation.mutate({ toLocation: "Default Location" })}
-                  disabled={createMoveMutation.isPending}
-                  className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-60">
-                  <Plus className="w-3 h-3" /> {createMoveMutation.isPending ? "Submitting…" : "New Move Request"}
+                  onClick={() => setShowMoveForm(true)}
+                  className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> New Move Request
                 </button>
               </PermissionGate>
             </div>
@@ -335,35 +429,31 @@ export default function FacilitiesPage() {
                   <tr>
                     <th className="w-4" />
                     <th>Request ID</th>
-                    <th>Type</th>
                     <th>From</th>
                     <th>To</th>
                     <th>For</th>
                     <th>Reason</th>
                     <th>Move Date</th>
-                    <th>Crew</th>
                     <th>State</th>
                   </tr>
                 </thead>
                 <tbody>
                   {MOVE_REQUESTS.map((mv: any) => (
                     <tr key={mv.id}>
-                      <td className="p-0"><div className={`priority-bar ${mv.state === "completed" ? "bg-green-500" : mv.state === "scheduled" ? "bg-blue-500" : mv.state === "approved" ? "bg-indigo-500" : "bg-yellow-400"}`} /></td>
+                      <td className="p-0"><div className={`priority-bar ${mv.status === "completed" ? "bg-green-500" : mv.status === "scheduled" ? "bg-blue-500" : mv.status === "approved" ? "bg-indigo-500" : "bg-yellow-400"}`} /></td>
                       <td className="font-mono text-[11px] text-primary">{mv.id}</td>
-                      <td><span className="status-badge text-muted-foreground bg-muted">{mv.type}</span></td>
-                      <td className="text-[11px] text-muted-foreground">{mv.from}</td>
-                      <td className="text-[11px] text-muted-foreground font-medium">{mv.to}</td>
-                      <td className="text-muted-foreground">{mv.requestedFor}</td>
-                      <td className="text-[11px] text-muted-foreground max-w-xs"><span className="truncate block">{mv.reason}</span></td>
-                      <td className="text-muted-foreground text-[11px]">{mv.moveDate}</td>
-                      <td className="text-muted-foreground text-[11px]">{mv.assignedCrew}</td>
+                      <td className="text-[11px] text-muted-foreground">{mv.fromLocation || "—"}</td>
+                      <td className="text-[11px] text-muted-foreground font-medium">{mv.toLocation || "—"}</td>
+                      <td className="text-muted-foreground">{mv.requesterName || "—"}</td>
+                      <td className="text-[11px] text-muted-foreground max-w-xs"><span className="truncate block">{mv.notes || "—"}</span></td>
+                      <td className="text-muted-foreground text-[11px]">{mv.moveDate ? new Date(mv.moveDate).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—"}</td>
                       <td>
                         <span className={`status-badge capitalize ${
-                          mv.state === "completed" ? "text-green-700 bg-green-100"
-                          : mv.state === "scheduled" ? "text-blue-700 bg-blue-100"
-                          : mv.state === "approved" ? "text-indigo-700 bg-indigo-100"
+                          mv.status === "completed" ? "text-green-700 bg-green-100"
+                          : mv.status === "scheduled" ? "text-blue-700 bg-blue-100"
+                          : mv.status === "approved" ? "text-indigo-700 bg-indigo-100"
                           : "text-yellow-700 bg-yellow-100"
-                        }`}>{mv.state?.replace("_", " ")}</span>
+                        }`}>{mv.status?.replace("_", " ") || "—"}</span>
                       </td>
                     </tr>
                   ))}
@@ -378,6 +468,16 @@ export default function FacilitiesPage() {
 
         {tab === "requests" && (
           <>
+            <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-foreground/80">Facilities Requests</span>
+              <PermissionGate module="facilities" action="write">
+                <button
+                  onClick={() => setShowFacReqForm(true)}
+                  className="flex items-center gap-1 px-3 py-1 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <Plus className="w-3 h-3" /> New Facility Request
+                </button>
+              </PermissionGate>
+            </div>
             {facilityReqsQuery.isLoading ? (
               <div className="animate-pulse p-4 space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -400,8 +500,6 @@ export default function FacilitiesPage() {
                     <th>Submitted By</th>
                     <th>Building</th>
                     <th>Floor</th>
-                    <th>Priority</th>
-                    <th>Assigned</th>
                     <th>State</th>
                     <th>Created</th>
                   </tr>
@@ -409,21 +507,19 @@ export default function FacilitiesPage() {
                 <tbody>
                   {FAC_REQUESTS.map((r: any) => (
                     <tr key={r.id}>
-                      <td className="p-0"><div className={`priority-bar ${r.priority === "high" ? "bg-red-500" : r.priority === "medium" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
+                      <td className="p-0"><div className="priority-bar bg-primary" /></td>
                       <td className="font-mono text-[11px] text-primary">{r.id}</td>
-                      <td><span className="status-badge text-muted-foreground bg-muted">{r.type}</span></td>
-                      <td className="font-medium text-foreground">{r.summary}</td>
-                      <td className="text-muted-foreground">{r.submittedBy}</td>
-                      <td className="text-[11px] text-muted-foreground">{r.building}</td>
-                      <td className="text-muted-foreground">{r.floor}</td>
-                      <td><span className={`status-badge capitalize ${r.priority === "high" ? "text-red-700 bg-red-100" : r.priority === "medium" ? "text-yellow-700 bg-yellow-100" : "text-green-700 bg-green-100"}`}>{r.priority}</span></td>
-                      <td className="text-muted-foreground">{r.assigned}</td>
-                      <td><span className="status-badge text-muted-foreground bg-muted capitalize">{r.state?.replace("_", " ")}</span></td>
-                      <td className="text-[11px] text-muted-foreground/70">{r.created}</td>
+                      <td><span className="status-badge text-muted-foreground bg-muted capitalize">{r.type}</span></td>
+                      <td className="font-medium text-foreground">{r.title || r.summary}</td>
+                      <td className="text-muted-foreground">{r.submittedBy || "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{r.building || "—"}</td>
+                      <td className="text-[11px] text-muted-foreground">{r.floor || "—"}</td>
+                      <td><span className={`status-badge capitalize ${r.status === "done" ? "text-green-700 bg-green-100" : r.status === "in_progress" ? "text-blue-700 bg-blue-100" : "text-yellow-700 bg-yellow-100"}`}>{r.status?.replace("_", " ")}</span></td>
+                      <td className="text-[11px] text-muted-foreground/70">{new Date(r.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</td>
                     </tr>
                   ))}
                   {FAC_REQUESTS.length === 0 && (
-                    <tr><td colSpan={11} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">No facilities requests found.</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-[12px] text-muted-foreground/70">No facilities requests found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -444,14 +540,19 @@ export default function FacilitiesPage() {
           </div>
           <div className="space-y-3">
             <div>
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Room ID *</label>
-              <input
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Select Space *</label>
+              <select
                 className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
-                placeholder="Paste room UUID or leave blank"
                 value={bookingForm.roomId}
                 onChange={(e) => setBookingForm((f) => ({ ...f, roomId: e.target.value }))}
-              />
-              <p className="text-[10px] text-muted-foreground/60 mt-0.5">Enter the UUID of the room to book</p>
+              >
+                <option value="">Select a space to book...</option>
+                {SPACES.map((space) => (
+                  <option key={space.id} value={space.id}>
+                    {space.name} ({space.spaceId})
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Meeting Title</label>
@@ -489,6 +590,266 @@ export default function FacilitiesPage() {
               className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createBookingMutation.isPending ? "Booking…" : "Book Room"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showSpaceForm && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl p-5 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <Layers className="w-4 h-4 text-primary" /> Add Space
+            </h2>
+            <button onClick={() => setShowSpaceForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Space ID *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.spaceId} onChange={(e) => setSpaceForm(f => ({ ...f, spaceId: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Name *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.name} onChange={(e) => setSpaceForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Building</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.building} onChange={(e) => setSpaceForm(f => ({ ...f, building: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Floor</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.floor} onChange={(e) => setSpaceForm(f => ({ ...f, floor: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.type} onChange={(e) => setSpaceForm(f => ({ ...f, type: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Area</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.area} onChange={(e) => setSpaceForm(f => ({ ...f, area: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Capacity</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.capacity} onChange={(e) => setSpaceForm(f => ({ ...f, capacity: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Assigned To</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.assignedTo} onChange={(e) => setSpaceForm(f => ({ ...f, assignedTo: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Occupancy</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.occupancy} onChange={(e) => setSpaceForm(f => ({ ...f, occupancy: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+              <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={spaceForm.status} onChange={(e) => setSpaceForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="acquired">Acquired</option>
+                <option value="occupied">Occupied</option>
+                <option value="let go">Let Go</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-6">
+            <button onClick={() => setShowSpaceForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!spaceForm.spaceId.trim() || !spaceForm.name.trim()) { toast.error("Space ID and Name are required"); return; }
+                // @ts-ignore
+                createSpaceMutation.mutate({
+                  spaceId: spaceForm.spaceId,
+                  name: spaceForm.name,
+                  building: spaceForm.building || undefined,
+                  floor: spaceForm.floor || undefined,
+                  type: spaceForm.type || undefined,
+                  area: spaceForm.area || undefined,
+                  capacity: spaceForm.capacity ? Number(spaceForm.capacity) : undefined,
+                  assignedTo: spaceForm.assignedTo || undefined,
+                  occupancy: spaceForm.occupancy || undefined,
+                  status: spaceForm.status as "acquired" | "occupied" | "let go"
+                });
+              }}
+              disabled={createSpaceMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createSpaceMutation.isPending ? "Adding…" : "Add Space"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showMoveForm && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <Plus className="w-4 h-4 text-primary" /> New Move Request
+            </h2>
+            <button onClick={() => setShowMoveForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">From Location</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={moveForm.fromLocation} onChange={(e) => setMoveForm(f => ({ ...f, fromLocation: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">To Location *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={moveForm.toLocation} onChange={(e) => setMoveForm(f => ({ ...f, toLocation: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Move Date</label>
+              <input type="datetime-local" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={moveForm.moveDate} onChange={(e) => setMoveForm(f => ({ ...f, moveDate: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Reason / Notes</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={moveForm.notes} onChange={(e) => setMoveForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-6">
+            <button onClick={() => setShowMoveForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!moveForm.toLocation.trim()) { toast.error("To Location is required"); return; }
+                // @ts-ignore
+                createMoveMutation.mutate({ fromLocation: moveForm.fromLocation || undefined, toLocation: moveForm.toLocation, moveDate: moveForm.moveDate ? new Date(moveForm.moveDate).toISOString() : undefined, notes: moveForm.notes || undefined });
+              }}
+              disabled={createMoveMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createMoveMutation.isPending ? "Submitting…" : "Submit Request"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showFacReqForm && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-primary" /> New Facility Request
+            </h2>
+            <button onClick={() => setShowFacReqForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type *</label>
+              <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={facReqForm.type} onChange={(e) => setFacReqForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="maintenance">Maintenance</option>
+                <option value="cleaning">Cleaning</option>
+                <option value="catering">Catering</option>
+                <option value="parking">Parking</option>
+                <option value="access">Access</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Summary *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={facReqForm.title} onChange={(e) => setFacReqForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Space / Building *</label>
+              <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={facReqForm.spaceId} onChange={(e) => setFacReqForm(f => ({ ...f, spaceId: e.target.value }))}>
+                <option value="">Select Space...</option>
+                {SPACES.map((space) => (
+                  <option key={space.id} value={space.id}>
+                    {space.name} ({space.building}{space.floor ? `, Flr ${space.floor}` : ""})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+              <textarea className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" rows={3} value={facReqForm.description} onChange={(e) => setFacReqForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-6">
+            <button onClick={() => setShowFacReqForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!facReqForm.title.trim()) { toast.error("Summary is required"); return; }
+                // @ts-ignore
+                createFacReqMutation.mutate({ type: facReqForm.type, title: facReqForm.title, description: facReqForm.description || undefined, spaceId: facReqForm.spaceId || undefined });
+              }}
+              disabled={createFacReqMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createFacReqMutation.isPending ? "Submitting…" : "Submit Request"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    {showBuildingForm && (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl p-5 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" /> Add New Building
+            </h2>
+            <button onClick={() => setShowBuildingForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Building Name *</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={buildingForm.name} onChange={(e) => setBuildingForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Address / Location</label>
+              <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={buildingForm.address} onChange={(e) => setBuildingForm(f => ({ ...f, address: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Number of Floors</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={buildingForm.floors} onChange={(e) => setBuildingForm(f => ({ ...f, floors: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Total Desks</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={buildingForm.totalDesks} onChange={(e) => setBuildingForm(f => ({ ...f, totalDesks: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Meeting Rooms</label>
+              <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={buildingForm.meetingRooms} onChange={(e) => setBuildingForm(f => ({ ...f, meetingRooms: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Type</label>
+              <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={buildingForm.type} onChange={(e) => setBuildingForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="Office">Office</option>
+                <option value="Retail">Retail</option>
+                <option value="Data Center">Data Center</option>
+                <option value="Warehouse">Warehouse</option>
+              </select>
+            </div>
+            <div className="col-span-2 flex items-center gap-2 mt-2">
+              <input type="checkbox" id="isDataCenter" checked={buildingForm.isDataCenter} onChange={(e) => setBuildingForm(f => ({ ...f, isDataCenter: e.target.checked }))} />
+              <label htmlFor="isDataCenter" className="text-[12px] text-foreground">Includes Data Center</label>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-6">
+            <button onClick={() => setShowBuildingForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button
+              onClick={() => {
+                if (!buildingForm.name.trim()) { toast.error("Building name is required"); return; }
+                const amenities = [];
+                if (buildingForm.type) amenities.push(`Type:${buildingForm.type}`);
+                if (buildingForm.meetingRooms) amenities.push(`Rooms:${buildingForm.meetingRooms}`);
+                if (buildingForm.isDataCenter) amenities.push("Data Center");
+                
+                // @ts-ignore
+                createBuildingMutation.mutate({ 
+                  name: buildingForm.name, 
+                  address: buildingForm.address || undefined, 
+                  floors: buildingForm.floors ? Number(buildingForm.floors) : undefined, 
+                  capacity: buildingForm.totalDesks ? Number(buildingForm.totalDesks) : undefined,
+                  amenities
+                });
+              }}
+              disabled={createBuildingMutation.isPending}
+              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+            >
+              {createBuildingMutation.isPending ? "Saving…" : "Save Building"}
             </button>
           </div>
         </div>

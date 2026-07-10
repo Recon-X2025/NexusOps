@@ -16,11 +16,11 @@ import { cn } from "@/lib/utils";
 const STATE_CONFIG: Record<string, { label: string; color: string }> = {
   draft:          { label: "Draft",        color: "text-muted-foreground bg-muted" },
   submitted:      { label: "Submitted",    color: "text-blue-700 bg-blue-100" },
-  cab_approval:   { label: "CAB Review",   color: "text-yellow-700 bg-yellow-100" },
+  cab_review:     { label: "CAB Review",   color: "text-yellow-700 bg-yellow-100" },
   approved:       { label: "Approved",     color: "text-green-700 bg-green-100" },
   scheduled:      { label: "Scheduled",    color: "text-indigo-700 bg-indigo-100" },
-  implementation: { label: "In Progress",  color: "text-orange-700 bg-orange-100" },
-  complete:       { label: "Complete",     color: "text-green-700 bg-green-100" },
+  implementing:   { label: "In Progress",  color: "text-orange-700 bg-orange-100" },
+  completed:      { label: "Complete",     color: "text-green-700 bg-green-100" },
   failed:         { label: "Failed",       color: "text-red-700 bg-red-100" },
   cancelled:      { label: "Cancelled",    color: "text-muted-foreground bg-muted" },
 };
@@ -43,6 +43,7 @@ export default function ChangeDetailPage() {
   const [rollbackDraft, setRollbackDraft] = useState("");
 
   const { data: change, isLoading, refetch } = trpc.changes.get.useQuery({ id }, mergeTrpcQueryOpts("changes.get", { enabled: can("changes", "read") }));
+  const { data: releases } = trpc.changes.listReleases.useQuery({ limit: 100 }, mergeTrpcQueryOpts("changes.listReleases", undefined));
 
   const updateState = trpc.changes.update.useMutation({
     onSuccess: () => { toast.success("Status updated"); refetch(); },
@@ -73,12 +74,12 @@ export default function ChangeDetailPage() {
 
   const TRANSITIONS: Record<string, string[]> = {
     draft:          ["submitted", "cancelled"],
-    submitted:      ["cab_approval", "draft", "cancelled"],
-    cab_approval:   ["approved", "draft", "cancelled"],
+    submitted:      ["cab_review", "draft", "cancelled"],
+    cab_review:     ["approved", "draft", "cancelled"],
     approved:       ["scheduled", "cancelled"],
-    scheduled:      ["implementation", "cancelled"],
-    implementation: ["complete", "failed"],
-    complete:       [],
+    scheduled:      ["implementing", "cancelled"],
+    implementing:   ["completed", "failed"],
+    completed:      [],
     failed:         ["draft"],
     cancelled:      [],
   };
@@ -118,25 +119,35 @@ export default function ChangeDetailPage() {
             </div>
           </div>
         </div>
-        <PermissionGate module="changes" action="write">
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {nextStates.map((s) => (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {nextStates.map((s) => {
+            const isCabApprove = change.status === "cab_review" && s === "approved";
+            const isCabReject = change.status === "cab_review" && s === "draft";
+            
+            // If this is a CAB decision (Approve/Reject), enforce the 'approve' permission
+            if ((isCabApprove || isCabReject) && !can("changes", "approve")) return null;
+            // Otherwise enforce standard 'write' permission
+            if (!isCabApprove && !isCabReject && !can("changes", "write")) return null;
+
+            return (
               <button
                 key={s}
                 onClick={() => updateState.mutate({ id, status: s } as any)}
                 disabled={updateState.isPending}
                 className={cn(
                   "rounded border px-2.5 py-1 text-xs font-medium transition capitalize",
-                  s === "cancelled" || s === "failed"
+                  s === "cancelled" || s === "failed" || isCabReject
                     ? "border-red-300 text-red-600 hover:bg-red-50"
-                    : "border-border hover:bg-accent"
+                    : isCabApprove 
+                      ? "border-green-300 text-green-700 hover:bg-green-50" 
+                      : "border-border hover:bg-accent"
                 )}
               >
-                {STATE_CONFIG[s]?.label ?? s}
+                {isCabApprove ? "Approve (CAB)" : isCabReject ? "Reject (CAB)" : STATE_CONFIG[s]?.label ?? s}
               </button>
-            ))}
-          </div>
-        </PermissionGate>
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -274,6 +285,26 @@ export default function ChangeDetailPage() {
                 <span className="font-medium text-foreground/90 truncate">{value}</span>
               </div>
             ))}
+            {/* Release Link Dropdown */}
+            <div className="flex flex-col gap-1 border-t border-border pt-2 mt-2">
+              <span className="text-muted-foreground font-semibold uppercase text-[10px]">Associated Release</span>
+              <select
+                value={(change as any).releaseId || ""}
+                onChange={(e) => {
+                  const relId = e.target.value || null;
+                  updateState.mutate({ id, releaseId: relId } as any);
+                }}
+                disabled={isTerminalChange || !can("changes", "write")}
+                className="w-full bg-background border border-border rounded px-2 py-1 outline-none text-primary font-medium text-xs mt-1"
+              >
+                <option value="">No Linked Release</option>
+                {(releases ?? []).map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} ({r.version})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>

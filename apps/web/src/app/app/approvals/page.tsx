@@ -58,7 +58,7 @@ export default function ApprovalsPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
 
   const canApprove = can("approvals", "approve");
-  const [activeTab, setActiveTab] = useState<"pending" | "submitted" | "all">("pending");
+  const [activeFilter, setActiveFilter] = useState<"pending" | "urgent" | "new" | "approved" | "rejected" | "all">("pending");
   const [decisions, setDecisions] = useState<Record<string, "approved" | "rejected">>({});
   const [rejectReasonId, setRejectReasonId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
@@ -91,13 +91,19 @@ export default function ApprovalsPage() {
   const urgentCount = pendingFiltered.filter((a: any) => a.priority === "urgent").length;
 
   const displayed =
-    activeTab === "pending" ? pendingFiltered
-    : activeTab === "submitted" ? submittedItems
+    activeFilter === "pending" ? pendingFiltered
+    : activeFilter === "urgent" ? pendingFiltered.filter((a: any) => a.priority === "urgent")
+    : activeFilter === "new" ? pendingFiltered.filter((a: any) => {
+        const d = new Date(a.createdAt || a.requestedOn || Date.now());
+        return (Date.now() - d.getTime()) < 24 * 60 * 60 * 1000;
+      })
+    : activeFilter === "approved" ? submittedItems.filter((a: any) => a.state === "approved")
+    : activeFilter === "rejected" ? submittedItems.filter((a: any) => a.state === "rejected")
     : allItems;
 
   const isLoading =
-    activeTab === "pending" ? pendingQuery.isLoading
-    : activeTab === "submitted" ? submittedQuery.isLoading
+    ["pending", "urgent", "new"].includes(activeFilter) ? pendingQuery.isLoading
+    : ["approved", "rejected"].includes(activeFilter) ? submittedQuery.isLoading
     : allQuery.isLoading;
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -136,35 +142,28 @@ export default function ApprovalsPage() {
         </div>
         <div className="flex items-center gap-2 overflow-x-auto">
           <button
-            onClick={() => setActiveTab("pending")}
-            className={`px-3 py-1 text-[11px] rounded border transition-colors ${activeTab === "pending" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
+            onClick={() => setActiveFilter("all")}
+            className={`px-3 py-1 text-[11px] rounded border transition-colors ${activeFilter === "all" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
           >
-            My Pending ({pendingQuery.isLoading ? "…" : pendingFiltered.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("submitted")}
-            className={`px-3 py-1 text-[11px] rounded border transition-colors ${activeTab === "submitted" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
-          >
-            My Submitted ({submittedQuery.isLoading ? "…" : submittedItems.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`px-3 py-1 text-[11px] rounded border transition-colors ${activeTab === "all" ? "bg-primary text-white border-primary" : "text-muted-foreground border-border hover:bg-muted/30"}`}
-          >
-            All ({allQuery.isLoading ? "…" : allItems.length})
+            All Approvals ({allQuery.isLoading ? "…" : allItems.length})
           </button>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
         {[
-          { label: "Pending Approval",  value: pendingFiltered.length,  color: "text-blue-700" },
-          { label: "Urgent / Due Today", value: urgentCount,    color: "text-red-700" },
-          { label: "Approved (30d)",     value: submittedItems.filter((s: any) => s.state === "approved").length || 0, color: "text-green-700" },
-          { label: "Rejected (30d)",     value: submittedItems.filter((s: any) => s.state === "rejected").length || 0, color: "text-muted-foreground" },
+          { id: "pending", label: "Pending Approval",  value: pendingFiltered.length,  color: "text-blue-700" },
+          { id: "urgent", label: "Urgent / Due Today", value: urgentCount,    color: "text-red-700" },
+          { id: "new", label: "New", value: pendingFiltered.filter((a: any) => { const d = new Date(a.createdAt || a.requestedOn || Date.now()); return (Date.now() - d.getTime()) < 24 * 60 * 60 * 1000; }).length, color: "text-purple-700" },
+          { id: "approved", label: "Approved (30d)",     value: submittedItems.filter((s: any) => s.state === "approved").length || 0, color: "text-green-700" },
+          { id: "rejected", label: "Rejected (30d)",     value: submittedItems.filter((s: any) => s.state === "rejected").length || 0, color: "text-muted-foreground" },
         ].map((k) => (
-          <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
+          <div 
+            key={k.id} 
+            onClick={() => setActiveFilter(k.id as any)}
+            className={`bg-card border rounded px-3 py-2 cursor-pointer transition-colors ${activeFilter === k.id ? "ring-2 ring-primary border-transparent" : "border-border hover:bg-muted/30"}`}
+          >
             <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
@@ -185,7 +184,14 @@ export default function ApprovalsPage() {
         ) : displayed.length === 0 ? (
           <div className="bg-card border border-border rounded flex flex-col items-center justify-center h-40 gap-2">
             <CheckCircle2 className="w-8 h-8 text-green-400" />
-            <p className="text-[12px] text-muted-foreground">All caught up — no pending approvals</p>
+            <p className="text-[12px] text-muted-foreground">
+              {activeFilter === "pending" ? "All caught up — no pending approvals" :
+               activeFilter === "urgent" ? "No urgent approvals require your attention" :
+               activeFilter === "new" ? "No new approvals in the last 24 hours" :
+               activeFilter === "approved" ? "No approved requests found" :
+               activeFilter === "rejected" ? "No rejected requests found" :
+               "No approvals found"}
+            </p>
           </div>
         ) : (
           displayed.map((appr: any) => {

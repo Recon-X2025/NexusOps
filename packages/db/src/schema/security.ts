@@ -86,6 +86,7 @@ export const vulnerabilities = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    incidentId: uuid("incident_id").references(() => securityIncidents.id, { onDelete: "set null" }),
     cveId: text("cve_id"),
     title: text("title").notNull(),
     description: text("description"),
@@ -111,8 +112,60 @@ export const vulnerabilities = pgTable(
   }),
 );
 
-export const securityIncidentsRelations = relations(securityIncidents, ({ one }) => ({
+export const threatIntelligence = pgTable(
+  "threat_intelligence",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    incidentId: uuid("incident_id").notNull().references(() => securityIncidents.id, { onDelete: "cascade" }),
+    number: text("number").notNull(), // Threat Intelligence ID
+    description: text("description"),
+    documentUri: text("document_uri"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("threat_intelligence_org_idx").on(t.orgId),
+    incidentIdx: index("threat_intelligence_incident_idx").on(t.incidentId),
+  }),
+);
+
+export const complianceEvidence = pgTable(
+  "compliance_evidence",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    incidentId: uuid("incident_id").notNull().references(() => securityIncidents.id, { onDelete: "cascade" }),
+    riskId: uuid("risk_id"),
+    complianceFrameworkId: uuid("compliance_framework_id"),
+    auditId: uuid("audit_id"),
+    auditDocUri: text("audit_doc_uri"),
+    failedControlId: uuid("failed_control_id"),
+    failedControlDocUri: text("failed_control_doc_uri"),
+    securityPolicyId: uuid("security_policy_id"),
+    securityPolicyDocUri: text("security_policy_doc_uri"),
+    supportingDocUri: text("supporting_doc_uri"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("compliance_evidence_org_idx").on(t.orgId),
+    incidentIdx: index("compliance_evidence_incident_idx").on(t.incidentId),
+  }),
+);
+
+export const securityIncidentsRelations = relations(securityIncidents, ({ one, many }) => ({
   org: one(organizations, { fields: [securityIncidents.orgId], references: [organizations.id] }),
   assignee: one(users, { fields: [securityIncidents.assigneeId], references: [users.id], relationName: "si_assignee" }),
   reporter: one(users, { fields: [securityIncidents.reporterId], references: [users.id], relationName: "si_reporter" }),
+  threatIntelligence: many(threatIntelligence),
+  complianceEvidence: many(complianceEvidence),
+}));
+
+export const threatIntelligenceRelations = relations(threatIntelligence, ({ one }) => ({
+  incident: one(securityIncidents, { fields: [threatIntelligence.incidentId], references: [securityIncidents.id] }),
+}));
+
+export const complianceEvidenceRelations = relations(complianceEvidence, ({ one }) => ({
+  incident: one(securityIncidents, { fields: [complianceEvidence.incidentId], references: [securityIncidents.id] }),
 }));

@@ -48,4 +48,25 @@ export const oncallOverrides = pgTable(
 export const oncallSchedulesRelations = relations(oncallSchedules, ({ one, many }) => ({
   org: one(organizations, { fields: [oncallSchedules.orgId], references: [organizations.id] }),
   overrides: many(oncallOverrides),
+  incidents: many(oncallIncidents),
+}));
+
+// ── On-Call Incidents ──────────────────────────────────────────────────────
+export const oncallIncidents = pgTable(
+  "oncall_incidents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    scheduleId: uuid("schedule_id").notNull().references(() => oncallSchedules.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    status: text("status").notNull().default("active"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ scheduleIdx: index("oncall_incidents_schedule_idx").on(t.scheduleId) }),
+);
+
+export const oncallIncidentsRelations = relations(oncallIncidents, ({ one }) => ({
+  org: one(organizations, { fields: [oncallIncidents.orgId], references: [organizations.id] }),
+  schedule: one(oncallSchedules, { fields: [oncallIncidents.scheduleId], references: [oncallSchedules.id] }),
 }));

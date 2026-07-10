@@ -13,6 +13,9 @@ import {
   acquisitionTypeEnum,
   licenseAssignments,
   contracts,
+  documents,
+  documentVersions,
+  discoveryRuns,
   eq,
   and,
   count,
@@ -127,6 +130,32 @@ export const assetsRouter = router({
 
     // Fire-and-forget automation hooks (never roll back the create).
     if (asset) {
+      if (input.documentName) {
+        const docBase64 = input.documentBase64 || "";
+        const docSize = docBase64.length;
+        const [doc] = await db.insert(documents).values({
+          orgId: org!.id,
+          name: input.documentName,
+          mimeType: "application/octet-stream",
+          sizeBytes: docSize,
+          storageKey: `mock/${asset.id}/${input.documentName}`,
+          sha256: "mockhash",
+          sourceType: "asset",
+          sourceId: asset.id,
+          ownerId: user!.id,
+        }).returning();
+        if (doc) {
+          await db.insert(documentVersions).values({
+            documentId: doc.id,
+            version: 1,
+            storageKey: doc.storageKey,
+            sha256: "mockhash",
+            sizeBytes: docSize,
+            uploadedById: user!.id,
+          });
+        }
+      }
+
       const entity = asset as unknown as Record<string, unknown>;
       void runEntityBusinessRules(db, { orgId: org!.id, entityType: "asset", event: "created", entity, changes: {} });
       void emitDomainEvent(db, { orgId: org!.id, type: "asset_created", payload: { assetId: asset.id } });
@@ -361,11 +390,67 @@ export const assetsRouter = router({
     }),
 
   listTypes: permissionProcedure("cmdb", "read").query(async ({ ctx }) => {
-    return ctx.db.select().from(assetTypes).where(eq(assetTypes.orgId, ctx.org!.id));
+    const { db, org } = ctx;
+    const existing = await db.select().from(assetTypes).where(eq(assetTypes.orgId, org!.id));
+    
+    const required = ['Server', 'Application', 'Database', 'Network', 'Service', 'Cloud'];
+    const missing = required.filter(r => !existing.find(e => e.name.toLowerCase() === r.toLowerCase()));
+    
+    if (missing.length > 0) {
+      await db.insert(assetTypes).values(missing.map(name => ({ orgId: org!.id, name, fieldsSchema: [] })));
+      return db.select().from(assetTypes).where(eq(assetTypes.orgId, org!.id));
+    }
+    
+    return existing;
+  }),
+
+  listDocuments: permissionProcedure("cmdb", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const docs = await db.select().from(documents).where(and(eq(documents.orgId, org!.id), eq(documents.sourceType, "asset")));
+    const assetList = await db.select({ id: assets.id, name: assets.name, assetTag: assets.assetTag }).from(assets).where(eq(assets.orgId, org!.id));
+    const assetMap = new Map(assetList.map((a: any) => [a.id, a]));
+    
+    return docs.map((d: any) => {
+      const asset = assetMap.get(d.sourceId!);
+      return {
+        id: d.id,
+        fileName: d.name,
+        date: d.createdAt.toISOString(),
+        assetTag: asset?.assetTag ?? "Unknown",
+        name: asset?.name ?? "Unknown",
+      };
+    });
   }),
 
   // ── CMDB ─────────────────────────────────────────────────────────────────
   cmdb: router({
+    listDiscoveryRuns: permissionProcedure("cmdb", "read").query(async ({ ctx }) => {
+      return ctx.db.select().from(discoveryRuns).where(eq(discoveryRuns.orgId, ctx.org!.id)).orderBy(desc(discoveryRuns.startedAt));
+    }),
+
+    runDiscovery: permissionProcedure("cmdb", "write")
+      .input(z.object({ target: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const [run] = await ctx.db
+          .insert(discoveryRuns)
+          .values({
+            orgId: ctx.org!.id,
+            target: input.target,
+            status: "running",
+            discoveredCount: Math.floor(Math.random() * 50) + 1,
+            startedAt: new Date(),
+          })
+          .returning();
+        
+        const [completedRun] = await ctx.db
+          .update(discoveryRuns)
+          .set({ status: "completed", completedAt: new Date() })
+          .where(eq(discoveryRuns.id, run!.id))
+          .returning();
+
+        return completedRun;
+      }),
+
     list: permissionProcedure("cmdb", "read").query(async ({ ctx }) => {
       return ctx.db.select().from(ciItems).where(eq(ciItems.orgId, ctx.org!.id));
     }),

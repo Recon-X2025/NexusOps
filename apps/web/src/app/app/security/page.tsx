@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import {
   Shield, CheckCircle2, Plus, Target, ChevronRight, Loader2, X,
+  FileText,
 } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/utils";
+import Link from "next/link";
 
 const SEC_TABS = [
   { key: "vulnerabilities", label: "Vulnerabilities",      module: "vulnerabilities" as const, action: "read" as const },
@@ -71,6 +73,12 @@ export default function SecurityOpsPage() {
   const [investigatingId, setInvestigatingId] = useState<string | null>(null);
   const [remediatingId, setRemediatingId] = useState<string | null>(null);
   const [remediateNote, setRemediateNote] = useState("");
+  const [showNewThreatIntel, setShowNewThreatIntel] = useState(false);
+  const [tiForm, setTiForm] = useState({ incidentId: "", description: "", documentUri: "" });
+  const [showNewVulnerability, setShowNewVulnerability] = useState(false);
+  const [vulnForm, setVulnForm] = useState({ title: "", cveId: "", severity: "medium", incidentId: "" });
+
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -84,6 +92,9 @@ export default function SecurityOpsPage() {
   const { data: grcAudits, isLoading: auditsLoading } = trpc.grc.listAudits.useQuery(undefined, mergeTrpcQueryOpts("grc.listAudits", { enabled: can("grc", "read"), refetchOnWindowFocus: false },));
   const { data: grcPolicies, isLoading: policiesLoading } = trpc.grc.listPolicies.useQuery({ limit: 50 }, mergeTrpcQueryOpts("grc.listPolicies", { enabled: can("grc", "read"), refetchOnWindowFocus: false },));
   const { data: grcRisks } = trpc.grc.listRisks.useQuery({ limit: 50 }, mergeTrpcQueryOpts("grc.listRisks", { enabled: can("grc", "read"), refetchOnWindowFocus: false },));
+
+  const { data: threatIntel, isLoading: threatIntelLoading } = trpc.security.listThreatIntel.useQuery({ limit: 100 }, mergeTrpcQueryOpts("security.listThreatIntel", { enabled: can("security", "read") && tab === "threat_intel", refetchOnWindowFocus: false },));
+
 
   const createIncident = trpc.security.createIncident.useMutation({
     onSuccess: (inc: any) => { toast.success(`Security incident ${inc?.id?.slice(0,8) ?? ""} created`); setShowNewIncident(false); setIncForm({ title: "", description: "", severity: "medium", attackVector: "" }); refetchIncidents(); },
@@ -100,6 +111,16 @@ export default function SecurityOpsPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to remediate"),
   });
 
+  const createThreatIntel = trpc.security.createThreatIntel.useMutation({
+    onSuccess: () => { toast.success("Threat Intelligence feed connected"); setShowNewThreatIntel(false); setTiForm({ incidentId: "", description: "", documentUri: "" }); void utils.security.listThreatIntel.invalidate(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to add threat intel"),
+  });
+
+  const createVulnerability = trpc.security.createVulnerability.useMutation({
+    onSuccess: () => { toast.success("Vulnerability added"); setShowNewVulnerability(false); setVulnForm({ title: "", cveId: "", severity: "medium", incidentId: "" }); void utils.security.listVulnerabilities.invalidate(); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to add vulnerability"),
+  });
+
   if (!can("security", "read") && !can("vulnerabilities", "read") && !can("grc", "read")) {
     return <AccessDenied module="Security Operations" />;
   }
@@ -108,6 +129,7 @@ export default function SecurityOpsPage() {
   type IncidentItem = NonNullable<typeof incidents>["items"][number];
   const vulnList: VulnItem[] = vulns ?? [];
   const incidentList: IncidentItem[] = incidents?.items ?? [];
+  const threatIntelList: any[] = (threatIntel as any[]) ?? [];
 
   const critVulns = vulnList.filter((v) => v.severity === "critical" && v.status !== "remediated").length;
   const overdueVulns = vulnList.filter((v) => {
@@ -182,7 +204,12 @@ export default function SecurityOpsPage() {
 
         {/* — Vulnerabilities — */}
         {tab === "vulnerabilities" && (
-          vulnsLoading ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between px-2 pt-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Detected Vulnerabilities</div>
+              <button className="text-[11px] text-primary hover:underline" onClick={() => setShowNewVulnerability(true)}>+ Add Vulnerability</button>
+            </div>
+          {vulnsLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-xs">Loading vulnerabilities…</span>
@@ -279,7 +306,8 @@ export default function SecurityOpsPage() {
                 ))}
               </tbody>
             </table>
-          )
+          )}
+          </div>
         )}
 
         {/* — Security Incidents — */}
@@ -375,10 +403,58 @@ export default function SecurityOpsPage() {
 
         {/* — Threat Intelligence — */}
         {tab === "threat_intel" && (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
-            <Shield className="w-8 h-8 opacity-30" />
-            <p className="text-[13px]">No threat intelligence feeds connected</p>
-            <p className="text-[11px] text-muted-foreground/60">Connect Crowdstrike, VirusTotal, AlienVault OTX or other TI feeds to see IOC data here.</p>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between px-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Threat Intelligence Feeds</div>
+              <button className="text-[11px] text-primary hover:underline" onClick={() => setShowNewThreatIntel(true)}>+ Add to Incident</button>
+            </div>
+            {threatIntelLoading ? (
+              <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-xs">Loading threat intelligence…</span>
+              </div>
+            ) : threatIntelList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+                <Shield className="w-8 h-8 opacity-30" />
+                <p className="text-[13px]">No threat intelligence data</p>
+                <p className="text-[11px] text-muted-foreground/60">Connect external feeds or add Threat Intelligence directly to Security Incidents.</p>
+              </div>
+            ) : (
+              <div className="border border-border rounded overflow-hidden">
+                <table className="ent-table w-full">
+                  <thead>
+                    <tr>
+                      <th>Threat ID</th>
+                      <th>Description</th>
+                      <th>Incident Link</th>
+                      <th>Document</th>
+                      <th>Date Added</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {threatIntelList.map((ti) => (
+                      <tr key={ti.id}>
+                        <td className="font-medium text-[11px]">{ti.number}</td>
+                        <td className="max-w-[300px] truncate">{ti.description || "—"}</td>
+                        <td>
+                          <Link href={`/app/security/${ti.incidentId}`} className="text-primary hover:underline">
+                            View Incident
+                          </Link>
+                        </td>
+                        <td>
+                          {ti.documentUri ? (
+                            <a href={ti.documentUri} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
+                              <FileText className="w-3.5 h-3.5" /> Document
+                            </a>
+                          ) : "—"}
+                        </td>
+                        <td>{new Date(ti.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -603,6 +679,86 @@ export default function SecurityOpsPage() {
                 disabled={createIncident.isPending}
                 className="px-4 py-1.5 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 disabled:opacity-50">
                 {createIncident.isPending ? "Creating…" : "Declare Incident"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* New Threat Intel Modal */}
+      {showNewThreatIntel && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-primary flex items-center gap-2"><Shield className="w-4 h-4" /> New Threat Intelligence</h2>
+              <button onClick={() => setShowNewThreatIntel(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Link to Incident <span className="text-red-500">*</span></label>
+              <select value={tiForm.incidentId} onChange={(e) => setTiForm(f => ({...f, incidentId: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">Select an active incident…</option>
+                {incidentList.filter(inc => inc.status !== "closed" && inc.status !== "false_positive").map(inc => (
+                  <option key={inc.id} value={inc.id}>{inc.number || `INC-${inc.id.slice(0, 8)}`} - {inc.title}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Description <span className="text-red-500">*</span></label>
+              <textarea rows={3} value={tiForm.description} onChange={(e) => setTiForm(f => ({...f, description: e.target.value}))} placeholder="E.g., Suspected phishing domain, malicious IP..." className="px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Document URL</label>
+              <input type="url" value={tiForm.documentUri} onChange={(e) => setTiForm(f => ({...f, documentUri: e.target.value}))} placeholder="https://example.com/report.pdf" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowNewThreatIntel(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!tiForm.incidentId || !tiForm.description.trim()) { toast.error("Incident and Description are required"); return; } createThreatIntel.mutate({ incidentId: tiForm.incidentId, description: tiForm.description.trim(), documentUri: tiForm.documentUri || undefined }); }}
+                disabled={createThreatIntel.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">
+                {createThreatIntel.isPending ? "Saving…" : "Save Threat Intel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* New Vulnerability Modal */}
+      {showNewVulnerability && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-primary flex items-center gap-2"><Shield className="w-4 h-4" /> Add Vulnerability</h2>
+              <button onClick={() => setShowNewVulnerability(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Link to Incident</label>
+              <select value={vulnForm.incidentId} onChange={(e) => setVulnForm(f => ({...f, incidentId: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">No incident linked</option>
+                {incidentList.filter(inc => inc.status !== "closed" && inc.status !== "false_positive").map(inc => (
+                  <option key={inc.id} value={inc.id}>{inc.number || `INC-${inc.id.slice(0, 8)}`} - {inc.title}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">CVE ID</label>
+              <input value={vulnForm.cveId} onChange={(e) => setVulnForm(f => ({...f, cveId: e.target.value}))} placeholder="CVE-2026-..." className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Title / Description <span className="text-red-500">*</span></label>
+              <input value={vulnForm.title} onChange={(e) => setVulnForm(f => ({...f, title: e.target.value}))} placeholder="Brief title..." className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium">Severity</label>
+              <select value={vulnForm.severity} onChange={(e) => setVulnForm(f => ({...f, severity: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+                {["critical","high","medium","low","none"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowNewVulnerability(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button
+                onClick={() => { if (!vulnForm.title.trim()) { toast.error("Title is required"); return; } createVulnerability.mutate({ incidentId: vulnForm.incidentId || undefined, title: vulnForm.title.trim(), cveId: vulnForm.cveId || undefined, severity: vulnForm.severity as any }); }}
+                disabled={createVulnerability.isPending}
+                className="px-4 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">
+                {createVulnerability.isPending ? "Saving…" : "Add Vulnerability"}
               </button>
             </div>
           </div>

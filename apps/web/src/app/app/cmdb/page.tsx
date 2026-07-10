@@ -41,14 +41,24 @@ export default function CMDBPage() {
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "cis");
   const [search, setSearch] = useState("");
   const [showAddCI, setShowAddCI] = useState(false);
-  const [ciForm, setCIForm] = useState({ name: "", class: "Linux Server", location: "", ipAddress: "", status: "operational" as "operational"|"degraded"|"critical"|"maintenance"|"retired" });
-
+  const [ciForm, setCIForm] = useState({ name: "", ciType: "" as any, location: "", ipAddress: "", status: "" as any });
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
   }, [visibleTabs, tab]);
 
   const { data: cisData, refetch: refetchCIs } = trpc.assets.cmdb.list.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.list", { refetchOnWindowFocus: false },));
   const { data: topologyData } = trpc.assets.cmdb.getTopology.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.getTopology", { refetchOnWindowFocus: false },));
+  const discoveryRunsQuery = trpc.assets.cmdb.listDiscoveryRuns.useQuery(undefined, mergeTrpcQueryOpts("assets.cmdb.listDiscoveryRuns", { refetchOnWindowFocus: false }));
+
+  const runDiscoveryMutation = trpc.assets.cmdb.runDiscovery.useMutation({
+    onSuccess: () => {
+      toast.success("Discovery scan completed — refreshing CI inventory…");
+      refetchCIs();
+      discoveryRunsQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message || "Failed to run discovery"),
+  });
+
 
   const [mapMode, setMapMode] = useState<"full" | "focused">("full");
   const [mapRootId, setMapRootId] = useState<string | null>(null);
@@ -60,8 +70,8 @@ export default function CMDBPage() {
     }),
   );
 
-  const createCI = trpc.assets.create.useMutation({
-    onSuccess: () => { toast.success("CI added to CMDB"); setShowAddCI(false); setCIForm({ name: "", class: "Linux Server", location: "", ipAddress: "", status: "operational" }); refetchCIs(); },
+  const createCI = trpc.assets.cmdb.createCi.useMutation({
+    onSuccess: () => { toast.success("CI added to CMDB"); setShowAddCI(false); setCIForm({ name: "", ciType: "", location: "", ipAddress: "", status: "" }); refetchCIs(); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
@@ -105,9 +115,11 @@ export default function CMDBPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { refetchCIs(); toast.success("Discovery scan initiated — refreshing CI inventory…"); }}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground">
-            <RefreshCw className="w-3 h-3" /> Run Discovery
+            onClick={() => runDiscoveryMutation.mutate({ target: "Network Scan" })}
+            disabled={runDiscoveryMutation.isPending}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground disabled:opacity-50">
+            <RefreshCw className={`w-3 h-3 ${runDiscoveryMutation.isPending ? "animate-spin" : ""}`} /> 
+            {runDiscoveryMutation.isPending ? "Running..." : "Run Discovery"}
           </button>
           {can("cmdb", "write") && (
             <>
@@ -298,7 +310,24 @@ export default function CMDBPage() {
               </tr>
             </thead>
             <tbody>
-              <tr><td colSpan={10} className="text-center py-8 text-[11px] text-muted-foreground/50">No discovery runs recorded yet</td></tr>
+              {!discoveryRunsQuery.data || discoveryRunsQuery.data.length === 0 ? (
+                <tr><td colSpan={10} className="text-center py-8 text-[11px] text-muted-foreground/50">No discovery runs recorded yet</td></tr>
+              ) : (
+                discoveryRunsQuery.data.map((run: any) => (
+                  <tr key={run.id}>
+                    <td className="font-mono text-[11px] text-primary">{run.id.split("-")[0]}</td>
+                    <td className="capitalize">Manual</td>
+                    <td>{run.target}</td>
+                    <td className="text-muted-foreground">{new Date(run.startedAt).toLocaleString()}</td>
+                    <td className="text-muted-foreground">{(run.completedAt ? (new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()) / 1000 : 0).toFixed(1)}s</td>
+                    <td className="text-center">{run.discoveredCount}</td>
+                    <td className="text-center">0</td>
+                    <td className="text-center text-green-600">{run.discoveredCount}</td>
+                    <td className="text-center">0</td>
+                    <td><span className="status-badge bg-green-100 text-green-700 capitalize">{run.status}</span></td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         )}
@@ -318,15 +347,17 @@ export default function CMDBPage() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Class</label>
-                <select value={ciForm.class} onChange={(e) => setCIForm(f => ({...f, class: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
-                  {["Linux Server","Windows Server","Database Server","Application Server","Network Switch","Firewall","Load Balancer","Cloud Database","Virtual Machine","Container"].map(c => <option key={c} value={c}>{c}</option>)}
+                <label className="text-xs font-medium">Class <span className="text-red-500">*</span></label>
+                <select value={ciForm.ciType} onChange={(e) => setCIForm(f => ({...f, ciType: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                  <option value="" disabled>Select Class...</option>
+                  {["server", "application", "database", "network", "service", "cloud"].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Status</label>
+                <label className="text-xs font-medium">Status <span className="text-red-500">*</span></label>
                 <select value={ciForm.status} onChange={(e) => setCIForm(f => ({...f, status: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
-                  {["operational","degraded","critical","maintenance","retired"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  <option value="" disabled>Select Status...</option>
+                  {["operational","degraded","down","planned"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                 </select>
               </div>
             </div>
@@ -343,7 +374,12 @@ export default function CMDBPage() {
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => setShowAddCI(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
               <button
-                onClick={() => { if (!ciForm.name.trim()) { toast.error("Name is required"); return; } createCI.mutate({ name: ciForm.name.trim(), class: ciForm.class, location: ciForm.location || undefined, ipAddress: ciForm.ipAddress || undefined, status: ciForm.status } as any); }}
+                onClick={() => { 
+                  if (!ciForm.name.trim()) { toast.error("Name is required"); return; } 
+                  if (!ciForm.ciType) { toast.error("Class is required"); return; } 
+                  if (!ciForm.status) { toast.error("Status is required"); return; } 
+                  createCI.mutate({ name: ciForm.name.trim(), ciType: ciForm.ciType, status: ciForm.status, attributes: { location: ciForm.location, ip: ciForm.ipAddress } } as any); 
+                }}
                 disabled={createCI.isPending}
                 className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createCI.isPending ? "Adding…" : "Add CI"}

@@ -65,17 +65,19 @@ export const inventoryRouter = router({
         minQty: z.number().int().min(0).default(5),
         location: z.string().optional(),
         unitCost: z.string().optional(),
+        poReference: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      const { poReference, ...itemInput } = input;
       // Atomicity: the item insert and the initial intake transaction must
       // commit together so an item is never created without its stock ledger
       // entry (and vice versa).
       return await db.transaction(async (tx) => {
         const [item] = await tx
           .insert(inventoryItems)
-          .values({ orgId: org!.id, ...input })
+          .values({ orgId: org!.id, ...itemInput })
           .returning();
 
         if (input.qty > 0) {
@@ -84,13 +86,56 @@ export const inventoryRouter = router({
             itemId: item!.id,
             type: "intake",
             qty: input.qty,
-            notes: "Initial stock intake",
+            reference: poReference ?? null,
+            notes: poReference
+              ? `Initial stock intake — Ref: ${poReference}`
+              : "Initial stock intake",
             performedById: ctx.user!.id,
           });
         }
 
         return item;
       });
+    }),
+
+  /** Update inventory item metadata (name, partNumber, category, unit, minQty, location, unitCost). */
+  update: permissionProcedure("inventory", "write")
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        partNumber: z.string().min(1).optional(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        unit: z.string().optional(),
+        minQty: z.number().int().min(0).optional(),
+        location: z.string().optional(),
+        unitCost: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const { id, ...fields } = input;
+      const [item] = await db
+        .update(inventoryItems)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(and(eq(inventoryItems.id, id), eq(inventoryItems.orgId, org!.id)))
+        .returning();
+      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Inventory item not found" });
+      return item;
+    }),
+
+  /** Delete an inventory item and all its transactions (cascade). */
+  delete: permissionProcedure("inventory", "admin")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [deleted] = await db
+        .delete(inventoryItems)
+        .where(and(eq(inventoryItems.id, input.id), eq(inventoryItems.orgId, org!.id)))
+        .returning({ id: inventoryItems.id });
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Inventory item not found" });
+      return { success: true };
     }),
 
   issueStock: permissionProcedure("inventory", "write")

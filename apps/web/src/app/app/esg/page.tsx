@@ -45,7 +45,7 @@ const METRICS = {
 };
 
 function MetricRow({ m }: { m: typeof METRICS.environment[0] }) {
-  const pct = Math.min(100, Math.round((m.current / m.target) * 100));
+  const pct = m.target === 0 ? (m.current === 0 ? 100 : 0) : Math.min(100, Math.round((m.current / m.target) * 100));
   const onTrack = m.current <= m.target;
   return (
     <div className="flex items-center gap-4 py-3 border-b border-border/50 last:border-0">

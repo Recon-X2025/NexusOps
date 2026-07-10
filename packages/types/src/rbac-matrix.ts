@@ -64,6 +64,7 @@ export type Module =
   | "compliance"            // NEW: Data-protection compliance (DPDP DSR / consent / breach)
   | "hr"
   | "onboarding"
+  | "offboarding"
   | "procurement"
   | "inventory"
   | "purchase_orders"
@@ -344,6 +345,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
   hr_manager: {
     hr:                   ["read", "write", "delete", "admin", "assign", "close", "approve"],
     onboarding:           ["read", "write", "admin"],
+    offboarding:          ["read", "write", "admin"],
     recruitment:          ["read", "write", "delete", "admin", "assign", "close"],
     workforce_analytics:  ["read", "write"],
     approvals:            ["read", "write", "approve", "admin"],
@@ -359,6 +361,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
   hr_analyst: {
     hr:                   ["read", "write", "assign", "close", "approve"],
     onboarding:           ["read", "write"],
+    offboarding:          ["read", "write"],
     recruitment:          ["read", "write", "assign"],
     workforce_analytics:  ["read"],
     approvals:            ["read", "approve"],

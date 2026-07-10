@@ -21,7 +21,10 @@ export const facilityRequestTypeEnum = pgEnum("facility_request_type", [
   "maintenance", "cleaning", "catering", "parking", "access", "other",
 ]);
 export const facilityRequestStatusEnum = pgEnum("facility_request_status", [
-  "new", "assigned", "in_progress", "completed", "cancelled",
+  "open", "in_progress", "done",
+]);
+export const facilitySpaceStatusEnum = pgEnum("facility_space_status", [
+  "acquired", "occupied", "let go"
 ]);
 
 // ── Buildings ──────────────────────────────────────────────────────────────
@@ -39,6 +42,27 @@ export const buildings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ orgIdx: index("buildings_org_idx").on(t.orgId) }),
+);
+
+// ── Spaces ─────────────────────────────────────────────────────────────────
+export const facilitySpaces = pgTable(
+  "facility_spaces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    spaceId: text("space_id").notNull(),
+    name: text("name").notNull(),
+    building: text("building"),
+    floor: text("floor"),
+    type: text("type"),
+    area: text("area"),
+    capacity: integer("capacity"),
+    assignedTo: text("assigned_to"),
+    occupancy: text("occupancy"),
+    status: facilitySpaceStatusEnum("status").notNull().default("acquired"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ orgIdx: index("facility_spaces_org_idx").on(t.orgId) }),
 );
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
@@ -62,7 +86,7 @@ export const roomBookings = pgTable(
   "room_bookings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    roomId: uuid("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id").notNull().references(() => facilitySpaces.id, { onDelete: "cascade" }),
     bookedById: uuid("booked_by_id").notNull().references(() => users.id, { onDelete: "restrict" }),
     title: text("title"),
     startTime: timestamp("start_time", { withTimezone: true }).notNull(),
@@ -107,9 +131,8 @@ export const facilityRequests = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     location: text("location"),
-    priority: text("priority").notNull().default("medium"),
-    status: facilityRequestStatusEnum("status").notNull().default("new"),
-    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    spaceId: uuid("space_id").references(() => facilitySpaces.id, { onDelete: "set null" }),
+    status: facilityRequestStatusEnum("status").notNull().default("open"),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

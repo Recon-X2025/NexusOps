@@ -55,7 +55,11 @@ export const hrCaseTypeEnum = pgEnum("hr_case_type", [
   "equipment",
 ]);
 
+export const hrCaseStatusEnum = pgEnum("hr_case_status", ["open", "in_progress", "closed"]);
+
 export const leaveTypeEnum = pgEnum("leave_type", [
+  "primary",
+  "annual",
   "vacation",
   "sick",
   "parental",
@@ -89,6 +93,7 @@ export const salaryStructures = pgTable(
     bonusAnnual: decimal("bonus_annual", { precision: 12, scale: 2 }).notNull().default("0"),
     effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
     effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -153,6 +158,7 @@ export const hrCases = pgTable(
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
     statusId: uuid("status_id").references(() => ticketStatuses.id, { onDelete: "restrict" }),
+    status: hrCaseStatusEnum("status").notNull().default("open"),
     assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
     priority: text("priority").notNull().default("medium"),
     notes: text("notes"),
@@ -209,6 +215,34 @@ export const onboardingTemplates = pgTable(
   },
   (t) => ({
     orgIdx: index("onboarding_templates_org_idx").on(t.orgId),
+  }),
+);
+
+export const onboardingDetails = pgTable(
+  "onboarding_details",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    name: text("name"),
+    primaryEmail: text("primary_email"),
+    secondaryEmail: text("secondary_email"),
+    phone: text("phone"),
+    secondaryPhone: text("secondary_phone"),
+    educationDocs: text("education_docs"),
+    employeeDocs: text("employee_docs"),
+    signedOfferLetter: text("signed_offer_letter"),
+    photo: text("photo"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("onboarding_details_org_idx").on(t.orgId),
+    empIdx: index("onboarding_details_emp_idx").on(t.employeeId),
   }),
 );
 
@@ -745,5 +779,57 @@ export const okrKeyResults = pgTable(
   (t) => ({
     orgIdx: index("okr_key_results_org_idx").on(t.orgId),
     objectiveIdx: index("okr_key_results_objective_idx").on(t.objectiveId),
+  }),
+);
+
+// ── Offboarding Details ───────────────────────────────────────────────────
+export const offboardingDetails = pgTable(
+  "offboarding_details",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    name: text("name"),
+    separationDocs: text("separation_docs"),
+    clearanceDocs: text("clearance_docs"),
+    securityClearance: text("security_clearance"),
+    status: text("status").notNull().default("pending"), // pending | completed
+    ffStatus: text("ff_status").notNull().default("pending"), // pending | initiated | completed
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("offboarding_details_org_idx").on(t.orgId),
+    empIdx: index("offboarding_details_emp_idx").on(t.employeeId),
+  }),
+);
+
+// ── Lifecycle Events ───────────────────────────────────────────────────────
+export const lifecycleEvents = pgTable(
+  "lifecycle_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    eventType: text("event_type").notNull().default("employee_transition"),
+    hrTaskStatus: text("hr_task_status").notNull().default("pending"), // pending | completed
+    itTaskStatus: text("it_task_status").notNull().default("pending"), // pending | completed
+    payrollCompliance: text("payroll_compliance").notNull().default("no"), // yes | no
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("lifecycle_events_org_idx").on(t.orgId),
+    empIdx: index("lifecycle_events_emp_idx").on(t.employeeId),
   }),
 );

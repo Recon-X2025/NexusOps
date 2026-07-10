@@ -63,12 +63,14 @@ const PRIORITY_LABELS: Record<string, string> = {
   "5_planning": "5 - Planning",
 };
 
+const ACTIVE_STATES = ["open", "pending_dispatch", "dispatched", "work_in_progress", "on_hold", "complete"];
+
 const STATE_TRANSITIONS: Record<string, string[]> = {
-  open:             ["pending_dispatch", "on_hold", "cancelled"],
-  pending_dispatch: ["dispatched", "on_hold", "cancelled"],
-  dispatched:       ["work_in_progress", "on_hold"],
-  work_in_progress: ["complete", "on_hold"],
-  on_hold:          ["open", "work_in_progress", "cancelled"],
+  open:             ACTIVE_STATES.filter(s => s !== "open"),
+  pending_dispatch: ACTIVE_STATES.filter(s => s !== "pending_dispatch"),
+  dispatched:       ACTIVE_STATES.filter(s => s !== "dispatched"),
+  work_in_progress: ACTIVE_STATES.filter(s => s !== "work_in_progress"),
+  on_hold:          ACTIVE_STATES.filter(s => s !== "on_hold"),
   complete:         ["closed"],
   closed:           [],
   cancelled:        [],
@@ -99,8 +101,8 @@ export default function WorkOrderDetailPage() {
   const [noteText, setNoteText] = useState("");
   const [isInternal, setIsInternal] = useState(true);
   const [stateDropdown, setStateDropdown] = useState(false);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [editTitleValue, setEditTitleValue] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState<any>({});
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [newTaskHours, setNewTaskHours] = useState("");
@@ -114,7 +116,7 @@ export default function WorkOrderDetailPage() {
     onError: (e: any) => { console.error("workOrders.updateState failed:", e); toast.error(e.message || "Failed to update status"); },
   });
   const updateWO = trpc.workOrders.update.useMutation({
-    onSuccess: () => { refetch(); setEditingTitle(false); toast.success("Work order updated"); },
+    onSuccess: () => { refetch(); setIsEditing(false); toast.success("Work order updated"); },
     onError: (e: any) => toast.error(e.message || "Failed to update work order"),
   });
   const addNote = trpc.workOrders.addNote.useMutation({
@@ -187,6 +189,55 @@ export default function WorkOrderDetailPage() {
       )}
 
       {/* Record header */}
+      {isEditing ? (
+        <div className="bg-card border border-primary rounded p-4 shadow-sm mb-3">
+          <h3 className="text-sm font-semibold mb-4 text-primary flex items-center gap-2"><Edit2 className="w-4 h-4" /> Edit Work Order</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="col-span-2 lg:col-span-4">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Title *</label>
+              <input className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.shortDescription || ""} onChange={e => setEditValues({...editValues, shortDescription: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-4">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Description</label>
+              <textarea rows={3} className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.description || ""} onChange={e => setEditValues({...editValues, description: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Priority</label>
+              <select className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.priority || ""} onChange={e => setEditValues({...editValues, priority: e.target.value})}>
+                {Object.keys(PRIORITY_LABELS).map(k => <option key={k} value={k}>{PRIORITY_LABELS[k]}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Category</label>
+              <input className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.category || ""} onChange={e => setEditValues({...editValues, category: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Location / Site</label>
+              <input className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.location || ""} onChange={e => setEditValues({...editValues, location: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Asset Tag / CI</label>
+              <input className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.cmdbCi || ""} onChange={e => setEditValues({...editValues, cmdbCi: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Scheduled Start</label>
+              <input type="datetime-local" className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.scheduledStartDate || ""} onChange={e => setEditValues({...editValues, scheduledStartDate: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Scheduled End</label>
+              <input type="datetime-local" className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.scheduledEndDate || ""} onChange={e => setEditValues({...editValues, scheduledEndDate: e.target.value})} />
+            </div>
+            <div className="col-span-2 lg:col-span-1">
+              <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Estimated Hours</label>
+              <input type="number" step="0.5" className="w-full border border-border rounded px-3 py-1.5 text-[12px] bg-background outline-none focus:border-primary" value={editValues.estimatedHours || ""} onChange={e => setEditValues({...editValues, estimatedHours: e.target.value})} />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 justify-end border-t border-border pt-4">
+            <button onClick={() => setIsEditing(false)} className="px-4 py-1.5 text-[12px] font-medium border border-border rounded hover:bg-muted/30">Cancel</button>
+            <button onClick={() => updateWO.mutate({ id: wo.id, ...editValues, estimatedHours: editValues.estimatedHours ? Number(editValues.estimatedHours) : undefined, scheduledStartDate: editValues.scheduledStartDate || null, scheduledEndDate: editValues.scheduledEndDate || null })} className="px-4 py-1.5 text-[12px] font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90" disabled={updateWO.isPending}>{updateWO.isPending ? "Saving..." : "Save Changes"}</button>
+          </div>
+        </div>
+      ) : (
       <div className="bg-card border border-border rounded">
         <div className="flex items-start gap-3 px-4 py-3 border-b border-border">
           <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${pColor}`} />
@@ -238,7 +289,21 @@ export default function WorkOrderDetailPage() {
                   </div>
                 )}
                 <button
-                  onClick={() => { setEditingTitle(true); setEditTitleValue(wo.shortDescription); }}
+                  onClick={() => { 
+                    setIsEditing(true); 
+                    setEditValues({
+                      shortDescription: wo.shortDescription,
+                      description: wo.description,
+                      priority: wo.priority,
+                      location: wo.location,
+                      category: wo.category,
+                      subcategory: wo.subcategory,
+                      cmdbCi: wo.cmdbCi,
+                      scheduledStartDate: wo.scheduledStartDate ? new Date(new Date(wo.scheduledStartDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "",
+                      scheduledEndDate: wo.scheduledEndDate ? new Date(new Date(wo.scheduledEndDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "",
+                      estimatedHours: wo.estimatedHours,
+                    });
+                  }}
                   className="flex items-center gap-1 px-2 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
                 >
                   <Edit2 className="w-3 h-3" /> Edit
@@ -261,31 +326,7 @@ export default function WorkOrderDetailPage() {
             </div>
 
             {/* Description */}
-            {editingTitle ? (
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  autoFocus
-                  value={editTitleValue}
-                  onChange={(e) => setEditTitleValue(e.target.value)}
-                  className="flex-1 text-sm border border-primary rounded px-2 py-1 outline-none"
-                />
-                <button
-                  onClick={() => {
-                    if (editTitleValue.trim()) {
-                      updateWO.mutate({ id: wo.id, shortDescription: editTitleValue.trim() });
-                    } else {
-                      setEditingTitle(false);
-                    }
-                  }}
-                  disabled={updateWO.isPending}
-                  className="px-2 py-1 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
-                >Save</button>
-                <button
-                  onClick={() => setEditingTitle(false)}
-                  className="px-2 py-1 text-[11px] border border-border rounded hover:bg-muted/30 text-muted-foreground"
-                >Cancel</button>
-              </div>
-            ) : wo.description ? (
+            {wo.description ? (
               <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">{wo.description}</p>
             ) : null}
 
@@ -307,6 +348,7 @@ export default function WorkOrderDetailPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Two-column layout */}
       <div className="flex gap-3 flex-1">

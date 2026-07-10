@@ -103,8 +103,26 @@ export const performanceRouter = router({
     .query(async ({ ctx }) => {
       const { db, org, user } = ctx;
       return db
-        .select()
+        .select({
+          id: performanceReviews.id,
+          orgId: performanceReviews.orgId,
+          cycleId: performanceReviews.cycleId,
+          revieweeId: performanceReviews.revieweeId,
+          reviewerId: performanceReviews.reviewerId,
+          reviewerRole: performanceReviews.reviewerRole,
+          status: performanceReviews.status,
+          overallRating: performanceReviews.overallRating,
+          selfRating: performanceReviews.selfRating,
+          reviewFormUrl: performanceReviews.reviewFormUrl,
+          completedAt: performanceReviews.completedAt,
+          createdAt: performanceReviews.createdAt,
+          updatedAt: performanceReviews.updatedAt,
+          reviewerName: users.name,
+          cycleName: reviewCycles.name,
+        })
         .from(performanceReviews)
+        .leftJoin(users, eq(performanceReviews.reviewerId, users.id))
+        .leftJoin(reviewCycles, eq(performanceReviews.cycleId, reviewCycles.id))
         .where(and(
           eq(performanceReviews.orgId, org!.id),
           eq(performanceReviews.revieweeId, user!.id),
@@ -118,6 +136,7 @@ export const performanceRouter = router({
       revieweeId: z.string().uuid(),
       reviewerId: z.string().uuid().optional(),
       reviewerRole: z.enum(["self", "peer", "manager"]).default("manager"),
+      reviewFormUrl: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -129,6 +148,7 @@ export const performanceRouter = router({
           revieweeId: input.revieweeId,
           reviewerId: input.reviewerId,
           reviewerRole: input.reviewerRole,
+          reviewFormUrl: input.reviewFormUrl,
           status: "draft",
         })
         .returning();

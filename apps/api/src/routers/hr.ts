@@ -12,6 +12,9 @@ import {
   leaveRequests,
   leaveBalances,
   onboardingTemplates,
+  onboardingDetails,
+  offboardingDetails,
+  lifecycleEvents,
   users,
   jobRequisitions,
   candidateApplications,
@@ -34,7 +37,7 @@ import {
   type SQL,
 } from "@coheronconnect/db";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
-import { CreateLeaveRequestSchema } from "@coheronconnect/types";
+import { CreateLeaveRequestSchema, LeaveTypeEnum } from "@coheronconnect/types";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
 
@@ -174,7 +177,9 @@ export const hrRouter = router({
     create: permissionProcedure("hr", "write")
       .input(
         z.object({
-          userId: z.string().uuid(),
+          userId: z.string().uuid().optional(),
+          userName: z.string().optional(),
+          userEmail: z.string().email().optional(),
           department: z.string().optional(),
           title: z.string().optional(),
           managerId: z.string().uuid().nullable().optional(),
@@ -188,25 +193,43 @@ export const hrRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 
-        const [existing] = await db
-          .select({ id: employees.id })
-          .from(employees)
-          .where(and(eq(employees.userId, input.userId), eq(employees.orgId, org!.id)))
-          .limit(1);
-        if (existing) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "This user already has an employee record in your organization.",
-          });
-        }
+        let finalUserId = input.userId;
 
-        const [userInOrg] = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
-          .limit(1);
-        if (!userInOrg) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "User is not in this organization." });
+        if (!finalUserId) {
+          if (!input.userName || !input.userEmail) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "User ID or User Name/Email must be provided." });
+          }
+          const [newUser] = await db
+            .insert(users)
+            .values({
+              orgId: org!.id,
+              name: input.userName,
+              email: input.userEmail,
+              role: "member",
+            })
+            .returning();
+          finalUserId = newUser!.id;
+        } else {
+          const [existing] = await db
+            .select({ id: employees.id })
+            .from(employees)
+            .where(and(eq(employees.userId, finalUserId), eq(employees.orgId, org!.id)))
+            .limit(1);
+          if (existing) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "This user already has an employee record in your organization.",
+            });
+          }
+
+          const [userInOrg] = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.id, finalUserId), eq(users.orgId, org!.id)))
+            .limit(1);
+          if (!userInOrg) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "User is not in this organization." });
+          }
         }
 
         const [countResult] = await db
@@ -221,7 +244,7 @@ export const hrRouter = router({
           .insert(employees)
           .values({
             orgId: org!.id,
-            userId: input.userId,
+            userId: finalUserId,
             employeeId,
             department: input.department,
             title: input.title,
@@ -284,9 +307,16 @@ export const hrRouter = router({
         const { db, org } = ctx;
         // Join through employees to filter by org
         return db
-          .select({ hrCase: hrCases, employee: employees })
+          .select({
+            hrCase: hrCases,
+            employee: employees,
+            onboardingDetails: onboardingDetails,
+            offboardingDetails: offboardingDetails,
+          })
           .from(hrCases)
           .innerJoin(employees, eq(hrCases.employeeId, employees.id))
+          .leftJoin(onboardingDetails, eq(employees.id, onboardingDetails.employeeId))
+          .leftJoin(offboardingDetails, eq(employees.id, offboardingDetails.employeeId))
           .where(eq(employees.orgId, org!.id))
           .orderBy(desc(hrCases.createdAt));
       }),
@@ -363,6 +393,7 @@ export const hrRouter = router({
         z.object({
           employeeId: z.string().uuid(),
           caseType: z.enum(["onboarding", "offboarding", "leave", "policy", "benefits", "workplace", "equipment"]),
+          status: z.enum(["open", "in_progress", "closed"]).optional(),
           notes: z.string().optional(),
           assigneeId: z.string().uuid().optional(),
         }),
@@ -392,7 +423,7 @@ export const hrRouter = router({
         return hrCase;
       }),
 
-    resolve: permissionProcedure("hr", "write")
+    archive: permissionProcedure("hr", "write")
       .input(z.object({ id: z.string().uuid(), resolution: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -401,14 +432,42 @@ export const hrRouter = router({
         if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
         const prev = existing.notes ?? "";
         const ts = new Date().toISOString();
-        const resolveNote = input.resolution
-          ? `${prev ? prev + "\n\n" : ""}[RESOLVED: ${ts}] ${input.resolution}`
-          : `${prev ? prev + "\n\n" : ""}[RESOLVED: ${ts}]`;
+        const archiveNote = input.resolution
+          ? `${prev ? prev + "\n\n" : ""}[ARCHIVED: ${ts}] ${input.resolution}`
+          : `${prev ? prev + "\n\n" : ""}[ARCHIVED: ${ts}]`;
         const [updated] = await db.update(hrCases)
-          .set({ notes: resolveNote, updatedAt: new Date() })
+          .set({ notes: archiveNote, status: "closed", updatedAt: new Date() })
           .where(and(eq(hrCases.id, input.id), eq(hrCases.orgId, org!.id)))
           .returning();
         return updated;
+      }),
+
+    update: permissionProcedure("hr", "write")
+      .input(z.object({
+        id: z.string().uuid(),
+        status: z.enum(["open", "in_progress", "closed"]).optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [updated] = await db.update(hrCases)
+          .set({ 
+            ...(input.status && { status: input.status }), 
+            ...(input.notes !== undefined && { notes: input.notes }), 
+            updatedAt: new Date() 
+          })
+          .where(and(eq(hrCases.id, input.id), eq(hrCases.orgId, org!.id)))
+          .returning();
+        return updated;
+      }),
+
+    delete: permissionProcedure("hr", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        await db.delete(hrCases)
+          .where(and(eq(hrCases.id, input.id), eq(hrCases.orgId, org!.id)));
+        return { success: true };
       }),
 
     triggerOnboarding: permissionProcedure("onboarding", "write")
@@ -592,6 +651,47 @@ export const hrRouter = router({
         return updated;
       }),
 
+      update: permissionProcedure("hr", "write")
+        .input(z.object({
+          id: z.string().uuid(),
+          status: z.enum(["pending", "approved", "rejected"]).optional(),
+          type: LeaveTypeEnum.optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          reason: z.string().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+          const { db, org, user } = ctx;
+          const [request] = await db
+            .select()
+            .from(leaveRequests)
+            .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)));
+          if (!request) throw new TRPCError({ code: "NOT_FOUND" });
+
+          const [updated] = await db.update(leaveRequests)
+            .set({ 
+              ...(input.status && { status: input.status }), 
+              ...(input.type && { type: input.type }), 
+              ...(input.startDate && { startDate: new Date(input.startDate) }), 
+              ...(input.endDate && { endDate: new Date(input.endDate) }), 
+              ...(input.reason && { reason: input.reason }), 
+              updatedAt: new Date(),
+              ...(input.status === "approved" && request.status !== "approved" ? { approvedById: user!.id, approvedAt: new Date() } : {})
+            })
+            .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)))
+            .returning();
+          return updated;
+        }),
+
+      delete: permissionProcedure("hr", "write")
+        .input(z.object({ id: z.string().uuid() }))
+        .mutation(async ({ ctx, input }) => {
+          const { db, org } = ctx;
+          await db.delete(leaveRequests)
+            .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)));
+          return { success: true };
+        }),
+
     balance: permissionProcedure("hr", "read")
       .input(z.object({ employeeId: z.string().uuid().optional(), year: z.coerce.number().optional() }))
       .query(async ({ ctx, input }) => {
@@ -640,6 +740,395 @@ export const hrRouter = router({
         return template;
       }),
   }),
+
+  onboarding: router({
+    getDetails: permissionProcedure("onboarding", "read")
+      .input(z.object({ employeeId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [details] = await db
+          .select()
+          .from(onboardingDetails)
+          .where(
+            and(
+              eq(onboardingDetails.employeeId, input.employeeId),
+              eq(onboardingDetails.orgId, org!.id)
+            )
+          );
+        return details ?? null;
+      }),
+
+    saveDetails: permissionProcedure("onboarding", "write")
+      .input(
+        z.object({
+          employeeId: z.string().uuid(),
+          name: z.string().optional(),
+          primaryEmail: z.string().optional(),
+          secondaryEmail: z.string().optional(),
+          phone: z.string().optional(),
+          secondaryPhone: z.string().optional(),
+          educationDocs: z.string().optional(),
+          employeeDocs: z.string().optional(),
+          signedOfferLetter: z.string().optional(),
+          photo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { employeeId, ...details } = input;
+
+        const [existing] = await db
+          .select()
+          .from(onboardingDetails)
+          .where(
+            and(
+              eq(onboardingDetails.employeeId, employeeId),
+              eq(onboardingDetails.orgId, org!.id)
+            )
+          );
+
+        if (existing) {
+          const [updated] = await db
+            .update(onboardingDetails)
+            .set({ ...details, updatedAt: new Date() })
+            .where(
+              and(
+                eq(onboardingDetails.employeeId, employeeId),
+                eq(onboardingDetails.orgId, org!.id)
+              )
+            )
+            .returning();
+          return updated;
+        } else {
+          const [inserted] = await db
+            .insert(onboardingDetails)
+            .values({
+              orgId: org!.id,
+              employeeId,
+              ...details,
+            })
+            .returning();
+          return inserted;
+        }
+      }),
+
+    createOnboarding: permissionProcedure("onboarding", "write")
+      .input(
+        z.object({
+          name: z.string(),
+          primaryEmail: z.string().email(),
+          secondaryEmail: z.string().email().optional(),
+          phone: z.string(),
+          secondaryPhone: z.string().optional(),
+          educationDocs: z.string().optional(),
+          employeeDocs: z.string().optional(),
+          signedOfferLetter: z.string().optional(),
+          photo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+
+        // 1. Check if user already exists
+        let [existingUser] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.email, input.primaryEmail), eq(users.orgId, org!.id)))
+          .limit(1);
+
+        let userId = existingUser?.id;
+        if (!userId) {
+          const [newUser] = await db
+            .insert(users)
+            .values({
+              orgId: org!.id,
+              name: input.name,
+              email: input.primaryEmail,
+              role: "member",
+            })
+            .returning();
+          userId = newUser!.id;
+        }
+
+        // 2. Generate employee number and create employee record
+        const [countResult] = await db
+          .select({ count: count() })
+          .from(employees)
+          .where(eq(employees.orgId, org!.id));
+        const seq = (countResult?.count ?? 0) + 1;
+        const employeeId = `EMP-${String(seq).padStart(4, "0")}`;
+
+        const [employee] = await db
+          .insert(employees)
+          .values({
+            orgId: org!.id,
+            userId,
+            employeeId,
+            status: "active",
+            startDate: new Date(),
+          })
+          .returning();
+
+        if (!employee) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create employee record.",
+          });
+        }
+
+        // 3. Create HR case of type "onboarding"
+        const [hrCase] = await db
+          .insert(hrCases)
+          .values({
+            orgId: org!.id,
+            employeeId: employee.id,
+            caseType: "onboarding",
+            status: "open",
+            notes: `Onboarding case for ${input.name}`,
+          })
+          .returning();
+
+        // 4. Create onboarding details record
+        const [details] = await db
+          .insert(onboardingDetails)
+          .values({
+            orgId: org!.id,
+            employeeId: employee.id,
+            name: input.name,
+            primaryEmail: input.primaryEmail,
+            secondaryEmail: input.secondaryEmail,
+            phone: input.phone,
+            secondaryPhone: input.secondaryPhone,
+            educationDocs: input.educationDocs,
+            employeeDocs: input.employeeDocs,
+            signedOfferLetter: input.signedOfferLetter,
+            photo: input.photo,
+          })
+          .returning();
+
+        return { employee, hrCase, details };
+      }),
+  }),
+
+  offboarding: router({
+    getDetails: permissionProcedure("offboarding", "read")
+      .input(z.object({ employeeId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [details] = await db
+          .select()
+          .from(offboardingDetails)
+          .where(
+            and(
+              eq(offboardingDetails.employeeId, input.employeeId),
+              eq(offboardingDetails.orgId, org!.id)
+            )
+          );
+        return details ?? null;
+      }),
+
+    saveDetails: permissionProcedure("offboarding", "write")
+      .input(
+        z.object({
+          employeeId: z.string().uuid(),
+          name: z.string().optional(),
+          separationDocs: z.string().optional(),
+          clearanceDocs: z.string().optional(),
+          securityClearance: z.string().optional(),
+          status: z.string().optional(),
+          ffStatus: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { employeeId, ...details } = input;
+
+        const [existing] = await db
+          .select()
+          .from(offboardingDetails)
+          .where(
+            and(
+              eq(offboardingDetails.employeeId, employeeId),
+              eq(offboardingDetails.orgId, org!.id)
+            )
+          );
+
+        if (existing) {
+          const [updated] = await db
+            .update(offboardingDetails)
+            .set({
+              ...details,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(offboardingDetails.id, existing.id), eq(offboardingDetails.orgId, org!.id)))
+            .returning();
+          return updated;
+        } else {
+          const [inserted] = await db
+            .insert(offboardingDetails)
+            .values({
+              orgId: org!.id,
+              employeeId,
+              status: "pending",
+              ffStatus: "pending",
+              ...details,
+            })
+            .returning();
+          return inserted;
+        }
+      }),
+
+    createOffboarding: permissionProcedure("offboarding", "write")
+      .input(
+        z.object({
+          employeeId: z.string().uuid(),
+          name: z.string(),
+          separationDocs: z.string().optional(),
+          clearanceDocs: z.string().optional(),
+          securityClearance: z.string().optional(),
+          status: z.string().optional(),
+          ffStatus: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+
+        // 1. Create HR case of type "offboarding"
+        const [hrCase] = await db
+          .insert(hrCases)
+          .values({
+            orgId: org!.id,
+            employeeId: input.employeeId,
+            caseType: "offboarding",
+            status: "open",
+            notes: `Offboarding case for ${input.name}`,
+          })
+          .returning();
+
+        // 2. Create offboarding details record
+        const [details] = await db
+          .insert(offboardingDetails)
+          .values({
+            orgId: org!.id,
+            employeeId: input.employeeId,
+            name: input.name,
+            separationDocs: input.separationDocs,
+            clearanceDocs: input.clearanceDocs,
+            securityClearance: input.securityClearance,
+            status: input.status ?? "pending",
+            ffStatus: input.ffStatus ?? "pending",
+          })
+          .returning();
+
+        // 3. Mark employee status as "offboarded" if status is completed
+        if (input.status === "completed") {
+          await db
+            .update(employees)
+            .set({ status: "offboarded", updatedAt: new Date() })
+            .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)));
+        }
+
+        return { hrCase, details };
+      }),
+  }),
+
+  lifecycle: router({
+    list: permissionProcedure("hr", "read")
+      .query(async ({ ctx }) => {
+        const { db, org } = ctx;
+        return db
+          .select({ lifecycleEvent: lifecycleEvents, employee: employees })
+          .from(lifecycleEvents)
+          .innerJoin(employees, eq(lifecycleEvents.employeeId, employees.id))
+          .where(eq(employees.orgId, org!.id))
+          .orderBy(desc(lifecycleEvents.createdAt));
+      }),
+
+    create: permissionProcedure("hr", "write")
+      .input(
+        z.object({
+          employeeId: z.string().uuid(),
+          name: z.string(),
+          eventType: z.string().default("employee_transition"),
+          hrTaskStatus: z.string().default("pending"),
+          itTaskStatus: z.string().default("pending"),
+          payrollCompliance: z.string().default("no"),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [event] = await db
+          .insert(lifecycleEvents)
+          .values({
+            orgId: org!.id,
+            employeeId: input.employeeId,
+            name: input.name,
+            eventType: input.eventType,
+            hrTaskStatus: input.hrTaskStatus,
+            itTaskStatus: input.itTaskStatus,
+            payrollCompliance: input.payrollCompliance,
+            notes: input.notes,
+          })
+          .returning();
+        return event;
+      }),
+
+    update: permissionProcedure("hr", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          name: z.string().optional(),
+          eventType: z.string().optional(),
+          hrTaskStatus: z.string().optional(),
+          itTaskStatus: z.string().optional(),
+          payrollCompliance: z.string().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...data } = input;
+        const [updated] = await db
+          .update(lifecycleEvents)
+          .set({
+            ...data,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(lifecycleEvents.id, id), eq(lifecycleEvents.orgId, org!.id)))
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
+      }),
+  }),
+
+  getEmployeeDocuments: permissionProcedure("hr", "read")
+    .input(z.object({ employeeId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [onb] = await db
+        .select()
+        .from(onboardingDetails)
+        .where(and(eq(onboardingDetails.employeeId, input.employeeId), eq(onboardingDetails.orgId, org!.id)));
+      const [offb] = await db
+        .select()
+        .from(offboardingDetails)
+        .where(and(eq(offboardingDetails.employeeId, input.employeeId), eq(offboardingDetails.orgId, org!.id)));
+
+      const docs: Array<{ type: string; category: "onboarding" | "offboarding"; filename: string }> = [];
+      if (onb) {
+        if (onb.educationDocs) docs.push({ type: "Education Documents", category: "onboarding", filename: onb.educationDocs });
+        if (onb.employeeDocs) docs.push({ type: "Employee Documents", category: "onboarding", filename: onb.employeeDocs });
+        if (onb.signedOfferLetter) docs.push({ type: "Signed Offer Letter", category: "onboarding", filename: onb.signedOfferLetter });
+        if (onb.photo) docs.push({ type: "Photo", category: "onboarding", filename: onb.photo });
+      }
+      if (offb) {
+        if (offb.separationDocs) docs.push({ type: "Separation Forms", category: "offboarding", filename: offb.separationDocs });
+        if (offb.clearanceDocs) docs.push({ type: "Clearance Forms", category: "offboarding", filename: offb.clearanceDocs });
+        if (offb.securityClearance) docs.push({ type: "Security Clearance", category: "offboarding", filename: offb.securityClearance });
+      }
+      return docs;
+    }),
 
   payroll: router({
     listPayslips: permissionProcedure("hr", "read")
@@ -1114,7 +1603,7 @@ export const hrRouter = router({
     list: permissionProcedure("hr", "read").input(z.object({
       employeeId: z.string().uuid().optional(),
       status: z.enum(expenseStatusEnum.enumValues).optional(),
-      limit: z.number().int().min(1).max(100).default(50),
+      limit: z.number().int().min(1).max(200).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
       const { expenseClaims, employees: emps, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
@@ -1134,7 +1623,7 @@ export const hrRouter = router({
       amount: z.number().positive(),
       currency: z.string().default("INR"),
       expenseDate: z.coerce.date(),
-      receiptUrl: z.string().url().optional(),
+      receiptUrl: z.string().optional(),
       projectCode: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
@@ -1142,7 +1631,7 @@ export const hrRouter = router({
       const [c] = await db.select({ n: dbCount() }).from(expenseClaims).where(dbEq(expenseClaims.orgId, org!.id));
       const seq = (c?.n ?? 0) + 1;
       const number = "EXP-" + new Date().getFullYear() + "-" + String(seq).padStart(4, "0");
-      const [claim] = await db.insert(expenseClaims).values({ ...input, orgId: org!.id, number, amount: String(input.amount), status: "draft" }).returning();
+      const [claim] = await db.insert(expenseClaims).values({ ...input, orgId: org!.id, number, amount: String(input.amount), status: "submitted" }).returning();
       return claim!;
     }),
 
@@ -1160,7 +1649,7 @@ export const hrRouter = router({
       amount: z.number().positive(),
       currency: z.string().length(3).default("INR"),
       expenseDate: z.coerce.date(),
-      receiptUrl: z.string().url().optional(),
+      receiptUrl: z.string().optional(),
       projectCode: z.string().optional(),
       merchant: z.string().max(200).optional(),
       mileageKm: z.number().positive().optional(),
@@ -1269,7 +1758,7 @@ export const hrRouter = router({
      */
     listMine: protectedProcedure.input(z.object({
       status: z.enum(expenseStatusEnum.enumValues).optional(),
-      limit: z.number().int().min(1).max(100).default(50),
+      limit: z.number().int().min(1).max(200).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
       const { employees, expenseClaims, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
@@ -1297,11 +1786,48 @@ export const hrRouter = router({
     }),
 
     /**
+     * Manager first-level approval. Moves a `submitted` claim to
+     * `under_review` (forward to Finance) or `rejected`.
+     * Gated on `hr.write` — a manager/HR admin can approve but
+     * Finance (`financial.write`) does the final sign-off.
+     */
+    managerApprove: permissionProcedure("hr", "write").input(z.object({
+      id: z.string().uuid(),
+      approved: z.boolean(),
+      rejectionReason: z.string().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db, user } = ctx;
+      const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      const [existing] = await db.select({ status: expenseClaims.status })
+        .from(expenseClaims)
+        .where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id)))
+        .limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Expense claim not found" });
+      if (existing.status !== "submitted") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only submitted claims can be manager-approved." });
+      }
+      const newStatus = input.approved ? "under_review" as const : "rejected" as const;
+      
+      const updateData: any = {
+        status: newStatus,
+        approvedById: input.approved ? user!.id : null,
+        rejectionReason: input.approved ? null : (input.rejectionReason ?? "Rejected by manager"),
+        updatedAt: new Date(),
+      };
+
+      const [c] = await db.update(expenseClaims)
+        .set(updateData)
+        .where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id)))
+        .returning();
+      return c!;
+    }),
+
+    /**
      * Approve / reject an expense claim. Owned by Finance, not HR — moving
      * money out of the org bank account is a finance-controlled action even
      * though the underlying entity sits in the HR schema. Gated on
      * `financial.write` so HR coordinators who can file claims cannot
-     * self-approve them.
+     * self-approve them. Only operates on `under_review` claims (manager already approved).
      */
     approve: permissionProcedure("financial", "write").input(z.object({
       id: z.string().uuid(),
@@ -1311,8 +1837,20 @@ export const hrRouter = router({
       const { org, db, user } = ctx;
       const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const status = input.approved ? "approved" as const : "rejected" as const;
-      const [c] = await db.update(expenseClaims).set({ status, approvedById: input.approved ? user!.id : null, approvedAt: input.approved ? new Date() : null, rejectionReason: input.rejectionReason, updatedAt: new Date() }).where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id))).returning();
-      return c!;
+      
+      const updateData: any = {
+        status, 
+        approvedById: input.approved ? user!.id : null, 
+        approvedAt: input.approved ? new Date() : null, 
+        rejectionReason: input.rejectionReason, 
+        updatedAt: new Date()
+      };
+
+      const [updated] = await db.update(expenseClaims)
+        .set(updateData)
+        .where(dbAnd(dbEq(expenseClaims.id, input.id), dbEq(expenseClaims.orgId, org!.id)))
+        .returning();
+      return updated!;
     }),
 
     /**

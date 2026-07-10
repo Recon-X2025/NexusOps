@@ -28,22 +28,22 @@ const RISK_COLORS: Record<string, string> = {
 const STATE_CONFIG: Record<string, { label: string; color: string }> = {
   draft:          { label: "Draft",        color: "text-muted-foreground bg-muted" },
   submitted:      { label: "Submitted",    color: "text-blue-700 bg-blue-100" },
-  cab_approval:   { label: "CAB Review",   color: "text-yellow-700 bg-yellow-100" },
+  cab_review:     { label: "CAB Review",   color: "text-yellow-700 bg-yellow-100" },
   approved:       { label: "Approved",     color: "text-green-700 bg-green-100" },
   scheduled:      { label: "Scheduled",    color: "text-indigo-700 bg-indigo-100" },
-  implementation: { label: "In Progress",  color: "text-orange-700 bg-orange-100" },
-  complete:       { label: "Complete",     color: "text-green-700 bg-green-100" },
+  implementing:   { label: "In Progress",  color: "text-orange-700 bg-orange-100" },
+  completed:      { label: "Complete",     color: "text-green-700 bg-green-100" },
   failed:         { label: "Failed",       color: "text-red-700 bg-red-100" },
   cancelled:      { label: "Cancelled",    color: "text-muted-foreground bg-muted" },
 };
 
 const TABS = [
   { key: "all",            label: "All Changes", status: undefined,          module: "changes" as const, action: "read"    as const },
-  { key: "cab_approval",   label: "CAB Review",  status: "cab_approval",     module: "changes" as const, action: "approve" as const },
+  { key: "cab_review",     label: "CAB Review",  status: "cab_review",       module: "changes" as const, action: "approve" as const },
   { key: "approved",       label: "Approved",    status: "approved",         module: "changes" as const, action: "read"    as const },
   { key: "scheduled",      label: "Scheduled",   status: "scheduled",        module: "changes" as const, action: "read"    as const },
-  { key: "implementation", label: "In Progress", status: "implementation",   module: "changes" as const, action: "write"   as const },
-  { key: "complete",       label: "Complete",    status: "complete",         module: "changes" as const, action: "read"    as const },
+  { key: "implementing",   label: "In Progress", status: "implementing",     module: "changes" as const, action: "read"    as const },
+  { key: "completed",      label: "Complete",    status: "completed",        module: "changes" as const, action: "read"    as const },
   { key: "calendar",       label: "Calendar",    status: undefined,          module: "changes" as const, action: "read"    as const },
 ];
 
@@ -163,6 +163,7 @@ export default function ChangesPage() {
   const approveCR = trpc.changes.approve.useMutation({
     onSuccess: () => {
       setActionMsg("Change approved"); setActionRow(null); setCabComment(""); refetch();
+      setActiveTab("approved");
       setTimeout(() => setActionMsg(null), 3000);
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
@@ -193,19 +194,27 @@ export default function ChangesPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed to save blackout"),
   });
 
+  const { data: releasesData } = trpc.changes.listReleases.useQuery({ limit: 100 }, mergeTrpcQueryOpts("changes.listReleases", { enabled: hasAccess }));
+  const releases = releasesData ?? [];
+
+  const updateChange = trpc.changes.update.useMutation({
+    onSuccess: () => { toast.success("Change updated"); refetch(); },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to update change"),
+  });
+
   // Deferred access guard — all hooks already called above
   if (!hasAccess) return <AccessDenied module="Change Management" />;
 
   type ChangeItem = NonNullable<typeof data>["items"][number];
   const items: ChangeItem[] = data?.items ?? [];
-  const cabPending = (counts as Record<string, number> | undefined)?.["cab_approval"] ?? 0;
+  const cabPending = (counts as Record<string, number> | undefined)?.["cab_review"] ?? 0;
   const emergencyCount = items.filter((c) => c.type === "emergency").length;
   const scheduledThisWeek =
     ((counts as Record<string, number> | undefined)?.["approved"] ?? 0) +
     ((counts as Record<string, number> | undefined)?.["scheduled"] ?? 0) +
-    ((counts as Record<string, number> | undefined)?.["implementation"] ?? 0);
+    ((counts as Record<string, number> | undefined)?.["implementing"] ?? 0);
   const totalOpen = Object.entries((counts as Record<string, number>) ?? {})
-    .filter(([k]) => !["complete", "failed", "cancelled"].includes(k))
+    .filter(([k]) => !["completed", "failed", "cancelled"].includes(k))
     .reduce((s, [, v]) => s + v, 0);
 
   return (
@@ -325,7 +334,7 @@ export default function ChangesPage() {
         <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-[12px]">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <strong>{cabPending} change{cabPending > 1 ? "s" : ""}</strong> awaiting CAB review and approval before scheduled implementation window.
-          <Link href="/app/changes?tab=cab_approval" className="ml-auto text-yellow-700 hover:underline font-medium whitespace-nowrap">
+          <Link href="/app/changes?tab=cab_review" className="ml-auto text-yellow-700 hover:underline font-medium whitespace-nowrap">
             Review Now <ChevronRight className="w-3 h-3 inline" />
           </Link>
         </div>
@@ -344,7 +353,7 @@ export default function ChangesPage() {
               }`}
           >
             {tab.label}
-            {tab.key === "cab_approval" && cabPending > 0 && (
+            {tab.key === "cab_review" && cabPending > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-[10px] font-bold">
                 {cabPending}
               </span>
@@ -382,13 +391,13 @@ export default function ChangesPage() {
                 <th>Risk</th>
                 <th>Scheduled</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th className="text-right uppercase">Action</th>
               </tr>
             </thead>
             <tbody>
               {items.map((chg) => {
                 const stateCfg = STATE_CONFIG[chg.status];
-                const isCab = chg.status === "cab_review" || chg.status === "cab_approval";
+                const isCab = chg.status === "cab_review";
                 const isExpanded = actionRow === chg.id;
                 return (
                   <React.Fragment key={chg.id}>
@@ -417,6 +426,16 @@ export default function ChangesPage() {
                           <Flame className="w-3 h-3 text-red-500 inline mr-1" />
                         )}
                         {chg.title}
+                        {(chg as any).releaseId && (
+                          (() => {
+                            const rel = releases.find((r) => r.id === (chg as any).releaseId);
+                            return rel ? (
+                              <span className="ml-1.5 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[9px] font-medium whitespace-nowrap">
+                                Rel: {rel.version}
+                              </span>
+                            ) : null;
+                          })()
+                        )}
                       </Link>
                     </td>
                     <td>
@@ -448,19 +467,35 @@ export default function ChangesPage() {
                         {stateCfg?.label ?? chg.status}
                       </span>
                     </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      {isCab && can("changes", "approve") ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setActionRow(isExpanded ? null : chg.id)}
-                            className="px-2 py-0.5 rounded text-[11px] bg-green-100 text-green-700 hover:bg-green-200 font-medium"
-                          >
-                            {isExpanded ? "Cancel" : "Decide"}
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground/40">—</span>
-                      )}
+                    <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-2">
+                        {isCab && can("changes", "approve") ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setActionRow(isExpanded ? null : chg.id)}
+                              className="px-2 py-1 rounded text-[11px] bg-green-100 text-green-700 hover:bg-green-200 font-medium"
+                            >
+                              {isExpanded ? "Cancel" : "Decide"}
+                            </button>
+                          </div>
+                        ) : null}
+                        <select
+                          value={(chg as any).releaseId || ""}
+                          onChange={(e) => {
+                            const relId = e.target.value || null;
+                            updateChange.mutate({ id: chg.id, releaseId: relId });
+                          }}
+                          disabled={updateChange.isPending}
+                          className="text-[11px] bg-background border border-border rounded px-2 py-1 text-blue-500 outline-none font-medium cursor-pointer hover:bg-accent/50"
+                        >
+                          <option value="">Link Release</option>
+                          {releases.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name} ({r.version})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </td>
                   </tr>
                   {isExpanded && (

@@ -13,21 +13,22 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 type OnCallPerson = { name: string; initials: string; phone: string };
 
 type Rotation = {
+  id: string;
+  name: string;
   team: string;
-  color: string;
-  schedule: Array<{ startDate: string; person: OnCallPerson }>;
+  color?: string;
+  members: Array<{ userId: string; name: string; phone: string; email: string }>;
 };
 
 function getCurrentOncall(rotation: Rotation) {
-  const now = new Date();
-  const slots = rotation.schedule ?? [];
-  if (!slots.length) return { name: "—", initials: "—", phone: "" };
-  let current = slots[0]!;
-  for (const slot of slots) {
-    if (new Date(slot.startDate) <= now) current = slot;
-    else break;
-  }
-  return current.person;
+  const members = rotation.members ?? [];
+  if (!members.length) return { name: "—", initials: "—", phone: "" };
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const weeksSinceEpoch = Math.floor(Date.now() / weekMs);
+  const idx = weeksSinceEpoch % members.length;
+  const p = members[idx]!;
+  const initials = p.name ? p.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "—";
+  return { name: p.name || "—", initials, phone: p.phone || "" };
 }
 
 export default function OnCallPage() {
@@ -45,7 +46,11 @@ export default function OnCallPage() {
   const schedulesQuery = trpc.oncall.schedules.list.useQuery({}, mergeTrpcQueryOpts("oncall.schedules.list", { enabled: canView }));
   // @ts-ignore
   const escalationsQuery = trpc.oncall.escalations.list.useQuery({ limit: 50 }, mergeTrpcQueryOpts("oncall.escalations.list", { enabled: canView }));
-  const incidentsQuery = { data: [], isLoading: false, error: null };
+  
+  // @ts-ignore
+  const incidentsQuery = trpc.oncall.incidents.list.useQuery({}, mergeTrpcQueryOpts("oncall.incidents.list", { enabled: canView }));
+  const recentIncidents = incidentsQuery.data ?? [];
+
   // @ts-ignore
   const createRotation = trpc.oncall.schedules.create.useMutation({
     onSuccess: () => {
@@ -56,6 +61,15 @@ export default function OnCallPage() {
       schedulesQuery.refetch();
     },
     onError: (err: any) => toast.error(err?.message ?? "Something went wrong"),
+  });
+
+  // @ts-ignore
+  const createIncident = trpc.oncall.incidents.create.useMutation({
+    onSuccess: () => {
+      toast.success("Page sent successfully");
+      incidentsQuery.refetch();
+    },
+    onError: (err: any) => toast.error(err?.message ?? "Failed to page"),
   });
 
   const rotations: Rotation[] = (schedulesQuery.data as Rotation[]) ?? [];
@@ -69,11 +83,13 @@ export default function OnCallPage() {
       return acc;
     }, {})
   );
-  const recentIncidents: any[] = (incidentsQuery.data as any[]) ?? [];
 
   if (!canView) return <AccessDenied module="On-Call Management" />;
 
-  const weekStart = new Date(2026, 2, 23 + week * 7);
+  const today = new Date();
+  const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
+  const weekStart = new Date(startOfCurrentWeek);
+  weekStart.setDate(weekStart.getDate() + week * 7);
   const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
@@ -134,7 +150,6 @@ export default function OnCallPage() {
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
-                  <option value="custom">Custom</option>
                 </select>
               </div>
             </div>
@@ -178,13 +193,13 @@ export default function OnCallPage() {
           {rotations.map((rot) => {
             const person = getCurrentOncall(rot);
             return (
-              <div key={rot.team} className="bg-card border border-border rounded p-3">
+              <div key={rot.id} className="bg-card border border-border rounded p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`w-2 h-2 rounded-full ${rot.color} animate-pulse`} />
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide truncate">{rot.team}</span>
+                  <span className={`w-2 h-2 rounded-full ${rot.color || 'bg-primary'} animate-pulse`} />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide truncate">{rot.team || rot.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`w-8 h-8 rounded-full ${rot.color} text-white text-[11px] flex items-center justify-center font-bold`}>
+                  <span className={`w-8 h-8 rounded-full ${rot.color || 'bg-primary'} text-primary-foreground text-[11px] flex items-center justify-center font-bold`}>
                     {person.initials}
                   </span>
                   <div>
@@ -193,10 +208,13 @@ export default function OnCallPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => router.push(`/app/tickets/new?type=incident&title=${encodeURIComponent("On-Call Page: " + (rot.team ?? "Team"))}&urgency=high&impact=high`)}
-                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200"
+                  onClick={() => {
+                    createIncident.mutate({ scheduleId: rot.id, userId: person.name });
+                  }}
+                  disabled={createIncident.isPending}
+                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-[11px] rounded hover:bg-green-200 disabled:opacity-50"
                 >
-                  <Phone className="w-3 h-3" /> Page Now
+                  <Phone className="w-3 h-3" /> {createIncident.isPending ? "Paging..." : "Page Now"}
                 </button>
               </div>
             );
@@ -241,22 +259,37 @@ export default function OnCallPage() {
                 {rotations.map((rot) => {
                   const person = getCurrentOncall(rot);
                   return (
-                    <tr key={rot.team} className="border-b border-border last:border-0">
+                    <tr key={rot.id} className="border-b border-border last:border-0">
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${rot.color}`} />
-                          <span className="text-[11px] text-foreground/80">{rot.team}</span>
+                          <span className={`w-2 h-2 rounded-full ${rot.color || 'bg-primary'}`} />
+                          <span className="text-[11px] text-foreground/80">{rot.team || rot.name}</span>
                         </div>
                       </td>
-                      {weekDates.map((d) => (
+                      {weekDates.map((d) => {
+                        const dayIncidents = recentIncidents.filter((inc: any) => 
+                          inc.scheduleId === rot.id && 
+                          new Date(inc.createdAt).toDateString() === d.toDateString()
+                        );
+                        const callCount = dayIncidents.length;
+                        return (
                         <td key={d.toISOString()} className={`px-1 py-1 text-center ${d.toDateString() === new Date().toDateString() ? "bg-primary/5" : ""}`}>
-                          <div className={`mx-auto w-full rounded px-1 py-1.5 text-[10px] ${rot.color} bg-opacity-10 border border-opacity-20`}
-                            style={{ backgroundColor: `${rot.color}20` }}>
-                            <div className="font-semibold text-foreground">{person.initials}</div>
-                            <div className="text-muted-foreground truncate">{person.name.split(" ")[0]}</div>
+                          <div className={`mx-auto w-full rounded px-1 py-1.5 text-[10px] ${rot.color || 'bg-primary'} bg-opacity-10 border border-opacity-20 flex flex-col items-center justify-center gap-1 h-full min-h-[50px]`}
+                            style={{ backgroundColor: rot.color ? `${rot.color}20` : undefined }}>
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="font-semibold text-foreground">{person.initials}</div>
+                              <div className="text-muted-foreground truncate w-full max-w-[80px]">{person.name.split(" ")[0]}</div>
+                            </div>
+                            {callCount > 0 && (
+                              <div className="flex items-center justify-center gap-1 text-[9px] font-medium text-red-600 bg-red-100 rounded px-1.5 py-0.5">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {callCount} {callCount === 1 ? 'call' : 'calls'}
+                              </div>
+                            )}
                           </div>
                         </td>
-                      ))}
+                        );
+                      })}
                     </tr>
                   );
                 })}
@@ -320,17 +353,19 @@ export default function OnCallPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentIncidents.map((p: any) => (
+                {recentIncidents.slice(0, 5).map((p: any) => (
                   <tr key={p.id}>
-                    <td className="text-primary font-mono text-[11px]">{p.id?.slice(-8).toUpperCase()}</td>
-                    <td className="text-[11px] text-muted-foreground truncate max-w-24">{p.scheduleId?.slice(-8) ?? "—"}</td>
-                    <td className="text-muted-foreground">{p.userId?.slice(-6) ?? "—"}</td>
+                    <td className="text-primary font-mono text-[11px]">{p.id?.slice(0, 8).toUpperCase()}</td>
+                    <td className="text-[11px] text-muted-foreground truncate max-w-24">
+                      {rotations.find(r => r.id === p.scheduleId)?.team || rotations.find(r => r.id === p.scheduleId)?.name || p.scheduleId?.slice(0, 8)}
+                    </td>
+                    <td className="text-muted-foreground">{p.userId ?? "—"}</td>
                     <td className="text-muted-foreground font-mono text-[11px]">
                       {p.createdAt ? new Date(p.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}
                     </td>
                     <td>
                       <span className={`status-badge ${p.status === "resolved" || p.resolvedAt ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100"}`}>
-                        {p.resolvedAt ? "Resolved" : "Active"}
+                        {p.resolvedAt || p.status === "resolved" ? "Resolved" : "Active"}
                       </span>
                     </td>
                   </tr>

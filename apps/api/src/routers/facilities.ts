@@ -11,6 +11,9 @@ import {
   moveRequestStatusEnum,
   facilityRequestStatusEnum,
   facilityRequestTypeEnum,
+  facilitySpaces,
+  facilitySpaceStatusEnum,
+  users,
   eq,
   and,
   desc,
@@ -28,6 +31,38 @@ export const facilitiesRouter = router({
       .innerJoin(buildings, eq(rooms.buildingId, buildings.id))
       .where(eq(buildings.orgId, org!.id));
     return { roomCount: Number(roomCountRow?.roomCount ?? 0) };
+  }),
+
+  spaces: router({
+    list: permissionProcedure("facilities", "read")
+      .input(z.object({ limit: z.coerce.number().default(100) }).optional())
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        return db.select().from(facilitySpaces).where(eq(facilitySpaces.orgId, org!.id))
+          .orderBy(facilitySpaces.createdAt).limit(input?.limit ?? 100);
+      }),
+    
+    create: permissionProcedure("facilities", "write")
+      .input(z.object({
+        spaceId: z.string().min(1),
+        name: z.string().min(1),
+        building: z.string().optional(),
+        floor: z.string().optional(),
+        type: z.string().optional(),
+        area: z.string().optional(),
+        capacity: z.coerce.number().optional(),
+        assignedTo: z.string().optional(),
+        occupancy: z.string().optional(),
+        status: z.enum(facilitySpaceStatusEnum.enumValues).default("acquired"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [space] = await db.insert(facilitySpaces).values({
+          orgId: org!.id,
+          ...input,
+        }).returning();
+        return space;
+      }),
   }),
 
   buildings: router({
@@ -113,9 +148,29 @@ export const facilitiesRouter = router({
         const { db } = ctx;
         const conditions = [];
         if (input.roomId) conditions.push(eq(roomBookings.roomId, input.roomId));
-        const query = conditions.length > 0
-          ? db.select().from(roomBookings).where(and(...conditions)).orderBy(desc(roomBookings.startTime)).limit(input.limit)
-          : db.select().from(roomBookings).orderBy(desc(roomBookings.startTime)).limit(input.limit);
+        
+        const query = db
+          .select({
+            id: roomBookings.id,
+            roomId: roomBookings.roomId,
+            title: roomBookings.title,
+            startTime: roomBookings.startTime,
+            endTime: roomBookings.endTime,
+            attendeeCount: roomBookings.attendeeCount,
+            status: roomBookings.status,
+            createdAt: roomBookings.createdAt,
+            spaceName: facilitySpaces.name,
+            spaceBuilding: facilitySpaces.building,
+          })
+          .from(roomBookings)
+          .leftJoin(facilitySpaces, eq(roomBookings.roomId, facilitySpaces.id))
+          .orderBy(desc(roomBookings.startTime))
+          .limit(input.limit);
+
+        if (conditions.length > 0) {
+          query.where(and(...conditions));
+        }
+
         return query;
       }),
 
@@ -136,7 +191,7 @@ export const facilitiesRouter = router({
           .where(and(
             eq(roomBookings.roomId, input.roomId),
             eq(roomBookings.status, "confirmed"),
-            sql`${roomBookings.startTime} < ${end} AND ${roomBookings.endTime} > ${start}`,
+            sql`${roomBookings.startTime} < ${end.toISOString()} AND ${roomBookings.endTime} > ${start.toISOString()}`,
           ));
 
         if (conflicts.length > 0) {
@@ -162,8 +217,23 @@ export const facilitiesRouter = router({
         const { db, org } = ctx;
         const conditions = [eq(moveRequests.orgId, org!.id)];
         if (input.status) conditions.push(eq(moveRequests.status, input.status));
-        return db.select().from(moveRequests).where(and(...conditions))
-          .orderBy(desc(moveRequests.createdAt)).limit(input.limit);
+        const query = db
+          .select({
+            id: moveRequests.id,
+            fromLocation: moveRequests.fromLocation,
+            toLocation: moveRequests.toLocation,
+            notes: moveRequests.notes,
+            moveDate: moveRequests.moveDate,
+            status: moveRequests.status,
+            createdAt: moveRequests.createdAt,
+            requesterName: users.name,
+          })
+          .from(moveRequests)
+          .leftJoin(users, eq(moveRequests.requesterId, users.id))
+          .where(and(...conditions))
+          .orderBy(desc(moveRequests.createdAt))
+          .limit(input.limit);
+        return query;
       }),
 
     create: permissionProcedure("facilities", "write")
@@ -195,8 +265,30 @@ export const facilitiesRouter = router({
         const conditions = [eq(facilityRequests.orgId, org!.id)];
         if (input.status) conditions.push(eq(facilityRequests.status, input.status));
         if (input.type) conditions.push(eq(facilityRequests.type, input.type));
-        return db.select().from(facilityRequests).where(and(...conditions))
-          .orderBy(desc(facilityRequests.createdAt)).limit(input.limit);
+        
+        const query = db
+          .select({
+            id: facilityRequests.id,
+            type: facilityRequests.type,
+            title: facilityRequests.title,
+            description: facilityRequests.description,
+            status: facilityRequests.status,
+            createdAt: facilityRequests.createdAt,
+            requesterId: facilityRequests.requesterId,
+            spaceId: facilityRequests.spaceId,
+            building: facilitySpaces.building,
+            floor: facilitySpaces.floor,
+            spaceName: facilitySpaces.name,
+            submittedBy: users.name,
+          })
+          .from(facilityRequests)
+          .leftJoin(facilitySpaces, eq(facilityRequests.spaceId, facilitySpaces.id))
+          .leftJoin(users, eq(facilityRequests.requesterId, users.id))
+          .where(and(...conditions))
+          .orderBy(desc(facilityRequests.createdAt))
+          .limit(input.limit);
+
+        return query;
       }),
 
     create: permissionProcedure("facilities", "write")
@@ -204,15 +296,17 @@ export const facilitiesRouter = router({
         title: z.string().min(1),
         description: z.string().optional(),
         type: z.enum(["maintenance", "cleaning", "catering", "parking", "access", "other"]).default("maintenance"),
-        location: z.string().optional(),
-        priority: z.string().default("medium"),
+        spaceId: z.string().uuid().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [req] = await db.insert(facilityRequests).values({
           orgId: org!.id,
           requesterId: ctx.user!.id,
-          ...input,
+          type: input.type,
+          title: input.title,
+          description: input.description,
+          spaceId: input.spaceId,
         }).returning();
         return req;
       }),

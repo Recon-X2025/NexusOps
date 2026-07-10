@@ -95,6 +95,7 @@ function PerformanceContent() {
   const [search, setSearch] = useState("");
   const [showCreateCycle, setShowCreateCycle] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
+  const [showSubmitReview, setShowSubmitReview] = useState(false);
 
   const cycles = trpc.performance.listCycles.useQuery({} as never, mergeTrpcQueryOpts("performance.listCycles", undefined));
   const myReviews = trpc.performance.myReviews.useQuery(undefined, mergeTrpcQueryOpts("performance.myReviews", { enabled: tab === "my-reviews" }));
@@ -255,7 +256,16 @@ function PerformanceContent() {
 
         {/* ── My Reviews ─────────────────────────────────────── */}
         {tab === "my-reviews" && (
-          <div>
+          <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-sm font-medium">My Performance Reviews</h2>
+              <button
+                onClick={() => setShowSubmitReview(true)}
+                className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+              >
+                <Plus className="h-3 w-3" /> Submit Review
+              </button>
+            </div>
             {myReviews.isLoading ? (
               <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : (myReviews.data ?? []).length === 0 ? (
@@ -265,22 +275,40 @@ function PerformanceContent() {
                 description="Performance reviews will appear here once a review cycle is active and reviews have been assigned to you."
               />
             ) : (
-              <div className="space-y-2">
-                {(myReviews.data ?? []).filter((r: any) => !search || r.reviewerRole?.includes(search)).map((review: any) => {
-                  const cfg = REVIEW_STATUS_CFG[review.status] ?? REVIEW_STATUS_CFG.draft!;
-                  return (
-                    <div key={review.id} className="flex items-center gap-3 rounded border border-border bg-card p-3 hover:shadow-sm transition-shadow">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground capitalize">{review.reviewerRole?.replace("_", " ")} Review</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {review.selfRating ? `Self-rated: ${review.selfRating}/5` : "Not yet self-rated"}
-                          {review.overallRating ? ` · Manager: ${review.overallRating}/5` : ""}
-                        </p>
-                      </div>
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50 text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Employee</th>
+                      <th className="px-4 py-3 font-medium">Manager</th>
+                      <th className="px-4 py-3 font-medium">Review Form</th>
+                      <th className="px-4 py-3 font-medium">Cycle</th>
+                      <th className="px-4 py-3 font-medium">State</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {(myReviews.data ?? []).filter((r: any) => !search || r.reviewerRole?.includes(search)).map((review: any) => {
+                      const cfg = REVIEW_STATUS_CFG[review.status] ?? REVIEW_STATUS_CFG.draft!;
+                      return (
+                        <tr key={review.id} className="hover:bg-muted/50 transition-colors">
+                          <td className="px-4 py-3 font-medium">{review.reviewerRole === "self" ? review.reviewerName : "Me"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{review.reviewerName || "N/A"}</td>
+                          <td className="px-4 py-3">
+                            {review.reviewFormUrl ? (
+                              <a href="#" className="text-primary hover:underline">{review.reviewFormUrl}</a>
+                            ) : (
+                              <span className="text-muted-foreground italic">None</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{review.cycleName || "Unknown"}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -413,6 +441,14 @@ function PerformanceContent() {
           onCreated={() => { setShowCreateGoal(false); myGoals.refetch(); }}
         />
       )}
+
+      {/* Submit Review dialog */}
+      {showSubmitReview && (
+        <SubmitReviewDialog
+          onClose={() => setShowSubmitReview(false)}
+          onCreated={() => { setShowSubmitReview(false); myReviews.refetch(); }}
+        />
+      )}
     </div>
   );
 }
@@ -535,6 +571,108 @@ function CreateGoalDialog({ onClose, onCreated }: { onClose: () => void; onCreat
           >
             {create.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
             Create Goal
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Submit Review Dialog ───────────────────────────────────────────────────
+function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { mergeTrpcQueryOpts } = useRBAC();
+  const users = trpc.auth.listUsers.useQuery(undefined, mergeTrpcQueryOpts("auth.listUsers", undefined));
+  const activeCycles = trpc.performance.listCycles.useQuery({ status: "active" }, mergeTrpcQueryOpts("performance.listCycles", undefined));
+
+  const [revieweeId, setRevieweeId] = useState("");
+  const [reviewerId, setReviewerId] = useState("");
+  const [cycleId, setCycleId] = useState("");
+  const [reviewFormUrl, setReviewFormUrl] = useState("");
+
+  const create = trpc.performance.createReview.useMutation({
+    onSuccess: () => { toast.success("Review submitted"); onCreated(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+        <h2 className="text-sm font-semibold mb-4">Submit Review</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Employee Name *</label>
+            <select
+              value={revieweeId}
+              onChange={(e) => setRevieweeId(e.target.value)}
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+            >
+              <option value="">Select Employee...</option>
+              {(users.data ?? []).map((u: any) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Reporting Manager *</label>
+            <select
+              value={reviewerId}
+              onChange={(e) => setReviewerId(e.target.value)}
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+            >
+              <option value="">Select Manager...</option>
+              {(users.data ?? []).map((u: any) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Review Cycle *</label>
+            <select
+              value={cycleId}
+              onChange={(e) => setCycleId(e.target.value)}
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+            >
+              <option value="">Select Active Cycle...</option>
+              {(activeCycles.data ?? []).map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Review Form (Upload)</label>
+            <input
+              type="file"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setReviewFormUrl(e.target.files[0].name);
+                }
+              }}
+              className="w-full text-sm text-muted-foreground file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
+            />
+            {reviewFormUrl && <p className="text-xs text-green-600 mt-1">Ready to attach: {reviewFormUrl}</p>}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-xs hover:bg-muted">Cancel</button>
+          <button
+            onClick={() => {
+              if (!revieweeId || !reviewerId || !cycleId) {
+                toast.error("Employee, Manager, and Cycle are required");
+                return;
+              }
+              create.mutate({
+                cycleId,
+                revieweeId,
+                reviewerId,
+                reviewerRole: "manager",
+                reviewFormUrl: reviewFormUrl || undefined,
+              });
+            }}
+            disabled={create.isPending}
+            className="px-3 py-1.5 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
+          >
+            {create.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+            Submit Form
           </button>
         </div>
       </div>

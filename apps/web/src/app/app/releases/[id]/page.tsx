@@ -11,26 +11,21 @@ import { trpc } from "@/lib/trpc";
 import { useRBAC, PermissionGate } from "@/lib/rbac-context";
 
 const STATE_CFG: Record<string, { label: string; color: string; bar: string }> = {
-  planning:        { label: "Planning",        color: "text-muted-foreground bg-muted",    bar: "bg-slate-400" },
-  testing:         { label: "Testing",         color: "text-blue-700 bg-blue-100",         bar: "bg-blue-500" },
-  cab_approval:    { label: "CAB Review",      color: "text-yellow-700 bg-yellow-100",     bar: "bg-yellow-400" },
-  scheduled:       { label: "Scheduled",       color: "text-indigo-700 bg-indigo-100",     bar: "bg-indigo-500" },
-  deployment:      { label: "Deploying",       color: "text-orange-700 bg-orange-100",     bar: "bg-orange-500" },
-  post_deployment: { label: "Post Deploy",     color: "text-green-700 bg-green-100",       bar: "bg-green-400" },
-  complete:        { label: "Complete",        color: "text-green-700 bg-green-100",       bar: "bg-green-500" },
-  failed:          { label: "Failed",          color: "text-red-700 bg-red-100",           bar: "bg-red-600" },
-  rolled_back:     { label: "Rolled Back",     color: "text-red-700 bg-red-100",           bar: "bg-orange-500" },
+  planning:  { label: "Planning",   color: "text-muted-foreground bg-muted",    bar: "bg-slate-400" },
+  build:     { label: "Build",      color: "text-blue-700 bg-blue-100",         bar: "bg-blue-500" },
+  test:      { label: "Testing",    color: "text-yellow-700 bg-yellow-100",     bar: "bg-yellow-400" },
+  deploy:    { label: "Deploying",  color: "text-orange-700 bg-orange-100",     bar: "bg-orange-500" },
+  completed: { label: "Completed",  color: "text-green-700 bg-green-100",       bar: "bg-green-500" },
+  cancelled: { label: "Cancelled",  color: "text-red-700 bg-red-100",           bar: "bg-red-600" },
 };
 
-const TERMINAL_STATES = ["complete", "failed", "rolled_back"];
+const TERMINAL_STATES = ["completed", "cancelled"];
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
-  planning: ["testing", "scheduled"],
-  testing: ["cab_approval", "scheduled", "planning"],
-  cab_approval: ["scheduled", "testing"],
-  scheduled: ["deployment", "cab_approval"],
-  deployment: ["post_deployment", "failed", "rolled_back"],
-  post_deployment: ["complete", "failed"],
+  planning:  ["build", "cancelled"],
+  build:     ["test", "planning", "cancelled"],
+  test:      ["deploy", "build", "cancelled"],
+  deploy:    ["completed", "cancelled"],
 };
 
 import { PageHeader } from "@/components/ui/page-header";

@@ -73,6 +73,7 @@ export const itomSuppressionRules = pgTable(
     condition: text("condition").notNull(), // e.g. "node=db-01 AND metric=cpu_load"
     suppressUntil: timestamp("suppress_until", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
+    linkedIncidentId: uuid("linked_incident_id").references(() => tickets.id, { onDelete: "set null" }),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -93,6 +94,7 @@ export const itomCorrelationPolicies = pgTable(
     condition: text("condition").notNull(), // e.g. "count > 10 AND severity = critical"
     action: text("action").notNull(), // e.g. "create_incident" or "suppress"
     active: boolean("active").notNull().default(true),
+    linkedIncidentId: uuid("linked_incident_id").references(() => tickets.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

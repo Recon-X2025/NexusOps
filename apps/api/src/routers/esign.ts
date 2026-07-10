@@ -1,4 +1,4 @@
-import { router, permissionProcedure } from "../lib/trpc";
+import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@coheronconnect/db";
 import { decryptIntegrationConfig } from "../services/encryption";
 import { getEsignProvider, IMPLEMENTED_ESIGN_PROVIDERS } from "../services/esign";
+import { checkDbUserPermission } from "../lib/rbac-db";
 
 /**
  * Universal e-sign router. Source modules (contracts, recruitment, secretarial,
@@ -69,7 +70,7 @@ export const esignRouter = router({
       return { ...req, signers, audit };
     }),
 
-  createRequest: permissionProcedure("contracts", "write")
+  createRequest: protectedProcedure
     .input(
       z.object({
         title: z.string().min(1),
@@ -95,6 +96,18 @@ export const esignRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
+      
+      const moduleMap: Record<string, import("@coheronconnect/types").Module> = {
+        "form16": "hr",
+        "hr.policies": "hr",
+        "policy_ack": "hr",
+        "recruitment.offers": "recruitment",
+        "secretarial.resolutions": "secretarial",
+        "procurement.vendor-onboarding": "procurement",
+      };
+      const moduleName = moduleMap[input.sourceType] ?? "contracts";
+      const hasPerm = checkDbUserPermission(user!.role, moduleName, "write", user!.matrixRole as string | undefined);
+      if (!hasPerm) throw new TRPCError({ code: "FORBIDDEN", message: `Missing write permission for ${moduleName}` });
 
       const [integration] = await db
         .select()

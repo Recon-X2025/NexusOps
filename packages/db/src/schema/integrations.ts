@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { organizations } from "./auth";
+import { tickets } from "./tickets";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const integrationStatusEnum = pgEnum("integration_status", [
@@ -42,6 +43,7 @@ export const integrations = pgTable(
     dekWrappedB64: text("dek_wrapped_b64"),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
     lastError: text("last_error"),
+    linkedIncidentId: uuid("linked_incident_id").references(() => tickets.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

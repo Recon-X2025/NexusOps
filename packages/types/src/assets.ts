@@ -68,6 +68,8 @@ export const CreateAssetSchema = z.object({
   vendor: z.string().max(200).optional(),
   customFields: z.record(z.unknown()).optional(),
   parentAssetId: z.string().uuid().optional(),
+  documentName: z.string().optional(),
+  documentBase64: z.string().optional(),
 });
 
 // ── CI Item ────────────────────────────────────────────────────────────────

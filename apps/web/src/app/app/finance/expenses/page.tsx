@@ -237,7 +237,7 @@ export default function FinanceExpensesQueuePage() {
             <table className="w-full text-[12px]">
               <thead className="bg-muted/40 border-b border-border">
                 <tr>
-                  {["Number", "Title", "Category", "Amount", "Date", "Status", "Actions"].map((h) => (
+                  {["Number", "Employee", "Title", "Category", "Amount", "Date", "Status", "Actions"].map((h) => (
                     <th
                       key={h}
                       className="px-3 py-2.5 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
@@ -257,8 +257,11 @@ export default function FinanceExpensesQueuePage() {
                   };
                   return (
                     <tr key={c.id} className="bg-card hover:bg-muted/20 transition-colors">
-                      <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">{c.number}</td>
-                      <td className="px-3 py-2.5 font-medium text-foreground max-w-[220px] truncate">{c.title}</td>
+                      <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground whitespace-nowrap">{c.number}</td>
+                      <td className="px-3 py-2.5 font-medium text-foreground whitespace-nowrap">
+                        {row.employee ? `${row.employee.firstName} ${row.employee.lastName}` : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px] truncate">{c.title}</td>
                       <td className="px-3 py-2.5 capitalize text-muted-foreground">
                         {(c.category ?? "").replace(/_/g, " ")}
                       </td>

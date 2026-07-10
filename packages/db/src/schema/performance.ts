@@ -73,6 +73,7 @@ export const performanceReviews = pgTable(
     status: reviewStatusEnum("status").notNull().default("draft"),
     overallRating: ratingScaleEnum("overall_rating"),
     selfRating: ratingScaleEnum("self_rating"),
+    reviewFormUrl: text("review_form_url"),
     strengthsText: text("strengths_text"),
     areasForGrowthText: text("areas_for_growth_text"),
     managerComments: text("manager_comments"),
