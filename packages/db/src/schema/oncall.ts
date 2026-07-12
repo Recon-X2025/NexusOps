@@ -63,7 +63,10 @@ export const oncallIncidents = pgTable(
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({ scheduleIdx: index("oncall_incidents_schedule_idx").on(t.scheduleId) }),
+  (t) => ({
+    orgIdx: index("oncall_incidents_org_idx").on(t.orgId),
+    scheduleIdx: index("oncall_incidents_schedule_idx").on(t.scheduleId),
+  }),
 );
 
 export const oncallIncidentsRelations = relations(oncallIncidents, ({ one }) => ({

@@ -211,6 +211,13 @@
       "when": 1783591651251,
       "tag": "0029_early_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783865286704,
+      "tag": "0030_lonely_garia",
+      "breakpoints": true
     }
   ]
 }
