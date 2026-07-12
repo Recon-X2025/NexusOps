@@ -73,7 +73,7 @@ export default function EventManagementPage() {
   const [newPolicy, setNewPolicy] = useState({ name: "", condition: "", action: "", status: "active" });
 
   const [showNewSource, setShowNewSource] = useState(false);
-  const [newSource, setNewSource] = useState({ provider: "datadog", status: "connected" });
+  const [newSource, setNewSource] = useState<{ provider: string; status: "connected" | "disconnected" | "error" | "pending" }>({ provider: "datadog", status: "connected" });
 
   useEffect(() => {
     if (!visibleTabs.find((t) => t.key === tab)) setTab(visibleTabs[0]?.key ?? "");
@@ -733,7 +733,7 @@ export default function EventManagementPage() {
                 <label className="text-[11px] font-medium text-muted-foreground">Status</label>
                 <select
                   value={newSource.status}
-                  onChange={(e) => setNewSource(n => ({ ...n, status: e.target.value }))}
+                  onChange={(e) => setNewSource(n => ({ ...n, status: e.target.value as "connected" | "error" }))}
                   className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="connected">Connected (Active)</option>
