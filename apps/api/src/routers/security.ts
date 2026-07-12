@@ -26,13 +26,12 @@ import {
 import { getNextNumber } from "../lib/auto-number";
 import { computeRemediationSla } from "../lib/vuln-sla-policy";
 
-const ALL_STATUSES = ["new", "triage", "containment", "eradication", "recovery", "closed", "false_positive"];
 const STATE_MACHINE: Record<string, string[]> = {
-  new: ALL_STATUSES,
-  triage: ALL_STATUSES,
-  containment: ALL_STATUSES,
-  eradication: ALL_STATUSES,
-  recovery: ALL_STATUSES,
+  new: ["triage"],
+  triage: ["containment", "false_positive"],
+  containment: ["eradication"],
+  eradication: ["recovery"],
+  recovery: ["closed"],
   closed: ["new", "triage", "containment", "eradication", "recovery"], // allow reopen
   false_positive: ["new", "triage", "containment", "eradication", "recovery"], // allow reopen
 };
