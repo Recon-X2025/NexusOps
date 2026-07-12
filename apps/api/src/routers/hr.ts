@@ -1807,8 +1807,8 @@ export const hrRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only submitted claims can be manager-approved." });
       }
       const newStatus = input.approved ? "under_review" as const : "rejected" as const;
-      
-      const updateData: any = {
+
+      const updateData: Partial<typeof expenseClaims.$inferInsert> = {
         status: newStatus,
         approvedById: input.approved ? user!.id : null,
         rejectionReason: input.approved ? null : (input.rejectionReason ?? "Rejected by manager"),
@@ -1837,12 +1837,12 @@ export const hrRouter = router({
       const { org, db, user } = ctx;
       const { expenseClaims, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       const status = input.approved ? "approved" as const : "rejected" as const;
-      
-      const updateData: any = {
-        status, 
-        approvedById: input.approved ? user!.id : null, 
-        approvedAt: input.approved ? new Date() : null, 
-        rejectionReason: input.rejectionReason, 
+
+      const updateData: Partial<typeof expenseClaims.$inferInsert> = {
+        status,
+        approvedById: input.approved ? user!.id : null,
+        approvedAt: input.approved ? new Date() : null,
+        rejectionReason: input.rejectionReason,
         updatedAt: new Date()
       };
 

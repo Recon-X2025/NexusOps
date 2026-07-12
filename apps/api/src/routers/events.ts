@@ -6,6 +6,7 @@ import {
   itomCorrelationPolicies,
   ciItems,
   integrations,
+  integrationStatusEnum,
   eventSeverityEnum,
   eq,
   asc,
@@ -209,7 +210,7 @@ export const eventsRouter = router({
   createIntegration: permissionProcedure("events", "write")
     .input(z.object({
       provider: z.string().min(1),
-      status: z.string().default("connected"),
+      status: z.enum(integrationStatusEnum.enumValues).default("connected"),
       config: z.any().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -217,7 +218,7 @@ export const eventsRouter = router({
       const [integration] = await db.insert(integrations).values({
         orgId: org!.id,
         provider: input.provider,
-        status: input.status as any,
+        status: input.status,
         configEncrypted: JSON.stringify(input.config || {}),
       }).returning();
       return integration;

@@ -15,6 +15,7 @@ import {
   employees,
   salaryStructures,
   users,
+  organizations,
   documents,
   documentVersions,
   eq,
@@ -697,10 +698,9 @@ export const payrollRouter = router({
         );
       if (slips.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: `No payslips on file for FY ${input.fy}` });
 
-      const orgRow = org as { name?: string; settings?: unknown } & Record<string, unknown>;
+      const orgRow = org as typeof organizations.$inferSelect & { settings?: unknown };
       const pdfInput = buildForm16Input({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        org: orgRow as any,
+        org: orgRow,
         employee: { ...empRow.emp, name: empRow.userRow.name as string },
         fySlips: slips,
         financialYear: input.fy,

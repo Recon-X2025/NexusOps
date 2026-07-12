@@ -408,9 +408,9 @@ export const assetsRouter = router({
     const { db, org } = ctx;
     const docs = await db.select().from(documents).where(and(eq(documents.orgId, org!.id), eq(documents.sourceType, "asset")));
     const assetList = await db.select({ id: assets.id, name: assets.name, assetTag: assets.assetTag }).from(assets).where(eq(assets.orgId, org!.id));
-    const assetMap = new Map(assetList.map((a: any) => [a.id, a]));
-    
-    return docs.map((d: any) => {
+    const assetMap = new Map(assetList.map((a) => [a.id, a]));
+
+    return docs.map((d) => {
       const asset = assetMap.get(d.sourceId!);
       return {
         id: d.id,

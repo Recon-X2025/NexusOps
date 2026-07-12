@@ -23,6 +23,7 @@ import {
   count,
   inArray,
   sql,
+  type DbOrTx,
 } from "@coheronconnect/db";
 import { sendNotification } from "../services/notifications";
 import { getNextNumber } from "../lib/auto-number";
@@ -86,7 +87,7 @@ function assertCabRiskForApprove(
   }
 }
 
-async function assertNoBlackoutOverlap(db: any, orgId: string, type: string | undefined, start?: Date, end?: Date) {
+async function assertNoBlackoutOverlap(db: DbOrTx, orgId: string, type: string | undefined, start?: Date, end?: Date) {
   if (!start) return;
   if (type === "emergency") return; // Emergency changes can bypass blackouts
 
