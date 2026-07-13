@@ -116,27 +116,27 @@ export default function VendorsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Vendor Name *</label>
-                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.name} onChange={(e) => setVendorForm(f => ({ ...f, name: e.target.value }))} />
+                <input autoFocus className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.name} onChange={(e) => setVendorForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Contact Email</label>
-                <input type="email" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactEmail} onChange={(e) => setVendorForm(f => ({ ...f, contactEmail: e.target.value }))} />
+                <input type="email" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactEmail} onChange={(e) => setVendorForm(f => ({ ...f, contactEmail: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Contact Phone</label>
-                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactPhone} onChange={(e) => setVendorForm(f => ({ ...f, contactPhone: e.target.value }))} />
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactPhone} onChange={(e) => setVendorForm(f => ({ ...f, contactPhone: e.target.value }))} />
               </div>
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Address</label>
-                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.address} onChange={(e) => setVendorForm(f => ({ ...f, address: e.target.value }))} />
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.address} onChange={(e) => setVendorForm(f => ({ ...f, address: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Payment Terms</label>
-                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. Net 30" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm(f => ({ ...f, paymentTerms: e.target.value }))} />
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" placeholder="e.g. Net 30" value={vendorForm.paymentTerms} onChange={(e) => setVendorForm(f => ({ ...f, paymentTerms: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Notes</label>
-                <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.notes} onChange={(e) => setVendorForm(f => ({ ...f, notes: e.target.value }))} />
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.notes} onChange={(e) => setVendorForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -156,7 +156,7 @@ export default function VendorsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Vendor & Supplier Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Vendor & Supplier Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Vendor Register · Contracts · SLA · Performance</span>
         </div>
         <div className="flex items-center gap-2">
@@ -213,7 +213,7 @@ export default function VendorsPage() {
           { label: "Contracts Expiring (90d)", value: contracts.filter((c: any) => c.endDate && new Date(c.endDate) < new Date(Date.now() + 90*86400000)).length, color: "text-orange-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}

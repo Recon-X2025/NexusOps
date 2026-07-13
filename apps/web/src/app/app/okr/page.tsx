@@ -59,7 +59,7 @@ export default function OKRPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">OKRs & Goal Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">OKRs & Goal Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Objectives · Key Results · Progress tracking</span>
         </div>
         <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export default function OKRPage() {
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_COLORS[objective.status] ?? ""}`}>{objective.status}</span>
                       <span className="text-[10px] text-muted-foreground uppercase">{objective.cycle?.toUpperCase()} {objective.year}</span>
                     </div>
-                    {objective.description && <div className="text-[11px] text-muted-foreground truncate mt-0.5">{objective.description}</div>}
+                    {objective.description && <div className="text-[11px] text-muted-foreground mt-0.5">{objective.description}</div>}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="w-32">
@@ -133,7 +133,7 @@ export default function OKRPage() {
       {showNewObj && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-sm font-semibold mb-4">New Objective</h2>
+            <h2 className="text-body-sm font-semibold mb-4">New Objective</h2>
             <div className="flex flex-col gap-3">
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Title *</label><input value={objForm.title} onChange={e => setObjForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Improve customer satisfaction" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Description</label><textarea value={objForm.description} onChange={e => setObjForm(f => ({ ...f, description: e.target.value }))} rows={2} className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none resize-none" /></div>
@@ -155,7 +155,7 @@ export default function OKRPage() {
       {showNewKR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm p-6">
-            <h2 className="text-sm font-semibold mb-4">Add Key Result</h2>
+            <h2 className="text-body-sm font-semibold mb-4">Add Key Result</h2>
             <div className="flex flex-col gap-3">
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Title *</label><input value={krForm.title} onChange={e => setKRForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Achieve NPS > 60" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
               <div className="grid grid-cols-2 gap-3">
@@ -176,7 +176,7 @@ export default function OKRPage() {
       {updateKR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-xs p-6">
-            <h2 className="text-sm font-semibold mb-4">Update Progress</h2>
+            <h2 className="text-body-sm font-semibold mb-4">Update Progress</h2>
             <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Current Value</label><input type="number" value={updateKR.current} onChange={e => setUpdateKR(p => p ? { ...p, current: +e.target.value } : null)} className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
             <div className="flex items-center justify-end gap-2 mt-4">
               <button onClick={() => setUpdateKR(null)} className="px-3 py-1.5 text-[12px] border border-border rounded hover:bg-muted/50">Cancel</button>

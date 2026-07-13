@@ -74,7 +74,7 @@ function ProgressValue({ field }: { field: ProgressFieldDef }) {
       <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
         <div className={cn("h-full rounded-full", barColor)} style={{ width: `${field.value}%` }} />
       </div>
-      <span className="text-sm font-bold">{field.value}</span>
+      <span className="text-body-sm font-bold">{field.value}</span>
     </div>
   );
 }
@@ -83,7 +83,7 @@ function FieldRow({ field }: { field: FieldDef }) {
   const Icon = field.icon;
 
   const label = (
-    <span className="text-sm text-muted-foreground flex items-center gap-2">
+    <span className="text-body-sm text-muted-foreground flex items-center gap-2">
       {Icon && <Icon className="w-4 h-4 shrink-0" />}
       {field.label}
     </span>
@@ -109,12 +109,12 @@ function FieldRow({ field }: { field: FieldDef }) {
         href={tf.href}
         target="_blank"
         rel="noreferrer"
-        className="text-sm text-primary hover:underline flex items-center gap-1"
+        className="text-body-sm text-primary hover:underline flex items-center gap-1"
       >
         {tf.value} <ExternalLink className="w-3 h-3" />
       </a>
     ) : (
-      <span className={cn("text-sm font-medium text-foreground", field.className)}>{tf.value}</span>
+      <span className={cn("text-body-sm font-medium text-foreground", field.className)}>{tf.value}</span>
     );
   }
 
@@ -136,7 +136,7 @@ export function DetailGrid({ title, icon: Icon, items, fields, className, footer
       {title && (
         <div className="flex items-center gap-2 mb-4">
           {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">
             {title}
           </h3>
         </div>

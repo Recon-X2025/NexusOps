@@ -69,10 +69,10 @@ export function WorkbenchShell({
             <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
               {persona}
             </div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#001B3D] dark:text-slate-100">
+            <h1 className="text-h4 md:text-h3 font-bold tracking-tight text-[#001B3D] dark:text-slate-100">
               {title}
             </h1>
-            <p className="text-xs md:text-sm font-medium text-slate-600 dark:text-slate-300 mt-1 max-w-3xl leading-snug">
+            <p className="text-caption md:text-body-sm font-medium text-slate-600 dark:text-slate-300 mt-1 max-w-3xl leading-snug">
               {subtitle}
             </p>
           </div>
@@ -92,7 +92,7 @@ export function WorkbenchShell({
                   aria-selected={active}
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    "py-2.5 text-xs font-semibold border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm",
+                    "py-2.5 text-caption font-semibold border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm",
                     active
                       ? "border-blue-600 text-blue-700 dark:text-blue-400 dark:border-blue-400"
                       : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200",

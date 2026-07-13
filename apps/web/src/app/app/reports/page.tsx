@@ -182,7 +182,7 @@ export default function ReportsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart2 className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Performance Analytics</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Performance Analytics</h1>
           <span className="text-[11px] text-muted-foreground/70">Reports · SLA Dashboard · Workload Analysis · Trends</span>
         </div>
         <div className="flex items-center gap-2">
@@ -250,7 +250,7 @@ export default function ReportsPage() {
                         {Math.abs(k.delta)}
                       </span>
                     </div>
-                    <div className={`text-2xl font-bold mt-1 ${k.color}`}>{k.value}</div>
+                    <div className={`text-h3 font-bold mt-1 ${k.color}`}>{k.value}</div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">{k.label}</div>
                   </div>
                 );
@@ -323,7 +323,7 @@ export default function ReportsPage() {
                 <div key={row.priorityId ?? row.priority} className="border border-border rounded p-3">
                   <div className="text-[11px] font-semibold text-foreground/80 mb-1">{row.priorityName ?? row.priority}</div>
                   <div className="text-[11px] text-muted-foreground mb-2">Target: Resolve &lt; {row.target}</div>
-                  <div className={`text-3xl font-bold ${row.mtd === null ? "text-muted-foreground" : row.mtd >= 90 ? "text-green-700" : row.mtd >= 75 ? "text-yellow-600" : "text-red-600"}`}>{row.mtd === null ? "—" : `${row.mtd}%`}</div>
+                  <div className={`text-h2 font-bold ${row.mtd === null ? "text-muted-foreground" : row.mtd >= 90 ? "text-green-700" : row.mtd >= 75 ? "text-yellow-600" : "text-red-600"}`}>{row.mtd === null ? "—" : `${row.mtd}%`}</div>
                   <div className="h-1.5 bg-border rounded-full overflow-hidden mt-2">
                     <div className={`h-full rounded-full ${row.mtd === null ? "bg-border" : row.mtd >= 90 ? "bg-green-500" : row.mtd >= 75 ? "bg-yellow-400" : "bg-red-500"}`}
                       style={{ width: `${row.mtd ?? 0}%` }} />
@@ -488,7 +488,7 @@ export default function ReportsPage() {
                           <div className="text-[11px] font-semibold text-muted-foreground">{metric.title}</div>
                           {metric.live && <span className="text-[9px] px-1 py-0.5 bg-green-100 text-green-700 rounded font-medium">LIVE</span>}
                         </div>
-                        <div className={`text-3xl font-bold ${metric.met ? "text-green-700" : metric.value === "—" ? "text-muted-foreground/40" : "text-yellow-600"}`}>{metric.value}</div>
+                        <div className={`text-h2 font-bold ${metric.met ? "text-green-700" : metric.value === "—" ? "text-muted-foreground/40" : "text-yellow-600"}`}>{metric.value}</div>
                         <div className="flex items-center gap-2 mt-1 text-[11px]">
                           <span className="text-muted-foreground">Target: {metric.target}</span>
                           {metric.met ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />}

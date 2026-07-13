@@ -158,9 +158,9 @@ function IntegrationCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground truncate">{def.description}</p>
+          <p className="text-caption text-muted-foreground">{def.description}</p>
           {status === "error" && lastError && (
-            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 truncate">
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
               Last error: {lastError}
             </p>
           )}
@@ -191,7 +191,7 @@ function IntegrationCard({
           )}
           {def.fields.map((field) => (
             <div key={field.key}>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
+              <label className="block text-caption font-medium text-muted-foreground mb-1">
                 {field.label}
                 {field.required && <span className="text-destructive ml-0.5">*</span>}
               </label>
@@ -201,7 +201,7 @@ function IntegrationCard({
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Select…</option>
                   {field.options?.map((o) => (
@@ -219,7 +219,7 @@ function IntegrationCard({
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               )}
               {field.helpText && (
@@ -232,7 +232,7 @@ function IntegrationCard({
               type="button"
               disabled={isSaving}
               onClick={handleSave}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
             >
               {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isConnected ? "Update credentials" : "Save credentials"}
@@ -242,7 +242,7 @@ function IntegrationCard({
                 type="button"
                 disabled={isTesting}
                 onClick={() => onTest(def.provider)}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted/50 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-body-sm font-medium hover:bg-muted/50 disabled:opacity-50"
               >
                 {isTesting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 <ShieldCheck className="h-3.5 w-3.5" />
@@ -254,7 +254,7 @@ function IntegrationCard({
                 type="button"
                 disabled={isDisconnecting}
                 onClick={() => onDisconnect(def.provider)}
-                className="flex items-center gap-2 rounded-lg border border-destructive/50 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg border border-destructive/50 px-3 py-1.5 text-body-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
               >
                 {isDisconnecting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Disconnect
@@ -358,8 +358,8 @@ export default function IntegrationsSettingsPage() {
           <Plug className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Integrations</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-h3 font-bold">Integrations</h1>
+          <p className="text-body-sm text-muted-foreground">
             Connect CoheronConnect to external systems. Credentials are stored encrypted at rest and
             tested live before they go into rotation.
           </p>
@@ -376,7 +376,7 @@ export default function IntegrationsSettingsPage() {
             <section key={group.category} className="space-y-2">
               <div className="flex items-center gap-2">
                 <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-                <h2 className="text-sm font-semibold text-foreground">{group.label}</h2>
+                <h2 className="text-body-sm font-semibold text-foreground">{group.label}</h2>
               </div>
               <div className="space-y-3">
                 {group.entries.map((def) => {

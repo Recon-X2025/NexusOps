@@ -38,11 +38,11 @@ export function ServiceDeskContent() {
                 message="No on-call schedules configured."
               />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.shift.data.map((s, i) => (
                   <li key={`${s.scheduleName}:${i}`} className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-1 last:border-0">
-                    <span className="truncate text-slate-700 dark:text-slate-200">{s.scheduleName}</span>
-                    <span className="text-slate-500 dark:text-slate-400 truncate">{s.ownerName ?? "—"}</span>
+                    <span className="text-slate-700 dark:text-slate-200">{s.scheduleName}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{s.ownerName ?? "—"}</span>
                   </li>
                 ))}
               </ul>
@@ -55,7 +55,7 @@ export function ServiceDeskContent() {
             ) : !data?.capacity.data?.length ? (
               <WorkbenchEmpty state={data?.capacity.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.capacity.data.map((row) => (
                   <li key={row.status} className="flex items-center justify-between gap-3">
                     <span className="text-slate-700 dark:text-slate-200">{row.status}</span>

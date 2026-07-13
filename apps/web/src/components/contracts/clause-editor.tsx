@@ -211,13 +211,13 @@ export function ClauseEditor({ clauses, onChange, currencyCode = "INR" }: Clause
                         placeholder="Enter clause title..."
                       />
                     ) : (
-                      <span className="text-[12px] font-semibold text-slate-800 truncate">{c.title}</span>
+                      <span className="text-[12px] font-semibold text-slate-800">{c.title}</span>
                     )}
                     <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", CATEGORY_STYLES[c.category])}>
                       {c.category}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{c.description}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{c.description}</p>
                 </div>
                 <ChevronDown
                   className={cn("w-4 h-4 text-slate-400 flex-shrink-0 transition-transform", isOpen && "rotate-180")}
@@ -240,7 +240,7 @@ export function ClauseEditor({ clauses, onChange, currencyCode = "INR" }: Clause
                               onChange={(e) => updateField(index, field.id, e.target.value, field)}
                               placeholder={field.placeholder}
                               rows={3}
-                              className="w-full min-h-[4.5rem] rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+                              className="w-full min-h-[4.5rem] rounded-lg border border-input bg-background px-3 py-2 text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
                             />
                           )}
                           {field.type === "text" && (
@@ -260,7 +260,7 @@ export function ClauseEditor({ clauses, onChange, currencyCode = "INR" }: Clause
                           )}
                           {field.type === "currency" && (
                             <div className="flex rounded-lg border border-input shadow-sm overflow-hidden focus-within:ring-1 focus-within:ring-ring">
-                              <span className="flex items-center px-2.5 bg-muted/50 text-muted-foreground text-sm border-r border-input">
+                              <span className="flex items-center px-2.5 bg-muted/50 text-muted-foreground text-body-sm border-r border-input">
                                 {sym}
                               </span>
                               <Input
@@ -310,7 +310,7 @@ export function ClauseEditor({ clauses, onChange, currencyCode = "INR" }: Clause
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 text-xs"
+                      className="h-7 text-caption"
                       onClick={() => resetClause(index)}
                     >
                       <RotateCcw className="w-3 h-3" />

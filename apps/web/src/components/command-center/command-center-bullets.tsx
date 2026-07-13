@@ -14,11 +14,11 @@ export function CommandCenterBullets({ payload }: { payload: Payload }) {
     <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm rounded-2xl relative">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none" />
       <div className="px-5 py-4 border-b border-slate-200/60 relative z-10">
-        <h2 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Performance Benchmarks</h2>
+        <h2 className="text-caption font-black text-slate-700 uppercase tracking-[0.2em]">Performance Benchmarks</h2>
       </div>
       <div className="p-5 flex flex-col gap-5 relative z-10">
         {items.length === 0 && (
-          <div className="py-8 text-center text-xs text-muted-foreground italic">No target metrics tracked for this view.</div>
+          <div className="py-8 text-center text-caption text-muted-foreground italic">No target metrics tracked for this view.</div>
         )}
         {items.map((b, i) => {
           const cellState = b.cellState || { kind: "no_data" };
@@ -39,13 +39,13 @@ export function CommandCenterBullets({ payload }: { payload: Payload }) {
           return (
             <div key={i} className="group">
               <div className="flex justify-between items-end mb-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest group-hover:text-slate-800 transition-colors line-clamp-1">{b.label}</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest group-hover:text-slate-800 transition-colors">{b.label}</span>
                 <div className="flex items-baseline gap-1">
-                  <span className={cn("text-xl font-black drop-shadow-sm", isNoData ? "text-slate-300" : "text-slate-900")}>
+                  <span className={cn("text-h4 font-black drop-shadow-sm", isNoData ? "text-slate-300" : "text-slate-900")}>
                     {isNoData ? "—" : current.toLocaleString()}
                   </span>
                   {!isNoData && hasTarget && (
-                    <span className="text-xs font-bold text-slate-400">/ {target.toLocaleString()}{b.unit === "percent" ? "%" : ""}</span>
+                    <span className="text-caption font-bold text-slate-400">/ {target.toLocaleString()}{b.unit === "percent" ? "%" : ""}</span>
                   )}
                 </div>
               </div>

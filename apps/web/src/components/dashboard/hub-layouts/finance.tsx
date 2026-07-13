@@ -53,8 +53,8 @@ export function FinancePrimary({ payload, granularity }: HubPrimaryProps) {
           <div className="p-4 rounded-xl bg-slate-900 text-white shadow-lg mb-2">
             <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Cash Runway</div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black">{formatValue(runway?.current, "", runway?.state)}</span>
-              <span className="text-slate-500 text-sm font-bold">Months</span>
+              <span className="text-h2 font-black">{formatValue(runway?.current, "", runway?.state)}</span>
+              <span className="text-slate-500 text-body-sm font-bold">Months</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1 italic">At current burn rate</p>
           </div>

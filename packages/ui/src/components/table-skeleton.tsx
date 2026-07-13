@@ -17,7 +17,7 @@ export function TableSkeleton({
 }: TableSkeletonProps) {
   return (
     <div className={cn("w-full overflow-hidden rounded-lg border border-border", className)}>
-      <table className="w-full text-sm">
+      <table className="w-full text-[14px]">
         {showHeader && (
           <thead className="bg-muted/40 border-b border-border">
             <tr>

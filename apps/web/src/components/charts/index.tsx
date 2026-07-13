@@ -44,7 +44,7 @@ export const CHART_COLORS = [
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-xs">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-caption">
       {label && <p className="font-semibold text-foreground mb-1">{label}</p>}
       {payload.map((entry) => (
         <div key={entry.dataKey as string} className="flex items-center gap-2">
@@ -202,7 +202,7 @@ function AreaChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-xs">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-caption">
       {label != null && label !== "" && (
         <p className="font-semibold text-foreground mb-1">{String(label)}</p>
       )}
@@ -398,7 +398,7 @@ function ScatterTooltip({
   const p = payload[0]?.payload;
   if (!p) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-xs">
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-caption">
       <p className="font-semibold text-foreground mb-1">{p.label}</p>
       <div className="text-muted-foreground">{xLabel ?? "x"}: <span className="font-medium text-foreground">{p.x}</span></div>
       <div className="text-muted-foreground">{yLabel ?? "y"}: <span className="font-medium text-foreground">{p.y}</span></div>

@@ -191,7 +191,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            <h2 className="text-body-sm font-semibold text-foreground">{title}</h2>
             <p className="text-[10px] text-muted-foreground mt-0.5">
               Step {step} of 5 — {stepLabels[step - 1]}
             </p>
@@ -229,7 +229,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
                   ${isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"}`}
               >
                 <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-body-sm text-muted-foreground">
                   Drag &amp; drop a CSV file here, or <span className="text-primary underline">browse</span>
                 </p>
                 <input
@@ -342,8 +342,8 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
             <div className="flex flex-col items-center gap-4 py-4">
               <FileText className="w-10 h-10 text-primary/60" />
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground">Ready to import</p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-body font-semibold text-foreground">Ready to import</p>
+                <p className="text-body-sm text-muted-foreground mt-1">
                   <span className="text-green-600 font-bold">{validRows.length}</span> records will be created
                   {errorRows.length > 0 && (
                     <>
@@ -370,7 +370,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
           {step === 4 && (
             <div className="flex flex-col items-center gap-4 py-6">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm font-medium text-foreground">Importing {validRows.length} records…</p>
+              <p className="text-body-sm font-medium text-foreground">Importing {validRows.length} records…</p>
             </div>
           )}
 
@@ -383,13 +383,13 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
                 <CheckCircle className="w-10 h-10 text-green-500" />
               )}
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground">
+                <p className="text-body font-semibold text-foreground">
                   {results.error ? "Import failed" : "Import complete"}
                 </p>
                 {results.error ? (
-                  <p className="text-sm text-red-600 mt-1">{results.error}</p>
+                  <p className="text-body-sm text-red-600 mt-1">{results.error}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-body-sm text-muted-foreground mt-1">
                     <span className="text-green-600 font-bold">{results.success}</span> records created
                     {results.skipped > 0 && (
                       <>
@@ -408,7 +408,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
           <button
             onClick={step === 5 ? onClose : () => setStep((s) => Math.max(1, s - 1) as any)}
             disabled={step === 4}
-            className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent disabled:opacity-40"
+            className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent disabled:opacity-40"
           >
             {step === 5 ? "Close" : "Back"}
           </button>
@@ -416,7 +416,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
             <button
               onClick={() => setStep((s) => (s + 1) as any)}
               disabled={step === 2 && validRows.length === 0}
-              className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
+              className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
             >
               {step === 2 ? `Continue with ${validRows.length} valid rows` : "Next"}
             </button>
@@ -425,7 +425,7 @@ export function CsvImportModal({ title, fields, onImport, onClose, hint }: CsvIm
             <button
               onClick={handleImport}
               disabled={validRows.length === 0}
-              className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
+              className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
             >
               Import {validRows.length} Records
             </button>

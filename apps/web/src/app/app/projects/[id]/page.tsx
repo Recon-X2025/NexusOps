@@ -124,7 +124,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="flex items-center justify-center h-60 gap-2 text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
-        <span className="text-xs">Loading project…</span>
+        <span className="text-caption">Loading project…</span>
       </div>
     );
   }
@@ -133,7 +133,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-60 gap-2 text-muted-foreground">
         <Briefcase className="w-8 h-8 opacity-30" />
-        <span className="text-sm">Project not found.</span>
+        <span className="text-body-sm">Project not found.</span>
         <Link href="/app/projects" className="text-primary text-[12px] hover:underline">
           ← Back to Projects
         </Link>
@@ -166,7 +166,7 @@ export default function ProjectDetailPage() {
           <div className="min-w-0">
             <h1 className="text-[15px] font-semibold text-foreground leading-snug">{project.name}</h1>
             {project.description && (
-              <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-2">{project.description}</p>
+              <p className="text-[12px] text-muted-foreground mt-0.5">{project.description}</p>
             )}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`status-badge capitalize ${statusCfg}`}>{project.status?.replace(/_/g, " ") ?? "Planning"}</span>
@@ -232,7 +232,7 @@ export default function ProjectDetailPage() {
             ]
         ).map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className="text-lg font-bold text-foreground capitalize">{k.value}</div>
+            <div className="text-body-lg font-bold text-foreground capitalize">{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -251,7 +251,7 @@ export default function ProjectDetailPage() {
             <div className="col-span-2">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Project Name *</label>
               <input
-                className="w-full text-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none"
+                className="w-full text-body-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none"
                 value={editForm.name}
                 onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
               />
@@ -259,7 +259,7 @@ export default function ProjectDetailPage() {
             <div className="col-span-2">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Description</label>
               <textarea
-                className="w-full text-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none min-h-[80px] resize-y"
+                className="w-full text-body-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none min-h-[80px] resize-y"
                 value={editForm.description}
                 onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
               />
@@ -267,7 +267,7 @@ export default function ProjectDetailPage() {
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Status</label>
               <select
-                className="w-full text-sm border border-border rounded px-3 py-2 bg-background"
+                className="w-full text-body-sm border border-border rounded px-3 py-2 bg-background"
                 value={editForm.status}
                 onChange={(e) => setEditForm(f => ({ ...f, status: e.target.value }))}
               >
@@ -282,7 +282,7 @@ export default function ProjectDetailPage() {
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Health</label>
               <select
-                className="w-full text-sm border border-border rounded px-3 py-2 bg-background"
+                className="w-full text-body-sm border border-border rounded px-3 py-2 bg-background"
                 value={editForm.health}
                 onChange={(e) => setEditForm(f => ({ ...f, health: e.target.value }))}
               >
@@ -294,7 +294,7 @@ export default function ProjectDetailPage() {
             <div className="col-span-2 sm:col-span-1">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Phase</label>
               <input
-                className="w-full text-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none"
+                className="w-full text-body-sm border border-border rounded px-3 py-2 bg-background focus:ring-1 focus:ring-primary outline-none"
                 placeholder="e.g. Discovery, Execution"
                 value={editForm.phase}
                 onChange={(e) => setEditForm(f => ({ ...f, phase: e.target.value }))}
@@ -337,7 +337,7 @@ export default function ProjectDetailPage() {
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Task Title *</label>
               <input
-                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                 placeholder="What needs to be done?"
                 value={taskForm.title}
                 onChange={(e) => setTaskForm(f => ({ ...f, title: e.target.value }))}
@@ -346,7 +346,7 @@ export default function ProjectDetailPage() {
             <div>
               <label className="text-[11px] text-muted-foreground">Priority</label>
               <select
-                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                 value={taskForm.priority}
                 onChange={(e) => setTaskForm(f => ({ ...f, priority: e.target.value as any }))}
               >
@@ -359,7 +359,7 @@ export default function ProjectDetailPage() {
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Description</label>
               <input
-                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                 placeholder="Optional description"
                 value={taskForm.description}
                 onChange={(e) => setTaskForm(f => ({ ...f, description: e.target.value }))}
@@ -368,7 +368,7 @@ export default function ProjectDetailPage() {
             <div>
               <label className="text-[11px] text-muted-foreground">Sprint</label>
               <input
-                className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                 placeholder="e.g. Sprint 3"
                 value={taskForm.sprint}
                 onChange={(e) => setTaskForm(f => ({ ...f, sprint: e.target.value }))}

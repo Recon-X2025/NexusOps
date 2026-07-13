@@ -67,13 +67,13 @@ export function PipelineFunnel({
           ) : (
             <ul className="space-y-1.5">
               {slots.slice(0, 8).map((s) => (
-                <li key={s.id} className="flex items-start gap-2 text-xs">
+                <li key={s.id} className="flex items-start gap-2 text-caption">
                   <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-slate-700 dark:text-slate-200 truncate">
+                    <div className="font-medium text-slate-700 dark:text-slate-200">
                       {s.candidateName ?? "Slot to fill"}
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       {formatDateTime(s.scheduledAt)} · {s.jobTitle ?? s.type}
                     </div>
                   </div>
@@ -96,10 +96,10 @@ function Funnel({ stages }: { stages: FunnelStage[] }) {
         const prev = i > 0 ? stages[i - 1]!.count : null;
         const conv = prev != null && prev > 0 ? Math.round((s.count / prev) * 100) : null;
         return (
-          <li key={s.stage} className="text-xs">
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <span className="font-medium text-slate-700 dark:text-slate-200 capitalize">{s.stage.replace(/_/g, " ")}</span>
-              <span className="tabular-nums text-slate-500 dark:text-slate-400">
+          <li key={s.stage} className="text-caption">
+            <div className="flex items-center justify-between gap-3 mb-1 overflow-x-auto scrollbar-thin">
+              <span className="font-medium text-slate-700 dark:text-slate-200 capitalize shrink-0 whitespace-nowrap">{s.stage.replace(/_/g, " ")}</span>
+              <span className="tabular-nums text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
                 {s.count}
                 {conv != null ? <span className="ml-2 text-teal-700 dark:text-teal-300">{conv}%</span> : null}
               </span>

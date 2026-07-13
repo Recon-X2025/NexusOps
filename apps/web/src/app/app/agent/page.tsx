@@ -50,12 +50,12 @@ export default function AgentChatPage() {
     <div className="flex h-[calc(100vh-64px)] gap-4 p-4">
       <aside className="hidden w-64 shrink-0 overflow-y-auto rounded-lg border border-border bg-card p-3 lg:block">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
             Conversations
           </h2>
           <button
             type="button"
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="text-caption text-muted-foreground hover:text-foreground"
             onClick={() => setConversationId(undefined)}
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -68,7 +68,7 @@ export default function AgentChatPage() {
                 type="button"
                 onClick={() => setConversationId(c.id)}
                 className={cn(
-                  "w-full truncate rounded px-2 py-1.5 text-left text-sm",
+                  "w-full rounded px-2 py-1.5 text-left text-body-sm",
                   c.id === conversationId
                     ? "bg-accent text-accent-foreground"
                     : "hover:bg-accent/50",
@@ -79,7 +79,7 @@ export default function AgentChatPage() {
             </li>
           ))}
           {(conversationsQuery.data ?? []).length === 0 && (
-            <li className="text-xs text-muted-foreground">No conversations yet.</li>
+            <li className="text-caption text-muted-foreground">No conversations yet.</li>
           )}
         </ul>
       </aside>
@@ -87,8 +87,8 @@ export default function AgentChatPage() {
       <main className="flex flex-1 flex-col rounded-lg border border-border bg-card">
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Sparkles className="h-5 w-5 text-violet-500" />
-          <h1 className="text-base font-semibold">CoheronConnect Copilot</h1>
-          <span className="ml-2 text-xs text-muted-foreground">
+          <h1 className="text-body font-semibold">CoheronConnect Copilot</h1>
+          <span className="ml-2 text-caption text-muted-foreground">
             Ask questions or request actions like &quot;file an incident for printer down&quot;.
           </span>
         </header>
@@ -97,7 +97,7 @@ export default function AgentChatPage() {
           {!conversationId && messages.length === 0 && (
             <div className="mx-auto max-w-md py-12 text-center">
               <Sparkles className="mx-auto mb-3 h-8 w-8 text-violet-500" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-body-sm text-muted-foreground">
                 Hi — I can answer questions about CoheronConnect and, when you ask, file
                 tickets or update statuses on your behalf. I&apos;ll always read back
                 actions before running them.
@@ -114,11 +114,11 @@ export default function AgentChatPage() {
             >
               <div
                 className={cn(
-                  "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+                  "max-w-[80%] rounded-lg px-3 py-2 text-body-sm",
                   m.role === "user" && "bg-primary text-primary-foreground",
                   m.role === "assistant" && "bg-muted",
                   m.role === "tool" &&
-                    "border border-dashed border-border bg-background text-xs text-muted-foreground",
+                    "border border-dashed border-border bg-background text-caption text-muted-foreground",
                 )}
               >
                 {m.role === "tool" ? (
@@ -134,13 +134,13 @@ export default function AgentChatPage() {
             </div>
           ))}
           {chatMutation.isPending && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-body-sm text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Thinking…
             </div>
           )}
           {chatMutation.error && (
-            <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-body-sm text-destructive">
               {chatMutation.error.message}
             </div>
           )}
@@ -158,13 +158,13 @@ export default function AgentChatPage() {
             }}
             rows={2}
             placeholder="Ask the Copilot…  (Enter to send, Shift+Enter for newline)"
-            className="flex-1 resize-none rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1 resize-none rounded border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <button
             type="button"
             onClick={handleSend}
             disabled={!draft.trim() || chatMutation.isPending}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-body-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             <Send className="h-3.5 w-3.5" />
             Send

@@ -110,7 +110,7 @@ export default function CMDBPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">CMDB — Configuration Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">CMDB — Configuration Management</h1>
           <span className="text-[11px] text-muted-foreground/70">CI Browser · Service Map · Discovery</span>
         </div>
         <div className="flex items-center gap-2">
@@ -146,7 +146,7 @@ export default function CMDBPage() {
           { label: "Discovery Sources",  value: "—",        color: "text-blue-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -338,24 +338,24 @@ export default function CMDBPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Add Configuration Item</h2>
+              <h2 className="text-body-sm font-semibold">Add Configuration Item</h2>
               <button onClick={() => setShowAddCI(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">CI Name <span className="text-red-500">*</span></label>
-              <input value={ciForm.name} onChange={(e) => setCIForm(f => ({...f, name: e.target.value}))} placeholder="e.g. prod-db-01" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">CI Name <span className="text-red-500">*</span></label>
+              <input value={ciForm.name} onChange={(e) => setCIForm(f => ({...f, name: e.target.value}))} placeholder="e.g. prod-db-01" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Class <span className="text-red-500">*</span></label>
-                <select value={ciForm.ciType} onChange={(e) => setCIForm(f => ({...f, ciType: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Class <span className="text-red-500">*</span></label>
+                <select value={ciForm.ciType} onChange={(e) => setCIForm(f => ({...f, ciType: e.target.value as any}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   <option value="" disabled>Select Class...</option>
                   {["server", "application", "database", "network", "service", "cloud"].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Status <span className="text-red-500">*</span></label>
-                <select value={ciForm.status} onChange={(e) => setCIForm(f => ({...f, status: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Status <span className="text-red-500">*</span></label>
+                <select value={ciForm.status} onChange={(e) => setCIForm(f => ({...f, status: e.target.value as any}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   <option value="" disabled>Select Status...</option>
                   {["operational","degraded","down","planned"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                 </select>
@@ -363,16 +363,16 @@ export default function CMDBPage() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Location</label>
-                <input value={ciForm.location} onChange={(e) => setCIForm(f => ({...f, location: e.target.value}))} placeholder="e.g. DC1-Rack-A3" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">Location</label>
+                <input value={ciForm.location} onChange={(e) => setCIForm(f => ({...f, location: e.target.value}))} placeholder="e.g. DC1-Rack-A3" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">IP Address</label>
-                <input value={ciForm.ipAddress} onChange={(e) => setCIForm(f => ({...f, ipAddress: e.target.value}))} placeholder="e.g. 10.0.1.45" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">IP Address</label>
+                <input value={ciForm.ipAddress} onChange={(e) => setCIForm(f => ({...f, ipAddress: e.target.value}))} placeholder="e.g. 10.0.1.45" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowAddCI(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowAddCI(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { 
                   if (!ciForm.name.trim()) { toast.error("Name is required"); return; } 
@@ -381,7 +381,7 @@ export default function CMDBPage() {
                   createCI.mutate({ name: ciForm.name.trim(), ciType: ciForm.ciType, status: ciForm.status, attributes: { location: ciForm.location, ip: ciForm.ipAddress } } as any); 
                 }}
                 disabled={createCI.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createCI.isPending ? "Adding…" : "Add CI"}
               </button>
             </div>

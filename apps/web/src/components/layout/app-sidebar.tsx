@@ -329,7 +329,7 @@ function SidebarNavContent({
           <div className="mb-0.5">
             <div className="flex w-full items-center gap-2 px-3 py-2">
               <Star className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              <span className="flex-1 truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="flex-1 text-caption font-medium uppercase tracking-wider text-muted-foreground">
                 Favorites
               </span>
               <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
@@ -353,7 +353,7 @@ function SidebarNavContent({
                       <Link
                         href={href}
                         onClick={onNavigate}
-                        className={`flex min-w-0 flex-1 items-center py-1.5 pl-8 pr-1 text-sm font-normal transition-colors hover:bg-muted/50 rounded-sm ${
+                        className={`flex min-w-0 flex-1 items-center py-1.5 pl-8 pr-1 text-body-sm font-normal transition-colors hover:bg-muted/50 rounded-sm ${
                           isActive ? "" : "text-sidebar-foreground/90"
                         }`}
                       >
@@ -363,7 +363,7 @@ function SidebarNavContent({
                             isActive ? "text-accent-foreground" : "text-muted-foreground"
                           }`}
                         />
-                        <span className="truncate">{item.label}</span>
+                        <span className="">{item.label}</span>
                       </Link>
                     </div>
                     <button
@@ -398,7 +398,7 @@ function SidebarNavContent({
                 {GroupIcon ? (
                   <GroupIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                 ) : null}
-                <span className="flex-1 truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="flex-1 text-caption font-medium uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </span>
                 {isOpen ? (
@@ -439,7 +439,7 @@ function SidebarNavContent({
                             <Link
                               href={item.href}
                               onClick={onNavigate}
-                              className={`flex min-w-0 flex-1 items-center py-1.5 pl-8 pr-1 text-sm font-normal transition-colors hover:bg-muted/50 rounded-sm ${
+                              className={`flex min-w-0 flex-1 items-center py-1.5 pl-8 pr-1 text-body-sm font-normal transition-colors hover:bg-muted/50 rounded-sm ${
                                 itemActive ? "" : "text-sidebar-foreground/90"
                               }`}
                             >
@@ -449,7 +449,7 @@ function SidebarNavContent({
                                   itemActive ? "text-accent-foreground" : "text-muted-foreground"
                                 }`}
                               />
-                              <span className="truncate">{item.label}</span>
+                              <span className="">{item.label}</span>
                               {badgeKey !== undefined && rawCount !== undefined && (
                                 <BadgePill
                                   value={rawCount}
@@ -510,14 +510,14 @@ function SidebarNavContent({
                                         key={child.href + child.label}
                                         href={child.href}
                                         onClick={onNavigate}
-                                        className={`flex items-center py-1.5 pl-12 pr-3 text-xs transition-colors hover:bg-muted/50 ${
+                                        className={`flex items-center py-1.5 pl-12 pr-3 text-caption transition-colors hover:bg-muted/50 ${
                                           childActive
                                             ? "border-l-2 border-primary bg-accent/10 font-medium text-accent-foreground"
                                             : "border-l-2 border-transparent text-sidebar-foreground/85"
                                         }`}
                                       >
                                         <span className="mr-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
-                                        <span className="truncate">{child.label}</span>
+                                        <span className="">{child.label}</span>
                                       </Link>
                                     );
                                   })}

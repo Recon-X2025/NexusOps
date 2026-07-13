@@ -50,30 +50,30 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
         className="w-full flex items-center px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex-1 text-left">
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+          <span className="text-body-sm font-medium text-gray-900 dark:text-gray-100">
             {MONTHS[(payslip.month ?? 1) - 1]} {payslip.year}
           </span>
           {payslip.lopDays > 0 && (
-            <span className="ml-2 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            <span className="ml-2 text-caption px-2 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
               {payslip.lopDays} LOP
             </span>
           )}
         </div>
-        <div className="flex items-center gap-8 text-sm">
+        <div className="flex items-center gap-8 text-body-sm">
           <div className="text-right">
-            <div className="text-xs text-gray-500">Gross</div>
+            <div className="text-caption text-gray-500">Gross</div>
             <div className="font-medium text-gray-700 dark:text-gray-300">
               ₹{fmt(payslip.grossEarnings)}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-gray-500">Deductions</div>
+            <div className="text-caption text-gray-500">Deductions</div>
             <div className="font-medium text-red-600 dark:text-red-400">
               ₹{fmt(payslip.totalDeductions)}
             </div>
           </div>
           <div className="text-right min-w-[100px]">
-            <div className="text-xs text-gray-500">Net pay</div>
+            <div className="text-caption text-gray-500">Net pay</div>
             <div className="font-semibold text-gray-900 dark:text-gray-100">
               ₹{fmt(payslip.netPay)}
             </div>
@@ -93,7 +93,7 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
           <div className="grid grid-cols-2 gap-8">
             {/* Earnings */}
             <div>
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+              <h4 className="text-caption font-medium text-gray-500 uppercase tracking-wide mb-3">
                 Earnings
               </h4>
               <div className="space-y-2">
@@ -107,12 +107,12 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
                   ...(Number(payslip.bonus) > 0 ? [["Bonus", payslip.bonus]] : []),
                   ...(Number(payslip.otherEarnings) > 0 ? [["Other earnings", payslip.otherEarnings]] : []),
                 ].map(([label, value]) => (
-                  <div key={label as string} className="flex justify-between text-sm">
+                  <div key={label as string} className="flex justify-between text-body-sm">
                     <span className="text-gray-600 dark:text-gray-400">{label}</span>
                     <span className="text-gray-900 dark:text-gray-100 font-mono">₹{fmt(value as any)}</span>
                   </div>
                 ))}
-                <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-600">
+                <div className="flex justify-between text-body-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-600">
                   <span className="text-gray-900 dark:text-gray-100">Gross earnings</span>
                   <span className="text-gray-900 dark:text-gray-100 font-mono">₹{fmt(payslip.grossEarnings)}</span>
                 </div>
@@ -121,7 +121,7 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
 
             {/* Deductions */}
             <div>
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+              <h4 className="text-caption font-medium text-gray-500 uppercase tracking-wide mb-3">
                 Deductions
               </h4>
               <div className="space-y-2">
@@ -133,12 +133,12 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
                   ["Income tax (TDS)", payslip.tds],
                   ...(Number(payslip.otherDeductions) > 0 ? [["Other deductions", payslip.otherDeductions]] : []),
                 ].map(([label, value]) => (
-                  <div key={label as string} className="flex justify-between text-sm">
+                  <div key={label as string} className="flex justify-between text-body-sm">
                     <span className="text-gray-600 dark:text-gray-400">{label}</span>
                     <span className="text-red-600 dark:text-red-400 font-mono">₹{fmt(value as any)}</span>
                   </div>
                 ))}
-                <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-600">
+                <div className="flex justify-between text-body-sm font-medium pt-2 border-t border-gray-200 dark:border-gray-600">
                   <span className="text-gray-900 dark:text-gray-100">Total deductions</span>
                   <span className="text-red-600 dark:text-red-400 font-mono">₹{fmt(payslip.totalDeductions)}</span>
                 </div>
@@ -150,14 +150,14 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm text-gray-500">Net pay</span>
-                <span className="ml-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <span className="text-body-sm text-gray-500">Net pay</span>
+                <span className="ml-3 text-body-lg font-semibold text-gray-900 dark:text-gray-100">
                   ₹{fmt(payslip.netPay)}
                 </span>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onDownload(); }}
-                className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="inline-flex items-center gap-2 text-body-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -175,8 +175,8 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
                 { label: "YTD net", value: payslip.ytdNetPay },
               ].map((item) => (
                 <div key={item.label} className="rounded-md bg-gray-100 dark:bg-gray-700/50 px-3 py-2">
-                  <div className="text-xs text-gray-500">{item.label}</div>
-                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100 font-mono mt-0.5">
+                  <div className="text-caption text-gray-500">{item.label}</div>
+                  <div className="text-body-sm font-medium text-gray-900 dark:text-gray-100 font-mono mt-0.5">
                     ₹{fmt(item.value)}
                   </div>
                 </div>
@@ -187,7 +187,7 @@ function PayslipCard({ payslip, onDownload }: { payslip: any; onDownload: () => 
           {/* Tax info */}
           {payslip.taxComputation && (
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-4 text-caption text-gray-500">
                 <span>
                   Regime: <span className="font-medium text-gray-700 dark:text-gray-300">
                     {(payslip.taxComputation as any).regime}
@@ -260,17 +260,17 @@ export default function EmployeePayslipsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          <h1 className="text-h3 font-semibold text-gray-900 dark:text-gray-100">
             My payslips
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-body-sm text-gray-500 mt-1">
             View earnings, deductions, and download payslips
           </p>
         </div>
         <select
           value={selectedFY}
           onChange={(e) => setSelectedFY(e.target.value)}
-          className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+          className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
         >
           {fyOptions.map((fy) => (
             <option key={fy} value={fy}>FY {fy}</option>
@@ -288,7 +288,7 @@ export default function EmployeePayslipsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2.5 text-body-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.key
                 ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -308,11 +308,11 @@ export default function EmployeePayslipsPage() {
           { label: "Total net pay", value: fySummary.totalNet, color: "text-green-700" },
         ].map((card) => (
           <div key={card.label} className="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
-            <div className="text-xs text-gray-500 mb-1">{card.label}</div>
-            <div className={`text-lg font-semibold font-mono ${card.color || "text-gray-900 dark:text-gray-100"}`}>
+            <div className="text-caption text-gray-500 mb-1">{card.label}</div>
+            <div className={`text-body-lg font-semibold font-mono ${card.color || "text-gray-900 dark:text-gray-100"}`}>
               ₹{fmt(card.value)}
             </div>
-            <div className="text-xs text-gray-400 mt-1">
+            <div className="text-caption text-gray-400 mt-1">
               {fySummary.monthsProcessed} months
             </div>
           </div>
@@ -323,7 +323,7 @@ export default function EmployeePayslipsPage() {
       {activeTab === "payslips" && (
         <div className="space-y-2">
           {payslipsList.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-12 text-center text-sm text-gray-500">
+            <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-12 text-center text-body-sm text-gray-500">
               No payslips found for FY {selectedFY}
             </div>
           ) : (
@@ -343,7 +343,7 @@ export default function EmployeePayslipsPage() {
       {activeTab === "tax" && (
         <div className="space-y-4">
           {taxPreview.isLoading ? (
-            <div className="text-sm text-gray-500">Loading tax computation...</div>
+            <div className="text-body-sm text-gray-500">Loading tax computation...</div>
           ) : taxPreview.data ? (
             <>
               {/* Regime comparison */}
@@ -355,14 +355,14 @@ export default function EmployeePayslipsPage() {
                     : "border-gray-200 dark:border-gray-700"
                 }`}>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Old regime</h3>
+                    <h3 className="text-body-sm font-medium text-gray-900 dark:text-gray-100">Old regime</h3>
                     {taxPreview.data.recommendation === "OLD" && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200">
+                      <span className="text-caption px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200">
                         Saves ₹{fmt(taxPreview.data.savings)}
                       </span>
                     )}
                   </div>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-2 text-body-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Gross salary</span>
                       <span className="font-mono">₹{fmt(taxPreview.data.oldRegime.grossSalary)}</span>
@@ -405,14 +405,14 @@ export default function EmployeePayslipsPage() {
                     : "border-gray-200 dark:border-gray-700"
                 }`}>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">New regime</h3>
+                    <h3 className="text-body-sm font-medium text-gray-900 dark:text-gray-100">New regime</h3>
                     {taxPreview.data.recommendation === "NEW" && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200">
+                      <span className="text-caption px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200">
                         Saves ₹{fmt(taxPreview.data.savings)}
                       </span>
                     )}
                   </div>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-2 text-body-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Gross salary</span>
                       <span className="font-mono">₹{fmt(taxPreview.data.newRegime.grossSalary)}</span>
@@ -442,7 +442,7 @@ export default function EmployeePayslipsPage() {
               </div>
 
               {/* Current selection */}
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm">
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-body-sm">
                 <span className="text-blue-700 dark:text-blue-300">
                   Your selected regime: <span className="font-medium">{taxPreview.data.currentRegime}</span>
                   {taxPreview.data.regimeLocked
@@ -453,7 +453,7 @@ export default function EmployeePayslipsPage() {
               </div>
             </>
           ) : (
-            <div className="text-sm text-gray-500">
+            <div className="text-body-sm text-gray-500">
               Submit your TDS declaration to see the tax comparison.
             </div>
           )}
@@ -466,16 +466,16 @@ export default function EmployeePayslipsPage() {
             <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+            <h3 className="text-body-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
               Form 16 — FY {selectedFY}
             </h3>
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-caption text-gray-500 mb-4">
               Annual tax certificate (Part A from TRACES + Part B from employer)
             </p>
             {fySummary.monthsProcessed >= 12 ? (
               <button
                 onClick={() => window.open(`/api/payroll/form16?fy=${selectedFY}`, "_blank")}
-                className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200"
+                className="inline-flex items-center gap-2 text-body-sm px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -483,7 +483,7 @@ export default function EmployeePayslipsPage() {
                 Download Form 16
               </button>
             ) : (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-caption text-amber-600 dark:text-amber-400">
                 Form 16 will be available after the financial year ends ({12 - fySummary.monthsProcessed} months remaining)
               </p>
             )}

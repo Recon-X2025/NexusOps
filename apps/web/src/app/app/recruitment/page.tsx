@@ -71,76 +71,76 @@ function NewReqModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-bold">New Job Requisition</h2>
+          <h2 className="text-h4 font-bold">New Job Requisition</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">Job Title *</label>
-              <input value={form.title} onChange={e => set("title", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="e.g. Senior Backend Engineer" />
+              <label className="block text-body-sm font-medium mb-1">Job Title *</label>
+              <input value={form.title} onChange={e => set("title", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="e.g. Senior Backend Engineer" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Department *</label>
-              <input value={form.department} onChange={e => set("department", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Engineering" />
+              <label className="block text-body-sm font-medium mb-1">Department *</label>
+              <input value={form.department} onChange={e => set("department", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="Engineering" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Location</label>
-              <input value={form.location} onChange={e => set("location", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Bangalore / Remote" />
+              <label className="block text-body-sm font-medium mb-1">Location</label>
+              <input value={form.location} onChange={e => set("location", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="Bangalore / Remote" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Work Mode</label>
-              <select value={form.workMode} onChange={e => set("workMode", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <label className="block text-body-sm font-medium mb-1">Work Mode</label>
+              <select value={form.workMode} onChange={e => set("workMode", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                 {["onsite","hybrid","remote"].map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Job Type</label>
-              <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <label className="block text-body-sm font-medium mb-1">Job Type</label>
+              <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                 {[["full_time","Full Time"],["part_time","Part Time"],["contract","Contract"],["internship","Internship"],["freelance","Freelance"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Level</label>
-              <select value={form.level} onChange={e => set("level", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <label className="block text-body-sm font-medium mb-1">Level</label>
+              <select value={form.level} onChange={e => set("level", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                 {["intern","junior","mid","senior","lead","manager","director","vp","c_level"].map(l => <option key={l} value={l}>{l.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Openings</label>
-              <input type="number" min={1} value={form.openings} onChange={e => set("openings", +e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Openings</label>
+              <input type="number" min={1} value={form.openings} onChange={e => set("openings", +e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Target Close Date</label>
-              <input type="date" value={form.targetDate} onChange={e => set("targetDate", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Target Close Date</label>
+              <input type="date" value={form.targetDate} onChange={e => set("targetDate", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Min Salary (₹/year)</label>
-              <input type="number" value={form.salaryMin} onChange={e => set("salaryMin", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="600000" />
+              <label className="block text-body-sm font-medium mb-1">Min Salary (₹/year)</label>
+              <input type="number" value={form.salaryMin} onChange={e => set("salaryMin", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="600000" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Max Salary (₹/year)</label>
-              <input type="number" value={form.salaryMax} onChange={e => set("salaryMax", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="1200000" />
+              <label className="block text-body-sm font-medium mb-1">Max Salary (₹/year)</label>
+              <input type="number" value={form.salaryMax} onChange={e => set("salaryMax", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="1200000" />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">Job Description</label>
-              <textarea rows={3} value={form.description} onChange={e => set("description", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" placeholder="Role overview, responsibilities..." />
+              <label className="block text-body-sm font-medium mb-1">Job Description</label>
+              <textarea rows={3} value={form.description} onChange={e => set("description", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background resize-none" placeholder="Role overview, responsibilities..." />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">Requirements</label>
-              <textarea rows={3} value={form.requirements} onChange={e => set("requirements", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" placeholder="Must-have skills and experience..." />
+              <label className="block text-body-sm font-medium mb-1">Requirements</label>
+              <textarea rows={3} value={form.requirements} onChange={e => set("requirements", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background resize-none" placeholder="Must-have skills and experience..." />
             </div>
             <div className="col-span-2 flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
               <input type="checkbox" id="pubNow" checked={form.publishImmediately} onChange={e => set("publishImmediately", e.target.checked)} className="mt-1" />
-              <label htmlFor="pubNow" className="text-sm leading-snug cursor-pointer">
+              <label htmlFor="pubNow" className="text-body-sm leading-snug cursor-pointer">
                 <span className="font-medium">Open for applications immediately</span>
-                <span className="block text-muted-foreground text-xs mt-1">If unchecked, the requisition is saved as <strong>draft</strong> until you publish it (standard approval workflow).</span>
+                <span className="block text-muted-foreground text-caption mt-1">If unchecked, the requisition is saved as <strong>draft</strong> until you publish it (standard approval workflow).</span>
               </label>
             </div>
           </div>
         </div>
         <div className="p-6 border-t border-border flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted transition-colors">Cancel</button>
           <button
             disabled={!form.title || !form.department || createReq.isPending}
             onClick={() => createReq.mutate({
@@ -158,7 +158,7 @@ function NewReqModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               targetDate: form.targetDate || undefined,
               publishImmediately: form.publishImmediately,
             })}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >{createReq.isPending ? "Creating..." : "Create Requisition"}</button>
         </div>
       </div>
@@ -180,72 +180,72 @@ function AddCandidateModal({ jobs, onClose, onCreated }: { jobs: any[]; onClose:
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-bold">Add Candidate</h2>
+          <h2 className="text-h4 font-bold">Add Candidate</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">First Name *</label>
-              <input value={form.firstName} onChange={e => set("firstName", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">First Name *</label>
+              <input value={form.firstName} onChange={e => set("firstName", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Last Name *</label>
-              <input value={form.lastName} onChange={e => set("lastName", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Last Name *</label>
+              <input value={form.lastName} onChange={e => set("lastName", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Email *</label>
-              <input type="email" value={form.email} onChange={e => set("email", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Email *</label>
+              <input type="email" value={form.email} onChange={e => set("email", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Phone</label>
-              <input value={form.phone} onChange={e => set("phone", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Phone</label>
+              <input value={form.phone} onChange={e => set("phone", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Current Title</label>
-              <input value={form.currentTitle} onChange={e => set("currentTitle", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Current Title</label>
+              <input value={form.currentTitle} onChange={e => set("currentTitle", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Current Company</label>
-              <input value={form.currentCo} onChange={e => set("currentCo", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Current Company</label>
+              <input value={form.currentCo} onChange={e => set("currentCo", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Years of Experience</label>
-              <input type="number" min={0} value={form.experience} onChange={e => set("experience", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Years of Experience</label>
+              <input type="number" min={0} value={form.experience} onChange={e => set("experience", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Location</label>
-              <input value={form.location} onChange={e => set("location", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+              <label className="block text-body-sm font-medium mb-1">Location</label>
+              <input value={form.location} onChange={e => set("location", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Source</label>
-              <select value={form.source} onChange={e => set("source", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <label className="block text-body-sm font-medium mb-1">Source</label>
+              <select value={form.source} onChange={e => set("source", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                 {["linkedin","naukri","indeed","referral","agency","website","campus","internal","other"].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Apply to Job</label>
-              <select value={form.jobId} onChange={e => set("jobId", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <label className="block text-body-sm font-medium mb-1">Apply to Job</label>
+              <select value={form.jobId} onChange={e => set("jobId", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                 <option value="">— Optional —</option>
                 {jobs.filter(j => j.status === "open").map(j => <option key={j.id} value={j.id}>{j.number}: {j.title}</option>)}
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">Skills (comma-separated)</label>
-              <input value={form.skills} onChange={e => set("skills", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="React, Node.js, PostgreSQL" />
+              <label className="block text-body-sm font-medium mb-1">Skills (comma-separated)</label>
+              <input value={form.skills} onChange={e => set("skills", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="React, Node.js, PostgreSQL" />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">Notes</label>
-              <textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" />
+              <label className="block text-body-sm font-medium mb-1">Notes</label>
+              <textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background resize-none" />
             </div>
           </div>
         </div>
         <div className="p-6 border-t border-border flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted transition-colors">Cancel</button>
           <button
             disabled={!form.firstName || !form.lastName || !form.email || createCand.isPending}
             onClick={() => createCand.mutate({ ...form, experience: form.experience ? +form.experience : undefined, skills: form.skills.split(",").map(s => s.trim()).filter(Boolean), jobId: form.jobId || undefined } as Parameters<typeof createCand.mutate>[0])}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >{createCand.isPending ? "Adding..." : "Add Candidate"}</button>
         </div>
       </div>
@@ -270,8 +270,8 @@ function DashboardTab({ analytics }: { analytics: any }) {
           <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
             <div className={`p-3 rounded-xl ${s.color}`}><s.icon className="w-5 h-5" /></div>
             <div>
-              <p className="text-2xl font-bold">{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="text-h3 font-bold">{s.value}</p>
+              <p className="text-caption text-muted-foreground">{s.label}</p>
             </div>
           </div>
         ))}
@@ -280,7 +280,7 @@ function DashboardTab({ analytics }: { analytics: any }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Pipeline Funnel */}
         <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-base mb-4">Pipeline Funnel</h3>
+          <h3 className="font-semibold text-body mb-4">Pipeline Funnel</h3>
           <div className="space-y-2">
             {(analytics?.byStage ?? []).filter((s: any) => s.stage !== "rejected" && s.stage !== "withdrawn").map((s: any) => {
               const total = analytics?.totalApplications || 1;
@@ -288,11 +288,11 @@ function DashboardTab({ analytics }: { analytics: any }) {
               const stage = PIPELINE_STAGES.find(ps => ps.key === s.stage);
               return (
                 <div key={s.stage} className="flex items-center gap-3">
-                  <div className={`text-xs font-medium px-2 py-0.5 rounded-full ${stage?.color ?? "bg-slate-100 text-slate-700"}`} style={{minWidth:"90px",textAlign:"center"}}>{stage?.label ?? s.stage}</div>
+                  <div className={`text-caption font-medium px-2 py-0.5 rounded-full ${stage?.color ?? "bg-slate-100 text-slate-700"}`} style={{minWidth:"90px",textAlign:"center"}}>{stage?.label ?? s.stage}</div>
                   <div className="flex-1 bg-muted rounded-full h-2">
                     <div className="bg-primary rounded-full h-2 transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="text-xs text-muted-foreground w-8 text-right">{s.n}</span>
+                  <span className="text-caption text-muted-foreground w-8 text-right">{s.n}</span>
                 </div>
               );
             })}
@@ -301,36 +301,36 @@ function DashboardTab({ analytics }: { analytics: any }) {
 
         {/* By Source */}
         <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-base mb-4">Candidates by Source</h3>
+          <h3 className="font-semibold text-body mb-4">Candidates by Source</h3>
           <div className="space-y-2">
             {(analytics?.bySource ?? []).sort((a: any, b: any) => b.n - a.n).slice(0, 8).map((s: any) => {
               const max = Math.max(...(analytics?.bySource ?? []).map((x: any) => x.n), 1);
               return (
                 <div key={s.source} className="flex items-center gap-3">
-                  <span className="text-sm capitalize w-24 truncate">{s.source ?? "other"}</span>
+                  <span className="text-body-sm capitalize w-24">{s.source ?? "other"}</span>
                   <div className="flex-1 bg-muted rounded-full h-2">
                     <div className="bg-indigo-400 rounded-full h-2" style={{ width: `${(s.n / max) * 100}%` }} />
                   </div>
-                  <span className="text-xs text-muted-foreground w-6 text-right">{s.n}</span>
+                  <span className="text-caption text-muted-foreground w-6 text-right">{s.n}</span>
                 </div>
               );
             })}
-            {(!analytics?.bySource?.length) && <p className="text-sm text-muted-foreground">No candidate data yet</p>}
+            {(!analytics?.bySource?.length) && <p className="text-body-sm text-muted-foreground">No candidate data yet</p>}
           </div>
         </div>
 
         {/* Open Reqs by Dept */}
         <div className="bg-card border border-border rounded-xl p-5 md:col-span-2">
-          <h3 className="font-semibold text-base mb-4">Open Positions by Department</h3>
+          <h3 className="font-semibold text-body mb-4">Open Positions by Department</h3>
           <div className="flex flex-wrap gap-3">
             {(analytics?.byDept ?? []).map((d: any) => (
               <div key={d.department} className="flex items-center gap-2 bg-muted/50 border border-border rounded-full px-4 py-1.5">
                 <Building2 className="w-3 h-3 text-muted-foreground" />
-                <span className="text-sm font-medium">{d.department}</span>
-                <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5">{d.n}</span>
+                <span className="text-body-sm font-medium">{d.department}</span>
+                <span className="text-caption bg-primary text-primary-foreground rounded-full px-1.5 py-0.5">{d.n}</span>
               </div>
             ))}
-            {(!analytics?.byDept?.length) && <p className="text-sm text-muted-foreground">No open requisitions</p>}
+            {(!analytics?.byDept?.length) && <p className="text-body-sm text-muted-foreground">No open requisitions</p>}
           </div>
         </div>
       </div>
@@ -357,15 +357,15 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input value={search} onChange={e => setSearch(e.target.value)} className="pl-9 pr-4 py-2 border border-border rounded-lg text-sm bg-background w-60" placeholder="Search jobs..." />
+            <input value={search} onChange={e => setSearch(e.target.value)} className="pl-9 pr-4 py-2 border border-border rounded-lg text-body-sm bg-background w-60" placeholder="Search jobs..." />
           </div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-background">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
             <option value="">All Status</option>
             {["draft","open","on_hold","closed","cancelled"].map(s => <option key={s} value={s}>{s.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
           </select>
         </div>
         <PermissionGate module="recruitment" action="write">
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors">
             <Plus className="w-4 h-4" /> New Requisition
           </button>
         </PermissionGate>
@@ -373,11 +373,11 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 {["#","Job Title","Department","Location","Type","Level","Openings","Status","Target Date","Actions"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-caption">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -387,7 +387,7 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
               )}
               {reqs.map((r: any) => (
                 <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{r.number}</td>
+                  <td className="px-4 py-3 font-mono text-caption text-muted-foreground">{r.number}</td>
                   <td className="px-4 py-3 font-medium">{r.title}</td>
                   <td className="px-4 py-3 text-muted-foreground">{r.department}</td>
                   <td className="px-4 py-3 text-muted-foreground">{r.location ?? "—"}</td>
@@ -395,12 +395,12 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
                   <td className="px-4 py-3 capitalize">{r.level}</td>
                   <td className="px-4 py-3">{r.filled}/{r.openings}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${JOB_STATUS_STYLES[r.status ?? ""] ?? "bg-slate-100"}`}>{(r.status ?? "unknown").replace("_"," ")}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-caption font-medium capitalize ${JOB_STATUS_STYLES[r.status ?? ""] ?? "bg-slate-100"}`}>{(r.status ?? "unknown").replace("_"," ")}</span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{r.targetDate ? new Date(r.targetDate).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-caption">{r.targetDate ? new Date(r.targetDate).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1.5">
-                      <button type="button" onClick={() => onViewPipeline(r.id, r.title)} className="flex items-center gap-1 text-xs text-primary hover:underline font-medium text-left">
+                      <button type="button" onClick={() => onViewPipeline(r.id, r.title)} className="flex items-center gap-1 text-caption text-primary hover:underline font-medium text-left">
                         Pipeline <ArrowRight className="w-3 h-3" />
                       </button>
                       <PermissionGate module="recruitment" action="write">
@@ -450,9 +450,9 @@ function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Showing pipeline for:</span>
-        <span className="font-semibold text-sm">{jobTitle}</span>
-        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{pipeline?.total ?? 0} candidates</span>
+        <span className="text-body-sm text-muted-foreground">Showing pipeline for:</span>
+        <span className="font-semibold text-body-sm">{jobTitle}</span>
+        <span className="text-caption bg-primary/10 text-primary px-2 py-0.5 rounded-full">{pipeline?.total ?? 0} candidates</span>
       </div>
       <div className="overflow-x-auto pb-4">
         <div className="flex gap-3 min-w-max">
@@ -461,26 +461,26 @@ function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
             return (
               <div key={stage.key} className="w-52 flex-shrink-0">
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg mb-2 ${stage.color}`}>
-                  <span className="text-xs font-semibold">{stage.label}</span>
-                  <span className="text-xs bg-white/60 rounded-full px-1.5">{cards.length}</span>
+                  <span className="text-caption font-semibold">{stage.label}</span>
+                  <span className="text-caption bg-white/60 rounded-full px-1.5">{cards.length}</span>
                 </div>
                 <div className="space-y-2 min-h-[80px]">
                   {cards.map((c: any) => (
                     <div key={c.application.id} className="bg-card border border-border rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="font-semibold text-sm">{c.candidate.firstName} {c.candidate.lastName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{c.candidate.currentTitle ?? "Candidate"}</p>
+                      <p className="font-semibold text-body-sm">{c.candidate.firstName} {c.candidate.lastName}</p>
+                      <p className="text-caption text-muted-foreground">{c.candidate.currentTitle ?? "Candidate"}</p>
                       {c.candidate.experience != null && (
-                        <p className="text-xs text-muted-foreground">{c.candidate.experience}y exp</p>
+                        <p className="text-caption text-muted-foreground">{c.candidate.experience}y exp</p>
                       )}
                       <div className="mt-2 flex gap-1 flex-wrap">
                         {PIPELINE_STAGES.filter(s => s.key !== stage.key && s.key !== "rejected").slice(0, 2).map(ns => (
-                          <button key={ns.key} onClick={() => moveStage.mutate({ applicationId: c.application.id, stage: ns.key as any })} className="text-xs px-1.5 py-0.5 border border-border rounded hover:bg-muted transition-colors truncate max-w-[80px]">{ns.label} →</button>
+                          <button key={ns.key} onClick={() => moveStage.mutate({ applicationId: c.application.id, stage: ns.key as any })} className="text-caption px-1.5 py-0.5 border border-border rounded hover:bg-muted transition-colors max-w-[80px]">{ns.label} →</button>
                         ))}
-                        <button onClick={() => moveStage.mutate({ applicationId: c.application.id, stage: "rejected" })} className="text-xs px-1.5 py-0.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors">✕</button>
+                        <button onClick={() => moveStage.mutate({ applicationId: c.application.id, stage: "rejected" })} className="text-caption px-1.5 py-0.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors">✕</button>
                       </div>
                     </div>
                   ))}
-                  {cards.length === 0 && <div className="text-xs text-muted-foreground p-2 text-center border border-dashed border-border rounded-lg">Empty</div>}
+                  {cards.length === 0 && <div className="text-caption text-muted-foreground p-2 text-center border border-dashed border-border rounded-lg">Empty</div>}
                 </div>
               </div>
             );
@@ -503,11 +503,11 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
       <div className="flex items-center justify-between">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} className="pl-9 pr-4 py-2 border border-border rounded-lg text-sm bg-background w-64" placeholder="Search candidates..." />
+          <input value={search} onChange={e => setSearch(e.target.value)} className="pl-9 pr-4 py-2 border border-border rounded-lg text-body-sm bg-background w-64" placeholder="Search candidates..." />
         </div>
         <div className="flex items-center gap-3">
           <PermissionGate module="recruitment" action="write">
-            <button onClick={onShowAdd} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            <button onClick={onShowAdd} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors">
               <Plus className="w-4 h-4" /> Add Candidate
             </button>
           </PermissionGate>
@@ -515,11 +515,11 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
       </div>
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 {["Name","Current Role","Experience","Location","Source","Skills","Added"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-caption">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -529,18 +529,18 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
                 <tr key={c.id ?? c.candidate?.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-medium">{c.firstName ?? c.candidate?.firstName} {c.lastName ?? c.candidate?.lastName}</p>
-                    <p className="text-xs text-muted-foreground">{c.email ?? c.candidate?.email}</p>
+                    <p className="text-caption text-muted-foreground">{c.email ?? c.candidate?.email}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{c.currentTitle ?? c.candidate?.currentTitle ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{(c.experience ?? c.candidate?.experience) != null ? `${c.experience ?? c.candidate?.experience}y` : "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{c.location ?? c.candidate?.location ?? "—"}</td>
-                  <td className="px-4 py-3 capitalize text-xs">{c.source ?? c.candidate?.source ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-caption">{c.currentTitle ?? c.candidate?.currentTitle ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-caption">{(c.experience ?? c.candidate?.experience) != null ? `${c.experience ?? c.candidate?.experience}y` : "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-caption">{c.location ?? c.candidate?.location ?? "—"}</td>
+                  <td className="px-4 py-3 capitalize text-caption">{c.source ?? c.candidate?.source ?? "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 flex-wrap">
-                      {(c.skills ?? c.candidate?.skills ?? []).slice(0, 3).map((s: string) => <span key={s} className="text-xs bg-muted px-1.5 py-0.5 rounded">{s}</span>)}
+                      {(c.skills ?? c.candidate?.skills ?? []).slice(0, 3).map((s: string) => <span key={s} className="text-caption bg-muted px-1.5 py-0.5 rounded">{s}</span>)}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(c.createdAt ?? c.candidate?.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-caption text-muted-foreground">{new Date(c.createdAt ?? c.candidate?.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -570,11 +570,11 @@ function InterviewsTab() {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-body-sm">
           <thead className="bg-muted/50 border-b border-border">
             <tr>
               {["Title","Type","Scheduled","Duration","Status","Overall Rating","Decision"].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-caption">{h}</th>
               ))}
             </tr>
           </thead>
@@ -583,14 +583,14 @@ function InterviewsTab() {
             {interviews.map((iv: any) => (
               <tr key={iv.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                 <td className="px-4 py-3 font-medium">{iv.title}</td>
-                <td className="px-4 py-3 capitalize text-muted-foreground text-xs">{iv.type?.replace("_"," ")}</td>
-                <td className="px-4 py-3 text-xs">{iv.scheduledAt ? new Date(iv.scheduledAt).toLocaleString() : "—"}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{iv.durationMins}min</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusStyle[iv.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(iv.status ?? "—").replace("_", " ")}</span></td>
+                <td className="px-4 py-3 capitalize text-muted-foreground text-caption">{iv.type?.replace("_"," ")}</td>
+                <td className="px-4 py-3 text-caption">{iv.scheduledAt ? new Date(iv.scheduledAt).toLocaleString() : "—"}</td>
+                <td className="px-4 py-3 text-caption text-muted-foreground">{iv.durationMins}min</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-caption font-medium capitalize ${statusStyle[iv.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(iv.status ?? "—").replace("_", " ")}</span></td>
                 <td className="px-4 py-3">
-                  {iv.overallRating ? <div className="flex gap-0.5">{Array.from({length:5},(_,i) => <Star key={i} className={`w-3 h-3 ${i < iv.overallRating ? "text-amber-400 fill-amber-400" : "text-muted-foreground"}`} />)}</div> : <span className="text-xs text-muted-foreground">—</span>}
+                  {iv.overallRating ? <div className="flex gap-0.5">{Array.from({length:5},(_,i) => <Star key={i} className={`w-3 h-3 ${i < iv.overallRating ? "text-amber-400 fill-amber-400" : "text-muted-foreground"}`} />)}</div> : <span className="text-caption text-muted-foreground">—</span>}
                 </td>
-                <td className={`px-4 py-3 text-xs font-medium capitalize ${decisionStyle[iv.decision ?? ""] ?? "text-muted-foreground"}`}>
+                <td className={`px-4 py-3 text-caption font-medium capitalize ${decisionStyle[iv.decision ?? ""] ?? "text-muted-foreground"}`}>
                   {iv.decision?.replace("_"," ") ?? "—"}
                 </td>
               </tr>
@@ -616,11 +616,11 @@ function OffersTab() {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-body-sm">
           <thead className="bg-muted/50 border-b border-border">
             <tr>
               {["Title","Dept","Salary (Base)","Variable","Currency","Status","Sent","Expiry","Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-caption">{h}</th>
               ))}
             </tr>
           </thead>
@@ -629,22 +629,22 @@ function OffersTab() {
             {offers.map((o: any) => (
               <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                 <td className="px-4 py-3 font-medium">{o.title}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{o.department ?? "—"}</td>
-                <td className="px-4 py-3 text-xs">{o.baseSalary ? `₹${o.baseSalary.toLocaleString()}` : "—"}</td>
-                <td className="px-4 py-3 text-xs">{o.variablePay ? `₹${o.variablePay.toLocaleString()}` : "—"}</td>
-                <td className="px-4 py-3 text-xs">{o.currency}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${OFFER_STATUS_STYLES[o.status]}`}>{o.status}</span></td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{o.sentAt ? new Date(o.sentAt).toLocaleDateString() : "—"}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{o.expiryDate ? new Date(o.expiryDate).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground text-caption">{o.department ?? "—"}</td>
+                <td className="px-4 py-3 text-caption">{o.baseSalary ? `₹${o.baseSalary.toLocaleString()}` : "—"}</td>
+                <td className="px-4 py-3 text-caption">{o.variablePay ? `₹${o.variablePay.toLocaleString()}` : "—"}</td>
+                <td className="px-4 py-3 text-caption">{o.currency}</td>
+                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-caption font-medium capitalize ${OFFER_STATUS_STYLES[o.status]}`}>{o.status}</span></td>
+                <td className="px-4 py-3 text-caption text-muted-foreground">{o.sentAt ? new Date(o.sentAt).toLocaleDateString() : "—"}</td>
+                <td className="px-4 py-3 text-caption text-muted-foreground">{o.expiryDate ? new Date(o.expiryDate).toLocaleDateString() : "—"}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2 items-center flex-wrap">
                     {o.status === "draft" && (
-                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "sent" })} className="text-xs text-primary hover:underline font-medium flex items-center gap-1"><Send className="w-3 h-3" /> Send</button>
+                      <button onClick={() => updateStatus.mutate({ id: o.id, status: "sent" })} className="text-caption text-primary hover:underline font-medium flex items-center gap-1"><Send className="w-3 h-3" /> Send</button>
                     )}
                     {o.status === "sent" && (
                       <>
-                        <button onClick={() => updateStatus.mutate({ id: o.id, status: "accepted" })} className="text-xs text-green-600 hover:underline font-medium">Accept</button>
-                        <button onClick={() => updateStatus.mutate({ id: o.id, status: "declined" })} className="text-xs text-red-600 hover:underline font-medium">Decline</button>
+                        <button onClick={() => updateStatus.mutate({ id: o.id, status: "accepted" })} className="text-caption text-green-600 hover:underline font-medium">Accept</button>
+                        <button onClick={() => updateStatus.mutate({ id: o.id, status: "declined" })} className="text-caption text-red-600 hover:underline font-medium">Decline</button>
                       </>
                     )}
                     {(o.status === "draft" || o.status === "sent") && (
@@ -655,7 +655,7 @@ function OffersTab() {
                           candidateName: o.candidateName ?? o.candidate?.name,
                           candidateEmail: o.candidateEmail ?? o.candidate?.email,
                         })}
-                        className="text-xs text-blue-700 hover:underline font-medium"
+                        className="text-caption text-blue-700 hover:underline font-medium"
                       >
                         E-sign
                       </button>
@@ -676,8 +676,8 @@ function OffersTab() {
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <div>
-                <h2 className="text-base font-semibold">E-sign offer</h2>
-                <p className="text-xs text-muted-foreground">{esignOpen.title}</p>
+                <h2 className="text-body font-semibold">E-sign offer</h2>
+                <p className="text-caption text-muted-foreground">{esignOpen.title}</p>
               </div>
               <button onClick={() => setEsignOpen(null)} className="p-2 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
             </div>
@@ -740,12 +740,12 @@ export default function RecruitmentPage() {
               <UserPlus className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Recruitment</h1>
-              <p className="text-sm text-muted-foreground">Job requisitions, candidate pipeline, interviews, and offers</p>
+              <h1 className="text-h3 font-bold">Recruitment</h1>
+              <p className="text-body-sm text-muted-foreground">Job requisitions, candidate pipeline, interviews, and offers</p>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-caption text-muted-foreground">
           <div className="h-2 w-2 rounded-full bg-green-400" />
           <span>Live data</span>
         </div>
@@ -758,7 +758,7 @@ export default function RecruitmentPage() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-3 text-body-sm font-medium border-b-2 transition-colors ${
                 tab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
@@ -780,7 +780,7 @@ export default function RecruitmentPage() {
           <div className="bg-card border border-border rounded-xl p-12 text-center">
             <Layers className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
             <p className="text-muted-foreground mb-4">Select a job requisition to view its candidate pipeline</p>
-            <button onClick={() => setTab("requisitions")} className="text-sm text-primary hover:underline font-medium">Browse Requisitions →</button>
+            <button onClick={() => setTab("requisitions")} className="text-body-sm text-primary hover:underline font-medium">Browse Requisitions →</button>
           </div>
         )}
         {tab === "candidates"   && <CandidatesTab jobs={jobs} onShowAdd={() => setShowAddCandidate(true)} />}

@@ -35,9 +35,9 @@ export function WorkbenchSection({
       ) : null}
       <header className="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-[#001B3D] dark:text-slate-100 truncate">{title}</h2>
+          <h2 className="text-body-sm font-semibold text-[#001B3D] dark:text-slate-100">{title}</h2>
           {hint ? (
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{hint}</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{hint}</p>
           ) : null}
         </div>
         {right ? <div className="shrink-0">{right}</div> : null}
@@ -68,13 +68,13 @@ export function WorkbenchEmpty({
   }
   if (state === "error") {
     return (
-      <div className="py-2 text-xs text-rose-700 dark:text-rose-300">
+      <div className="py-2 text-caption text-rose-700 dark:text-rose-300">
         {message ?? "Couldn’t load this panel. It will retry shortly."}
       </div>
     );
   }
   return (
-    <div className="py-2 text-xs text-slate-500 dark:text-slate-400">
+    <div className="py-2 text-caption text-slate-500 dark:text-slate-400">
       {message ?? "No data yet."}
       {cta ? <div className="mt-1">{cta}</div> : null}
     </div>

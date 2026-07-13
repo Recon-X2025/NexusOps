@@ -64,12 +64,12 @@ export default function MajorIncidentWarRoomPage() {
         </div>
         <div className="min-w-0 flex-1">
           {detailQuery.isLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-body-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading incident…
             </div>
           )}
           {detailQuery.isError && (
-            <p className="text-sm text-destructive">Could not load this ticket.</p>
+            <p className="text-body-sm text-destructive">Could not load this ticket.</p>
           )}
           {ticket && (
             <>
@@ -84,7 +84,7 @@ export default function MajorIncidentWarRoomPage() {
                   Major incident
                 </span>
               </div>
-              <h1 className="mt-1 text-lg font-semibold tracking-tight text-foreground">{ticket.title}</h1>
+              <h1 className="mt-1 text-body-lg font-semibold tracking-tight text-foreground">{ticket.title}</h1>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Read-focused war-room view. Edit the record in the{" "}
                 <Link href={`/app/tickets/${ticket.id}`} className="text-primary hover:underline">
@@ -104,12 +104,12 @@ export default function MajorIncidentWarRoomPage() {
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {commsQuery.isLoading && (
-              <div className="flex justify-center py-8 text-muted-foreground gap-2 text-sm">
+              <div className="flex justify-center py-8 text-muted-foreground gap-2 text-body-sm">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading comms…
               </div>
             )}
             {!commsQuery.isLoading && comms.length === 0 && (
-              <p className="text-sm text-muted-foreground">No comms yet. Append from the ticket detail.</p>
+              <p className="text-body-sm text-muted-foreground">No comms yet. Append from the ticket detail.</p>
             )}
             {comms.map((c) => (
               <article
@@ -139,7 +139,7 @@ export default function MajorIncidentWarRoomPage() {
                     <p className="text-[10px] uppercase text-muted-foreground">Parent</p>
                     <Link
                       href={`/app/it-services/major-incidents/war-room/${(detailQuery.data as { parentTicket: { id: string } }).parentTicket.id}`}
-                      className="font-medium text-primary hover:underline block truncate"
+                      className="font-medium text-primary hover:underline block"
                     >
                       {(detailQuery.data as { parentTicket: { number: string; title: string } }).parentTicket.number}{" "}
                       — {(detailQuery.data as { parentTicket: { title: string } }).parentTicket.title}
@@ -157,7 +157,7 @@ export default function MajorIncidentWarRoomPage() {
                             <li key={ch.id}>
                               <Link
                                 href={`/app/it-services/major-incidents/war-room/${ch.id}`}
-                                className="text-primary hover:underline block truncate"
+                                className="text-primary hover:underline block"
                               >
                                 {ch.number} — {ch.title}
                               </Link>

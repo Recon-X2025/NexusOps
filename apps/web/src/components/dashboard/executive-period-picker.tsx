@@ -15,7 +15,8 @@
  * `resolveExecutiveQuickRange` knows how to expand.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   addMonths,
   eachDayOfInterval,
@@ -58,6 +59,9 @@ export function ExecutivePeriodPicker({ value, onChange, id, className }: Picker
   const [draftEnd, setDraftEnd] = useState<Date | null>(null);
   const [hover, setHover] = useState<Date | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
 
   // Resolve the current value to dates so the calendar opens already
   // pointing at the user's selected window.
@@ -77,11 +81,33 @@ export function ExecutivePeriodPicker({ value, onChange, id, className }: Picker
     setHover(null);
   }, [open, value, resolved.fromDate, resolved.toDate]);
 
+  // The popover is portaled to <body> (so no `overflow-hidden` ancestor can
+  // clip it). Anchor it under the trigger with fixed coordinates derived from
+  // the trigger's viewport rect.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setCoords({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -127,24 +153,27 @@ export function ExecutivePeriodPicker({ value, onChange, id, className }: Picker
       <span className="whitespace-nowrap font-medium">Time range</span>
       <button
         id={id}
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((s) => !s)}
-        className="inline-flex items-center gap-1.5 min-w-0 w-full sm:w-auto sm:max-w-[280px] rounded-lg border border-[#001B3D]/15 dark:border-slate-600 bg-white dark:bg-slate-900 text-[#001B3D] dark:text-slate-100 text-xs py-1.5 px-2.5 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="inline-flex items-center gap-1.5 min-w-0 w-full sm:w-auto sm:max-w-[280px] rounded-lg border border-[#001B3D]/15 dark:border-slate-600 bg-white dark:bg-slate-900 text-[#001B3D] dark:text-slate-100 text-caption py-1.5 px-2.5 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         aria-haspopup="dialog"
         aria-expanded={open}
       >
         <CalendarDays className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-        <span className="truncate font-medium">{display}</span>
+        <span className="font-medium">{display}</span>
         <ChevronRight className={cn("h-3 w-3 shrink-0 opacity-50 transition-transform", open && "rotate-90")} aria-hidden />
       </button>
 
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Pick a time range"
-          className="absolute right-0 top-[calc(100%+6px)] z-50 flex flex-col md:flex-row rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden"
-          style={{ minWidth: 320 }}
-        >
+      {open && coords
+        ? createPortal(
+            <div
+              ref={popRef}
+              role="dialog"
+              aria-label="Pick a time range"
+              style={{ position: "fixed", top: coords.top, right: coords.right }}
+              className="z-[60] flex flex-col md:flex-row rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden w-[min(92vw,340px)] md:w-[660px]"
+            >
           <div className="md:w-[180px] max-h-[360px] md:max-h-[460px] overflow-y-auto border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 py-2">
             {groups.map((g) => (
               <div key={g.group} className="px-2 mb-1.5 last:mb-0">
@@ -176,7 +205,7 @@ export function ExecutivePeriodPicker({ value, onChange, id, className }: Picker
             ))}
           </div>
 
-          <div className="p-3 md:p-3.5 flex flex-col gap-2.5 max-w-[640px]">
+          <div className="p-3 md:p-4 flex flex-col gap-3 flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -200,7 +229,7 @@ export function ExecutivePeriodPicker({ value, onChange, id, className }: Picker
               </button>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-3 md:gap-4">
+            <div className="flex flex-col md:flex-row md:justify-around gap-3 md:gap-4">
               {months.map((monthAnchor, idx) => (
                 <CalendarMonth
                   key={idx}
@@ -238,8 +267,10 @@ export function ExecutivePeriodPicker({ value, onChange, id, className }: Picker
               ) : null}
             </div>
           </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -282,15 +313,15 @@ function CalendarMonth({
       : null;
 
   return (
-    <div className={cn("flex flex-col gap-1", hideOnSmall && "hidden md:flex")}>
-      <div className="grid grid-cols-7 text-[10px] font-semibold text-slate-400 dark:text-slate-500 px-0.5">
+    <div className={cn("flex flex-col gap-1.5", hideOnSmall && "hidden md:flex")}>
+      <div className="grid grid-cols-7 gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="h-6 flex items-center justify-center">
+          <div key={w} className="h-7 w-7 flex items-center justify-center">
             {w}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-px">
+      <div className="grid grid-cols-7 gap-0.5">
         {days.map((d) => {
           const inMonth = isSameMonth(d, monthStart);
           const isStart = draftStart ? isSameDay(d, draftStart) : false;
@@ -321,9 +352,6 @@ function CalendarMonth({
             </button>
           );
         })}
-      </div>
-      <div className="text-[10px] text-slate-400 dark:text-slate-500 px-1">
-        {format(monthStart, "MMM yyyy")}
       </div>
     </div>
   );

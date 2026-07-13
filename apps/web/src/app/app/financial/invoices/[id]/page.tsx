@@ -89,14 +89,14 @@ export default function InvoiceDetailPage() {
                 }
                 actions={
                   <div className="flex items-center gap-2">
-                    <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-all">
+                    <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all">
                       <Printer className="w-4 h-4" /> Print
                     </button>
                     {status === "pending" && (
                       <PermissionGate module="financial" action="write">
                         <button
                           onClick={() => approveInvoice.mutate({ id })}
-                          className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-md"
+                          className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-body-sm font-medium hover:bg-indigo-700 transition-colors shadow-md"
                         >
                           <CheckCircle2 className="w-4 h-4" /> Approve Payment
                         </button>
@@ -106,7 +106,7 @@ export default function InvoiceDetailPage() {
                       <PermissionGate module="financial" action="write">
                         <button
                           onClick={() => markPaid.mutate({ id, paymentMethod: direction === "payable" ? "bank_transfer" : "collection" })}
-                          className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md"
+                          className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-medium hover:bg-green-700 transition-colors shadow-md"
                         >
                           <Wallet className="w-4 h-4" /> {direction === "payable" ? "Mark Paid" : "Mark Collected"}
                         </button>
@@ -122,13 +122,13 @@ export default function InvoiceDetailPage() {
                   <div className="bg-card border border-border rounded-xl p-8 shadow-sm flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Amount Due</p>
-                      <h2 className="text-4xl font-black text-foreground font-mono">
+                      <h2 className="text-h1 font-black text-foreground font-mono">
                         ₹{Number(inv.amount || inv.totalAmount).toLocaleString("en-IN")}
                       </h2>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Due Date</p>
-                      <p className={cn("text-xl font-bold font-mono", status === "overdue" ? "text-red-600" : "text-foreground")}>
+                      <p className={cn("text-h4 font-bold font-mono", status === "overdue" ? "text-red-600" : "text-foreground")}>
                         {formatDt(inv.dueDate)}
                       </p>
                     </div>
@@ -140,7 +140,7 @@ export default function InvoiceDetailPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={cn(
-                          "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+                          "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
                           activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -196,14 +196,14 @@ export default function InvoiceDetailPage() {
                           ? <CheckCircle2 className="w-8 h-8 text-green-600 shrink-0" />
                           : <Clock className="w-8 h-8 text-muted-foreground shrink-0" />}
                         <div>
-                          <p className="text-sm font-bold text-foreground">
+                          <p className="text-body-sm font-bold text-foreground">
                             {status === "paid"
                               ? (direction === "payable" ? "Payment completed" : "Amount collected")
                               : status === "approved"
                               ? "Approved — awaiting payment"
                               : "Payment not yet initiated"}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-caption text-muted-foreground">
                             {inv.paidAt
                               ? `Settled on ${formatDt(inv.paidAt)}`
                               : inv.dueDate
@@ -239,10 +239,10 @@ export default function InvoiceDetailPage() {
                         <PermissionGate module="financial" action="write">
                           <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-bold text-foreground">
+                              <p className="text-body-sm font-bold text-foreground">
                                 {direction === "payable" ? "Record this payment" : "Record collection"}
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-caption text-muted-foreground">
                                 {status === "pending"
                                   ? "Approve the invoice first, then mark it as paid."
                                   : "Mark this invoice as settled once funds have moved."}
@@ -251,14 +251,14 @@ export default function InvoiceDetailPage() {
                             {status === "pending" ? (
                               <button
                                 onClick={() => approveInvoice.mutate({ id })}
-                                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-md"
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-body-sm font-medium hover:bg-indigo-700 transition-colors shadow-md"
                               >
                                 <CheckCircle2 className="w-4 h-4" /> Approve
                               </button>
                             ) : (
                               <button
                                 onClick={() => markPaid.mutate({ id, paymentMethod: direction === "payable" ? "bank_transfer" : "collection" })}
-                                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md"
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-medium hover:bg-green-700 transition-colors shadow-md"
                               >
                                 <Wallet className="w-4 h-4" /> {direction === "payable" ? "Mark Paid" : "Mark Collected"}
                               </button>
@@ -274,11 +274,11 @@ export default function InvoiceDetailPage() {
                   <div className="bg-muted/30 border border-border rounded-xl p-4 flex flex-col gap-4">
                     <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Accounting Context</h4>
                     <div className="flex flex-col gap-3">
-                      <div className="flex justify-between text-xs">
+                      <div className="flex justify-between text-caption">
                         <span className="text-muted-foreground">Budget Code</span>
                         <span className="font-mono font-bold">{inv.budgetCode || "UNALLOCATED"}</span>
                       </div>
-                      <div className="flex justify-between text-xs">
+                      <div className="flex justify-between text-caption">
                         <span className="text-muted-foreground">Cost Center</span>
                         <span className="font-bold">{inv.costCenter || "Default"}</span>
                       </div>
@@ -288,7 +288,7 @@ export default function InvoiceDetailPage() {
                   {inv.poId && (
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-2">
                       <h4 className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Linked Purchase Order</h4>
-                      <Link href={`/app/procurement/orders/${inv.poId}`} className="text-sm font-bold text-blue-900 hover:underline flex items-center justify-between group">
+                      <Link href={`/app/procurement/orders/${inv.poId}`} className="text-body-sm font-bold text-blue-900 hover:underline flex items-center justify-between group">
                         <span className="flex items-center gap-2">
                           <ShoppingCart className="w-4 h-4 text-blue-600" />
                           View PO Detail

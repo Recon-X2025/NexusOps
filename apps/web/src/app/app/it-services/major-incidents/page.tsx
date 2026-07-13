@@ -38,8 +38,8 @@ export default function MajorIncidentsPage() {
           <Flame className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Major incidents</h1>
-          <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
+          <h1 className="text-body-lg font-semibold tracking-tight">Major incidents</h1>
+          <p className="text-caption text-muted-foreground mt-0.5 max-w-xl">
             Incidents flagged as major for war-room coordination. Toggle the flag on a ticket under{" "}
             <span className="font-medium text-foreground/80">Service linkage</span> on the ticket record.
           </p>
@@ -64,13 +64,13 @@ export default function MajorIncidentsPage() {
       )}
 
       {isError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-body-sm text-destructive">
           Could not load major incidents.
         </div>
       )}
 
       {!isLoading && !isError && items.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-10 text-center text-body-sm text-muted-foreground">
           No major incidents right now.
         </div>
       )}
@@ -85,7 +85,7 @@ export default function MajorIncidentsPage() {
             parentTicketId?: string | null;
           }[]).map((t) => (
             <li key={t.id} className="border-b border-border last:border-0">
-              <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-muted/30">
+              <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-body-sm hover:bg-muted/30">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
@@ -110,7 +110,7 @@ export default function MajorIncidentsPage() {
                   </div>
                   <Link
                     href={`/app/tickets/${t.id}`}
-                    className="mt-0.5 block truncate text-[13px] font-medium text-foreground/90 hover:text-primary"
+                    className="mt-0.5 block text-[13px] font-medium text-foreground/90 hover:text-primary"
                   >
                     {t.title}
                   </Link>

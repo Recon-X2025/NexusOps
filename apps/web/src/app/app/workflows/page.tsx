@@ -34,14 +34,14 @@ export default function WorkflowsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Workflows</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-h3 font-bold">Workflows</h1>
+          <p className="text-body-sm text-muted-foreground">
             Visual automation engine — no-code workflow orchestration
           </p>
         </div>
         <Link
           href="/app/workflows/new"
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-body-sm font-medium text-white hover:bg-indigo-500"
         >
           <Plus className="h-4 w-4" />
           New Workflow
@@ -57,13 +57,13 @@ export default function WorkflowsPage() {
           <GitBranch className="h-10 w-10 text-muted-foreground" />
           <div className="text-center">
             <p className="font-medium">No workflows yet</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body-sm text-muted-foreground">
               Create your first workflow to automate ticket routing, notifications, and more.
             </p>
           </div>
           <Link
             href="/app/workflows/new"
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-body-sm font-medium text-white hover:bg-indigo-500"
           >
             <Plus className="h-4 w-4" />
             Create first workflow
@@ -92,7 +92,7 @@ export default function WorkflowsPage() {
                 </div>
                 <div>
                   <p className="font-medium">{workflow.name}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-caption text-muted-foreground">
                     <span>{TRIGGER_LABELS[workflow.triggerType] ?? workflow.triggerType}</span>
                     <span>·</span>
                     <span>v{workflow.currentVersion}</span>
@@ -105,7 +105,7 @@ export default function WorkflowsPage() {
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
-                    "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    "rounded-full px-2.5 py-0.5 text-caption font-medium",
                     workflow.isActive
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                       : "bg-muted text-muted-foreground",
@@ -122,7 +122,7 @@ export default function WorkflowsPage() {
                 </button>
                 <Link
                   href={`/app/workflows/${workflow.id}/edit`}
-                  className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+                  className="rounded-lg border border-border px-3 py-1.5 text-body-sm text-muted-foreground hover:bg-accent"
                 >
                   Edit
                 </Link>

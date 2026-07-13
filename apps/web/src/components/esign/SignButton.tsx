@@ -67,7 +67,7 @@ export function SignButton(props: SignButtonProps) {
         type="button"
         onClick={() => setOpen(true)}
         disabled={create.isPending}
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 ${
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-body-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 ${
           props.className ?? ""
         }`}
       >
@@ -82,20 +82,20 @@ export function SignButton(props: SignButtonProps) {
         >
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-5">
             <div className="font-semibold text-slate-900 mb-1">Send for e-signature</div>
-            <div className="text-sm text-slate-600 mb-4">{props.title}</div>
+            <div className="text-body-sm text-slate-600 mb-4">{props.title}</div>
 
             {done ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-emerald-700">
+                <div className="flex items-center gap-2 text-body-sm text-emerald-700">
                   <Check className="w-4 h-4" />
                   Envelope sent — id {done.envelopeId.slice(0, 12)}…
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-caption text-slate-500">
                   Signers will receive an email with their unique signing link. Internal preview links:
                 </div>
                 <div className="space-y-1">
                   {done.signingUrls.map((s) => (
-                    <div key={s.email} className="text-xs flex items-center justify-between gap-2">
+                    <div key={s.email} className="text-caption flex items-center justify-between gap-2">
                       <span className="font-mono">{s.email}</span>
                       <a
                         href={s.url}
@@ -114,7 +114,7 @@ export function SignButton(props: SignButtonProps) {
                       setOpen(false);
                       setDone(null);
                     }}
-                    className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 rounded"
+                    className="px-3 py-1.5 text-body-sm bg-slate-100 hover:bg-slate-200 rounded"
                   >
                     Done
                   </button>
@@ -122,8 +122,8 @@ export function SignButton(props: SignButtonProps) {
               </div>
             ) : (
               <>
-                <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Signers</div>
-                <ul className="text-sm text-slate-800 space-y-0.5 mb-4">
+                <div className="text-caption uppercase tracking-wide text-slate-500 mb-1">Signers</div>
+                <ul className="text-body-sm text-slate-800 space-y-0.5 mb-4">
                   {props.signers.map((s) => (
                     <li key={s.email}>
                       {s.name} <span className="text-slate-500">({s.email})</span>
@@ -131,26 +131,26 @@ export function SignButton(props: SignButtonProps) {
                     </li>
                   ))}
                 </ul>
-                <div className="text-xs text-slate-500 mb-4">
+                <div className="text-caption text-slate-500 mb-4">
                   Provider:{" "}
                   <span className="font-medium text-slate-700">{props.provider ?? "emudhra"}</span> ·
                   IT Act §3A compliant. Audit trail will be retained 8 years.
                 </div>
                 {create.error && (
-                  <div className="text-sm text-red-600 mb-2">{create.error.message}</div>
+                  <div className="text-body-sm text-red-600 mb-2">{create.error.message}</div>
                 )}
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => setOpen(false)}
                     disabled={create.isPending}
-                    className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 rounded"
+                    className="px-3 py-1.5 text-body-sm bg-slate-100 hover:bg-slate-200 rounded"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={send}
                     disabled={create.isPending}
-                    className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded inline-flex items-center gap-1.5"
+                    className="px-3 py-1.5 text-body-sm bg-blue-600 hover:bg-blue-700 text-white rounded inline-flex items-center gap-1.5"
                   >
                     {create.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     Send envelope

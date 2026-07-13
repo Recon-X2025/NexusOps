@@ -50,8 +50,8 @@ export default function OmnichannelSettingsPage() {
           <MessagesSquare className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Omnichannel intake</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-h3 font-bold">Omnichannel intake</h1>
+          <p className="text-body-sm text-muted-foreground mt-1">
             Single view of how work enters CoheronConnect today and what is on the roadmap for Phase C2-style parity with
             enterprise ITSM consoles.
           </p>
@@ -69,7 +69,7 @@ export default function OmnichannelSettingsPage() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-sm">{ch.label}</span>
+                <span className="font-medium text-body-sm">{ch.label}</span>
                 <span
                   className={
                     ch.status === "Live"
@@ -80,13 +80,13 @@ export default function OmnichannelSettingsPage() {
                   {ch.status}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{ch.detail}</p>
+              <p className="text-caption text-muted-foreground mt-1">{ch.detail}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-caption text-muted-foreground">
         Ticket <span className="font-medium text-foreground/80">Intake</span> on each record can be set to portal,
         email, API, or chat as systems are wired in.
       </p>

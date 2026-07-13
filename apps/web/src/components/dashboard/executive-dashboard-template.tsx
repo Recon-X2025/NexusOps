@@ -46,11 +46,11 @@ export function ExecutiveDashHeader({
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between border-b border-[#001B3D]/12 dark:border-slate-700 pb-4 mb-4">
       <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#001B3D] dark:text-slate-100">
+        <h1 className="text-h4 md:text-h3 font-bold tracking-tight text-[#001B3D] dark:text-slate-100">
           {title}
         </h1>
         {subtitle ? (
-          <p className="text-xs md:text-sm font-semibold text-amber-700 dark:text-amber-400/90 mt-1 max-w-3xl leading-snug">
+          <p className="text-caption md:text-body-sm font-semibold text-amber-700 dark:text-amber-400/90 mt-1 max-w-3xl leading-snug">
             {subtitle}
           </p>
         ) : null}
@@ -101,10 +101,10 @@ export function ExecutiveHubHeader({
             <ChevronRight className="w-3 h-3 opacity-60" />
             <span className="text-[#001B3D]/75 dark:text-slate-300">{hubTrailLabel}</span>
           </div>
-          <h1 className="text-lg md:text-xl font-bold tracking-tight text-[#001B3D] dark:text-slate-100 mt-0.5">
+          <h1 className="text-body-lg md:text-h4 font-bold tracking-tight text-[#001B3D] dark:text-slate-100 mt-0.5">
             {title}
           </h1>
-          <p className="text-[11px] md:text-xs font-semibold text-amber-700 dark:text-amber-400/90 mt-1 max-w-2xl leading-snug">
+          <p className="text-[11px] md:text-caption font-semibold text-amber-700 dark:text-amber-400/90 mt-1 max-w-2xl leading-snug">
             {subtitle}
           </p>
         </div>
@@ -181,11 +181,11 @@ export function ExecutiveKpiCard({
         </div>
         <div
           className={cn(
-            "text-2xl font-bold tabular-nums mt-1 text-[#001B3D] dark:text-slate-100",
+            "text-h3 font-bold tabular-nums mt-1 text-[#001B3D] dark:text-slate-100",
             valueClassName,
           )}
         >
-          {isLoading ? <span className="text-sm font-normal opacity-50">…</span> : value}
+          {isLoading ? <span className="text-body-sm font-normal opacity-50">…</span> : value}
         </div>
         <div className="text-[10px] font-semibold text-[#001B3D]/50 dark:text-slate-400 uppercase tracking-wide mt-1 leading-tight">
           {label}
@@ -227,7 +227,7 @@ export function ExecutiveMetricCard({
     <div className="rounded-xl border border-white/90 dark:border-slate-700/80 bg-white dark:bg-slate-900/80 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[200px]">
       <div className="flex-1 p-4 min-w-0">
         <div className={cn("h-0.5 w-12 rounded-full mb-2", bar)} />
-        <h3 className="text-sm font-bold text-[#001B3D] dark:text-slate-100">{title}</h3>
+        <h3 className="text-body-sm font-bold text-[#001B3D] dark:text-slate-100">{title}</h3>
         <p className="text-[11px] text-[#001B3D]/55 dark:text-slate-400 mt-1 leading-relaxed">{definition}</p>
         <div className="mt-3 h-36 w-full min-h-[9rem]">{children}</div>
       </div>
@@ -285,7 +285,7 @@ export function ExecutiveHowToStrip() {
 
 export function ExecutiveFooterQuote({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-4 rounded-lg bg-[#001B3D] dark:bg-slate-800 text-center text-[11px] md:text-xs text-white/90 px-4 py-3 font-medium leading-relaxed">
+    <div className="mt-4 rounded-lg bg-[#001B3D] dark:bg-slate-800 text-center text-[11px] md:text-caption text-white/90 px-4 py-3 font-medium leading-relaxed">
       {children}
     </div>
   );

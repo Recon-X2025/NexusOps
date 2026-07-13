@@ -77,14 +77,14 @@ function OverviewPillar() {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="col-span-1 bg-card border border-border rounded-xl p-4 flex flex-col items-center justify-center text-center">
-          <div className="text-4xl font-black text-primary">{overall}</div>
+          <div className="text-h1 font-black text-primary">{overall}</div>
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-1">ESG Score</div>
           <div className="text-[10px] text-muted-foreground/60 mt-0.5">out of 100</div>
         </div>
         {scores.map(p => (
           <div key={p.label} className={`bg-card border border-border rounded-xl p-4 flex flex-col items-center justify-center text-center`}>
             <p.icon className={`w-5 h-5 mb-2 ${p.color}`} />
-            <div className={`text-3xl font-bold ${p.color}`}>{p.score}</div>
+            <div className={`text-h2 font-bold ${p.color}`}>{p.score}</div>
             <div className="text-[11px] text-muted-foreground mt-1">{p.label}</div>
           </div>
         ))}
@@ -97,7 +97,7 @@ function OverviewPillar() {
         ].map(m => (
           <div key={m.l} className="bg-card border border-border rounded-lg px-3 py-2">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{m.l}</div>
-            <div className="text-xl font-bold text-foreground mt-0.5">{m.v}</div>
+            <div className="text-h4 font-bold text-foreground mt-0.5">{m.v}</div>
             <div className={`text-[11px] mt-0.5 ${m.ok ? "text-green-600" : "text-orange-600"}`}>{m.sub}</div>
           </div>
         ))}
@@ -121,7 +121,7 @@ export default function ESGPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Leaf className="w-4 h-4 text-green-600" />
-          <h1 className="text-sm font-semibold text-foreground">ESG Reporting</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">ESG Reporting</h1>
           <span className="text-[11px] text-muted-foreground/70">SEBI BRSR · GRI Standards · SDG alignment</span>
         </div>
         <div className="flex items-center gap-2">

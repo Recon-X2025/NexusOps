@@ -116,7 +116,7 @@ export default function ReleasesPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Release Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Release Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Release Calendar · Deployment Tracking · Environment Management</span>
         </div>
         <div className="flex items-center gap-2">
@@ -144,7 +144,7 @@ export default function ReleasesPage() {
           { label: "Planned This Week",      value: releases.filter((r: any) => r.status === "planning").length, color: "text-blue-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -284,7 +284,7 @@ export default function ReleasesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-foreground">Create New Release</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Create New Release</h2>
               <button onClick={() => setShowNewRelease(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
@@ -345,7 +345,7 @@ export default function ReleasesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-foreground">Link Change to Release</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Link Change to Release</h2>
               <button onClick={() => { setLinkChangeOpen(null); setSelectedChangeId(""); }} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>

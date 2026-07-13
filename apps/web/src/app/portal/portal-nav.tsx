@@ -50,11 +50,11 @@ export function PortalNav() {
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-xs font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-caption font-bold text-white">
             N
           </div>
           <div>
-            <p className="text-sm font-bold leading-none text-gray-900">
+            <p className="text-body-sm font-bold leading-none text-gray-900">
               {currentUser.orgName?.trim() ? currentUser.orgName : "CoheronConnect"}
             </p>
             <p className="text-[10px] leading-none text-gray-500">Employee request portal</p>
@@ -70,7 +70,7 @@ export function PortalNav() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-caption font-medium transition-colors",
                   active
                     ? "bg-primary/10 text-primary"
                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-900",
@@ -88,13 +88,13 @@ export function PortalNav() {
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
             {initials}
           </div>
-          <span className="hidden text-xs font-medium text-gray-700 md:block">
+          <span className="hidden text-caption font-medium text-gray-700 md:block">
             {currentUser.name}
           </span>
           <button
             onClick={() => logout.mutate()}
             disabled={logout.isPending}
-            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-caption text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
           >
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden md:inline">Sign out</span>

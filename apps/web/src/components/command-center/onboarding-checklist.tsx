@@ -49,7 +49,7 @@ export function OnboardingChecklist() {
     <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/30">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <h2 className="text-body-sm font-semibold text-slate-900 dark:text-slate-100">
             Get your workspace ready
           </h2>
           <p className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">

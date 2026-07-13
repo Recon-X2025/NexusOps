@@ -61,7 +61,7 @@ export function QueueTable({
         />
       ) : (
         <div className="overflow-x-auto -mx-1">
-          <table className="min-w-full text-xs tabular-nums">
+          <table className="min-w-full text-caption tabular-nums">
             <thead>
               <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <th className="px-2 py-1.5 font-semibold">SLA</th>
@@ -83,7 +83,7 @@ export function QueueTable({
                       {r.number}
                     </Link>
                   </td>
-                  <td className="px-2 py-1.5 max-w-[24rem] truncate text-slate-700 dark:text-slate-200">
+                  <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                     {r.title}
                   </td>
                   <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{r.priority}</td>

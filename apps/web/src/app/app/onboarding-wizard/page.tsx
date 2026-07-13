@@ -49,8 +49,8 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         <Zap className="h-8 w-8 text-white" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Welcome to CoheronConnect</h2>
-        <p className="mt-2 text-sm text-muted-foreground max-w-md">
+        <h2 className="text-h3 font-bold text-foreground">Welcome to CoheronConnect</h2>
+        <p className="mt-2 text-body-sm text-muted-foreground max-w-md">
           This wizard will help you set up your workspace in under 5 minutes. You can always change these settings later.
         </p>
       </div>
@@ -106,8 +106,8 @@ function OrgProfileStep({ data, onChange, onNext, onBack }: {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Organisation Profile</h2>
-        <p className="text-sm text-muted-foreground mt-1">This information appears on your invoices, tickets, and notifications.</p>
+        <h2 className="text-body-lg font-semibold text-foreground">Organisation Profile</h2>
+        <p className="text-body-sm text-muted-foreground mt-1">This information appears on your invoices, tickets, and notifications.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
@@ -183,8 +183,8 @@ function IndiaSetupStep({ data, onChange, onNext, onBack }: {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">India Compliance Setup</h2>
-        <p className="text-sm text-muted-foreground mt-1">These numbers are used for GSTR, TDS returns, payroll, and e-invoicing.</p>
+        <h2 className="text-body-lg font-semibold text-foreground">India Compliance Setup</h2>
+        <p className="text-body-sm text-muted-foreground mt-1">These numbers are used for GSTR, TDS returns, payroll, and e-invoicing.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {[
@@ -230,12 +230,12 @@ function TeamStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Invite Your Team</h2>
-        <p className="text-sm text-muted-foreground mt-1">You can invite colleagues now or skip and do it later from Settings → Users.</p>
+        <h2 className="text-body-lg font-semibold text-foreground">Invite Your Team</h2>
+        <p className="text-body-sm text-muted-foreground mt-1">You can invite colleagues now or skip and do it later from Settings → Users.</p>
       </div>
       <div className="flex flex-col items-center justify-center py-8 gap-3 border-2 border-dashed border-border rounded-lg">
         <Users className="w-10 h-10 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground">Team invitations are sent from <strong>Settings → Users & Roles</strong></p>
+        <p className="text-body-sm text-muted-foreground">Team invitations are sent from <strong>Settings → Users & Roles</strong></p>
         <a href="/app/admin" className="px-3 py-1.5 text-[12px] bg-primary text-white rounded-lg hover:bg-primary/90">Open User Management</a>
       </div>
       <StepNav onBack={onBack} onNext={onNext} canNext={true} nextLabel="Skip for now" />
@@ -253,8 +253,8 @@ function ITSMStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">ITSM Configuration</h2>
-        <p className="text-sm text-muted-foreground mt-1">Set default SLA response times (business hours). These apply to all new tickets.</p>
+        <h2 className="text-body-lg font-semibold text-foreground">ITSM Configuration</h2>
+        <p className="text-body-sm text-muted-foreground mt-1">Set default SLA response times (business hours). These apply to all new tickets.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {[
@@ -299,8 +299,8 @@ function FinanceStep({ seedCoa, onNext, onBack, loading }: {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Finance Setup</h2>
-        <p className="text-sm text-muted-foreground mt-1">We're ready to configure your financial foundation.</p>
+        <h2 className="text-body-lg font-semibold text-foreground">Finance Setup</h2>
+        <p className="text-body-sm text-muted-foreground mt-1">We're ready to configure your financial foundation.</p>
       </div>
       <div className="flex flex-col gap-2">
         {[
@@ -329,8 +329,8 @@ function DoneStep() {
         <CheckCircle2 className="h-8 w-8 text-white" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-foreground">You're all set! 🎉</h2>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+        <h2 className="text-h3 font-bold text-foreground">You're all set! 🎉</h2>
+        <p className="mt-2 text-body-sm text-muted-foreground max-w-sm">
           Your CoheronConnect workspace is configured. Head to the dashboard to start managing your operations.
         </p>
       </div>
@@ -338,7 +338,7 @@ function DoneStep() {
         <button onClick={() => router.push("/app/dashboard")} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium">
           Go to Dashboard <ChevronRight className="w-4 h-4" />
         </button>
-        <button onClick={() => router.push("/app/settings/integrations")} className="px-4 py-2.5 border border-border rounded-lg hover:bg-muted/50 text-sm font-medium transition-colors">
+        <button onClick={() => router.push("/app/settings/integrations")} className="px-4 py-2.5 border border-border rounded-lg hover:bg-muted/50 text-body-sm font-medium transition-colors">
           Settings
         </button>
       </div>
@@ -356,10 +356,10 @@ function StepNav({ onBack, onNext, canNext = true, nextLabel = "Continue", loadi
 }) {
   return (
     <div className="flex items-center justify-between pt-2">
-      <button onClick={onBack} className="flex items-center gap-1.5 px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted/50 transition-colors">
+      <button onClick={onBack} className="flex items-center gap-1.5 px-4 py-2 border border-border rounded-lg text-body-sm hover:bg-muted/50 transition-colors">
         <ChevronLeft className="w-4 h-4" /> Back
       </button>
-      <button onClick={onNext} disabled={!canNext || loading} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+      <button onClick={onNext} disabled={!canNext || loading} className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-lg text-body-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
         {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
         {nextLabel} <ChevronRight className="w-4 h-4" />
       </button>

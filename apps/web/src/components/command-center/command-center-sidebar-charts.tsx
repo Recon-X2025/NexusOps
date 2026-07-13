@@ -21,7 +21,7 @@ export function CommandCenterSidebarCharts({ payload }: { payload: Payload }) {
     <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden flex flex-col h-full shadow-sm rounded-2xl relative">
       <div className="absolute inset-0 bg-gradient-to-tr from-[#00BCFF]/5 to-transparent pointer-events-none" />
       <div className="px-5 py-4 border-b border-slate-200/60 relative z-10">
-        <h3 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Signal Mix Entropy</h3>
+        <h3 className="text-caption font-black text-slate-700 uppercase tracking-[0.2em]">Signal Mix Entropy</h3>
       </div>
       <div className="p-5 flex-1 flex flex-col justify-center gap-4 relative z-10">
         {postureMix.length > 0 ? (

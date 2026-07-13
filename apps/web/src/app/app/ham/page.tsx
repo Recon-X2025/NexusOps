@@ -89,7 +89,7 @@ export default function HAMPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <HardDrive className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Hardware Asset Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Hardware Asset Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Full Lifecycle · Contracts · Warranty · Disposal</span>
         </div>
         <div className="flex items-center gap-2">
@@ -123,11 +123,11 @@ export default function HAMPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Asset Name *</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="e.g. Dell Latitude 5540" value={assetForm.name} onChange={(e) => setAssetForm((f) => ({ ...f, name: e.target.value }))} />
+              <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="e.g. Dell Latitude 5540" value={assetForm.name} onChange={(e) => setAssetForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Asset Type *</label>
-              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={assetForm.typeId} onChange={(e) => setAssetForm((f) => ({ ...f, typeId: e.target.value }))}>
+              <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={assetForm.typeId} onChange={(e) => setAssetForm((f) => ({ ...f, typeId: e.target.value }))}>
                 <option value="">— Select type —</option>
                 {(assetTypesQuery.data ?? []).map((t: any) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -136,23 +136,23 @@ export default function HAMPage() {
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Location</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Building / Floor / Desk" value={assetForm.location} onChange={(e) => setAssetForm((f) => ({ ...f, location: e.target.value }))} />
+              <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="Building / Floor / Desk" value={assetForm.location} onChange={(e) => setAssetForm((f) => ({ ...f, location: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Vendor</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Supplier name" value={assetForm.vendor} onChange={(e) => setAssetForm((f) => ({ ...f, vendor: e.target.value }))} />
+              <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="Supplier name" value={assetForm.vendor} onChange={(e) => setAssetForm((f) => ({ ...f, vendor: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Purchase Cost (₹)</label>
-              <input type="number" min="0" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="0" value={assetForm.purchaseCost} onChange={(e) => setAssetForm((f) => ({ ...f, purchaseCost: e.target.value }))} />
+              <input type="number" min="0" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="0" value={assetForm.purchaseCost} onChange={(e) => setAssetForm((f) => ({ ...f, purchaseCost: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Purchase Date</label>
-              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={assetForm.purchaseDate} onChange={(e) => setAssetForm((f) => ({ ...f, purchaseDate: e.target.value }))} />
+              <input type="date" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={assetForm.purchaseDate} onChange={(e) => setAssetForm((f) => ({ ...f, purchaseDate: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Asset Status *</label>
-              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={assetForm.status} onChange={(e) => setAssetForm((f) => ({ ...f, status: e.target.value }))}>
+              <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={assetForm.status} onChange={(e) => setAssetForm((f) => ({ ...f, status: e.target.value }))}>
                 <option value="in_stock">In Stock</option>
                 <option value="deployed">Deployed</option>
                 <option value="maintenance">Maintenance</option>
@@ -195,7 +195,7 @@ export default function HAMPage() {
                   } as any);
                 }}
                 disabled={createAsset.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createAsset.isPending ? "Adding…" : "Add Asset"}
               </button>
             <button onClick={() => setShowAddAsset(false)} className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent">Cancel</button>
@@ -211,7 +211,7 @@ export default function HAMPage() {
           { label: "Unassigned Assets",    value: assets.filter((a) => a.status === "in_stock").length,                   color: "text-yellow-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -344,7 +344,7 @@ export default function HAMPage() {
               { stage: "Disposed / EOL",    count: assets.filter((a) => a.status === "disposed").length,   color: "bg-muted text-muted-foreground",    border: "border-border" },
             ].map((s) => (
               <div key={s.stage} className={`border rounded p-3 text-center ${s.border}`}>
-                <div className={`text-3xl font-bold mb-1 ${s.color.split(" ")[1]}`}>{s.count}</div>
+                <div className={`text-h2 font-bold mb-1 ${s.color.split(" ")[1]}`}>{s.count}</div>
                 <div className="text-[11px] text-muted-foreground font-medium">{s.stage}</div>
               </div>
             ))}
@@ -368,7 +368,7 @@ export default function HAMPage() {
                         <Download className="w-4 h-4" />
                       </div>
                       <div className="flex-1 overflow-hidden">
-                        <p className="text-[11px] font-medium truncate">{doc.fileName}</p>
+                        <p className="text-[11px] font-medium">{doc.fileName}</p>
                         <p className="text-[10px] text-muted-foreground">Asset: <span className="font-mono text-primary">{doc.assetTag}</span> - {doc.name} · {new Date(doc.date).toLocaleDateString()}</p>
                       </div>
                     </div>

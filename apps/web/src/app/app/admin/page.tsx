@@ -188,7 +188,7 @@ export default function AdminConsolePage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Invite New User</h3>
+              <h3 className="text-body-lg font-bold">Invite New User</h3>
               <button onClick={() => setShowInviteModal(false)} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="w-5 h-5" />
               </button>
@@ -204,7 +204,7 @@ export default function AdminConsolePage() {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     placeholder="agent@coheron.tech"
-                    className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                    className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -213,7 +213,7 @@ export default function AdminConsolePage() {
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value as any)}
-                      className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                      className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                     >
                       <option value="member">Member</option>
                       <option value="admin">Admin</option>
@@ -226,7 +226,7 @@ export default function AdminConsolePage() {
                     <select
                       value={inviteMatrixRole}
                       onChange={(e) => setInviteMatrixRole(e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                      className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                     >
                       <option value="">None</option>
                       {SYSTEM_ROLES_CATALOG.filter(r => !["admin","owner","member","viewer"].includes(r.role)).map(r => (
@@ -236,11 +236,11 @@ export default function AdminConsolePage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
-                  <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+                  <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
                   <button
                     disabled={!inviteEmail.includes("@") || inviteUserMutation.isPending}
                     onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined })}
-                    className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                    className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                   >
                     {inviteUserMutation.isPending ? "Sending..." : "Send Invite"}
                   </button>
@@ -252,17 +252,17 @@ export default function AdminConsolePage() {
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <h4 className="font-bold">Invite Generated!</h4>
-                <p className="text-xs text-muted-foreground">Share this link with the user to complete their registration:</p>
+                <p className="text-caption text-muted-foreground">Share this link with the user to complete their registration:</p>
                 <div className="p-3 bg-muted rounded-xl break-all font-mono text-[10px] select-all border border-border">
                   {inviteResult}
                 </div>
                 <button
                   onClick={() => { navigator.clipboard.writeText(inviteResult); toast.success("Link copied!"); }}
-                  className="w-full py-2 bg-muted border border-border rounded-lg text-xs font-bold hover:bg-accent"
+                  className="w-full py-2 bg-muted border border-border rounded-lg text-caption font-bold hover:bg-accent"
                 >
                   Copy to Clipboard
                 </button>
-                <button onClick={() => setShowInviteModal(false)} className="w-full text-xs text-primary hover:underline">Close</button>
+                <button onClick={() => setShowInviteModal(false)} className="w-full text-caption text-primary hover:underline">Close</button>
               </div>
             )}
           </div>
@@ -275,8 +275,8 @@ export default function AdminConsolePage() {
           <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold">Edit User</h3>
-                <p className="text-xs text-muted-foreground">{editUser.name} ({editUser.id})</p>
+                <h3 className="text-body-lg font-bold">Edit User</h3>
+                <p className="text-caption text-muted-foreground">{editUser.name} ({editUser.id})</p>
               </div>
               <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="w-5 h-5" />
@@ -290,7 +290,7 @@ export default function AdminConsolePage() {
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as any)}
-                    className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                    className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
@@ -303,7 +303,7 @@ export default function AdminConsolePage() {
                   <select
                     value={editMatrixRole}
                     onChange={(e) => setEditMatrixRole(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                    className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                   >
                     <option value="">None</option>
                     {SYSTEM_ROLES_CATALOG.filter(r => !["admin","owner","member","viewer"].includes(r.role)).map(r => (
@@ -321,15 +321,15 @@ export default function AdminConsolePage() {
                   onChange={(e) => setEditMfaEnrolled(e.target.checked)}
                   className="w-4 h-4 rounded text-primary"
                 />
-                <label htmlFor="mfa-status" className="text-xs font-medium">MFA Enrolled (read-only in this version)</label>
+                <label htmlFor="mfa-status" className="text-caption font-medium">MFA Enrolled (read-only in this version)</label>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setEditUser(null)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+                <button onClick={() => setEditUser(null)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
                 <button
                   disabled={updateUserMutation.isPending}
                   onClick={() => updateUserMutation.mutate({ userId: editUser.id, role: editRole, matrixRole: editMatrixRole || null })}
-                  className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                  className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                 >
                   {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
                 </button>
@@ -345,17 +345,17 @@ export default function AdminConsolePage() {
           <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="w-5 h-5" />
-              <h3 className="text-lg font-bold">Delete User?</h3>
+              <h3 className="text-body-lg font-bold">Delete User?</h3>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body-sm text-muted-foreground">
               Are you sure you want to delete <strong>{confirmDeleteUser.name}</strong>? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setConfirmDeleteUser(null)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+              <button onClick={() => setConfirmDeleteUser(null)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button
                 disabled={deleteUserMutation.isPending}
                 onClick={() => deleteUserMutation.mutate({ userId: confirmDeleteUser.id })}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-500/20 disabled:opacity-50"
+                className="px-6 py-2 bg-red-600 text-white rounded-lg text-body-sm font-bold hover:bg-red-700 shadow-lg shadow-red-500/20 disabled:opacity-50"
               >
                 {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
               </button>
@@ -369,7 +369,7 @@ export default function AdminConsolePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Admin Console</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Admin Console</h1>
           <span className="text-[11px] text-muted-foreground/70">System Administration · RBAC · Configuration</span>
           {isAdmin() && (
             <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-700 rounded font-bold">ADMIN ACCESS</span>
@@ -411,7 +411,7 @@ export default function AdminConsolePage() {
                   { label: "Suspended",        value: allUsers.filter(u => u.status === "disabled").length, color: "text-red-700" },
                 ].map((k) => (
                   <div key={k.label} className="border border-border rounded p-3">
-                    <div className={`text-2xl font-bold ${k.color}`}>{k.value}</div>
+                    <div className={`text-h3 font-bold ${k.color}`}>{k.value}</div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
                   </div>
                 ))}
@@ -1100,7 +1100,7 @@ export default function AdminConsolePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-xl w-[460px] max-w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Invite New User</h3>
+              <h3 className="text-body-sm font-semibold text-foreground">Invite New User</h3>
               <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="w-4 h-4" />
               </button>
@@ -1197,7 +1197,7 @@ export default function AdminConsolePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-xl w-[460px] max-w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Edit User Role — {editUser.name}</h3>
+              <h3 className="text-body-sm font-semibold text-foreground">Edit User Role — {editUser.name}</h3>
               <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="w-4 h-4" />
               </button>
@@ -1273,7 +1273,7 @@ export default function AdminConsolePage() {
           <div className="bg-card border border-border rounded-lg shadow-xl w-[380px] max-w-full p-6 space-y-4">
             <div className="flex items-center gap-3 text-red-600">
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-              <h3 className="text-sm font-semibold">Delete User</h3>
+              <h3 className="text-body-sm font-semibold">Delete User</h3>
             </div>
             <p className="text-[12px] text-muted-foreground">
               Are you sure you want to permanently delete <strong>{confirmDeleteUser.name}</strong>?
@@ -1324,9 +1324,9 @@ function AuditLogTab() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">Loading audit log…</div>
+        <div className="flex items-center justify-center h-32 text-muted-foreground text-body-sm">Loading audit log…</div>
       ) : !data?.items?.length ? (
-        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">No audit events yet. Mutations will appear here.</div>
+        <div className="flex items-center justify-center h-32 text-muted-foreground text-body-sm">No audit events yet. Mutations will appear here.</div>
       ) : (
         <>
           <table className="ent-table w-full">
@@ -2877,7 +2877,7 @@ function GroupsTab() {
                       {g.memberCount}
                     </span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground truncate">{g.description || "No description"}</p>
+                  <p className="text-[10px] text-muted-foreground">{g.description || "No description"}</p>
                 </div>
               ))}
             </div>
@@ -2890,7 +2890,7 @@ function GroupsTab() {
             <div className="p-4 space-y-6">
               {/* Group Header Actions */}
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-foreground">
+                <h3 className="text-body-sm font-bold text-foreground">
                   {selectedGroup.name} roster
                 </h3>
                 <div className="flex items-center gap-2">
@@ -3005,7 +3005,7 @@ function GroupsTab() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-xl w-[400px] p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">{editId ? "Edit Group Details" : "Create New Group"}</h3>
+              <h3 className="text-body-sm font-semibold text-foreground">{editId ? "Edit Group Details" : "Create New Group"}</h3>
               <button onClick={() => { setShowForm(false); setEditId(null); resetForm(); }} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="w-4 h-4" />
               </button>

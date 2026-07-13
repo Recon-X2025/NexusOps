@@ -26,9 +26,9 @@ export function CommandCenterFlow({ payload }: { payload: Payload }) {
   return (
     <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm rounded-2xl relative">
       <div className="absolute inset-0 bg-gradient-to-tr from-[#00BCFF]/5 to-[#004FFB]/5 pointer-events-none" />
-      <div className="px-5 py-4 border-b border-slate-200/60 relative z-10 flex justify-between items-center">
-        <h2 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Volume Throughput</h2>
-        <div className="bg-slate-100 p-1 rounded-full border border-slate-200">
+      <div className="px-5 py-4 border-b border-slate-200/60 relative z-10 flex justify-between items-center gap-3 overflow-x-auto scrollbar-thin">
+        <h2 className="text-caption font-black text-slate-700 uppercase tracking-[0.2em] shrink-0 whitespace-nowrap">Volume Throughput</h2>
+        <div className="bg-slate-100 p-1 rounded-full border border-slate-200 shrink-0">
           <Zap className="w-3 h-3 text-slate-400" />
         </div>
       </div>
@@ -61,7 +61,7 @@ export function CommandCenterFlow({ payload }: { payload: Payload }) {
         <div className="flex justify-between mt-4">
           {flowItems.map((f, i) => (
             <div key={i} className="flex flex-col gap-1 items-center">
-               <span className="text-xl font-black text-slate-900 drop-shadow-sm">{f.value}</span>
+               <span className="text-h4 font-black text-slate-900 drop-shadow-sm">{f.value}</span>
                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{f.label}</span>
             </div>
           ))}

@@ -191,7 +191,7 @@ export default function WorkOrderDetailPage() {
       {/* Record header */}
       {isEditing ? (
         <div className="bg-card border border-primary rounded p-4 shadow-sm mb-3">
-          <h3 className="text-sm font-semibold mb-4 text-primary flex items-center gap-2"><Edit2 className="w-4 h-4" /> Edit Work Order</h3>
+          <h3 className="text-body-sm font-semibold mb-4 text-primary flex items-center gap-2"><Edit2 className="w-4 h-4" /> Edit Work Order</h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="col-span-2 lg:col-span-4">
               <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Title *</label>
@@ -257,7 +257,7 @@ export default function WorkOrderDetailPage() {
                     </span>
                   )}
                 </div>
-                <h2 className="text-sm font-semibold text-foreground">{wo.shortDescription}</h2>
+                <h2 className="text-body-sm font-semibold text-foreground">{wo.shortDescription}</h2>
               </div>
 
               {/* Action toolbar */}

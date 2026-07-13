@@ -29,9 +29,9 @@ export function EmptyState({
   size = "md",
 }: EmptyStateProps) {
   const sizes = {
-    sm: { wrapper: "py-8 px-4", icon: "h-8 w-8", title: "text-sm", desc: "text-xs", btn: "text-xs px-3 py-1.5" },
-    md: { wrapper: "py-14 px-6", icon: "h-10 w-10", title: "text-base", desc: "text-sm", btn: "text-sm px-4 py-2" },
-    lg: { wrapper: "py-20 px-8", icon: "h-12 w-12", title: "text-lg", desc: "text-sm", btn: "text-sm px-5 py-2.5" },
+    sm: { wrapper: "py-8 px-4", icon: "h-8 w-8", title: "text-body-sm", desc: "text-caption", btn: "text-caption px-3 py-1.5" },
+    md: { wrapper: "py-14 px-6", icon: "h-10 w-10", title: "text-body", desc: "text-body-sm", btn: "text-body-sm px-4 py-2" },
+    lg: { wrapper: "py-20 px-8", icon: "h-12 w-12", title: "text-body-lg", desc: "text-body-sm", btn: "text-body-sm px-5 py-2.5" },
   };
   const s = sizes[size];
 

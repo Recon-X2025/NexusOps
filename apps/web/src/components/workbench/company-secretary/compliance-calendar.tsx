@@ -132,12 +132,12 @@ function Timeline({ filings, meetings }: { filings: FilingMarker[]; meetings: Me
         <span>+30d</span>
         <span>+60d</span>
       </div>
-      <ul className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-xs">
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-caption">
         {markers.slice(0, 12).map((m) => (
           <li key={m.id} className="flex items-center gap-2">
             <span className={cn("inline-block h-2 w-2 rounded-sm", m.tone)} />
-            <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{m.label}</span>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{m.sub}</span>
+            <span className="font-medium text-slate-700 dark:text-slate-200">{m.label}</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">{m.sub}</span>
           </li>
         ))}
       </ul>

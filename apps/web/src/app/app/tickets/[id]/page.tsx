@@ -236,7 +236,7 @@ export default function TicketDetailPage() {
                     <button
                       disabled={isTerminal && !isAdmin()}
                       onClick={() => { setEditingField("title"); setEditValues({ title: ticket.title }); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40"
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 disabled:opacity-40"
                     >
                       <Edit2 className="w-4 h-4" /> Edit
                     </button>
@@ -247,7 +247,7 @@ export default function TicketDetailPage() {
                           disabled={isTerminal}
                           onClick={() => setShowAssignPanel(!showAssignPanel)}
                           className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 disabled:opacity-40",
+                            "flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 disabled:opacity-40",
                             showAssignPanel && "bg-muted border-primary/50"
                           )}
                         >
@@ -266,7 +266,7 @@ export default function TicketDetailPage() {
                                 <input 
                                   autoFocus
                                   placeholder="Search agents..."
-                                  className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted/30 border border-border rounded-lg outline-none focus:border-primary"
+                                  className="w-full pl-7 pr-3 py-1.5 text-caption bg-muted/30 border border-border rounded-lg outline-none focus:border-primary"
                                   onChange={(e) => setAssigneeId(e.target.value)} // Local search could go here
                                 />
                               </div>
@@ -275,14 +275,14 @@ export default function TicketDetailPage() {
                                   <button
                                     key={user.id}
                                     onClick={() => assignTicket.mutate({ id, assigneeId: user.id })}
-                                    className="w-full text-left px-2 py-1.5 text-xs rounded-lg hover:bg-muted flex items-center gap-2 transition-colors"
+                                    className="w-full text-left px-2 py-1.5 text-caption rounded-lg hover:bg-muted flex items-center gap-2 transition-colors"
                                   >
                                     <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px]">
                                       {user.name.charAt(0)}
                                     </div>
-                                    <div className="flex-1 truncate">
+                                    <div className="flex-1">
                                       <div className="font-medium">{user.name}</div>
-                                      <div className="text-[10px] text-muted-foreground truncate">{user.email}</div>
+                                      <div className="text-[10px] text-muted-foreground">{user.email}</div>
                                     </div>
                                     {ticket.assigneeId === user.id && <Check className="w-3 h-3 text-primary" />}
                                   </button>
@@ -308,7 +308,7 @@ export default function TicketDetailPage() {
                     {!isTerminal && (
                       <button
                         onClick={() => setShowResolvePanel(true)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-500/20"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-500/20"
                       >
                         <CheckCircle2 className="w-4 h-4" /> Resolve
                       </button>
@@ -328,7 +328,7 @@ export default function TicketDetailPage() {
                       if (e.key === "Enter") updateTicket.mutate({ id, data: { title: editValues.title } });
                       if (e.key === "Escape") setEditingField(null);
                     }}
-                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-primary"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-body-sm font-bold outline-none focus:border-primary"
                   />
                   <div className="flex gap-2">
                     <button
@@ -354,7 +354,7 @@ export default function TicketDetailPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-5 h-5 text-green-600" />
-                        <h3 className="text-lg font-bold">Resolve Ticket</h3>
+                        <h3 className="text-body-lg font-bold">Resolve Ticket</h3>
                       </div>
                       <button onClick={() => setShowResolvePanel(false)} className="text-muted-foreground hover:text-foreground">
                         <XCircle className="w-5 h-5" />
@@ -362,7 +362,7 @@ export default function TicketDetailPage() {
                     </div>
                     
                     <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-body-sm text-muted-foreground">
                         Provide a resolution note before closing this ticket. This will be visible to the requester.
                       </p>
                       <div>
@@ -372,7 +372,7 @@ export default function TicketDetailPage() {
                           value={resolveNote}
                           onChange={(e) => setResolveNote(e.target.value)}
                           placeholder="What was the solution?"
-                          className="w-full min-h-[120px] p-3 text-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600/20 transition-all resize-none"
+                          className="w-full min-h-[120px] p-3 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600/20 transition-all resize-none"
                         />
                       </div>
                     </div>
@@ -380,7 +380,7 @@ export default function TicketDetailPage() {
                     <div className="flex justify-end gap-3 pt-2">
                       <button 
                         onClick={() => setShowResolvePanel(false)}
-                        className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted"
+                        className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted"
                       >
                         Cancel
                       </button>
@@ -397,7 +397,7 @@ export default function TicketDetailPage() {
                             comment: resolveNote
                           } as any);
                         }}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 shadow-lg shadow-green-500/20 disabled:opacity-50"
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg text-body-sm font-bold hover:bg-green-700 shadow-lg shadow-green-500/20 disabled:opacity-50"
                       >
                         {updateTicket.isPending ? "Resolving..." : "Confirm Resolution"}
                       </button>
@@ -407,7 +407,7 @@ export default function TicketDetailPage() {
               )}
 
               {ticket.slaBreached && !isTerminal && (
-                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-3">
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-body-sm flex items-center gap-3">
                   <Flame className="w-5 h-5 flex-shrink-0" />
                   <div className="flex-1">
                     <strong className="font-bold">SLA Breach Detected</strong>
@@ -415,7 +415,7 @@ export default function TicketDetailPage() {
                   </div>
                   <button
                     onClick={() => updateTicket.mutate({ id, data: { tags: [...(ticket.tags ?? []), "escalated"] } })}
-                    className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm"
+                    className="px-4 py-1.5 bg-red-600 text-white text-caption font-bold rounded-lg hover:bg-red-700 transition-all shadow-sm"
                   >
                     Escalate Now
                   </button>
@@ -432,7 +432,7 @@ export default function TicketDetailPage() {
                         data-testid={`ticket-tab-${tab}`}
                         onClick={() => setActiveTab(tab)}
                         className={cn(
-                          "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+                          "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
                           activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -446,7 +446,7 @@ export default function TicketDetailPage() {
                       {/* Description Card */}
                       <div className="bg-card border border-border rounded-xl p-5">
                         <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Description</h3>
-                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                        <p className="text-body-sm text-foreground leading-relaxed whitespace-pre-wrap">
                           {ticket.description || "No description provided."}
                         </p>
                       </div>
@@ -460,12 +460,12 @@ export default function TicketDetailPage() {
                           <div className="flex flex-col gap-2">
                             {suggestedKbArticles.map((a: any) => (
                               <div key={a.id} className="flex items-center justify-between gap-4 bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
-                                <Link href={`/app/knowledge/${a.id}`} className="text-sm font-bold text-blue-700 hover:underline truncate">
+                                <Link href={`/app/knowledge/${a.id}`} className="text-body-sm font-bold text-blue-700 hover:underline">
                                   {a.title}
                                 </Link>
                                 <button
                                   onClick={() => linkKnowledgeArticle.mutate({ ticketId: id, articleId: a.id })}
-                                  className="text-xs font-bold text-primary hover:underline whitespace-nowrap"
+                                  className="text-caption font-bold text-primary hover:underline whitespace-nowrap"
                                 >
                                   Link to Ticket
                                 </button>
@@ -481,17 +481,17 @@ export default function TicketDetailPage() {
                           <div key={c.id} className={cn("flex flex-col gap-2 p-4 rounded-xl border", c.isInternal ? "bg-amber-50/30 border-amber-100" : "bg-card border-border")}>
                             <div className="flex items-center justify-between gap-4">
                               <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-caption font-bold">
                                   {c.authorName?.charAt(0) ?? "A"}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="text-xs font-bold">{c.authorName ?? "Agent"}</span>
+                                  <span className="text-caption font-bold">{c.authorName ?? "Agent"}</span>
                                   <span className="text-[10px] text-muted-foreground">{relativeTime(c.createdAt)}</span>
                                 </div>
                               </div>
                               {c.isInternal && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold uppercase rounded">Internal Note</span>}
                             </div>
-                            <p className="text-sm text-foreground/80 pl-10 whitespace-pre-wrap">{c.body}</p>
+                            <p className="text-body-sm text-foreground/80 pl-10 whitespace-pre-wrap">{c.body}</p>
                           </div>
                         ))}
                       </div>
@@ -502,13 +502,13 @@ export default function TicketDetailPage() {
                           <div className="flex items-center gap-4 border-b border-border pb-2">
                             <button
                               onClick={() => setIsInternal(false)}
-                              className={cn("text-xs font-bold uppercase tracking-widest pb-1 transition-all", !isInternal ? "text-primary border-b-2 border-primary" : "text-muted-foreground")}
+                              className={cn("text-caption font-bold uppercase tracking-widest pb-1 transition-all", !isInternal ? "text-primary border-b-2 border-primary" : "text-muted-foreground")}
                             >
                               Public Reply
                             </button>
                             <button
                               onClick={() => setIsInternal(true)}
-                              className={cn("text-xs font-bold uppercase tracking-widest pb-1 transition-all", isInternal ? "text-amber-600 border-b-2 border-amber-600" : "text-muted-foreground")}
+                              className={cn("text-caption font-bold uppercase tracking-widest pb-1 transition-all", isInternal ? "text-amber-600 border-b-2 border-amber-600" : "text-muted-foreground")}
                             >
                               Internal Note
                             </button>
@@ -517,14 +517,14 @@ export default function TicketDetailPage() {
                             value={commentBody}
                             onChange={(e) => setCommentBody(e.target.value)}
                             placeholder={isInternal ? "Add a private note for staff..." : "Reply to the customer..."}
-                            className="w-full text-sm bg-transparent outline-none min-h-[100px] resize-none"
+                            className="w-full text-body-sm bg-transparent outline-none min-h-[100px] resize-none"
                           />
                           <div className="flex justify-end gap-2">
                             <button
                               disabled={!commentBody.trim() || addComment.isPending}
                               onClick={() => addComment.mutate({ ticketId: id, body: commentBody, isInternal })}
                               className={cn(
-                                "px-6 py-2 rounded-lg text-xs font-bold text-white transition-all",
+                                "px-6 py-2 rounded-lg text-caption font-bold text-white transition-all",
                                 isInternal ? "bg-amber-600 hover:bg-amber-700" : "bg-primary hover:bg-primary/90",
                                 "disabled:opacity-50"
                               )}
@@ -555,7 +555,7 @@ export default function TicketDetailPage() {
                   {activeTab === "related" && (
                     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300" data-testid="ticket-related-panel">
                       <div className="bg-card border border-border rounded-xl p-5">
-                        <h3 className="text-sm font-bold text-foreground mb-4">Linked Tickets</h3>
+                        <h3 className="text-body-sm font-bold text-foreground mb-4">Linked Tickets</h3>
                         
                         <div className="flex gap-3 mb-6">
                           <input
@@ -563,7 +563,7 @@ export default function TicketDetailPage() {
                             placeholder="Enter ticket UUID to link..."
                             value={relationTargetId}
                             onChange={(e) => setRelationTargetId(e.target.value)}
-                            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-primary"
+                            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-caption outline-none focus:border-primary"
                           />
                           <button
                             data-testid="ticket-relation-add"
@@ -575,14 +575,14 @@ export default function TicketDetailPage() {
                                 type: "related"
                               });
                             }}
-                            className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 disabled:opacity-50"
+                            className="px-4 py-2 bg-primary text-white rounded-lg text-caption font-bold hover:bg-primary/90 disabled:opacity-50"
                           >
                             {addRelation.isPending ? "Linking..." : "Link Ticket"}
                           </button>
                         </div>
 
                         {relations.length === 0 ? (
-                          <div className="p-12 text-center text-sm text-muted-foreground italic" data-testid="ticket-linked-empty">
+                          <div className="p-12 text-center text-body-sm text-muted-foreground italic" data-testid="ticket-linked-empty">
                             No linked tickets.
                           </div>
                         ) : (
@@ -590,10 +590,10 @@ export default function TicketDetailPage() {
                             {relations.map((r: any) => (
                               <div key={r.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/20">
                                 <div className="flex items-center gap-2">
-                                  <Link href={`/app/tickets/${r.relatedTicketId}`} className="text-xs font-bold text-primary hover:underline">
+                                  <Link href={`/app/tickets/${r.relatedTicketId}`} className="text-caption font-bold text-primary hover:underline">
                                     {r.relatedNumber}
                                   </Link>
-                                  <span className="text-xs text-foreground/80">— {r.relatedTitle}</span>
+                                  <span className="text-caption text-foreground/80">— {r.relatedTitle}</span>
                                 </div>
                                 <button
                                   data-testid="ticket-relation-remove"
@@ -604,7 +604,7 @@ export default function TicketDetailPage() {
                                       ticketId: id 
                                     });
                                   }}
-                                  className="text-xs font-bold text-red-600 hover:underline"
+                                  className="text-caption font-bold text-red-600 hover:underline"
                                 >
                                   Remove
                                 </button>
@@ -615,12 +615,12 @@ export default function TicketDetailPage() {
                       </div>
 
                       <div className="bg-card border border-border rounded-xl p-5">
-                        <h3 className="text-sm font-bold text-foreground mb-4">Linked Problems</h3>
-                        <div className="p-12 text-center text-sm text-muted-foreground italic">No linked problems found.</div>
+                        <h3 className="text-body-sm font-bold text-foreground mb-4">Linked Problems</h3>
+                        <div className="p-12 text-center text-body-sm text-muted-foreground italic">No linked problems found.</div>
                       </div>
                       <div className="bg-card border border-border rounded-xl p-5">
-                        <h3 className="text-sm font-bold text-foreground mb-4">Linked Changes</h3>
-                        <div className="p-12 text-center text-sm text-muted-foreground italic">No linked changes found.</div>
+                        <h3 className="text-body-sm font-bold text-foreground mb-4">Linked Changes</h3>
+                        <div className="p-12 text-center text-body-sm text-muted-foreground italic">No linked changes found.</div>
                       </div>
                     </div>
                   )}
@@ -648,7 +648,7 @@ export default function TicketDetailPage() {
                                 data: { statusId: e.target.value } as any
                               });
                             }}
-                            className="bg-transparent border border-border rounded px-1.5 py-0.5 text-xs font-semibold outline-none capitalize focus:border-primary"
+                            className="bg-transparent border border-border rounded px-1.5 py-0.5 text-caption font-semibold outline-none capitalize focus:border-primary"
                           >
                             {statusCounts?.map((s: any) => (
                               <option key={s.statusId} value={s.statusId} className="bg-card text-foreground">
@@ -666,7 +666,7 @@ export default function TicketDetailPage() {
                   {/* Major Incident Card */}
                   {isMajorIncidentTicket && (
                     <div className="bg-red-50 border border-red-200 rounded-xl p-5 flex flex-col gap-3">
-                      <div className="flex items-center gap-2 text-red-800 font-bold text-xs uppercase tracking-widest">
+                      <div className="flex items-center gap-2 text-red-800 font-bold text-caption uppercase tracking-widest">
                         <Megaphone className="w-4 h-4" /> Major Incident
                       </div>
                       <p className="text-[11px] text-red-700 leading-relaxed">
@@ -712,7 +712,7 @@ function SimilarTicketsPanel({ ticketId }: { ticketId: string }) {
       </h3>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+        <div className="flex items-center gap-2 text-caption text-muted-foreground py-2">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Finding matches…
         </div>
       ) : !data?.ready ? (
@@ -740,7 +740,7 @@ function SimilarTicketsPanel({ ticketId }: { ticketId: string }) {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs font-semibold text-foreground truncate mt-0.5">{t.title}</p>
+                  <p className="text-caption font-semibold text-foreground mt-0.5">{t.title}</p>
                 </div>
                 <span className="text-[10px] font-bold text-primary whitespace-nowrap shrink-0">
                   {Math.round(t.score * 100)}%
@@ -785,7 +785,7 @@ function TicketAttachments({ ticketId, disabled }: { ticketId: string; disabled:
                 className="flex items-center gap-2 text-[11px] border border-border rounded px-2 py-1 bg-background"
               >
                 <Paperclip className="w-3 h-3 text-muted-foreground/70" />
-                <span className="truncate flex-1 text-foreground/80">{d.name}</span>
+                <span className="flex-1 text-foreground/80">{d.name}</span>
                 <span className="text-muted-foreground/60">{(d.sizeBytes / 1024).toFixed(0)} KB</span>
                 {d.scanStatus === "infected" ? (
                   <span className="text-red-600 font-medium">INFECTED</span>

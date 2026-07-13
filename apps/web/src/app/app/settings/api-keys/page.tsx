@@ -82,24 +82,24 @@ function NewApiKeyModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-2xl bg-background border border-border shadow-xl">
         <div className="p-5 border-b border-border">
-          <h2 className="text-lg font-bold">Create API Key</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h2 className="text-body-lg font-bold">Create API Key</h2>
+          <p className="text-body-sm text-muted-foreground mt-0.5">
             API keys grant programmatic access to the CoheronConnect REST / tRPC API.
           </p>
         </div>
         <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Name</label>
+            <label className="block text-caption font-medium text-muted-foreground mb-1">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="CI pipeline key"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label className="block text-caption font-medium text-muted-foreground mb-1">
               Expires in (days) — leave blank for no expiry
             </label>
             <input
@@ -109,14 +109,14 @@ function NewApiKeyModal({
               value={expiresInDays}
               onChange={(e) => setExpiresInDays(e.target.value)}
               placeholder="365"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-2">Permissions</label>
+            <label className="block text-caption font-medium text-muted-foreground mb-2">Permissions</label>
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-caption">
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">Module</th>
@@ -145,7 +145,7 @@ function NewApiKeyModal({
                 </table>
               </div>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-caption text-muted-foreground">
               No modules selected = read access to all public endpoints only.
             </p>
           </div>
@@ -154,7 +154,7 @@ function NewApiKeyModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-accent"
+            className="rounded-lg border border-border px-3 py-1.5 text-body-sm hover:bg-accent"
           >
             Cancel
           </button>
@@ -162,7 +162,7 @@ function NewApiKeyModal({
             type="button"
             disabled={create.isPending}
             onClick={handleSubmit}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           >
             {create.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Generate key
@@ -189,16 +189,16 @@ function KeyRevealModal({ apiKey, onClose }: { apiKey: string; onClose: () => vo
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-background border border-border shadow-xl">
         <div className="p-5 border-b border-border">
-          <h2 className="text-lg font-bold">Your API Key</h2>
+          <h2 className="text-body-lg font-bold">Your API Key</h2>
         </div>
         <div className="p-5 space-y-3">
           <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-3">
-            <p className="text-xs text-yellow-800 dark:text-yellow-200 font-medium">
+            <p className="text-caption text-yellow-800 dark:text-yellow-200 font-medium">
               ⚠ Copy this key now. It will not be shown again. Store it securely.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-lg border border-input bg-muted p-3">
-            <code className="flex-1 break-all text-xs font-mono">{apiKey}</code>
+            <code className="flex-1 break-all text-caption font-mono">{apiKey}</code>
             <button
               type="button"
               onClick={copy}
@@ -207,11 +207,11 @@ function KeyRevealModal({ apiKey, onClose }: { apiKey: string; onClose: () => vo
               {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             Pass the key as a <code className="font-mono">Bearer</code> token in the{" "}
             <code className="font-mono">Authorization</code> header:
           </p>
-          <pre className="rounded bg-muted p-2 text-xs font-mono overflow-auto">
+          <pre className="rounded bg-muted p-2 text-caption font-mono overflow-auto">
 {`Authorization: Bearer ${apiKey.slice(0, 20)}…`}
           </pre>
         </div>
@@ -219,7 +219,7 @@ function KeyRevealModal({ apiKey, onClose }: { apiKey: string; onClose: () => vo
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+            className="rounded-lg bg-indigo-600 px-4 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500"
           >
             Done
           </button>
@@ -255,8 +255,8 @@ export default function ApiKeysSettingsPage() {
             <KeyRound className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">API Keys</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-h3 font-bold">API Keys</h1>
+            <p className="text-body-sm text-muted-foreground">
               Manage programmatic access credentials for the CoheronConnect API.
             </p>
           </div>
@@ -265,7 +265,7 @@ export default function ApiKeysSettingsPage() {
           type="button"
           onClick={() => setShowNew(true)}
           disabled={!can("settings", "write")}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
           New API key
@@ -273,7 +273,7 @@ export default function ApiKeysSettingsPage() {
       </div>
 
       {/* Info */}
-      <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground space-y-1">
+      <div className="rounded-xl border border-border bg-muted/30 p-4 text-caption text-muted-foreground space-y-1">
         <p className="font-medium text-foreground">Security notice</p>
         <p>API keys are shown <strong>once</strong> at creation time. CoheronConnect only stores a SHA-256 hash.</p>
         <p>Keys are prefixed <code className="font-mono">nxk_</code> and can be revoked at any time from this page.</p>
@@ -289,7 +289,7 @@ export default function ApiKeysSettingsPage() {
           <KeyRound className="h-10 w-10 text-muted-foreground" />
           <div className="text-center">
             <p className="font-medium">No API keys yet</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body-sm text-muted-foreground">
               Create a key for CI/CD pipelines, integrations, or custom scripts.
             </p>
           </div>
@@ -297,7 +297,7 @@ export default function ApiKeysSettingsPage() {
             type="button"
             onClick={() => setShowNew(true)}
             disabled={!can("settings", "write")}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             Create first API key
@@ -306,7 +306,7 @@ export default function ApiKeysSettingsPage() {
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-body-sm">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium">Name</th>
@@ -333,31 +333,31 @@ export default function ApiKeysSettingsPage() {
                           <Shield className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="font-medium">{key.name}</span>
                           {isExpired && (
-                            <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-1.5 py-0.5 text-xs">Expired</span>
+                            <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-1.5 py-0.5 text-caption">Expired</span>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-caption text-muted-foreground mt-0.5">
                           Created {formatRelativeTime(key.createdAt)}
                         </p>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">{key.keyPrefix}…</td>
+                      <td className="px-4 py-3 font-mono text-caption">{key.keyPrefix}…</td>
                       <td className="px-4 py-3">
                         {modules.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">Read-only (all)</span>
+                          <span className="text-caption text-muted-foreground">Read-only (all)</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {modules.map((m) => (
-                              <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
+                              <span key={m} className="rounded bg-muted px-1.5 py-0.5 text-caption font-mono">
                                 {m}:{(key.permissions[m] ?? []).join("+")}
                               </span>
                             ))}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <td className="px-4 py-3 text-caption text-muted-foreground">
                         {key.lastUsedAt ? formatRelativeTime(key.lastUsedAt) : "Never"}
                       </td>
-                      <td className="px-4 py-3 text-xs">
+                      <td className="px-4 py-3 text-caption">
                         {key.expiresAt ? (
                           <span className={cn(
                             "flex items-center gap-1",

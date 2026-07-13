@@ -99,7 +99,7 @@ function CoaTab() {
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-sm font-semibold mb-4">New Account</h2>
+            <h2 className="text-body-sm font-semibold mb-4">New Account</h2>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Code *</label><input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="1100" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
               <div className="col-span-1"><label className="text-[11px] font-medium text-muted-foreground block mb-1">Account Name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Bank — HDFC" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
@@ -169,7 +169,7 @@ function NewJournalEntryModal({ onClose, onCreated }: { onClose: () => void; onC
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-        <h2 className="text-sm font-semibold mb-4">New Journal Entry</h2>
+        <h2 className="text-body-sm font-semibold mb-4">New Journal Entry</h2>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Date *</label><input type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none focus:ring-1 focus:ring-primary/50" /></div>
           <div className="col-span-2"><label className="text-[11px] font-medium text-muted-foreground block mb-1">Reference</label><input value={header.reference} onChange={e => setHeader(h => ({ ...h, reference: e.target.value }))} placeholder="Optional" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
@@ -253,7 +253,7 @@ function JournalTab({ showNew, setShowNew }: { showNew: boolean; setShowNew: (v:
                   <tr key={je.id} className="bg-card hover:bg-muted/20 transition-colors">
                     <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">{je.number}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">{new Date(je.date).toLocaleDateString("en-IN")}</td>
-                    <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px] truncate">{je.description}</td>
+                    <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]">{je.description}</td>
                     <td className="px-3 py-2.5 font-mono text-foreground">{fmtInr(Number(je.totalDebit))}</td>
                     <td className="px-3 py-2.5 font-mono text-foreground">{fmtInr(Number(je.totalCredit))}</td>
                     <td className="px-3 py-2.5"><span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${je.status === "posted" ? "text-green-700 bg-green-100" : je.status === "reversed" ? "text-muted-foreground bg-muted" : "text-yellow-700 bg-yellow-100"}`}>{je.status}</span></td>
@@ -324,7 +324,7 @@ function PnLTab() {
   return pnlQ.isLoading ? <TableSkeleton rows={8} cols={2} /> : !data ? null : (
     <div className="flex flex-col gap-4 max-w-2xl">
       <div className={`text-center py-4 rounded-lg border-2 ${data.netProfit >= 0 ? "border-green-300 bg-green-50" : "border-red-300 bg-red-50"}`}>
-        <div className={`text-2xl font-bold ${data.netProfit >= 0 ? "text-green-700" : "text-red-700"}`}>{fmtInr(data.netProfit)}</div>
+        <div className={`text-h3 font-bold ${data.netProfit >= 0 ? "text-green-700" : "text-red-700"}`}>{fmtInr(data.netProfit)}</div>
         <div className="text-[11px] text-muted-foreground uppercase tracking-wider mt-1">{data.netProfit >= 0 ? "Net Profit" : "Net Loss"}</div>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -463,14 +463,14 @@ export default function AccountingPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => toast.info("Exporting ledger...", { duration: 2000 })}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all"
             >
               <Download className="w-4 h-4" /> Export All
             </button>
             <PermissionGate module="financial" action="write">
               <button
                 onClick={() => { setTab("journal"); setShowNewJE(true); }}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
               >
                 <Plus className="w-4 h-4" /> New Journal Entry
               </button>
@@ -485,7 +485,7 @@ export default function AccountingPage() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap flex items-center gap-2",
+              "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap flex items-center gap-2",
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >

@@ -76,8 +76,8 @@ export function PoKanban({
                         href={`/app/procurement/po/${p.id}`}
                         className="block rounded bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-1.5 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
                       >
-                        <div className="text-[11px] font-medium text-orange-700 dark:text-orange-300 truncate">{p.poNumber}</div>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-300 truncate">{p.vendorName ?? "—"}</div>
+                        <div className="text-[11px] font-medium text-orange-700 dark:text-orange-300">{p.poNumber}</div>
+                        <div className="text-[10px] text-slate-600 dark:text-slate-300">{p.vendorName ?? "—"}</div>
                         <div className="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
                           ₹{p.totalAmount} · {formatDate(p.expectedDelivery)}
                         </div>

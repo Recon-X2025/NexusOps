@@ -87,7 +87,7 @@ function ProfileTab() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt={currentUser.name} className="h-16 w-16 rounded-full object-cover" />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-h4 font-bold text-white">
               {currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -97,8 +97,8 @@ function ProfileTab() {
           </label>
         </div>
         <div>
-          <p className="font-semibold text-sm">{currentUser.name}</p>
-          <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+          <p className="font-semibold text-body-sm">{currentUser.name}</p>
+          <p className="text-caption text-muted-foreground">{currentUser.email}</p>
           <div className="flex gap-1 mt-1 flex-wrap">
             {currentUser.roles.map((r) => (
               <span key={r} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-mono">{r}</span>
@@ -109,7 +109,7 @@ function ProfileTab() {
 
       {/* Form */}
       <div className="grid grid-cols-2 gap-3 p-4 bg-card border border-border rounded-lg">
-        <h2 className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Personal Information</h2>
+        <h2 className="col-span-2 text-caption font-semibold text-muted-foreground uppercase tracking-wider mb-1">Personal Information</h2>
         {[
           { key: "name",       label: "Full Name",   icon: User,      span: 2 },
           { key: "email",      label: "Email",        icon: Mail,      span: 2 },
@@ -125,7 +125,7 @@ function ProfileTab() {
               <input
                 value={(form as Record<string, string>)[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                className="w-full rounded border border-input bg-background pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded border border-input bg-background pl-8 pr-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -137,7 +137,7 @@ function ProfileTab() {
             value={form.bio}
             onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
             placeholder="Short professional bio…"
-            className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
           />
         </div>
       </div>
@@ -145,7 +145,7 @@ function ProfileTab() {
       <button
         onClick={handleSave}
         disabled={updateProfile.isPending}
-        className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
+        className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-body-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
       >
         {updateProfile.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
         {updateProfile.isPending ? "Saving…" : "Save Changes"}
@@ -198,7 +198,7 @@ function SecurityTab() {
     <div className="flex flex-col gap-4 max-w-2xl">
       {/* Change password */}
       <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Change Password</h2>
+        <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Change Password</h2>
         {[
           { key: "current", label: "Current Password", show: showCurrent, toggle: () => setShowCurrent((v) => !v) },
           { key: "newPwd",  label: "New Password",     show: showNew,     toggle: () => setShowNew((v) => !v) },
@@ -211,7 +211,7 @@ function SecurityTab() {
                 type={show ? "text" : "password"}
                 value={(form as Record<string, string>)[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm pr-9 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm pr-9 focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <button type="button" onClick={toggle} className="absolute right-2.5 text-muted-foreground hover:text-foreground">
                 {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -234,7 +234,7 @@ function SecurityTab() {
         <button
           onClick={handleSave}
           disabled={changePassword.isPending}
-          className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition mt-1"
+          className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-body-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition mt-1"
         >
           {changePassword.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
           {changePassword.isPending ? "Updating…" : "Update Password"}
@@ -243,17 +243,17 @@ function SecurityTab() {
 
       {/* MFA */}
       <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Two-Factor Authentication</h2>
+        <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Two-Factor Authentication</h2>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Authenticator App (TOTP)</p>
-            <p className="text-xs text-muted-foreground">Use Google Authenticator or similar to generate codes.</p>
+            <p className="text-body-sm font-medium">Authenticator App (TOTP)</p>
+            <p className="text-caption text-muted-foreground">Use Google Authenticator or similar to generate codes.</p>
           </div>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">Not enabled</span>
         </div>
         <button
           onClick={() => toast.info("2FA enrollment is managed by your administrator. Contact your org admin to enable TOTP for your account.")}
-          className="flex items-center gap-2 self-start rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent transition"
+          className="flex items-center gap-2 self-start rounded border border-border px-3 py-1.5 text-caption font-medium hover:bg-accent transition"
         >
           <Shield className="h-3.5 w-3.5" />
           Enable 2FA
@@ -262,22 +262,22 @@ function SecurityTab() {
 
       {/* Sessions */}
       <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
+        <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
         {sessionsQuery.isLoading ? (
-          <div className="text-xs text-muted-foreground">Loading sessions…</div>
+          <div className="text-caption text-muted-foreground">Loading sessions…</div>
         ) : (
           (sessionsQuery.data ?? []).map((s: any) => (
-            <div key={s.id} className="flex items-center justify-between text-sm">
+            <div key={s.id} className="flex items-center justify-between text-body-sm">
               <div>
                 <p className="font-medium text-foreground/90">{s.userAgent ?? "Unknown device"}</p>
-                <p className="text-xs text-muted-foreground">{s.ipAddress ?? "Unknown IP"} · {new Date(s.createdAt).toLocaleDateString()}</p>
+                <p className="text-caption text-muted-foreground">{s.ipAddress ?? "Unknown IP"} · {new Date(s.createdAt).toLocaleDateString()}</p>
               </div>
               {s.isCurrent
                 ? <span className="text-[10px] text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">Current</span>
                 : <button
                     onClick={() => revokeSession.mutate({ sessionId: s.id })}
                     disabled={revokeSession.isPending}
-                    className="text-xs text-red-500 hover:text-red-600 transition disabled:opacity-50"
+                    className="text-caption text-red-500 hover:text-red-600 transition disabled:opacity-50"
                   >Revoke</button>
               }
             </div>
@@ -335,7 +335,7 @@ function NotificationsTab() {
     <div className="flex flex-col gap-4 max-w-2xl">
       <div className="p-4 bg-card border border-border rounded-lg">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wider pb-2">Event</th>
@@ -384,7 +384,7 @@ function NotificationsTab() {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
+        className="flex items-center gap-2 self-start rounded bg-primary px-4 py-2 text-body-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
       >
         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
         {saving ? "Saving…" : "Save Preferences"}
@@ -395,7 +395,7 @@ function NotificationsTab() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
+    <Suspense fallback={<div className="p-4 text-body-sm text-muted-foreground">Loading...</div>}>
       <ProfilePageInner />
     </Suspense>
   );
@@ -416,7 +416,7 @@ function ProfilePageInner() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-sm font-semibold">My Account</h1>
+        <h1 className="text-body-sm font-semibold">My Account</h1>
         <p className="text-[11px] text-muted-foreground/70 mt-0.5">Manage your profile, password, and notification preferences</p>
       </div>
 
@@ -427,7 +427,7 @@ function ProfilePageInner() {
             key={key}
             onClick={() => setActiveTab(key)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition border-b-2 -mb-px",
+              "flex items-center gap-1.5 px-3 py-2 text-caption font-medium transition border-b-2 -mb-px",
               activeTab === key
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"

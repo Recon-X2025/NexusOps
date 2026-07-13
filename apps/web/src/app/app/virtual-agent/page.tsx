@@ -253,7 +253,7 @@ export default function VirtualAgentPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-purple-600" />
-          <h1 className="text-sm font-semibold text-foreground">Virtual Agent</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Virtual Agent</h1>
           <span className="text-[11px] text-muted-foreground/70">NLP-powered self-service · Ticket deflection · Live handoff</span>
         </div>
         <div className="flex items-center gap-2">
@@ -387,7 +387,7 @@ export default function VirtualAgentPage() {
                 { label: "Avg. Resolution Time",     value: "3m 42s", color: "text-blue-700" },
               ].map((k) => (
                 <div key={k.label}>
-                  <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+                  <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
                 </div>
               ))}

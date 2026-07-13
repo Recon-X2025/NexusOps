@@ -55,7 +55,7 @@ export default function CSMCaseDetailPage() {
     return (
       <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs">Loading case…</span>
+        <span className="text-caption">Loading case…</span>
       </div>
     );
   }
@@ -64,8 +64,8 @@ export default function CSMCaseDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
         <Users className="w-8 h-8 opacity-30" />
-        <span className="text-sm">Case not found</span>
-        <button onClick={() => router.push("/app/csm")} className="text-xs text-primary hover:underline">
+        <span className="text-body-sm">Case not found</span>
+        <button onClick={() => router.push("/app/csm")} className="text-caption text-primary hover:underline">
           Back to CSM
         </button>
       </div>
@@ -103,7 +103,7 @@ export default function CSMCaseDetailPage() {
           {!isTerminal && can("csm", "write") && (
             <div className="flex items-center gap-2">
               <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}
-                className="text-xs border border-border rounded px-2 py-1 bg-background">
+                className="text-caption border border-border rounded px-2 py-1 bg-background">
                 <option value="">Update Status…</option>
                 <option value="in_progress">In Progress</option>
                 <option value="awaiting_customer">Awaiting Customer</option>
@@ -161,7 +161,7 @@ export default function CSMCaseDetailPage() {
         <div className="bg-card border border-border rounded px-4 py-3">
           <h3 className="text-[12px] font-semibold text-foreground/80 mb-2">Add Resolution / Update</h3>
           <textarea
-            className="w-full text-xs border border-border rounded px-2 py-1.5 bg-background h-20 resize-none"
+            className="w-full text-caption border border-border rounded px-2 py-1.5 bg-background h-20 resize-none"
             placeholder="Describe the resolution or update…"
             value={comment}
             onChange={(e) => setComment(e.target.value)}

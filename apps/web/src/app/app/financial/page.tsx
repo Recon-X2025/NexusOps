@@ -53,7 +53,7 @@ export default function FinancialPage() {
       fallback={
         <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-xs">Loading financial dashboard…</span>
+          <span className="text-caption">Loading financial dashboard…</span>
         </div>
       }
     >
@@ -214,14 +214,14 @@ function FinancialPageInner() {
                 ...budgetLines.map((b: any) => ({ Type: "Budget", Department: b.department ?? b.costCenter ?? "", Category: b.category ?? "", FY_Budget: b.allocatedAmount ?? b.total ?? "", YTD_Actual: b.actualAmount ?? b.spent ?? "", Variance: ((b.allocatedAmount ?? 0) - (b.actualAmount ?? 0)).toFixed(2), Status: b.status ?? "" })),
                 ...invoices.map((i: any) => ({ Type: "Invoice", Vendor: i.vendorName ?? "", Invoice_No: i.invoiceNumber ?? i.number ?? "", Amount: i.totalAmount ?? "", Status: i.status ?? "", Due_Date: i.dueDate ? new Date(i.dueDate).toLocaleDateString("en-IN") : "" })),
               ], "fy_report")}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 text-muted-foreground"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 text-muted-foreground"
             >
               <Download className="w-4 h-4" /> Export FY Report
             </button>
             {can("budget", "write") && (
               <button
                 onClick={() => setShowNewBudget(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-body-sm font-medium rounded-lg hover:bg-primary/90"
               >
                 <Plus className="w-4 h-4" /> Add Budget Line
               </button>
@@ -229,7 +229,7 @@ function FinancialPageInner() {
             {can("financial", "write") && (
               <button
                 onClick={() => setShowNewInvoice(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white text-body-sm font-medium rounded-lg hover:bg-green-800"
               >
                 <Plus className="w-4 h-4" /> New Invoice
               </button>
@@ -252,7 +252,7 @@ function FinancialPageInner() {
         {visibleTabs.map((t) => (
           <button key={t.key} onClick={() => selectTab(t.key)}
             className={cn(
-              "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+              "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             )}>
             {t.label}
@@ -265,12 +265,12 @@ function FinancialPageInner() {
           budgetLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading budget…</span>
+              <span className="text-caption">Loading budget…</span>
             </div>
           ) : budgetLines.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <BarChart2 className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No budget lines found.</span>
+              <span className="text-caption">No budget lines found.</span>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -346,12 +346,12 @@ function FinancialPageInner() {
           chargebacksLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading chargebacks…</span>
+              <span className="text-caption">Loading chargebacks…</span>
             </div>
           ) : chargebackLines.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <BarChart2 className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No chargeback records found for this period.</span>
+              <span className="text-caption">No chargeback records found for this period.</span>
             </div>
           ) : (
           <div>
@@ -437,12 +437,12 @@ function FinancialPageInner() {
           invoicesLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading invoices…</span>
+              <span className="text-caption">Loading invoices…</span>
             </div>
           ) : invoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Coins className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No invoices found.</span>
+              <span className="text-caption">No invoices found.</span>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -527,7 +527,7 @@ function FinancialPageInner() {
                 { label: "Over 90 Days",        value: `₹${((apAgingData?.over90 ?? 0) / 100000).toFixed(1)}L`,  color: (apAgingData?.over90 ?? 0) > 0 ? "text-red-700 font-bold" : "text-green-700" },
               ].map(k => (
                 <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-                  <div className={`text-xl font-black ${k.color}`}>{k.value}</div>
+                  <div className={`text-h4 font-black ${k.color}`}>{k.value}</div>
                   <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
                 </div>
               ))}
@@ -621,15 +621,15 @@ function FinancialPageInner() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div className="border border-border rounded px-3 py-2">
-                      <div className="text-xl font-bold text-foreground/80">₹{(totalAR / 100000).toFixed(1)}L</div>
+                      <div className="text-h4 font-bold text-foreground/80">₹{(totalAR / 100000).toFixed(1)}L</div>
                       <div className="text-[10px] text-muted-foreground uppercase">Total AR Outstanding</div>
                     </div>
                     <div className="border border-border rounded px-3 py-2">
-                      <div className={`text-xl font-bold ${overdueAR.length > 0 ? "text-red-700" : "text-green-700"}`}>{overdueAR.length}</div>
+                      <div className={`text-h4 font-bold ${overdueAR.length > 0 ? "text-red-700" : "text-green-700"}`}>{overdueAR.length}</div>
                       <div className="text-[10px] text-muted-foreground uppercase">Overdue Invoices</div>
                     </div>
                     <div className="border border-border rounded px-3 py-2">
-                      <div className="text-xl font-bold text-blue-700">{arInvoices.filter((i: any) => i.status === "pending").length}</div>
+                      <div className="text-h4 font-bold text-blue-700">{arInvoices.filter((i: any) => i.status === "pending").length}</div>
                       <div className="text-[10px] text-muted-foreground uppercase">Pending Collection</div>
                     </div>
                   </div>
@@ -1028,7 +1028,7 @@ function FinancialPageInner() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold">Add Budget Line</h2>
+            <h2 className="text-body-sm font-bold">Add Budget Line</h2>
             <button onClick={() => setShowNewBudget(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
           <div className="space-y-3">
@@ -1046,14 +1046,14 @@ function FinancialPageInner() {
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button onClick={() => setShowNewBudget(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowNewBudget(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!budgetForm.category.trim() || !budgetForm.budgeted) { toast.error("Category and budget amount are required"); return; }
                 createBudgetLine.mutate({ category: budgetForm.category.trim(), department: budgetForm.department || undefined, fiscalYear: new Date().getFullYear(), budgeted: budgetForm.budgeted });
               }}
               disabled={createBudgetLine.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createBudgetLine.isPending ? "Adding…" : "Add Line"}
             </button>
@@ -1066,7 +1066,7 @@ function FinancialPageInner() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold">Create receivable (AR)</h2>
+            <h2 className="text-body-sm font-bold">Create receivable (AR)</h2>
             <button type="button" onClick={() => setShowNewARInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
           <div className="space-y-3">
@@ -1129,7 +1129,7 @@ function FinancialPageInner() {
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button type="button" onClick={() => setShowNewARInvoice(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button type="button" onClick={() => setShowNewARInvoice(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               type="button"
               onClick={() => {
@@ -1147,7 +1147,7 @@ function FinancialPageInner() {
                 });
               }}
               disabled={createReceivableInvoiceMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50"
             >
               {createReceivableInvoiceMutation.isPending ? "Creating…" : "Create receivable"}
             </button>
@@ -1160,7 +1160,7 @@ function FinancialPageInner() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold">Create Invoice</h2>
+            <h2 className="text-body-sm font-bold">Create Invoice</h2>
             <button type="button" onClick={() => setShowNewInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
           <div className="space-y-3">
@@ -1223,7 +1223,7 @@ function FinancialPageInner() {
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button onClick={() => setShowNewInvoice(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowNewInvoice(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!invoiceForm.vendorId || !invoiceForm.invoiceNumber.trim() || !invoiceForm.amount) { toast.error("Vendor, invoice number, and amount are required"); return; }
@@ -1237,7 +1237,7 @@ function FinancialPageInner() {
                 });
               }}
               disabled={createInvoiceMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-green-700 text-white rounded hover:bg-green-800 disabled:opacity-50"
             >
               {createInvoiceMutation.isPending ? "Creating…" : "Create Invoice"}
             </button>

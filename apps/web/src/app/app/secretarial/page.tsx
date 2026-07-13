@@ -70,8 +70,8 @@ function OverviewTab() {
         {kpis.map(k => (
           <div key={k.label} className="bg-card border border-border rounded-xl p-4">
             <div className={`p-2 rounded-xl w-fit mb-3 ${k.color}`}><k.icon className="w-4 h-4" /></div>
-            <p className="text-2xl font-bold">{k.value}</p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">{k.label}</p>
+            <p className="text-h3 font-bold">{k.value}</p>
+            <p className="text-caption text-muted-foreground leading-tight mt-0.5">{k.label}</p>
           </div>
         ))}
       </div>
@@ -85,12 +85,12 @@ function OverviewTab() {
             {upcomingFilings.map((f: any) => (
               <div key={f.id} className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <div>
-                  <p className="text-sm font-medium">{f.title}</p>
-                  <p className="text-xs text-muted-foreground">{f.formNumber} · {f.authority}</p>
+                  <p className="text-body-sm font-medium">{f.title}</p>
+                  <p className="text-caption text-muted-foreground">{f.formNumber} · {f.authority}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-orange-700">{new Date(f.dueDate).toLocaleDateString()}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLOR[f.status]}`}>{f.status}</span>
+                  <p className="text-body-sm font-semibold text-orange-700">{new Date(f.dueDate).toLocaleDateString()}</p>
+                  <span className={`text-caption px-2 py-0.5 rounded-full border font-medium ${STATUS_COLOR[f.status]}`}>{f.status}</span>
                 </div>
               </div>
             ))}
@@ -101,7 +101,7 @@ function OverviewTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold mb-3">Quick Reference</h3>
-          <div className="space-y-2 text-sm">
+          <div className="space-y-2 text-body-sm">
             {[
               ["Annual General Meeting", "Within 6 months of FY end"],
               ["Board Meeting", "Min 4 per year, max 120 days gap"],
@@ -112,7 +112,7 @@ function OverviewTab() {
             ].map(([item, note]) => (
               <div key={item} className="flex justify-between p-2 hover:bg-muted/50 rounded-lg">
                 <span className="font-medium">{item}</span>
-                <span className="text-muted-foreground text-xs">{note}</span>
+                <span className="text-muted-foreground text-caption">{note}</span>
               </div>
             ))}
           </div>
@@ -127,8 +127,8 @@ function OverviewTab() {
               { authority: "Income Tax Dept", portal: "incometax.gov.in", desc: "TDS, ITR, Form 15CA/CB" },
             ].map(a => (
               <div key={a.authority} className="p-3 bg-muted/30 border border-border rounded-lg">
-                <p className="text-sm font-medium">{a.authority}</p>
-                <p className="text-xs text-muted-foreground">{a.desc} · <span className="text-primary">{a.portal}</span></p>
+                <p className="text-body-sm font-medium">{a.authority}</p>
+                <p className="text-caption text-muted-foreground">{a.desc} · <span className="text-primary">{a.portal}</span></p>
               </div>
             ))}
           </div>
@@ -263,29 +263,29 @@ function BoardTab() {
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Board Meetings</h3>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => { setEditingMeeting(null); setMtgForm({ type: "board", title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" }); setShowNewMeeting(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
+            <button onClick={() => { setEditingMeeting(null); setMtgForm({ type: "board", title: "", scheduledAt: "", duration: 120, venue: "", videoLink: "" }); setShowNewMeeting(true); }} className="flex items-center gap-1.5 text-body-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
               <Plus className="w-3.5 h-3.5" /> Schedule Meeting
             </button>
           </PermissionGate>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50">
               <tr>{["Number", "Title", "Type", "Date", "Duration", "Status", "Quorum", "Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                <th key={h} className="text-left px-4 py-2 text-caption font-medium text-muted-foreground">{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {meetings.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No board meetings yet</td></tr>}
               {meetings.map((m: any) => (
                 <tr key={m.id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{m.number}</td>
+                  <td className="px-4 py-3 font-mono text-caption">{m.number}</td>
                   <td className="px-4 py-3 font-medium">{m.title}</td>
-                  <td className="px-4 py-3 text-xs capitalize">{m.type?.replace("_", " ")}</td>
-                  <td className="px-4 py-3 text-xs">{new Date(m.scheduledAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{m.duration}min</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status === "scheduled" ? "upcoming" : m.status ?? "—").replace("_", " ")}</span></td>
-                  <td className="px-4 py-3 text-xs">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
+                  <td className="px-4 py-3 text-caption capitalize">{m.type?.replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-caption">{new Date(m.scheduledAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-caption text-muted-foreground">{m.duration}min</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-caption font-medium border ${STATUS_COLOR[m.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(m.status === "scheduled" ? "upcoming" : m.status ?? "—").replace("_", " ")}</span></td>
+                  <td className="px-4 py-3 text-caption">{m.quorumMet == null ? "—" : m.quorumMet ? "✓ Met" : "✗ Not met"}</td>
                   <td className="px-4 py-3 space-x-2">
                     {m.status === "scheduled" && (
                       <>
@@ -300,12 +300,12 @@ function BoardTab() {
                           });
                           setEditingMeeting(m.id);
                           setShowNewMeeting(true);
-                        }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                        }} className="text-caption text-blue-600 hover:underline">Edit</button>
                         <button onClick={() => {
                           setMarkDoneMeeting(m);
                           setResolutionText("");
-                        }} className="text-xs text-green-600 hover:underline">Mark Done</button>
-                        <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "cancelled" })} className="text-xs text-red-600 hover:underline">Cancel</button>
+                        }} className="text-caption text-green-600 hover:underline">Mark Done</button>
+                        <button onClick={() => updateMtgStatus.mutate({ id: m.id, status: "cancelled" })} className="text-caption text-red-600 hover:underline">Cancel</button>
                       </>
                     )}
                   </td>
@@ -323,17 +323,17 @@ function BoardTab() {
           <PermissionGate module="secretarial" action="write">
             <button
               onClick={() => setShowAddDirector(true)}
-              className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1.5 text-caption bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" /> Add Board Director
             </button>
           </PermissionGate>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50">
               <tr>{["Name", "DIN", "Designation", "Category", "Pan", "Appointed", "KYC Status", "Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                <th key={h} className="text-left px-4 py-2 text-caption font-medium text-muted-foreground">{h}</th>
               ))}</tr>
             </thead>
             <tbody>
@@ -341,19 +341,19 @@ function BoardTab() {
               {directors.map((d: any) => (
                 <tr key={d.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{d.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{d.din}</td>
-                  <td className="px-4 py-3 text-xs">{d.designation}</td>
-                  <td className="px-4 py-3 text-xs capitalize">{d.category?.replace("_", " ")}</td>
-                  <td className="px-4 py-3 text-xs font-mono">{d.pan ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs">{d.appointedAt ? new Date(d.appointedAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 font-mono text-caption">{d.din}</td>
+                  <td className="px-4 py-3 text-caption">{d.designation}</td>
+                  <td className="px-4 py-3 text-caption capitalize">{d.category?.replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-caption font-mono">{d.pan ?? "—"}</td>
+                  <td className="px-4 py-3 text-caption">{d.appointedAt ? new Date(d.appointedAt).toLocaleDateString() : "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.kyc === "filed" ? "text-green-700 bg-green-100" : d.kyc === "expired" ? "text-red-700 bg-red-100" : "text-amber-700 bg-amber-100"}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${d.kyc === "filed" ? "text-green-700 bg-green-100" : d.kyc === "expired" ? "text-red-700 bg-red-100" : "text-amber-700 bg-amber-100"}`}>
                       {d.kyc ?? "pending"}
                     </span>
                   </td>
                   <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                     <PermissionGate module="secretarial" action="write">
-                      <button onClick={() => updateKyc.mutate({ id: d.id, kyc: d.kyc === "filed" ? "pending" : "filed" })} className="text-xs text-primary hover:underline">
+                      <button onClick={() => updateKyc.mutate({ id: d.id, kyc: d.kyc === "filed" ? "pending" : "filed" })} className="text-caption text-primary hover:underline">
                         {d.kyc === "filed" ? "Mark Pending" : "Mark Filed"}
                       </button>
                       <span className="text-muted-foreground/30">|</span>
@@ -371,13 +371,13 @@ function BoardTab() {
                         });
                         setEditingDirector(d.id);
                         setShowAddDirector(true);
-                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      }} className="text-caption text-blue-600 hover:underline">Edit</button>
                       <span className="text-muted-foreground/30">|</span>
                       <button onClick={() => {
                         if (confirm("Are you sure you want to remove this director?")) {
                           deleteDirector.mutate({ id: d.id });
                         }
-                      }} className="text-xs text-red-600 hover:underline">Cancel</button>
+                      }} className="text-caption text-red-600 hover:underline">Cancel</button>
                     </PermissionGate>
                   </td>
                 </tr>
@@ -393,25 +393,25 @@ function BoardTab() {
           <h3 className="font-semibold">Board Resolutions</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50">
               <tr>{["Number", "Title", "Type", "Status", "Passed", "For", "Against", "Abstain", "Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                <th key={h} className="text-left px-4 py-2 text-caption font-medium text-muted-foreground">{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {resolutions.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No resolutions yet</td></tr>}
               {resolutions.map((r: any) => (
                 <tr key={r.id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{r.number}</td>
-                  <td className="px-4 py-3 font-medium max-w-[200px] truncate">{r.title}</td>
-                  <td className="px-4 py-3 text-xs capitalize">{r.type}</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(r.status ?? "—").replace("_", " ")}</span></td>
-                  <td className="px-4 py-3 text-xs">{r.passedAt ? new Date(r.passedAt).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3 text-xs text-green-600">{r.votesFor ?? 0}</td>
-                  <td className="px-4 py-3 text-xs text-red-600">{r.votesAgainst ?? 0}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{r.abstentions ?? 0}</td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-4 py-3 font-mono text-caption">{r.number}</td>
+                  <td className="px-4 py-3 font-medium max-w-[200px]">{r.title}</td>
+                  <td className="px-4 py-3 text-caption capitalize">{r.type}</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-caption font-medium ${STATUS_COLOR[r.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(r.status ?? "—").replace("_", " ")}</span></td>
+                  <td className="px-4 py-3 text-caption">{r.passedAt ? new Date(r.passedAt).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-caption text-green-600">{r.votesFor ?? 0}</td>
+                  <td className="px-4 py-3 text-caption text-red-600">{r.votesAgainst ?? 0}</td>
+                  <td className="px-4 py-3 text-caption text-muted-foreground">{r.abstentions ?? 0}</td>
+                  <td className="px-4 py-3 text-caption">
                     <button
                       onClick={() => setEsignFor({ id: r.id, title: `Resolution ${r.number} — ${r.title}` })}
                       className="text-blue-700 hover:underline font-medium"
@@ -435,8 +435,8 @@ function BoardTab() {
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <div>
-                <h2 className="text-base font-semibold">E-sign resolution</h2>
-                <p className="text-xs text-muted-foreground">{esignFor.title}</p>
+                <h2 className="text-body font-semibold">E-sign resolution</h2>
+                <p className="text-caption text-muted-foreground">{esignFor.title}</p>
               </div>
               <button onClick={() => setEsignFor(null)} className="p-2 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
             </div>
@@ -460,26 +460,26 @@ function BoardTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">Complete Board Meeting</h2>
+              <h2 className="font-bold text-body-lg">Complete Board Meeting</h2>
               <button onClick={() => setMarkDoneMeeting(null)} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-muted/30 p-4 rounded-lg border border-border">
-                <p className="text-sm font-medium">{markDoneMeeting.title}</p>
-                <p className="text-xs text-muted-foreground">{new Date(markDoneMeeting.scheduledAt).toLocaleString()} · {markDoneMeeting.duration} min</p>
+                <p className="text-body-sm font-medium">{markDoneMeeting.title}</p>
+                <p className="text-caption text-muted-foreground">{new Date(markDoneMeeting.scheduledAt).toLocaleString()} · {markDoneMeeting.duration} min</p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Board Resolutions</label>
+                <label className="block text-body-sm font-medium mb-1">Board Resolutions</label>
                 <textarea
                   value={resolutionText}
                   onChange={(e) => setResolutionText(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background min-h-[120px]"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background min-h-[120px]"
                   placeholder="Enter resolution details passed during this meeting..."
                 />
               </div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => setMarkDoneMeeting(null)} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button onClick={() => setMarkDoneMeeting(null)} className="px-4 py-2 rounded-lg border border-border text-body-sm">Cancel</button>
               <button
                 disabled={updateMtgStatus.isPending || createResolution.isPending}
                 onClick={async () => {
@@ -501,7 +501,7 @@ function BoardTab() {
                     // toast error is already handled by useMutation, but we prevent marking done if resolution fails
                   }
                 }}
-                className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-green-600 text-white text-body-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >{updateMtgStatus.isPending || createResolution.isPending ? "Saving..." : "Mark as Done"}</button>
             </div>
           </div>
@@ -513,37 +513,37 @@ function BoardTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">{editingMeeting ? "Edit Board Meeting" : "Schedule Board Meeting"}</h2>
+              <h2 className="font-bold text-body-lg">{editingMeeting ? "Edit Board Meeting" : "Schedule Board Meeting"}</h2>
               <button onClick={() => { setShowNewMeeting(false); setEditingMeeting(null); }} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Meeting Type</label>
-                <select value={mtgForm.type} onChange={e => setMtgForm(p => ({ ...p, type: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                <label className="block text-body-sm font-medium mb-1">Meeting Type</label>
+                <select value={mtgForm.type} onChange={e => setMtgForm(p => ({ ...p, type: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                   {["board", "audit_committee", "nomination_committee", "compensation_committee", "agm", "egm", "creditors"].map(t => <option key={t} value={t}>{t.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Title *</label>
-                <input value={mtgForm.title} onChange={e => setMtgForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Q3 Board Meeting" />
+                <label className="block text-body-sm font-medium mb-1">Title *</label>
+                <input value={mtgForm.title} onChange={e => setMtgForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="Q3 Board Meeting" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Date & Time *</label>
-                <input type="datetime-local" value={mtgForm.scheduledAt} onChange={e => setMtgForm(p => ({ ...p, scheduledAt: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+                <label className="block text-body-sm font-medium mb-1">Date & Time *</label>
+                <input type="datetime-local" value={mtgForm.scheduledAt} onChange={e => setMtgForm(p => ({ ...p, scheduledAt: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Duration (min)</label>
-                  <input type="number" value={mtgForm.duration} onChange={e => setMtgForm(p => ({ ...p, duration: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+                  <label className="block text-body-sm font-medium mb-1">Duration (min)</label>
+                  <input type="number" value={mtgForm.duration} onChange={e => setMtgForm(p => ({ ...p, duration: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Venue</label>
-                  <input value={mtgForm.venue} onChange={e => setMtgForm(p => ({ ...p, venue: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="Board Room / Virtual" />
+                  <label className="block text-body-sm font-medium mb-1">Venue</label>
+                  <input value={mtgForm.venue} onChange={e => setMtgForm(p => ({ ...p, venue: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="Board Room / Virtual" />
                 </div>
               </div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => { setShowNewMeeting(false); setEditingMeeting(null); }} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button onClick={() => { setShowNewMeeting(false); setEditingMeeting(null); }} className="px-4 py-2 rounded-lg border border-border text-body-sm">Cancel</button>
               <button
                 disabled={!mtgForm.title || !mtgForm.scheduledAt || createMeeting.isPending || updateMeeting.isPending}
                 onClick={() => {
@@ -553,7 +553,7 @@ function BoardTab() {
                     createMeeting.mutate({ ...mtgForm, scheduledAt: mtgForm.scheduledAt });
                   }
                 }}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium hover:bg-primary/90 disabled:opacity-50"
               >{createMeeting.isPending || updateMeeting.isPending ? "Saving..." : (editingMeeting ? "Save Changes" : "Schedule")}</button>
             </div>
           </div>
@@ -564,7 +564,7 @@ function BoardTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-foreground">{editingDirector ? "Edit Board Director" : "Add Board Director"}</h3>
+              <h3 className="text-body-sm font-bold text-foreground">{editingDirector ? "Edit Board Director" : "Add Board Director"}</h3>
               <button onClick={handleCloseDirectorModal}>
                 <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
               </button>
@@ -677,7 +677,7 @@ function BoardTab() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleCloseDirectorModal}
-                className="flex-1 px-4 py-2 text-xs border border-border rounded hover:bg-accent transition-colors"
+                className="flex-1 px-4 py-2 text-caption border border-border rounded hover:bg-accent transition-colors"
               >
                 Cancel
               </button>
@@ -706,7 +706,7 @@ function BoardTab() {
                   }
                 }}
                 disabled={createDirector.isPending || updateDirector.isPending}
-                className="flex-1 px-4 py-2 text-xs bg-primary text-white rounded hover:bg-primary/95 disabled:opacity-50 transition-colors"
+                className="flex-1 px-4 py-2 text-caption bg-primary text-white rounded hover:bg-primary/95 disabled:opacity-50 transition-colors"
               >
                 {createDirector.isPending || updateDirector.isPending ? "Saving…" : (editingDirector ? "Save Changes" : "Add Director")}
               </button>
@@ -750,7 +750,7 @@ function FilingsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-sm bg-background">
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
           <option value="">All Status</option>
           {["upcoming", "in_progress", "filed", "overdue", "not_applicable"].map(s => <option key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
         </select>
@@ -774,7 +774,7 @@ function FilingsTab() {
             </div>
           </PermissionGate>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => { setEditingFiling(null); setForm({ formNumber: "MGT-7", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: selectedFY, fees: "", notes: "" }); setShowCreate(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 h-9">
+            <button onClick={() => { setEditingFiling(null); setForm({ formNumber: "MGT-7", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: selectedFY, fees: "", notes: "" }); setShowCreate(true); }} className="flex items-center gap-1.5 text-body-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 h-9">
               <Plus className="w-3.5 h-3.5" /> Add Filing
             </button>
           </PermissionGate>
@@ -783,24 +783,24 @@ function FilingsTab() {
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50">
               <tr>{["Form", "Title", "Authority", "Category", "FY", "Due Date", "Status", "SRN", "Actions"].map(h => (
-                <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                <th key={h} className="text-left px-3 py-2 text-caption font-medium text-muted-foreground">{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No filings found</td></tr>}
               {filtered.map((f: any) => (
                 <tr key={f.id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-3 py-3 font-mono text-xs font-semibold">{f.formNumber}</td>
-                  <td className="px-3 py-3 font-medium max-w-[160px] truncate">{f.title}</td>
-                  <td className="px-3 py-3 text-xs">{f.authority}</td>
-                  <td className="px-3 py-3 text-xs capitalize">{f.category?.replace("_", " ")}</td>
-                  <td className="px-3 py-3 text-xs">{f.fy ?? "—"}</td>
-                  <td className="px-3 py-3 text-xs">{f.dueDate ? new Date(f.dueDate).toLocaleDateString() : "—"}</td>
-                  <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(f.status ?? "—").replace("_", " ")}</span></td>
-                  <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{f.srn ?? "—"}</td>
+                  <td className="px-3 py-3 font-mono text-caption font-semibold">{f.formNumber}</td>
+                  <td className="px-3 py-3 font-medium max-w-[160px]">{f.title}</td>
+                  <td className="px-3 py-3 text-caption">{f.authority}</td>
+                  <td className="px-3 py-3 text-caption capitalize">{f.category?.replace("_", " ")}</td>
+                  <td className="px-3 py-3 text-caption">{f.fy ?? "—"}</td>
+                  <td className="px-3 py-3 text-caption">{f.dueDate ? new Date(f.dueDate).toLocaleDateString() : "—"}</td>
+                  <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-caption font-medium border ${STATUS_COLOR[f.status ?? ""] ?? "text-muted-foreground bg-muted"}`}>{(f.status ?? "—").replace("_", " ")}</span></td>
+                  <td className="px-3 py-3 font-mono text-caption text-muted-foreground">{f.srn ?? "—"}</td>
                   <td className="px-3 py-3 space-x-2 whitespace-nowrap">
                     {f.status !== "filed" && f.status !== "cancelled" && (
                       <PermissionGate module="secretarial" action="write">
@@ -808,19 +808,19 @@ function FilingsTab() {
                           setForm({ formNumber: f.formNumber, title: f.title, authority: f.authority, category: f.category || "annual_return", dueDate: f.dueDate ? (new Date(f.dueDate).toISOString().split('T')[0] ?? "") : "", fy: f.fy || "", fees: "", notes: "" });
                           setEditingFiling(f.id);
                           setShowCreate(true);
-                        }} className="text-xs text-blue-600 hover:underline font-medium">Edit</button>
+                        }} className="text-caption text-blue-600 hover:underline font-medium">Edit</button>
                         <button onClick={() => {
                           const notes = prompt("Please provide comments for marking this filing as Done:");
                           if (notes !== null) {
                             markFiled.mutate({ id: f.id, notes: notes });
                           }
-                        }} className="text-xs text-green-600 hover:underline font-medium">Mark as Done</button>
+                        }} className="text-caption text-green-600 hover:underline font-medium">Mark as Done</button>
                         <button onClick={() => {
                           const notes = prompt("Please provide comments for cancelling this filing:");
                           if (notes !== null) {
                             updateFiling.mutate({ id: f.id, status: "not_applicable", notes: notes });
                           }
-                        }} className="text-xs text-red-600 hover:underline font-medium">Cancel</button>
+                        }} className="text-caption text-red-600 hover:underline font-medium">Cancel</button>
                       </PermissionGate>
                     )}
                   </td>
@@ -835,44 +835,44 @@ function FilingsTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">{editingFiling ? "Edit Compliance Filing" : "Add Compliance Filing"}</h2>
+              <h2 className="font-bold text-body-lg">{editingFiling ? "Edit Compliance Filing" : "Add Compliance Filing"}</h2>
               <button onClick={() => { setShowCreate(false); setEditingFiling(null); }} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Form Number *</label>
-                <select value={form.formNumber} onChange={e => setForm(p => ({ ...p, formNumber: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                <label className="block text-body-sm font-medium mb-1">Form Number *</label>
+                <select value={form.formNumber} onChange={e => setForm(p => ({ ...p, formNumber: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                   {["MGT-7", "DIR-3 KYC", "ADT-1", "AOC-4", "MSME-1", "MSME-1 Return H1/H2", "DPT-3"].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Authority *</label>
-                <select value={form.authority} onChange={e => setForm(p => ({ ...p, authority: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                <label className="block text-body-sm font-medium mb-1">Authority *</label>
+                <select value={form.authority} onChange={e => setForm(p => ({ ...p, authority: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                   <option value="MCA">MCA</option>
                   <option value="MCA (ROC)">MCA (ROC)</option>
                 </select>
               </div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Category *</label><input value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-body-sm font-medium mb-1">Title *</label><input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Category *</label><input value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
               <div>
-                <label className="block text-sm font-medium mb-1">Financial Year *</label>
-                <select value={form.fy} onChange={e => setForm(p => ({ ...p, fy: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                <label className="block text-body-sm font-medium mb-1">Financial Year *</label>
+                <select value={form.fy} onChange={e => setForm(p => ({ ...p, fy: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                   {["2023-24", "2024-25", "2025-26"].map(fy => <option key={fy} value={fy}>{fy}</option>)}
                 </select>
               </div>
-              <div><label className="block text-sm font-medium mb-1">Due Date *</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Filing Fees (₹) *</label><input type="number" value={form.fees} onChange={e => setForm(p => ({ ...p, fees: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Notes *</label><textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Due Date *</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Filing Fees (₹) *</label><input type="number" value={form.fees} onChange={e => setForm(p => ({ ...p, fees: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-body-sm font-medium mb-1">Notes *</label><textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background resize-none" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={() => { setShowCreate(false); setEditingFiling(null); }} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button onClick={() => { setShowCreate(false); setEditingFiling(null); }} className="px-4 py-2 rounded-lg border border-border text-body-sm">Cancel</button>
               <button disabled={!form.formNumber || !form.title || !form.authority || !form.category || !form.fy || !form.dueDate || !form.fees || !form.notes || createFiling.isPending || updateFiling.isPending} onClick={() => {
                 if (editingFiling) {
                   updateFiling.mutate({ id: editingFiling, ...form, fees: form.fees ? +form.fees : undefined, dueDate: form.dueDate, fy: form.fy || undefined });
                 } else {
                   createFiling.mutate({ ...form, fees: form.fees ? +form.fees : undefined, dueDate: form.dueDate, fy: form.fy || undefined });
                 }
-              }} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">{createFiling.isPending || updateFiling.isPending ? "Saving..." : (editingFiling ? "Save Changes" : "Create Filing")}</button>
+              }} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium disabled:opacity-50">{createFiling.isPending || updateFiling.isPending ? "Saving..." : (editingFiling ? "Save Changes" : "Create Filing")}</button>
             </div>
           </div>
         </div>
@@ -915,42 +915,42 @@ function ShareCapitalTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summary.map((s: { shareClass?: string; totalQty?: unknown; holders: number }) => (
           <div key={s.shareClass} className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-xs text-muted-foreground capitalize mb-1">{s.shareClass?.replace("_", " ")} Shares</p>
-            <p className="text-2xl font-bold">{Number(s.totalQty ?? 0).toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">{s.holders} holders</p>
+            <p className="text-caption text-muted-foreground capitalize mb-1">{s.shareClass?.replace("_", " ")} Shares</p>
+            <p className="text-h3 font-bold">{Number(s.totalQty ?? 0).toLocaleString()}</p>
+            <p className="text-caption text-muted-foreground">{s.holders} holders</p>
           </div>
         ))}
-        {summary.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No share capital records</p>}
+        {summary.length === 0 && <p className="text-body-sm text-muted-foreground col-span-4">No share capital records</p>}
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Shareholder Register</h3>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => { setEditingShareholder(null); setForm({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" }); setShowAdd(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+            <button onClick={() => { setEditingShareholder(null); setForm({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" }); setShowAdd(true); }} className="flex items-center gap-1.5 text-body-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
               <Plus className="w-3.5 h-3.5" /> Add Shareholder
             </button>
           </PermissionGate>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50">
               <tr>{["Folio", "Holder Name", "Type", "Class", "Nominal Value", "Quantity", "Paid Up", "PAN", "Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                <th key={h} className="text-left px-4 py-2 text-caption font-medium text-muted-foreground">{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {shares.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No shareholders registered</td></tr>}
               {shares.map((s: any) => (
                 <tr key={s.id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{s.folio}</td>
+                  <td className="px-4 py-3 font-mono text-caption">{s.folio}</td>
                   <td className="px-4 py-3 font-medium">{s.holderName}</td>
-                  <td className="px-4 py-3 text-xs capitalize">{s.holderType}</td>
-                  <td className="px-4 py-3 text-xs capitalize">{s.shareClass?.replace("_", " ")}</td>
-                  <td className="px-4 py-3 text-xs">₹{s.nominalValue}</td>
+                  <td className="px-4 py-3 text-caption capitalize">{s.holderType}</td>
+                  <td className="px-4 py-3 text-caption capitalize">{s.shareClass?.replace("_", " ")}</td>
+                  <td className="px-4 py-3 text-caption">₹{s.nominalValue}</td>
                   <td className="px-4 py-3 font-medium">{s.quantity?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-xs">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{s.pan ?? "—"}</td>
+                  <td className="px-4 py-3 text-caption">{s.paidUpValue != null ? `₹${s.paidUpValue.toLocaleString()}` : "—"}</td>
+                  <td className="px-4 py-3 font-mono text-caption">{s.pan ?? "—"}</td>
                   <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                     <PermissionGate module="secretarial" action="write">
                       <button onClick={() => {
@@ -965,13 +965,13 @@ function ShareCapitalTab() {
                         });
                         setEditingShareholder(s.id);
                         setShowAdd(true);
-                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      }} className="text-caption text-blue-600 hover:underline">Edit</button>
                       <span className="text-muted-foreground/30">|</span>
                       <button onClick={() => {
                         if (confirm("Are you sure you want to remove this shareholder?")) {
                           deleteShare.mutate({ id: s.id });
                         }
-                      }} className="text-xs text-red-600 hover:underline">Delete</button>
+                      }} className="text-caption text-red-600 hover:underline">Delete</button>
                     </PermissionGate>
                   </td>
                 </tr>
@@ -985,20 +985,20 @@ function ShareCapitalTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">{editingShareholder ? "Edit Shareholder" : "Add Shareholder"}</h2>
+              <h2 className="font-bold text-body-lg">{editingShareholder ? "Edit Shareholder" : "Add Shareholder"}</h2>
               <button onClick={handleCloseModal} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Holder Name *</label><input value={form.holderName} onChange={e => setForm(p => ({ ...p, holderName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Holder Type</label><select value={form.holderType} onChange={e => setForm(p => ({ ...p, holderType: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["individual", "institution", "promoter", "trust"].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}</select></div>
-              <div><label className="block text-sm font-medium mb-1">Share Class</label><select value={form.shareClass} onChange={e => setForm(p => ({ ...p, shareClass: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">{["equity", "preference", "esop_pool", "convertible"].map(t => <option key={t} value={t}>{t.replace("_", " ")}</option>)}</select></div>
-              <div><label className="block text-sm font-medium mb-1">Nominal Value (₹)</label><input type="number" value={form.nominalValue} onChange={e => setForm(p => ({ ...p, nominalValue: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Quantity *</label><input type="number" min={1} value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">PAN</label><input value={form.pan} onChange={e => setForm(p => ({ ...p, pan: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Address</label><input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-body-sm font-medium mb-1">Holder Name *</label><input value={form.holderName} onChange={e => setForm(p => ({ ...p, holderName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Holder Type</label><select value={form.holderType} onChange={e => setForm(p => ({ ...p, holderType: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">{["individual", "institution", "promoter", "trust"].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}</select></div>
+              <div><label className="block text-body-sm font-medium mb-1">Share Class</label><select value={form.shareClass} onChange={e => setForm(p => ({ ...p, shareClass: e.target.value as any }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">{["equity", "preference", "esop_pool", "convertible"].map(t => <option key={t} value={t}>{t.replace("_", " ")}</option>)}</select></div>
+              <div><label className="block text-body-sm font-medium mb-1">Nominal Value (₹)</label><input type="number" value={form.nominalValue} onChange={e => setForm(p => ({ ...p, nominalValue: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Quantity *</label><input type="number" min={1} value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">PAN</label><input value={form.pan} onChange={e => setForm(p => ({ ...p, pan: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-body-sm font-medium mb-1">Address</label><input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={handleCloseModal} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button onClick={handleCloseModal} className="px-4 py-2 rounded-lg border border-border text-body-sm">Cancel</button>
               <button
                 disabled={!form.holderName || createShare.isPending || updateShare.isPending}
                 onClick={() => {
@@ -1017,7 +1017,7 @@ function ShareCapitalTab() {
                     createShare.mutate(form);
                   }
                 }}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium disabled:opacity-50"
               >{createShare.isPending || updateShare.isPending ? "Saving..." : (editingShareholder ? "Save Changes" : "Add")}</button>
             </div>
           </div>
@@ -1100,42 +1100,42 @@ function EsopTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summary.map((s: { event: string; totalOptions?: unknown; count: number }) => (
           <div key={s.event} className="bg-card border border-border rounded-xl p-4 text-center">
-            <p className="text-xs text-muted-foreground capitalize mb-1">{s.event}ed Options</p>
-            <p className="text-2xl font-bold">{Number(s.totalOptions ?? 0).toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">{s.count} grants</p>
+            <p className="text-caption text-muted-foreground capitalize mb-1">{s.event}ed Options</p>
+            <p className="text-h3 font-bold">{Number(s.totalOptions ?? 0).toLocaleString()}</p>
+            <p className="text-caption text-muted-foreground">{s.count} grants</p>
           </div>
         ))}
-        {summary.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No ESOP data</p>}
+        {summary.length === 0 && <p className="text-body-sm text-muted-foreground col-span-4">No ESOP data</p>}
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">ESOP Grants Register</h3>
           <PermissionGate module="secretarial" action="write">
-            <button onClick={() => { setEditingGrant(null); setForm({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" }); setShowGrant(true); }} className="flex items-center gap-1.5 text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+            <button onClick={() => { setEditingGrant(null); setForm({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" }); setShowGrant(true); }} className="flex items-center gap-1.5 text-body-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
               <Plus className="w-3.5 h-3.5" /> New Grant
             </button>
           </PermissionGate>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-muted/50">
               <tr>{["Grant #", "Employee", "Options", "Exercise Price", "Grant Date", "Vesting Start", "Vesting End", "Event", "Actions"].map(h => (
-                <th key={h} className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                <th key={h} className="text-left px-4 py-2 text-caption font-medium text-muted-foreground">{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {grants.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">No ESOP grants yet</td></tr>}
               {grants.map((g: any) => (
                 <tr key={g.id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{g.grantNumber}</td>
+                  <td className="px-4 py-3 font-mono text-caption">{g.grantNumber}</td>
                   <td className="px-4 py-3 font-medium">{g.employeeName}</td>
                   <td className="px-4 py-3 font-semibold">{g.options.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-xs">₹{(g.exercisePrice / 100).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-xs">{new Date(g.grantDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-xs">{g.vestingStart ? new Date(g.vestingStart).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3 text-xs">{g.vestingEnd ? new Date(g.vestingEnd).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3 text-xs capitalize font-medium text-indigo-600">{g.event}</td>
+                  <td className="px-4 py-3 text-caption">₹{(g.exercisePrice / 100).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-caption">{new Date(g.grantDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-caption">{g.vestingStart ? new Date(g.vestingStart).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-caption">{g.vestingEnd ? new Date(g.vestingEnd).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3 text-caption capitalize font-medium text-indigo-600">{g.event}</td>
                   <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                     <PermissionGate module="secretarial" action="write">
                       <button onClick={() => {
@@ -1150,7 +1150,7 @@ function EsopTab() {
                         });
                         setEditingGrant(g.id);
                         setShowGrant(true);
-                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      }} className="text-caption text-blue-600 hover:underline">Edit</button>
                       {isFutureDate(g.grantDate) && (
                         <>
                           <span className="text-muted-foreground/30">|</span>
@@ -1158,7 +1158,7 @@ function EsopTab() {
                             if (confirm("Are you sure you want to delete this ESOP grant?")) {
                               deleteEsop.mutate({ id: g.id });
                             }
-                          }} className="text-xs text-red-600 hover:underline">Delete</button>
+                          }} className="text-caption text-red-600 hover:underline">Delete</button>
                         </>
                       )}
                     </PermissionGate>
@@ -1174,23 +1174,23 @@ function EsopTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-border">
-              <h2 className="font-bold text-lg">{editingGrant ? "Edit ESOP Grant" : "New ESOP Grant"}</h2>
+              <h2 className="font-bold text-body-lg">{editingGrant ? "Edit ESOP Grant" : "New ESOP Grant"}</h2>
               <button onClick={handleCloseModal} className="p-1 hover:bg-muted rounded-lg"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Employee Name *</label><input value={form.employeeName} onChange={e => setForm(p => ({ ...p, employeeName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Options *</label><input type="number" min={1} value={form.options} onChange={e => setForm(p => ({ ...p, options: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Exercise Price (paise) *</label><input type="number" min={0} value={form.exercisePrice} onChange={e => setForm(p => ({ ...p, exercisePrice: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" placeholder="100000 = ₹1000" /></div>
-              <div><label className="block text-sm font-medium mb-1">Grant Date *</label><input type="date" value={form.grantDate} onChange={e => setForm(p => ({ ...p, grantDate: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div><label className="block text-sm font-medium mb-1">Vesting Start</label><input type="date" value={form.vestingStart} onChange={e => setForm(p => ({ ...p, vestingStart: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
-              <div className="col-span-2"><label className="block text-sm font-medium mb-1">Vesting End</label><input type="date" value={form.vestingEnd} onChange={e => setForm(p => ({ ...p, vestingEnd: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-body-sm font-medium mb-1">Employee Name *</label><input value={form.employeeName} onChange={e => setForm(p => ({ ...p, employeeName: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Options *</label><input type="number" min={1} value={form.options} onChange={e => setForm(p => ({ ...p, options: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Exercise Price (paise) *</label><input type="number" min={0} value={form.exercisePrice} onChange={e => setForm(p => ({ ...p, exercisePrice: +e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="100000 = ₹1000" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Grant Date *</label><input type="date" value={form.grantDate} onChange={e => setForm(p => ({ ...p, grantDate: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div><label className="block text-body-sm font-medium mb-1">Vesting Start</label><input type="date" value={form.vestingStart} onChange={e => setForm(p => ({ ...p, vestingStart: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
+              <div className="col-span-2"><label className="block text-body-sm font-medium mb-1">Vesting End</label><input type="date" value={form.vestingEnd} onChange={e => setForm(p => ({ ...p, vestingEnd: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" /></div>
             </div>
             <div className="p-6 border-t border-border flex justify-end gap-3">
-              <button onClick={handleCloseModal} className="px-4 py-2 rounded-lg border border-border text-sm">Cancel</button>
+              <button onClick={handleCloseModal} className="px-4 py-2 rounded-lg border border-border text-body-sm">Cancel</button>
               <button
                 disabled={!form.employeeName || !form.grantDate || grantEsop.isPending || updateEsop.isPending}
                 onClick={handleSubmit}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium disabled:opacity-50"
               >{grantEsop.isPending || updateEsop.isPending ? "Saving..." : (editingGrant ? "Save Changes" : "Create Grant")}</button>
             </div>
           </div>
@@ -1228,16 +1228,16 @@ function CalendarTab() {
       <div className="flex items-center justify-between">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-red-700">{allEvents.filter((f: { status: string }) => f.status === "overdue").length}</p>
-            <p className="text-xs text-red-600">Overdue</p>
+            <p className="text-h3 font-bold text-red-700">{allEvents.filter((f: { status: string }) => f.status === "overdue").length}</p>
+            <p className="text-caption text-red-600">Overdue</p>
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-amber-700">{allEvents.filter((f: { status: string }) => f.status === "upcoming").length}</p>
-            <p className="text-xs text-amber-600">Upcoming</p>
+            <p className="text-h3 font-bold text-amber-700">{allEvents.filter((f: { status: string }) => f.status === "upcoming").length}</p>
+            <p className="text-caption text-amber-600">Upcoming</p>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-green-700">{allEvents.filter((f: { status: string }) => f.status === "filed").length}</p>
-            <p className="text-xs text-green-600">Filed</p>
+            <p className="text-h3 font-bold text-green-700">{allEvents.filter((f: { status: string }) => f.status === "filed").length}</p>
+            <p className="text-caption text-green-600">Filed</p>
           </div>
         </div>
         <PermissionGate module="secretarial" action="write">
@@ -1272,12 +1272,12 @@ function CalendarTab() {
             return (
               <div key={f.id} className="flex items-center justify-between p-4 hover:bg-muted/30">
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold ${f.status === "overdue" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-caption font-bold ${f.status === "overdue" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
                     {daysLeft < 0 ? "OD" : daysLeft < 7 ? `${daysLeft}d` : new Date(f.dueDate).toLocaleDateString("en", { month: "short", day: "2-digit" })}
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{f.title}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-medium text-body-sm">{f.title}</p>
+                    <p className="text-caption text-muted-foreground">
                       {f.formNumber && `${f.formNumber} · `}
                       {f.authority && `${f.authority} · `}
                       {f.fy ?? ""}
@@ -1285,8 +1285,8 @@ function CalendarTab() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[f.status]}`}>{f.status}</span>
-                  <p className="text-xs text-muted-foreground mt-1">{new Date(f.dueDate).toLocaleDateString()}</p>
+                  <span className={`px-2 py-0.5 rounded-full text-caption font-medium border ${STATUS_COLOR[f.status]}`}>{f.status}</span>
+                  <p className="text-caption text-muted-foreground mt-1">{new Date(f.dueDate).toLocaleDateString()}</p>
                 </div>
               </div>
             );
@@ -1322,8 +1322,8 @@ function SecretarialContent() {
           <Briefcase className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Corporate Secretarial & Governance</h1>
-          <p className="text-sm text-muted-foreground">Board meetings, MCA filings, share capital, ESOP, and compliance calendar</p>
+          <h1 className="text-h3 font-bold">Corporate Secretarial & Governance</h1>
+          <p className="text-body-sm text-muted-foreground">Board meetings, MCA filings, share capital, ESOP, and compliance calendar</p>
         </div>
       </div>
 
@@ -1334,7 +1334,7 @@ function SecretarialContent() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === t.key
+              className={`flex items-center gap-2 px-4 py-3 text-body-sm font-medium border-b-2 transition-colors ${activeTab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                 }`}

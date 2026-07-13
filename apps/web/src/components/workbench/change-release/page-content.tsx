@@ -30,12 +30,12 @@ export function ChangeReleaseContent() {
             ) : !data?.cab.data?.length ? (
               <WorkbenchEmpty state={data?.cab.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.cab.data.slice(0, 8).map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{c.changeNumber}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.changeTitle}</div>
+                      <div className="font-medium text-slate-700 dark:text-slate-200">{c.changeNumber}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{c.changeTitle}</div>
                     </div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
                       {c.approverName ?? "Unassigned approver"}
@@ -52,7 +52,7 @@ export function ChangeReleaseContent() {
             ) : !data?.riskMix.data?.length ? (
               <WorkbenchEmpty state={data?.riskMix.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.riskMix.data.map((r) => (
                   <li key={r.risk} className="flex items-center justify-between">
                     <span className="capitalize text-slate-700 dark:text-slate-200">{r.risk}</span>

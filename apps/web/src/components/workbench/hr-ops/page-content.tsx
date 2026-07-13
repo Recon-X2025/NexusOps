@@ -30,14 +30,14 @@ export function HrOpsContent() {
             ) : !data?.cases.data?.length ? (
               <WorkbenchEmpty state={data?.cases.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.cases.data.slice(0, 8).map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-700 dark:text-slate-200 truncate capitalize">
+                      <div className="font-medium text-slate-700 dark:text-slate-200 capitalize">
                         {c.caseType.replace(/_/g, " ")}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         {c.assigneeName ?? "Unassigned"}
                       </div>
                     </div>
@@ -56,11 +56,11 @@ export function HrOpsContent() {
             ) : !data?.leaves.data?.length ? (
               <WorkbenchEmpty state={data?.leaves.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.leaves.data.slice(0, 8).map((l) => (
                   <li key={l.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-700 dark:text-slate-200 truncate capitalize">{l.type}</div>
+                      <div className="font-medium text-slate-700 dark:text-slate-200 capitalize">{l.type}</div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         {formatDate(l.startDate)} → {formatDate(l.endDate)}
                       </div>

@@ -101,7 +101,7 @@ export default function OnCallPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Phone className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">On-Call Scheduling</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">On-Call Scheduling</h1>
           <span className="text-[11px] text-muted-foreground/70">Rotation Management · Escalation Policies · Coverage</span>
         </div>
         <button
@@ -117,7 +117,7 @@ export default function OnCallPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold">New On-Call Rotation</h2>
+              <h2 className="text-body-sm font-semibold">New On-Call Rotation</h2>
               <button onClick={() => setShowNewRotation(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
@@ -129,7 +129,7 @@ export default function OnCallPage() {
                   value={newRotationName}
                   onChange={(e) => setNewRotationName(e.target.value)}
                   placeholder="e.g. Platform Engineering On-Call"
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -138,7 +138,7 @@ export default function OnCallPage() {
                   value={newRotationTeam}
                   onChange={(e) => setNewRotationTeam(e.target.value)}
                   placeholder="e.g. Platform Engineering"
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -146,7 +146,7 @@ export default function OnCallPage() {
                 <select
                   value={newRotationType}
                   onChange={(e) => setNewRotationType(e.target.value as any)}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -154,14 +154,14 @@ export default function OnCallPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
-              <button onClick={() => setShowNewRotation(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewRotation(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => {
                   if (!newRotationName.trim()) { toast.error("Schedule name is required"); return; }
                   createRotation.mutate({ name: newRotationName.trim(), team: newRotationTeam.trim() || undefined, rotationType: newRotationType });
                 }}
                 disabled={createRotation.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
               >
                 {createRotation.isPending ? "Creating…" : "Create Rotation"}
               </button>
@@ -196,7 +196,7 @@ export default function OnCallPage() {
               <div key={rot.id} className="bg-card border border-border rounded p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`w-2 h-2 rounded-full ${rot.color || 'bg-primary'} animate-pulse`} />
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide truncate">{rot.team || rot.name}</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{rot.team || rot.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`w-8 h-8 rounded-full ${rot.color || 'bg-primary'} text-primary-foreground text-[11px] flex items-center justify-center font-bold`}>
@@ -248,7 +248,7 @@ export default function OnCallPage() {
                   {weekDates.map((d) => (
                     <th key={d.toISOString()} className={`px-2 py-2 text-center text-[11px] font-medium min-w-24 ${d.toDateString() === new Date().toDateString() ? "bg-primary/5 text-primary" : "text-muted-foreground"}`}>
                       <div>{DAYS[d.getDay()]}</div>
-                      <div className={`text-base font-bold ${d.toDateString() === new Date().toDateString() ? "text-primary" : "text-foreground"}`}>
+                      <div className={`text-body font-bold ${d.toDateString() === new Date().toDateString() ? "text-primary" : "text-foreground"}`}>
                         {d.getDate()}
                       </div>
                     </th>
@@ -278,7 +278,7 @@ export default function OnCallPage() {
                             style={{ backgroundColor: rot.color ? `${rot.color}20` : undefined }}>
                             <div className="flex flex-col items-center justify-center">
                               <div className="font-semibold text-foreground">{person.initials}</div>
-                              <div className="text-muted-foreground truncate w-full max-w-[80px]">{person.name.split(" ")[0]}</div>
+                              <div className="text-muted-foreground w-full max-w-[80px]">{person.name.split(" ")[0]}</div>
                             </div>
                             {callCount > 0 && (
                               <div className="flex items-center justify-center gap-1 text-[9px] font-medium text-red-600 bg-red-100 rounded px-1.5 py-0.5">
@@ -356,7 +356,7 @@ export default function OnCallPage() {
                 {recentIncidents.slice(0, 5).map((p: any) => (
                   <tr key={p.id}>
                     <td className="text-primary font-mono text-[11px]">{p.id?.slice(0, 8).toUpperCase()}</td>
-                    <td className="text-[11px] text-muted-foreground truncate max-w-24">
+                    <td className="text-[11px] text-muted-foreground max-w-24">
                       {rotations.find(r => r.id === p.scheduleId)?.team || rotations.find(r => r.id === p.scheduleId)?.name || p.scheduleId?.slice(0, 8)}
                     </td>
                     <td className="text-muted-foreground">{p.userId ?? "—"}</td>

@@ -85,7 +85,7 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
     >
       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
         <Bot className="w-5 h-5 text-slate-600" />
-        <div className="font-semibold text-sm text-slate-900">CoheronConnect Copilot</div>
+        <div className="font-semibold text-body-sm text-slate-900">CoheronConnect Copilot</div>
         <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-400 px-2 py-0.5 bg-slate-100 rounded">
           Read-only · v1
         </span>
@@ -93,14 +93,14 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
-          <div className="text-sm text-slate-500 space-y-2">
+          <div className="text-body-sm text-slate-500 space-y-2">
             <p>Ask anything across requests, HR, finance, contracts, or compliance.</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="px-2.5 py-1 rounded-full text-xs bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  className="px-2.5 py-1 rounded-full text-caption bg-slate-100 hover:bg-slate-200 text-slate-700"
                 >
                   {s}
                 </button>
@@ -114,8 +114,8 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
             <div
               className={
                 m.role === "user"
-                  ? "max-w-[85%] px-3 py-2 rounded-lg bg-slate-900 text-white text-sm"
-                  : "max-w-[90%] px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-900"
+                  ? "max-w-[85%] px-3 py-2 rounded-lg bg-slate-900 text-white text-body-sm"
+                  : "max-w-[90%] px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-body-sm text-slate-900"
               }
             >
               <div className="whitespace-pre-wrap">{m.content}</div>
@@ -143,7 +143,7 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
                             <span className="text-blue-700">{t.toolName}</span>(
                             {JSON.stringify(t.args)}) <span className="text-slate-400">· {t.ms}ms</span>
                           </div>
-                          <div className="text-slate-500 truncate">→ {t.resultPreview}</div>
+                          <div className="text-slate-500">→ {t.resultPreview}</div>
                         </div>
                       ))}
                     </div>
@@ -155,7 +155,7 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
         ))}
 
         {invoke.isPending && (
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-caption text-slate-500">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             Thinking…
           </div>
@@ -175,7 +175,7 @@ export function CopilotPanel({ className = "" }: { className?: string }) {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask Copilot…"
           disabled={invoke.isPending}
-          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:opacity-50"
+          className="flex-1 px-3 py-2 text-body-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-slate-300 disabled:opacity-50"
         />
         <button
           type="submit"

@@ -128,14 +128,14 @@ export default function MyRequestsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">My Requests</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-body-lg font-bold text-gray-900">My Requests</h1>
+          <p className="text-caption text-gray-500">
             {isLoading ? "Loading…" : `${myTickets.length} request${myTickets.length !== 1 ? "s" : ""} total`}
           </p>
         </div>
         <Link
           href="/portal/request/new"
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary/90"
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-caption font-medium text-white hover:bg-primary/90"
         >
           <PlusCircle className="h-3.5 w-3.5" />
           New Request
@@ -149,7 +149,7 @@ export default function MyRequestsPage() {
       )}
 
       {isError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-body-sm text-red-600">
           <AlertCircle className="h-4 w-4 shrink-0" />
           Unable to load requests. Please refresh and try again.
         </div>
@@ -159,12 +159,12 @@ export default function MyRequestsPage() {
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
           <ClipboardList className="h-10 w-10 text-gray-300" />
           <div>
-            <p className="text-sm font-medium text-gray-600">No requests yet</p>
-            <p className="text-xs text-gray-400">Submit a request and track it here.</p>
+            <p className="text-body-sm font-medium text-gray-600">No requests yet</p>
+            <p className="text-caption text-gray-400">Submit a request and track it here.</p>
           </div>
           <Link
             href="/portal/request/new"
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary/90"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-caption font-medium text-white hover:bg-primary/90"
           >
             <PlusCircle className="h-3.5 w-3.5" />
             Submit First Request
@@ -201,7 +201,7 @@ export default function MyRequestsPage() {
                       <span className="font-mono text-[11px] text-gray-400">
                         {ticket.number}
                       </span>
-                      <span className="truncate text-sm font-medium text-gray-800">
+                      <span className="text-body-sm font-medium text-gray-800">
                         {ticket.title}
                       </span>
                     </div>
@@ -245,7 +245,7 @@ export default function MyRequestsPage() {
                       </div>
                     )}
 
-                    <p className="text-xs text-gray-500">
+                    <p className="text-caption text-gray-500">
                       {(ticket as any).description
                         ? (ticket as any).description
                         : "No description provided."}
@@ -264,7 +264,7 @@ export default function MyRequestsPage() {
                       <button
                         onClick={() => handleCancel(ticket.id)}
                         disabled={cancellingId === ticket.id}
-                        className="mt-3 flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                        className="mt-3 flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-caption font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
                       >
                         {cancellingId === ticket.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />

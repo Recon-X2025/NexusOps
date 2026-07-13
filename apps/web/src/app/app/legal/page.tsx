@@ -271,7 +271,7 @@ export default function LegalPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Scale className="w-4 h-4 text-muted-foreground" />
-            <h1 className="text-sm font-semibold text-foreground">Legal Service Delivery</h1>
+            <h1 className="text-body-sm font-semibold text-foreground">Legal Service Delivery</h1>
             <span className="text-[11px] text-muted-foreground/70">Matters · Requests · Investigations · Contract Review</span>
           </div>
           <div className="flex items-center gap-2">
@@ -333,7 +333,7 @@ export default function LegalPage() {
             { label: "Critical Priority", value: criticalItems, color: criticalItems > 0 ? "text-red-700" : "text-green-700" },
           ].map(k => (
             <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-              <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+              <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
               <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
             </div>
           ))}
@@ -405,7 +405,7 @@ export default function LegalPage() {
                             <span className={`status-badge text-[10px] ${cfg.color}`}>{cfg.label}</span>
                             {inv.anonymousReport && <span className="status-badge text-[9px] text-muted-foreground bg-muted">Anonymous</span>}
                           </div>
-                          <p className="text-[11px] text-foreground/80 truncate">{inv.title}</p>
+                          <p className="text-[11px] text-foreground/80">{inv.title}</p>
                           <p className="text-[10px] text-muted-foreground/70">{inv.investigatorId ?? "—"}</p>
                         </div>
                       </div>
@@ -486,7 +486,7 @@ export default function LegalPage() {
                               label: "Document",
                               value: doc ? (
                                 <span className="inline-flex items-center gap-1">
-                                  <span className="truncate max-w-[80px]" title={doc.name}>
+                                  <span className="max-w-[80px]" title={doc.name}>
                                     {doc.name}
                                   </span>
                                   <a
@@ -608,7 +608,7 @@ export default function LegalPage() {
                     <td className="text-[11px] text-muted-foreground">—</td>
                     <td><span className={`status-badge capitalize ${PRIORITY_BAR[r.priority ?? "medium"] === "bg-red-600" ? "text-red-700 bg-red-100" : PRIORITY_BAR[r.priority ?? "medium"] === "bg-orange-500" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{r.priority ?? "—"}</span></td>
                     <td><span className={`status-badge capitalize ${REQUEST_STATUS_CFG[r.status as RequestStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(r.status))}</span></td>
-                    <td className="text-[11px] text-muted-foreground/70 max-w-xs truncate">{r.description ?? "—"}</td>
+                    <td className="text-[11px] text-muted-foreground/70 max-w-xs">{r.description ?? "—"}</td>
                     <td className="space-x-2 whitespace-nowrap">
                       <button onClick={() => {
                         setRequestForm({
@@ -620,12 +620,12 @@ export default function LegalPage() {
                         });
                         setEditingRequest(r.id);
                         setShowNewRequest(true);
-                      }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      }} className="text-caption text-blue-600 hover:underline">Edit</button>
                       <button onClick={() => {
                         if (confirm("Are you sure you want to delete this legal request?")) {
                           deleteRequest.mutate({ id: r.id });
                         }
-                      }} className="text-xs text-red-600 hover:underline">Delete</button>
+                      }} className="text-caption text-red-600 hover:underline">Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -671,14 +671,14 @@ export default function LegalPage() {
                         <td className="font-mono text-[11px] text-primary">{investigationDisplayId(inv)}</td>
                         <td><span className={`status-badge ${cfg.color}`}>{cfg.label}</span></td>
                         <td className="font-mono text-[11px] text-muted-foreground">{inv.linkedMatterId ? matters.find((m: any) => m.id === inv.linkedMatterId)?.matterNumber || "—" : "—"}</td>
-                        <td className="font-medium text-foreground max-w-xs truncate">{inv.title}</td>
+                        <td className="font-medium text-foreground max-w-xs">{inv.title}</td>
                         <td className="text-center">{inv.anonymousReport ? <span className="status-badge text-muted-foreground bg-muted text-[10px]">Anonymous</span> : "—"}</td>
                         <td className="text-muted-foreground">{inv.anonymousReport ? "Withheld" : (usersData?.find((u: any) => u.id === inv.reporterId)?.name || "—")}</td>
                         <td className="text-muted-foreground">{usersData?.find((u: any) => u.id === inv.investigatorId)?.name || "—"}</td>
                         <td className="text-[11px] text-muted-foreground/70">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}</td>
                         <td><span className={`status-badge capitalize ${PRIORITY_BAR[inv.priority ?? "medium"] === "bg-red-600" ? "text-red-700 bg-red-100" : PRIORITY_BAR[inv.priority ?? "medium"] === "bg-orange-500" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{inv.priority ?? "—"}</span></td>
                         <td><span className={`status-badge capitalize ${INVESTIGATION_STATUS_CFG[inv.status as InvestigationStatus] ?? "text-muted-foreground bg-muted"}`}>{humanizeEnum(String(inv.status))}</span></td>
-                        <td className="text-[11px] text-muted-foreground max-w-xs truncate">{inv.findings ?? inv.recommendation ?? "—"}</td>
+                        <td className="text-[11px] text-muted-foreground max-w-xs">{inv.findings ?? inv.recommendation ?? "—"}</td>
                         <td className="space-x-2 whitespace-nowrap">
                           {inv.status !== "closed" && (
                             <button onClick={() => {
@@ -687,13 +687,13 @@ export default function LegalPage() {
                               });
                               setEditingInvestigation(inv.id);
                               setShowNewInvestigation(true);
-                            }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                            }} className="text-caption text-blue-600 hover:underline">Edit</button>
                           )}
                           <button onClick={() => {
                             if (confirm("Are you sure you want to delete this investigation?")) {
                               deleteInvestigation.mutate({ id: inv.id });
                             }
-                          }} className="text-xs text-red-600 hover:underline">Delete</button>
+                          }} className="text-caption text-red-600 hover:underline">Delete</button>
                         </td>
                       </tr>
                     );
@@ -827,7 +827,7 @@ export default function LegalPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">New Legal Matter</h2>
+              <h2 className="text-body-sm font-bold">New Legal Matter</h2>
               <button onClick={() => setShowNewMatter(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -853,7 +853,7 @@ export default function LegalPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewMatter(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewMatter(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => {
                   if (!matterForm.title.trim()) { toast.error("Matter title is required"); return; }
@@ -861,7 +861,7 @@ export default function LegalPage() {
                   createMatter.mutate({ title: matterForm.title.trim(), description: matterForm.description.trim(), type: matterForm.type as any, estimatedCost: matterForm.estimatedCost || undefined });
                 }}
                 disabled={createMatter.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-purple-700 text-white rounded hover:bg-purple-800 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-purple-700 text-white rounded hover:bg-purple-800 disabled:opacity-50"
               >
                 {createMatter.isPending ? "Creating…" : "Create Matter"}
               </button>
@@ -874,7 +874,7 @@ export default function LegalPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">{editingRequest ? "Edit Legal Request" : "New Legal Request"}</h2>
+              <h2 className="text-body-sm font-bold">{editingRequest ? "Edit Legal Request" : "New Legal Request"}</h2>
               <button onClick={handleCloseRequestModal}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -916,7 +916,7 @@ export default function LegalPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={handleCloseRequestModal} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={handleCloseRequestModal} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => {
                   if (!requestForm.title.trim()) { toast.error("Request title is required"); return; }
@@ -934,7 +934,7 @@ export default function LegalPage() {
                   }
                 }}
                 disabled={createRequest.isPending || updateRequest.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >
                 {createRequest.isPending || updateRequest.isPending ? "Saving…" : (editingRequest ? "Save Changes" : "Submit Request")}
               </button>
@@ -947,7 +947,7 @@ export default function LegalPage() {
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">{editingInvestigation ? "Edit Investigation" : "New Investigation"}</h2>
+              <h2 className="text-body-sm font-bold">{editingInvestigation ? "Edit Investigation" : "New Investigation"}</h2>
               <button onClick={() => { setShowNewInvestigation(false); setEditingInvestigation(null); }}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -1008,7 +1008,7 @@ export default function LegalPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => { setShowNewInvestigation(false); setEditingInvestigation(null); }} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => { setShowNewInvestigation(false); setEditingInvestigation(null); }} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => {
                   if (!investigationForm.title.trim()) { toast.error("Investigation summary is required"); return; }
@@ -1031,7 +1031,7 @@ export default function LegalPage() {
                   }
                 }}
                 disabled={createInvestigation.isPending || updateInvestigation.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
               >
                 {createInvestigation.isPending || updateInvestigation.isPending ? "Saving…" : (editingInvestigation ? "Save Changes" : "Create Investigation")}
               </button>
@@ -1060,7 +1060,7 @@ export default function LegalPage() {
                     {m.confidential && <span className="status-badge text-red-600 bg-red-50 text-[9px] flex items-center gap-0.5"><Lock className="w-2.5 h-2.5" />Confidential</span>}
                     {m.priority && <span className={`status-badge capitalize ${m.priority === "critical" ? "text-red-700 bg-red-100" : m.priority === "high" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{m.priority} Priority</span>}
                   </div>
-                  <h3 className="text-base font-bold text-foreground mt-1">{m.title}</h3>
+                  <h3 className="text-body font-bold text-foreground mt-1">{m.title}</h3>
                 </div>
                 <button onClick={() => setSelectedMatterForDetail(null)} className="p-1 rounded-full hover:bg-muted/80 transition-colors">
                   <X className="w-4 h-4 text-muted-foreground" />
@@ -1096,7 +1096,7 @@ export default function LegalPage() {
                         label: "Document",
                         value: doc ? (
                           <span className="inline-flex items-center gap-1">
-                            <span className="truncate max-w-[120px]" title={doc.name}>
+                            <span className="max-w-[120px]" title={doc.name}>
                               {doc.name}
                             </span>
                             <a
@@ -1232,11 +1232,11 @@ export default function LegalPage() {
                   <div className="flex justify-between items-center">
                     <div>
                       <div className="text-[10px] text-muted-foreground/70 uppercase font-semibold">Estimated Cost (Exposure)</div>
-                      <div className="text-lg font-extrabold text-foreground">₹{est.toLocaleString("en-IN")}</div>
+                      <div className="text-body-lg font-extrabold text-foreground">₹{est.toLocaleString("en-IN")}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] text-muted-foreground/70 uppercase font-semibold">Actual Cost (Spent)</div>
-                      <div className="text-lg font-extrabold text-foreground">₹{act.toLocaleString("en-IN")}</div>
+                      <div className="text-body-lg font-extrabold text-foreground">₹{act.toLocaleString("en-IN")}</div>
                     </div>
                   </div>
                   <div>

@@ -42,16 +42,16 @@ export function WorkbenchRBACGate({
     return (
       <div className="-m-4 min-h-full bg-[#F0F4F8] dark:bg-slate-950 p-5 md:p-6">
         <div className="mx-auto max-w-lg rounded-xl border border-white/90 dark:border-slate-700/80 bg-white dark:bg-slate-900/80 p-6 shadow-sm">
-          <h1 className="text-base font-semibold text-[#001B3D] dark:text-slate-100">
+          <h1 className="text-body font-semibold text-[#001B3D] dark:text-slate-100">
             You don’t have access to this workbench
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          <p className="mt-2 text-body-sm text-slate-600 dark:text-slate-300">
             Your role doesn’t include access to <span className="font-medium">{workbenchKey}</span>.
             Continue to {fallbackLabel} instead.
           </p>
           <Link
             href={fallbackHref}
-            className="mt-4 inline-flex items-center rounded-md bg-[#001B3D] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#001B3D]/90 dark:bg-slate-100 dark:text-slate-900"
+            className="mt-4 inline-flex items-center rounded-md bg-[#001B3D] px-3 py-1.5 text-caption font-medium text-white hover:bg-[#001B3D]/90 dark:bg-slate-100 dark:text-slate-900"
           >
             Open {fallbackLabel}
           </Link>

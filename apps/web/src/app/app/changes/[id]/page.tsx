@@ -65,8 +65,8 @@ export default function ChangeDetailPage() {
   if (!change) return (
     <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
       <AlertTriangle className="h-8 w-8 opacity-40" />
-      <p className="text-sm">Change not found.</p>
-      <Link href="/app/changes" className="text-xs text-primary hover:underline">← Back to Changes</Link>
+      <p className="text-body-sm">Change not found.</p>
+      <Link href="/app/changes" className="text-caption text-primary hover:underline">← Back to Changes</Link>
     </div>
   );
 
@@ -109,7 +109,7 @@ export default function ChangeDetailPage() {
             <GitBranch className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-foreground leading-tight">{change.title}</h1>
+            <h1 className="text-body-sm font-semibold text-foreground leading-tight">{change.title}</h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={cn("text-[10px] font-medium rounded-full px-2 py-0.5", stateInfo.color)}>{stateInfo.label}</span>
               <span className={cn("text-[10px] font-medium rounded-full px-2 py-0.5 capitalize", RISK_COLORS[(change as any).riskLevel ?? "low"] ?? "bg-muted text-muted-foreground")}>
@@ -135,7 +135,7 @@ export default function ChangeDetailPage() {
                 onClick={() => updateState.mutate({ id, status: s } as any)}
                 disabled={updateState.isPending}
                 className={cn(
-                  "rounded border px-2.5 py-1 text-xs font-medium transition capitalize",
+                  "rounded border px-2.5 py-1 text-caption font-medium transition capitalize",
                   s === "cancelled" || s === "failed" || isCabReject
                     ? "border-red-300 text-red-600 hover:bg-red-50"
                     : isCabApprove 
@@ -154,14 +154,14 @@ export default function ChangeDetailPage() {
         {/* Left: description + activity */}
         <div className="col-span-2 flex flex-col gap-3">
           <div className="bg-card border border-border rounded p-4">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h2>
-            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{change.description || "No description provided."}</p>
+            <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h2>
+            <p className="text-body-sm text-foreground/80 leading-relaxed whitespace-pre-line">{change.description || "No description provided."}</p>
           </div>
           {/* Implementation Plan */}
           <PermissionGate module="changes" action="write">
             <div className="bg-card border border-border rounded p-4">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <ClipboardList className="h-3.5 w-3.5" /> Implementation Plan
                 </h2>
                 {!isTerminalChange && !editingImpl && (
@@ -177,22 +177,22 @@ export default function ChangeDetailPage() {
                 <div className="flex flex-col gap-2">
                   <textarea rows={5} value={implDraft} onChange={(e) => setImplDraft(e.target.value)}
                     placeholder="Step-by-step implementation instructions…"
-                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
                   <div className="flex gap-2">
                     <button
                       disabled={updateState.isPending}
                       onClick={() => updateState.mutate({ id, implementationPlan: implDraft } as any, { onSuccess: () => { setEditingImpl(false); toast.success("Implementation plan saved"); refetch(); } })}
-                      className="flex items-center gap-1 px-3 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50"
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-primary text-white text-caption hover:bg-primary/90 disabled:opacity-50"
                     >
                       <Check className="h-3 w-3" /> Save
                     </button>
-                    <button onClick={() => setEditingImpl(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                    <button onClick={() => setEditingImpl(false)} className="px-3 py-1 rounded border border-border text-caption hover:bg-accent">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-foreground/80 whitespace-pre-line">
+                <p className="text-body-sm text-foreground/80 whitespace-pre-line">
                   {(change as any).implementationPlan || <span className="text-muted-foreground/50 italic">No implementation plan documented yet.</span>}
                 </p>
               )}
@@ -203,7 +203,7 @@ export default function ChangeDetailPage() {
           <PermissionGate module="changes" action="write">
             <div className="bg-card border border-red-100 rounded p-4">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 text-red-600">
+                <h2 className="text-caption font-semibold uppercase tracking-wider flex items-center gap-1.5 text-red-600">
                   <RotateCcw className="h-3.5 w-3.5" /> Rollback Plan
                 </h2>
                 {!isTerminalChange && !editingRollback && (
@@ -219,22 +219,22 @@ export default function ChangeDetailPage() {
                 <div className="flex flex-col gap-2">
                   <textarea rows={4} value={rollbackDraft} onChange={(e) => setRollbackDraft(e.target.value)}
                     placeholder="Steps to reverse this change if something goes wrong…"
-                    className="w-full rounded border border-red-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-400 resize-none" />
+                    className="w-full rounded border border-red-200 bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-1 focus:ring-red-400 resize-none" />
                   <div className="flex gap-2">
                     <button
                       disabled={updateState.isPending}
                       onClick={() => updateState.mutate({ id, rollbackPlan: rollbackDraft } as any, { onSuccess: () => { setEditingRollback(false); toast.success("Rollback plan saved"); refetch(); } })}
-                      className="flex items-center gap-1 px-3 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-700 disabled:opacity-50"
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-red-600 text-white text-caption hover:bg-red-700 disabled:opacity-50"
                     >
                       <Check className="h-3 w-3" /> Save Rollback Plan
                     </button>
-                    <button onClick={() => setEditingRollback(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                    <button onClick={() => setEditingRollback(false)} className="px-3 py-1 rounded border border-border text-caption hover:bg-accent">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-foreground/80 whitespace-pre-line">
+                <p className="text-body-sm text-foreground/80 whitespace-pre-line">
                   {(change as any).rollbackPlan || <span className="text-muted-foreground/50 italic">No rollback plan documented.</span>}
                 </p>
               )}
@@ -244,7 +244,7 @@ export default function ChangeDetailPage() {
           {/* Add comment */}
           <PermissionGate module="changes" action="write">
             <div className={`bg-card border border-border rounded p-4 flex flex-col gap-2 ${isTerminalChange ? "opacity-60" : ""}`}>
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 Add Comment
                 {isTerminalChange && <span className="normal-case font-normal text-muted-foreground/60">(disabled — change is {change.status})</span>}
               </h2>
@@ -254,12 +254,12 @@ export default function ChangeDetailPage() {
                 onChange={(e) => setComment(e.target.value)}
                 disabled={isTerminalChange}
                 placeholder={isTerminalChange ? `This change is ${change.status} — comments are disabled.` : "Add a note or update…"}
-                className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:bg-muted/30 disabled:cursor-not-allowed"
+                className="w-full rounded border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:bg-muted/30 disabled:cursor-not-allowed"
               />
               <button
                 onClick={handleComment}
                 disabled={isTerminalChange || addComment.isPending || !comment.trim()}
-                className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
               >
                 {addComment.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
                 Comment
@@ -270,7 +270,7 @@ export default function ChangeDetailPage() {
 
         {/* Right: details */}
         <div className="flex flex-col gap-3">
-          <div className="bg-card border border-border rounded p-3 flex flex-col gap-2 text-xs">
+          <div className="bg-card border border-border rounded p-3 flex flex-col gap-2 text-caption">
             <h2 className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Details</h2>
             {[
               { label: "Requested By",   value: (change as any).requestedBy?.name ?? (change as any).userId ?? "—" },
@@ -282,7 +282,7 @@ export default function ChangeDetailPage() {
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between gap-2">
                 <span className="text-muted-foreground">{label}</span>
-                <span className="font-medium text-foreground/90 truncate">{value}</span>
+                <span className="font-medium text-foreground/90">{value}</span>
               </div>
             ))}
             {/* Release Link Dropdown */}
@@ -295,7 +295,7 @@ export default function ChangeDetailPage() {
                   updateState.mutate({ id, releaseId: relId } as any);
                 }}
                 disabled={isTerminalChange || !can("changes", "write")}
-                className="w-full bg-background border border-border rounded px-2 py-1 outline-none text-primary font-medium text-xs mt-1"
+                className="w-full bg-background border border-border rounded px-2 py-1 outline-none text-primary font-medium text-caption mt-1"
               >
                 <option value="">No Linked Release</option>
                 {(releases ?? []).map((r) => (

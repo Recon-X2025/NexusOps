@@ -76,15 +76,15 @@ export function AccountPortfolio({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#001B3D] dark:text-slate-100 truncate">{a.name}</div>
-                    <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 truncate">
+                    <div className="text-caption font-semibold text-[#001B3D] dark:text-slate-100">{a.name}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {a.tier} · {a.industry ?? "—"}
                     </div>
                   </div>
                   <span className={cn("inline-block h-2 w-2 shrink-0 rounded-full", tone.dot)} aria-hidden />
                 </div>
                 <div className="flex items-end justify-between gap-2">
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{a.ownerName ?? "Unowned"}</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">{a.ownerName ?? "Unowned"}</span>
                   <span className="text-[11px] tabular-nums font-medium text-slate-700 dark:text-slate-200">
                     H {a.healthScore ?? "?"}
                   </span>

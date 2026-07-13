@@ -260,7 +260,7 @@ export default function DevOpsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">DevOps</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">DevOps</h1>
           <span className="text-[11px] text-muted-foreground/70">CI/CD Pipelines · Deployments · Change Velocity · Agile</span>
         </div>
         <div className="flex items-center gap-2">
@@ -290,7 +290,7 @@ export default function DevOpsPage() {
           { label: "DORA: Deploy Freq.",   value: hasDoraDeploys ? `${dora?.deploymentFrequency}/day` : "—", color: "text-indigo-700" },
         ].map(k => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
           </div>
         ))}
@@ -364,8 +364,8 @@ export default function DevOpsPage() {
                     <div key={p.id} className="flex items-center gap-3 px-3 py-2">
                       <span className={`status-badge ${cfg.color}`}>{cfg.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold text-foreground/80 truncate">{p.name}</p>
-                        <p className="text-[10px] text-muted-foreground/70 truncate">{p.commitMsg}</p>
+                        <p className="text-[11px] font-semibold text-foreground/80">{p.name}</p>
+                        <p className="text-[10px] text-muted-foreground/70">{p.commitMsg}</p>
                       </div>
                       <span className="text-[11px] text-muted-foreground/70 flex-shrink-0">{p.duration}</span>
                     </div>
@@ -631,7 +631,7 @@ export default function DevOpsPage() {
                 { label: "Change Failure Rate",      value: String((doraData as any)?.changeFailureRate ?? "—"), color: "text-orange-700" },
               ].map(k => (
                 <div key={k.label} className="bg-muted/30 rounded border border-border px-3 py-2">
-                  <div className={`text-lg font-black ${k.color}`}>{k.value}</div>
+                  <div className={`text-body-lg font-black ${k.color}`}>{k.value}</div>
                   <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
                 </div>
               ))}
@@ -690,31 +690,31 @@ export default function DevOpsPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold flex items-center gap-2"><Play className="w-4 h-4 text-primary" /> Trigger Pipeline</h2>
+              <h2 className="text-body-sm font-semibold flex items-center gap-2"><Play className="w-4 h-4 text-primary" /> Trigger Pipeline</h2>
               <button onClick={() => setShowTrigger(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Pipeline Name <span className="text-red-500">*</span></label>
-              <input value={triggerForm.pipelineName} onChange={(e) => setTriggerForm(f => ({...f, pipelineName: e.target.value}))} placeholder="e.g. backend-api, frontend-web" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">Pipeline Name <span className="text-red-500">*</span></label>
+              <input value={triggerForm.pipelineName} onChange={(e) => setTriggerForm(f => ({...f, pipelineName: e.target.value}))} placeholder="e.g. backend-api, frontend-web" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Branch</label>
-                <input value={triggerForm.branch} onChange={(e) => setTriggerForm(f => ({...f, branch: e.target.value}))} placeholder="main" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">Branch</label>
+                <input value={triggerForm.branch} onChange={(e) => setTriggerForm(f => ({...f, branch: e.target.value}))} placeholder="main" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Trigger</label>
-                <select value={triggerForm.trigger} onChange={(e) => setTriggerForm(f => ({...f, trigger: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Trigger</label>
+                <select value={triggerForm.trigger} onChange={(e) => setTriggerForm(f => ({...f, trigger: e.target.value}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   {["manual","scheduled","webhook"].map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                 </select>
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowTrigger(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowTrigger(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!triggerForm.pipelineName.trim()) { toast.error("Pipeline name is required"); return; } createPipelineRun.mutate({ pipelineName: triggerForm.pipelineName.trim(), branch: triggerForm.branch || "main", trigger: triggerForm.trigger }); }}
                 disabled={createPipelineRun.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createPipelineRun.isPending ? "Triggering…" : "Trigger Pipeline"}
               </button>
             </div>

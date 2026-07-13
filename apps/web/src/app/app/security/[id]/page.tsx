@@ -190,7 +190,7 @@ export default function SecurityIncidentDetailPage() {
                   <div className="flex items-center gap-2">
                     <PermissionGate module="security" action="write">
                       <select
-                        className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+                        className="text-body-sm border border-border rounded-lg px-3 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
                         value={incident.status}
                         onChange={(e) => transitionMutation.mutate({ id: incident.id, toStatus: e.target.value as any })}
                         disabled={transitionMutation.isPending || isClosed}
@@ -203,7 +203,7 @@ export default function SecurityIncidentDetailPage() {
                         <button
                           onClick={() => transitionMutation.mutate({ id: incident.id, toStatus: "closed" as any })}
                           disabled={transitionMutation.isPending}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors shadow disabled:opacity-60"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-caption font-bold rounded-lg hover:bg-green-700 transition-colors shadow disabled:opacity-60"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Mark and End
                         </button>
@@ -220,7 +220,7 @@ export default function SecurityIncidentDetailPage() {
                   {/* Summary Card with editable Attack Vector */}
                   <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
                     <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Description</h3>
-                    <p className="text-sm text-foreground leading-relaxed">{incident.description || "No description provided."}</p>
+                    <p className="text-body-sm text-foreground leading-relaxed">{incident.description || "No description provided."}</p>
 
                     {/* Attack Vector */}
                     <div className="mt-5 pt-4 border-t border-border">
@@ -242,7 +242,7 @@ export default function SecurityIncidentDetailPage() {
                       {editingAttackVector ? (
                         <div className="flex gap-2">
                           <input
-                            className="flex-1 text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
+                            className="flex-1 text-body-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
                             value={attackVectorDraft}
                             onChange={(e) => setAttackVectorDraft(e.target.value)}
                             placeholder="e.g. Phishing email, RDP brute force, Supply chain..."
@@ -251,13 +251,13 @@ export default function SecurityIncidentDetailPage() {
                           <button
                             onClick={() => updateIncidentMut.mutate({ id, attackVector: attackVectorDraft })}
                             disabled={updateIncidentMut.isPending}
-                            className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 disabled:opacity-60"
+                            className="px-3 py-1.5 bg-primary text-white text-caption font-bold rounded-lg hover:bg-primary/90 disabled:opacity-60"
                           >
                             Save
                           </button>
                         </div>
                       ) : (
-                        <p className={cn("text-sm", incident.attackVector ? "text-foreground font-medium" : "text-muted-foreground italic")}>
+                        <p className={cn("text-body-sm", incident.attackVector ? "text-foreground font-medium" : "text-muted-foreground italic")}>
                           {incident.attackVector || "Not specified — click Edit to set"}
                         </p>
                       )}
@@ -292,7 +292,7 @@ export default function SecurityIncidentDetailPage() {
                         key={t.key}
                         onClick={() => setTab(t.key)}
                         className={cn(
-                          "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap",
+                          "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap",
                           tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -335,9 +335,9 @@ export default function SecurityIncidentDetailPage() {
                             <tbody className="divide-y divide-border">
                               {containmentActions.map((a, i) => (
                                 <tr key={i} className="hover:bg-muted/10 transition-colors">
-                                  <td className="px-4 py-3 text-sm font-medium text-foreground">{a.action}</td>
-                                  <td className="px-4 py-3 text-sm text-muted-foreground">{a.performedBy}</td>
-                                  <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{new Date(a.performedAt).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-body-sm font-medium text-foreground">{a.action}</td>
+                                  <td className="px-4 py-3 text-body-sm text-muted-foreground">{a.performedBy}</td>
+                                  <td className="px-4 py-3 text-body-sm font-mono text-muted-foreground">{new Date(a.performedAt).toLocaleString()}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -365,8 +365,8 @@ export default function SecurityIncidentDetailPage() {
                             {iocs.map((ioc, i) => (
                               <tr key={i} className="hover:bg-muted/10">
                                 <td className="px-4 py-3 text-[11px] font-bold text-primary uppercase">{ioc.type}</td>
-                                <td className="px-4 py-3 text-sm font-mono">{ioc.value}</td>
-                                <td className="px-4 py-3 text-sm text-muted-foreground">{ioc.note ?? "—"}</td>
+                                <td className="px-4 py-3 text-body-sm font-mono">{ioc.value}</td>
+                                <td className="px-4 py-3 text-body-sm text-muted-foreground">{ioc.note ?? "—"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -383,7 +383,7 @@ export default function SecurityIncidentDetailPage() {
                         <PermissionGate module="security" action="write">
                           <button
                             onClick={() => setShowAddTi(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 shadow-md transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-caption font-bold rounded-lg hover:bg-primary/90 shadow-md transition-all"
                           >
                             <Plus className="w-3.5 h-3.5" /> Add Threat Intelligence
                           </button>
@@ -393,7 +393,7 @@ export default function SecurityIncidentDetailPage() {
                         {tiList.length === 0 ? (
                           <div className="p-12 text-center flex flex-col items-center gap-2 text-muted-foreground">
                             <Brain className="w-8 h-8 opacity-20" />
-                            <p className="text-sm">No threat intelligence linked yet.</p>
+                            <p className="text-body-sm">No threat intelligence linked yet.</p>
                           </div>
                         ) : (
                           <table className="w-full text-left border-collapse">
@@ -409,13 +409,13 @@ export default function SecurityIncidentDetailPage() {
                               {tiList.map((ti) => (
                                 <tr key={ti.id} className="hover:bg-muted/10 transition-colors">
                                   <td className="px-4 py-3 text-[11px] font-mono font-bold text-primary">{ti.number}</td>
-                                  <td className="px-4 py-3 text-sm text-foreground max-w-xs">{ti.description}</td>
-                                  <td className="px-4 py-3 text-sm">
+                                  <td className="px-4 py-3 text-body-sm text-foreground max-w-xs">{ti.description}</td>
+                                  <td className="px-4 py-3 text-body-sm">
                                     {ti.documentUri ? (
-                                      <a href={ti.documentUri} target="_blank" rel="noreferrer" className="text-primary underline text-xs font-bold">View Doc</a>
+                                      <a href={ti.documentUri} target="_blank" rel="noreferrer" className="text-primary underline text-caption font-bold">View Doc</a>
                                     ) : <span className="text-muted-foreground">—</span>}
                                   </td>
-                                  <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(ti.createdAt).toLocaleDateString()}</td>
+                                  <td className="px-4 py-3 text-caption text-muted-foreground">{new Date(ti.createdAt).toLocaleDateString()}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -433,7 +433,7 @@ export default function SecurityIncidentDetailPage() {
                         <PermissionGate module="security" action="write">
                           <button
                             onClick={() => setShowAddComp(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 shadow-md transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-caption font-bold rounded-lg hover:bg-primary/90 shadow-md transition-all"
                           >
                             <Plus className="w-3.5 h-3.5" /> Add Compliance Evidence
                           </button>
@@ -443,8 +443,8 @@ export default function SecurityIncidentDetailPage() {
                         {compList.length === 0 ? (
                           <div className="p-12 text-center flex flex-col items-center gap-2 text-muted-foreground">
                             <BookOpen className="w-8 h-8 opacity-20" />
-                            <p className="text-sm">No compliance evidence linked yet.</p>
-                            <p className="text-xs">Link GRC Risk, Audit findings, Failed Controls and Policies to this incident.</p>
+                            <p className="text-body-sm">No compliance evidence linked yet.</p>
+                            <p className="text-caption">Link GRC Risk, Audit findings, Failed Controls and Policies to this incident.</p>
                           </div>
                         ) : (
                           <table className="w-full text-left border-collapse">
@@ -466,37 +466,37 @@ export default function SecurityIncidentDetailPage() {
                                 const policy = policies.find((p: any) => p.id === ev.securityPolicyId);
                                 return (
                                   <tr key={ev.id} className="hover:bg-muted/10 transition-colors">
-                                    <td className="px-4 py-3 text-sm">
+                                    <td className="px-4 py-3 text-body-sm">
                                       {risk ? <span className="text-orange-700 font-bold text-[11px]">{risk.number} — {risk.title}</span> : <span className="text-muted-foreground">—</span>}
                                     </td>
-                                    <td className="px-4 py-3 text-sm">
+                                    <td className="px-4 py-3 text-body-sm">
                                       {audit ? (
                                         <div>
-                                          <div className="text-foreground font-medium text-xs">{audit.title}</div>
+                                          <div className="text-foreground font-medium text-caption">{audit.title}</div>
                                           {ev.auditDocUri && <a href={ev.auditDocUri} target="_blank" rel="noreferrer" className="text-primary text-[10px] underline">View</a>}
                                         </div>
                                       ) : <span className="text-muted-foreground">—</span>}
                                     </td>
-                                    <td className="px-4 py-3 text-sm">
+                                    <td className="px-4 py-3 text-body-sm">
                                       {control ? (
                                         <div>
-                                          <div className="text-foreground font-medium text-xs">{control.title}</div>
+                                          <div className="text-foreground font-medium text-caption">{control.title}</div>
                                           {ev.failedControlDocUri && <a href={ev.failedControlDocUri} target="_blank" rel="noreferrer" className="text-primary text-[10px] underline">View</a>}
                                         </div>
                                       ) : <span className="text-muted-foreground">—</span>}
                                     </td>
-                                    <td className="px-4 py-3 text-sm">
+                                    <td className="px-4 py-3 text-body-sm">
                                       {policy ? (
                                         <div>
-                                          <div className="text-foreground font-medium text-xs">{policy.title}</div>
+                                          <div className="text-foreground font-medium text-caption">{policy.title}</div>
                                           {ev.securityPolicyDocUri && <a href={ev.securityPolicyDocUri} target="_blank" rel="noreferrer" className="text-primary text-[10px] underline">View</a>}
                                         </div>
                                       ) : <span className="text-muted-foreground">—</span>}
                                     </td>
-                                    <td className="px-4 py-3 text-sm">
-                                      {ev.supportingDocUri ? <a href={ev.supportingDocUri} target="_blank" rel="noreferrer" className="text-primary text-xs underline font-bold">View Doc</a> : <span className="text-muted-foreground">—</span>}
+                                    <td className="px-4 py-3 text-body-sm">
+                                      {ev.supportingDocUri ? <a href={ev.supportingDocUri} target="_blank" rel="noreferrer" className="text-primary text-caption underline font-bold">View Doc</a> : <span className="text-muted-foreground">—</span>}
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(ev.createdAt).toLocaleDateString()}</td>
+                                    <td className="px-4 py-3 text-caption text-muted-foreground">{new Date(ev.createdAt).toLocaleDateString()}</td>
                                   </tr>
                                 );
                               })}
@@ -517,7 +517,7 @@ export default function SecurityIncidentDetailPage() {
                         {vulnList.length === 0 ? (
                           <div className="p-12 text-center flex flex-col items-center gap-2 text-muted-foreground">
                             <Shield className="w-8 h-8 opacity-20" />
-                            <p className="text-sm">No vulnerabilities linked yet.</p>
+                            <p className="text-body-sm">No vulnerabilities linked yet.</p>
                           </div>
                         ) : (
                           <table className="w-full text-left border-collapse">
@@ -533,9 +533,9 @@ export default function SecurityIncidentDetailPage() {
                               {vulnList.map((v: any) => (
                                 <tr key={v.id} className="hover:bg-muted/10 transition-colors">
                                   <td className="px-4 py-3 text-[11px] font-mono font-bold text-primary">{v.cveId || v.id.slice(0, 8)}</td>
-                                  <td className="px-4 py-3 text-sm text-foreground max-w-md">{v.title}</td>
-                                  <td className="px-4 py-3 text-sm capitalize">{v.severity}</td>
-                                  <td className="px-4 py-3 text-sm capitalize text-muted-foreground">{v.status.replace("_", " ")}</td>
+                                  <td className="px-4 py-3 text-body-sm text-foreground max-w-md">{v.title}</td>
+                                  <td className="px-4 py-3 text-body-sm capitalize">{v.severity}</td>
+                                  <td className="px-4 py-3 text-body-sm capitalize text-muted-foreground">{v.status.replace("_", " ")}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -550,12 +550,12 @@ export default function SecurityIncidentDetailPage() {
                     <div className="bg-card border border-border rounded-xl p-6 shadow-sm animate-in fade-in slide-in-from-left-4 duration-300">
                       <PermissionGate module="security" action="write">
                         <div className="flex flex-col gap-4">
-                          <textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add work note..." className="w-full px-4 py-3 text-sm border border-border rounded-xl bg-background resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                          <textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add work note..." className="w-full px-4 py-3 text-body-sm border border-border rounded-xl bg-background resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                           <div className="flex justify-end">
                             <button
                               disabled={addContainmentMutation.isPending || !note.trim()}
                               onClick={() => addContainmentMutation.mutate({ id, action: `Note: ${note}`, performedBy: "current_user" })}
-                              className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 disabled:opacity-60 transition-all shadow-md"
+                              className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 disabled:opacity-60 transition-all shadow-md"
                             >
                               Add Note
                             </button>
@@ -586,33 +586,33 @@ export default function SecurityIncidentDetailPage() {
                         <button
                           onClick={() => transitionMutation.mutate({ id: incident.id, toStatus: "closed" as any })}
                           disabled={transitionMutation.isPending}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-all border border-green-200 disabled:opacity-60"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-caption font-bold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-all border border-green-200 disabled:opacity-60"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Mark and End (Close)
                         </button>
                         <button
                           onClick={() => transitionMutation.mutate({ id: incident.id, toStatus: "false_positive" as any })}
                           disabled={transitionMutation.isPending}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all border border-slate-200 disabled:opacity-60"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-caption font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all border border-slate-200 disabled:opacity-60"
                         >
                           <XCircle className="w-3.5 h-3.5" /> Close as False Positive
                         </button>
                         <button
                           onClick={() => addContainmentMutation.mutate({ id, action: "Escalated to CISO", performedBy: "current_user" })}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg transition-all border border-orange-200"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-caption font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg transition-all border border-orange-200"
                         >
                           <AlertTriangle className="w-3.5 h-3.5" /> Escalate to CISO
                         </button>
                         <button
                           onClick={() => addContainmentMutation.mutate({ id, action: "Blocked IP at firewall", performedBy: "current_user" })}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-all border border-red-200"
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-caption font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-all border border-red-200"
                         >
                           <Lock className="w-3.5 h-3.5" /> Block IP at Firewall
                         </button>
                       </>
                     )}
                     {isClosed && (
-                      <div className="text-center text-xs text-muted-foreground py-2">
+                      <div className="text-center text-caption text-muted-foreground py-2">
                         ✅ This incident is <span className="font-bold">{incident.status.replace("_", " ")}</span>.
                       </div>
                     )}
@@ -627,7 +627,7 @@ export default function SecurityIncidentDetailPage() {
                     <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                       <div className="flex items-center gap-2">
                         <Brain className="w-4 h-4 text-primary" />
-                        <h3 className="text-base font-bold text-foreground">Add Threat Intelligence</h3>
+                        <h3 className="text-body font-bold text-foreground">Add Threat Intelligence</h3>
                       </div>
                       <button onClick={() => setShowAddTi(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
                     </div>
@@ -636,7 +636,7 @@ export default function SecurityIncidentDetailPage() {
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Description *</label>
                         <textarea
                           rows={3}
-                          className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background resize-none focus:ring-2 focus:ring-primary/20 outline-none"
+                          className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background resize-none focus:ring-2 focus:ring-primary/20 outline-none"
                           placeholder="Describe the threat intelligence (actor, campaign, TTPs, IOCs source...)"
                           value={tiForm.description}
                           onChange={(e) => setTiForm({ ...tiForm, description: e.target.value })}
@@ -645,7 +645,7 @@ export default function SecurityIncidentDetailPage() {
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Supporting Document URL</label>
                         <input
-                          className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
+                          className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
                           placeholder="https://… (report, PDF, feed link)"
                           value={tiForm.documentUri}
                           onChange={(e) => setTiForm({ ...tiForm, documentUri: e.target.value })}
@@ -654,11 +654,11 @@ export default function SecurityIncidentDetailPage() {
                       </div>
                     </div>
                     <div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/20">
-                      <button onClick={() => setShowAddTi(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+                      <button onClick={() => setShowAddTi(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
                       <button
                         disabled={!tiForm.description.trim() || createTiMut.isPending}
                         onClick={() => createTiMut.mutate({ incidentId: id, description: tiForm.description, documentUri: tiForm.documentUri || undefined })}
-                        className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
+                        className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                       >
                         {createTiMut.isPending ? "Saving…" : "Add Threat Intel"}
                       </button>
@@ -674,17 +674,17 @@ export default function SecurityIncidentDetailPage() {
                     <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                       <div className="flex items-center gap-2">
                         <BookOpen className="w-4 h-4 text-primary" />
-                        <h3 className="text-base font-bold text-foreground">Add Compliance Evidence</h3>
+                        <h3 className="text-body font-bold text-foreground">Add Compliance Evidence</h3>
                       </div>
                       <button onClick={() => setShowAddComp(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
                     </div>
                     <div className="p-6 overflow-y-auto flex flex-col gap-4">
-                      <p className="text-xs text-muted-foreground">Link GRC records from the Risk Register, Audits, Controls and Policies to this Security Incident for full traceability.</p>
+                      <p className="text-caption text-muted-foreground">Link GRC records from the Risk Register, Audits, Controls and Policies to this Security Incident for full traceability.</p>
 
                       {/* GRC Risk */}
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Compliance Framework / Risk (GRC Risk Register)</label>
-                        <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={compForm.riskId} onChange={(e) => setCompForm({ ...compForm, riskId: e.target.value })}>
+                        <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={compForm.riskId} onChange={(e) => setCompForm({ ...compForm, riskId: e.target.value })}>
                           <option value="">— Select Risk —</option>
                           {risks.map((r: any) => <option key={r.id} value={r.id}>{r.number} — {r.title}</option>)}
                         </select>
@@ -693,41 +693,41 @@ export default function SecurityIncidentDetailPage() {
                       {/* Audit */}
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Audit</label>
-                        <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background mb-2" value={compForm.auditId} onChange={(e) => setCompForm({ ...compForm, auditId: e.target.value })}>
+                        <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background mb-2" value={compForm.auditId} onChange={(e) => setCompForm({ ...compForm, auditId: e.target.value })}>
                           <option value="">— Select Audit —</option>
                           {audits.map((a: any) => <option key={a.id} value={a.id}>{a.title}</option>)}
                         </select>
-                        <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Audit document URL" value={compForm.auditDocUri} onChange={(e) => setCompForm({ ...compForm, auditDocUri: e.target.value })} />
+                        <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Audit document URL" value={compForm.auditDocUri} onChange={(e) => setCompForm({ ...compForm, auditDocUri: e.target.value })} />
                       </div>
 
                       {/* Failed Control */}
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Failed Control</label>
-                        <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background mb-2" value={compForm.failedControlId} onChange={(e) => setCompForm({ ...compForm, failedControlId: e.target.value })}>
+                        <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background mb-2" value={compForm.failedControlId} onChange={(e) => setCompForm({ ...compForm, failedControlId: e.target.value })}>
                           <option value="">— Select Control —</option>
                           {controls.map((c: any) => <option key={c.id} value={c.id}>{c.controlNumber} — {c.title}</option>)}
                         </select>
-                        <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Failed control evidence URL" value={compForm.failedControlDocUri} onChange={(e) => setCompForm({ ...compForm, failedControlDocUri: e.target.value })} />
+                        <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Failed control evidence URL" value={compForm.failedControlDocUri} onChange={(e) => setCompForm({ ...compForm, failedControlDocUri: e.target.value })} />
                       </div>
 
                       {/* Security Policy */}
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Security Policy</label>
-                        <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background mb-2" value={compForm.securityPolicyId} onChange={(e) => setCompForm({ ...compForm, securityPolicyId: e.target.value })}>
+                        <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background mb-2" value={compForm.securityPolicyId} onChange={(e) => setCompForm({ ...compForm, securityPolicyId: e.target.value })}>
                           <option value="">— Select Policy —</option>
                           {policies.map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}
                         </select>
-                        <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Policy document URL" value={compForm.securityPolicyDocUri} onChange={(e) => setCompForm({ ...compForm, securityPolicyDocUri: e.target.value })} />
+                        <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="Policy document URL" value={compForm.securityPolicyDocUri} onChange={(e) => setCompForm({ ...compForm, securityPolicyDocUri: e.target.value })} />
                       </div>
 
                       {/* Supporting Doc */}
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Additional Supporting Document URL</label>
-                        <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="https://… (general evidence attachment)" value={compForm.supportingDocUri} onChange={(e) => setCompForm({ ...compForm, supportingDocUri: e.target.value })} />
+                        <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" placeholder="https://… (general evidence attachment)" value={compForm.supportingDocUri} onChange={(e) => setCompForm({ ...compForm, supportingDocUri: e.target.value })} />
                       </div>
                     </div>
                     <div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/20">
-                      <button onClick={() => setShowAddComp(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+                      <button onClick={() => setShowAddComp(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
                       <button
                         disabled={createCompMut.isPending}
                         onClick={() => createCompMut.mutate({
@@ -741,7 +741,7 @@ export default function SecurityIncidentDetailPage() {
                           securityPolicyDocUri: compForm.securityPolicyDocUri || undefined,
                           supportingDocUri: compForm.supportingDocUri || undefined,
                         })}
-                        className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
+                        className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                       >
                         {createCompMut.isPending ? "Saving…" : "Link Compliance Evidence"}
                       </button>

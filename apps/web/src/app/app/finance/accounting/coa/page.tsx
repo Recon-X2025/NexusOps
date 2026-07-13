@@ -57,12 +57,12 @@ export default function CoaPage() {
                             <button
                                 onClick={() => mSeed.mutate()}
                                 disabled={mSeed.isPending}
-                                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
                             >
                                 <RefreshCcw className={cn("w-4 h-4", mSeed.isPending && "animate-spin")} />
                                 Seed India COA
                             </button>
-                            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm font-medium hover:bg-primary/90 transition-colors">
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-medium hover:bg-primary/90 transition-colors">
                                 <Plus className="w-4 h-4" />
                                 Add Account
                             </button>
@@ -80,7 +80,7 @@ export default function CoaPage() {
                         placeholder="Search by name or code..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-muted/50 border-none rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                        className="w-full pl-10 pr-4 py-2 bg-muted/50 border-none rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                     />
                 </div>
                 <div className="flex items-center gap-2 border-l border-border pl-4">
@@ -89,7 +89,7 @@ export default function CoaPage() {
                             key={type}
                             onClick={() => setFilterType(filterType === type ? null : type)}
                             className={cn(
-                                "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+                                "px-3 py-1.5 rounded-lg text-caption font-bold uppercase tracking-wider transition-all",
                                 filterType === type ? TYPE_COLORS[type] : "bg-muted text-muted-foreground hover:bg-muted/80"
                             )}
                         >
@@ -122,18 +122,18 @@ export default function CoaPage() {
                               <table className="w-full text-left border-collapse">
                                   <thead>
                                       <tr className="bg-muted/50 border-b border-border">
-                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-24">Code</th>
-                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Account Name</th>
-                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Type</th>
-                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Sub-Type</th>
-                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
-                                          <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
+                                          <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-24">Code</th>
+                                          <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Account Name</th>
+                                          <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Type</th>
+                                          <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Sub-Type</th>
+                                          <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
+                                          <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-10"></th>
                                       </tr>
                                   </thead>
                                   <tbody className="divide-y divide-border">
                                       {displayAccounts?.map(acct => (
                                           <tr key={acct.id} className="hover:bg-muted/30 transition-colors group">
-                                              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{acct.code}</td>
+                                              <td className="px-4 py-3 font-mono text-caption text-muted-foreground">{acct.code}</td>
                                               <td className="px-4 py-3">
                                                   <div className="flex items-center gap-2">
                                                       <span className="font-medium text-foreground">{acct.name}</span>
@@ -141,15 +141,15 @@ export default function CoaPage() {
                                                           <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold uppercase rounded">System</span>
                                                       )}
                                                   </div>
-                                                  {acct.description && <p className="text-xs text-muted-foreground mt-0.5">{acct.description}</p>}
+                                                  {acct.description && <p className="text-caption text-muted-foreground mt-0.5">{acct.description}</p>}
                                               </td>
                                               <td className="px-4 py-3">
                                                   <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", TYPE_COLORS[acct.type])}>
                                                       {acct.type}
                                                   </span>
                                               </td>
-                                              <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{acct.subType.replace("_", " ")}</td>
-                                              <td className="px-4 py-3 text-right font-mono text-sm font-bold">
+                                              <td className="px-4 py-3 text-body-sm text-muted-foreground capitalize">{acct.subType.replace("_", " ")}</td>
+                                              <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
                                                   ₹{Number(acct.currentBalance).toLocaleString()}
                                               </td>
                                               <td className="px-4 py-3 text-right">

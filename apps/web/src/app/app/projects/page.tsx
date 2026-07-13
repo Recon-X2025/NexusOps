@@ -119,7 +119,7 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Briefcase className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Initiatives</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Initiatives</h1>
           <span className="text-[11px] text-muted-foreground/70">Portfolio · Health · Benefits</span>
         </div>
         <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export default function ProjectsPage() {
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Project Name *</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editForm.name}
                   onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                 />
@@ -162,7 +162,7 @@ export default function ProjectsPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Status</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editForm.status}
                   onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
                 >
@@ -177,7 +177,7 @@ export default function ProjectsPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Health</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editForm.health}
                   onChange={(e) => setEditForm((f) => ({ ...f, health: e.target.value }))}
                 >
@@ -189,7 +189,7 @@ export default function ProjectsPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Phase</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   placeholder="e.g. Initiation, Execution…"
                   value={editForm.phase}
                   onChange={(e) => setEditForm((f) => ({ ...f, phase: e.target.value }))}
@@ -199,7 +199,7 @@ export default function ProjectsPage() {
                 <label className="text-[11px] text-muted-foreground">Target End Date</label>
                 <input
                   type="date"
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editForm.endDate}
                   onChange={(e) => setEditForm((f) => ({ ...f, endDate: e.target.value }))}
                 />
@@ -208,7 +208,7 @@ export default function ProjectsPage() {
                 <label className="text-[11px] text-muted-foreground">Budget Total (₹)</label>
                 <input
                   type="number"
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editForm.budgetTotal}
                   onChange={(e) => setEditForm((f) => ({ ...f, budgetTotal: e.target.value }))}
                 />
@@ -252,27 +252,27 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Project Name *</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} />
+              <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Department</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="IT / Finance / HR…" value={projectForm.department} onChange={(e) => setProjectForm((f) => ({ ...f, department: e.target.value }))} />
+              <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="IT / Finance / HR…" value={projectForm.department} onChange={(e) => setProjectForm((f) => ({ ...f, department: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Start Date</label>
-              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={projectForm.startDate} onChange={(e) => setProjectForm((f) => ({ ...f, startDate: e.target.value }))} />
+              <input type="date" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={projectForm.startDate} onChange={(e) => setProjectForm((f) => ({ ...f, startDate: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">End Date</label>
-              <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={projectForm.endDate} onChange={(e) => setProjectForm((f) => ({ ...f, endDate: e.target.value }))} />
+              <input type="date" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={projectForm.endDate} onChange={(e) => setProjectForm((f) => ({ ...f, endDate: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Budget (₹)</label>
-              <input type="number" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="0" value={projectForm.budgetTotal} onChange={(e) => setProjectForm((f) => ({ ...f, budgetTotal: e.target.value }))} />
+              <input type="number" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="0" value={projectForm.budgetTotal} onChange={(e) => setProjectForm((f) => ({ ...f, budgetTotal: e.target.value }))} />
             </div>
             <div className="col-span-3">
               <label className="text-[11px] text-muted-foreground">Description</label>
-              <textarea className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-14 resize-none" placeholder="Project objective…" value={projectForm.description} onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))} />
+              <textarea className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background h-14 resize-none" placeholder="Project objective…" value={projectForm.description} onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
           </div>
           <div className="flex gap-2 mt-3">
@@ -292,7 +292,7 @@ export default function ProjectsPage() {
           { label: "Overallocated Resources", value: overallocated,                              color: "text-red-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -313,12 +313,12 @@ export default function ProjectsPage() {
           isLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading projects…</span>
+              <span className="text-caption">Loading projects…</span>
             </div>
           ) : projectList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Briefcase className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No projects yet.</span>
+              <span className="text-caption">No projects yet.</span>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -351,7 +351,7 @@ export default function ProjectsPage() {
                     <td className="max-w-xs">
                       <div className="flex items-center gap-1">
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${HEALTH_COLOR[p.health]}`} />
-                        <span className="truncate text-foreground">{p.name}</span>
+                        <span className="text-foreground">{p.name}</span>
                       </div>
                     </td>
                     <td><span className="status-badge text-muted-foreground bg-muted">{p.phase ?? "—"}</span></td>
@@ -475,8 +475,8 @@ function AgileKanban({ projects }: { projects: any[] }) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
         <LayoutGrid className="w-8 h-8 opacity-30" />
-        <p className="text-sm font-semibold">No Projects Yet</p>
-        <p className="text-xs text-center max-w-xs">Create a project from the All Projects tab, then come back here to manage tasks on the kanban board.</p>
+        <p className="text-body-sm font-semibold">No Projects Yet</p>
+        <p className="text-caption text-center max-w-xs">Create a project from the All Projects tab, then come back here to manage tasks on the kanban board.</p>
       </div>
     );
   }
@@ -485,18 +485,18 @@ function AgileKanban({ projects }: { projects: any[] }) {
     <div className="flex flex-col h-full min-h-0">
       {/* Project selector */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/30">
-        <span className="text-xs text-muted-foreground font-medium">Project:</span>
+        <span className="text-caption text-muted-foreground font-medium">Project:</span>
         <select
           value={selectedProjectId}
           onChange={(e) => setSelectedProjectId(e.target.value)}
-          className="rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:border-primary"
+          className="rounded border border-border bg-background px-2 py-1 text-caption focus:outline-none focus:border-primary"
         >
           {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
         {selectedProject && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-caption text-muted-foreground">
             {selectedProject.status} · {selectedProject.health}
           </span>
         )}
@@ -517,7 +517,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
                 >
                   {/* Column header */}
                   <div className="flex items-center justify-between px-1 py-0.5">
-                    <span className="text-xs font-semibold text-foreground/80">{col.label}</span>
+                    <span className="text-caption font-semibold text-foreground/80">{col.label}</span>
                     <span className="rounded-full bg-background/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                       {tasks.length}
                     </span>
@@ -530,13 +530,13 @@ function AgileKanban({ projects }: { projects: any[] }) {
                       className="rounded bg-card border border-border/60 p-2.5 shadow-sm hover:shadow transition-shadow group"
                     >
                       <div className="flex items-start justify-between gap-1 mb-1">
-                        <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{task.title}</p>
+                        <p className="text-caption font-medium text-foreground leading-snug">{task.title}</p>
                         {task.priority && (
                           <div className={`h-2 w-2 rounded-full mt-1 shrink-0 ${PRIORITY_DOT[task.priority] ?? "bg-slate-400"}`} title={task.priority} />
                         )}
                       </div>
                       {task.assignee && (
-                        <p className="text-[10px] text-muted-foreground truncate">{task.assignee}</p>
+                        <p className="text-[10px] text-muted-foreground">{task.assignee}</p>
                       )}
                       {/* Move buttons */}
                       <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -545,7 +545,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
                             key={c.key}
                             onClick={() => updateTask.mutate({ id: task.id, status: c.key as "in_progress" | "todo" | "done" | "backlog" | "in_review" })}
                             disabled={updateTask.isPending}
-                            className="px-1.5 py-0.5 rounded text-[9px] bg-background border border-border hover:bg-muted disabled:opacity-50 truncate max-w-[56px]"
+                            className="px-1.5 py-0.5 rounded text-[9px] bg-background border border-border hover:bg-muted disabled:opacity-50 max-w-[56px]"
                             title={`Move to ${c.label}`}
                           >
                             → {c.label}
@@ -572,7 +572,7 @@ function AgileKanban({ projects }: { projects: any[] }) {
                           }
                           if (e.key === "Escape") { setAddingTo(null); setNewTaskTitle(""); }
                         }}
-                        className="w-full bg-transparent text-xs focus:outline-none placeholder:text-muted-foreground/60"
+                        className="w-full bg-transparent text-caption focus:outline-none placeholder:text-muted-foreground/60"
                       />
                       <div className="flex gap-1 mt-1.5">
                         <button

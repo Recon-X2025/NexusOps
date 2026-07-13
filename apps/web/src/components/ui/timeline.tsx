@@ -70,7 +70,7 @@ function TimelineNode({ item }: { item: TimelineItem }) {
         ) : (
           <>
             <div className="flex items-start justify-between gap-4">
-              <p className="text-sm font-semibold text-foreground leading-snug">{item.title}</p>
+              <p className="text-body-sm font-semibold text-foreground leading-snug">{item.title}</p>
               {ts && (
                 <span className="text-[10px] text-muted-foreground shrink-0">
                   {ts.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -78,7 +78,7 @@ function TimelineNode({ item }: { item: TimelineItem }) {
               )}
             </div>
             {item.subtitle && (
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.subtitle}</p>
+              <p className="text-caption text-muted-foreground mt-1 leading-relaxed">{item.subtitle}</p>
             )}
             {item.tags && item.tags.length > 0 && (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -130,7 +130,7 @@ export function Timeline({
       return (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <EmptyIcon className="w-8 h-8 text-muted-foreground/30 mb-2" />
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          <p className="text-body-sm text-muted-foreground">{emptyMessage}</p>
         </div>
       );
     }

@@ -30,15 +30,15 @@ export default function LedgerPage() {
         <div className="flex flex-col gap-6 p-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">General Ledger</h1>
-                    <p className="text-sm text-muted-foreground mt-1">Detailed transaction history and running balances.</p>
+                    <h1 className="text-h3 font-bold text-foreground">General Ledger</h1>
+                    <p className="text-body-sm text-muted-foreground mt-1">Detailed transaction history and running balances.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors">
                         <Download className="w-4 h-4" />
                         Export PDF
                     </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors">
                         <FileText className="w-4 h-4" />
                         Export CSV
                     </button>
@@ -52,7 +52,7 @@ export default function LedgerPage() {
                     <select
                         value={accountId}
                         onChange={(e) => setAccountId(e.target.value)}
-                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                     >
                         <option value="">Select Account...</option>
                         {qCoa.data?.map((acct: any) => (
@@ -66,7 +66,7 @@ export default function LedgerPage() {
                         type="date"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
-                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                     />
                 </div>
                 <div className="space-y-1.5">
@@ -75,13 +75,13 @@ export default function LedgerPage() {
                         type="date"
                         value={dateTo}
                         onChange={(e) => setDateTo(e.target.value)}
-                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                        className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                     />
                 </div>
                 <div className="flex items-end">
                     <button
                         onClick={() => qLedger.refetch()}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-body-sm font-bold hover:bg-primary/90 transition-colors"
                     >
                         <Filter className="w-4 h-4" />
                         Apply Filters
@@ -95,8 +95,8 @@ export default function LedgerPage() {
                         <BookOpen className="w-8 h-8 text-muted-foreground/50" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-foreground">Select an Account</h3>
-                        <p className="text-sm text-muted-foreground max-w-xs mx-auto mt-1">
+                        <h3 className="text-body-lg font-bold text-foreground">Select an Account</h3>
+                        <p className="text-body-sm text-muted-foreground max-w-xs mx-auto mt-1">
                             Choose an account from the dropdown above to view its general ledger and transaction history.
                         </p>
                     </div>
@@ -107,15 +107,15 @@ export default function LedgerPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Opening Balance</p>
-                            <p className="text-xl font-mono font-bold text-foreground">₹{Number(selectedAccount?.openingBalance || 0).toLocaleString()}</p>
+                            <p className="text-h4 font-mono font-bold text-foreground">₹{Number(selectedAccount?.openingBalance || 0).toLocaleString()}</p>
                         </div>
                         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current Balance</p>
-                            <p className="text-xl font-mono font-bold text-primary">₹{Number(selectedAccount?.currentBalance || 0).toLocaleString()}</p>
+                            <p className="text-h4 font-mono font-bold text-primary">₹{Number(selectedAccount?.currentBalance || 0).toLocaleString()}</p>
                         </div>
                         <div className="bg-card border border-border p-4 rounded-xl space-y-1">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Account Type</p>
-                            <p className="text-xl font-bold text-foreground capitalize">{selectedAccount?.type} / {selectedAccount?.subType.replace("_", " ")}</p>
+                            <p className="text-h4 font-bold text-foreground capitalize">{selectedAccount?.type} / {selectedAccount?.subType.replace("_", " ")}</p>
                         </div>
                     </div>
 
@@ -125,12 +125,12 @@ export default function LedgerPage() {
                           <table className="w-full text-left border-collapse">
                               <thead>
                                   <tr className="bg-muted/50 border-b border-border">
-                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Date</th>
-                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-32">Reference</th>
-                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Description</th>
-                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Debit</th>
-                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Credit</th>
-                                      <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
+                                      <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-32">Date</th>
+                                      <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-32">Reference</th>
+                                      <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Description</th>
+                                      <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Debit</th>
+                                      <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Credit</th>
+                                      <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Balance</th>
                                   </tr>
                               </thead>
                               <tbody className="divide-y divide-border">
@@ -152,23 +152,23 @@ export default function LedgerPage() {
                                   ) : (
                                       qLedger.data?.lines.map((line: any, index: number) => (
                                           <tr key={line.id} className="hover:bg-muted/30 transition-colors group">
-                                              <td className="px-4 py-3 text-sm text-muted-foreground">
+                                              <td className="px-4 py-3 text-body-sm text-muted-foreground">
                                                   {new Date(line.je.date).toLocaleDateString()}
                                               </td>
-                                              <td className="px-4 py-3 font-mono text-xs font-bold text-primary">
+                                              <td className="px-4 py-3 font-mono text-caption font-bold text-primary">
                                                   {line.je.number}
                                               </td>
                                               <td className="px-4 py-3">
-                                                  <p className="text-sm font-medium text-foreground">{line.line.description}</p>
+                                                  <p className="text-body-sm font-medium text-foreground">{line.line.description}</p>
                                                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{line.je.subject}</p>
                                               </td>
-                                              <td className="px-4 py-3 text-right font-mono text-sm text-blue-600">
+                                              <td className="px-4 py-3 text-right font-mono text-body-sm text-blue-600">
                                                   {Number(line.line.debit) > 0 ? `₹${Number(line.line.debit).toLocaleString()}` : "—"}
                                               </td>
-                                              <td className="px-4 py-3 text-right font-mono text-sm text-red-600">
+                                              <td className="px-4 py-3 text-right font-mono text-body-sm text-red-600">
                                                   {Number(line.line.credit) > 0 ? `₹${Number(line.line.credit).toLocaleString()}` : "—"}
                                               </td>
-                                              <td className="px-4 py-3 text-right font-mono text-sm font-bold">
+                                              <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
                                                   ₹{Number(line.runningBalance).toLocaleString()}
                                               </td>
                                           </tr>

@@ -59,11 +59,11 @@ export function PageHeader({
         <div>
           <div className="flex items-center gap-2">
             {Icon && <Icon className="w-5 h-5 text-muted-foreground" />}
-            <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+            <h1 className="text-h3 font-bold text-foreground">{title}</h1>
             {badge}
           </div>
           {subtitle && (
-            <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+            <p className="text-body-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}
         </div>
       </div>

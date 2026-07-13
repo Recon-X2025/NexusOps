@@ -217,7 +217,7 @@ export default function APMPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">App Inventory</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">App Inventory</h1>
           <span className="text-[11px] text-muted-foreground/70">
             {APM_ENABLED
               ? "Inventory · Lifecycle · Tech Debt · Cloud · Capability Map"
@@ -264,7 +264,7 @@ export default function APMPage() {
           { label: "Cloud Native",       value: `${summaryQuery.data?.cloudNative ?? cloudNative}/${APPS.length}`, color: "text-green-700" },
         ].map(k => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
           </div>
         ))}
@@ -425,7 +425,7 @@ export default function APMPage() {
                 const cfg = DEBT_CFG[level];
                 return (
                   <div key={level} className="bg-card border border-border rounded px-3 py-2">
-                    <div className={`text-xl font-bold ${cfg.color.split(" ")[0]}`}>{count}</div>
+                    <div className={`text-h4 font-bold ${cfg.color.split(" ")[0]}`}>{count}</div>
                     <div className="text-[10px] text-muted-foreground uppercase capitalize">{level} debt</div>
                     {cost > 0 && <div className="text-[10px] text-muted-foreground/70">₹{(cost/1000).toFixed(0)}K spend</div>}
                   </div>

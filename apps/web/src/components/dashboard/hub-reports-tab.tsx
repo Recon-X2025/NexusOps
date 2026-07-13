@@ -135,7 +135,7 @@ export function HubReportsTab({ payload, hubTitle }: { payload: HubPayload; hubT
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm p-8 text-center text-sm text-slate-500 dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-400">
+      <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm p-8 text-center text-body-sm text-slate-500 dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-400">
         No metrics registered for this hub yet. Once metric resolvers are
         contributed for {hubTitle}, this report will populate automatically.
       </div>
@@ -148,25 +148,25 @@ export function HubReportsTab({ payload, hubTitle }: { payload: HubPayload; hubT
     <div className="flex flex-col gap-4 md:gap-5">
       <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm dark:bg-slate-900/80 dark:border-slate-700 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 md:px-5 md:py-4 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 tracking-tight">
+          <div className="min-w-0">
+            <h2 className="text-body font-semibold text-slate-800 dark:text-slate-100 tracking-tight">
               {hubTitle} — analytics &amp; reporting
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-caption text-slate-500 dark:text-slate-400 mt-0.5">
               {rows.length} metric{rows.length === 1 ? "" : "s"} in scope · current vs target with motion
             </p>
           </div>
           <button
             type="button"
             onClick={() => exportCsv(rows, `${fileBase}-report-${new Date().toISOString().slice(0, 10)}.csv`)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-caption font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0 whitespace-nowrap"
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
             Export CSV
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-sm">
             <thead className="bg-slate-50/70 dark:bg-slate-800/60 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="text-left font-semibold py-2 px-4">Metric</th>

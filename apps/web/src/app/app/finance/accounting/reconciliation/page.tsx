@@ -128,11 +128,11 @@ export default function ReconciliationPage() {
             </button>
           )}
           <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="text-h3 font-bold text-foreground flex items-center gap-2">
               <Landmark className="w-6 h-6 text-primary" />
               Bank Reconciliation
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-body-sm text-muted-foreground mt-1">
               Import bank statements and match transactions against your ledger.
             </p>
           </div>
@@ -149,7 +149,7 @@ export default function ReconciliationPage() {
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
                 data-testid="recon-account-select"
-                className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
               >
                 <option value="">All bank/cash accounts</option>
                 {bankAccounts.map((acct: any) => (
@@ -163,7 +163,7 @@ export default function ReconciliationPage() {
                   onClick={() => setShowNewStatement(true)}
                   disabled={bankAccounts.length === 0}
                   data-testid="new-statement-btn"
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-body-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4" />
                   New Reconciliation
@@ -178,10 +178,10 @@ export default function ReconciliationPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Statement</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Closing Balance</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Matched</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Status</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Statement</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Closing Balance</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Matched</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -204,11 +204,11 @@ export default function ReconciliationPage() {
                         data-testid="statement-row"
                       >
                         <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-foreground">{s.name}</p>
+                          <p className="text-body-sm font-medium text-foreground">{s.name}</p>
                           <p className="text-[11px] text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</p>
                         </td>
-                        <td className="px-4 py-3 font-mono text-sm">{fmtInr(s.statementBalance)}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{s.matchedCount} / {s.txnCount}</td>
+                        <td className="px-4 py-3 font-mono text-body-sm">{fmtInr(s.statementBalance)}</td>
+                        <td className="px-4 py-3 text-body-sm text-muted-foreground">{s.matchedCount} / {s.txnCount}</td>
                         <td className="px-4 py-3">
                           <span className={cn(
                             "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold",
@@ -233,15 +233,15 @@ export default function ReconciliationPage() {
             <div className="flex items-center gap-6">
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Statement</p>
-                <p className="text-sm font-bold text-foreground">{detail?.statement.name}</p>
+                <p className="text-body-sm font-bold text-foreground">{detail?.statement.name}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Transactions</p>
-                <p className="text-sm font-bold text-foreground">{txns.length}</p>
+                <p className="text-body-sm font-bold text-foreground">{txns.length}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Unmatched</p>
-                <p className={cn("text-sm font-bold", unmatched.length > 0 ? "text-amber-600" : "text-green-600")} data-testid="unmatched-count">
+                <p className={cn("text-body-sm font-bold", unmatched.length > 0 ? "text-amber-600" : "text-green-600")} data-testid="unmatched-count">
                   {unmatched.length}
                 </p>
               </div>
@@ -252,7 +252,7 @@ export default function ReconciliationPage() {
                   onClick={() => setShowImport(true)}
                   disabled={isReconciled}
                   data-testid="import-txns-btn"
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
                 >
                   <Upload className="w-4 h-4" /> Import CSV
                 </button>
@@ -260,7 +260,7 @@ export default function ReconciliationPage() {
                   onClick={autoMatchAll}
                   disabled={isReconciled || (qSuggestions.data?.suggestions.length ?? 0) === 0}
                   data-testid="auto-match-btn"
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
                 >
                   <Wand2 className="w-4 h-4" /> Auto-match ({qSuggestions.data?.suggestions.length ?? 0})
                 </button>
@@ -268,7 +268,7 @@ export default function ReconciliationPage() {
                   onClick={() => reconcileMut.mutate({ statementId: activeStatementId! })}
                   disabled={isReconciled || unmatched.length > 0 || txns.length === 0}
                   data-testid="reconcile-btn"
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Finalize
                 </button>
@@ -277,7 +277,7 @@ export default function ReconciliationPage() {
           </div>
 
           {isReconciled && (
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl text-sm font-medium">
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl text-body-sm font-medium">
               <CheckCircle2 className="w-4 h-4" /> This statement is fully reconciled.
             </div>
           )}
@@ -288,11 +288,11 @@ export default function ReconciliationPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest w-28">Date</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Description</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Amount</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-                    <th className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-widest text-right">Actions</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest w-28">Date</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Description</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Amount</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest">Status</th>
+                    <th className="px-4 py-3 text-caption font-bold text-muted-foreground uppercase tracking-widest text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -312,9 +312,9 @@ export default function ReconciliationPage() {
                       const amt = Number(t.amount);
                       return (
                         <tr key={t.id} className="hover:bg-muted/30 transition-colors" data-testid="txn-row">
-                          <td className="px-4 py-3 text-sm text-muted-foreground">{new Date(t.txnDate).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 text-body-sm text-muted-foreground">{new Date(t.txnDate).toLocaleDateString()}</td>
                           <td className="px-4 py-3">
-                            <p className="text-sm font-medium text-foreground">{t.description}</p>
+                            <p className="text-body-sm font-medium text-foreground">{t.description}</p>
                             {t.reference && <p className="text-[11px] text-muted-foreground">{t.reference}</p>}
                             {t.status === "unmatched" && sug && (
                               <p className="text-[11px] text-blue-600 mt-0.5 flex items-center gap-1">
@@ -322,7 +322,7 @@ export default function ReconciliationPage() {
                               </p>
                             )}
                           </td>
-                          <td className={cn("px-4 py-3 text-right font-mono text-sm font-bold", amt >= 0 ? "text-green-600" : "text-red-600")}>
+                          <td className={cn("px-4 py-3 text-right font-mono text-body-sm font-bold", amt >= 0 ? "text-green-600" : "text-red-600")}>
                             {amt >= 0 ? "+" : ""}{fmtInr(amt)}
                           </td>
                           <td className="px-4 py-3">
@@ -387,7 +387,7 @@ export default function ReconciliationPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowNewStatement(false)}>
           <div className="bg-card border border-border rounded-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()} data-testid="new-statement-modal">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+              <h2 className="text-body-lg font-bold text-foreground flex items-center gap-2">
                 <CircleDollarSign className="w-5 h-5 text-primary" /> New Reconciliation
               </h2>
               <button onClick={() => setShowNewStatement(false)} className="p-1 hover:bg-muted rounded"><X className="w-4 h-4" /></button>
@@ -399,7 +399,7 @@ export default function ReconciliationPage() {
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
                   data-testid="modal-account-select"
-                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                 >
                   <option value="">Select account…</option>
                   {bankAccounts.map((acct: any) => (
@@ -414,7 +414,7 @@ export default function ReconciliationPage() {
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="e.g. HDFC — Jan 2026"
                   data-testid="statement-name-input"
-                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                 />
               </div>
               <div className="space-y-1.5">
@@ -424,12 +424,12 @@ export default function ReconciliationPage() {
                   value={newBalance}
                   onChange={(e) => setNewBalance(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:ring-1 focus:ring-primary outline-none"
+                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-body-sm focus:ring-1 focus:ring-primary outline-none"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowNewStatement(false)} className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors">Cancel</button>
+              <button onClick={() => setShowNewStatement(false)} className="px-4 py-2 border border-border rounded-lg text-body-sm font-medium hover:bg-muted transition-colors">Cancel</button>
               <button
                 onClick={() => createStatement.mutate({
                   accountId,
@@ -438,7 +438,7 @@ export default function ReconciliationPage() {
                 })}
                 disabled={!accountId || !newName.trim() || createStatement.isPending}
                 data-testid="create-statement-submit"
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-body-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 Create
               </button>

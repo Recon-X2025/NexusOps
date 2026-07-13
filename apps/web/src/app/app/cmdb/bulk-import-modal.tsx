@@ -183,7 +183,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Bulk Import Assets</h2>
+            <h2 className="text-body-sm font-semibold text-foreground">Bulk Import Assets</h2>
             <p className="text-[10px] text-muted-foreground mt-0.5">
               Step {step} of 5 — {["Upload CSV", "Preview & Validate", "Confirm Import", "Importing…", "Done"][step - 1]}
             </p>
@@ -215,7 +215,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
                   ${isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"}`}
               >
                 <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Drag &amp; drop a CSV file here, or <span className="text-primary underline">browse</span></p>
+                <p className="text-body-sm text-muted-foreground">Drag &amp; drop a CSV file here, or <span className="text-primary underline">browse</span></p>
                 <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               </div>
@@ -307,8 +307,8 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
             <div className="flex flex-col items-center gap-4 py-4">
               <FileText className="w-10 h-10 text-primary/60" />
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground">Ready to import</p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-body font-semibold text-foreground">Ready to import</p>
+                <p className="text-body-sm text-muted-foreground mt-1">
                   <span className="text-green-600 font-bold">{validRows.length}</span> assets will be created
                   {errorRows.length > 0 && (
                     <>, <span className="text-red-600 font-bold">{errorRows.length}</span> will be skipped (errors)</>
@@ -335,7 +335,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
           {step === 4 && (
             <div className="flex flex-col items-center gap-4 py-6">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm font-medium text-foreground">Importing assets…</p>
+              <p className="text-body-sm font-medium text-foreground">Importing assets…</p>
               <p className="text-[11px] text-muted-foreground">{progress.done} / {progress.total}</p>
               <div className="w-full bg-border rounded-full h-2 overflow-hidden">
                 <div className="bg-primary h-2 rounded-full transition-all duration-200" style={{ width: `${pct}%` }} />
@@ -349,8 +349,8 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
             <div className="flex flex-col items-center gap-4 py-4">
               <CheckCircle className="w-10 h-10 text-green-500" />
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground">Import complete</p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-body font-semibold text-foreground">Import complete</p>
+                <p className="text-body-sm text-muted-foreground mt-1">
                   <span className="text-green-600 font-bold">{results.success}</span> assets created successfully
                   {results.errors.length > 0 && (
                     <>, <span className="text-red-600 font-bold">{results.errors.length}</span> failed</>
@@ -373,14 +373,14 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
           <button
             onClick={step === 5 ? onClose : () => setStep(s => Math.max(1, s - 1) as any)}
             disabled={step === 4}
-            className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent disabled:opacity-40">
+            className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent disabled:opacity-40">
             {step === 5 ? "Close" : "Back"}
           </button>
           {step < 3 && (
             <button
               onClick={() => setStep(s => (s + 1) as any)}
               disabled={(step === 2 && validRows.length === 0)}
-              className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40">
+              className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40">
               {step === 2 ? `Continue with ${validRows.length} valid rows` : "Next"}
             </button>
           )}
@@ -388,7 +388,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps) {
             <button
               onClick={handleImport}
               disabled={validRows.length === 0}
-              className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40">
+              className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40">
               Import {validRows.length} Assets
             </button>
           )}

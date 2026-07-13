@@ -57,7 +57,7 @@ function LoadingSpinner({ minHeight }: { minHeight: string }) {
     <div className={cn("flex items-center justify-center w-full", minHeight)}>
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        <p className="text-xs text-muted-foreground animate-pulse">Loading…</p>
+        <p className="text-caption text-muted-foreground animate-pulse">Loading…</p>
       </div>
     </div>
   );
@@ -130,21 +130,21 @@ function ErrorState({
       )}>
         <Icon className={cn("w-8 h-8", cfg.iconColor)} />
       </div>
-      <h2 className="text-xl font-bold text-foreground">{cfg.title(resourceName)}</h2>
-      <p className="text-muted-foreground mt-2 max-w-sm mx-auto text-sm leading-relaxed">
+      <h2 className="text-h4 font-bold text-foreground">{cfg.title(resourceName)}</h2>
+      <p className="text-muted-foreground mt-2 max-w-sm mx-auto text-body-sm leading-relaxed">
         {cfg.description}
       </p>
       <div className="flex items-center gap-3 mt-8">
         <button
           onClick={() => backHref ? router.push(backHref) : router.back()}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-body-sm font-bold hover:bg-primary/90 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Go Back
         </button>
         {variant === "generic" && (
           <button
             onClick={onRefetch}
-            className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+            className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-body-sm font-medium hover:bg-muted transition-colors"
           >
             <RefreshCcw className="w-4 h-4" /> Retry
           </button>

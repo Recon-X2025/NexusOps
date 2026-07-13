@@ -78,15 +78,15 @@ function AgingPane({
   const totalAmount = data.reduce((s, b) => s + Number(b.totalAmount), 0);
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+      <div className="flex items-baseline justify-between gap-3 mb-2 overflow-x-auto scrollbar-thin">
+        <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
           {label}
         </span>
-        <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+        <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
           {formatNumber(totalCount)} invoices · ₹{totalAmount.toFixed(0)}
         </span>
       </div>
-      <ul className="space-y-1.5 text-xs">
+      <ul className="space-y-1.5 text-caption">
         {data.map((b) => {
           const pct = totalCount > 0 ? (b.count / totalCount) * 100 : 0;
           return (

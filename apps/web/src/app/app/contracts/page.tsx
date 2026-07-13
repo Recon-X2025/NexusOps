@@ -407,7 +407,7 @@ function ContractCreationWizard() {
       {step === "clauses" && selectedTemplate && (
         <div>
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-            <p className="text-amber-800 text-sm font-medium">
+            <p className="text-amber-800 text-body-sm font-medium">
               ⚠️ Legal disclaimer: These templates are standardized starting points and do not constitute legal advice. All contracts should be reviewed by qualified legal counsel before execution. Clause content may need to be adapted to comply with the laws of your jurisdiction.
             </p>
           </div>
@@ -432,7 +432,7 @@ function ContractCreationWizard() {
       {step === "review" && selectedTemplate && (
         <div>
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-            <p className="text-amber-800 text-sm font-medium">
+            <p className="text-amber-800 text-body-sm font-medium">
               ⚠️ Legal disclaimer: These templates are starting points only and do not constitute legal advice. Consult qualified legal counsel before executing any agreement.
             </p>
           </div>
@@ -591,7 +591,7 @@ function ContractsPageInner() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Contract Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Contract Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Register · Creation Wizard · Obligations · Renewals</span>
         </div>
         <div className="flex items-center gap-2">
@@ -618,7 +618,7 @@ function ContractsPageInner() {
           { label: "Open Obligations",          value: allObligations.filter(o => o.status !== "completed").length, color: "text-orange-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}

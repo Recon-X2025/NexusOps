@@ -82,7 +82,7 @@ export function EsignPanel(props: EsignPanelProps) {
                 className="flex items-center gap-2 text-[12px] border border-border rounded px-2 py-1.5 bg-background"
               >
                 <FileText className="w-3.5 h-3.5 text-muted-foreground/70" />
-                <span className="truncate flex-1">{r.title}</span>
+                <span className="flex-1">{r.title}</span>
                 <span className={`status-badge text-[10px] capitalize ${STATUS_STYLE[r.status] ?? "text-slate-700 bg-slate-100"}`}>
                   {r.status}
                 </span>

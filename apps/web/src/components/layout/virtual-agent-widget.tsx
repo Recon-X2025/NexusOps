@@ -263,7 +263,7 @@ export function VirtualAgentWidget() {
                                   {typeof t.ms === "number" ? ` · ${t.ms}ms` : ""}
                                 </div>
                                 {t.resultPreview && (
-                                  <div className="text-muted-foreground truncate">{t.resultPreview}</div>
+                                  <div className="text-muted-foreground">{t.resultPreview}</div>
                                 )}
                               </div>
                             ))}

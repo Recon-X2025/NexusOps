@@ -31,12 +31,12 @@ export function PmoContent() {
             ) : !data?.milestoneRisks.data?.length ? (
               <WorkbenchEmpty state={data?.milestoneRisks.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.milestoneRisks.data.slice(0, 8).map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-3">
                     <Link
                       href={`/app/projects/${m.projectId}`}
-                      className="min-w-0 flex-1 text-blue-700 dark:text-blue-300 hover:underline truncate"
+                      className="min-w-0 flex-1 text-blue-700 dark:text-blue-300 hover:underline"
                     >
                       {m.projectName} — {m.title}
                     </Link>
@@ -55,14 +55,14 @@ export function PmoContent() {
             ) : !data?.dependencies.data?.length ? (
               <WorkbenchEmpty state={data?.dependencies.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.dependencies.data.slice(0, 8).map((d) => (
                   <li key={d.id} className="flex items-center gap-2">
-                    <span className="truncate text-slate-700 dark:text-slate-200">{d.fromProjectName}</span>
+                    <span className="text-slate-700 dark:text-slate-200">{d.fromProjectName}</span>
                     <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {d.dependencyType.replace(/_/g, " ")} →
                     </span>
-                    <span className="truncate text-slate-700 dark:text-slate-200">{d.toProjectName}</span>
+                    <span className="text-slate-700 dark:text-slate-200">{d.toProjectName}</span>
                   </li>
                 ))}
               </ul>

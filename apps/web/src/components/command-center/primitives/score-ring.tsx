@@ -42,7 +42,7 @@ export function ScoreRing({
       </svg>
       <div
         className={cn(
-          "absolute inset-0 flex items-center justify-center text-lg font-bold tabular-nums",
+          "absolute inset-0 flex items-center justify-center text-body-lg font-bold tabular-nums",
           "text-[#001B3D] dark:text-slate-100",
         )}
       >

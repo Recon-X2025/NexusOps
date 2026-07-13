@@ -31,12 +31,12 @@ export function GrcContent() {
             ) : !data?.controlAge.data?.length ? (
               <WorkbenchEmpty state={data?.controlAge.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.controlAge.data.slice(0, 8).map((c) => (
                   <li key={c.controlId} className="flex items-center justify-between gap-3">
                     <Link
                       href={`/app/security/controls/${c.controlId}`}
-                      className="min-w-0 flex-1 text-indigo-700 dark:text-indigo-300 hover:underline truncate"
+                      className="min-w-0 flex-1 text-indigo-700 dark:text-indigo-300 hover:underline"
                     >
                       {c.controlNumber} — {c.title}
                     </Link>
@@ -55,12 +55,12 @@ export function GrcContent() {
             ) : !data?.findings.data?.length ? (
               <WorkbenchEmpty state={data?.findings.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.findings.data.slice(0, 8).map((f) => (
                   <li key={f.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{f.findingNumber}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{f.title}</div>
+                      <div className="font-medium text-slate-700 dark:text-slate-200">{f.findingNumber}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{f.title}</div>
                     </div>
                     <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                       Due {formatDate(f.targetRemediationDate)}

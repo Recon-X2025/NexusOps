@@ -65,27 +65,27 @@ export default function AcceptInvitePage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
-          <p className="text-sm text-slate-400">by Coheron</p>
+          <h1 className="text-h3 font-bold text-white">CoheronConnect</h1>
+          <p className="text-body-sm text-slate-400">by Coheron</p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-sm">
           {done ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <CheckCircle2 className="h-12 w-12 text-green-400" />
-              <h2 className="text-xl font-semibold text-white">Account created!</h2>
-              <p className="text-sm text-slate-400">Redirecting to your dashboard…</p>
+              <h2 className="text-h4 font-semibold text-white">Account created!</h2>
+              <p className="text-body-sm text-slate-400">Redirecting to your dashboard…</p>
             </div>
           ) : (
             <>
-              <h2 className="mb-1 text-xl font-semibold text-white">Accept your invitation</h2>
-              <p className="mb-6 text-sm text-slate-400">
+              <h2 className="mb-1 text-h4 font-semibold text-white">Accept your invitation</h2>
+              <p className="mb-6 text-body-sm text-slate-400">
                 Set your name and password to activate your account.
               </p>
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                  <label className="mb-1.5 block text-body-sm font-medium text-slate-300">
                     Full name
                   </label>
                   <input
@@ -93,22 +93,22 @@ export default function AcceptInvitePage() {
                     type="text"
                     autoComplete="name"
                     placeholder="Your full name"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
                   />
                   {errors.name && (
-                    <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>
+                    <p className="mt-1 text-caption text-red-400">{errors.name.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-300">Password</label>
+                  <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Password</label>
                   <div className="relative">
                     <input
                       {...register("password")}
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       placeholder="At least 8 characters"
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
                     />
                     <button
                       type="button"
@@ -119,12 +119,12 @@ export default function AcceptInvitePage() {
                     </button>
                   </div>
                   {errors.password && (
-                    <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                    <p className="mt-1 text-caption text-red-400">{errors.password.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                  <label className="mb-1.5 block text-body-sm font-medium text-slate-300">
                     Confirm password
                   </label>
                   <input
@@ -132,17 +132,17 @@ export default function AcceptInvitePage() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
                     placeholder="Repeat password"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
                   />
                   {errors.confirmPassword && (
-                    <p className="mt-1 text-xs text-red-400">{errors.confirmPassword.message}</p>
+                    <p className="mt-1 text-caption text-red-400">{errors.confirmPassword.message}</p>
                   )}
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting || accept.isPending}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-body-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {(isSubmitting || accept.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}
                   Create account &amp; sign in

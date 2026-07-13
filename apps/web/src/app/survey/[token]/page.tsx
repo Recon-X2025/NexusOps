@@ -72,32 +72,32 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ token: 
             N
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-900">{title}</div>
-            <div className="text-xs text-slate-500">CoheronConnect</div>
+            <div className="text-body-sm font-semibold text-slate-900">{title}</div>
+            <div className="text-caption text-slate-500">CoheronConnect</div>
           </div>
         </div>
 
         {loading ? (
-          <div className="text-sm text-slate-600">Loading…</div>
+          <div className="text-body-sm text-slate-600">Loading…</div>
         ) : err ? (
-          <div className="text-sm text-rose-700">
+          <div className="text-body-sm text-rose-700">
             This survey link can’t be used. ({err})
           </div>
         ) : submitted ? (
           <div>
-            <div className="text-lg font-semibold text-slate-900 mb-1">Thanks — recorded.</div>
-            <div className="text-sm text-slate-600">You can close this tab.</div>
+            <div className="text-body-lg font-semibold text-slate-900 mb-1">Thanks — recorded.</div>
+            <div className="text-body-sm text-slate-600">You can close this tab.</div>
           </div>
         ) : (
           <div>
             {meta?.ticket?.number && (
-              <div className="text-xs text-slate-500 mb-3">
+              <div className="text-caption text-slate-500 mb-3">
                 Ticket <span className="font-mono text-slate-700">{meta.ticket.number}</span>
                 {meta.ticket.title ? ` · ${meta.ticket.title}` : ""}
               </div>
             )}
 
-            <div className="text-sm font-medium text-slate-900 mb-2">
+            <div className="text-body-sm font-medium text-slate-900 mb-2">
               How satisfied are you with the resolution?
             </div>
             <div className="flex gap-1.5 mb-4">
@@ -106,7 +106,7 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ token: 
                   key={n}
                   type="button"
                   onClick={() => setScore(n)}
-                  className={`w-10 h-10 rounded-xl border text-sm font-semibold transition ${
+                  className={`w-10 h-10 rounded-xl border text-body-sm font-semibold transition ${
                     score >= n ? "bg-yellow-400 border-yellow-300 text-slate-900" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                   }`}
                   aria-label={`${n} stars`}
@@ -116,22 +116,22 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ token: 
               ))}
             </div>
 
-            <label className="text-xs font-medium text-slate-700">Optional comment</label>
+            <label className="text-caption font-medium text-slate-700">Optional comment</label>
             <textarea
               value={comments}
               onChange={(e) => setComments(e.target.value)}
               rows={3}
-              className="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="w-full mt-1 border border-slate-200 rounded-xl px-3 py-2 text-body-sm outline-none focus:border-indigo-400"
               placeholder="What went well? What could be improved?"
             />
 
-            {err && <div className="text-xs text-rose-700 mt-2">{err}</div>}
+            {err && <div className="text-caption text-rose-700 mt-2">{err}</div>}
 
             <button
               type="button"
               onClick={submit}
               disabled={score < 1 || score > 5}
-              className="mt-4 w-full rounded-xl bg-indigo-600 text-white py-2.5 text-sm font-semibold disabled:opacity-50"
+              className="mt-4 w-full rounded-xl bg-indigo-600 text-white py-2.5 text-body-sm font-semibold disabled:opacity-50"
             >
               Submit
             </button>

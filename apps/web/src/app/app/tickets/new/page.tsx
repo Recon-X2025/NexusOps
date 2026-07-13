@@ -274,7 +274,7 @@ export default function NewTicketPage() {
         <div className="flex items-center justify-between bg-card border border-border rounded px-4 py-3">
           <div className="flex items-center gap-2">
             <TicketIcon className="w-4 h-4 text-primary" />
-            <h1 className="text-sm font-semibold text-foreground">New Ticket</h1>
+            <h1 className="text-body-sm font-semibold text-foreground">New Ticket</h1>
           </div>
           <div className="flex items-center gap-2">
             <Link

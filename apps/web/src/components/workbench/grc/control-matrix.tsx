@@ -77,7 +77,7 @@ function MatrixGrid({ cells }: { cells: MatrixCell[] }) {
 
   return (
     <div className="overflow-x-auto -mx-1">
-      <table className="min-w-full text-xs">
+      <table className="min-w-full text-caption">
         <thead>
           <tr>
             <th className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">

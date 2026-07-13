@@ -37,12 +37,12 @@ export function CompanySecretaryContent() {
             ) : !data?.meetings.data?.length ? (
               <WorkbenchEmpty state={data?.meetings.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.meetings.data.slice(0, 8).map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-3">
                     <Link
                       href={`/app/secretarial/meetings/${m.id}`}
-                      className="min-w-0 flex-1 text-violet-700 dark:text-violet-300 hover:underline truncate"
+                      className="min-w-0 flex-1 text-violet-700 dark:text-violet-300 hover:underline"
                     >
                       {m.number} — {m.title}
                     </Link>
@@ -61,12 +61,12 @@ export function CompanySecretaryContent() {
             ) : !data?.resolutions.data?.length ? (
               <WorkbenchEmpty state={data?.resolutions.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.resolutions.data.slice(0, 8).map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-700 dark:text-slate-200 truncate">{r.number}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.title}</div>
+                      <div className="font-medium text-slate-700 dark:text-slate-200">{r.number}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{r.title}</div>
                     </div>
                     <span className="text-[11px] capitalize tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                       {r.status} · {formatDate(r.passedAt)}

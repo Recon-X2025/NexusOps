@@ -48,21 +48,21 @@ export default function ResetPasswordPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
-          <p className="text-sm text-slate-400">by Coheron</p>
+          <h1 className="text-h3 font-bold text-white">CoheronConnect</h1>
+          <p className="text-body-sm text-slate-400">by Coheron</p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-sm">
           {done ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <CheckCircle2 className="h-12 w-12 text-green-400" />
-              <h2 className="text-xl font-semibold text-white">Password updated!</h2>
-              <p className="text-sm text-slate-400">Redirecting to sign in…</p>
+              <h2 className="text-h4 font-semibold text-white">Password updated!</h2>
+              <p className="text-body-sm text-slate-400">Redirecting to sign in…</p>
             </div>
           ) : (
             <>
-              <h2 className="mb-1 text-xl font-semibold text-white">Choose a new password</h2>
-              <p className="mb-6 text-sm text-slate-400">
+              <h2 className="mb-1 text-h4 font-semibold text-white">Choose a new password</h2>
+              <p className="mb-6 text-body-sm text-slate-400">
                 Must be at least 8 characters with an uppercase letter and number.
               </p>
 
@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
                 <input type="hidden" {...register("token")} />
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                  <label className="mb-1.5 block text-body-sm font-medium text-slate-300">
                     New password
                   </label>
                   <div className="relative">
@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       placeholder="At least 8 characters"
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
                     />
                     <button
                       type="button"
@@ -90,14 +90,14 @@ export default function ResetPasswordPage() {
                     </button>
                   </div>
                   {errors.password && (
-                    <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                    <p className="mt-1 text-caption text-red-400">{errors.password.message}</p>
                   )}
                 </div>
 
                 <button
                   type="submit"
                   disabled={resetPassword.isPending}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-body-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resetPassword.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                   Reset password
@@ -106,7 +106,7 @@ export default function ResetPasswordPage() {
 
               <Link
                 href="/login"
-                className="mt-6 flex items-center justify-center text-sm text-indigo-400 hover:text-indigo-300"
+                className="mt-6 flex items-center justify-center text-body-sm text-indigo-400 hover:text-indigo-300"
               >
                 Back to sign in
               </Link>

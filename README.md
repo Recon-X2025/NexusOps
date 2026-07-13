@@ -1,6 +1,8 @@
 # CoheronConnect by Coheron
 
-> Enterprise-grade workflow orchestration, ITSM, asset management, HR service delivery, and procurement — without the $100–$200/user/month ServiceNow price tag.
+> Enterprise-grade workflow orchestration, ITSM, asset management, HR service delivery, and procurement — a self-hostable alternative to ServiceNow.
+
+**Production:** [connect.coheron.tech](https://connect.coheron.tech) · **Repo:** [github.com/Recon-X2025/NexusOps](https://github.com/Recon-X2025/NexusOps)
 
 ## Architecture
 
@@ -50,32 +52,33 @@ coheronconnect/
 ## Modules
 
 Status is scored against category leaders, not marked "done": **REAL** (production-grade),
-**PARTIAL** (usable, known gaps), **STUB** (schema/scaffold only). The maturity number is
-from the 2026-07-03 code-grounded gap audit. The recurring pattern across the platform is
-*correct data model, missing computation/automation* — the schema usually stores the right
-thing, but the intelligence (depreciation, balance sheet, health scores) or the closing of
-automation loops (triggers, webhooks, escalation timers) is what lags. Cross-cluster average
-maturity is **≈50/100**.
+**PARTIAL** (usable, known gaps), **STUB** (schema/scaffold only). The historical pattern
+across the platform was *correct data model, missing computation/automation* — the schema
+stored the right thing, but the intelligence (depreciation, balance sheet, health scores) and
+the closing of automation loops (triggers, webhooks, escalation timers) lagged. Several of
+those clusters have since closed those gaps and are now REAL; the remaining PARTIAL/STUB items
+are called out per row below.
 
-| Module / cluster | Status | Maturity | Notes |
-|---|---|---|---|
-| People Ops (HR) | PARTIAL | ~68 | Onboarding, leave, org chart; India payroll/tax is production-grade (~80). Gratuity + leave accrual/carry-forward are the statutory holes. |
-| Platform (workflow / integrations) | PARTIAL | ~60 | Visual workflow engine (Temporal); scheduled triggers + outbound webhooks + generalised business-rule engine now shipped (commits `6bfb7bf`, `4128906`). Slack/Teams/Email/Jira/SAP connectors. |
-| ITSM — Ticket Engine + CMDB | PARTIAL | ~55 | Incidents/requests/problems/changes + SLA; CMDB with cycle detection. ITOM event correlation, on-call escalation timers, and deploy→incident MTTR now fired (commits `4128906`, `7ca2ab2`); CSAT loop in flight on `feat/csat-loop`. |
-| Governance | PARTIAL | ~55 | Approvals, audit log (redacted keys). Tamper-evident (hash-chain / WORM) audit still open. |
-| GRC | PARTIAL | ~55 | Risks, controls, security incidents, vulnerabilities. **DPDP privacy (consent / DSR / breach) is the largest regulatory hole.** |
-| CRM | PARTIAL | ~45 | Accounts/contacts/deals/leads. Lead scoring + lossless lead→deal conversion + CPQ tax/GST are gaps. |
-| Finance / Procurement | PARTIAL | ~42 | PR→PO→invoice 3-way match; GST/GL posting, depreciation + COGS journals now auto-posted. Balance sheet + real accrual accounts still to close. |
-| IT Asset (ITAM / SAM) | PARTIAL | ~42 | Asset register, license management. SAM installed-vs-entitled reconciliation is the audit-risk gap. |
-| Legal | PARTIAL | ~40 | Matters, requests, contract obligations, investigations. |
-| Self-Service Portal | REAL | — | Employee-facing portal with KB + request templates. |
-| Dashboards + Reports | REAL | — | Real-time metrics, time-series, CSV/PDF export; empty orgs report `null`, never fabricated scores. |
-| AI Layer | PARTIAL | — | Smart classification, NL search, resolution suggestions (Anthropic Claude API). |
-| Self-Hosted Deploy | REAL | — | Docker Compose + Helm + CLI. |
-| Coheron-Managed | REAL | — | Terraform IaC for AWS/GCP/Azure. |
+| Module / cluster | Status | Notes |
+|---|---|---|
+| People Ops (HR) | REAL | Onboarding/offboarding/lifecycle, leave, org chart; India payroll/tax is production-grade. Gratuity and leave accrual/carry-forward now computed (`gratuity.ts`, `leave-accrual.ts`). |
+| Platform (workflow / integrations) | REAL | Visual workflow engine (Temporal); scheduled triggers + outbound webhook dispatcher + generalised business-rule engine close the automation loop (`workflow-events.ts`, `webhookDispatchWorkflow.ts`). Slack/Teams/Email/Jira/SAP connectors. |
+| ITSM — Ticket Engine + CMDB | REAL | Incidents/requests/problems/changes + SLA; CMDB with cycle detection. ITOM event correlation, on-call escalation timers, and deploy→incident MTTR now fire (`correlationWorkflow.ts`, `escalationWorkflow.ts`). CSAT loop in flight on `feat/csat-loop`. |
+| Governance | REAL | Approvals, audit log (redacted keys) with a tamper-evident hash-chain (`audit-hash.ts`). |
+| GRC / Compliance | REAL | Risks, controls, security incidents, vulnerabilities; DPDP privacy triad (consent / DSR / breach) implemented (`compliance.ts`). |
+| Finance / Procurement | REAL | PR→PO→invoice 3-way match; GST/GL posting with dynamic GSTR-1 rates; balance sheet (`accounting.ts`), depreciation + COGS journals, and real accrual accounts (`procurement.ts`) now posted. |
+| IT Asset (ITAM / SAM) | REAL | Asset register, license management, depreciation-driven book value. SAM installed-vs-entitled (ELP) reconciliation remains a STUB. |
+| CRM | PARTIAL | Accounts/contacts/deals/leads with lossless lead→deal conversion. Lead/health scoring is stored but not computed; CPQ has no tax/GST. |
+| Legal / Secretarial | PARTIAL | Matters, requests, contract obligations, investigations; eMudhra signing real. DocuSign is a stub; MCA21/XBRL filing is mocked. |
+| Self-Service Portal | STUB | Employee-facing portal + KB/request templates — schema/scaffold only. |
+| Dashboards + Reports | PARTIAL | Real-time metrics, time-series, CSV/PDF export (empty orgs report `null`, never fabricated). Saved/scheduled reports are stubbed. |
+| AI Layer | PARTIAL | Smart classification, NL search, RAG resolution copilot (Anthropic Claude API) — alpha, not production-hardened. |
+| Self-Hosted Deploy | REAL | Docker Compose + Helm + CLI. |
+| Coheron-Managed | REAL | Terraform IaC for AWS/GCP/Azure. |
 
 > **Full gap detail:** `docs/PLATFORM_GAP_INDEX_2026-07-03.md` (module-by-module, `file:line`-cited)
 > and `docs/COMPETITIVE_GAP_ANALYSIS_2026-06-30.md` (benchmarked vs 2026 category leaders).
+> Some clusters above have advanced past those audits — the row status reflects current code.
 
 ## API surfaces (for developers)
 
@@ -100,13 +103,13 @@ maturity is **≈50/100**.
 Use this as a **checklist**. You need **two** Docker Compose files: **`docker-compose.dev.yml`** (everyday coding, Postgres **5434**) and **`docker-compose.test.yml`** (tests, Postgres **5433**). They do not share data.
 
 ### Prerequisites
-- **Node.js** ≥ 20 · **pnpm** ≥ 9 · **Docker Desktop** (daemon running)
+- **Node.js** ≥ 20 · **pnpm** 10 (repo pins `pnpm@10.33.0`) · **Docker Desktop** (daemon running)
 
 ### A. One-time / after `git pull`
 
 ```bash
-git clone https://github.com/coheron/coheronconnect   # first time only
-cd coheronconnect
+git clone https://github.com/Recon-X2025/NexusOps   # first time only
+cd NexusOps
 pnpm install
 
 # Dev app env (API + web + worker against dev DB)
@@ -126,7 +129,7 @@ make docker-up
 # wait until Postgres is healthy
 
 pnpm db:migrate
-pnpm db:seed    # Rich demo dataset (Faker.js powered; admin@coheron.com / demo1234!)
+pnpm db:seed    # Base org + users + RBAC + config (admin@coheron.com / demo1234!)
 
 pnpm check:trpc-parity   # optional: web ↔ API procedure names (no DB)
 
@@ -266,22 +269,10 @@ make docker-up    # Start dev infrastructure (Postgres, Redis, Meilisearch)
 make docker-down  # Stop dev infrastructure
 make db-push      # Push schema changes to database
 make db-migrate   # Run migrations
-make db-seed      # Seed with demo data
+make db-seed      # Seed base org + users + RBAC + config
 make db-studio    # Open Drizzle Studio
 ```
 
-## Pricing
-
-| Tier | Self-Hosted | Coheron-Managed |
-|---|---|---|
-| Free (Community) | $0 | — |
-| Starter (25 users) | $299/mo | $499/mo |
-| Professional (100 users) | $799/mo | $1,299/mo |
-| Enterprise | $2,499/mo | $4,999/mo |
-| Dedicated | — | From $8,999/mo |
-
-**Up to 93% savings vs ServiceNow at equivalent scale.**
-
 ---
 
-*Built by [Coheron](https://coheron.com). Designed to replace what enterprises overpay for.*
+*Built by [Coheron](https://coheron.com).*

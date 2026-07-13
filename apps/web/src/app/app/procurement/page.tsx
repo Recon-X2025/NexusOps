@@ -185,14 +185,14 @@ export default function ProcurementPage() {
                 Tax: p.gstAmount ?? "",
                 Created: new Date(p.createdAt).toLocaleDateString("en-IN"),
               })), "purchase_orders")}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 text-muted-foreground"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 text-muted-foreground"
             >
               <Download className="w-4 h-4" /> Export
             </button>
             <PermissionGate module="procurement" action="write">
               <button
                 onClick={() => setShowNewPR((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-primary/20 bg-primary/5 text-primary text-sm font-medium rounded-lg hover:bg-primary/10"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-primary/20 bg-primary/5 text-primary text-body-sm font-medium rounded-lg hover:bg-primary/10"
               >
                 <Plus className="w-4 h-4" /> {showNewPR ? "Cancel" : "New Requisition"}
               </button>
@@ -200,7 +200,7 @@ export default function ProcurementPage() {
             <PermissionGate module="purchase_orders" action="write">
               <button
                 onClick={() => setShowNewPO((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-body-sm font-medium rounded-lg hover:bg-primary/90 shadow-sm"
               >
                 <Plus className="w-4 h-4" /> {showNewPO ? "Cancel" : "New Purchase Order"}
               </button>
@@ -210,22 +210,22 @@ export default function ProcurementPage() {
       />
 
       {prMsg && (
-        <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium animate-in fade-in slide-in-from-top-4">
+        <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-body-sm text-green-700 font-medium animate-in fade-in slide-in-from-top-4">
           {prMsg}
         </div>
       )}
 
       {showNewPR && (
         <div className="bg-card border border-primary/20 rounded-xl p-6 shadow-sm animate-in zoom-in-95 duration-200">
-          <h3 className="text-sm font-bold text-foreground mb-4">New Purchase Requisition</h3>
+          <h3 className="text-body-sm font-bold text-foreground mb-4">New Purchase Requisition</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title *</label>
-              <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="What do you need?" value={prForm.title} onChange={(e) => setPrForm((f) => ({ ...f, title: e.target.value }))} />
+              <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="What do you need?" value={prForm.title} onChange={(e) => setPrForm((f) => ({ ...f, title: e.target.value }))} />
             </div>
             <div>
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Priority</label>
-              <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" value={prForm.priority} onChange={(e) => setPrForm((f) => ({ ...f, priority: e.target.value }))}>
+              <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" value={prForm.priority} onChange={(e) => setPrForm((f) => ({ ...f, priority: e.target.value }))}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -234,36 +234,36 @@ export default function ProcurementPage() {
             </div>
             <div>
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Department</label>
-              <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="IT / HR / Finance…" value={prForm.department} onChange={(e) => setPrForm((f) => ({ ...f, department: e.target.value }))} />
+              <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="IT / HR / Finance…" value={prForm.department} onChange={(e) => setPrForm((f) => ({ ...f, department: e.target.value }))} />
             </div>
             <div className="md:col-span-2">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Justification</label>
-              <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Business reason…" value={prForm.justification} onChange={(e) => setPrForm((f) => ({ ...f, justification: e.target.value }))} />
+              <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Business reason…" value={prForm.justification} onChange={(e) => setPrForm((f) => ({ ...f, justification: e.target.value }))} />
             </div>
             <div className="md:col-span-3 border-t border-border pt-4 mt-2">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Item Details</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description *</label>
-                  <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Item name" value={prForm.itemDesc} onChange={(e) => setPrForm((f) => ({ ...f, itemDesc: e.target.value }))} />
+                  <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="Item name" value={prForm.itemDesc} onChange={(e) => setPrForm((f) => ({ ...f, itemDesc: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Qty</label>
-                  <input type="number" min="1" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" value={prForm.itemQty} onChange={(e) => setPrForm((f) => ({ ...f, itemQty: e.target.value }))} />
+                  <input type="number" min="1" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" value={prForm.itemQty} onChange={(e) => setPrForm((f) => ({ ...f, itemQty: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Unit Price (₹)</label>
-                  <input type="number" min="0" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="0.00" value={prForm.itemPrice} onChange={(e) => setPrForm((f) => ({ ...f, itemPrice: e.target.value }))} />
+                  <input type="number" min="0" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all" placeholder="0.00" value={prForm.itemPrice} onChange={(e) => setPrForm((f) => ({ ...f, itemPrice: e.target.value }))} />
                 </div>
               </div>
             </div>
           </div>
           <div className="flex justify-end gap-3 mt-6">
-            <button onClick={() => setShowNewPR(false)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
+            <button onClick={() => setShowNewPR(false)} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
             <button
               disabled={!prForm.title || !prForm.itemDesc || createPR.isPending}
               onClick={() => createPR.mutate({ title: prForm.title, justification: prForm.justification || undefined, priority: prForm.priority as any, department: prForm.department || undefined, items: [{ description: prForm.itemDesc, quantity: parseInt(prForm.itemQty) || 1, unitPrice: parseFloat(prForm.itemPrice) || 0 }] })}
-              className="px-6 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md"
+              className="px-6 py-2 rounded-lg bg-primary text-white text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md"
             >
               {createPR.isPending ? "Submitting…" : "Submit Requisition"}
             </button>
@@ -273,12 +273,12 @@ export default function ProcurementPage() {
 
       {showNewPO && (
         <div className="bg-card border border-primary/20 rounded-xl p-6 shadow-md animate-in zoom-in-95 duration-200">
-          <h3 className="text-sm font-bold text-foreground mb-4">Direct Purchase Order</h3>
+          <h3 className="text-body-sm font-bold text-foreground mb-4">Direct Purchase Order</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Vendor *</label>
               <select 
-                className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
+                className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none"
                 value={poForm.vendorId} 
                 onChange={(e) => setPoForm((f) => ({ ...f, vendorId: e.target.value }))}
               >
@@ -292,7 +292,7 @@ export default function ProcurementPage() {
               <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Expected Delivery</label>
               <input 
                 type="date" 
-                className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none" 
+                className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background focus:ring-2 focus:ring-primary/20 outline-none" 
                 value={poForm.expectedDelivery} 
                 onChange={(e) => setPoForm((f) => ({ ...f, expectedDelivery: e.target.value }))} 
               />
@@ -301,7 +301,7 @@ export default function ProcurementPage() {
               <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Details</label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <input 
-                  className="md:col-span-1 text-sm border border-border rounded-lg px-3 py-2 bg-background" 
+                  className="md:col-span-1 text-body-sm border border-border rounded-lg px-3 py-2 bg-background" 
                   placeholder="Description" 
                   value={poForm.items[0]?.desc} 
                   onChange={(e) => {
@@ -312,7 +312,7 @@ export default function ProcurementPage() {
                 />
                 <input 
                   type="number" 
-                  className="text-sm border border-border rounded-lg px-3 py-2 bg-background" 
+                  className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" 
                   placeholder="Qty" 
                   value={poForm.items[0]?.qty}
                   onChange={(e) => {
@@ -323,7 +323,7 @@ export default function ProcurementPage() {
                 />
                 <input 
                   type="number" 
-                  className="text-sm border border-border rounded-lg px-3 py-2 bg-background" 
+                  className="text-body-sm border border-border rounded-lg px-3 py-2 bg-background" 
                   placeholder="Price" 
                   value={poForm.items[0]?.price}
                   onChange={(e) => {
@@ -336,7 +336,7 @@ export default function ProcurementPage() {
             </div>
           </div>
           <div className="flex justify-end gap-3 mt-6">
-            <button onClick={() => setShowNewPO(false)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
+            <button onClick={() => setShowNewPO(false)} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted/50 transition-all">Cancel</button>
             <button
               disabled={!poForm.vendorId || !poForm.items[0]?.desc || createDirectPO.isPending}
               onClick={() => {
@@ -349,7 +349,7 @@ export default function ProcurementPage() {
                   items: [{ description: poForm.items[0]!.desc, quantity: Number(poForm.items[0]!.qty), unitPrice: Number(poForm.items[0]!.price) }]
                 });
               }}
-              className="px-6 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 shadow-md"
+              className="px-6 py-2 rounded-lg bg-primary text-white text-body-sm font-bold hover:bg-primary/90 shadow-md"
             >
               {createDirectPO.isPending ? "Creating…" : "Create Purchase Order"}
             </button>
@@ -368,7 +368,7 @@ export default function ProcurementPage() {
       />
 
       {lowStock > 0 && (
-        <div className="px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3 text-sm text-orange-700">
+        <div className="px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3 text-body-sm text-orange-700">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <div className="flex-1">
             <strong>{lowStock} inventory items</strong> are low stock or out of stock.
@@ -380,7 +380,7 @@ export default function ProcurementPage() {
         {visibleTabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={cn(
-              "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+              "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             )}>
             {t.label}
@@ -406,7 +406,7 @@ export default function ProcurementPage() {
                   const max = 108120;
                   return (
                     <div key={row.cat} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-muted-foreground w-36 flex-shrink-0 truncate">{row.cat}</span>
+                      <span className="text-muted-foreground w-36 flex-shrink-0">{row.cat}</span>
                       <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
                         <div className="h-full bg-primary rounded-full" style={{ width: `${(row.value / max) * 100}%` }} />
                       </div>
@@ -481,12 +481,12 @@ export default function ProcurementPage() {
           prLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading requisitions…</span>
+              <span className="text-caption">Loading requisitions…</span>
             </div>
           ) : requisitions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <FileText className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No purchase requisitions found.</span>
+              <span className="text-caption">No purchase requisitions found.</span>
             </div>
           ) : (
             <div>
@@ -520,7 +520,7 @@ export default function ProcurementPage() {
                           onClick={() => router.push(`/app/procurement/requisitions/${pr.id}`)}>
                           <td className="p-0"><div className={`priority-bar ${prPriority === "emergency" ? "bg-red-600" : prPriority === "urgent" ? "bg-orange-500" : "bg-green-500"}`} /></td>
                           <td className="font-mono text-[11px] text-primary group-hover:underline">{pr.number ?? pr.id}</td>
-                          <td className="max-w-xs"><span className="truncate block font-medium text-foreground">{pr.title ?? "—"}</span></td>
+                          <td className="max-w-xs"><span className="block font-medium text-foreground">{pr.title ?? "—"}</span></td>
                           <td className="text-muted-foreground">{pr.requesterId ? `…${pr.requesterId.slice(-6)}` : "—"}</td>
                           <td><span className="status-badge text-muted-foreground bg-muted">{pr.department ?? "—"}</span></td>
                           <td className="text-center text-muted-foreground">—</td>
@@ -651,12 +651,12 @@ export default function ProcurementPage() {
           poLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading purchase orders…</span>
+              <span className="text-caption">Loading purchase orders…</span>
             </div>
           ) : purchaseOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Package className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No purchase orders found.</span>
+              <span className="text-caption">No purchase orders found.</span>
             </div>
           ) : (
           <div>
@@ -827,7 +827,7 @@ export default function ProcurementPage() {
             {invLoading ? (
               <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto opacity-20" /></div>
             ) : (invData?.items.length ?? 0) === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-xs italic">No inventory items found.</div>
+              <div className="p-8 text-center text-muted-foreground text-caption italic">No inventory items found.</div>
             ) : (
               <table className="ent-table w-full">
                 <thead>
@@ -923,7 +923,7 @@ export default function ProcurementPage() {
                       <td className="font-bold text-foreground">{item.name}</td>
                       <td><span className="status-badge text-muted-foreground bg-muted">{item.category}</span></td>
                       <td className="font-mono text-[11px]">₹{Number(item.unitCost ?? 0).toLocaleString("en-IN")}</td>
-                      <td className="text-muted-foreground max-w-xs truncate">{item.description ?? "—"}</td>
+                      <td className="text-muted-foreground max-w-xs">{item.description ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -943,8 +943,8 @@ export default function ProcurementPage() {
             {(!policiesData || policiesData.length === 0) ? (
               <div className="p-12 text-center border border-dashed border-border rounded">
                 <AlertTriangle className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">No reorder policies configured yet.</p>
-                <button onClick={() => setShowNewPolicy(true)} className="mt-3 text-primary text-xs font-bold hover:underline">Set up your first rule →</button>
+                <p className="text-body-sm text-muted-foreground">No reorder policies configured yet.</p>
+                <button onClick={() => setShowNewPolicy(true)} className="mt-3 text-primary text-caption font-bold hover:underline">Set up your first rule →</button>
               </div>
             ) : (
               <table className="ent-table w-full">
@@ -987,20 +987,20 @@ export default function ProcurementPage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="p-6">
-                <h3 className="text-lg font-bold text-foreground mb-1">Edit Inventory Item</h3>
+                <h3 className="text-body-lg font-bold text-foreground mb-1">Edit Inventory Item</h3>
                 <p className="text-[11px] text-muted-foreground mb-4">Updating <span className="font-mono text-primary">{editingItem.partNumber}</span> — stock quantity is not editable here (use Add Stock / Issue)</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Part Number *</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.partNumber} onChange={e => setEditItemForm({...editItemForm, partNumber: e.target.value})} />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.partNumber} onChange={e => setEditItemForm({...editItemForm, partNumber: e.target.value})} />
                   </div>
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Name *</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.name} onChange={e => setEditItemForm({...editItemForm, name: e.target.value})} />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.name} onChange={e => setEditItemForm({...editItemForm, name: e.target.value})} />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Category</label>
-                    <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.category} onChange={e => setEditItemForm({...editItemForm, category: e.target.value})}>
+                    <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.category} onChange={e => setEditItemForm({...editItemForm, category: e.target.value})}>
                       <option value="spare">Spare Parts</option>
                       <option value="it_hardware">IT Hardware</option>
                       <option value="consumable">Consumables</option>
@@ -1009,27 +1009,27 @@ export default function ProcurementPage() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Unit</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.unit} onChange={e => setEditItemForm({...editItemForm, unit: e.target.value})} placeholder="each / box / kg" />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.unit} onChange={e => setEditItemForm({...editItemForm, unit: e.target.value})} placeholder="each / box / kg" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min Qty (Safety)</label>
-                    <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.minQty} onChange={e => setEditItemForm({...editItemForm, minQty: e.target.value})} />
+                    <input type="number" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.minQty} onChange={e => setEditItemForm({...editItemForm, minQty: e.target.value})} />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Unit Cost (₹)</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.unitCost} onChange={e => setEditItemForm({...editItemForm, unitCost: e.target.value})} placeholder="0.00" />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.unitCost} onChange={e => setEditItemForm({...editItemForm, unitCost: e.target.value})} placeholder="0.00" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Location / Bin</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.location} onChange={e => setEditItemForm({...editItemForm, location: e.target.value})} placeholder="e.g. Warehouse A / Shelf 3" />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={editItemForm.location} onChange={e => setEditItemForm({...editItemForm, location: e.target.value})} placeholder="e.g. Warehouse A / Shelf 3" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Description</label>
-                    <textarea rows={2} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background resize-none" value={editItemForm.description} onChange={e => setEditItemForm({...editItemForm, description: e.target.value})} />
+                    <textarea rows={2} className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background resize-none" value={editItemForm.description} onChange={e => setEditItemForm({...editItemForm, description: e.target.value})} />
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
-                  <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+                  <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
                   <button
                     disabled={!editItemForm.partNumber || !editItemForm.name || updateInventoryItem.isPending}
                     onClick={() => updateInventoryItem.mutate({
@@ -1038,7 +1038,7 @@ export default function ProcurementPage() {
                       minQty: parseInt(editItemForm.minQty) || 0,
                       unitCost: editItemForm.unitCost?.trim() || undefined,
                     })}
-                    className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
+                    className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                   >
                     {updateInventoryItem.isPending ? "Saving…" : "Save Changes"}
                   </button>
@@ -1052,19 +1052,19 @@ export default function ProcurementPage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-lg rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="p-6">
-                <h3 className="text-lg font-bold text-foreground mb-4">Add Inventory Item / Part</h3>
+                <h3 className="text-body-lg font-bold text-foreground mb-4">Add Inventory Item / Part</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Part Number *</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.partNumber} onChange={e => setInvForm({...invForm, partNumber: e.target.value})} placeholder="e.g. SRV-FAN-120" />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.partNumber} onChange={e => setInvForm({...invForm, partNumber: e.target.value})} placeholder="e.g. SRV-FAN-120" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Item Name *</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.name} onChange={e => setInvForm({...invForm, name: e.target.value})} placeholder="e.g. 120mm Server Chassis Fan" />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.name} onChange={e => setInvForm({...invForm, name: e.target.value})} placeholder="e.g. 120mm Server Chassis Fan" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Category</label>
-                    <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.category} onChange={e => setInvForm({...invForm, category: e.target.value})}>
+                    <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.category} onChange={e => setInvForm({...invForm, category: e.target.value})}>
                       <option value="spare">Spare Parts</option>
                       <option value="it_hardware">IT Hardware</option>
                       <option value="consumable">Consumables</option>
@@ -1073,21 +1073,21 @@ export default function ProcurementPage() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Unit</label>
-                    <input className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.unit} onChange={e => setInvForm({...invForm, unit: e.target.value})} placeholder="each / box / kg" />
+                    <input className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.unit} onChange={e => setInvForm({...invForm, unit: e.target.value})} placeholder="each / box / kg" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Current Stock</label>
-                    <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.qty} onChange={e => setInvForm({...invForm, qty: e.target.value})} />
+                    <input type="number" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.qty} onChange={e => setInvForm({...invForm, qty: e.target.value})} />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Min Qty (Safety)</label>
-                    <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.minQty} onChange={e => setInvForm({...invForm, minQty: e.target.value})} />
+                    <input type="number" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={invForm.minQty} onChange={e => setInvForm({...invForm, minQty: e.target.value})} />
                   </div>
                   <div className="col-span-2">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reference (PO / Invoice #)</label>
                     <div className="flex gap-2">
                       <select
-                        className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        className="flex-1 text-body-sm border border-border rounded-lg px-3 py-2 bg-background"
                         value={purchaseOrders.find((po: any) => po.number === invForm.poReference || po.id === invForm.poReference) ? invForm.poReference : "__manual__"}
                         onChange={e => {
                           if (e.target.value === "__manual__") {
@@ -1104,7 +1104,7 @@ export default function ProcurementPage() {
                         ))}
                       </select>
                       <input
-                        className="w-36 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        className="w-36 text-body-sm border border-border rounded-lg px-3 py-2 bg-background"
                         placeholder="or type ref…"
                         value={invForm.poReference}
                         onChange={e => setInvForm({...invForm, poReference: e.target.value})}
@@ -1113,7 +1113,7 @@ export default function ProcurementPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-8">
-                  <button onClick={() => setShowNewItem(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
+                  <button onClick={() => setShowNewItem(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
                   <button 
                     disabled={!invForm.partNumber || !invForm.name || createInventoryItem.isPending}
                     onClick={() => createInventoryItem.mutate({
@@ -1123,7 +1123,7 @@ export default function ProcurementPage() {
                       unitCost: invForm.unitCost?.trim() || undefined,
                       poReference: invForm.poReference?.trim() || undefined,
                     })}
-                    className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
+                    className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                   >
                     {createInventoryItem.isPending ? "Saving…" : "Save Item"}
                   </button>
@@ -1137,11 +1137,11 @@ export default function ProcurementPage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="p-6">
-                <h3 className="text-lg font-bold text-foreground mb-4">Create Reorder Policy</h3>
+                <h3 className="text-body-lg font-bold text-foreground mb-4">Create Reorder Policy</h3>
                 <div className="space-y-4">
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Select Item *</label>
-                    <select className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.itemId} onChange={e => setPolicyForm({...policyForm, itemId: e.target.value})}>
+                    <select className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.itemId} onChange={e => setPolicyForm({...policyForm, itemId: e.target.value})}>
                       <option value="">Choose item…</option>
                       {(invData?.items ?? []).map(it => (
                         <option key={it.id} value={it.id}>{it.name} ({it.partNumber})</option>
@@ -1151,23 +1151,23 @@ export default function ProcurementPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Low Stock Threshold</label>
-                      <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.thresholdQty} onChange={e => setPolicyForm({...policyForm, thresholdQty: e.target.value})} />
+                      <input type="number" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.thresholdQty} onChange={e => setPolicyForm({...policyForm, thresholdQty: e.target.value})} />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reorder Quantity</label>
-                      <input type="number" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.reorderQty} onChange={e => setPolicyForm({...policyForm, reorderQty: e.target.value})} />
+                      <input type="number" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background" value={policyForm.reorderQty} onChange={e => setPolicyForm({...policyForm, reorderQty: e.target.value})} />
                     </div>
                   </div>
                   <label className="flex items-center gap-3 p-3 border border-border rounded-lg cursor-pointer hover:bg-muted/30">
                     <input type="checkbox" checked={policyForm.isAutomated} onChange={e => setPolicyForm({...policyForm, isAutomated: e.target.checked})} className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary" />
                     <div>
-                      <p className="text-xs font-bold text-foreground">Auto-raise Purchase Order</p>
+                      <p className="text-caption font-bold text-foreground">Auto-raise Purchase Order</p>
                       <p className="text-[10px] text-muted-foreground">Automatically create a draft PO when stock hits threshold</p>
                     </div>
                   </label>
                 </div>
                 <div className="flex justify-end gap-3 mt-8">
-                  <button onClick={() => setShowNewPolicy(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg">Cancel</button>
+                  <button onClick={() => setShowNewPolicy(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg">Cancel</button>
                   <button 
                     disabled={!policyForm.itemId || createPolicy.isPending}
                     onClick={() => createPolicy.mutate({
@@ -1176,7 +1176,7 @@ export default function ProcurementPage() {
                       reorderQty: parseInt(policyForm.reorderQty) || 20,
                       isAutomated: policyForm.isAutomated,
                     })}
-                    className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-lg"
+                    className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg shadow-lg"
                   >
                     {createPolicy.isPending ? "Saving…" : "Save Policy"}
                   </button>
@@ -1190,17 +1190,17 @@ export default function ProcurementPage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-sm rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="p-6">
-                <h3 className="text-lg font-bold text-foreground mb-4">Stock Intake / Goods Receipt</h3>
+                <h3 className="text-body-lg font-bold text-foreground mb-4">Stock Intake / Goods Receipt</h3>
                 <div className="space-y-4">
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Quantity to Add *</label>
-                    <input type="number" min="1" className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background font-bold text-lg" value={intakeForm.qty} onChange={e => setIntakeForm({...intakeForm, qty: e.target.value})} />
+                    <input type="number" min="1" className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background font-bold text-body-lg" value={intakeForm.qty} onChange={e => setIntakeForm({...intakeForm, qty: e.target.value})} />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Reference (PO / Invoice #)</label>
                     <div className="flex gap-2">
                       <select
-                        className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        className="flex-1 text-body-sm border border-border rounded-lg px-3 py-2 bg-background"
                         value={purchaseOrders.find((po: any) => po.poNumber === intakeForm.reference) ? intakeForm.reference : "__manual__"}
                         onChange={e => {
                           if (e.target.value === "__manual__") {
@@ -1216,7 +1216,7 @@ export default function ProcurementPage() {
                         ))}
                       </select>
                       <input
-                        className="w-36 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                        className="w-36 text-body-sm border border-border rounded-lg px-3 py-2 bg-background"
                         placeholder="or type ref…"
                         value={intakeForm.reference}
                         onChange={e => setIntakeForm({...intakeForm, reference: e.target.value})}
@@ -1225,11 +1225,11 @@ export default function ProcurementPage() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Notes</label>
-                    <textarea className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background h-20 resize-none" value={intakeForm.notes} onChange={e => setIntakeForm({...intakeForm, notes: e.target.value})} placeholder="Reason for intake..." />
+                    <textarea className="w-full text-body-sm border border-border rounded-lg px-3 py-2 bg-background h-20 resize-none" value={intakeForm.notes} onChange={e => setIntakeForm({...intakeForm, notes: e.target.value})} placeholder="Reason for intake..." />
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-8">
-                  <button onClick={() => setShowIntake(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg">Cancel</button>
+                  <button onClick={() => setShowIntake(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg">Cancel</button>
                   <button 
                     disabled={!intakeForm.qty || recordIntake.isPending}
                     onClick={() => recordIntake.mutate({
@@ -1238,7 +1238,7 @@ export default function ProcurementPage() {
                       reference: intakeForm.reference || undefined,
                       notes: intakeForm.notes || undefined,
                     })}
-                    className="px-6 py-2 bg-green-600 text-white text-sm font-bold rounded-lg shadow-lg"
+                    className="px-6 py-2 bg-green-600 text-white text-body-sm font-bold rounded-lg shadow-lg"
                   >
                     {recordIntake.isPending ? "Saving…" : "Add to Stock"}
                   </button>

@@ -64,7 +64,7 @@ export default function AccountDetailPage() {
 
                 const actions = (
                     <PermissionGate module="accounts" action="write">
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors">
                             <Edit3 className="w-4 h-4" /> Edit
                         </button>
                         <button
@@ -73,7 +73,7 @@ export default function AccountDetailPage() {
                                     deleteAccount.mutate({ id });
                                 }
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded text-sm font-medium hover:bg-red-50 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded text-body-sm font-medium hover:bg-red-50 transition-colors"
                         >
                             <Trash2 className="w-4 h-4" /> Delete
                         </button>
@@ -107,17 +107,17 @@ export default function AccountDetailPage() {
 
                                 {/* Contacts Card */}
                                 <div className="bg-card border border-border rounded-xl p-5">
-                                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Contacts</h3>
+                                    <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest mb-4">Contacts</h3>
                                     <div className="space-y-3">
                                         {qContacts.data?.map((contact: any) => (
                                             <div key={contact.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors group">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-caption">
                                                         {contact.firstName[0]}{contact.lastName[0]}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-medium">{contact.firstName} {contact.lastName}</p>
-                                                        <p className="text-xs text-muted-foreground">{contact.title}</p>
+                                                        <p className="text-body-sm font-medium">{contact.firstName} {contact.lastName}</p>
+                                                        <p className="text-caption text-muted-foreground">{contact.title}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -126,7 +126,7 @@ export default function AccountDetailPage() {
                                                 </div>
                                             </div>
                                         ))}
-                                        <button className="w-full mt-2 py-2 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:bg-muted/50 transition-colors">
+                                        <button className="w-full mt-2 py-2 border border-dashed border-border rounded-lg text-caption text-muted-foreground hover:bg-muted/50 transition-colors">
                                             + Add Contact
                                         </button>
                                     </div>
@@ -138,8 +138,8 @@ export default function AccountDetailPage() {
                                 {/* Active Deals */}
                                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                                     <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                                        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Active Deals</h3>
-                                        <button className="text-xs text-primary font-bold hover:underline">+ New Deal</button>
+                                        <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Active Deals</h3>
+                                        <button className="text-caption text-primary font-bold hover:underline">+ New Deal</button>
                                     </div>
                                     <div className="divide-y divide-border">
                                         {qDeals.data?.filter((d: any) => !["closed_won", "closed_lost"].includes(d.stage)).map((deal: any) => (
@@ -147,21 +147,21 @@ export default function AccountDetailPage() {
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-mono text-muted-foreground">{deal.number}</span>
-                                                        <p className="text-sm font-semibold">{deal.title}</p>
+                                                        <p className="text-body-sm font-semibold">{deal.title}</p>
                                                     </div>
-                                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                    <div className="flex items-center gap-3 text-caption text-muted-foreground">
                                                         <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {deal.stage.replace("_", " ")}</span>
                                                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Closes {new Date(deal.expectedClose).toLocaleDateString()}</span>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-sm font-bold">₹{(Number(deal.value) / 1000).toFixed(0)}K</p>
+                                                    <p className="text-body-sm font-bold">₹{(Number(deal.value) / 1000).toFixed(0)}K</p>
                                                     <p className="text-[10px] text-muted-foreground">{deal.probability}% Probability</p>
                                                 </div>
                                             </div>
                                         ))}
                                         {qDeals.data?.filter((d: any) => !["closed_won", "closed_lost"].includes(d.stage)).length === 0 && (
-                                            <div className="p-8 text-center text-sm text-muted-foreground">No active deals for this account.</div>
+                                            <div className="p-8 text-center text-body-sm text-muted-foreground">No active deals for this account.</div>
                                         )}
                                     </div>
                                 </div>
@@ -174,8 +174,8 @@ export default function AccountDetailPage() {
                                     emptyIcon={Activity}
                                     header={
                                         <div className="flex items-center justify-between">
-                                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Recent Activity</h3>
-                                            <button className="text-xs text-primary font-bold hover:underline">+ Log Activity</button>
+                                            <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Recent Activity</h3>
+                                            <button className="text-caption text-primary font-bold hover:underline">+ Log Activity</button>
                                         </div>
                                     }
                                 />

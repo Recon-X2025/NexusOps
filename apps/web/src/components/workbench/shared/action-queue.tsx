@@ -52,11 +52,11 @@ export function ActionQueue({
                   )}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-[#001B3D] dark:text-slate-100 truncate">
+                  <div className="text-caption font-medium text-[#001B3D] dark:text-slate-100">
                     {item.label}
                   </div>
                   {item.hint ? (
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       {item.hint}
                     </div>
                   ) : null}

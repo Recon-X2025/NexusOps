@@ -65,7 +65,7 @@ export default function ITSMServiceDeskAnalyticsPage() {
           <BarChart3 className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-base font-semibold tracking-tight text-foreground">ITSM service desk</h1>
+          <h1 className="text-body font-semibold tracking-tight text-foreground">ITSM service desk</h1>
           <p className="text-[11px] text-muted-foreground">
             Canned metrics aligned to the ITSM upgrade plan — SLA, backlog ageing, reopens, and volume.
           </p>
@@ -272,7 +272,7 @@ function MetricCard({ title, value, hint }: { title: string; value: string; hint
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
+      <p className="mt-1 text-h3 font-bold text-foreground">{value}</p>
       <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{hint}</p>
     </div>
   );
@@ -281,7 +281,7 @@ function MetricCard({ title, value, hint }: { title: string; value: string; hint
 function AgeCell({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded border border-border bg-muted/20 px-3 py-2 text-center">
-      <div className="text-lg font-semibold text-foreground">{value}</div>
+      <div className="text-body-lg font-semibold text-foreground">{value}</div>
       <div className="text-[10px] text-muted-foreground">{label}</div>
     </div>
   );

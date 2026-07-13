@@ -79,6 +79,19 @@ const config: Config = {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-jetbrains-mono)", "ui-monospace", "monospace"],
       },
+      // Named type scale (source of truth). Root html is 16px, so these rem
+      // values render at their exact px targets.
+      fontSize: {
+        display: ["3rem", { lineHeight: "1.1", letterSpacing: "-0.02em" }],   // 48px
+        h1: ["2.25rem", { lineHeight: "1.15", letterSpacing: "-0.02em" }],    // 36px
+        h2: ["1.875rem", { lineHeight: "1.2", letterSpacing: "-0.01em" }],    // 30px
+        h3: ["1.5rem", { lineHeight: "1.25", letterSpacing: "-0.01em" }],     // 24px
+        h4: ["1.25rem", { lineHeight: "1.3" }],                               // 20px
+        "body-lg": ["1.125rem", { lineHeight: "1.6" }],                       // 18px
+        body: ["1rem", { lineHeight: "1.5" }],                                // 16px
+        "body-sm": ["0.875rem", { lineHeight: "1.45" }],                      // 14px
+        caption: ["0.75rem", { lineHeight: "1.4" }],                          // 12px
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },

@@ -89,8 +89,8 @@ export default function ProblemDetailPage() {
   if (!problem) return (
     <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
       <AlertTriangle className="h-8 w-8 opacity-40" />
-      <p className="text-sm">Problem not found.</p>
-      <Link href="/app/problems" className="text-xs text-primary hover:underline">← Back to Problems</Link>
+      <p className="text-body-sm">Problem not found.</p>
+      <Link href="/app/problems" className="text-caption text-primary hover:underline">← Back to Problems</Link>
     </div>
   );
 
@@ -121,7 +121,7 @@ export default function ProblemDetailPage() {
             <Bug className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold">{problem.title ?? "Problem Record"}</h1>
+            <h1 className="text-body-sm font-semibold">{problem.title ?? "Problem Record"}</h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={cn("text-[10px] font-medium rounded-full px-2 py-0.5", stateInfo.color)}>{stateInfo.label}</span>
               <div className="flex items-center gap-1">
@@ -137,7 +137,7 @@ export default function ProblemDetailPage() {
               <button key={s}
                 onClick={() => updateStatus.mutate({ id, status: s } as any)}
                 disabled={updateStatus.isPending}
-                className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent transition capitalize">
+                className="rounded border border-border px-2.5 py-1 text-caption font-medium hover:bg-accent transition capitalize">
                 {STATE_CONFIG[s]?.label ?? s}
               </button>
             ))}
@@ -149,15 +149,15 @@ export default function ProblemDetailPage() {
         <div className="col-span-2 flex flex-col gap-3">
           {/* Description */}
           <div className="bg-card border border-border rounded p-4">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h2>
-            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">{problem.description || "No description."}</p>
+            <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h2>
+            <p className="text-body-sm text-foreground/80 leading-relaxed whitespace-pre-line">{problem.description || "No description."}</p>
           </div>
 
           {/* RCA */}
           <PermissionGate module="problems" action="write">
             <div className="bg-card border border-border rounded p-4">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <GitBranch className="h-3.5 w-3.5" /> Root Cause Analysis
                 </h2>
                 {!isClosed && !editingRca && (
@@ -173,22 +173,22 @@ export default function ProblemDetailPage() {
                 <div className="flex flex-col gap-2">
                   <textarea rows={4} value={rcaDraft} onChange={(e) => setRcaDraft(e.target.value)}
                     placeholder="Describe the identified root cause…"
-                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
                   <div className="flex gap-2">
                     <button
                       disabled={updateStatus.isPending}
                       onClick={() => updateStatus.mutate({ id, rootCause: rcaDraft } as any, { onSuccess: () => { setEditingRca(false); toast.success("RCA saved"); refetch(); } })}
-                      className="flex items-center gap-1 px-3 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50"
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-primary text-white text-caption hover:bg-primary/90 disabled:opacity-50"
                     >
                       <Check className="h-3 w-3" /> Save RCA
                     </button>
-                    <button onClick={() => setEditingRca(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                    <button onClick={() => setEditingRca(false)} className="px-3 py-1 rounded border border-border text-caption hover:bg-accent">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-foreground/80 whitespace-pre-line">
+                <p className="text-body-sm text-foreground/80 whitespace-pre-line">
                   {problem.rootCause || <span className="text-muted-foreground/50 italic">No root cause documented yet. Click &quot;Add RCA&quot; to begin analysis.</span>}
                 </p>
               )}
@@ -199,7 +199,7 @@ export default function ProblemDetailPage() {
           <PermissionGate module="problems" action="write">
             <div className={cn("rounded p-4 border", problem.status === "known_error" || problem.workaround ? "bg-amber-50 border-amber-200" : "bg-card border-border")}>
               <div className="flex items-center justify-between mb-2">
-                <h2 className={cn("text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5", problem.status === "known_error" || problem.workaround ? "text-amber-700" : "text-muted-foreground")}>
+                <h2 className={cn("text-caption font-semibold uppercase tracking-wider flex items-center gap-1.5", problem.status === "known_error" || problem.workaround ? "text-amber-700" : "text-muted-foreground")}>
                   <Database className="h-3.5 w-3.5" /> Known Error Database (KEDB)
                   {problem.status === "known_error" && (
                     <span className="px-1.5 py-0.5 rounded bg-amber-200 text-amber-800 text-[10px] font-bold">KEDB ENTRY</span>
@@ -218,22 +218,22 @@ export default function ProblemDetailPage() {
                 <div className="flex flex-col gap-2">
                   <textarea rows={4} value={workaroundDraft} onChange={(e) => setWorkaroundDraft(e.target.value)}
                     placeholder="Describe the workaround users can apply while the permanent fix is pending…"
-                    className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none" />
+                    className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-body-sm focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none" />
                   <div className="flex gap-2">
                     <button
                       disabled={updateStatus.isPending}
                       onClick={() => updateStatus.mutate({ id, workaround: workaroundDraft } as any, { onSuccess: () => { setEditingWorkaround(false); toast.success("Workaround saved to KEDB"); refetch(); } })}
-                      className="flex items-center gap-1 px-3 py-1 rounded bg-amber-600 text-white text-xs hover:bg-amber-700 disabled:opacity-50"
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-amber-600 text-white text-caption hover:bg-amber-700 disabled:opacity-50"
                     >
                       <Check className="h-3 w-3" /> Save Workaround
                     </button>
-                    <button onClick={() => setEditingWorkaround(false)} className="px-3 py-1 rounded border border-border text-xs hover:bg-accent">
+                    <button onClick={() => setEditingWorkaround(false)} className="px-3 py-1 rounded border border-border text-caption hover:bg-accent">
                       <X className="h-3 w-3" />
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className={cn("text-sm whitespace-pre-line", problem.workaround ? "text-amber-900" : "text-muted-foreground/50 italic")}>
+                <p className={cn("text-body-sm whitespace-pre-line", problem.workaround ? "text-amber-900" : "text-muted-foreground/50 italic")}>
                   {problem.workaround || "No workaround documented. When a workaround is available, document it here so affected users can continue working."}
                 </p>
               )}
@@ -242,7 +242,7 @@ export default function ProblemDetailPage() {
 
           {can("incidents", "read") && (
             <div className="bg-card border border-border rounded p-4 flex flex-col gap-3">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">
                 Linked service desk work
               </h2>
               
@@ -260,13 +260,13 @@ export default function ProblemDetailPage() {
                     value={incidentInput}
                     onChange={(e) => setIncidentInput(e.target.value)}
                     placeholder="Link incident (e.g. COHE-0001)"
-                    className="flex-1 rounded border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="flex-1 rounded border border-input bg-background px-3 py-1 text-caption focus:outline-none focus:ring-1 focus:ring-primary"
                     disabled={linkIncident.isPending}
                   />
                   <button
                     type="submit"
                     disabled={linkIncident.isPending || !incidentInput.trim()}
-                    className="rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition shrink-0"
+                    className="rounded bg-primary px-3 py-1 text-caption font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition shrink-0"
                   >
                     {linkIncident.isPending ? "Linking..." : "Link"}
                   </button>
@@ -278,8 +278,8 @@ export default function ProblemDetailPage() {
                   <p className="text-[10px] text-muted-foreground mb-1">Known error records (this problem)</p>
                   <ul className="space-y-1">
                     {kedbForProblem.map((ke) => (
-                      <li key={ke.id} className="text-xs flex justify-between gap-2 bg-muted/20 px-2 py-1 rounded">
-                        <span className="truncate font-medium text-foreground/90">{ke.title ?? "Known error"}</span>
+                      <li key={ke.id} className="text-caption flex justify-between gap-2 bg-muted/20 px-2 py-1 rounded">
+                        <span className="font-medium text-foreground/90">{ke.title ?? "Known error"}</span>
                         <span className="text-muted-foreground shrink-0 font-mono text-[10px]">{ke.id.slice(0, 8)}…</span>
                       </li>
                     ))}
@@ -290,17 +290,17 @@ export default function ProblemDetailPage() {
               <div>
                 <p className="text-[10px] text-muted-foreground mb-1">Incidents linked via known error</p>
                 {!linkedIncidentsPage?.items?.length ? (
-                  <p className="text-sm text-muted-foreground/70 italic">No linked incidents yet.</p>
+                  <p className="text-body-sm text-muted-foreground/70 italic">No linked incidents yet.</p>
                 ) : (
                   <ul className="space-y-1.5">
                     {(linkedIncidentsPage.items as { id: string; number: string; title: string }[]).map((t) => (
-                      <li key={t.id} className="text-xs flex items-center justify-between gap-2 p-1.5 rounded border border-border hover:bg-muted/10">
+                      <li key={t.id} className="text-caption flex items-center justify-between gap-2 p-1.5 rounded border border-border hover:bg-muted/10">
                         <Link
                           href={`/app/tickets/${t.id}`}
-                          className="text-primary hover:underline flex min-w-0 gap-1 truncate"
+                          className="text-primary hover:underline flex min-w-0 gap-1"
                         >
                           <span className="font-mono font-medium shrink-0">{t.number}:</span>
-                          <span className="truncate text-foreground/80">{t.title}</span>
+                          <span className="text-foreground/80">{t.title}</span>
                         </Link>
                         {can("problems", "write") && (
                           <button
@@ -323,18 +323,18 @@ export default function ProblemDetailPage() {
           {/* Comment */}
           <PermissionGate module="problems" action="write">
             <div className={`bg-card border border-border rounded p-4 flex flex-col gap-2 ${isClosed ? "opacity-60" : ""}`}>
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 Add Update
                 {isClosed && <span className="normal-case font-normal text-muted-foreground/60">(disabled — problem is closed)</span>}
               </h2>
               <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)}
                 disabled={isClosed}
                 placeholder={isClosed ? "This problem is closed — updates are disabled." : "RCA update, workaround note, or status comment…"}
-                className="w-full rounded border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:bg-muted/30 disabled:cursor-not-allowed" />
+                className="w-full rounded border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:bg-muted/30 disabled:cursor-not-allowed" />
               <button
                 onClick={() => { if (!comment.trim()) return; addNote.mutate({ problemId: problem.id, note: comment.trim() }); }}
                 disabled={isClosed || addNote.isPending || !comment.trim()}
-                className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                className="flex items-center gap-1.5 self-start rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
               >
                 {addNote.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
                 Post Update
@@ -344,7 +344,7 @@ export default function ProblemDetailPage() {
         </div>
 
         {/* Details panel */}
-        <div className="bg-card border border-border rounded p-3 flex flex-col gap-2 text-xs h-fit">
+        <div className="bg-card border border-border rounded p-3 flex flex-col gap-2 text-caption h-fit">
           <h2 className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Details</h2>
           {[
             { label: "Category",   value: problem.category ?? "—" },

@@ -122,7 +122,7 @@ const GROUP_HEADING_CLASS =
   "px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground select-none";
 
 const ITEM_CLASS = cn(
-  "flex items-center gap-3 px-3 py-2 text-sm cursor-pointer transition-colors rounded-sm mx-1",
+  "flex items-center gap-3 px-3 py-2 text-body-sm cursor-pointer transition-colors rounded-sm mx-1",
   "aria-selected:bg-accent aria-selected:text-accent-foreground",
   "hover:bg-accent/50",
 );
@@ -170,7 +170,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           value={search}
           onValueChange={setSearch}
           placeholder="Search modules, navigate, create…"
-          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          className="flex-1 bg-transparent text-body-sm text-foreground placeholder:text-muted-foreground outline-none"
         />
         {search && (
           <button
@@ -185,7 +185,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
       {/* Results */}
       <Command.List className="flex-1 overflow-y-auto scrollbar-thin py-1">
-        <Command.Empty className="py-10 text-center text-sm text-muted-foreground">
+        <Command.Empty className="py-10 text-center text-body-sm text-muted-foreground">
           No results for &ldquo;{search}&rdquo;
         </Command.Empty>
 
@@ -244,15 +244,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       {/* Footer */}
       <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/30">
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">↑↓</kbd>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-caption">↑↓</kbd>
           navigate
         </span>
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">↵</kbd>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-caption">↵</kbd>
           open
         </span>
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-xs">Esc</kbd>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-caption">Esc</kbd>
           close
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground/50">CoheronConnect</span>

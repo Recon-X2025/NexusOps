@@ -61,7 +61,7 @@ export function EmployeeJourney({
                   <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-700 dark:text-slate-200">
                     {stage.label}
                   </span>
-                  <span className="text-2xl font-bold tabular-nums text-[#001B3D] dark:text-slate-100">
+                  <span className="text-h3 font-bold tabular-nums text-[#001B3D] dark:text-slate-100">
                     {bucket.count}
                   </span>
                 </div>
@@ -71,7 +71,7 @@ export function EmployeeJourney({
                   ) : (
                     bucket.examples.slice(0, 3).map((e) => (
                       <li key={e.employeeId} className="flex justify-between gap-2">
-                        <span className="truncate">{e.name}</span>
+                        <span className="">{e.name}</span>
                         <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{formatDate(e.date)}</span>
                       </li>
                     ))

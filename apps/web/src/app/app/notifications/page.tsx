@@ -80,8 +80,8 @@ export default function NotificationsPage() {
             <Bell className="h-4.5 w-4.5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Notifications</h1>
-            <p className="text-xs text-muted-foreground">
+            <h1 className="text-h4 font-bold text-foreground">Notifications</h1>
+            <p className="text-caption text-muted-foreground">
               {count > 0 ? `${count} unread` : "All caught up"}
             </p>
           </div>
@@ -90,7 +90,7 @@ export default function NotificationsPage() {
           <button
             onClick={() => setUnreadOnly((v) => !v)}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition",
+              "flex items-center gap-1.5 text-caption px-3 py-1.5 rounded-lg border transition",
               unreadOnly
                 ? "bg-primary/10 border-primary/30 text-primary"
                 : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
@@ -102,7 +102,7 @@ export default function NotificationsPage() {
           {count > 0 && (
             <button
               onClick={() => markAllRead.mutate()}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 transition"
+              className="flex items-center gap-1.5 text-caption px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 transition"
             >
               <CheckCheck className="h-3.5 w-3.5" />
               Mark all read
@@ -128,10 +128,10 @@ export default function NotificationsPage() {
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <Inbox className="h-12 w-12 mb-4 opacity-20" />
-            <p className="text-sm font-medium">
+            <p className="text-body-sm font-medium">
               {unreadOnly ? "No unread notifications" : "No notifications yet"}
             </p>
-            <p className="text-xs mt-1 opacity-70">
+            <p className="text-caption mt-1 opacity-70">
               {unreadOnly ? "You've read everything!" : "Notifications from tickets, approvals and more will appear here."}
             </p>
           </div>
@@ -156,7 +156,7 @@ export default function NotificationsPage() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2 flex-wrap">
-                    <p className={cn("text-sm leading-snug", !n.isRead ? "font-semibold text-foreground" : "text-foreground/80")}>
+                    <p className={cn("text-body-sm leading-snug", !n.isRead ? "font-semibold text-foreground" : "text-foreground/80")}>
                       {n.title}
                     </p>
                     <span className={cn("text-[10px] border rounded px-1.5 py-0.5 font-medium flex-shrink-0", TYPE_BADGE[n.type ?? "info"])}>
@@ -169,7 +169,7 @@ export default function NotificationsPage() {
                     )}
                   </div>
                   {n.body && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{n.body}</p>
+                    <p className="text-caption text-muted-foreground mt-1">{n.body}</p>
                   )}
                   <p className="text-[11px] text-muted-foreground/60 mt-1.5">{timeAgo(n.createdAt)}</p>
                 </div>

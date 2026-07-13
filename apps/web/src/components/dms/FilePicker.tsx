@@ -134,7 +134,7 @@ export function FilePicker(props: FilePickerProps) {
                 key={m}
                 type="button"
                 onClick={() => setActive(m)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border-b-2 -mb-px ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-body-sm border-b-2 -mb-px ${
                   active === m
                     ? "border-slate-900 text-slate-900"
                     : "border-transparent text-slate-500 hover:text-slate-700"
@@ -153,7 +153,7 @@ export function FilePicker(props: FilePickerProps) {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={upload.isPending}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-body-sm bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {upload.isPending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -167,12 +167,12 @@ export function FilePicker(props: FilePickerProps) {
       {active === "dms" && (
         <div className="space-y-1">
           {dmsList.isLoading && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <div className="flex items-center gap-1.5 text-caption text-slate-500">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading documents…
             </div>
           )}
           {dmsList.data && dmsList.data.length === 0 && (
-            <div className="text-xs text-slate-500">No documents found.</div>
+            <div className="text-caption text-slate-500">No documents found.</div>
           )}
           {dmsList.data && dmsList.data.length > 0 && (
             <ul className="max-h-56 overflow-auto space-y-1">
@@ -189,10 +189,10 @@ export function FilePicker(props: FilePickerProps) {
                         sha256: d.sha256,
                       })
                     }
-                    className="w-full flex items-center gap-2 text-xs text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-1 text-left"
+                    className="w-full flex items-center gap-2 text-caption text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-1 text-left"
                   >
                     <FileIcon className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="truncate flex-1">{d.name}</span>
+                    <span className="flex-1">{d.name}</span>
                     <span className="text-slate-400">{(d.sizeBytes / 1024).toFixed(0)} KB</span>
                     <Check className="w-3.5 h-3.5 text-slate-300" />
                   </button>
@@ -204,7 +204,7 @@ export function FilePicker(props: FilePickerProps) {
       )}
 
       {(active === "drive" || active === "onedrive") && !meta.ready && (
-        <div className="text-xs text-slate-500 border border-dashed border-slate-300 rounded px-3 py-4 text-center">
+        <div className="text-caption text-slate-500 border border-dashed border-slate-300 rounded px-3 py-4 text-center">
           Picking from {meta.label} requires the {meta.connector} connector.
           <br />
           Connect it under Settings → Integrations to enable this source.
@@ -219,16 +219,16 @@ export function FilePicker(props: FilePickerProps) {
         onChange={(e) => onFiles(e.target.files)}
         className="hidden"
       />
-      {error && <div className="text-xs text-red-600">{error}</div>}
+      {error && <div className="text-caption text-red-600">{error}</div>}
       {recent.length > 0 && (
         <ul className="space-y-1">
           {recent.map((r) => (
             <li
               key={r.id}
-              className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1"
+              className="flex items-center gap-2 text-caption text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1"
             >
               <FileIcon className="w-3.5 h-3.5 text-slate-400" />
-              <span className="truncate flex-1">{r.name}</span>
+              <span className="flex-1">{r.name}</span>
               <span className="text-slate-400">{(r.sizeBytes / 1024).toFixed(0)} KB</span>
               <button
                 type="button"

@@ -70,7 +70,7 @@ export default function HRCaseDetailPage() {
                 }
                 actions={
                   <div className="flex flex-col items-end">
-                    <div className="text-2xl font-black text-primary leading-none">{pct}%</div>
+                    <div className="text-h3 font-black text-primary leading-none">{pct}%</div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completion</div>
                   </div>
                 }
@@ -80,17 +80,17 @@ export default function HRCaseDetailPage() {
                 <div className="lg:col-span-2 flex flex-col gap-6">
                   {/* Overview Card */}
                   <div className="bg-card border border-border rounded-xl p-5">
-                    <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+                    <h3 className="text-body-sm font-bold text-foreground mb-4 flex items-center gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground" />
                       Case Overview
                     </h3>
                     <div className="space-y-4">
                       {hrCase.notes && (
-                        <p className="text-sm text-muted-foreground leading-relaxed">
+                        <p className="text-body-sm text-muted-foreground leading-relaxed">
                           {hrCase.notes.split("\n\n")[0]?.replace(/^\[.+?\]\s*/, "")}
                         </p>
                       )}
-                      <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap gap-6 text-caption text-muted-foreground">
                         <div className="flex flex-col gap-1">
                           <span className="uppercase tracking-widest text-[9px] font-bold text-muted-foreground/50">Opened On</span>
                           <span className="font-medium text-foreground">{new Date(hrCase.createdAt).toLocaleDateString()}</span>
@@ -117,7 +117,7 @@ export default function HRCaseDetailPage() {
                         <button
                           key={t.key}
                           onClick={() => setTab(t.key)}
-                          className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all
+                          className={`px-4 py-2 text-caption font-bold uppercase tracking-wider border-b-2 transition-all
                             ${tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground/80"}`}
                         >
                           {t.label}
@@ -128,7 +128,7 @@ export default function HRCaseDetailPage() {
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
                       {tab === "tasks" && (
                         tasks.length === 0 ? (
-                          <div className="p-12 text-center text-sm text-muted-foreground/60 italic">No tasks for this case yet.</div>
+                          <div className="p-12 text-center text-body-sm text-muted-foreground/60 italic">No tasks for this case yet.</div>
                         ) : (
                           <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
@@ -143,7 +143,7 @@ export default function HRCaseDetailPage() {
                               <tbody className="divide-y divide-border">
                                 {tasks.map((t: any) => (
                                   <tr key={t.id} className={cn("hover:bg-muted/30 transition-colors", t.status === "done" && "opacity-60")}>
-                                    <td className="px-4 py-3 text-sm font-medium text-foreground">{t.title}</td>
+                                    <td className="px-4 py-3 text-body-sm font-medium text-foreground">{t.title}</td>
                                     <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground">
                                       {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : "—"}
                                     </td>
@@ -185,7 +185,7 @@ export default function HRCaseDetailPage() {
                                 rows={3}
                                 value={noteText}
                                 onChange={(e) => setNoteText(e.target.value)}
-                                className="w-full px-4 py-3 text-sm bg-transparent outline-none resize-none border-none focus:ring-0"
+                                className="w-full px-4 py-3 text-body-sm bg-transparent outline-none resize-none border-none focus:ring-0"
                                 placeholder="Add internal work note..."
                               />
                               <div className="flex justify-end px-4 py-2 bg-muted/40 border-t border-border">
@@ -195,7 +195,7 @@ export default function HRCaseDetailPage() {
                                     addNote.mutate({ caseId: hrCase.id, note: noteText.trim() });
                                   }}
                                   disabled={addNote.isPending || !noteText.trim()}
-                                  className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-all disabled:opacity-60"
+                                  className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-caption font-bold rounded-lg hover:bg-primary/90 transition-all disabled:opacity-60"
                                 >
                                   <Send className="w-3.5 h-3.5" /> {addNote.isPending ? "Saving…" : "Post Note"}
                                 </button>
@@ -205,7 +205,7 @@ export default function HRCaseDetailPage() {
 
                           {notesLines.length === 0 ? (
                             <div className="text-center p-8">
-                              <p className="text-sm text-muted-foreground italic">No work notes yet.</p>
+                              <p className="text-body-sm text-muted-foreground italic">No work notes yet.</p>
                             </div>
                           ) : (
                             <div className="space-y-4">
@@ -225,7 +225,7 @@ export default function HRCaseDetailPage() {
                                         </span>
                                       </div>
                                     )}
-                                    <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{text}</p>
+                                    <p className="text-body-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{text}</p>
                                   </div>
                                 );
                               })}
@@ -263,12 +263,12 @@ export default function HRCaseDetailPage() {
 
                   {/* Quick Access Card */}
                   <div className="bg-muted/30 border border-border border-dashed rounded-xl p-5">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Quick Links</h3>
+                    <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest mb-4">Quick Links</h3>
                     <div className="flex flex-col gap-2">
-                      <Link href={`/app/hr/employees/${employee.id}`} className="text-xs font-medium text-primary hover:underline flex items-center gap-2">
+                      <Link href={`/app/hr/employees/${employee.id}`} className="text-caption font-medium text-primary hover:underline flex items-center gap-2">
                         <Users className="w-3.5 h-3.5" /> Full Employee Record
                       </Link>
-                      <button className="text-xs font-medium text-primary hover:underline flex items-center gap-2 text-left">
+                      <button className="text-caption font-medium text-primary hover:underline flex items-center gap-2 text-left">
                         <Shield className="w-3.5 h-3.5" /> Access Control Settings
                       </button>
                     </div>

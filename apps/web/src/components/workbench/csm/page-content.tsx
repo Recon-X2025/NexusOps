@@ -38,12 +38,12 @@ export function CsmContent() {
             ) : !data?.renewals.data?.length ? (
               <WorkbenchEmpty state={data?.renewals.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.renewals.data.slice(0, 8).map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-3">
                     <Link
                       href={`/app/contracts/${r.id}`}
-                      className="min-w-0 flex-1 text-amber-700 dark:text-amber-300 hover:underline truncate"
+                      className="min-w-0 flex-1 text-amber-700 dark:text-amber-300 hover:underline"
                     >
                       {r.counterparty}
                     </Link>
@@ -62,7 +62,7 @@ export function CsmContent() {
             ) : !data?.healthHistogram.data?.length ? (
               <WorkbenchEmpty state={data?.healthHistogram.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.healthHistogram.data.map((h) => (
                   <li key={h.bucket} className="flex items-center justify-between">
                     <span className="text-slate-700 dark:text-slate-200">{HEALTH_LABEL[h.bucket] ?? h.bucket}</span>

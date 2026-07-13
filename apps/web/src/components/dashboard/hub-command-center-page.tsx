@@ -68,14 +68,14 @@ function CommandCenterQueryError({
 }) {
   return (
     <div
-      className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+      className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-body-sm text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
       role="alert"
     >
       <p className="font-semibold text-slate-900 dark:text-slate-100">{title}</p>
       <p className="mt-1 text-slate-700 dark:text-slate-300">{message}</p>
       <button
         type="button"
-        className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+        className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-caption font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
         onClick={onRetry}
       >
         Retry
@@ -140,24 +140,24 @@ function HubBar({
     <div className="sticky top-0 z-20 mb-5">
       <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-2xl overflow-hidden shadow-sm relative group">
         <div className="px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between relative z-10 border-b border-slate-200/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-lg">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-lg shrink-0">
               <Radio className="w-5 h-5 text-slate-400" />
             </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-900">
+            <div className="min-w-0">
+              <h1 className="text-h4 font-black tracking-tight text-slate-900">
                 {title}
               </h1>
               <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{subtitle}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50">
-            <ExecutivePeriodSelect id="hub-range" value={rangeId} onChange={onRangeId} className="h-8 text-xs min-w-[140px] bg-transparent border-none text-slate-700 focus:ring-0" />
+          <div className="flex flex-wrap items-center gap-3 bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 shrink-0">
+            <ExecutivePeriodSelect id="hub-range" value={rangeId} onChange={onRangeId} className="h-8 text-caption min-w-[140px] bg-transparent border-none text-slate-700 focus:ring-0" />
             <div className="w-px h-5 bg-slate-300" />
             <button
               type="button"
               onClick={onRefresh}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 transition-all"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-caption font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 transition-all"
             >
               <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
               Sync

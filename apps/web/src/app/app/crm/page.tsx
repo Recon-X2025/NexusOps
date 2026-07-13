@@ -609,11 +609,11 @@ export default function CRMPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal Title *</label>
-                <input autoFocus className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. CoheronConnect Enterprise — Acme Corp" />
+                <input autoFocus className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.title} onChange={(e) => setDealForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. CoheronConnect Enterprise — Acme Corp" />
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Company (Account) *</label>
-                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.accountId} onChange={(e) => setDealForm(f => ({ ...f, accountId: e.target.value, contactId: "" }))}>
+                <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.accountId} onChange={(e) => setDealForm(f => ({ ...f, accountId: e.target.value, contactId: "" }))}>
                   <option value="">— Select account —</option>
                   {ACCOUNTS_LIVE.map((a: any) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
@@ -635,7 +635,7 @@ export default function CRMPage() {
                     </button>
                   )}
                 </div>
-                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.contactId} onChange={(e) => setDealForm(f => ({ ...f, contactId: e.target.value }))}>
+                <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.contactId} onChange={(e) => setDealForm(f => ({ ...f, contactId: e.target.value }))}>
                   <option value="">— Select contact —</option>
                   {CONTACTS_LIVE
                     .filter((c: any) => !dealForm.accountId || c.accountId === dealForm.accountId)
@@ -646,15 +646,15 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Value (₹) *</label>
-                <input type="number" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.value} onChange={(e) => setDealForm(f => ({ ...f, value: e.target.value }))} placeholder="e.g. 5000000" />
+                <input type="number" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.value} onChange={(e) => setDealForm(f => ({ ...f, value: e.target.value }))} placeholder="e.g. 5000000" />
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Probability (%) *</label>
-                <input type="number" min="0" max="100" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
+                <input type="number" min="0" max="100" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.probability} onChange={(e) => setDealForm(f => ({ ...f, probability: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Stage *</label>
-                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
+                <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.stage} onChange={(e) => setDealForm(f => ({ ...f, stage: e.target.value }))}>
                   {pipelineStages.map(s => (
                     <option key={s} value={s}>{stageCfg[s]?.label ?? s.replace(/_/g, " ")}</option>
                   ))}
@@ -662,11 +662,11 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close Date *</label>
-                <input type="date" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
+                <input type="date" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.expectedClose} onChange={(e) => setDealForm(f => ({ ...f, expectedClose: e.target.value }))} />
               </div>
               <div className="col-span-2">
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source *</label>
-                <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={dealForm.source} onChange={(e) => setDealForm(f => ({ ...f, source: e.target.value }))}>
+                <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={dealForm.source} onChange={(e) => setDealForm(f => ({ ...f, source: e.target.value }))}>
                   <option value="">— Select source —</option>
                   {["Inbound / Website", "Inbound / Trial", "Direct / Outbound", "Partner Referral", "LinkedIn Outbound", "Upsell / Existing Customer", "Event / Conference", "SDR / Cold Outreach", "Webinar Attendee", "Other"].map(s => (
                     <option key={s} value={s}>{s}</option>
@@ -777,7 +777,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowStageConfig(false)}>
           <div data-testid="stage-config-modal" className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">Configure Pipeline Stages</h3>
+              <h3 className="text-body-sm font-semibold text-foreground">Configure Pipeline Stages</h3>
               <button onClick={() => setShowStageConfig(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-4 space-y-2">
@@ -787,7 +787,7 @@ export default function CRMPage() {
                   <span className="font-mono text-[10px] text-muted-foreground/70 w-24 flex-shrink-0">{s.key}</span>
                   <input
                     data-testid={`stage-label-${s.key}`}
-                    className="flex-1 text-xs border border-border rounded px-2 py-1 bg-background"
+                    className="flex-1 text-caption border border-border rounded px-2 py-1 bg-background"
                     value={s.label}
                     onChange={(e) => setStageDraft((d) => d.map((x) => x.key === s.key ? { ...x, label: e.target.value } : x))}
                   />
@@ -857,7 +857,7 @@ export default function CRMPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">CRM & Sales</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">CRM & Sales</h1>
           <span className="text-[11px] text-muted-foreground/70">Pipeline · Accounts · Contacts · Leads · Quotes</span>
         </div>
         <div className="flex items-center gap-2">
@@ -886,7 +886,7 @@ export default function CRMPage() {
           { label: "Overdue Activities", value: ACTIVITIES_LIVE.filter((a: any) => !a.completed && new Date(a.dueDate ?? a.scheduledAt ?? "9999") < new Date()).length, color: "text-red-700", sub: "need action" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
             <div className="text-[10px] text-muted-foreground/70">{k.sub}</div>
           </div>
@@ -947,7 +947,7 @@ export default function CRMPage() {
                           <span className="font-mono text-[10px] text-primary">{deal.number}</span>
                           <span className={`status-badge ${cfg.color}`}>{cfg.label}</span>
                         </div>
-                        <p className="text-[12px] font-medium text-foreground truncate max-w-56">{deal.account}</p>
+                        <p className="text-[12px] font-medium text-foreground max-w-56">{deal.account}</p>
                         <p className="text-[11px] text-muted-foreground/70">{deal.owner} · {deal.lastActivity}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
@@ -974,7 +974,7 @@ export default function CRMPage() {
                       <div className="flex items-start gap-2">
                         <span className={`status-badge flex-shrink-0 ${cfg.color}`}>{("icon" in cfg ? cfg.icon : "")} {a.type}</span>
                         <div>
-                          <p className="text-[12px] text-foreground font-medium truncate max-w-56">{a.subject}</p>
+                          <p className="text-[12px] text-foreground font-medium max-w-56">{a.subject}</p>
                           <p className="text-[11px] text-muted-foreground/70">{a.account} · {a.owner}</p>
                         </div>
                       </div>
@@ -1041,9 +1041,9 @@ export default function CRMPage() {
                           <span className="text-[11px] text-muted-foreground/70">{deal.probability}%</span>
                         </div>
                         <p className="text-[12px] font-semibold text-foreground mb-0.5">{getDealAccountName(deal)}</p>
-                        <p className="text-[11px] text-muted-foreground truncate mb-0.5">{deal.title}</p>
+                        <p className="text-[11px] text-muted-foreground mb-0.5">{deal.title}</p>
                         {getDealContactName(deal) && (
-                          <p className="text-[10px] text-muted-foreground/60 truncate mb-1">{getDealContactName(deal)}</p>
+                          <p className="text-[10px] text-muted-foreground/60 mb-1">{getDealContactName(deal)}</p>
                         )}
                         <div className="flex items-center justify-between">
                           <span className="font-mono font-bold text-[12px] text-primary">₹{(deal.value / 1000).toFixed(0)}K</span>
@@ -1053,7 +1053,7 @@ export default function CRMPage() {
                           <span className="w-4 h-4 rounded-full bg-primary text-white text-[8px] flex items-center justify-center font-bold">
                             {(deal.owner ?? "").split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/70 truncate flex-1">{deal.lastActivity ?? deal.updatedAt ?? ""}</span>
+                          <span className="text-[10px] text-muted-foreground/70 flex-1">{deal.lastActivity ?? deal.updatedAt ?? ""}</span>
                           <PermissionGate module="accounts" action="write">
                             <button
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMovingDeal(deal.id); }}
@@ -1368,7 +1368,7 @@ export default function CRMPage() {
                         <div>Due: {a.dueDate}</div>
                         <div>Completed: {a.completedDate}</div>
                       </td>
-                      <td className="max-w-xs text-[11px] text-muted-foreground truncate" title={a.description}>{a.outcome ?? a.description ?? "—"}</td>
+                      <td className="max-w-xs text-[11px] text-muted-foreground" title={a.description}>{a.outcome ?? a.description ?? "—"}</td>
                       <td>
                         <span className={`status-badge ${a.completedAt ? "text-green-700 bg-green-100" : "text-blue-700 bg-blue-100"}`}>
                           {a.completedAt ? "✓ Done" : "Pending"}
@@ -1553,7 +1553,7 @@ export default function CRMPage() {
                   const srcVal = srcDeals.reduce((s, d) => s + d.value, 0);
                   return (
                     <div key={src} className="flex items-center gap-2 text-[11px]">
-                      <span className="text-muted-foreground flex-1 truncate">{src}</span>
+                      <span className="text-muted-foreground flex-1">{src}</span>
                       <span className="font-mono text-foreground/80">₹{(srcVal / 1000).toFixed(0)}K</span>
                       <span className="text-muted-foreground/70">({srcDeals.length})</span>
                     </div>
@@ -1610,7 +1610,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Edit Lead: {editingLead.firstName} {editingLead.lastName}</h2>
+              <h2 className="text-body-sm font-semibold">Edit Lead: {editingLead.firstName} {editingLead.lastName}</h2>
               <button onClick={() => setEditingLead(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-3">
@@ -1661,7 +1661,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm mx-4">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold">New Quote</h2>
+              <h2 className="text-body-sm font-semibold">New Quote</h2>
               <button onClick={() => setShowNewQuote(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-3">
@@ -1694,7 +1694,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Add Account</h2>
+              <h2 className="text-body-sm font-bold">Add Account</h2>
               <button onClick={() => setShowNewAccount(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -1720,11 +1720,11 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewAccount(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewAccount(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!accountForm.name.trim()) { toast.error("Company name is required"); return; } if (!accountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!accountForm.website.trim()) { toast.error("Website is required"); return; } if (!accountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with https://"); return; } createAccountMutation.mutate({ name: accountForm.name.trim(), industry: accountForm.industry.trim(), tier: accountForm.tier, website: accountForm.website.trim() }); }}
                 disabled={createAccountMutation.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createAccountMutation.isPending ? "Creating…" : "Create Account"}</button>
             </div>
           </div>
@@ -1736,7 +1736,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Edit Account</h2>
+              <h2 className="text-body-sm font-bold">Edit Account</h2>
               <button onClick={() => setEditingAccount(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -1762,11 +1762,11 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setEditingAccount(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setEditingAccount(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!editAccountForm.name.trim()) { toast.error("Company name is required"); return; } if (!editAccountForm.industry.trim()) { toast.error("Industry is required"); return; } if (!editAccountForm.website.trim()) { toast.error("Website is required"); return; } if (!editAccountForm.website.startsWith("http://") && !editAccountForm.website.startsWith("https://")) { toast.error("Please enter a valid website URL starting with http:// or https://"); return; } updateAccountMutation.mutate({ id: editingAccount.id, name: editAccountForm.name.trim(), industry: editAccountForm.industry.trim(), tier: editAccountForm.tier, website: editAccountForm.website.trim() }); }}
                 disabled={updateAccountMutation.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateAccountMutation.isPending ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>
@@ -1778,7 +1778,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Add Contact</h2>
+              <h2 className="text-body-sm font-bold">Add Contact</h2>
               <button onClick={() => setShowNewContact(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -1813,11 +1813,11 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewContact(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewContact(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!contactForm.firstName.trim() || !contactForm.lastName.trim() || !contactForm.accountId || !contactForm.email.trim() || !contactForm.phone.trim() || !contactForm.title.trim()) { toast.error("All fields are required"); return; } createContactMutation.mutate({ firstName: contactForm.firstName.trim(), lastName: contactForm.lastName.trim(), email: contactForm.email.trim(), phone: contactForm.phone.trim(), title: contactForm.title.trim(), accountId: contactForm.accountId }); }}
                 disabled={createContactMutation.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createContactMutation.isPending ? "Creating…" : "Create Contact"}</button>
             </div>
           </div>
@@ -1829,7 +1829,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Edit Contact</h2>
+              <h2 className="text-body-sm font-bold">Edit Contact</h2>
               <button onClick={() => setEditingContact(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="space-y-3">
@@ -1864,11 +1864,11 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setEditingContact(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setEditingContact(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!editContactForm.firstName.trim() || !editContactForm.lastName.trim() || !editContactForm.accountId || !editContactForm.email.trim() || !editContactForm.phone.trim() || !editContactForm.title.trim()) { toast.error("All fields are required"); return; } updateContactMutation.mutate({ id: editingContact.id, firstName: editContactForm.firstName.trim(), lastName: editContactForm.lastName.trim(), email: editContactForm.email.trim(), phone: editContactForm.phone.trim(), title: editContactForm.title.trim(), accountId: editContactForm.accountId }); }}
                 disabled={updateContactMutation.isPending}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateContactMutation.isPending ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>
@@ -1881,7 +1881,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">New Lead</h2>
+              <h2 className="text-body-sm font-bold">New Lead</h2>
               <button onClick={() => setShowNewLead(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1919,11 +1919,11 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewLead(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewLead(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={!leadForm.firstName.trim() || !leadForm.lastName.trim() || !leadForm.company.trim() || !leadForm.email.trim() || !leadForm.phone.trim() || createLeadMutation.isPending}
                 onClick={() => createLeadMutation.mutate({ firstName: leadForm.firstName.trim(), lastName: leadForm.lastName.trim(), email: leadForm.email.trim(), phone: leadForm.phone.trim(), company: leadForm.company.trim(), title: leadForm.title.trim() || undefined, source: leadForm.source as "other" | "website" | "event" | "partner" | "referral" | "cold_outreach" | "advertising" })}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createLeadMutation.isPending ? "Creating…" : "Create Lead"}</button>
             </div>
           </div>
@@ -1935,7 +1935,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Edit Lead</h2>
+              <h2 className="text-body-sm font-bold">Edit Lead</h2>
               <button onClick={() => setEditingLead(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1965,11 +1965,11 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setEditingLead(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setEditingLead(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={!editLeadForm.firstName.trim() || !editLeadForm.lastName.trim() || !editLeadForm.company.trim() || !editLeadForm.email.trim() || !editLeadForm.phone.trim() || updateLeadMutation.isPending}
                 onClick={() => updateLeadMutation.mutate({ id: editingLead.id, firstName: editLeadForm.firstName.trim(), lastName: editLeadForm.lastName.trim(), email: editLeadForm.email.trim(), phone: editLeadForm.phone.trim(), company: editLeadForm.company.trim(), title: editLeadForm.title.trim() || undefined })}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateLeadMutation.isPending ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>
@@ -1981,7 +1981,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Log Activity</h2>
+              <h2 className="text-body-sm font-bold">Log Activity</h2>
               <button onClick={() => setShowNewActivity(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2034,7 +2034,7 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowNewActivity(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewActivity(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={!activityForm.accountId || !activityForm.contactId || createActivity.isPending}
                 onClick={() => createActivity.mutate({
@@ -2048,7 +2048,7 @@ export default function CRMPage() {
                   scheduledAt: activityForm.scheduledAt ? new Date(activityForm.scheduledAt) : undefined,
                   completedAt: activityForm.completedAt ? new Date(activityForm.completedAt) : undefined,
                 })}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{createActivity.isPending ? "Saving…" : "Log Activity"}</button>
             </div>
           </div>
@@ -2060,7 +2060,7 @@ export default function CRMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold">Edit Activity</h2>
+              <h2 className="text-body-sm font-bold">Edit Activity</h2>
               <button onClick={() => setEditingActivity(null)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2113,7 +2113,7 @@ export default function CRMPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setEditingActivity(null)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setEditingActivity(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={updateActivity.isPending}
                 onClick={() => updateActivity.mutate({
@@ -2128,7 +2128,7 @@ export default function CRMPage() {
                   scheduledAt: editActivityForm.scheduledAt ? new Date(editActivityForm.scheduledAt) : undefined,
                   completedAt: editActivityForm.completedAt ? new Date(editActivityForm.completedAt) : undefined,
                 })}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateActivity.isPending ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>

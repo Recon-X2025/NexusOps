@@ -93,7 +93,7 @@ export default function EscalationQueuePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-red-500" />
-          <h1 className="text-sm font-semibold text-foreground">Escalation Queue</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Escalation Queue</h1>
           <span className="text-[11px] text-muted-foreground/70">SLA Breached & At-Risk Incidents</span>
         </div>
         <button
@@ -179,7 +179,7 @@ export default function EscalationQueuePage() {
             >
               <Icon className={`w-5 h-5 ${filter === k.key ? k.countColor : "text-muted-foreground/70"}`} />
               <div>
-                <div className={`text-xl font-bold ${filter === k.key ? k.countColor : "text-foreground/80"}`}>
+                <div className={`text-h4 font-bold ${filter === k.key ? k.countColor : "text-foreground/80"}`}>
                   {k.count}
                 </div>
                 <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
@@ -239,7 +239,7 @@ export default function EscalationQueuePage() {
                       </Link>
                     </td>
                     <td className="max-w-xs">
-                      <Link href={`/app/tickets/${ticket.id}`} className="text-foreground hover:underline truncate block">
+                      <Link href={`/app/tickets/${ticket.id}`} className="text-foreground hover:underline block">
                         {ticket.title}
                       </Link>
                     </td>

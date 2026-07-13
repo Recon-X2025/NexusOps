@@ -101,13 +101,13 @@ export default function PurchaseRequestDetailPage() {
                         <>
                           <button
                             onClick={() => rejectPR.mutate({ id })}
-                            className="flex items-center gap-1.5 px-4 py-1.5 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-50 transition-all"
+                            className="flex items-center gap-1.5 px-4 py-1.5 border border-red-200 text-red-700 rounded-lg text-body-sm font-medium hover:bg-red-50 transition-all"
                           >
                             <XCircle className="w-4 h-4" /> Reject
                           </button>
                           <button
                             onClick={() => approvePR.mutate({ id })}
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md"
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-medium hover:bg-green-700 transition-colors shadow-md"
                           >
                             <CheckCircle2 className="w-4 h-4" /> Approve
                           </button>
@@ -117,7 +117,7 @@ export default function PurchaseRequestDetailPage() {
                     {status === "approved" && (
                       <button
                         onClick={() => router.push(`/app/procurement?tab=requisitions&action=createPO&id=${id}`)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
                       >
                         <Plus className="w-4 h-4" /> Create PO
                       </button>
@@ -133,7 +133,7 @@ export default function PurchaseRequestDetailPage() {
                     <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
                       <MessageSquare className="w-3 h-3" /> Business Justification
                     </h3>
-                    <p className="text-base text-foreground leading-relaxed italic">
+                    <p className="text-body text-foreground leading-relaxed italic">
                       &quot;{pr.justification || "No justification provided."}&quot;
                     </p>
                   </div>
@@ -145,7 +145,7 @@ export default function PurchaseRequestDetailPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={cn(
-                          "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+                          "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
                           activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -169,17 +169,17 @@ export default function PurchaseRequestDetailPage() {
                           <tbody className="divide-y divide-border">
                             {(pr.items ?? []).map((item: any, i: number) => (
                               <tr key={i} className="hover:bg-muted/10 transition-colors">
-                                <td className="px-4 py-3 text-sm font-medium text-foreground">{item.description}</td>
-                                <td className="px-4 py-3 text-sm text-right font-mono">{item.quantity}</td>
-                                <td className="px-4 py-3 text-sm text-right font-mono">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
-                                <td className="px-4 py-3 text-sm text-right font-bold font-mono">₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</td>
+                                <td className="px-4 py-3 text-body-sm font-medium text-foreground">{item.description}</td>
+                                <td className="px-4 py-3 text-body-sm text-right font-mono">{item.quantity}</td>
+                                <td className="px-4 py-3 text-body-sm text-right font-mono">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
+                                <td className="px-4 py-3 text-body-sm text-right font-bold font-mono">₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot>
                             <tr className="bg-muted/10 font-bold border-t border-border">
-                              <td colSpan={3} className="px-4 py-4 text-sm text-right uppercase tracking-widest">Estimated Grand Total</td>
-                              <td className="px-4 py-4 text-lg text-right font-mono text-primary">
+                              <td colSpan={3} className="px-4 py-4 text-body-sm text-right uppercase tracking-widest">Estimated Grand Total</td>
+                              <td className="px-4 py-4 text-body-lg text-right font-mono text-primary">
                                 ₹{Number(pr.totalAmount).toLocaleString("en-IN")}
                               </td>
                             </tr>
@@ -221,7 +221,7 @@ export default function PurchaseRequestDetailPage() {
                             : "text-muted-foreground"
                         )} />
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-bold text-foreground">{sCfg.label}</span>
+                          <span className="text-body-sm font-bold text-foreground">{sCfg.label}</span>
                           <span className="text-[12px] text-muted-foreground">
                             {status === "approved" ? `Approved on ${formatDt(pr.updatedAt)}.`
                               : status === "rejected" ? `Rejected on ${formatDt(pr.updatedAt)}.`
@@ -255,14 +255,14 @@ export default function PurchaseRequestDetailPage() {
                               <button
                                 onClick={() => approvePR.mutate({ id })}
                                 disabled={approvePR.isPending}
-                                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md disabled:opacity-60"
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-medium hover:bg-green-700 transition-colors shadow-md disabled:opacity-60"
                               >
                                 <CheckCircle2 className="w-4 h-4" /> {approvePR.isPending ? "Approving…" : "Approve"}
                               </button>
                               <button
                                 onClick={() => rejectPR.mutate({ id })}
                                 disabled={rejectPR.isPending}
-                                className="flex items-center gap-1.5 px-4 py-1.5 border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60"
+                                className="flex items-center gap-1.5 px-4 py-1.5 border border-red-200 text-red-700 rounded-lg text-body-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60"
                               >
                                 <XCircle className="w-4 h-4" /> {rejectPR.isPending ? "Rejecting…" : "Reject"}
                               </button>
@@ -290,7 +290,7 @@ export default function PurchaseRequestDetailPage() {
                   {pr.purchaseOrderId && (
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex flex-col gap-2">
                       <h4 className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Fulfillment PO</h4>
-                      <Link href={`/app/procurement/orders/${pr.purchaseOrderId}`} className="text-sm font-bold text-indigo-900 hover:underline flex items-center justify-between group">
+                      <Link href={`/app/procurement/orders/${pr.purchaseOrderId}`} className="text-body-sm font-bold text-indigo-900 hover:underline flex items-center justify-between group">
                         <span className="flex items-center gap-2">
                           <ShoppingCart className="w-4 h-4 text-indigo-600" />
                           View Linked PO

@@ -75,7 +75,7 @@ export default function KnowledgeArticlePage() {
     return (
       <div className="flex items-center justify-center h-60 gap-2 text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
-        <span className="text-xs">Loading article…</span>
+        <span className="text-caption">Loading article…</span>
       </div>
     );
   }
@@ -84,7 +84,7 @@ export default function KnowledgeArticlePage() {
     return (
       <div className="flex flex-col items-center justify-center h-60 gap-2 text-muted-foreground">
         <BookOpen className="w-8 h-8 opacity-30" />
-        <span className="text-sm">Article not found.</span>
+        <span className="text-body-sm">Article not found.</span>
         <Link href="/app/knowledge" className="text-primary text-[12px] hover:underline">
           ← Back to Knowledge Base
         </Link>
@@ -102,7 +102,7 @@ export default function KnowledgeArticlePage() {
           <BookOpen className="w-3 h-3" /> Knowledge Base
         </Link>
         <ChevronRight className="w-3 h-3 opacity-50" />
-        <span className="text-foreground truncate max-w-xs">{article.title}</span>
+        <span className="text-foreground max-w-xs">{article.title}</span>
       </nav>
 
       {/* Header */}
@@ -114,10 +114,10 @@ export default function KnowledgeArticlePage() {
                 autoFocus
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full text-lg font-bold border-b-2 border-primary outline-none bg-transparent text-foreground pb-1"
+                className="w-full text-body-lg font-bold border-b-2 border-primary outline-none bg-transparent text-foreground pb-1"
               />
             ) : (
-              <h1 className="text-lg font-bold text-foreground">{article.title}</h1>
+              <h1 className="text-body-lg font-bold text-foreground">{article.title}</h1>
             )}
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <span className={`status-badge ${
@@ -264,7 +264,7 @@ export default function KnowledgeArticlePage() {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No content yet.</p>
+              <p className="text-body-sm">No content yet.</p>
               <PermissionGate module="knowledge" action="write">
                 <button
                   onClick={() => setEditing(true)}

@@ -98,12 +98,12 @@ export default function DealDetailPage() {
 
                 const actions = (
                     <PermissionGate module="accounts" action="write">
-                        <button onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-sm font-medium hover:bg-muted transition-colors">
+                        <button onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-body-sm font-medium hover:bg-muted transition-colors">
                             <Edit3 className="w-4 h-4" /> Edit
                         </button>
                         <button
                             onClick={() => { if (confirm("Are you sure you want to delete this deal?")) deleteDeal.mutate({ id }); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded text-sm font-medium hover:bg-red-50 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded text-body-sm font-medium hover:bg-red-50 transition-colors"
                         >
                             <Trash2 className="w-4 h-4" /> Delete
                         </button>
@@ -131,11 +131,11 @@ export default function DealDetailPage() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="col-span-2">
                                             <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Deal Title *</label>
-                                            <input autoFocus className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editForm.title} onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))} />
+                                            <input autoFocus className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editForm.title} onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))} />
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Account *</label>
-                                            <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editForm.accountId} onChange={(e) => setEditForm(f => ({ ...f, accountId: e.target.value, contactId: "" }))}>
+                                            <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editForm.accountId} onChange={(e) => setEditForm(f => ({ ...f, accountId: e.target.value, contactId: "" }))}>
                                                 <option value="">— Select account —</option>
                                                 {(qAccounts.data ?? []).map((a: any) => (
                                                     <option key={a.id} value={a.id}>{a.name}</option>
@@ -144,7 +144,7 @@ export default function DealDetailPage() {
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Contact *</label>
-                                            <select className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editForm.contactId} onChange={(e) => setEditForm(f => ({ ...f, contactId: e.target.value }))}>
+                                            <select className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editForm.contactId} onChange={(e) => setEditForm(f => ({ ...f, contactId: e.target.value }))}>
                                                 <option value="">— Select contact —</option>
                                                 {(qContacts.data ?? [])
                                                     .filter((c: any) => !editForm.accountId || c.accountId === editForm.accountId)
@@ -155,15 +155,15 @@ export default function DealDetailPage() {
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Value (₹) *</label>
-                                            <input type="number" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editForm.value} onChange={(e) => setEditForm(f => ({ ...f, value: e.target.value }))} />
+                                            <input type="number" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editForm.value} onChange={(e) => setEditForm(f => ({ ...f, value: e.target.value }))} />
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Probability (%) *</label>
-                                            <input type="number" min="0" max="100" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editForm.probability} onChange={(e) => setEditForm(f => ({ ...f, probability: e.target.value }))} />
+                                            <input type="number" min="0" max="100" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editForm.probability} onChange={(e) => setEditForm(f => ({ ...f, probability: e.target.value }))} />
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Expected Close Date *</label>
-                                            <input type="date" className="w-full mt-1 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editForm.expectedClose} onChange={(e) => setEditForm(f => ({ ...f, expectedClose: e.target.value }))} />
+                                            <input type="date" className="w-full mt-1 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editForm.expectedClose} onChange={(e) => setEditForm(f => ({ ...f, expectedClose: e.target.value }))} />
                                         </div>
                                     </div>
                                     <div className="flex gap-2 mt-4">
@@ -201,25 +201,25 @@ export default function DealDetailPage() {
                             <div className="lg:col-span-1 space-y-6">
                                 {/* Deal Financials */}
                                 <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-                                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Deal Financials</h3>
+                                    <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Deal Financials</h3>
                                     <div className="space-y-4">
                                         <div>
-                                            <p className="text-xs text-muted-foreground uppercase font-medium tracking-wide">Deal Value</p>
-                                            <p className="text-2xl font-bold text-foreground">₹{Number(deal.value).toLocaleString()}</p>
+                                            <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide">Deal Value</p>
+                                            <p className="text-h3 font-bold text-foreground">₹{Number(deal.value).toLocaleString()}</p>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <p className="text-xs text-muted-foreground uppercase font-medium tracking-wide">Probability</p>
-                                                <p className="text-lg font-semibold text-foreground">{deal.probability}%</p>
+                                                <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide">Probability</p>
+                                                <p className="text-body-lg font-semibold text-foreground">{deal.probability}%</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-muted-foreground uppercase font-medium tracking-wide">Weighted Value</p>
-                                                <p className="text-lg font-semibold text-primary">₹{Number(deal.weightedValue).toLocaleString()}</p>
+                                                <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide">Weighted Value</p>
+                                                <p className="text-body-lg font-semibold text-primary">₹{Number(deal.weightedValue).toLocaleString()}</p>
                                             </div>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-muted-foreground uppercase font-medium tracking-wide">Expected Close</p>
-                                            <p className="text-sm font-medium text-foreground flex items-center gap-2 mt-1">
+                                            <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide">Expected Close</p>
+                                            <p className="text-body-sm font-medium text-foreground flex items-center gap-2 mt-1">
                                                 <Calendar className="w-4 h-4 text-muted-foreground" />
                                                 {deal.expectedClose ? new Date(deal.expectedClose).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"}
                                             </p>
@@ -229,7 +229,7 @@ export default function DealDetailPage() {
 
                                 {/* Pipeline Stage Selector */}
                                 <div className="bg-card border border-border rounded-xl p-5">
-                                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Pipeline Stage</h3>
+                                    <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest mb-4">Pipeline Stage</h3>
                                     <div className="space-y-2">
                                         {(["prospect", "qualification", "proposal", "negotiation", "verbal_commit", "closed_won", "closed_lost"] as const).map((s) => {
                                             const isClosedWon = deal.stage === "closed_won";
@@ -241,7 +241,7 @@ export default function DealDetailPage() {
                                                     onClick={() => movePipeline.mutate({ id, stage: s })}
                                                     disabled={movePipeline.isPending || deal.stage === s || isRestricted}
                                                     className={cn(
-                                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+                                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-body-sm transition-colors",
                                                         deal.stage === s ? cn("font-bold", STAGE_CFG[s]?.color) : "hover:bg-muted text-muted-foreground",
                                                         isRestricted && "opacity-50 cursor-not-allowed"
                                                     )}
@@ -263,7 +263,7 @@ export default function DealDetailPage() {
                                         if (!pendingApproval) return null;
 
                                         return (
-                                            <div className="mt-4 rounded border border-amber-200 bg-amber-50/80 px-3 py-3 text-xs text-amber-900">
+                                            <div className="mt-4 rounded border border-amber-200 bg-amber-50/80 px-3 py-3 text-caption text-amber-900">
                                                 <div className="font-semibold mb-1">Closed-won approval required</div>
                                                 <div className="opacity-90 mb-3">
                                                     This deal value ({dealThresholdsQ.data?.dealApprovalCurrency ?? "INR"} {mv.toLocaleString()}) requires <strong>{needTier === "executive" ? "executive" : "manager"}</strong> approval before it can be moved to Closed Won.
@@ -302,23 +302,23 @@ export default function DealDetailPage() {
                             <div className="lg:col-span-2 space-y-6">
                                 {/* Deal Overview */}
                                 <div className="bg-card border border-border rounded-xl p-5">
-                                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Deal Overview</h3>
+                                    <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest mb-4">Deal Overview</h3>
                                     <div className="prose prose-sm max-w-none text-muted-foreground">
                                         {(deal as any).description || "No description provided for this deal."}
                                     </div>
                                     <div className="grid grid-cols-2 gap-6 mt-6 pt-6 border-t border-border">
                                         <div>
-                                            <p className="text-xs text-muted-foreground uppercase font-medium tracking-wide mb-2">Deal Owner</p>
+                                            <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide mb-2">Deal Owner</p>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
                                                     {deal.ownerId.slice(0, 2).toUpperCase()}
                                                 </div>
-                                                <span className="text-sm font-medium">{deal.ownerId.slice(0, 8)}</span>
+                                                <span className="text-body-sm font-medium">{deal.ownerId.slice(0, 8)}</span>
                                             </div>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-muted-foreground uppercase font-medium tracking-wide mb-2">Source</p>
-                                            <span className="text-sm font-medium">{(deal as any).source || "Direct"}</span>
+                                            <p className="text-caption text-muted-foreground uppercase font-medium tracking-wide mb-2">Source</p>
+                                            <span className="text-body-sm font-medium">{(deal as any).source || "Direct"}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -331,8 +331,8 @@ export default function DealDetailPage() {
                                     emptyIcon={Activity}
                                     header={
                                         <div className="flex items-center justify-between">
-                                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Activity Timeline</h3>
-                                            <button className="text-xs text-primary font-bold hover:underline">+ Log Activity</button>
+                                            <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest">Activity Timeline</h3>
+                                            <button className="text-caption text-primary font-bold hover:underline">+ Log Activity</button>
                                         </div>
                                     }
                                 />

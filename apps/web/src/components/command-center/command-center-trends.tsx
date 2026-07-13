@@ -12,7 +12,7 @@ export function CommandCenterTrends({ payload }: { payload: Payload }) {
   if (trends.length === 0) {
     return (
       <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm rounded-2xl relative group min-h-[200px] flex items-center justify-center">
-        <span className="text-xs text-muted-foreground italic">No velocity trajectory data available.</span>
+        <span className="text-caption text-muted-foreground italic">No velocity trajectory data available.</span>
       </div>
     );
   }
@@ -38,21 +38,21 @@ export function CommandCenterTrends({ payload }: { payload: Payload }) {
   }));
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm rounded-2xl relative group">
+    <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm rounded-2xl relative group flex flex-col">
       <div className="absolute inset-0 bg-gradient-to-t from-slate-50/50 to-transparent pointer-events-none" />
-      <div className="px-5 py-4 border-b border-slate-200/60 relative z-10 flex items-center justify-between">
-        <h2 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Velocity Trajectory</h2>
-        <div className="flex gap-3">
+      <div className="px-5 py-4 border-b border-slate-200/60 relative z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <h2 className="text-caption font-black text-slate-700 uppercase tracking-[0.2em] whitespace-nowrap">Velocity Trajectory</h2>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
           {trends.map((t, i) => (
-            <div key={t.metricId} className="flex items-center gap-1.5">
+            <div key={t.metricId} className="flex items-center gap-1.5 whitespace-nowrap">
               <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{t.label}</span>
             </div>
           ))}
         </div>
       </div>
-      <div className="p-2 min-h-[160px] relative z-10">
-        <div className="opacity-90 filter drop-shadow-sm">
+      <div className="p-2 flex-1 min-h-[160px] relative z-10 flex items-center">
+        <div className="w-full opacity-90 filter drop-shadow-sm">
           <AreaChart
             data={chartData}
             xKey="x"

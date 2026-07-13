@@ -61,7 +61,7 @@ export function KPICard({
       {loading ? (
         <div className="h-7 w-16 rounded bg-muted-foreground/15 animate-pulse mb-1" />
       ) : (
-        <div className={cn("text-2xl font-bold leading-none", color)}>{value}</div>
+        <div className={cn("text-[24px] font-bold leading-none", color)}>{value}</div>
       )}
 
       <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-1">{label}</div>

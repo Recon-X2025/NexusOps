@@ -110,8 +110,8 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
       <div className="w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-gray-900">Report an Issue</h3>
-            <p className="text-xs text-gray-500">
+            <h3 className="text-body-sm font-bold text-gray-900">Report an Issue</h3>
+            <p className="text-caption text-gray-500">
               {assetName} <span className="font-mono text-gray-400">({assetTag})</span>
             </p>
           </div>
@@ -125,7 +125,7 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-700" htmlFor="issue-title">
+            <label className="text-caption font-medium text-gray-700" htmlFor="issue-title">
               Title <span className="text-red-500">*</span>
             </label>
             <input
@@ -133,11 +133,11 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-body-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-700" htmlFor="issue-desc">
+            <label className="text-caption font-medium text-gray-700" htmlFor="issue-desc">
               Description
             </label>
             <textarea
@@ -146,14 +146,14 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the issue with this asset…"
               rows={4}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-body-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
               disabled={create.isPending || !title.trim()}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary py-2 text-body-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
             >
               {create.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Submit Issue
@@ -161,7 +161,7 @@ function ReportIssueModal({ assetId, assetName, assetTag, onClose }: ReportModal
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-gray-200 px-4 py-2 text-body-sm text-gray-600 hover:bg-gray-50"
             >
               Cancel
             </button>
@@ -187,8 +187,8 @@ export default function MyAssetsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">My Assets</h1>
-        <p className="text-xs text-gray-500">
+        <h1 className="text-body-lg font-bold text-gray-900">My Assets</h1>
+        <p className="text-caption text-gray-500">
           Equipment and devices assigned to you.
         </p>
       </div>
@@ -200,7 +200,7 @@ export default function MyAssetsPage() {
       )}
 
       {isError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-body-sm text-red-600">
           <AlertCircle className="h-4 w-4 shrink-0" />
           Unable to load assets. Please refresh and try again.
         </div>
@@ -210,14 +210,14 @@ export default function MyAssetsPage() {
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
           <Package className="h-10 w-10 text-gray-300" />
           <div>
-            <p className="text-sm font-medium text-gray-600">No assets assigned</p>
-            <p className="text-xs text-gray-400">
+            <p className="text-body-sm font-medium text-gray-600">No assets assigned</p>
+            <p className="text-caption text-gray-400">
               Equipment assigned to you will appear here.
             </p>
           </div>
           <Link
             href="/portal/request/new"
-            className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary/90"
+            className="rounded-lg bg-primary px-3 py-2 text-caption font-medium text-white hover:bg-primary/90"
           >
             Request Equipment
           </Link>
@@ -237,7 +237,7 @@ export default function MyAssetsPage() {
                     <Package className="h-5 w-5 text-blue-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-800">
+                    <p className="text-body-sm font-semibold text-gray-800">
                       {asset.name}
                     </p>
                     <p className="font-mono text-[11px] text-gray-400">{asset.assetTag}</p>
@@ -287,7 +287,7 @@ export default function MyAssetsPage() {
                     assetTag: asset.assetTag,
                   })
                 }
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 py-1.5 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-100"
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 py-1.5 text-caption font-medium text-orange-700 transition-colors hover:bg-orange-100"
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Report Issue

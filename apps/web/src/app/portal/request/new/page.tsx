@@ -138,18 +138,18 @@ export default function NewRequestPage() {
           <CheckCircle2 className="h-8 w-8 text-green-600" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Request Submitted!</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-h4 font-bold text-gray-900">Request Submitted!</h2>
+          <p className="mt-1 text-body-sm text-gray-500">
             Your request has been created and our team will be in touch shortly.
           </p>
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 font-mono text-sm font-semibold text-blue-700">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 font-mono text-body-sm font-semibold text-blue-700">
             Ticket #{submitted.number}
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link
             href="/portal/requests"
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-body-sm font-medium text-white hover:bg-primary/90"
           >
             <ClipboardList className="h-4 w-4" />
             View My Requests
@@ -162,7 +162,7 @@ export default function NewRequestPage() {
               setDescription("");
               setPriority("Medium");
             }}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            className="rounded-lg border border-gray-200 px-4 py-2 text-body-sm font-medium text-gray-600 hover:bg-gray-50"
           >
             Submit Another Request
           </button>
@@ -176,26 +176,26 @@ export default function NewRequestPage() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => (category ? setCategory(null) : router.back())}
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800"
+          className="flex items-center gap-1 text-caption text-gray-500 hover:text-gray-800"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           {category ? "Back to categories" : "Back"}
         </button>
         <span className="text-gray-300">/</span>
-        <span className="text-xs text-gray-500">New Request</span>
+        <span className="text-caption text-gray-500">New Request</span>
         {category && (
           <>
             <span className="text-gray-300">/</span>
-            <span className="text-xs text-gray-700 font-medium">{category.label}</span>
+            <span className="text-caption text-gray-700 font-medium">{category.label}</span>
           </>
         )}
       </div>
 
       <div>
-        <h1 className="text-lg font-bold text-gray-900">
+        <h1 className="text-body-lg font-bold text-gray-900">
           {category ? `${category.label} Request` : "What do you need help with?"}
         </h1>
-        <p className="mt-0.5 text-sm text-gray-500">
+        <p className="mt-0.5 text-body-sm text-gray-500">
           {category
             ? "Fill in the details below and we'll get back to you as soon as possible."
             : "Select a category to get started."}
@@ -213,7 +213,7 @@ export default function NewRequestPage() {
             >
               <cat.icon className="h-6 w-6 text-gray-700" />
               <div>
-                <p className="text-sm font-semibold text-gray-800">{cat.label}</p>
+                <p className="text-body-sm font-semibold text-gray-800">{cat.label}</p>
                 <p className="mt-0.5 text-[11px] text-gray-500">{cat.description}</p>
               </div>
             </button>
@@ -227,14 +227,14 @@ export default function NewRequestPage() {
           {/* Category badge */}
           <div className="flex items-center gap-2">
             <category.icon className="h-4 w-4 text-gray-500" />
-            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-caption font-medium text-gray-700">
               {category.label}
             </span>
           </div>
 
           {/* Title */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-700" htmlFor="request-title">
+            <label className="text-caption font-medium text-gray-700" htmlFor="request-title">
               Title <span className="text-red-500">*</span>
             </label>
             <input
@@ -244,13 +244,13 @@ export default function NewRequestPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Brief summary of your request"
               maxLength={200}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-body-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
           {/* Description */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-700" htmlFor="request-desc">
+            <label className="text-caption font-medium text-gray-700" htmlFor="request-desc">
               Description
             </label>
             <textarea
@@ -259,20 +259,20 @@ export default function NewRequestPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide more details about what you need or what's going wrong…"
               rows={5}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-body-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
           {/* Priority */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-700">Priority</label>
+            <label className="text-caption font-medium text-gray-700">Priority</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {PRIORITIES.map((p) => (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => setPriority(p.value)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                  className={`rounded-lg border px-3 py-2 text-left text-caption transition-colors ${
                     priority === p.value
                       ? "border-primary bg-primary/10 font-semibold text-primary"
                       : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
@@ -291,7 +291,7 @@ export default function NewRequestPage() {
             <button
               type="submit"
               disabled={create.isPending || !title.trim()}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-body-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
             >
               {create.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Submit Request
@@ -299,7 +299,7 @@ export default function NewRequestPage() {
             <button
               type="button"
               onClick={() => router.push("/portal")}
-              className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50"
+              className="rounded-lg border border-gray-200 px-4 py-2.5 text-body-sm text-gray-600 hover:bg-gray-50"
             >
               Cancel
             </button>

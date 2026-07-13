@@ -32,12 +32,12 @@ export function RecruiterContent() {
           ) : !data?.offers.data?.length ? (
             <WorkbenchEmpty state={data?.offers.state === "error" ? "error" : "no_data"} />
           ) : (
-            <ul className="text-xs space-y-1.5">
+            <ul className="text-caption space-y-1.5">
               {data.offers.data.map((o) => (
                 <li key={o.id} className="flex items-center justify-between gap-3">
                   <Link
                     href={`/app/recruitment/offers/${o.id}`}
-                    className="min-w-0 flex-1 text-teal-700 dark:text-teal-300 hover:underline truncate"
+                    className="min-w-0 flex-1 text-teal-700 dark:text-teal-300 hover:underline"
                   >
                     {o.title} — {o.candidateName ?? "—"}
                   </Link>

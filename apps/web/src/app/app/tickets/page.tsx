@@ -218,7 +218,7 @@ export default function TicketsPage() {
       {/* ─── Toolbar ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-[#f7f8fa] dark:bg-card flex-shrink-0">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-foreground">Service Desk</h2>
+          <h2 className="text-body-sm font-bold text-foreground">Service Desk</h2>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[0.65rem] font-mono text-muted-foreground">
             {total}
           </span>
@@ -233,21 +233,21 @@ export default function TicketsPage() {
           <div className="flex items-center rounded border border-border overflow-hidden">
             <button
               onClick={() => setView("overview")}
-              className={cn("flex items-center gap-1 px-2 py-1 text-xs transition-colors", view === "overview" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
+              className={cn("flex items-center gap-1 px-2 py-1 text-caption transition-colors", view === "overview" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
             >
               <LayoutDashboard className="h-3 w-3" />
               Overview
             </button>
             <button
               onClick={() => setView("queue")}
-              className={cn("flex items-center gap-1 px-2 py-1 text-xs transition-colors", view === "queue" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
+              className={cn("flex items-center gap-1 px-2 py-1 text-caption transition-colors", view === "queue" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
             >
               <List className="h-3 w-3" />
               Queue
             </button>
             <button
               onClick={() => setView("board")}
-              className={cn("flex items-center gap-1 px-2 py-1 text-xs transition-colors", view === "board" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
+              className={cn("flex items-center gap-1 px-2 py-1 text-caption transition-colors", view === "board" ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-accent")}
             >
               <Kanban className="h-3 w-3" />
               Board
@@ -262,7 +262,7 @@ export default function TicketsPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowAssignPanel((v) => !v)}
-                  className="rounded border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-accent transition-colors"
+                  className="rounded border border-border bg-card px-2 py-1 text-caption font-medium hover:bg-accent transition-colors"
                 >
                   Assign
                 </button>
@@ -270,7 +270,7 @@ export default function TicketsPage() {
                   <div className="absolute top-7 left-0 z-50 bg-card border border-border rounded shadow-md p-2 w-56">
                     <p className="text-[10px] text-muted-foreground mb-1">Assign {selectedRows.size} ticket(s) to:</p>
                     <select
-                      className="w-full text-xs border border-border rounded px-2 py-1 mb-2 bg-background"
+                      className="w-full text-caption border border-border rounded px-2 py-1 mb-2 bg-background"
                       value={bulkAssigneeEmail}
                       onChange={(e) => setBulkAssigneeEmail(e.target.value)}
                     >
@@ -303,7 +303,7 @@ export default function TicketsPage() {
               <button
                 disabled={bulkUpdate.isPending}
                 onClick={handleBulkClose}
-                className="rounded border border-border bg-card px-2 py-1 text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                className="rounded border border-border bg-card px-2 py-1 text-caption font-medium hover:bg-accent transition-colors disabled:opacity-50"
               >
                 {bulkUpdate.isPending ? "…" : "Close"}
               </button>
@@ -314,7 +314,7 @@ export default function TicketsPage() {
             <>
               <button
                 onClick={() => setShowFilters((v) => !v)}
-                className={`flex items-center gap-1 rounded border px-2 py-1 text-xs transition-colors ${showFilters ? "border-primary bg-primary/5 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent"}`}
+                className={`flex items-center gap-1 rounded border px-2 py-1 text-caption transition-colors ${showFilters ? "border-primary bg-primary/5 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent"}`}
               >
                 <Filter className="h-3 w-3" />
                 Filters
@@ -327,7 +327,7 @@ export default function TicketsPage() {
                   const statusName = statusCountRows.find((s) => s.statusId === t.statusId)?.name ?? t.statusId ?? "Unknown";
                   return { Number: t.number, Title: t.title, Type: t.type, Status: statusName, SLA_Breached: t.slaBreached ? "Yes" : "No", Assignee: t.assigneeId ?? "Unassigned", Created: new Date(t.createdAt).toLocaleDateString("en-IN") };
                 }), "tickets_export")}
-                className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className="flex items-center gap-1 rounded border border-border bg-card px-2 py-1 text-caption text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 <Download className="h-3 w-3" />
                 Export
@@ -343,7 +343,7 @@ export default function TicketsPage() {
           {can("incidents", "write") && (
             <Link
               href="/app/tickets/new"
-              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1.5 text-caption font-medium text-white hover:bg-primary/90 transition-colors"
             >
               <Plus className="h-3 w-3" />
               New Ticket
@@ -414,7 +414,7 @@ export default function TicketsPage() {
                         <div className="flex items-start justify-between">
                           <Icon className="w-4 h-4 text-muted-foreground/70" />
                         </div>
-                        <div className={`text-2xl font-bold mt-1 ${k.color}`}>{k.value}</div>
+                        <div className={`text-h3 font-bold mt-1 ${k.color}`}>{k.value}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">{k.label}</div>
                       </div>
                     );
@@ -432,7 +432,7 @@ export default function TicketsPage() {
                         const maxCount = Math.max(...statusCountRows.map((sc) => Number(sc.count ?? 0)), 1);
                         return (
                           <div key={s.statusId} className="flex items-center gap-2">
-                            <span className="text-[11px] text-foreground/80 w-20 truncate">{s.name}</span>
+                            <span className="text-[11px] text-foreground/80 w-20">{s.name}</span>
                             <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(Number(s.count ?? 0) / maxCount * 100)}%` }} />
                             </div>
@@ -497,7 +497,7 @@ export default function TicketsPage() {
           <div className="flex items-center justify-center">
             <button
               onClick={() => setView("queue")}
-              className="flex items-center gap-1.5 px-4 py-2 rounded border border-border bg-card text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 rounded border border-border bg-card text-caption text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               <List className="h-3.5 w-3.5" />
               View Ticket Queue
@@ -517,7 +517,7 @@ export default function TicketsPage() {
               key={tab.id ?? "all"}
               onClick={() => setSelectedStatusId(tab.id)}
               className={cn(
-                "flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+                "flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-caption font-medium whitespace-nowrap transition-colors",
                 selectedStatusId === tab.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
@@ -545,7 +545,7 @@ export default function TicketsPage() {
             placeholder="Search…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-48 rounded border border-border bg-background py-1 pl-6 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/20"
+            className="w-48 rounded border border-border bg-background py-1 pl-6 pr-3 text-caption outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
       </div>
@@ -559,7 +559,7 @@ export default function TicketsPage() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="text-xs border border-border rounded px-2 py-0.5 bg-background"
+              className="text-caption border border-border rounded px-2 py-0.5 bg-background"
             >
               <option value="">All types</option>
               <option value="incident">Incident</option>
@@ -573,7 +573,7 @@ export default function TicketsPage() {
             <select
               value={filterSla}
               onChange={(e) => setFilterSla(e.target.value as "" | "breached" | "ok")}
-              className="text-xs border border-border rounded px-2 py-0.5 bg-background"
+              className="text-caption border border-border rounded px-2 py-0.5 bg-background"
             >
               <option value="">All</option>
               <option value="breached">Breached</option>
@@ -677,14 +677,14 @@ export default function TicketsPage() {
                 <tr>
                   <td colSpan={11} className="py-16 text-center">
                     <Circle className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                    <p className="text-xs font-medium text-muted-foreground">No tickets found</p>
+                    <p className="text-caption font-medium text-muted-foreground">No tickets found</p>
                     <p className="text-[0.65rem] text-muted-foreground/60 mt-1">
                       {search ? "Try adjusting your search" : "Create your first ticket to get started"}
                     </p>
                     {!search && (
                       <Link
                         href="/app/tickets/new"
-                        className="mt-3 inline-flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                        className="mt-3 inline-flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90"
                       >
                         <Plus className="h-3 w-3" /> New Ticket
                       </Link>
@@ -734,7 +734,7 @@ export default function TicketsPage() {
                       <td className="max-w-xs" onClick={(e) => e.stopPropagation()}>
                         <Link
                           href={`/app/tickets/${ticket.id}`}
-                          className="block font-medium text-foreground hover:text-primary leading-snug line-clamp-1"
+                          className="block font-medium text-foreground hover:text-primary leading-snug"
                         >
                           {ticket.slaBreached && (
                             <Flame className="inline h-3 w-3 text-red-500 mr-1 flex-shrink-0" />
@@ -778,7 +778,7 @@ export default function TicketsPage() {
                             </span>
                           );
                         })() : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-caption text-muted-foreground">—</span>
                         )}
                       </td>
 
@@ -804,7 +804,7 @@ export default function TicketsPage() {
                             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[0.55rem] font-bold text-violet-700 dark:bg-violet-900 dark:text-violet-300 flex-shrink-0">
                               {ticket.assigneeName ? ticket.assigneeName.charAt(0).toUpperCase() : ticket.assigneeId.slice(0, 2).toUpperCase()}
                             </div>
-                            <span className="text-xs text-muted-foreground truncate max-w-[6rem]">
+                            <span className="text-caption text-muted-foreground max-w-[6rem]">
                               {ticket.assigneeName ?? ticket.assigneeEmail ?? "Assigned"}
                             </span>
                           </div>
@@ -933,7 +933,7 @@ export default function TicketsPage() {
                           className="h-2 w-2 rounded-full"
                           style={{ background: colColor }}
                         />
-                        <span className="text-xs font-semibold text-foreground">
+                        <span className="text-caption font-semibold text-foreground">
                           {col.name}
                         </span>
                       </div>
@@ -976,7 +976,7 @@ export default function TicketsPage() {
                               </div>
 
                               {/* Title */}
-                              <p className="text-xs font-medium text-foreground leading-snug line-clamp-2 mb-2">
+                              <p className="text-caption font-medium text-foreground leading-snug mb-2">
                                 {ticket.slaBreached && (
                                   <Flame className="inline h-3 w-3 text-red-500 mr-1" />
                                 )}
@@ -1016,7 +1016,7 @@ export default function TicketsPage() {
 
               {/* Fallback when no statuses loaded */}
               {statusCountRows.length === 0 && (
-                <div className="flex items-center justify-center w-full text-sm text-muted-foreground">
+                <div className="flex items-center justify-center w-full text-body-sm text-muted-foreground">
                   No status columns configured. Set up ticket statuses in Administration.
                 </div>
               )}

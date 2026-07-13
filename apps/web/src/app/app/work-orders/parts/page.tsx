@@ -94,7 +94,7 @@ export default function PartsInventoryPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold capitalize">
+              <h2 className="text-body-sm font-semibold capitalize">
                 {modal.type === "create" ? "Add New Item" :
                  modal.type === "issue" ? `Issue Stock — ${modal.itemName}` :
                  modal.type === "reorder" ? `Reorder — ${modal.itemName}` :
@@ -118,14 +118,14 @@ export default function PartsInventoryPage() {
                         type={inputType}
                         value={(newItem as any)[key]}
                         onChange={(e) => setNewItem((n) => ({ ...n, [key]: inputType === "number" ? Number(e.target.value) : e.target.value }))}
-                        className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                   ))}
                   <div className="flex flex-col gap-1">
                     <label className="text-[11px] font-medium text-muted-foreground">Category</label>
                     <select value={newItem.category} onChange={(e) => setNewItem((n) => ({ ...n, category: e.target.value }))}
-                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm">
+                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm">
                       {["spare","mechanical","electrical","consumable","tool","safety"].map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
@@ -139,7 +139,7 @@ export default function PartsInventoryPage() {
                       min={1}
                       value={qty}
                       onChange={(e) => setQty(e.target.value)}
-                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -148,7 +148,7 @@ export default function PartsInventoryPage() {
                       value={reference}
                       onChange={(e) => setReference(e.target.value)}
                       placeholder="e.g. WO-0042"
-                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -157,18 +157,18 @@ export default function PartsInventoryPage() {
                       rows={2}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                      className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                     />
                   </div>
                 </>
               )}
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
-              <button onClick={() => setModal(null)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setModal(null)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={handleSubmit}
                 disabled={isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1.5"
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1.5"
               >
                 {isPending && <Loader2 className="w-3 h-3 animate-spin" />}
                 {modal.type === "create" ? "Create Item" :
@@ -185,17 +185,17 @@ export default function PartsInventoryPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Package className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold">Parts & Inventory</h1>
+          <h1 className="text-body-sm font-semibold">Parts & Inventory</h1>
           <span className="text-[11px] text-muted-foreground">Field Service Stock</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => inventoryQuery.refetch()} className="flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-accent transition">
+          <button onClick={() => inventoryQuery.refetch()} className="flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-caption hover:bg-accent transition">
             <RefreshCw className="h-3 w-3" />
           </button>
           {canWrite && (
             <button
               onClick={() => openModal("create")}
-              className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition"
+              className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90 transition"
             >
               <Plus className="h-3.5 w-3.5" /> Stock Intake
             </button>
@@ -212,7 +212,7 @@ export default function PartsInventoryPage() {
           { label: "Categories",      value: new Set(rawItems.map((p) => p.category)).size, color: "text-purple-600" },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-card border border-border rounded p-3">
-            <div className={cn("text-lg font-bold", kpi.color)}>{kpi.value}</div>
+            <div className={cn("text-body-lg font-bold", kpi.color)}>{kpi.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{kpi.label}</div>
           </div>
         ))}
@@ -226,13 +226,13 @@ export default function PartsInventoryPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search parts…"
-            className="w-full rounded border border-input bg-background pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded border border-input bg-background pl-8 pr-3 py-1.5 text-caption focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
         <button
           onClick={() => setFilter((f) => f === "all" ? "low_stock" : "all")}
           className={cn(
-            "flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs font-medium transition",
+            "flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-caption font-medium transition",
             filter === "low_stock" ? "border-red-300 bg-red-50 text-red-700" : "border-border hover:bg-accent"
           )}
         >
@@ -246,11 +246,11 @@ export default function PartsInventoryPage() {
         {inventoryQuery.isLoading ? (
           <div className="p-8 flex items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-xs">Loading inventory…</span>
+            <span className="text-caption">Loading inventory…</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-caption">
               <thead className="bg-muted/30 border-b border-border">
                 <tr>
                   {["Part #", "Description", "Category", "Qty / Min", "Location", "Actions"].map((h) => (

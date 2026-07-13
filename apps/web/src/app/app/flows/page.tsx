@@ -80,7 +80,7 @@ const WorkflowNode = ({ data, selected }: { data: any, selected?: boolean }) => 
         </span>
       </div>
       <div className="text-[12px] font-semibold text-foreground leading-tight">{data.label}</div>
-      <div className="text-[10px] opacity-70 mt-1 line-clamp-2">{data.description}</div>
+      <div className="text-[10px] opacity-70 mt-1">{data.description}</div>
       <Handle type="source" position={Position.Bottom} className="w-2 h-2 bg-slate-400" />
     </div>
   );
@@ -236,7 +236,7 @@ export default function FlowDesignerPage() {
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <Workflow className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Flow Designer</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Flow Designer</h1>
           <span className="text-[11px] text-muted-foreground/70">
             Workflow Automation · Process Triggers · Integration Flows
           </span>
@@ -288,7 +288,7 @@ export default function FlowDesignerPage() {
               { label: "Paused / Review", value: FLOWS.filter((f) => !f.isActive).length, color: "text-yellow-700" },
             ].map((k) => (
               <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-                <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+                <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
                 <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
               </div>
             ))}
@@ -399,7 +399,7 @@ export default function FlowDesignerPage() {
                     <Plus className="w-3 h-3 text-muted-foreground group-hover:text-primary" />
                   </div>
                   <div className="text-[11px] font-semibold">{action.displayName}</div>
-                  <div className="text-[10px] text-muted-foreground line-clamp-1">{action.description}</div>
+                  <div className="text-[10px] text-muted-foreground">{action.description}</div>
                 </div>
               ))}
             </div>
@@ -502,7 +502,7 @@ export default function FlowDesignerPage() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4">
           <div className="bg-white border border-border rounded-lg shadow-2xl w-full max-w-sm animate-in zoom-in-95 duration-200">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <h3 className="text-sm font-bold text-foreground">Define New Workflow Action</h3>
+              <h3 className="text-body-sm font-bold text-foreground">Define New Workflow Action</h3>
               <button onClick={() => setIsRegisteringAction(false)} className="text-muted-foreground hover:text-foreground">
                 <Plus className="w-4 h-4 rotate-45" />
               </button>

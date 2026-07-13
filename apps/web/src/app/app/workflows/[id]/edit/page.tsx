@@ -165,7 +165,7 @@ function NodeCard({
       </div>
 
       {/* Body */}
-      <div className="px-2.5 pb-1.5 pt-0.5 text-[10px] text-muted-foreground truncate">
+      <div className="px-2.5 pb-1.5 pt-0.5 text-[10px] text-muted-foreground">
         {nodePreview(node)}
       </div>
 
@@ -213,7 +213,7 @@ function ConfigPanel({ node, onChange }: ConfigPanelProps) {
   const set = (key: string, val: unknown) =>
     onChange(node.id, { ...d, [key]: val });
 
-  const inputCls = "w-full rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary";
+  const inputCls = "w-full rounded border border-input bg-background px-2 py-1 text-caption focus:outline-none focus:ring-1 focus:ring-primary";
   const labelCls = "text-[10px] font-medium text-muted-foreground uppercase tracking-wide";
 
   switch (node.type) {
@@ -523,8 +523,8 @@ export default function EditWorkflowPage() {
   if (!wfData && !isLoading) return (
     <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
       <AlertTriangle className="h-8 w-8 opacity-40" />
-      <p className="text-sm">Workflow not found.</p>
-      <Link href="/app/workflows" className="text-xs text-primary hover:underline">← Back to Workflows</Link>
+      <p className="text-body-sm">Workflow not found.</p>
+      <Link href="/app/workflows" className="text-caption text-primary hover:underline">← Back to Workflows</Link>
     </div>
   );
 
@@ -551,7 +551,7 @@ export default function EditWorkflowPage() {
             onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setNameError(""); }}
             placeholder="Workflow name..."
             className={cn(
-              "rounded border bg-background px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary w-52",
+              "rounded border bg-background px-2 py-1 text-body-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary w-52",
               nameError ? "border-red-400" : "border-input",
             )}
           />
@@ -561,14 +561,14 @@ export default function EditWorkflowPage() {
         <select
           value={form.trigger}
           onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value }))}
-          className="rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+          className="rounded border border-input bg-background px-2 py-1 text-caption focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {TRIGGERS.map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
 
-        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+        <label className="flex items-center gap-1.5 text-caption cursor-pointer select-none">
           <input
             type="checkbox"
             checked={form.isActive}
@@ -581,14 +581,14 @@ export default function EditWorkflowPage() {
         <div className="flex items-center gap-2 ml-auto">
           <Link
             href="/app/workflows"
-            className="flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-xs hover:bg-accent transition"
+            className="flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-caption hover:bg-accent transition"
           >
             <X className="h-3 w-3" /> Cancel
           </Link>
           <button
             onClick={handleSave}
             disabled={saveMutation.isPending}
-            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
+            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
           >
             {saveMutation.isPending
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -611,7 +611,7 @@ export default function EditWorkflowPage() {
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData("nodeType", type)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md border px-2.5 py-2 text-xs font-medium cursor-grab active:cursor-grabbing select-none transition hover:shadow-sm",
+                  "flex items-center gap-2 rounded-md border px-2.5 py-2 text-caption font-medium cursor-grab active:cursor-grabbing select-none transition hover:shadow-sm",
                   meta.color, meta.border, meta.text,
                 )}
               >
@@ -705,7 +705,7 @@ export default function EditWorkflowPage() {
             {nodes.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground pointer-events-none">
                 <Plug className="h-10 w-10 opacity-20" />
-                <p className="text-sm opacity-40">Drag node types from the left panel to start building</p>
+                <p className="text-body-sm opacity-40">Drag node types from the left panel to start building</p>
               </div>
             )}
           </div>
@@ -720,7 +720,7 @@ export default function EditWorkflowPage() {
                   {NODE_META[selectedNode.type].icon}
                 </div>
                 <div>
-                  <p className="text-xs font-semibold">{NODE_META[selectedNode.type].label}</p>
+                  <p className="text-caption font-semibold">{NODE_META[selectedNode.type].label}</p>
                   <p className="text-[10px] text-muted-foreground font-mono">{selectedNode.id.slice(0, 8)}</p>
                 </div>
               </div>
@@ -730,7 +730,7 @@ export default function EditWorkflowPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground p-4">
               <Edit3 className="h-6 w-6 opacity-30" />
-              <p className="text-xs text-center opacity-50">Click a node to configure it</p>
+              <p className="text-caption text-center opacity-50">Click a node to configure it</p>
             </div>
           )}
         </div>

@@ -65,7 +65,7 @@ export default function HolidaysPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">India Holiday Calendar</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">India Holiday Calendar</h1>
           <span className="text-[11px] text-muted-foreground/70">National · State · Company holidays · SLA integration</span>
         </div>
         <div className="flex items-center gap-2">
@@ -89,7 +89,7 @@ export default function HolidaysPage() {
             ({ label: "National", color: "text-blue-700 bg-blue-100" } as const);
           return (
             <div key={t} className="bg-card border border-border rounded px-3 py-2">
-              <div className="text-xl font-bold text-foreground">{n}</div>
+              <div className="text-h4 font-bold text-foreground">{n}</div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide"><span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold ${cfg.color}`}>{cfg.label}</span></div>
             </div>
           );
@@ -118,7 +118,7 @@ export default function HolidaysPage() {
                         <div className="flex items-start gap-2 min-w-0">
                           <span className="text-[11px] font-mono text-muted-foreground shrink-0 mt-0.5 w-8">{new Date(h.date).getDate()}</span>
                           <div className="min-w-0">
-                            <span className="text-[12px] text-foreground font-medium block truncate">{h.name}</span>
+                            <span className="text-[12px] text-foreground font-medium block">{h.name}</span>
                             <span className={`inline-block px-1 py-0.5 rounded text-[9px] font-semibold ${cfg.color}`}>{cfg.label}{h.stateCode ? ` · ${h.stateCode}` : ""}</span>
                           </div>
                         </div>
@@ -138,7 +138,7 @@ export default function HolidaysPage() {
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-sm font-semibold mb-4">Add Holiday</h2>
+            <h2 className="text-body-sm font-semibold mb-4">Add Holiday</h2>
             <div className="flex flex-col gap-3">
               <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Holiday Name *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Diwali" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>
               <div className="grid grid-cols-2 gap-3">

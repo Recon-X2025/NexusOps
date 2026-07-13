@@ -30,10 +30,10 @@ export function FieldServiceContent() {
             ) : !data?.technicianLoad.data?.length ? (
               <WorkbenchEmpty state={data?.technicianLoad.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.technicianLoad.data.slice(0, 8).map((t) => (
                   <li key={t.technicianId} className="flex items-center justify-between gap-3">
-                    <span className="truncate text-slate-700 dark:text-slate-200">{t.technicianName ?? "Unnamed"}</span>
+                    <span className="text-slate-700 dark:text-slate-200">{t.technicianName ?? "Unnamed"}</span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
                       {t.openCount} open · {t.inProgressCount} active
                     </span>
@@ -49,7 +49,7 @@ export function FieldServiceContent() {
             ) : !data?.stateCounts.data?.length ? (
               <WorkbenchEmpty state={data?.stateCounts.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.stateCounts.data.map((s) => (
                   <li key={s.state} className="flex items-center justify-between">
                     <span className="capitalize text-slate-700 dark:text-slate-200">{s.state.replace(/_/g, " ")}</span>

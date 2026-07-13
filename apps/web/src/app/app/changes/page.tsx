@@ -109,7 +109,7 @@ function ChangeCalendar({ items }: { items: Array<{ id: string; number: string; 
                   <div className="space-y-0.5">
                     {dayItems.slice(0, 3).map(item => (
                       <Link key={item.id} href={`/app/changes/${item.id}`}
-                        className={`block text-[9px] leading-tight px-1 py-0.5 rounded truncate font-medium ${
+                        className={`block text-[9px] leading-tight px-1 py-0.5 rounded font-medium ${
                           item.type === "emergency" ? "bg-red-100 text-red-700" :
                           item.risk === "high" || item.risk === "critical" ? "bg-orange-100 text-orange-700" :
                           "bg-blue-100 text-blue-700"
@@ -223,7 +223,7 @@ export default function ChangesPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <RefreshCw className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Change Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Change Management</h1>
           <span className="text-[11px] text-muted-foreground">CAB Review & Change Calendar</span>
         </div>
         <div className="flex items-center gap-2">
@@ -251,7 +251,7 @@ export default function ChangesPage() {
           { label: "Total Open",        value: totalOpen,         color: "text-foreground", border: "border-border" },
         ].map((k) => (
           <div key={k.label} className={`bg-card border rounded px-3 py-2 ${k.border}`}>
-            <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-body-lg font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -370,12 +370,12 @@ export default function ChangesPage() {
         ) : isLoading ? (
           <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-xs">Loading changes…</span>
+            <span className="text-caption">Loading changes…</span>
           </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
             <RefreshCw className="w-5 h-5 opacity-30" />
-            <span className="text-xs">No change requests found.</span>
+            <span className="text-caption">No change requests found.</span>
             <Link href="/app/changes/new" className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
               <Plus className="w-3 h-3" /> New Change Request
             </Link>
@@ -421,7 +421,7 @@ export default function ChangesPage() {
                       </Link>
                     </td>
                     <td className="max-w-xs">
-                      <Link href={`/app/changes/${chg.id}`} className="text-foreground hover:underline truncate block">
+                      <Link href={`/app/changes/${chg.id}`} className="text-foreground hover:underline block">
                         {chg.type === "emergency" && (
                           <Flame className="w-3 h-3 text-red-500 inline mr-1" />
                         )}
@@ -504,7 +504,7 @@ export default function ChangesPage() {
                         <div className="flex items-center gap-3">
                           <span className="text-[11px] text-muted-foreground font-medium">CAB Note (optional):</span>
                           <input
-                            className="flex-1 max-w-xs text-xs border border-border rounded px-2 py-1 bg-background"
+                            className="flex-1 max-w-xs text-caption border border-border rounded px-2 py-1 bg-background"
                             placeholder="Add comment for this CAB decision…"
                             value={cabComment}
                             onChange={(e) => setCabComment(e.target.value)}
@@ -557,7 +557,7 @@ export default function ChangesPage() {
             const cnt = items.filter((c) => c.risk === r.key).length;
             return (
               <div key={r.label} className={`flex flex-col items-center justify-center py-3 rounded border ${r.color}`}>
-                <span className={`text-2xl font-bold ${r.color.split(" ")[0]}`}>{cnt}</span>
+                <span className={`text-h3 font-bold ${r.color.split(" ")[0]}`}>{cnt}</span>
                 <span className="text-[10px] uppercase tracking-wide mt-0.5 text-muted-foreground">{r.label}</span>
               </div>
             );

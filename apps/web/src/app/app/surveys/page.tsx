@@ -214,7 +214,7 @@ export default function SurveysPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Star className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Surveys & Assessments</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Surveys & Assessments</h1>
           <span className="text-[11px] text-muted-foreground/70">CSAT · NPS · Employee Pulse · Post-Incident · Exit</span>
         </div>
         <div className="flex items-center gap-2">
@@ -249,7 +249,7 @@ export default function SurveysPage() {
           { label: "Platform CSAT",     value: `${avgCSAT.toFixed(1)}/5`, color: SCORE_COLOR(avgCSAT) },
         ].map(k => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground/70 uppercase">{k.label}</div>
           </div>
         ))}
@@ -278,11 +278,11 @@ export default function SurveysPage() {
                   const hasData = responses > 0;
                   return (
                     <div className="flex items-center gap-4 mb-3">
-                      <div className={`text-4xl font-black ${hasData ? "text-green-700" : "text-muted-foreground/30"}`}>{hasData ? score.toFixed(1) : "—"}</div>
+                      <div className={`text-h1 font-black ${hasData ? "text-green-700" : "text-muted-foreground/30"}`}>{hasData ? score.toFixed(1) : "—"}</div>
                       <div>
                         <div className="flex gap-0.5 mb-0.5">
                           {[1,2,3,4,5].map(n => (
-                            <span key={n} className={`text-lg ${hasData && n <= Math.round(score) ? "text-yellow-400" : "text-slate-200"}`}>★</span>
+                            <span key={n} className={`text-body-lg ${hasData && n <= Math.round(score) ? "text-yellow-400" : "text-slate-200"}`}>★</span>
                           ))}
                         </div>
                         <div className="text-[11px] text-muted-foreground">{hasData ? `${responses} responses` : (csatSurveyId ? "No responses yet" : "No active CSAT survey")}</div>
@@ -317,7 +317,7 @@ export default function SurveysPage() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <span className="text-[11px] text-muted-foreground">Avg Score: </span>
-                        <span className={`text-lg font-black ${pulseResults.averageScore ? (Number(pulseResults.averageScore) >= 4 ? "text-green-700" : "text-orange-600") : "text-muted-foreground/30"}`}>
+                        <span className={`text-body-lg font-black ${pulseResults.averageScore ? (Number(pulseResults.averageScore) >= 4 ? "text-green-700" : "text-orange-600") : "text-muted-foreground/30"}`}>
                           {pulseResults.averageScore ?? "—"}
                         </span>
                       </div>
@@ -325,7 +325,7 @@ export default function SurveysPage() {
                     </div>
                     {pulseResults.responses.slice(0, 5).map((r: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-[11px]">
-                        <span className="text-muted-foreground flex-1 truncate">{r.respondentId?.slice(0, 8) ?? `Response ${i+1}`}</span>
+                        <span className="text-muted-foreground flex-1">{r.respondentId?.slice(0, 8) ?? `Response ${i+1}`}</span>
                         <span className={`font-bold ${Number(r.score ?? 0) >= 4 ? "text-green-700" : "text-orange-600"}`}>{r.score ?? "—"}</span>
                       </div>
                     ))}
@@ -384,7 +384,7 @@ export default function SurveysPage() {
                     <td className="font-mono text-[11px] text-primary">{sv.number}</td>
                     <td className="font-medium text-foreground">{sv.title}</td>
                     <td><span className={`status-badge ${tCfg.color}`}>{tCfg.icon} {tCfg.label}</span></td>
-                    <td className="text-[11px] text-muted-foreground/70 max-w-32 truncate">{sv.trigger}</td>
+                    <td className="text-[11px] text-muted-foreground/70 max-w-32">{sv.trigger}</td>
                     <td className="text-center font-mono text-[11px]">{(sv.sent ?? 0).toLocaleString()}</td>
                     <td className="text-center font-mono font-bold text-foreground">{(sv.responses ?? 0).toLocaleString()}</td>
                     <td className="text-center">
@@ -553,7 +553,7 @@ export default function SurveysPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="border border-border rounded p-4 text-center">
-                    <div className={`text-4xl font-black ${liveResults.averageScore ? "text-green-700" : "text-muted-foreground"}`}>
+                    <div className={`text-h1 font-black ${liveResults.averageScore ? "text-green-700" : "text-muted-foreground"}`}>
                       {liveResults.averageScore ?? "—"}
                     </div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Average Score</div>
@@ -566,11 +566,11 @@ export default function SurveysPage() {
                     )}
                   </div>
                   <div className="border border-border rounded p-4 text-center">
-                    <div className="text-4xl font-black text-blue-700">{liveResults.totalResponses}</div>
+                    <div className="text-h1 font-black text-blue-700">{liveResults.totalResponses}</div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Total Responses</div>
                   </div>
                   <div className="border border-border rounded p-4 text-center">
-                    <div className="text-4xl font-black text-purple-700 capitalize">{liveResults.survey?.status ?? "—"}</div>
+                    <div className="text-h1 font-black text-purple-700 capitalize">{liveResults.survey?.status ?? "—"}</div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Survey Status</div>
                   </div>
                 </div>
@@ -602,18 +602,18 @@ export default function SurveysPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="border border-border rounded p-4 text-center">
-                    <div className="text-4xl font-black text-green-700">{CSAT_RESULTS.overall}</div>
+                    <div className="text-h1 font-black text-green-700">{CSAT_RESULTS.overall}</div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Average CSAT Score</div>
                     <div className="flex justify-center gap-0.5 mt-1">
                       {[1,2,3,4,5].map(n => <span key={n} className={`${n <= Math.round(CSAT_RESULTS.overall) ? "text-yellow-400" : "text-slate-200"}`}>★</span>)}
                     </div>
                   </div>
                   <div className="border border-border rounded p-4 text-center">
-                    <div className="text-4xl font-black text-blue-700">{CSAT_RESULTS.responses}</div>
+                    <div className="text-h1 font-black text-blue-700">{CSAT_RESULTS.responses}</div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Total Responses</div>
                   </div>
                   <div className="border border-border rounded p-4 text-center">
-                    <div className="text-4xl font-black text-purple-700">66%</div>
+                    <div className="text-h1 font-black text-purple-700">66%</div>
                     <div className="text-[11px] text-muted-foreground/70 mt-1">Response Rate</div>
                   </div>
                 </div>

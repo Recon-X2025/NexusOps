@@ -74,33 +74,33 @@ export default function LoginPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
-          <p className="text-sm text-slate-400">by Coheron</p>
+          <h1 className="text-h3 font-bold text-white">CoheronConnect</h1>
+          <p className="text-body-sm text-slate-400">by Coheron</p>
         </div>
 
         {/* Card */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-sm">
-          <h2 className="mb-1 text-xl font-semibold text-white">Welcome back</h2>
-          <p className="mb-6 text-sm text-slate-400">Sign in to your workspace</p>
+          <h2 className="mb-1 text-h4 font-semibold text-white">Welcome back</h2>
+          <p className="mb-6 text-body-sm text-slate-400">Sign in to your workspace</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">Email</label>
+              <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Email</label>
               <input
                 {...register("email")}
                 type="email"
                 autoComplete="email"
                 placeholder="admin@coheron.com"
                 data-testid="login-email"
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none ring-0 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none ring-0 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
               />
               {errors.email && (
-                <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>
+                <p className="mt-1 text-caption text-red-400">{errors.email.message}</p>
               )}
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">Password</label>
+              <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Password</label>
               <div className="relative">
                 <input
                   {...register("password")}
@@ -108,7 +108,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   placeholder="••••••••"
                   data-testid="login-password"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none ring-0 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 pr-10"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none ring-0 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 pr-10"
                 />
                 <button
                   type="button"
@@ -119,12 +119,12 @@ export default function LoginPage() {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                <p className="mt-1 text-caption text-red-400">{errors.password.message}</p>
               )}
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-slate-400">
+              <label className="flex items-center gap-2 text-body-sm text-slate-400">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -133,7 +133,7 @@ export default function LoginPage() {
                 />
                 Remember me (stay signed in for 30 days)
               </label>
-              <Link href="/forgot-password" className="text-sm text-indigo-400 hover:text-indigo-300">
+              <Link href="/forgot-password" className="text-body-sm text-indigo-400 hover:text-indigo-300">
                 Forgot password?
               </Link>
             </div>
@@ -142,7 +142,7 @@ export default function LoginPage() {
               type="submit"
               disabled={isSubmitting || login.isPending}
               data-testid="login-submit"
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-body-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
             >
               {(isSubmitting || login.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}
               Sign in
@@ -154,7 +154,7 @@ export default function LoginPage() {
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-700" />
               </div>
-              <div className="relative flex justify-center text-xs text-slate-500">
+              <div className="relative flex justify-center text-caption text-slate-500">
                 <span className="bg-slate-900 px-2">or continue with</span>
               </div>
             </div>
@@ -162,7 +162,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => { window.location.href = `${apiBase}/auth/oidc/authorize`; }}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-slate-300 transition hover:bg-slate-700"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-body-sm text-slate-300 transition hover:bg-slate-700"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <path
@@ -187,7 +187,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-body-sm text-slate-500">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="text-indigo-400 hover:text-indigo-300">
             Sign up free

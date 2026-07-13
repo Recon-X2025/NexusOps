@@ -102,14 +102,14 @@ function Plot({ points }: { points: PortfolioPoint[] }) {
         <div className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
           Legend / red list
         </div>
-        <ul className="text-xs space-y-1">
+        <ul className="text-caption space-y-1">
           {points
             .filter((p) => p.health === "red")
             .slice(0, 6)
             .map((p) => (
               <li key={p.id} className="flex items-center gap-2">
                 <span className={cn("inline-block h-2 w-2 rounded-full", HEALTH_TONE.red)} />
-                <Link href={`/app/projects/${p.id}`} className="text-blue-700 dark:text-blue-300 hover:underline truncate">
+                <Link href={`/app/projects/${p.id}`} className="text-blue-700 dark:text-blue-300 hover:underline">
                   {p.number} — {p.name}
                 </Link>
               </li>

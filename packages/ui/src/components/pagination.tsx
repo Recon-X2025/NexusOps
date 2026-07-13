@@ -35,7 +35,7 @@ export function Pagination({
   const endItem   = pageSize && totalItems ? Math.min(page * pageSize, totalItems) : undefined;
 
   return (
-    <div className={cn("flex items-center justify-between gap-4 text-xs", className)}>
+    <div className={cn("flex items-center justify-between gap-4 text-[12px]", className)}>
       {totalItems !== undefined ? (
         <span className="text-muted-foreground">
           {startItem && endItem

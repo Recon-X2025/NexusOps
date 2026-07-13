@@ -115,14 +115,14 @@ export function WorkbenchReportsTab({ workbenchKey, workbenchTitle }: WorkbenchR
   if (qView.isError) {
     return (
       <div
-        className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+        className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-body-sm text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
         role="alert"
       >
         <p className="font-semibold">Couldn&apos;t load reports</p>
         <p className="mt-1">{qView.error?.message ?? "Unknown error"}</p>
         <button
           type="button"
-          className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+          className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-caption font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
           onClick={() => void qView.refetch()}
         >
           Retry
@@ -142,7 +142,7 @@ export function WorkbenchReportsTab({ workbenchKey, workbenchTitle }: WorkbenchR
 
   if (!operatorPayload) {
     return (
-      <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm p-8 text-center text-sm text-slate-500 dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-400">
+      <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm p-8 text-center text-body-sm text-slate-500 dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-400">
         Reports are taking too long to load. Try a different period or refresh.
       </div>
     );
@@ -151,7 +151,7 @@ export function WorkbenchReportsTab({ workbenchKey, workbenchTitle }: WorkbenchR
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-600 dark:text-slate-300">
+        <p className="text-caption text-slate-600 dark:text-slate-300">
           Operator KPIs for <span className="font-semibold">{workbenchTitle}</span> · backlog, throughput, SLA, queue age.
           Strategic posture lives on the hub Overview.
         </p>
@@ -160,7 +160,7 @@ export function WorkbenchReportsTab({ workbenchKey, workbenchTitle }: WorkbenchR
           <button
             type="button"
             onClick={() => void qView.refetch()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-600 px-3 py-1.5 text-caption font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <RefreshCw className={cn("w-3.5 h-3.5", qView.isFetching && "animate-spin")} aria-hidden />
             Refresh

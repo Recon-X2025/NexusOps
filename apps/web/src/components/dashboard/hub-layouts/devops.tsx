@@ -95,7 +95,7 @@ export function DevopsPrimary({ payload, granularity }: HubPrimaryProps) {
                   {t.label}
                 </span>
               </div>
-              <div className="text-3xl font-black tabular-nums text-slate-900 leading-none">{t.value}</div>
+              <div className="text-h2 font-black tabular-nums text-slate-900 leading-none">{t.value}</div>
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{t.hint}</div>
               {t.series.length > 1 ? (
                 <div className="mt-2 pt-2 border-t border-white/40">

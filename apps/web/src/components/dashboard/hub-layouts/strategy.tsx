@@ -61,7 +61,7 @@ export function StrategyPrimary({ payload, granularity }: HubPrimaryProps) {
           <div className="p-5 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xl">
             <h4 className="text-[10px] font-bold text-blue-200 mb-4 uppercase tracking-widest">Overall OKR Velocity</h4>
             <div className="flex items-center justify-between">
-              <div className="text-4xl font-black">{okrPct}%</div>
+              <div className="text-h1 font-black">{okrPct}%</div>
               <div className="h-12 w-12 rounded-full border-4 border-blue-400/30 border-t-white" />
             </div>
           </div>

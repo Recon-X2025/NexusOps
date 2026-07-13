@@ -69,7 +69,7 @@ export default function SAMPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Key className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Software Asset Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Software Asset Management</h1>
           <span className="text-[11px] text-muted-foreground/70">License Compliance · Usage · Optimization</span>
         </div>
         <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export default function SAMPage() {
           { label: "Potential Savings",     value: `₹${(potentialSavings / 1000).toFixed(0)}K`,   color: "text-green-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -265,17 +265,17 @@ export default function SAMPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Add Software License</h2>
+              <h2 className="text-body-sm font-semibold">Add Software License</h2>
               <button onClick={() => setShowAddLicense(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2 flex flex-col gap-1">
-                <label className="text-xs font-medium">Product Name <span className="text-red-500">*</span></label>
-                <input value={licForm.productName} onChange={(e) => setLicForm(f => ({...f, productName: e.target.value}))} placeholder="e.g. Microsoft 365, Figma" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+                <label className="text-caption font-medium">Product Name <span className="text-red-500">*</span></label>
+                <input value={licForm.productName} onChange={(e) => setLicForm(f => ({...f, productName: e.target.value}))} placeholder="e.g. Microsoft 365, Figma" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium">Vendor</label>
-                <select value={licForm.vendor} onChange={(e) => setLicForm(f => ({...f, vendor: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Vendor</label>
+                <select value={licForm.vendor} onChange={(e) => setLicForm(f => ({...f, vendor: e.target.value}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   <option value="">Select Vendor...</option>
                   {(vendorsQuery.data ?? []).map((v: any) => (
                     <option key={v.id} value={v.name}>{v.name}</option>
@@ -283,30 +283,30 @@ export default function SAMPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium">License Type</label>
-                <select value={licForm.licenseType} onChange={(e) => setLicForm(f => ({...f, licenseType: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">License Type</label>
+                <select value={licForm.licenseType} onChange={(e) => setLicForm(f => ({...f, licenseType: e.target.value as any}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   {["perpetual","subscription","trial","open_source","freeware"].map(t => <option key={t} value={t}>{t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium">Total Seats</label>
-                <input type="number" value={licForm.totalSeats} onChange={(e) => setLicForm(f => ({...f, totalSeats: e.target.value}))} placeholder="e.g. 50" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">Total Seats</label>
+                <input type="number" value={licForm.totalSeats} onChange={(e) => setLicForm(f => ({...f, totalSeats: e.target.value}))} placeholder="e.g. 50" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium">Cost/Seat (₹)</label>
-                <input value={licForm.costPerSeat} onChange={(e) => setLicForm(f => ({...f, costPerSeat: e.target.value}))} placeholder="e.g. 2500" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">Cost/Seat (₹)</label>
+                <input value={licForm.costPerSeat} onChange={(e) => setLicForm(f => ({...f, costPerSeat: e.target.value}))} placeholder="e.g. 2500" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
               <div className="col-span-2 flex flex-col gap-1">
-                <label className="text-xs font-medium">Expiry Date</label>
-                <input type="date" value={licForm.expiresAt} onChange={(e) => setLicForm(f => ({...f, expiresAt: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">Expiry Date</label>
+                <input type="date" value={licForm.expiresAt} onChange={(e) => setLicForm(f => ({...f, expiresAt: e.target.value}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowAddLicense(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowAddLicense(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!licForm.productName.trim()) { toast.error("Product name is required"); return; } createLicense.mutate({ productName: licForm.productName.trim(), vendor: licForm.vendor || undefined, licenseType: licForm.licenseType, totalSeats: licForm.totalSeats ? parseInt(licForm.totalSeats) : undefined, costPerSeat: licForm.costPerSeat || undefined, expiresAt: licForm.expiresAt || undefined }); }}
                 disabled={createLicense.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createLicense.isPending ? "Adding…" : "Add License"}
               </button>
             </div>

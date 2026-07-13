@@ -78,7 +78,7 @@ export default function PerformancePage() {
       fallback={
         <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-xs">Loading performance dashboard…</span>
+          <span className="text-caption">Loading performance dashboard…</span>
         </div>
       }
     >
@@ -131,13 +131,13 @@ function PerformanceContent() {
       <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-card">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold">Performance Management</h1>
+          <h1 className="text-body-sm font-semibold">Performance Management</h1>
         </div>
         <div className="flex items-center gap-2">
           {tab === "cycles" && (
             <button
               onClick={() => setShowCreateCycle(true)}
-              className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+              className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90"
             >
               <Plus className="h-3 w-3" /> New Cycle
             </button>
@@ -145,7 +145,7 @@ function PerformanceContent() {
           {tab === "goals" && (
             <button
               onClick={() => setShowCreateGoal(true)}
-              className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+              className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90"
             >
               <Plus className="h-3 w-3" /> Add Goal
             </button>
@@ -162,8 +162,8 @@ function PerformanceContent() {
           { label: "Goals Completed", value: completedGoals, color: "text-violet-600" },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded border border-border bg-card p-3">
-            <p className="text-xs text-muted-foreground">{kpi.label}</p>
-            <p className={`text-2xl font-bold mt-0.5 ${kpi.color}`}>{kpi.value}</p>
+            <p className="text-caption text-muted-foreground">{kpi.label}</p>
+            <p className={`text-h3 font-bold mt-0.5 ${kpi.color}`}>{kpi.value}</p>
           </div>
         ))}
       </div>
@@ -174,7 +174,7 @@ function PerformanceContent() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded text-caption font-medium whitespace-nowrap transition-colors ${
               tab === t.key ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"
             }`}
           >
@@ -189,7 +189,7 @@ function PerformanceContent() {
               placeholder="Search…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-7 pr-3 py-1 rounded border border-border bg-background text-xs focus:outline-none focus:border-primary w-40"
+              className="pl-7 pr-3 py-1 rounded border border-border bg-background text-caption focus:outline-none focus:border-primary w-40"
             />
           </div>
         </div>
@@ -217,13 +217,13 @@ function PerformanceContent() {
                     <div key={cycle.id} className="rounded-lg border border-border bg-card p-4 hover:shadow-sm transition-shadow">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-semibold text-sm text-foreground">{cycle.name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 capitalize">{cycle.type?.replace("_", " ")} review</p>
+                          <p className="font-semibold text-body-sm text-foreground">{cycle.name}</p>
+                          <p className="text-caption text-muted-foreground mt-0.5 capitalize">{cycle.type?.replace("_", " ")} review</p>
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
+                        <span className={`text-caption px-2 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
                       </div>
                       {cycle.startDate && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-caption text-muted-foreground mt-2">
                           {new Date(cycle.startDate).toLocaleDateString("en-IN")} →{" "}
                           {cycle.endDate ? new Date(cycle.endDate).toLocaleDateString("en-IN") : "TBD"}
                         </p>
@@ -232,7 +232,7 @@ function PerformanceContent() {
                         <button
                           onClick={() => updateCycle.mutate({ id: cycle.id, status: "active" })}
                           disabled={updateCycle.isPending}
-                          className="mt-3 w-full py-1 rounded border border-primary text-primary text-xs hover:bg-primary/5 disabled:opacity-50"
+                          className="mt-3 w-full py-1 rounded border border-primary text-primary text-caption hover:bg-primary/5 disabled:opacity-50"
                         >
                           Activate Cycle
                         </button>
@@ -241,7 +241,7 @@ function PerformanceContent() {
                         <button
                           onClick={() => updateCycle.mutate({ id: cycle.id, status: "completed" })}
                           disabled={updateCycle.isPending}
-                          className="mt-3 w-full py-1 rounded border border-muted text-muted-foreground text-xs hover:bg-muted disabled:opacity-50"
+                          className="mt-3 w-full py-1 rounded border border-muted text-muted-foreground text-caption hover:bg-muted disabled:opacity-50"
                         >
                           Mark Completed
                         </button>
@@ -258,10 +258,10 @@ function PerformanceContent() {
         {tab === "my-reviews" && (
           <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-medium">My Performance Reviews</h2>
+              <h2 className="text-body-sm font-medium">My Performance Reviews</h2>
               <button
                 onClick={() => setShowSubmitReview(true)}
-                className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90"
               >
                 <Plus className="h-3 w-3" /> Submit Review
               </button>
@@ -276,7 +276,7 @@ function PerformanceContent() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full text-left border-collapse text-caption">
                   <thead>
                     <tr className="border-b border-border bg-muted/50 text-muted-foreground">
                       <th className="px-4 py-3 font-medium">Employee</th>
@@ -302,7 +302,7 @@ function PerformanceContent() {
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">{review.cycleName || "Unknown"}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
+                            <span className={`text-caption px-2 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
                           </td>
                         </tr>
                       );
@@ -337,15 +337,15 @@ function PerformanceContent() {
                         <div className="flex items-start gap-2 flex-1 min-w-0">
                           <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground">{goal.title}</p>
-                            {goal.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{goal.description}</p>}
+                            <p className="text-body-sm font-medium text-foreground">{goal.title}</p>
+                            {goal.description && <p className="text-caption text-muted-foreground mt-0.5">{goal.description}</p>}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-3 shrink-0">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
+                          <span className={`text-caption px-1.5 py-0.5 rounded font-medium ${cfg.color}`}>{cfg.label}</span>
                           <button
                             onClick={() => deleteGoal.mutate({ id: goal.id })}
-                            className="text-xs text-muted-foreground hover:text-red-600 transition-colors"
+                            className="text-caption text-muted-foreground hover:text-red-600 transition-colors"
                           >
                             ×
                           </button>
@@ -358,7 +358,7 @@ function PerformanceContent() {
                             color={goal.status === "at_risk" ? "bg-amber-500" : goal.status === "completed" ? "bg-green-500" : "bg-primary"}
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0">{goal.progress ?? 0}%</span>
+                        <span className="text-caption text-muted-foreground shrink-0">{goal.progress ?? 0}%</span>
                         {goal.status !== "completed" && goal.status !== "cancelled" && (
                           <button
                             onClick={() => {
@@ -368,14 +368,14 @@ function PerformanceContent() {
                                 if (!isNaN(n)) updateGoal.mutate({ id: goal.id, progress: Math.min(100, Math.max(0, n)), status: n >= 100 ? "completed" : goal.status });
                               }
                             }}
-                            className="text-xs text-primary hover:underline shrink-0"
+                            className="text-caption text-primary hover:underline shrink-0"
                           >
                             Update
                           </button>
                         )}
                       </div>
                       {goal.dueDate && (
-                        <p className="text-xs text-muted-foreground mt-1.5">
+                        <p className="text-caption text-muted-foreground mt-1.5">
                           Due: {new Date(goal.dueDate).toLocaleDateString("en-IN")}
                         </p>
                       )}
@@ -409,13 +409,13 @@ function PerformanceContent() {
                         <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-foreground">{goal.title}</p>
-                            <span className="text-xs text-muted-foreground capitalize">({goal.goalType})</span>
+                            <p className="text-body-sm font-medium text-foreground">{goal.title}</p>
+                            <span className="text-caption text-muted-foreground capitalize">({goal.goalType})</span>
                           </div>
                           <ProgressBar value={goal.progress ?? 0} />
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0">{goal.progress ?? 0}%</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${cfg.color}`}>{cfg.label}</span>
+                        <span className="text-caption text-muted-foreground shrink-0">{goal.progress ?? 0}%</span>
+                        <span className={`text-caption px-1.5 py-0.5 rounded font-medium shrink-0 ${cfg.color}`}>{cfg.label}</span>
                       </div>
                     </div>
                   );
@@ -466,24 +466,24 @@ function CreateCycleDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
-        <h2 className="text-sm font-semibold mb-4">New Review Cycle</h2>
+        <h2 className="text-body-sm font-semibold mb-4">New Review Cycle</h2>
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Cycle Name *</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Cycle Name *</label>
             <input
               type="text"
               placeholder="e.g. FY2026 Annual Review"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Cycle Type</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Cycle Type</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             >
               <option value="annual">Annual</option>
               <option value="mid_year">Mid-Year</option>
@@ -493,14 +493,14 @@ function CreateCycleDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-xs hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-caption hover:bg-muted">Cancel</button>
           <button
             onClick={() => {
               if (!name.trim()) { toast.error("Name is required"); return; }
               create.mutate({ name: name.trim(), type: type as any });
             }}
             disabled={create.isPending}
-            className="px-3 py-1.5 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
+            className="px-3 py-1.5 rounded bg-primary text-white text-caption hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
           >
             {create.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
             Create
@@ -525,33 +525,33 @@ function CreateGoalDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
-        <h2 className="text-sm font-semibold mb-4">Add Goal / OKR</h2>
+        <h2 className="text-body-sm font-semibold mb-4">Add Goal / OKR</h2>
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Goal Title *</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Goal Title *</label>
             <input
               type="text"
               placeholder="e.g. Reduce average ticket resolution time by 20%"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Description</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Description</label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary resize-none"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary resize-none"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Type</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Type</label>
             <select
               value={goalType}
               onChange={(e) => setGoalType(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             >
               <option value="individual">Individual</option>
               <option value="team">Team</option>
@@ -560,14 +560,14 @@ function CreateGoalDialog({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-xs hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-caption hover:bg-muted">Cancel</button>
           <button
             onClick={() => {
               if (!title.trim()) { toast.error("Title is required"); return; }
               create.mutate({ title: title.trim(), description: description.trim() || undefined, goalType: goalType as any });
             }}
             disabled={create.isPending}
-            className="px-3 py-1.5 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
+            className="px-3 py-1.5 rounded bg-primary text-white text-caption hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
           >
             {create.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
             Create Goal
@@ -597,14 +597,14 @@ function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCre
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
-        <h2 className="text-sm font-semibold mb-4">Submit Review</h2>
+        <h2 className="text-body-sm font-semibold mb-4">Submit Review</h2>
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Employee Name *</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Employee Name *</label>
             <select
               value={revieweeId}
               onChange={(e) => setRevieweeId(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             >
               <option value="">Select Employee...</option>
               {(users.data ?? []).map((u: any) => (
@@ -613,11 +613,11 @@ function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCre
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Reporting Manager *</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Reporting Manager *</label>
             <select
               value={reviewerId}
               onChange={(e) => setReviewerId(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             >
               <option value="">Select Manager...</option>
               {(users.data ?? []).map((u: any) => (
@@ -626,11 +626,11 @@ function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCre
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Review Cycle *</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Review Cycle *</label>
             <select
               value={cycleId}
               onChange={(e) => setCycleId(e.target.value)}
-              className="w-full rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+              className="w-full rounded border border-border bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:border-primary"
             >
               <option value="">Select Active Cycle...</option>
               {(activeCycles.data ?? []).map((c: any) => (
@@ -639,7 +639,7 @@ function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCre
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Review Form (Upload)</label>
+            <label className="text-caption font-medium text-muted-foreground block mb-1">Review Form (Upload)</label>
             <input
               type="file"
               onChange={(e) => {
@@ -647,13 +647,13 @@ function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCre
                   setReviewFormUrl(e.target.files[0].name);
                 }
               }}
-              className="w-full text-sm text-muted-foreground file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
+              className="w-full text-body-sm text-muted-foreground file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-caption file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
             />
-            {reviewFormUrl && <p className="text-xs text-green-600 mt-1">Ready to attach: {reviewFormUrl}</p>}
+            {reviewFormUrl && <p className="text-caption text-green-600 mt-1">Ready to attach: {reviewFormUrl}</p>}
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-xs hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="px-3 py-1.5 rounded border border-border text-caption hover:bg-muted">Cancel</button>
           <button
             onClick={() => {
               if (!revieweeId || !reviewerId || !cycleId) {
@@ -669,7 +669,7 @@ function SubmitReviewDialog({ onClose, onCreated }: { onClose: () => void; onCre
               });
             }}
             disabled={create.isPending}
-            className="px-3 py-1.5 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
+            className="px-3 py-1.5 rounded bg-primary text-white text-caption hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
           >
             {create.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
             Submit Form

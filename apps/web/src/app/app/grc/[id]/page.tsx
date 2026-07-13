@@ -120,11 +120,11 @@ export default function GRCRiskDetailPage() {
                   {/* Summary Card */}
                   <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
                     <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Description</h3>
-                    <p className="text-sm text-foreground leading-relaxed">
+                    <p className="text-body-sm text-foreground leading-relaxed">
                       {risk.description || "No description provided."}
                     </p>
                     {risk.mitigationPlan && (
-                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800 leading-relaxed italic">
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-body-sm text-blue-800 leading-relaxed italic">
                         <strong>Mitigation Plan:</strong> {risk.mitigationPlan}
                       </div>
                     )}
@@ -141,7 +141,7 @@ export default function GRCRiskDetailPage() {
                         key={t.key}
                         onClick={() => setTab(t.key)}
                         className={cn(
-                          "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+                          "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
                           tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -167,9 +167,9 @@ export default function GRCRiskDetailPage() {
                             <tbody className="divide-y divide-border">
                               {controls.map((c) => (
                                 <tr key={c.id} className="hover:bg-muted/10 transition-colors">
-                                  <td className="px-4 py-3 text-sm font-mono text-primary">{c.id}</td>
-                                  <td className="px-4 py-3 text-sm font-medium text-foreground">{c.title}</td>
-                                  <td className="px-4 py-3 text-sm">
+                                  <td className="px-4 py-3 text-body-sm font-mono text-primary">{c.id}</td>
+                                  <td className="px-4 py-3 text-body-sm font-medium text-foreground">{c.title}</td>
+                                  <td className="px-4 py-3 text-body-sm">
                                     <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase", CTRL_STATUS[c.status] || "bg-muted text-muted-foreground")}>
                                       {c.status.replace("_", " ")}
                                     </span>
@@ -187,17 +187,17 @@ export default function GRCRiskDetailPage() {
                     <div className="bg-card border border-border rounded-xl p-6 shadow-sm animate-in fade-in slide-in-from-left-4 duration-300">
                       {editingTreatment ? (
                         <div className="flex flex-col gap-4">
-                          <textarea rows={6} value={treatmentDraft} onChange={(e) => setTreatmentDraft(e.target.value)} placeholder="Describe the mitigation plan..." className="w-full px-4 py-3 text-sm border border-border rounded-xl bg-background resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+                          <textarea rows={6} value={treatmentDraft} onChange={(e) => setTreatmentDraft(e.target.value)} placeholder="Describe the mitigation plan..." className="w-full px-4 py-3 text-body-sm border border-border rounded-xl bg-background resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
                           <div className="flex justify-end gap-3">
-                            <button onClick={() => setEditingTreatment(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-all">Cancel</button>
-                            <button onClick={() => updateRiskMutation.mutate({ id: risk.id, mitigationPlan: treatmentDraft })} className="px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-md">Save Plan</button>
+                            <button onClick={() => setEditingTreatment(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-all">Cancel</button>
+                            <button onClick={() => updateRiskMutation.mutate({ id: risk.id, mitigationPlan: treatmentDraft })} className="px-6 py-2 text-body-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-md">Save Plan</button>
                           </div>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-4">
-                          <p className="text-sm text-foreground leading-relaxed">{risk.mitigationPlan || "No treatment plan recorded."}</p>
+                          <p className="text-body-sm text-foreground leading-relaxed">{risk.mitigationPlan || "No treatment plan recorded."}</p>
                           <PermissionGate module="grc" action="write">
-                            <button onClick={() => { setTreatmentDraft(risk.mitigationPlan || ""); setEditingTreatment(true); }} className="text-sm font-bold text-primary hover:underline self-start">
+                            <button onClick={() => { setTreatmentDraft(risk.mitigationPlan || ""); setEditingTreatment(true); }} className="text-body-sm font-bold text-primary hover:underline self-start">
                               {risk.mitigationPlan ? "Edit Treatment Plan" : "Add Treatment Plan"}
                             </button>
                           </PermissionGate>
@@ -241,7 +241,7 @@ export default function GRCRiskDetailPage() {
                         <select
                           value={currentLikelihood}
                           onChange={(e) => setLikelihood(Number(e.target.value))}
-                          className="w-full text-sm border border-border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                          className="w-full text-body-sm border border-border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                         >
                           {[1, 2, 3, 4, 5].map((v) => <option key={v} value={v}>{v}</option>)}
                         </select>
@@ -251,7 +251,7 @@ export default function GRCRiskDetailPage() {
                         <select
                           value={currentImpact}
                           onChange={(e) => setImpact(Number(e.target.value))}
-                          className="w-full text-sm border border-border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                          className="w-full text-body-sm border border-border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                         >
                           {[1, 2, 3, 4, 5].map((v) => <option key={v} value={v}>{v}</option>)}
                         </select>
@@ -260,7 +260,7 @@ export default function GRCRiskDetailPage() {
                     {isDirty && (
                       <button
                         onClick={() => updateRiskMutation.mutate({ id: risk.id, likelihood: currentLikelihood, impact: currentImpact })}
-                        className="w-full py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-all shadow-md"
+                        className="w-full py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all shadow-md"
                       >
                         Save New Score
                       </button>

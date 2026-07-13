@@ -91,7 +91,7 @@ export default function ReleaseDetailPage() {
                       <select
                         value={newStatus}
                         onChange={(e) => setNewStatus(e.target.value)}
-                        className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+                        className="text-body-sm border border-border rounded-lg px-3 py-1.5 bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
                       >
                         <option value="">Advance Status…</option>
                         {nextStates.map((s) => (
@@ -101,7 +101,7 @@ export default function ReleaseDetailPage() {
                       {newStatus && (
                         <button
                           onClick={() => updateRelease.mutate({ id, status: newStatus as any })}
-                          className="px-4 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-all shadow-md"
+                          className="px-4 py-1.5 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all shadow-md"
                         >
                           Confirm
                         </button>
@@ -118,7 +118,7 @@ export default function ReleaseDetailPage() {
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Release Notes</h3>
                       {!isTerminal && !editingNotes && can("changes", "write") && (
-                        <button onClick={() => { setNotesDraft(r.notes ?? ""); setEditingNotes(true); }} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                        <button onClick={() => { setNotesDraft(r.notes ?? ""); setEditingNotes(true); }} className="text-caption font-bold text-primary hover:underline flex items-center gap-1">
                           <Edit2 className="w-3 h-3" /> Edit Notes
                         </button>
                       )}
@@ -126,29 +126,29 @@ export default function ReleaseDetailPage() {
                     {editingNotes ? (
                       <div className="flex flex-col gap-4">
                         <textarea
-                          className="w-full text-sm border border-border rounded-xl px-4 py-3 bg-background h-32 resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          className="w-full text-body-sm border border-border rounded-xl px-4 py-3 bg-background h-32 resize-none focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                           value={notesDraft}
                           onChange={(e) => setNotesDraft(e.target.value)}
                           placeholder="Describe what's included in this release…"
                         />
                         <div className="flex gap-3 justify-end">
-                          <button onClick={() => setEditingNotes(false)} className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-all">Cancel</button>
-                          <button onClick={() => updateRelease.mutate({ id, notes: notesDraft })} className="px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-md">Save Changes</button>
+                          <button onClick={() => setEditingNotes(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-all">Cancel</button>
+                          <button onClick={() => updateRelease.mutate({ id, notes: notesDraft })} className="px-6 py-2 text-body-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-md">Save Changes</button>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{r.notes || "No release notes recorded."}</p>
+                      <p className="text-body-sm text-foreground leading-relaxed whitespace-pre-wrap">{r.notes || "No release notes recorded."}</p>
                     )}
                   </div>
 
                   {rawStatus === "completed" && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 text-sm text-green-700 font-medium">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3 text-body-sm text-green-700 font-medium">
                       <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
                       Release successfully deployed on {r.actualDate ? new Date(r.actualDate).toLocaleDateString("en-IN") : "—"}.
                     </div>
                   )}
                   {rawStatus === "cancelled" && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 text-sm text-red-700 font-medium">
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 text-body-sm text-red-700 font-medium">
                       <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                       This release failed. Review post-mortem and create a follow-up release.
                     </div>

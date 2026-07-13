@@ -30,24 +30,24 @@ export default function LandingPage() {
               <Zap className="h-6 w-6 text-white" />
             </div>
             <div>
-              <span className="text-xl font-bold tracking-tight text-slate-900">CoheronConnect</span>
+              <span className="text-h4 font-bold tracking-tight text-slate-900">CoheronConnect</span>
               <p className="text-[10px] font-medium uppercase tracking-widest text-slate-400">by Coheron</p>
             </div>
           </div>
 
           <div className="hidden items-center gap-8 md:flex">
-            <Link href="#features" className="text-sm font-medium text-slate-600 transition hover:text-indigo-600">Features</Link>
-            <Link href="#why-coheron" className="text-sm font-medium text-slate-600 transition hover:text-indigo-600">Why Coheron</Link>
-            <Link href="#pricing" className="text-sm font-medium text-slate-600 transition hover:text-indigo-600">Pricing</Link>
+            <Link href="#features" className="text-body-sm font-medium text-slate-600 transition hover:text-indigo-600">Features</Link>
+            <Link href="#why-coheron" className="text-body-sm font-medium text-slate-600 transition hover:text-indigo-600">Why Coheron</Link>
+            <Link href="#pricing" className="text-body-sm font-medium text-slate-600 transition hover:text-indigo-600">Pricing</Link>
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-semibold text-slate-700 transition hover:text-indigo-600">
+            <Link href="/login" className="text-body-sm font-semibold text-slate-700 transition hover:text-indigo-600">
               Login →
             </Link>
             <Link 
               href="/signup" 
-              className="hidden rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:bg-indigo-500 hover:shadow-indigo-500/40 sm:block"
+              className="hidden rounded-full bg-indigo-600 px-6 py-2.5 text-body-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:bg-indigo-500 hover:shadow-indigo-500/40 sm:block"
             >
               Get Early Access →
             </Link>
@@ -59,29 +59,29 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="relative overflow-hidden px-6 pt-24 pb-20 lg:px-8 lg:pt-32">
           <div className="mx-auto max-w-4xl text-center">
-            <div className="mx-auto mb-8 flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-xs font-bold text-emerald-600">
+            <div className="mx-auto mb-8 flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-4 py-1.5 text-caption font-bold text-emerald-600">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
               </span>
               Enterprise-Grade Platform
             </div>
-            <h1 className="text-5xl font-black tracking-tight text-slate-900 sm:text-7xl">
+            <h1 className="text-display font-black tracking-tight text-slate-900 sm:text-7xl">
               Enterprise Workflow Orchestration <span className="block text-slate-400">at Startup-Friendly Pricing</span>
             </h1>
-            <p className="mt-8 text-xl leading-8 text-slate-600 max-w-2xl mx-auto">
+            <p className="mt-8 text-h4 leading-8 text-slate-600 max-w-2xl mx-auto">
               ITSM, asset management, HR service delivery, and procurement — without the ServiceNow price tag. Orchestrate everything in one powerful workspace.
             </p>
             <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link 
                 href="/signup" 
-                className="w-full rounded-full bg-indigo-600 px-8 py-4 text-lg font-bold text-white shadow-xl shadow-indigo-500/30 transition hover:bg-indigo-500 hover:shadow-indigo-500/50 sm:w-auto"
+                className="w-full rounded-full bg-indigo-600 px-8 py-4 text-body-lg font-bold text-white shadow-xl shadow-indigo-500/30 transition hover:bg-indigo-500 hover:shadow-indigo-500/50 sm:w-auto"
               >
                 Get Started Free →
               </Link>
               <Link 
                 href="#demo" 
-                className="w-full rounded-full border-2 border-slate-200 bg-white px-8 py-4 text-lg font-bold text-slate-900 transition hover:border-indigo-600 hover:text-indigo-600 sm:w-auto"
+                className="w-full rounded-full border-2 border-slate-200 bg-white px-8 py-4 text-body-lg font-bold text-slate-900 transition hover:border-indigo-600 hover:text-indigo-600 sm:w-auto"
               >
                 Book a Demo
               </Link>
@@ -127,13 +127,13 @@ export default function LandingPage() {
         <section id="features" className="py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center">
-              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600">
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-caption font-bold uppercase tracking-wider text-indigo-600">
                 Our Core Features
               </span>
-              <h2 className="mt-4 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
+              <h2 className="mt-4 text-h1 font-black tracking-tight text-slate-900 sm:text-display">
                 The Smarter Way to Get Work Done
               </h2>
-              <p className="mt-6 text-lg leading-8 text-slate-600">
+              <p className="mt-6 text-body-lg leading-8 text-slate-600">
                 Designed to ease the load for leaders and maximize productivity across teams.
               </p>
             </div>
@@ -145,7 +145,7 @@ export default function LandingPage() {
                   <Layout className="h-8 w-8 text-indigo-600" />
                 </div>
                 <img src="/landing/it-sm.png" alt="ITSM" className="mb-8 rounded-xl ring-1 ring-slate-100" />
-                <h3 className="text-xl font-bold text-slate-900">IT Service Management</h3>
+                <h3 className="text-h4 font-bold text-slate-900">IT Service Management</h3>
                 <p className="mt-4 text-slate-600">
                   Streamline incident, problem, and change management with automated workflows.
                 </p>
@@ -157,7 +157,7 @@ export default function LandingPage() {
                   <HeartHandshake className="h-8 w-8 text-emerald-600" />
                 </div>
                 <img src="/landing/hr.png" alt="HRSD" className="mb-8 rounded-xl ring-1 ring-slate-100" />
-                <h3 className="text-xl font-bold text-slate-900">HR Service Delivery</h3>
+                <h3 className="text-h4 font-bold text-slate-900">HR Service Delivery</h3>
                 <p className="mt-4 text-slate-600">
                   Seamless employee onboarding, request fulfillment, and workplace management.
                 </p>
@@ -166,14 +166,14 @@ export default function LandingPage() {
               {/* Feature 3 - Accent Card */}
               <div className="flex flex-col justify-between rounded-3xl bg-indigo-600 p-8 text-white shadow-2xl">
                 <div>
-                  <h3 className="text-2xl font-black">Save 70% costs</h3>
+                  <h3 className="text-h3 font-black">Save 70% costs</h3>
                   <p className="mt-4 opacity-80">
                     Replace multiple expensive subscriptions with one simple plan.
                   </p>
                 </div>
                 <div className="mt-12">
-                   <div className="text-5xl font-black">10X</div>
-                   <p className="text-xl font-bold opacity-80">Productivity</p>
+                   <div className="text-display font-black">10X</div>
+                   <p className="text-h4 font-bold opacity-80">Productivity</p>
                 </div>
               </div>
             </div>
@@ -184,8 +184,8 @@ export default function LandingPage() {
         <section id="why-coheron" className="bg-slate-50 py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center">
-              <h2 className="text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">Why CoheronConnect</h2>
-              <p className="mt-6 text-lg leading-8 text-slate-600">
+              <h2 className="text-h1 font-black tracking-tight text-slate-900 sm:text-display">Why CoheronConnect</h2>
+              <p className="mt-6 text-body-lg leading-8 text-slate-600">
                 Explore the tools and capabilities that elevate your productivity and streamline tasks.
               </p>
             </div>
@@ -203,8 +203,8 @@ export default function LandingPage() {
                   <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50">
                     <benefit.icon className="h-6 w-6 text-indigo-600" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900">{benefit.title}</h3>
-                  <p className="mt-4 text-sm leading-6 text-slate-600">{benefit.desc}</p>
+                  <h3 className="text-body-lg font-bold text-slate-900">{benefit.title}</h3>
+                  <p className="mt-4 text-body-sm leading-6 text-slate-600">{benefit.desc}</p>
                 </div>
               ))}
             </div>
@@ -215,21 +215,21 @@ export default function LandingPage() {
         <section className="py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="rounded-[3rem] bg-slate-900 px-8 py-20 text-center shadow-3xl sm:px-16">
-              <h2 className="mx-auto max-w-3xl text-4xl font-black tracking-tight text-white sm:text-6xl">
+              <h2 className="mx-auto max-w-3xl text-h1 font-black tracking-tight text-white sm:text-6xl">
                 Ready to stop overpaying for legacy software?
               </h2>
-              <p className="mx-auto mt-8 max-w-2xl text-xl leading-8 text-slate-400">
+              <p className="mx-auto mt-8 max-w-2xl text-h4 leading-8 text-slate-400">
                 Join high-performance teams moving from ServiceNow to CoheronConnect and save up to 70% on licensing fees.
               </p>
               <div className="mt-12 flex justify-center">
                 <Link 
                   href="/signup" 
-                  className="rounded-full bg-white px-10 py-4 text-lg font-bold text-slate-900 shadow-xl transition hover:bg-slate-100"
+                  className="rounded-full bg-white px-10 py-4 text-body-lg font-bold text-slate-900 shadow-xl transition hover:bg-slate-100"
                 >
                   Start Free Trial
                 </Link>
               </div>
-              <p className="mt-6 text-sm text-slate-500 italic">No credit card required. Cancel anytime.</p>
+              <p className="mt-6 text-body-sm text-slate-500 italic">No credit card required. Cancel anytime.</p>
             </div>
           </div>
         </section>
@@ -242,27 +242,27 @@ export default function LandingPage() {
             <div className="lg:col-span-2">
               <div className="flex items-center gap-2">
                 <Zap className="h-6 w-6 text-indigo-600" />
-                <span className="text-xl font-bold tracking-tight text-slate-900">CoheronConnect</span>
+                <span className="text-h4 font-bold tracking-tight text-slate-900">CoheronConnect</span>
               </div>
-              <p className="mt-6 max-w-xs text-sm leading-6 text-slate-500">
+              <p className="mt-6 max-w-xs text-body-sm leading-6 text-slate-500">
                 Enterprise workflow orchestration, ITSM, and HR service delivery — without the complexity or cost of legacy platforms.
               </p>
-              <p className="mt-8 text-xs text-slate-400">© 2026 Coheron. All rights reserved.</p>
+              <p className="mt-8 text-caption text-slate-400">© 2026 Coheron. All rights reserved.</p>
             </div>
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Platform</h3>
+              <h3 className="text-body-sm font-bold uppercase tracking-wider text-slate-900">Platform</h3>
               <ul className="mt-6 space-y-4">
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-indigo-600">Features</Link></li>
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-indigo-600">Pricing</Link></li>
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-indigo-600">Integrations</Link></li>
+                <li><Link href="#" className="text-body-sm text-slate-600 hover:text-indigo-600">Features</Link></li>
+                <li><Link href="#" className="text-body-sm text-slate-600 hover:text-indigo-600">Pricing</Link></li>
+                <li><Link href="#" className="text-body-sm text-slate-600 hover:text-indigo-600">Integrations</Link></li>
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Support</h3>
+              <h3 className="text-body-sm font-bold uppercase tracking-wider text-slate-900">Support</h3>
               <ul className="mt-6 space-y-4">
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-indigo-600">Documentation</Link></li>
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-indigo-600">Privacy Policy</Link></li>
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-indigo-600">Terms of Service</Link></li>
+                <li><Link href="#" className="text-body-sm text-slate-600 hover:text-indigo-600">Documentation</Link></li>
+                <li><Link href="#" className="text-body-sm text-slate-600 hover:text-indigo-600">Privacy Policy</Link></li>
+                <li><Link href="#" className="text-body-sm text-slate-600 hover:text-indigo-600">Terms of Service</Link></li>
               </ul>
             </div>
           </div>

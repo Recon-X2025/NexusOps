@@ -132,18 +132,18 @@ export default function GRCPage() {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-[11px] text-muted-foreground">Policy Title *</label>
-                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={policyForm.title} onChange={(e) => setPolicyForm(f => ({ ...f, title: e.target.value }))} />
+                <input autoFocus className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={policyForm.title} onChange={(e) => setPolicyForm(f => ({ ...f, title: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Category</label>
-                <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={policyForm.category} onChange={(e) => setPolicyForm(f => ({ ...f, category: e.target.value }))}>
+                <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={policyForm.category} onChange={(e) => setPolicyForm(f => ({ ...f, category: e.target.value }))}>
                   <option value="">Select a category...</option>
                   {MODULE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Content / Description</label>
-                <textarea rows={3} className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none" value={policyForm.content} onChange={(e) => setPolicyForm(f => ({ ...f, content: e.target.value }))} />
+                <textarea rows={3} className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background resize-none" value={policyForm.content} onChange={(e) => setPolicyForm(f => ({ ...f, content: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -167,18 +167,18 @@ export default function GRCPage() {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="text-[11px] text-muted-foreground">Policy Title *</label>
-                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editPolicyForm.title} onChange={(e) => setEditPolicyForm(f => ({ ...f, title: e.target.value }))} />
+                <input autoFocus className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editPolicyForm.title} onChange={(e) => setEditPolicyForm(f => ({ ...f, title: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Category</label>
-                <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={editPolicyForm.category} onChange={(e) => setEditPolicyForm(f => ({ ...f, category: e.target.value }))}>
+                <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={editPolicyForm.category} onChange={(e) => setEditPolicyForm(f => ({ ...f, category: e.target.value }))}>
                   <option value="">Select a category...</option>
                   {MODULE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Content / Description</label>
-                <textarea rows={3} className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none" value={editPolicyForm.content} onChange={(e) => setEditPolicyForm(f => ({ ...f, content: e.target.value }))} />
+                <textarea rows={3} className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background resize-none" value={editPolicyForm.content} onChange={(e) => setEditPolicyForm(f => ({ ...f, content: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -202,22 +202,22 @@ export default function GRCPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Audit Title *</label>
-                <input autoFocus className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.title} onChange={(e) => setAuditForm(f => ({ ...f, title: e.target.value }))} />
+                <input autoFocus className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={auditForm.title} onChange={(e) => setAuditForm(f => ({ ...f, title: e.target.value }))} />
               </div>
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Scope</label>
-                <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.scope} onChange={(e) => setAuditForm(f => ({ ...f, scope: e.target.value }))}>
+                <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={auditForm.scope} onChange={(e) => setAuditForm(f => ({ ...f, scope: e.target.value }))}>
                   <option value="">Select a module...</option>
                   {MODULE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">Start Date</label>
-                <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.startDate} onChange={(e) => setAuditForm(f => ({ ...f, startDate: e.target.value }))} />
+                <input type="date" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={auditForm.startDate} onChange={(e) => setAuditForm(f => ({ ...f, startDate: e.target.value }))} />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground">End Date</label>
-                <input type="date" className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background" value={auditForm.endDate} onChange={(e) => setAuditForm(f => ({ ...f, endDate: e.target.value }))} />
+                <input type="date" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={auditForm.endDate} onChange={(e) => setAuditForm(f => ({ ...f, endDate: e.target.value }))} />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -233,7 +233,7 @@ export default function GRCPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Scale className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Governance, Risk & Compliance</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Governance, Risk & Compliance</h1>
           <span className="text-[11px] text-muted-foreground/70">Risk Register · Policy · Audit · BCP · Vendor Risk</span>
         </div>
         <button
@@ -252,7 +252,7 @@ export default function GRCPage() {
           { label: "Audit Findings",       value: audits.reduce((s, a) => s + (Array.isArray(a.findings) ? a.findings.length : 0), 0), color: "text-blue-700", border: "border-border" },
         ].map((k) => (
           <div key={k.label} className={`bg-card border rounded px-3 py-2 ${k.border}`}>
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -326,12 +326,12 @@ export default function GRCPage() {
           risksLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading risk register…</span>
+              <span className="text-caption">Loading risk register…</span>
             </div>
           ) : risks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Shield className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No risks found.</span>
+              <span className="text-caption">No risks found.</span>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -360,7 +360,7 @@ export default function GRCPage() {
                     <tr key={r.id}>
                       <td className="p-0"><div className={`priority-bar ${score >= 15 ? "bg-red-600" : score >= 10 ? "bg-orange-500" : "bg-yellow-400"}`} /></td>
                       <td><span className="text-primary text-[11px] font-mono hover:underline cursor-pointer">{r.number ?? r.id}</span></td>
-                      <td className="max-w-xs"><span className="truncate block">{r.title}</span></td>
+                      <td className="max-w-xs"><span className="block">{r.title}</span></td>
                       <td><span className="status-badge text-muted-foreground bg-muted">{r.category ?? "—"}</span></td>
                       <td className="text-center font-semibold text-foreground/80">{r.likelihood ?? "—"}/5</td>
                       <td className="text-center font-semibold text-foreground/80">{r.impact ?? "—"}/5</td>
@@ -369,7 +369,7 @@ export default function GRCPage() {
                       <td className="text-muted-foreground">{r.ownerId ? `ID:${r.ownerId.slice(-6)}` : "—"}</td>
                       <td>
                         <select
-                          className={`text-xs px-2 py-1 rounded border border-transparent hover:border-border cursor-pointer focus:outline-none capitalize ${rStatus === "identified" || rStatus === "assessed" ? "text-red-700 bg-red-100" : rStatus === "mitigating" ? "text-blue-700 bg-blue-100" : "text-green-700 bg-green-100"}`}
+                          className={`text-caption px-2 py-1 rounded border border-transparent hover:border-border cursor-pointer focus:outline-none capitalize ${rStatus === "identified" || rStatus === "assessed" ? "text-red-700 bg-red-100" : rStatus === "mitigating" ? "text-blue-700 bg-blue-100" : "text-green-700 bg-green-100"}`}
                           value={rStatus}
                           onChange={(e) => updateRiskMutation.mutate({ id: r.id, status: e.target.value as any })}
                           disabled={updateRiskMutation.isPending}
@@ -395,7 +395,7 @@ export default function GRCPage() {
           policiesLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading policies…</span>
+              <span className="text-caption">Loading policies…</span>
             </div>
           ) : (
             <div>
@@ -410,7 +410,7 @@ export default function GRCPage() {
             {policies.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
                 <FileText className="w-5 h-5 opacity-30" />
-                <span className="text-xs">No policies found.</span>
+                <span className="text-caption">No policies found.</span>
                 <PermissionGate module="policy" action="write">
                   <button onClick={() => setShowNewPolicy(true)} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Create first policy
@@ -536,7 +536,7 @@ export default function GRCPage() {
           auditsLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading audits…</span>
+              <span className="text-caption">Loading audits…</span>
             </div>
           ) : (
             <div>
@@ -551,7 +551,7 @@ export default function GRCPage() {
             {audits.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
                 <BarChart2 className="w-5 h-5 opacity-30" />
-                <span className="text-xs">No audits found.</span>
+                <span className="text-caption">No audits found.</span>
                 <PermissionGate module="audit" action="write">
                   <button onClick={() => setShowNewAudit(true)} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Create first audit
@@ -590,7 +590,7 @@ export default function GRCPage() {
                         <td className="text-muted-foreground">{a.auditorId ? `ID:${a.auditorId.slice(-6)}` : "—"}</td>
                         <td>
                           <select
-                            className={`text-xs px-2 py-1 rounded border border-transparent hover:border-border cursor-pointer focus:outline-none capitalize ${aState === "completed" ? "text-green-700 bg-green-100" : aState === "in_progress" ? "text-blue-700 bg-blue-100" : aState === "cancelled" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}
+                            className={`text-caption px-2 py-1 rounded border border-transparent hover:border-border cursor-pointer focus:outline-none capitalize ${aState === "completed" ? "text-green-700 bg-green-100" : aState === "in_progress" ? "text-blue-700 bg-blue-100" : aState === "cancelled" ? "text-red-700 bg-red-100" : "text-muted-foreground bg-muted"}`}
                             value={aState}
                             onChange={(e) => updateAuditStatusMutation.mutate({ id: a.id, status: e.target.value as any })}
                             disabled={updateAuditStatusMutation.isPending}
@@ -629,12 +629,12 @@ export default function GRCPage() {
           vendorRisksLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading vendor risks…</span>
+              <span className="text-caption">Loading vendor risks…</span>
             </div>
           ) : vendorRisks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Layers className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No vendor risk assessments found.</span>
+              <span className="text-caption">No vendor risk assessments found.</span>
             </div>
           ) : (
           <table className="ent-table w-full">

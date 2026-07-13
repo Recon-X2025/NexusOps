@@ -77,18 +77,18 @@ export function AlertStream({
                       aria-hidden
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center justify-between gap-3 text-caption overflow-x-auto scrollbar-thin">
                         <Link
                           href={`/app/security/incidents/${a.id}`}
-                          className="font-semibold text-rose-700 dark:text-rose-300 hover:underline truncate"
+                          className="font-semibold text-rose-700 dark:text-rose-300 hover:underline shrink-0 whitespace-nowrap"
                         >
                           {a.number}
                         </Link>
-                        <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0">
+                        <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0 whitespace-nowrap">
                           {formatRelativeMs(-ageMs)} · {a.assigneeName ?? "Unassigned"}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-700 dark:text-slate-200 truncate">{a.title}</div>
+                      <div className="text-caption text-slate-700 dark:text-slate-200">{a.title}</div>
                       {a.mitreTechniques.length ? (
                         <div className="mt-1 flex flex-wrap gap-1">
                           {a.mitreTechniques.slice(0, 4).map((t) => (

@@ -99,14 +99,14 @@ export default function PurchaseOrderDetailPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => window.print()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all"
                     >
                       <Printer className="w-4 h-4" /> Print
                     </button>
                     {status === "draft" && (
                       <button
                         onClick={() => sendPO.mutate({ id })}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors shadow-md"
                       >
                         <Send className="w-4 h-4" /> Send to Supplier
                       </button>
@@ -114,7 +114,7 @@ export default function PurchaseOrderDetailPage() {
                     {(status === "sent" || status === "partially_received") && (
                       <button
                         onClick={() => receivePO.mutate({ id })}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-medium hover:bg-green-700 transition-colors shadow-md"
                       >
                         <Package className="w-4 h-4" /> Record Receipt
                       </button>
@@ -132,7 +132,7 @@ export default function PurchaseOrderDetailPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={cn(
-                          "pb-3 text-sm font-bold uppercase tracking-widest border-b-2 transition-all",
+                          "pb-3 text-body-sm font-bold uppercase tracking-widest border-b-2 transition-all",
                           activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -156,17 +156,17 @@ export default function PurchaseOrderDetailPage() {
                           <tbody className="divide-y divide-border">
                             {(po.items ?? []).map((item: any, i: number) => (
                               <tr key={i} className="hover:bg-muted/10 transition-colors">
-                                <td className="px-4 py-3 text-sm font-medium text-foreground">{item.description}</td>
-                                <td className="px-4 py-3 text-sm text-right font-mono">{item.quantity}</td>
-                                <td className="px-4 py-3 text-sm text-right font-mono">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
-                                <td className="px-4 py-3 text-sm text-right font-bold font-mono">₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</td>
+                                <td className="px-4 py-3 text-body-sm font-medium text-foreground">{item.description}</td>
+                                <td className="px-4 py-3 text-body-sm text-right font-mono">{item.quantity}</td>
+                                <td className="px-4 py-3 text-body-sm text-right font-mono">₹{Number(item.unitPrice).toLocaleString("en-IN")}</td>
+                                <td className="px-4 py-3 text-body-sm text-right font-bold font-mono">₹{(Number(item.unitPrice) * item.quantity).toLocaleString("en-IN")}</td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot>
                             <tr className="bg-muted/10 font-bold border-t border-border">
-                              <td colSpan={3} className="px-4 py-4 text-sm text-right uppercase tracking-widest">Grand Total</td>
-                              <td className="px-4 py-4 text-lg text-right font-mono text-primary">
+                              <td colSpan={3} className="px-4 py-4 text-body-sm text-right uppercase tracking-widest">Grand Total</td>
+                              <td className="px-4 py-4 text-body-lg text-right font-mono text-primary">
                                 ₹{Number(po.totalAmount).toLocaleString("en-IN")}
                               </td>
                             </tr>
@@ -214,7 +214,7 @@ export default function PurchaseOrderDetailPage() {
                   {po.requisitionId && (
                     <div className="bg-muted/30 border border-border rounded-xl p-4 flex flex-col gap-2">
                       <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Linked Requisition</h4>
-                      <Link href={`/app/procurement/requisitions/${po.requisitionId}`} className="text-sm font-bold text-primary hover:underline flex items-center gap-2">
+                      <Link href={`/app/procurement/requisitions/${po.requisitionId}`} className="text-body-sm font-bold text-primary hover:underline flex items-center gap-2">
                         <FileText className="w-4 h-4" /> View Requisition
                       </Link>
                     </div>
@@ -272,7 +272,7 @@ function PODocuments({ poId, canWrite }: { poId: string; canWrite: boolean }) {
           Documents {list.length > 0 ? `(${list.length})` : ""}
         </span>
         {canWrite && (
-          <label className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-all cursor-pointer">
+          <label className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all cursor-pointer">
             <UploadCloud className="w-4 h-4" />
             {upload.isPending ? "Uploading…" : "Upload"}
             <input type="file" className="hidden" onChange={onPick} disabled={upload.isPending} />
@@ -291,10 +291,10 @@ function PODocuments({ poId, canWrite }: { poId: string; canWrite: boolean }) {
             {list.map((d: any) => (
               <li
                 key={d.id}
-                className="flex items-center gap-3 text-sm border border-border rounded-lg px-3 py-2 bg-background"
+                className="flex items-center gap-3 text-body-sm border border-border rounded-lg px-3 py-2 bg-background"
               >
                 <Paperclip className="w-4 h-4 text-muted-foreground/70" />
-                <span className="truncate flex-1 font-medium text-foreground/80">{d.name}</span>
+                <span className="flex-1 font-medium text-foreground/80">{d.name}</span>
                 <span className="text-[11px] text-muted-foreground/60 font-mono">
                   {(d.sizeBytes / 1024).toFixed(0)} KB
                 </span>

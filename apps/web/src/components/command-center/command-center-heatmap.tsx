@@ -26,8 +26,8 @@ export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
   return (
     <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 overflow-hidden h-full shadow-sm flex flex-col rounded-2xl relative group">
       
-      <div className="px-5 py-4 border-b border-slate-200/60 flex items-center justify-between relative z-10">
-        <h2 className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Diagnostic Heatmap</h2>
+      <div className="px-5 py-4 border-b border-slate-200/60 flex items-center justify-between gap-3 overflow-x-auto scrollbar-thin relative z-10">
+        <h2 className="text-caption font-black text-slate-700 uppercase tracking-[0.2em] shrink-0 whitespace-nowrap">Diagnostic Heatmap</h2>
       </div>
       
       <div className="p-4 flex-1 relative z-10 bg-slate-50/30">
@@ -44,7 +44,7 @@ export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
               {hubRows.map((row) => (
                 <div key={row.function} className="contents group/row">
                   <div className="text-[11px] font-black uppercase tracking-widest py-3 px-2 flex items-center text-slate-600 group-hover/row:text-slate-900 transition-colors">
-                    <span className="truncate">{row.function.replace(/_/g, " ")}</span>
+                    <span>{row.function.replace(/_/g, " ")}</span>
                   </div>
                   {DIMS.map((d) => {
                     const cell = row.cells[d];
@@ -53,7 +53,7 @@ export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
                     return (
                       <div key={d} className="p-1">
                         <div className={cn("h-full w-full rounded-lg border flex flex-col items-center justify-center p-2 transition-all duration-300 relative overflow-hidden", glowClass)}>
-                          <span className={cn("relative z-10 text-sm font-black tracking-tighter", isNA && "text-slate-300 font-medium tracking-normal text-xs")}>{isNA ? "N/A" : cell.state === 'no_data' ? "—" : (cell.displayValue ?? cell.value)}</span>
+                          <span className={cn("relative z-10 text-body-sm font-black tracking-tighter", isNA && "text-slate-300 font-medium tracking-normal text-caption")}>{isNA ? "N/A" : cell.state === 'no_data' ? "—" : (cell.displayValue ?? cell.value)}</span>
                           <span className="relative z-10 text-[9px] font-bold uppercase tracking-widest opacity-80 mt-0.5 text-center">{cell.label}</span>
                         </div>
                       </div>
@@ -74,7 +74,7 @@ export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
               {DIMS.map((dim) => (
                 <div key={dim} className="contents group/row">
                   <div className="text-[11px] font-black uppercase tracking-widest py-4 px-2 flex items-center text-slate-400 group-hover/row:text-slate-900 transition-colors">
-                    <span className="truncate">{dim}</span>
+                    <span>{dim}</span>
                   </div>
                   {hubRows.map((row) => {
                     const cell = row.cells[dim];
@@ -83,8 +83,8 @@ export function CommandCenterHeatmap({ payload }: { payload: Payload }) {
                     return (
                       <div key={row.function} className="p-1">
                         <div className={cn("h-full w-full rounded-lg border flex flex-col items-center justify-center p-3 min-h-[70px] transition-all duration-300 relative overflow-hidden", glowClass)}>
-                          <span className={cn("relative z-10 text-base font-black tracking-tighter leading-none", isNA && "text-slate-300 font-medium tracking-normal text-sm")}>{isNA ? "N/A" : cell.state === 'no_data' ? "—" : (cell.displayValue ?? cell.value)}</span>
-                          <span className="relative z-10 text-[9px] font-bold uppercase tracking-widest opacity-80 mt-1.5 text-center line-clamp-1">{cell.label}</span>
+                          <span className={cn("relative z-10 text-body font-black tracking-tighter leading-none", isNA && "text-slate-300 font-medium tracking-normal text-body-sm")}>{isNA ? "N/A" : cell.state === 'no_data' ? "—" : (cell.displayValue ?? cell.value)}</span>
+                          <span className="relative z-10 text-[9px] font-bold uppercase tracking-widest opacity-80 mt-1.5 text-center">{cell.label}</span>
                         </div>
                       </div>
                     );

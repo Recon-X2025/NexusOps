@@ -31,12 +31,12 @@ export function SecOpsContent() {
             ) : !data?.vulnerabilities.data?.length ? (
               <WorkbenchEmpty state={data?.vulnerabilities.state === "error" ? "error" : "no_data"} />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.vulnerabilities.data.slice(0, 8).map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-3">
                     <Link
                       href={`/app/security/vulnerabilities/${v.id}`}
-                      className="min-w-0 flex-1 text-rose-700 dark:text-rose-300 hover:underline truncate"
+                      className="min-w-0 flex-1 text-rose-700 dark:text-rose-300 hover:underline"
                     >
                       {v.cveId ?? v.title}
                     </Link>
@@ -59,7 +59,7 @@ export function SecOpsContent() {
                 message="No MITRE techniques tagged on active incidents."
               />
             ) : (
-              <ul className="text-xs space-y-1.5">
+              <ul className="text-caption space-y-1.5">
                 {data.mitreRollup.data.map((m) => (
                   <li key={m.technique} className="flex items-center justify-between">
                     <span className="font-mono text-rose-700 dark:text-rose-300">{m.technique}</span>

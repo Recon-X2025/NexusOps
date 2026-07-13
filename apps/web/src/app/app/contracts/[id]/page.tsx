@@ -110,7 +110,7 @@ export default function ContractDetailPage() {
                     <PermissionGate module="contracts" action="write">
                       <button
                         onClick={() => { setShowTransition(true); setNewStatus(""); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm font-medium hover:bg-primary/90 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded text-body-sm font-medium hover:bg-primary/90 transition-colors"
                       >
                         <Edit2 className="w-4 h-4" /> Update Status
                       </button>
@@ -129,11 +129,11 @@ export default function ContractDetailPage() {
               {showTransition && (
                 <div className="px-5 py-4 bg-blue-50 border border-blue-200 rounded-xl animate-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center gap-4">
-                    <span className="text-sm font-bold text-blue-800">Transition Status:</span>
+                    <span className="text-body-sm font-bold text-blue-800">Transition Status:</span>
                     <select
                       value={newStatus}
                       onChange={(e) => setNewStatus(e.target.value)}
-                      className="text-sm border border-blue-300 rounded-lg px-3 py-1.5 bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                      className="text-body-sm border border-blue-300 rounded-lg px-3 py-1.5 bg-white outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select new state…</option>
                       {Object.entries(STATE_CFG).filter(([k]) => k !== rawState && !TERMINAL_STATES.includes(k)).map(([k, v]) => (
@@ -144,11 +144,11 @@ export default function ContractDetailPage() {
                     <button
                       disabled={!newStatus || updateContract.isPending}
                       onClick={() => updateContract.mutate({ id, status: newStatus as any })}
-                      className="px-4 py-1.5 bg-blue-700 text-white text-xs font-bold rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors"
+                      className="px-4 py-1.5 bg-blue-700 text-white text-caption font-bold rounded-lg hover:bg-blue-800 disabled:opacity-50 transition-colors"
                     >
                       {updateContract.isPending ? "Updating…" : "Confirm Change"}
                     </button>
-                    <button onClick={() => setShowTransition(false)} className="text-sm text-blue-600 hover:underline">Cancel</button>
+                    <button onClick={() => setShowTransition(false)} className="text-body-sm text-blue-600 hover:underline">Cancel</button>
                   </div>
                 </div>
               )}
@@ -158,7 +158,7 @@ export default function ContractDetailPage() {
                   {/* Obligations Card */}
                   <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <div className="px-5 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-foreground/80 flex items-center gap-2">
+                      <h3 className="text-body-sm font-bold text-foreground/80 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
                         Contract Obligations ({obligations.length})
                       </h3>
@@ -169,7 +169,7 @@ export default function ContractDetailPage() {
                       )}
                     </div>
                     {obligations.length === 0 ? (
-                      <div className="p-12 text-center text-sm text-muted-foreground italic">No obligations recorded for this agreement.</div>
+                      <div className="p-12 text-center text-body-sm text-muted-foreground italic">No obligations recorded for this agreement.</div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -185,7 +185,7 @@ export default function ContractDetailPage() {
                           <tbody className="divide-y divide-border">
                             {obligations.map((obl: any) => (
                               <tr key={obl.id} className={cn("hover:bg-muted/30 transition-colors", obl.status === "completed" && "opacity-60")}>
-                                <td className="px-4 py-3 text-sm text-foreground font-medium">{obl.description}</td>
+                                <td className="px-4 py-3 text-body-sm text-foreground font-medium">{obl.description}</td>
                                 <td className="px-4 py-3">
                                   <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
                                     obl.party === "counterparty" ? "text-blue-700 bg-blue-100" :
@@ -211,7 +211,7 @@ export default function ContractDetailPage() {
                                       <button
                                         onClick={() => completeObligation.mutate({ id: obl.id })}
                                         disabled={completeObligation.isPending}
-                                        className="text-xs font-bold text-primary hover:underline disabled:opacity-50"
+                                        className="text-caption font-bold text-primary hover:underline disabled:opacity-50"
                                       >
                                         Done
                                       </button>
@@ -249,7 +249,7 @@ export default function ContractDetailPage() {
                   {/* Notes Section */}
                   <div className="bg-card border border-border rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-foreground/80 flex items-center gap-2">
+                      <h3 className="text-body-sm font-bold text-foreground/80 flex items-center gap-2">
                         <FileText className="w-4 h-4 text-muted-foreground" />
                         Contract Notes
                       </h3>
@@ -257,7 +257,7 @@ export default function ContractDetailPage() {
                         <PermissionGate module="contracts" action="write">
                           <button
                             onClick={() => { setNotesDraft((contract as any).notes ?? ""); setEditingNotes(true); }}
-                            className="text-xs font-bold text-primary hover:underline"
+                            className="text-caption font-bold text-primary hover:underline"
                           >
                             Edit Notes
                           </button>
@@ -267,7 +267,7 @@ export default function ContractDetailPage() {
                     {editingNotes ? (
                       <div className="space-y-4">
                         <textarea
-                          className="w-full text-sm border border-border rounded-xl px-4 py-3 bg-muted/20 outline-none focus:ring-2 focus:ring-primary h-32 resize-none"
+                          className="w-full text-body-sm border border-border rounded-xl px-4 py-3 bg-muted/20 outline-none focus:ring-2 focus:ring-primary h-32 resize-none"
                           value={notesDraft}
                           onChange={(e) => setNotesDraft(e.target.value)}
                         />
@@ -275,20 +275,20 @@ export default function ContractDetailPage() {
                           <button
                             onClick={() => updateContract.mutate({ id, notes: notesDraft } as any)}
                             disabled={updateContract.isPending}
-                            className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all"
+                            className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-caption font-bold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all"
                           >
                             <Save className="w-3.5 h-3.5" /> {updateContract.isPending ? "Saving…" : "Save Changes"}
                           </button>
                           <button
                             onClick={() => setEditingNotes(false)}
-                            className="px-4 py-1.5 border border-border text-xs font-bold rounded-lg hover:bg-muted transition-all"
+                            className="px-4 py-1.5 border border-border text-caption font-bold rounded-lg hover:bg-muted transition-all"
                           >
                             Cancel
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap italic">
+                      <p className="text-body-sm text-muted-foreground leading-relaxed whitespace-pre-wrap italic">
                         {(contract as any).notes || "No internal notes recorded for this contract."}
                       </p>
                     )}
@@ -320,7 +320,7 @@ export default function ContractDetailPage() {
                   <div className="bg-muted/30 border border-border border-dashed rounded-xl p-5">
                     <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Compliance Summary</h3>
                     <div className="space-y-3">
-                      <div className="flex justify-between items-center text-xs">
+                      <div className="flex justify-between items-center text-caption">
                         <span className="text-muted-foreground">Obligation Health</span>
                         <span className="font-bold text-green-700">100% Clear</span>
                       </div>

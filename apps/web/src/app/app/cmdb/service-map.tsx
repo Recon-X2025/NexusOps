@@ -264,8 +264,8 @@ export function ServiceMap({ nodes, edges }: ServiceMapProps) {
       {selected && (
         <div className="absolute top-2 left-2 z-20 bg-card border border-border rounded-lg shadow-lg p-3 w-44">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-semibold text-foreground truncate">{selected.name}</span>
-            <button onClick={() => setSelected(null)} className="text-muted-foreground hover:text-foreground text-xs ml-1 flex-shrink-0">✕</button>
+            <span className="text-[11px] font-semibold text-foreground">{selected.name}</span>
+            <button onClick={() => setSelected(null)} className="text-muted-foreground hover:text-foreground text-caption ml-1 flex-shrink-0">✕</button>
           </div>
           <div className="space-y-1">
             {[

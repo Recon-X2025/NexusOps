@@ -97,7 +97,7 @@ export default function CSMPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Customer Service Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Customer Service Management</h1>
           <span className="text-[11px] text-muted-foreground/70">Cases · Accounts · Contacts · Customer Health</span>
         </div>
         <div className="flex items-center gap-2">
@@ -125,11 +125,11 @@ export default function CSMPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Case Title *</label>
-              <input className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" placeholder="Issue summary" value={caseForm.title} onChange={(e) => setCaseForm((f) => ({ ...f, title: e.target.value }))} />
+              <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" placeholder="Issue summary" value={caseForm.title} onChange={(e) => setCaseForm((f) => ({ ...f, title: e.target.value }))} />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Priority</label>
-              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={caseForm.priority} onChange={(e) => setCaseForm((f) => ({ ...f, priority: e.target.value }))}>
+              <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={caseForm.priority} onChange={(e) => setCaseForm((f) => ({ ...f, priority: e.target.value }))}>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -138,21 +138,21 @@ export default function CSMPage() {
             </div>
             <div className="col-span-2">
               <label className="text-[11px] text-muted-foreground">Account</label>
-              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={caseForm.accountId} onChange={(e) => setCaseForm((f) => ({ ...f, accountId: e.target.value, contactId: "" }))}>
+              <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={caseForm.accountId} onChange={(e) => setCaseForm((f) => ({ ...f, accountId: e.target.value, contactId: "" }))}>
                 <option value="">— Select Account —</option>
                 {ACCOUNTS.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground">Contact</label>
-              <select className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background" value={caseForm.contactId} onChange={(e) => setCaseForm((f) => ({ ...f, contactId: e.target.value }))}>
+              <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={caseForm.contactId} onChange={(e) => setCaseForm((f) => ({ ...f, contactId: e.target.value }))}>
                 <option value="">— Select Contact —</option>
                 {(Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).filter((c: any) => !caseForm.accountId || c.accountId === caseForm.accountId).map((c: any) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
               </select>
             </div>
             <div className="col-span-3">
               <label className="text-[11px] text-muted-foreground">Description</label>
-              <textarea className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-16 resize-none" placeholder="Describe the customer issue…" value={caseForm.description} onChange={(e) => setCaseForm((f) => ({ ...f, description: e.target.value }))} />
+              <textarea className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background h-16 resize-none" placeholder="Describe the customer issue…" value={caseForm.description} onChange={(e) => setCaseForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
           </div>
           <div className="flex gap-2 mt-3">
@@ -185,7 +185,7 @@ export default function CSMPage() {
             {(casesQuery.isLoading || accountsQuery.isLoading) ? (
               <div className="h-6 bg-muted rounded animate-pulse mb-1 w-12" />
             ) : (
-              <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+              <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             )}
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
@@ -247,7 +247,7 @@ export default function CSMPage() {
                       <td className="max-w-xs">
                         <div className="flex items-center gap-1">
                           {c.slaBreached && <span className="text-red-500 text-[10px] font-bold">⚠</span>}
-                          <span className="truncate text-foreground">{c.title}</span>
+                          <span className="text-foreground">{c.title}</span>
                         </div>
                       </td>
                       <td className="text-muted-foreground text-[11px]">{accountName}</td>
@@ -369,7 +369,7 @@ export default function CSMPage() {
             {contactsQuery.isLoading ? (
               <div className="flex items-center justify-center h-28 gap-2 text-muted-foreground">
                 <Users className="w-4 h-4 animate-pulse" />
-                <span className="text-xs">Loading contacts…</span>
+                <span className="text-caption">Loading contacts…</span>
               </div>
             ) : (Array.isArray(contactsQuery.data?.items) ? contactsQuery.data.items : Array.isArray(contactsQuery.data) ? contactsQuery.data : []).length === 0 ? (
               <div className="p-8 text-center">

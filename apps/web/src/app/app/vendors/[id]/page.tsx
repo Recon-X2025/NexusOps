@@ -67,7 +67,7 @@ export default function VendorDetailPage() {
     return (
       <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs">Loading vendor…</span>
+        <span className="text-caption">Loading vendor…</span>
       </div>
     );
   }
@@ -76,8 +76,8 @@ export default function VendorDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
         <Building2 className="w-8 h-8 opacity-30" />
-        <span className="text-sm">Vendor not found</span>
-        <button onClick={() => router.push("/app/vendors")} className="text-xs text-primary hover:underline">Back to Vendors</button>
+        <span className="text-body-sm">Vendor not found</span>
+        <button onClick={() => router.push("/app/vendors")} className="text-caption text-primary hover:underline">Back to Vendors</button>
       </div>
     );
   }
@@ -134,7 +134,7 @@ export default function VendorDetailPage() {
                 <div key={f.key}>
                   <label className="text-[11px] text-muted-foreground">{f.label}</label>
                   <input
-                    className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background"
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background"
                     value={(editForm as any)[f.key]}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
                   />
@@ -143,7 +143,7 @@ export default function VendorDetailPage() {
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Address</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background"
                   value={editForm.address}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, address: e.target.value }))}
                 />
@@ -151,7 +151,7 @@ export default function VendorDetailPage() {
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Notes</label>
                 <textarea
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1 bg-background h-16 resize-none"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background h-16 resize-none"
                   value={editForm.notes}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
                 />

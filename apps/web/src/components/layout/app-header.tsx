@@ -181,7 +181,7 @@ function Breadcrumbs() {
   const visible = crumbs;
 
   return (
-    <nav className="flex items-center gap-1 text-xs text-slate-600 dark:text-[hsl(var(--header-fg))] opacity-80">
+    <nav className="flex items-center gap-1 text-caption text-slate-600 dark:text-[hsl(var(--header-fg))] opacity-80">
       {visible.map((c, i) => (
         <span key={`${i}-${c.href}`} className="flex items-center gap-1">
           {i > 0 && <span className="opacity-40">/</span>}
@@ -280,7 +280,7 @@ function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
             <div className="flex items-center gap-2">
               <Bell className="h-3.5 w-3.5 text-muted-foreground/80" />
-              <span className="text-xs font-semibold text-foreground">Notifications</span>
+              <span className="text-caption font-semibold text-foreground">Notifications</span>
               {count > 0 && (
                 <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 rounded-full px-1.5 py-0.5 font-mono">
                   {count} new
@@ -303,7 +303,7 @@ function NotificationBell() {
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/60">
                 <Bell className="h-7 w-7 mb-2 opacity-30" />
-                <p className="text-xs">No notifications yet</p>
+                <p className="text-caption">No notifications yet</p>
               </div>
             ) : (
               items.map((n: typeof items[number]) => (
@@ -319,11 +319,11 @@ function NotificationBell() {
                     {TYPE_ICON[n.type ?? "info"]}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={cn("text-xs leading-snug", !n.isRead ? "text-foreground font-medium" : "text-muted-foreground")}>
+                    <p className={cn("text-caption leading-snug", !n.isRead ? "text-foreground font-medium" : "text-muted-foreground")}>
                       {n.title}
                     </p>
                     {n.body && (
-                      <p className="text-[11px] text-muted-foreground/60 mt-0.5 line-clamp-2">{n.body}</p>
+                      <p className="text-[11px] text-muted-foreground/60 mt-0.5">{n.body}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground/50 mt-1">{timeAgo(n.createdAt)}</p>
                   </div>
@@ -397,7 +397,7 @@ function UserMenu() {
           {initials}
         </div>
         <div className="hidden md:block text-left">
-          <p className="text-xs font-medium text-slate-700 dark:text-[hsl(var(--header-fg))] leading-none">{currentUser.name}</p>
+          <p className="text-caption font-medium text-slate-700 dark:text-[hsl(var(--header-fg))] leading-none">{currentUser.name}</p>
           <p className="text-[0.6rem] text-slate-500 dark:text-[hsl(var(--header-fg))] dark:opacity-50 leading-none mt-0.5 font-mono">{getPrimaryRole(currentUser.roles)}</p>
         </div>
         <ChevronDown className={cn("h-3 w-3 text-slate-400 dark:text-white/40 transition-transform duration-150", open && "rotate-180")} />
@@ -407,12 +407,12 @@ function UserMenu() {
         <div className="absolute right-0 top-full mt-1 w-64 bg-popover border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
           {/* Identity header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/40">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-white flex-shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-body-sm font-bold text-white flex-shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{currentUser.name}</p>
-              <p className="text-[11px] text-muted-foreground/80 truncate">{currentUser.email}</p>
+              <p className="text-body-sm font-semibold text-foreground">{currentUser.name}</p>
+              <p className="text-[11px] text-muted-foreground/80">{currentUser.email}</p>
               <div className="flex flex-wrap gap-1 mt-1">
                 {Array.from(new Set(currentUser.roles)).slice(0, 3).map((r, i) => (
                   <span key={`${r}-${i}`} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-mono">
@@ -431,7 +431,7 @@ function UserMenu() {
             <Link
               href="/app/profile"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+              className="flex items-center gap-2.5 px-4 py-2 text-body-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             >
               <User className="h-3.5 w-3.5 text-muted-foreground/60" />
               My Profile
@@ -439,7 +439,7 @@ function UserMenu() {
             <Link
               href="/app/profile?tab=security"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+              className="flex items-center gap-2.5 px-4 py-2 text-body-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             >
               <KeyRound className="h-3.5 w-3.5 text-muted-foreground/60" />
               Change Password
@@ -447,7 +447,7 @@ function UserMenu() {
             <Link
               href="/app/profile?tab=notifications"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+              className="flex items-center gap-2.5 px-4 py-2 text-body-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
             >
               <Bell className="h-3.5 w-3.5 text-muted-foreground/60" />
               Notification Preferences
@@ -456,7 +456,7 @@ function UserMenu() {
               <Link
                 href="/app/admin"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                className="flex items-center gap-2.5 px-4 py-2 text-body-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
               >
                 <Building2 className="h-3.5 w-3.5 text-muted-foreground/60" />
                 Organisation Settings
@@ -469,7 +469,7 @@ function UserMenu() {
             <button
               onClick={() => { setOpen(false); logout.mutate(); }}
               disabled={logout.isPending}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors disabled:opacity-50"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-body-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors disabled:opacity-50"
             >
               <LogOut className="h-3.5 w-3.5" />
               {logout.isPending ? "Signing out…" : "Sign out"}
@@ -567,9 +567,9 @@ export function AppHeader() {
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
           <div className="flex flex-col leading-none">
-            <span className="text-sm font-bold text-slate-800 dark:text-[hsl(var(--header-fg))]">CoheronConnect</span>
+            <span className="text-body-sm font-bold text-slate-800 dark:text-[hsl(var(--header-fg))]">CoheronConnect</span>
             {currentUser.orgName && (
-              <span className="text-[0.6rem] text-slate-500 dark:text-[hsl(var(--header-fg))] dark:opacity-50 truncate max-w-[120px]">
+              <span className="text-[0.6rem] text-slate-500 dark:text-[hsl(var(--header-fg))] dark:opacity-50 max-w-[120px]">
                 {currentUser.orgName}
               </span>
             )}
@@ -592,7 +592,7 @@ export function AppHeader() {
             onFocus={() => { if (results.length > 0) setSearchOpen(true); }}
             onKeyDown={handleSearchKeyDown}
             placeholder="Search records…"
-            className="w-full rounded border border-slate-200 bg-slate-50 pl-8 pr-12 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 hover:bg-slate-100 focus:bg-white focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:placeholder:text-white/40 dark:hover:bg-white/10 dark:focus:bg-white/10 dark:focus:border-white/20 dark:focus:ring-0"
+            className="w-full rounded border border-slate-200 bg-slate-50 pl-8 pr-12 py-1.5 text-caption text-slate-700 placeholder:text-slate-400 hover:bg-slate-100 focus:bg-white focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:placeholder:text-white/40 dark:hover:bg-white/10 dark:focus:bg-white/10 dark:focus:border-white/20 dark:focus:ring-0"
           />
           <kbd className="absolute right-3 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[0.6rem] font-mono text-slate-400 pointer-events-none dark:border-white/15 dark:bg-transparent dark:text-white/30">
             ⌘K
@@ -604,7 +604,7 @@ export function AppHeader() {
 
 
             {searchResults.isLoading ? (
-                <div className="px-4 py-3 text-xs text-slate-500">Searching…</div>
+                <div className="px-4 py-3 text-caption text-slate-500">Searching…</div>
               ) : (
                 <div className="py-1">
                   {Object.entries(groupedResults).map(([type, items]) => {
@@ -627,13 +627,13 @@ export function AppHeader() {
                                 setFocusedIndex(-1);
                               }}
                               className={cn(
-                                "w-full text-left px-3 py-2 rounded text-xs flex flex-col gap-0.5 transition-colors",
+                                "w-full text-left px-3 py-2 rounded text-caption flex flex-col gap-0.5 transition-colors",
                                 focusedIndex === globalIdx ? "bg-primary/20" : "hover:bg-white/5",
                               )}
                             >
                               <span className="font-medium text-slate-200">{item.title}</span>
                               {item.description && (
-                                <span className="text-slate-500 truncate">{item.description}</span>
+                                <span className="text-slate-500">{item.description}</span>
                               )}
                             </button>
                           );
@@ -654,7 +654,7 @@ export function AppHeader() {
         {canCreateTicket && (
           <Link
             href="/app/tickets/new"
-            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
+            className="flex items-center gap-1 rounded px-2 py-1 text-caption font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-3 w-3" />
             Create

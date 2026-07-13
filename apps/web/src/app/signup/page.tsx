@@ -61,58 +61,58 @@ export default function SignupPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">CoheronConnect</h1>
-          <p className="text-sm text-slate-400">by Coheron</p>
+          <h1 className="text-h3 font-bold text-white">CoheronConnect</h1>
+          <p className="text-body-sm text-slate-400">by Coheron</p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-sm">
-          <h2 className="mb-1 text-xl font-semibold text-white">Create your workspace</h2>
-          <p className="mb-6 text-sm text-slate-400">Free forever. No credit card required.</p>
+          <h2 className="mb-1 text-h4 font-semibold text-white">Create your workspace</h2>
+          <p className="mb-6 text-body-sm text-slate-400">Free forever. No credit card required.</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-300">Your name</label>
+                <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Your name</label>
                 <input
                   {...register("name")}
                   type="text"
                   placeholder="Jane Smith"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
                 />
-                {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>}
+                {errors.name && <p className="mt-1 text-caption text-red-400">{errors.name.message}</p>}
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-300">Organization</label>
+                <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Organization</label>
                 <input
                   {...register("orgName")}
                   type="text"
                   placeholder="Acme Corp"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
                 />
-                {errors.orgName && <p className="mt-1 text-xs text-red-400">{errors.orgName.message}</p>}
+                {errors.orgName && <p className="mt-1 text-caption text-red-400">{errors.orgName.message}</p>}
               </div>
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">Work email</label>
+              <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Work email</label>
               <input
                 {...register("email")}
                 type="email"
                 autoComplete="email"
                 placeholder="jane@acme.com"
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
               />
-              {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>}
+              {errors.email && <p className="mt-1 text-caption text-red-400">{errors.email.message}</p>}
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">Password</label>
+              <label className="mb-1.5 block text-body-sm font-medium text-slate-300">Password</label>
               <div className="relative">
                 <input
                   {...register("password")}
                   type={showPassword ? "text" : "password"}
                   placeholder="Choose a strong password"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 pr-10"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-body-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 pr-10"
                 />
                 <button
                   type="button"
@@ -129,7 +129,7 @@ export default function SignupPage() {
                       <CheckCircle2
                         className={`h-3 w-3 ${valid ? "text-emerald-400" : "text-slate-600"}`}
                       />
-                      <span className={`text-xs ${valid ? "text-emerald-400" : "text-slate-500"}`}>
+                      <span className={`text-caption ${valid ? "text-emerald-400" : "text-slate-500"}`}>
                         {label}
                       </span>
                     </div>
@@ -137,20 +137,20 @@ export default function SignupPage() {
                 </div>
               )}
               {errors.password && (
-                <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                <p className="mt-1 text-caption text-red-400">{errors.password.message}</p>
               )}
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting || signup.isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-body-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
             >
               {(isSubmitting || signup.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}
               Create workspace
             </button>
 
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-caption text-slate-500">
               By signing up, you agree to our{" "}
               <Link href="/terms" className="text-indigo-400 hover:underline">
                 Terms of Service
@@ -163,7 +163,7 @@ export default function SignupPage() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-body-sm text-slate-500">
           Already have an account?{" "}
           <Link href="/login" className="text-indigo-400 hover:text-indigo-300">
             Sign in

@@ -86,7 +86,7 @@ export default function KnowledgePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Knowledge Base</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Knowledge Base</h1>
           <span className="text-[11px] text-muted-foreground">
             {isLoading ? "Loading…" : `${publishedCount} published article${publishedCount !== 1 ? "s" : ""}`}
           </span>
@@ -121,7 +121,7 @@ export default function KnowledgePage() {
           { label: "Pending Review",     value: draftCount,                      color: "text-yellow-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-body-lg font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -168,12 +168,12 @@ export default function KnowledgePage() {
       {isLoading ? (
         <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-xs">Loading articles…</span>
+          <span className="text-caption">Loading articles…</span>
         </div>
       ) : articles.length === 0 ? (
         <div className="bg-card border border-border rounded flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
           <BookOpen className="w-5 h-5 opacity-30" />
-          <span className="text-xs">{search ? "No articles match your search." : "No articles yet."}</span>
+          <span className="text-caption">{search ? "No articles match your search." : "No articles yet."}</span>
         </div>
       ) : (
         <div className="space-y-2">
@@ -217,7 +217,7 @@ export default function KnowledgePage() {
                             </span>
                           ))}
                         </div>
-                        <h3 className="text-[13px] font-semibold text-foreground truncate">{article.title}</h3>
+                        <h3 className="text-[13px] font-semibold text-foreground">{article.title}</h3>
                       </div>
 
                       <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-shrink-0">

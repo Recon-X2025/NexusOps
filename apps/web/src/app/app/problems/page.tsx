@@ -111,7 +111,7 @@ export default function ProblemsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bug className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Problem Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Problem Management</h1>
           <span className="text-[11px] text-muted-foreground">Root Cause Analysis & Known Errors</span>
         </div>
         <div className="flex items-center gap-2">
@@ -139,7 +139,7 @@ export default function ProblemsPage() {
           { label: "Resolved (all)", value: resolvedCount,       color: "text-green-700" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-body-lg font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -234,12 +234,12 @@ export default function ProblemsPage() {
         {isLoading ? (
           <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-xs">Loading problems…</span>
+            <span className="text-caption">Loading problems…</span>
           </div>
         ) : displayed.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
             <Bug className="w-5 h-5 opacity-30" />
-            <span className="text-xs">No problems found.</span>
+            <span className="text-caption">No problems found.</span>
           </div>
         ) : (
           <table className="ent-table w-full">
@@ -294,7 +294,7 @@ export default function ProblemsPage() {
                             {isKnownError && (
                               <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" aria-hidden />
                             )}
-                            <span className="truncate text-foreground">{prob.title}</span>
+                            <span className="text-foreground">{prob.title}</span>
                             {prob.releaseId && (
                               (() => {
                                 const rel = releases.find((r) => r.id === prob.releaseId);
@@ -318,7 +318,7 @@ export default function ProblemsPage() {
                           </td>
                           <td className="max-w-[200px]">
                             {prob.workaround ? (
-                              <span className="truncate block text-[11px] text-muted-foreground">{prob.workaround}</span>
+                              <span className="block text-[11px] text-muted-foreground">{prob.workaround}</span>
                             ) : (
                               <span className="text-muted-foreground/50">—</span>
                             )}
@@ -348,11 +348,11 @@ export default function ProblemsPage() {
                           </td>
                         </>
                       ) : activeTab === "root_cause_identified" ? (
-                        <td className="max-w-xs text-foreground text-[12px] truncate">
+                        <td className="max-w-xs text-foreground text-[12px]">
                           {prob.rootCause || <span className="text-muted-foreground/50 italic">Under investigation.</span>}
                         </td>
                       ) : (
-                        <td className="max-w-xs text-foreground text-[12px] truncate">
+                        <td className="max-w-xs text-foreground text-[12px]">
                           {prob.workaround || <span className="text-muted-foreground/50 italic">None documented.</span>}
                         </td>
                       )}
@@ -419,29 +419,29 @@ export default function ProblemsPage() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">New Problem Record</h2>
+            <h2 className="text-body-sm font-semibold">New Problem Record</h2>
             <button onClick={() => setShowNewProblem(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium">Title <span className="text-red-500">*</span></label>
-            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Describe the problem…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            <label className="text-caption font-medium">Title <span className="text-red-500">*</span></label>
+            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Describe the problem…" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium">Description</label>
-            <textarea rows={3} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Symptoms, affected services, initial investigation…" className="px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+            <label className="text-caption font-medium">Description</label>
+            <textarea rows={3} value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Symptoms, affected services, initial investigation…" className="px-3 py-2 text-body-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium">Priority</label>
-            <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+            <label className="text-caption font-medium">Priority</label>
+            <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
               {["critical","high","medium","low"].map(p => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
             </select>
           </div>
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setShowNewProblem(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowNewProblem(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => { if (!newTitle.trim()) { toast.error("Title is required"); return; } createProblem.mutate({ title: newTitle.trim(), description: newDesc.trim() || undefined, priority: newPriority }); }}
               disabled={createProblem.isPending}
-              className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+              className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
               {createProblem.isPending ? "Creating…" : "Create Problem"}
             </button>
           </div>

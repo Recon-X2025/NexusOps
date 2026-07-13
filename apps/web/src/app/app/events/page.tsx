@@ -169,7 +169,7 @@ export default function EventManagementPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Event Management</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Event Management</h1>
           <span className="text-[11px] text-muted-foreground/70">IT Operations — AIOps Alert Correlation</span>
         </div>
         <div className="flex items-center gap-2">
@@ -245,7 +245,7 @@ export default function EventManagementPage() {
           { label: "Auto-Resolved (1h)", value: recentlyResolved,         color: "text-green-700",  border: "border-green-200" },
         ].map((k) => (
           <div key={k.label} className={`bg-card border rounded px-3 py-2 ${k.border}`}>
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -395,7 +395,7 @@ export default function EventManagementPage() {
                       </span>
                     </td>
                     <td className="text-muted-foreground text-[11px]">{integ.lastSyncAt ? new Date(integ.lastSyncAt).toLocaleString() : "Never"}</td>
-                    <td className="text-red-600 text-[10px] max-w-xs truncate">{integ.lastError || "—"}</td>
+                    <td className="text-red-600 text-[10px] max-w-xs">{integ.lastError || "—"}</td>
                     <td>
                       <button className="text-[11px] text-primary hover:underline" onClick={() => router.push("/app/admin?tab=integrations")}>Manage</button>
                     </td>
@@ -559,7 +559,7 @@ export default function EventManagementPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold">New Suppression Rule</h2>
+              <h2 className="text-body-sm font-semibold">New Suppression Rule</h2>
               <button onClick={() => setShowNewRule(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
@@ -571,7 +571,7 @@ export default function EventManagementPage() {
                   value={newRule.name}
                   onChange={(e) => setNewRule(n => ({ ...n, name: e.target.value }))}
                   placeholder="e.g. Ignore test nodes"
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -580,7 +580,7 @@ export default function EventManagementPage() {
                   value={newRule.condition}
                   onChange={(e) => setNewRule(n => ({ ...n, condition: e.target.value }))}
                   placeholder='condition'
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -589,7 +589,7 @@ export default function EventManagementPage() {
                   type="datetime-local"
                   value={newRule.suppressUntil}
                   onChange={(e) => setNewRule(n => ({ ...n, suppressUntil: e.target.value }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -597,7 +597,7 @@ export default function EventManagementPage() {
                 <select
                   value={newRule.status}
                   onChange={(e) => setNewRule(n => ({ ...n, status: e.target.value }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="active">Active</option>
                   <option value="critical">Critical</option>
@@ -606,7 +606,7 @@ export default function EventManagementPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
-              <button onClick={() => setShowNewRule(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewRule(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={createRule.isPending}
                 onClick={() => {
@@ -621,7 +621,7 @@ export default function EventManagementPage() {
                     active: newRule.status === "active",
                   });
                 }}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
               >
                 {createRule.isPending ? "Creating..." : "Create Rule"}
               </button>
@@ -635,7 +635,7 @@ export default function EventManagementPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold">New Correlation Policy</h2>
+              <h2 className="text-body-sm font-semibold">New Correlation Policy</h2>
               <button onClick={() => setShowNewPolicy(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
@@ -647,7 +647,7 @@ export default function EventManagementPage() {
                   value={newPolicy.name}
                   onChange={(e) => setNewPolicy(n => ({ ...n, name: e.target.value }))}
                   placeholder="e.g. Auto-incident on High CPU"
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -656,7 +656,7 @@ export default function EventManagementPage() {
                   value={newPolicy.condition}
                   onChange={(e) => setNewPolicy(n => ({ ...n, condition: e.target.value }))}
                   placeholder='count > 10 AND severity = critical'
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -665,7 +665,7 @@ export default function EventManagementPage() {
                   value={newPolicy.action}
                   onChange={(e) => setNewPolicy(n => ({ ...n, action: e.target.value }))}
                   placeholder='e.g. create_incident'
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -673,7 +673,7 @@ export default function EventManagementPage() {
                 <select
                   value={newPolicy.status}
                   onChange={(e) => setNewPolicy(n => ({ ...n, status: e.target.value }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="active">Active</option>
                   <option value="critical">Critical</option>
@@ -682,7 +682,7 @@ export default function EventManagementPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
-              <button onClick={() => setShowNewPolicy(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewPolicy(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={createPolicy.isPending}
                 onClick={() => {
@@ -697,7 +697,7 @@ export default function EventManagementPage() {
                     active: newPolicy.status === "active",
                   });
                 }}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
               >
                 {createPolicy.isPending ? "Creating..." : "Create Policy"}
               </button>
@@ -711,7 +711,7 @@ export default function EventManagementPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-semibold">New Alert Source</h2>
+              <h2 className="text-body-sm font-semibold">New Alert Source</h2>
               <button onClick={() => setShowNewSource(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
@@ -722,7 +722,7 @@ export default function EventManagementPage() {
                 <select
                   value={newSource.provider}
                   onChange={(e) => setNewSource(n => ({ ...n, provider: e.target.value }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="datadog">Datadog</option>
                   <option value="newrelic">New Relic</option>
@@ -734,7 +734,7 @@ export default function EventManagementPage() {
                 <select
                   value={newSource.status}
                   onChange={(e) => setNewSource(n => ({ ...n, status: e.target.value as "connected" | "error" }))}
-                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="connected">Connected (Active)</option>
                   <option value="error">Error (Critical)</option>
@@ -742,7 +742,7 @@ export default function EventManagementPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
-              <button onClick={() => setShowNewSource(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewSource(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={createIntegration.isPending}
                 onClick={() => {
@@ -755,7 +755,7 @@ export default function EventManagementPage() {
                     status: newSource.status,
                   });
                 }}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60"
               >
                 {createIntegration.isPending ? "Connecting..." : "Connect Source"}
               </button>

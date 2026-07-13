@@ -24,14 +24,14 @@ function MiniBar({ data, valueKey, labelKey, color = "bg-primary" }: {
     <div className="space-y-1.5">
       {data.map((d, i) => (
         <div key={i} className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground w-28 truncate">{d[labelKey] ?? "—"}</span>
+          <span className="text-caption text-muted-foreground w-28">{d[labelKey] ?? "—"}</span>
           <div className="flex-1 bg-muted rounded-full h-2">
             <div className={`${color} rounded-full h-2 transition-all`} style={{ width: `${(Number(d[valueKey]) / max) * 100}%` }} />
           </div>
-          <span className="text-xs text-muted-foreground w-6 text-right">{d[valueKey]}</span>
+          <span className="text-caption text-muted-foreground w-6 text-right">{d[valueKey]}</span>
         </div>
       ))}
-      {data.length === 0 && <p className="text-xs text-muted-foreground">No data available</p>}
+      {data.length === 0 && <p className="text-caption text-muted-foreground">No data available</p>}
     </div>
   );
 }
@@ -54,8 +54,8 @@ function OverviewTab({ summary, headcount }: { summary: any; headcount: any }) {
         {kpis.map(k => (
           <div key={k.label} className="bg-card border border-border rounded-xl p-4">
             <div className={`p-2 rounded-xl w-fit mb-3 ${k.color}`}><k.icon className="w-4 h-4" /></div>
-            <p className="text-2xl font-bold">{k.value}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{k.label}</p>
+            <p className="text-h3 font-bold">{k.value}</p>
+            <p className="text-caption text-muted-foreground mt-0.5 leading-tight">{k.label}</p>
           </div>
         ))}
       </div>
@@ -74,30 +74,30 @@ function OverviewTab({ summary, headcount }: { summary: any; headcount: any }) {
           <div className="flex flex-wrap gap-3">
             {(headcount?.byEmploymentType ?? []).map((e: any) => (
               <div key={e.type} className="flex items-center gap-2 bg-muted/50 border border-border rounded-full px-3 py-1.5">
-                <span className="text-sm capitalize">{e.type?.replace("_"," ") ?? "—"}</span>
-                <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-medium">{e.n}</span>
+                <span className="text-body-sm capitalize">{e.type?.replace("_"," ") ?? "—"}</span>
+                <span className="text-caption bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-medium">{e.n}</span>
               </div>
             ))}
-            {(!headcount?.byEmploymentType?.length) && <p className="text-sm text-muted-foreground">No data</p>}
+            {(!headcount?.byEmploymentType?.length) && <p className="text-body-sm text-muted-foreground">No data</p>}
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold mb-4">Key Metrics</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <span className="text-sm font-medium">Active Employees</span>
+              <span className="text-body-sm font-medium">Active Employees</span>
               <span className="font-bold text-blue-600">{headcount?.total ?? 0}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <span className="text-sm font-medium">New Joiners (period)</span>
+              <span className="text-body-sm font-medium">New Joiners (period)</span>
               <span className="font-bold text-green-600">+{headcount?.newHires ?? 0}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <span className="text-sm font-medium">Exits (period)</span>
+              <span className="text-body-sm font-medium">Exits (period)</span>
               <span className="font-bold text-red-600">{headcount?.resigned ?? 0}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <span className="text-sm font-medium">Net Change</span>
+              <span className="text-body-sm font-medium">Net Change</span>
               <span className={`font-bold ${(headcount?.newHires ?? 0) - (headcount?.resigned ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {(headcount?.newHires ?? 0) - (headcount?.resigned ?? 0) >= 0 ? "+" : ""}{(headcount?.newHires ?? 0) - (headcount?.resigned ?? 0)}
               </span>
@@ -130,15 +130,15 @@ function HeadcountTab({ headcount, tenure }: { headcount: any; tenure: any }) {
             const colors: Record<string, string> = { "<1yr": "bg-blue-400", "1-2yr": "bg-indigo-400", "2-5yr": "bg-purple-400", "5-10yr": "bg-violet-500", ">10yr": "bg-fuchsia-500" };
             return (
               <div key={t.label} className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-14">{t.label}</span>
+                <span className="text-caption text-muted-foreground w-14">{t.label}</span>
                 <div className="flex-1 bg-muted rounded-full h-3">
                   <div className={`${colors[t.label] ?? "bg-primary"} rounded-full h-3 transition-all`} style={{ width: `${(t.value / max) * 100}%` }} />
                 </div>
-                <span className="text-xs font-medium w-6 text-right">{t.value}</span>
+                <span className="text-caption font-medium w-6 text-right">{t.value}</span>
               </div>
             );
           })}
-          {(!tenure?.length) && <p className="text-xs text-muted-foreground">No tenure data</p>}
+          {(!tenure?.length) && <p className="text-caption text-muted-foreground">No tenure data</p>}
         </div>
       </div>
       <div className="bg-card border border-border rounded-xl p-5">
@@ -146,11 +146,11 @@ function HeadcountTab({ headcount, tenure }: { headcount: any; tenure: any }) {
         <div className="grid grid-cols-2 gap-3">
           {(headcount?.byEmploymentType ?? []).map((e: any) => (
             <div key={e.type} className="bg-muted/50 border border-border rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold">{e.n}</p>
-              <p className="text-xs text-muted-foreground capitalize mt-1">{e.type?.replace("_"," ") ?? "Other"}</p>
+              <p className="text-h3 font-bold">{e.n}</p>
+              <p className="text-caption text-muted-foreground capitalize mt-1">{e.type?.replace("_"," ") ?? "Other"}</p>
             </div>
           ))}
-          {(!headcount?.byEmploymentType?.length) && <p className="text-sm text-muted-foreground col-span-2">No data</p>}
+          {(!headcount?.byEmploymentType?.length) && <p className="text-body-sm text-muted-foreground col-span-2">No data</p>}
         </div>
       </div>
     </div>
@@ -164,22 +164,22 @@ function AttritionTab({ attrition, headcount }: { attrition: any; headcount: any
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold text-red-600">{headcount?.attritionRate ?? 0}%</div>
-          <div className="text-xs text-muted-foreground">Overall Attrition Rate</div>
+          <div className="text-h3 font-bold text-red-600">{headcount?.attritionRate ?? 0}%</div>
+          <div className="text-caption text-muted-foreground">Overall Attrition Rate</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold">{headcount?.resigned ?? 0}</div>
-          <div className="text-xs text-muted-foreground">Total Exits (Period)</div>
+          <div className="text-h3 font-bold">{headcount?.resigned ?? 0}</div>
+          <div className="text-caption text-muted-foreground">Total Exits (Period)</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold">{headcount?.newHires ?? 0}</div>
-          <div className="text-xs text-muted-foreground">New Hires (Period)</div>
+          <div className="text-h3 font-bold">{headcount?.newHires ?? 0}</div>
+          <div className="text-caption text-muted-foreground">New Hires (Period)</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
-          <div className={`text-2xl font-bold ${(headcount?.newHires ?? 0) >= (headcount?.resigned ?? 0) ? "text-green-600" : "text-red-600"}`}>
+          <div className={`text-h3 font-bold ${(headcount?.newHires ?? 0) >= (headcount?.resigned ?? 0) ? "text-green-600" : "text-red-600"}`}>
             {(headcount?.newHires ?? 0) >= (headcount?.resigned ?? 0) ? "+" : ""}{(headcount?.newHires ?? 0) - (headcount?.resigned ?? 0)}
           </div>
-          <div className="text-xs text-muted-foreground">Net Headcount Change</div>
+          <div className="text-caption text-muted-foreground">Net Headcount Change</div>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -190,15 +190,15 @@ function AttritionTab({ attrition, headcount }: { attrition: any; headcount: any
               const max = Math.max(...(attrition?.monthly ?? []).map((x: any) => x.exits), 1);
               return (
                 <div key={m.month} className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground w-20">{m.month}</span>
+                  <span className="text-caption text-muted-foreground w-20">{m.month}</span>
                   <div className="flex-1 bg-muted rounded-full h-2">
                     <div className="bg-red-400 rounded-full h-2" style={{ width: `${(m.exits / max) * 100}%` }} />
                   </div>
-                  <span className="text-xs text-muted-foreground w-4 text-right">{m.exits}</span>
+                  <span className="text-caption text-muted-foreground w-4 text-right">{m.exits}</span>
                 </div>
               );
             })}
-            {(!attrition?.monthly?.length) && <p className="text-xs text-muted-foreground">No attrition data yet</p>}
+            {(!attrition?.monthly?.length) && <p className="text-caption text-muted-foreground">No attrition data yet</p>}
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-5">
@@ -221,8 +221,8 @@ function LeaveTab({ leaveData }: { leaveData: any }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium">Year:</label>
-        <select value={year} onChange={e => setYear(+e.target.value)} className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background">
+        <label className="text-body-sm font-medium">Year:</label>
+        <select value={year} onChange={e => setYear(+e.target.value)} className="border border-border rounded-lg px-3 py-1.5 text-body-sm bg-background">
           {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
@@ -238,12 +238,12 @@ function LeaveTab({ leaveData }: { leaveData: any }) {
               const colors: Record<string, string> = { approved: "text-green-600", pending: "text-amber-600", rejected: "text-red-600", cancelled: "text-gray-500" };
               return (
                 <div key={s.status} className="bg-muted/50 border border-border rounded-xl p-3 text-center">
-                  <p className={`text-2xl font-bold ${colors[s.status] ?? ""}`}>{s.n}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{s.status}</p>
+                  <p className={`text-h3 font-bold ${colors[s.status] ?? ""}`}>{s.n}</p>
+                  <p className="text-caption text-muted-foreground capitalize">{s.status}</p>
                 </div>
               );
             })}
-            {(!ld?.byStatus?.length) && <p className="text-sm text-muted-foreground col-span-2">No leave data for {year}</p>}
+            {(!ld?.byStatus?.length) && <p className="text-body-sm text-muted-foreground col-span-2">No leave data for {year}</p>}
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-5 md:col-span-2">
@@ -266,17 +266,17 @@ function LeaveTab({ leaveData }: { leaveData: any }) {
               );
             })}
           </div>
-          {(!ld?.monthly?.length) && <p className="text-xs text-muted-foreground mt-2">No leave approvals in {year}</p>}
+          {(!ld?.monthly?.length) && <p className="text-caption text-muted-foreground mt-2">No leave approvals in {year}</p>}
         </div>
         {ld?.balances?.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-5 md:col-span-2">
             <h3 className="font-semibold mb-4">Average Leave Balances ({year})</h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-body-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     {["Leave Type","Avg Entitlement","Avg Used","Avg Remaining","Utilisation"].map(h => (
-                      <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
+                      <th key={h} className="text-left px-3 py-2 text-caption font-medium text-muted-foreground">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -298,7 +298,7 @@ function LeaveTab({ leaveData }: { leaveData: any }) {
                             <div className="flex-1 bg-muted rounded-full h-1.5 max-w-20">
                               <div className="bg-amber-400 rounded-full h-1.5" style={{ width: `${Math.min(utilisation, 100)}%` }} />
                             </div>
-                            <span className="text-xs">{utilisation}%</span>
+                            <span className="text-caption">{utilisation}%</span>
                             {pending > 0 && <span className="text-[10px] text-muted-foreground">({Math.round(pending)} pending)</span>}
                           </div>
                         </td>
@@ -324,9 +324,9 @@ function GradesTab({ grades }: { grades: any }) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-semibold mb-4">Job grade (compensation ladder)</h3>
-        <p className="text-xs text-muted-foreground mb-3">Uses <code className="text-[11px]">employees.job_grade</code> when set (US-HCM-002).</p>
+        <p className="text-caption text-muted-foreground mb-3">Uses <code className="text-[11px]">employees.job_grade</code> when set (US-HCM-002).</p>
         <MiniBar data={jobGrades.filter((g: any) => g.jobGrade)} valueKey="n" labelKey="jobGrade" color="bg-violet-500" />
-        {(!jobGrades?.length) && <p className="text-sm text-muted-foreground">No job grade data — set job grade on employee records.</p>}
+        {(!jobGrades?.length) && <p className="text-body-sm text-muted-foreground">No job grade data — set job grade on employee records.</p>}
       </div>
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-semibold mb-4">Department (org structure)</h3>
@@ -336,24 +336,24 @@ function GradesTab({ grades }: { grades: any }) {
           labelKey="department"
           color="bg-slate-500"
         />
-        {(!departments?.length) && <p className="text-sm text-muted-foreground">No department data available</p>}
+        {(!departments?.length) && <p className="text-body-sm text-muted-foreground">No department data available</p>}
       </div>
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-semibold mb-4">Management Span</h3>
         <div className="space-y-4">
           <div className="bg-muted/50 border border-border rounded-xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Total Managers</p>
-              <p className="text-xs text-muted-foreground">People with direct reports</p>
+              <p className="text-body-sm font-medium">Total Managers</p>
+              <p className="text-caption text-muted-foreground">People with direct reports</p>
             </div>
-            <span className="text-3xl font-bold">{grades?.managersCount ?? 0}</span>
+            <span className="text-h2 font-bold">{grades?.managersCount ?? 0}</span>
           </div>
           <div className="bg-muted/50 border border-border rounded-xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Individual Contributors</p>
-              <p className="text-xs text-muted-foreground">Non-managers</p>
+              <p className="text-body-sm font-medium">Individual Contributors</p>
+              <p className="text-caption text-muted-foreground">Non-managers</p>
             </div>
-            <span className="text-3xl font-bold">{Math.max(0, departments.reduce((s: number, g: any) => s + (g.n ?? 0), 0) - (grades?.managersCount ?? 0))}</span>
+            <span className="text-h2 font-bold">{Math.max(0, departments.reduce((s: number, g: any) => s + (g.n ?? 0), 0) - (grades?.managersCount ?? 0))}</span>
           </div>
         </div>
       </div>
@@ -391,7 +391,7 @@ export default function PeopleAnalyticsPage() {
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
-      <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-body-sm text-muted-foreground">
         <p className="text-foreground font-medium">Read-only analytics</p>
         <p className="mt-1">
           Charts are built from employee records and leave data. Add or change people under{" "}
@@ -413,25 +413,25 @@ export default function PeopleAnalyticsPage() {
             <BarChart2 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">People & Workforce Analytics</h1>
-            <p className="text-sm text-muted-foreground">Headcount, attrition, leave utilisation, and grade insights</p>
+            <h1 className="text-h3 font-bold">People & Workforce Analytics</h1>
+            <p className="text-body-sm text-muted-foreground">Headcount, attrition, leave utilisation, and grade insights</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">Scope:</label>
+            <label className="text-caption text-muted-foreground">Scope:</label>
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as "org" | "my_team")}
-              className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background max-w-[11rem]"
+              className="border border-border rounded-lg px-3 py-1.5 text-body-sm bg-background max-w-[11rem]"
             >
               <option value="org">Entire org</option>
               <option value="my_team">My team (report chain)</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">Period:</label>
-            <select value={period} onChange={e => setPeriod(+e.target.value)} className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background">
+            <label className="text-caption text-muted-foreground">Period:</label>
+            <select value={period} onChange={e => setPeriod(+e.target.value)} className="border border-border rounded-lg px-3 py-1.5 text-body-sm bg-background">
               <option value={30}>Last 30 days</option>
               <option value={90}>Last 90 days</option>
               <option value={180}>Last 6 months</option>
@@ -448,7 +448,7 @@ export default function PeopleAnalyticsPage() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-3 text-body-sm font-medium border-b-2 transition-colors ${
                 tab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"

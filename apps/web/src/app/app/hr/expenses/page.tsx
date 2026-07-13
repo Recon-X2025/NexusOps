@@ -117,7 +117,7 @@ export default function ExpensesPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Receipt className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Expense Reimbursements</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Expense Reimbursements</h1>
           <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">Submit · Manager Approves · Finance Pays</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -159,7 +159,7 @@ export default function ExpensesPage() {
         ].map(k => (
           <div key={k.l} className="bg-card border border-border rounded px-3 py-2">
             <k.I className="w-4 h-4 text-muted-foreground/70 mb-1" />
-            <div className={`text-lg font-bold ${k.c}`}>{k.v}</div>
+            <div className={`text-body-lg font-bold ${k.c}`}>{k.v}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.l}</div>
           </div>
         ))}
@@ -201,7 +201,7 @@ export default function ExpensesPage() {
                         {row.employee ? `${row.employee.firstName} ${row.employee.lastName}` : "—"}
                       </td>
                       <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]">
-                        <div className="truncate">{c.title}</div>
+                        <div className="">{c.title}</div>
                         {stage && (
                           <div className={`mt-0.5 text-[9px] px-1 py-0.5 rounded border inline-block whitespace-nowrap ${stage.color}`}>{stage.text}</div>
                         )}
@@ -251,7 +251,7 @@ export default function ExpensesPage() {
                           {c.status === "approved" && <span className="text-[10px] text-green-700">✓ Approved</span>}
                           {c.status === "reimbursed" && <span className="text-[10px] text-purple-700">✓ Paid</span>}
                           {c.status === "rejected" && (
-                            <span className="text-[10px] text-red-600 max-w-[100px] truncate" title={c.rejectionReason}>✗ {c.rejectionReason ?? "Rejected"}</span>
+                            <span className="text-[10px] text-red-600 max-w-[100px]" title={c.rejectionReason}>✗ {c.rejectionReason ?? "Rejected"}</span>
                           )}
                         </div>
                       </td>
@@ -269,7 +269,7 @@ export default function ExpensesPage() {
       {rejectingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm p-5">
-            <h3 className="text-sm font-semibold mb-3 text-foreground">Reject Expense Claim</h3>
+            <h3 className="text-body-sm font-semibold mb-3 text-foreground">Reject Expense Claim</h3>
             <label className="text-[11px] font-medium text-muted-foreground block mb-1">Reason for Rejection</label>
             <textarea
               value={rejectReason}
@@ -296,7 +296,7 @@ export default function ExpensesPage() {
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg p-6">
-            <h2 className="text-sm font-semibold mb-1">New Expense Claim</h2>
+            <h2 className="text-body-sm font-semibold mb-1">New Expense Claim</h2>
             <p className="text-[11px] text-muted-foreground mb-4">After creating, click <strong>Submit</strong> to send for manager approval.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="col-span-2"><label className="text-[11px] font-medium text-muted-foreground block mb-1">Title *</label><input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Client dinner at Taj" className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none focus:ring-1 focus:ring-primary/50" /></div>

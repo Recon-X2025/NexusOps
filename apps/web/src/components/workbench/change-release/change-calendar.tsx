@@ -127,7 +127,7 @@ function DayCell({ d, windows }: { d: Date; windows: ChangeWindow[] }) {
           {dayWindows.slice(0, 3).map((w) => (
             <li key={w.id} className="flex items-center gap-1">
               <span className={cn("inline-block h-1.5 w-1.5 rounded-full", RISK_TONE[w.risk] ?? "bg-slate-400")} />
-              <span className="truncate font-medium text-slate-700 dark:text-slate-200">{w.number}</span>
+              <span className="font-medium text-slate-700 dark:text-slate-200">{w.number}</span>
             </li>
           ))}
           {dayWindows.length > 3 ? (

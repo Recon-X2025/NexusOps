@@ -30,14 +30,14 @@ function CommandCenterQueryError({
 }) {
   return (
     <div
-      className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+      className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-body-sm text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
       role="alert"
     >
       <p className="font-semibold text-slate-900 dark:text-slate-100">{title}</p>
       <p className="mt-1 text-slate-700 dark:text-slate-300">{message}</p>
       <button
         type="button"
-        className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+        className="mt-3 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-caption font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
         onClick={onRetry}
       >
         Retry
@@ -169,7 +169,14 @@ function CommandCenterBody({
 
   return (
     <CommandCenterShell>
-      <CommandCenterBar rangeId={rangeId} onRangeId={setRangeId} onRefresh={refreshAll} isFetching={qView.isFetching || isForceRefreshing} />
+      <CommandCenterBar
+        rangeId={rangeId}
+        onRangeId={setRangeId}
+        onRefresh={refreshAll}
+        isFetching={qView.isFetching || isForceRefreshing}
+        scoreState={displayPayload?.scoreState}
+        scoreSubtext={displayPayload?.scoreSubtext}
+      />
 
       {qView.isLoading || !displayPayload ? (
         <div className="space-y-2 animate-pulse p-2">

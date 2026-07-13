@@ -72,7 +72,7 @@ export default function CompliancePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CheckSquare className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Configuration Compliance</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Configuration Compliance</h1>
           <span className="text-[11px] text-muted-foreground/70">Policy Baselines · Audit Plans · Risk Register</span>
         </div>
         <div className="flex items-center gap-2">
@@ -95,18 +95,18 @@ export default function CompliancePage() {
       {/* Stats grid — mix of static baseline data and real risk/audit data */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="bg-card border border-border rounded px-3 py-2">
-          <div className={`text-xl font-bold ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/50"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
+          <div className={`text-h4 font-bold ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/50"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg Compliance Score</div>
         </div>
         <div className="bg-card border border-border rounded px-3 py-2">
-          <div className={`text-xl font-bold ${totalFailedBaselines > 0 ? "text-red-700" : "text-green-700"}`}>{totalFailedBaselines}</div>
+          <div className={`text-h4 font-bold ${totalFailedBaselines > 0 ? "text-red-700" : "text-green-700"}`}>{totalFailedBaselines}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">High/Critical Open Risks</div>
         </div>
         <div className="bg-card border border-border rounded px-3 py-2">
           {risksQuery.isLoading ? (
-            <div className="text-xl font-bold text-muted-foreground animate-pulse">—</div>
+            <div className="text-h4 font-bold text-muted-foreground animate-pulse">—</div>
           ) : (
-            <div className={`text-xl font-bold ${openRisks && openRisks > 5 ? "text-orange-700" : "text-yellow-700"}`}>
+            <div className={`text-h4 font-bold ${openRisks && openRisks > 5 ? "text-orange-700" : "text-yellow-700"}`}>
               {openRisks ?? 0}
             </div>
           )}
@@ -114,9 +114,9 @@ export default function CompliancePage() {
         </div>
         <div className="bg-card border border-border rounded px-3 py-2">
           {auditsQuery.isLoading ? (
-            <div className="text-xl font-bold text-muted-foreground animate-pulse">—</div>
+            <div className="text-h4 font-bold text-muted-foreground animate-pulse">—</div>
           ) : (
-            <div className={`text-xl font-bold ${openAuditFindings.length > 0 ? "text-orange-700" : "text-green-700"}`}>
+            <div className={`text-h4 font-bold ${openAuditFindings.length > 0 ? "text-orange-700" : "text-green-700"}`}>
               {openAuditFindings.length}
             </div>
           )}
@@ -245,7 +245,7 @@ export default function CompliancePage() {
                     {selectedAudit.findings.map((f: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 px-2 py-1 bg-card rounded border border-border">
                         <span className={`status-badge capitalize text-[10px] ${FINDING_SEVERITY_COLOR[f.severity] ?? "bg-muted text-muted-foreground"}`}>{f.severity}</span>
-                        <span className="flex-1 truncate">{f.title ?? f.description ?? "Finding"}</span>
+                        <span className="flex-1">{f.title ?? f.description ?? "Finding"}</span>
                         <span className={`text-[10px] ${f.status === "closed" ? "text-green-600" : "text-orange-600"}`}>{f.status}</span>
                       </div>
                     ))}
@@ -339,37 +339,37 @@ export default function CompliancePage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Add Compliance Baseline / Audit</h2>
+              <h2 className="text-body-sm font-semibold">Add Compliance Baseline / Audit</h2>
               <button onClick={() => setShowAddBaseline(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Audit Name <span className="text-red-500">*</span></label>
-              <input value={baselineForm.name} onChange={(e) => setBaselineForm(f => ({...f, name: e.target.value}))} placeholder="e.g. ISO 27001 Annual Review" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">Audit Name <span className="text-red-500">*</span></label>
+              <input value={baselineForm.name} onChange={(e) => setBaselineForm(f => ({...f, name: e.target.value}))} placeholder="e.g. ISO 27001 Annual Review" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Framework</label>
-                <select value={baselineForm.framework} onChange={(e) => setBaselineForm(f => ({...f, framework: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Framework</label>
+                <select value={baselineForm.framework} onChange={(e) => setBaselineForm(f => ({...f, framework: e.target.value}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   {["ISO 27001","SOC 2","PCI-DSS","NIST CSF","CIS Controls","GDPR","HIPAA","ISO 9001"].map(fw => <option key={fw} value={fw}>{fw}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Frequency</label>
-                <select value={baselineForm.frequency} onChange={(e) => setBaselineForm(f => ({...f, frequency: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Frequency</label>
+                <select value={baselineForm.frequency} onChange={(e) => setBaselineForm(f => ({...f, frequency: e.target.value as any}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   {["monthly","quarterly","annual"].map(fr => <option key={fr} value={fr} className="capitalize">{fr.charAt(0).toUpperCase() + fr.slice(1)}</option>)}
                 </select>
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Scope</label>
-              <input value={baselineForm.scope} onChange={(e) => setBaselineForm(f => ({...f, scope: e.target.value}))} placeholder="e.g. All production systems, Finance department" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+              <label className="text-caption font-medium">Scope</label>
+              <input value={baselineForm.scope} onChange={(e) => setBaselineForm(f => ({...f, scope: e.target.value}))} placeholder="e.g. All production systems, Finance department" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowAddBaseline(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowAddBaseline(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!baselineForm.name.trim()) { toast.error("Audit name is required"); return; } createAudit.mutate({ title: baselineForm.name.trim(), scope: baselineForm.scope || undefined } as any); }}
                 disabled={createAudit.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
                 {createAudit.isPending ? "Creating…" : "Create Baseline"}
               </button>
             </div>

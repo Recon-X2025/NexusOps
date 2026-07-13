@@ -46,8 +46,8 @@ export default function PortalKnowledgePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">Knowledge Base</h1>
-        <p className="text-xs text-gray-500">
+        <h1 className="text-body-lg font-bold text-gray-900">Knowledge Base</h1>
+        <p className="text-caption text-gray-500">
           Search articles and guides to find answers quickly.
         </p>
       </div>
@@ -60,12 +60,12 @@ export default function PortalKnowledgePage() {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search knowledge base…"
-          className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-4 text-body-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
         {searchInput && (
           <button
             onClick={() => { setSearchInput(""); setSearch(""); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-caption text-gray-400 hover:text-gray-600"
           >
             Clear
           </button>
@@ -74,7 +74,7 @@ export default function PortalKnowledgePage() {
 
       {/* Results count */}
       {!isLoading && !isError && (
-        <p className="text-xs text-gray-400">
+        <p className="text-caption text-gray-400">
           {articles.length === 0
             ? search
               ? `No articles found for "${search}"`
@@ -92,7 +92,7 @@ export default function PortalKnowledgePage() {
 
       {/* Error */}
       {isError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-body-sm text-red-600">
           <AlertCircle className="h-4 w-4 shrink-0" />
           Unable to load articles. Please refresh and try again.
         </div>
@@ -103,10 +103,10 @@ export default function PortalKnowledgePage() {
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
           <BookOpen className="h-10 w-10 text-gray-300" />
           <div>
-            <p className="text-sm font-medium text-gray-600">
+            <p className="text-body-sm font-medium text-gray-600">
               {search ? "No matching articles" : "No articles yet"}
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="text-caption text-gray-400">
               {search
                 ? "Try a different search term."
                 : "Knowledge base articles will appear here."}
@@ -132,9 +132,9 @@ export default function PortalKnowledgePage() {
                 >
                   <FileText className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">{article.title}</p>
+                    <p className="text-body-sm font-semibold text-gray-800">{article.title}</p>
                     {!isExpanded && (
-                      <p className="mt-0.5 line-clamp-2 text-[12px] text-gray-500">
+                      <p className="mt-0.5 text-[12px] text-gray-500">
                         {article.content
                           ? article.content.replace(/[#*`>_~]/g, "").slice(0, 120) + (article.content.length > 120 ? "…" : "")
                           : "No preview available."}
@@ -161,13 +161,13 @@ export default function PortalKnowledgePage() {
                 {/* Expanded content */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 px-4 py-4">
-                    <div className="prose prose-sm max-w-none text-sm text-gray-700 whitespace-pre-wrap">
+                    <div className="prose prose-sm max-w-none text-body-sm text-gray-700 whitespace-pre-wrap">
                       {article.content ?? "No content available."}
                     </div>
 
                     {/* Feedback */}
                     <div className="mt-5 flex items-center gap-3 border-t border-gray-100 pt-4">
-                      <span className="text-xs text-gray-500">Was this helpful?</span>
+                      <span className="text-caption text-gray-500">Was this helpful?</span>
                       <button
                         onClick={() =>
                           feedbackMutation.mutate({
@@ -176,7 +176,7 @@ export default function PortalKnowledgePage() {
                           })
                         }
                         disabled={feedbackMutation.isPending}
-                        className="flex items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
+                        className="flex items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-2.5 py-1 text-caption font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
                       >
                         <ThumbsUp className="h-3.5 w-3.5" />
                         Yes
@@ -192,7 +192,7 @@ export default function PortalKnowledgePage() {
                           })
                         }
                         disabled={feedbackMutation.isPending}
-                        className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+                        className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-caption font-medium text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
                       >
                         <ThumbsDown className="h-3.5 w-3.5" />
                         No

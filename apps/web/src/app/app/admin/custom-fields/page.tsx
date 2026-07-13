@@ -85,7 +85,7 @@ export default function CustomFieldsAdminPage() {
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
           <div>
-            <h1 className="text-sm font-semibold text-foreground">Custom fields</h1>
+            <h1 className="text-body-sm font-semibold text-foreground">Custom fields</h1>
             <p className="text-[11px] text-muted-foreground">
               Org-scoped definitions for forms and records. Names must be <code className="text-[10px]">snake_case</code>.
             </p>

@@ -238,16 +238,16 @@ export default function PayrollPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          <h1 className="text-h3 font-semibold text-gray-900 dark:text-gray-100">
             Payroll
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-body-sm text-gray-500 mt-1">
             12-step payroll cycle with statutory compliance
           </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 dark:bg-gray-100 px-4 py-2.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 dark:bg-gray-100 px-4 py-2.5 text-body-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -262,7 +262,7 @@ export default function PayrollPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2.5 text-body-sm font-medium border-b-2 transition-colors ${
               activeTab === tab
                 ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -278,7 +278,7 @@ export default function PayrollPage() {
           {/* Run List */}
           <div className="w-80 flex-shrink-0 space-y-2">
             {runs.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500">
+              <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-body-sm text-gray-500">
                 No payroll runs yet. Create your first run to get started.
               </div>
             ) : (
@@ -295,18 +295,18 @@ export default function PayrollPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                      <span className="font-medium text-body-sm text-gray-900 dark:text-gray-100">
                         {r.runNumber}
                       </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+                      <span className={`text-caption px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
                         {r.status.replace(/_/g, " ").toLowerCase()}
                       </span>
                     </div>
-                    <div className="mt-1 text-xs text-gray-500">
+                    <div className="mt-1 text-caption text-gray-500">
                       {MONTHS[r.month - 1]} {r.year} · {r.employeeCount ?? 0} employees
                     </div>
                     {r.totalNet && Number(r.totalNet) > 0 && (
-                      <div className="mt-1 text-xs text-gray-500">
+                      <div className="mt-1 text-caption text-gray-500">
                         Net: ₹{Number(r.totalNet).toLocaleString("en-IN")}
                       </div>
                     )}
@@ -319,7 +319,7 @@ export default function PayrollPage() {
           {/* Run Detail */}
           <div className="flex-1 min-w-0">
             {!run ? (
-              <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-16 text-center text-sm text-gray-500">
+              <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-16 text-center text-body-sm text-gray-500">
                 Select a payroll run to view details
               </div>
             ) : (
@@ -327,10 +327,10 @@ export default function PayrollPage() {
                 {/* Run Header */}
                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    <h2 className="text-body-lg font-semibold text-gray-900 dark:text-gray-100">
                       {run.runNumber}
                     </h2>
-                    <span className={`text-sm px-3 py-1 rounded-full ${(STATUS_COLORS[run.status] ?? STATUS_COLORS.DRAFT!).bg} ${(STATUS_COLORS[run.status] ?? STATUS_COLORS.DRAFT!).text}`}>
+                    <span className={`text-body-sm px-3 py-1 rounded-full ${(STATUS_COLORS[run.status] ?? STATUS_COLORS.DRAFT!).bg} ${(STATUS_COLORS[run.status] ?? STATUS_COLORS.DRAFT!).text}`}>
                       {run.status.replace(/_/g, " ")}
                     </span>
                   </div>
@@ -344,8 +344,8 @@ export default function PayrollPage() {
                       { label: "Employer cost", value: `₹${Number(run.totalEmployerCost || 0).toLocaleString("en-IN")}` },
                     ].map((kpi) => (
                       <div key={kpi.label} className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                        <div className="text-xs text-gray-500 mb-1">{kpi.label}</div>
-                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{kpi.value}</div>
+                        <div className="text-caption text-gray-500 mb-1">{kpi.label}</div>
+                        <div className="text-body-sm font-semibold text-gray-900 dark:text-gray-100">{kpi.value}</div>
                       </div>
                     ))}
                   </div>
@@ -359,8 +359,8 @@ export default function PayrollPage() {
                       { label: "TDS", value: `₹${Number(run.totalTDS || 0).toLocaleString("en-IN")}` },
                     ].map((kpi) => (
                       <div key={kpi.label} className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
-                        <div className="text-xs text-gray-500 mb-1">{kpi.label}</div>
-                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{kpi.value}</div>
+                        <div className="text-caption text-gray-500 mb-1">{kpi.label}</div>
+                        <div className="text-body-sm font-medium text-gray-700 dark:text-gray-300">{kpi.value}</div>
                       </div>
                     ))}
                   </div>
@@ -368,7 +368,7 @@ export default function PayrollPage() {
 
                 {/* 12-Step Progress Tracker */}
                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-5">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-4">
+                  <h3 className="text-body-sm font-medium text-gray-900 dark:text-gray-100 mb-4">
                     Payroll cycle progress
                   </h3>
                   <div className="space-y-1">
@@ -390,7 +390,7 @@ export default function PayrollPage() {
                         >
                           {/* Step indicator */}
                           <div
-                            className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium ${
+                            className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-caption font-medium ${
                               isCompleted
                                 ? "bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-200"
                                 : isCurrent
@@ -409,7 +409,7 @@ export default function PayrollPage() {
 
                           {/* Step label */}
                           <span
-                            className={`text-sm flex-1 ${
+                            className={`text-body-sm flex-1 ${
                               isCompleted
                                 ? "text-green-700 dark:text-green-300"
                                 : isCurrent
@@ -449,7 +449,7 @@ export default function PayrollPage() {
                                   completeRun.mutate({ runId: run.id });
                                 }
                               }}
-                              className="text-xs px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                              className="text-caption px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
                             >
                               Execute
                             </button>
@@ -463,12 +463,12 @@ export default function PayrollPage() {
                 {/* Errors */}
                 {run.errors && Array.isArray(run.errors) && (run.errors as any[]).length > 0 && (
                   <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
-                    <h3 className="text-sm font-medium text-red-700 dark:text-red-300 mb-2">
+                    <h3 className="text-body-sm font-medium text-red-700 dark:text-red-300 mb-2">
                       Errors ({(run.errors as any[]).length})
                     </h3>
                     <div className="space-y-1">
                       {(run.errors as any[]).map((err: any, i: number) => (
-                        <div key={i} className="text-xs text-red-600 dark:text-red-400">
+                        <div key={i} className="text-caption text-red-600 dark:text-red-400">
                           {err.employeeId && <span className="font-mono">{err.employeeId}: </span>}
                           {err.message}
                         </div>
@@ -480,13 +480,13 @@ export default function PayrollPage() {
                 {/* Approvals */}
                 {run.approvals && run.approvals.length > 0 && (
                   <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+                    <h3 className="text-body-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
                       Approvals
                     </h3>
                     <div className="space-y-2">
                       {run.approvals.map((a: any) => (
-                        <div key={a.id} className="flex items-center gap-3 text-sm">
-                          <span className={`px-2 py-0.5 rounded text-xs ${
+                        <div key={a.id} className="flex items-center gap-3 text-body-sm">
+                          <span className={`px-2 py-0.5 rounded text-caption ${
                             a.status === "APPROVED"
                               ? "bg-green-50 text-green-700"
                               : "bg-red-50 text-red-700"
@@ -498,7 +498,7 @@ export default function PayrollPage() {
                             {a.decidedAt && ` on ${format(new Date(a.decidedAt), "dd MMM yyyy HH:mm")}`}
                           </span>
                           {a.comments && (
-                            <span className="text-gray-400 text-xs">— {a.comments}</span>
+                            <span className="text-gray-400 text-caption">— {a.comments}</span>
                           )}
                         </div>
                       ))}
@@ -514,14 +514,14 @@ export default function PayrollPage() {
       {activeTab === "structures" && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-body-sm text-gray-500 dark:text-gray-400">
               CTC templates used to compute gross, HRA, and statutory components for assigned employees.
             </p>
             {can("hr", "write") && (
               <button
                 type="button"
                 onClick={() => setStructureEditor(emptyStructureForm())}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 dark:bg-gray-100 px-3 py-2 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 dark:bg-gray-100 px-3 py-2 text-body-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
               >
                 <Plus className="w-4 h-4" /> New structure
               </button>
@@ -529,16 +529,16 @@ export default function PayrollPage() {
           </div>
 
           {structuresQuery.isLoading && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">Loading structures…</div>
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">Loading structures…</div>
           )}
           {structuresQuery.data && structuresQuery.data.length === 0 && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">
               No salary structures yet. Create one to assign it to employees.
             </div>
           )}
           {structuresQuery.data && structuresQuery.data.length > 0 && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="w-full text-body-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-2 font-medium">Structure</th>
@@ -608,25 +608,25 @@ export default function PayrollPage() {
             </div>
           )}
           {deleteStructure.error && (
-            <div className="text-sm text-red-600">{deleteStructure.error.message}</div>
+            <div className="text-body-sm text-red-600">{deleteStructure.error.message}</div>
           )}
         </div>
       )}
 
       {activeTab === "declarations" && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-body-sm text-gray-500 dark:text-gray-400">
             Issue Form 16 (TDS certificate) to an employee for e-signature.
           </p>
           {employeesQuery.isLoading && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">Loading employees…</div>
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">Loading employees…</div>
           )}
           {employeesQuery.data && employeesQuery.data.length === 0 && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">No employees found.</div>
+            <div className="text-body-sm text-gray-500 dark:text-gray-400">No employees found.</div>
           )}
           {employeesQuery.data && employeesQuery.data.length > 0 && (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="w-full text-body-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800 text-left text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-2 font-medium">Employee</th>
@@ -645,7 +645,7 @@ export default function PayrollPage() {
                         <button
                           type="button"
                           onClick={() => setForm16For(emp as Record<string, unknown>)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-caption border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
                           <FileSignature className="w-3.5 h-3.5" /> Send Form 16
                         </button>
@@ -664,7 +664,7 @@ export default function PayrollPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
             <div className="flex items-start justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <h2 className="text-body-lg font-semibold text-gray-900 dark:text-gray-100">
                 {structureEditor.id ? "Edit salary structure" : "New salary structure"}
               </h2>
               <button
@@ -696,12 +696,12 @@ export default function PayrollPage() {
               className="space-y-3"
             >
               <label className="block">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Structure name</span>
+                <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Structure name</span>
                 <input
                   required
                   value={structureEditor.structureName}
                   onChange={(e) => setStructureEditor({ ...structureEditor, structureName: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
                   placeholder="e.g. Senior Engineer — Band L4"
                 />
               </label>
@@ -716,7 +716,7 @@ export default function PayrollPage() {
                   ["bonusAnnual", "Bonus (₹/yr)"],
                 ] as const).map(([key, label]) => (
                   <label key={key} className="block">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</span>
+                    <span className="text-caption font-medium text-gray-500 dark:text-gray-400">{label}</span>
                     <input
                       required
                       type="number"
@@ -724,47 +724,47 @@ export default function PayrollPage() {
                       step="0.01"
                       value={structureEditor[key]}
                       onChange={(e) => setStructureEditor({ ...structureEditor, [key]: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm font-mono"
+                      className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm font-mono"
                     />
                   </label>
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Effective from</span>
+                  <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Effective from</span>
                   <input
                     required
                     type="date"
                     value={structureEditor.effectiveFrom}
                     onChange={(e) => setStructureEditor({ ...structureEditor, effectiveFrom: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Effective to (optional)</span>
+                  <span className="text-caption font-medium text-gray-500 dark:text-gray-400">Effective to (optional)</span>
                   <input
                     type="date"
                     value={structureEditor.effectiveTo}
                     onChange={(e) => setStructureEditor({ ...structureEditor, effectiveTo: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
                   />
                 </label>
               </div>
               {upsertStructure.error && (
-                <div className="text-sm text-red-600">{upsertStructure.error.message}</div>
+                <div className="text-body-sm text-red-600">{upsertStructure.error.message}</div>
               )}
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setStructureEditor(null)}
-                  className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                  className="px-3 py-2 text-body-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={upsertStructure.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-gray-100 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-60"
+                  className="px-4 py-2 text-body-sm font-medium text-white dark:text-gray-900 bg-gray-900 dark:bg-gray-100 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-60"
                 >
                   {upsertStructure.isPending ? "Saving…" : "Save structure"}
                 </button>
@@ -779,7 +779,7 @@ export default function PayrollPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-auto">
             <div className="flex items-start justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <h2 className="text-body-lg font-semibold text-gray-900 dark:text-gray-100">
                 Form 16 — {(form16For.name as string) ?? "Employee"}
               </h2>
               <button
@@ -793,7 +793,7 @@ export default function PayrollPage() {
             </div>
             
             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-body-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Generate Form 16
               </label>
               <div className="flex items-center gap-3">
@@ -802,19 +802,19 @@ export default function PayrollPage() {
                   value={generateFy}
                   onChange={(e) => setGenerateFy(e.target.value)}
                   placeholder="YYYY-YYYY"
-                  className="w-32 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm"
+                  className="w-32 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-body-sm"
                 />
                 <button
                   type="button"
                   disabled={generateForm16.isPending || !generateFy}
                   onClick={() => generateForm16.mutate({ employeeId: form16For.id as string, fy: generateFy })}
-                  className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                  className="px-3 py-1.5 text-body-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
                 >
                   {generateForm16.isPending ? "Generating..." : "Generate PDF"}
                 </button>
               </div>
               {generateForm16.error && (
-                <p className="mt-2 text-sm text-red-600">{generateForm16.error.message}</p>
+                <p className="mt-2 text-body-sm text-red-600">{generateForm16.error.message}</p>
               )}
             </div>
 
@@ -838,16 +838,16 @@ export default function PayrollPage() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            <h2 className="text-body-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
               New payroll run
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Month</label>
+                <label className="block text-body-sm text-gray-600 dark:text-gray-400 mb-1">Month</label>
                 <select
                   value={createMonth}
                   onChange={(e) => setCreateMonth(Number(e.target.value))}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
                 >
                   {MONTHS.map((m, i) => (
                     <option key={i} value={i + 1}>{m}</option>
@@ -855,32 +855,32 @@ export default function PayrollPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Year</label>
+                <label className="block text-body-sm text-gray-600 dark:text-gray-400 mb-1">Year</label>
                 <input
                   type="number"
                   value={createYear}
                   onChange={(e) => setCreateYear(Number(e.target.value))}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-body-sm"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                className="px-4 py-2 text-body-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 Cancel
               </button>
               <button
                 onClick={() => createRun.mutate({ month: createMonth, year: createYear })}
                 disabled={createRun.isPending}
-                className="px-4 py-2 text-sm rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
+                className="px-4 py-2 text-body-sm rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
               >
                 {createRun.isPending ? "Creating..." : "Create run"}
               </button>
             </div>
             {createRun.error && (
-              <p className="mt-3 text-xs text-red-600">{createRun.error.message}</p>
+              <p className="mt-3 text-caption text-red-600">{createRun.error.message}</p>
             )}
           </div>
         </div>

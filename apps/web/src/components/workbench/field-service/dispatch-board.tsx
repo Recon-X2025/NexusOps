@@ -74,11 +74,11 @@ export function DispatchBoard({
                       >
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-medium text-cyan-700 dark:text-cyan-300">{r.number}</span>
-                          <span className="text-slate-500 dark:text-slate-400 truncate">{r.assigneeName ?? "—"}</span>
+                          <span className="text-slate-500 dark:text-slate-400">{r.assigneeName ?? "—"}</span>
                         </div>
-                        <div className="text-[11px] text-slate-700 dark:text-slate-200 truncate">{r.shortDescription}</div>
+                        <div className="text-[11px] text-slate-700 dark:text-slate-200">{r.shortDescription}</div>
                         {r.location ? (
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{r.location}</div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">{r.location}</div>
                         ) : null}
                       </Link>
                     </li>

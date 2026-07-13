@@ -155,7 +155,7 @@ export default function FacilitiesPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Facilities & Real Estate</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Facilities & Real Estate</h1>
           <span className="text-[11px] text-muted-foreground/70">Space · Rooms · Buildings · Move Requests</span>
         </div>
         <PermissionGate module="facilities" action="write">
@@ -179,7 +179,7 @@ export default function FacilitiesPage() {
             {k.loading ? (
               <div className="h-6 bg-muted rounded animate-pulse mb-1 w-10" />
             ) : (
-              <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+              <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             )}
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
@@ -445,7 +445,7 @@ export default function FacilitiesPage() {
                       <td className="text-[11px] text-muted-foreground">{mv.fromLocation || "—"}</td>
                       <td className="text-[11px] text-muted-foreground font-medium">{mv.toLocation || "—"}</td>
                       <td className="text-muted-foreground">{mv.requesterName || "—"}</td>
-                      <td className="text-[11px] text-muted-foreground max-w-xs"><span className="truncate block">{mv.notes || "—"}</span></td>
+                      <td className="text-[11px] text-muted-foreground max-w-xs"><span className="block">{mv.notes || "—"}</span></td>
                       <td className="text-muted-foreground text-[11px]">{mv.moveDate ? new Date(mv.moveDate).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—"}</td>
                       <td>
                         <span className={`status-badge capitalize ${
@@ -533,7 +533,7 @@ export default function FacilitiesPage() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold flex items-center gap-2">
+            <h2 className="text-body-sm font-bold flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" /> Book a Meeting Room
             </h2>
             <button onClick={() => setShowBookingForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
@@ -579,7 +579,7 @@ export default function FacilitiesPage() {
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button onClick={() => setShowBookingForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowBookingForm(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!bookingForm.roomId.trim() || !bookingForm.startTime || !bookingForm.endTime) { toast.error("Room ID, start and end time are required"); return; }
@@ -587,7 +587,7 @@ export default function FacilitiesPage() {
                 createBookingMutation.mutate({ roomId: bookingForm.roomId.trim(), title: bookingForm.title || undefined, startTime: new Date(bookingForm.startTime).toISOString(), endTime: new Date(bookingForm.endTime).toISOString(), attendeeCount: bookingForm.attendeeCount ? Number(bookingForm.attendeeCount) : undefined });
               }}
               disabled={createBookingMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createBookingMutation.isPending ? "Booking…" : "Book Room"}
             </button>
@@ -600,7 +600,7 @@ export default function FacilitiesPage() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl p-5 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold flex items-center gap-2">
+            <h2 className="text-body-sm font-bold flex items-center gap-2">
               <Layers className="w-4 h-4 text-primary" /> Add Space
             </h2>
             <button onClick={() => setShowSpaceForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
@@ -652,7 +652,7 @@ export default function FacilitiesPage() {
             </div>
           </div>
           <div className="flex gap-2 mt-6">
-            <button onClick={() => setShowSpaceForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowSpaceForm(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!spaceForm.spaceId.trim() || !spaceForm.name.trim()) { toast.error("Space ID and Name are required"); return; }
@@ -671,7 +671,7 @@ export default function FacilitiesPage() {
                 });
               }}
               disabled={createSpaceMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createSpaceMutation.isPending ? "Adding…" : "Add Space"}
             </button>
@@ -684,7 +684,7 @@ export default function FacilitiesPage() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold flex items-center gap-2">
+            <h2 className="text-body-sm font-bold flex items-center gap-2">
               <Plus className="w-4 h-4 text-primary" /> New Move Request
             </h2>
             <button onClick={() => setShowMoveForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
@@ -708,7 +708,7 @@ export default function FacilitiesPage() {
             </div>
           </div>
           <div className="flex gap-2 mt-6">
-            <button onClick={() => setShowMoveForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowMoveForm(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!moveForm.toLocation.trim()) { toast.error("To Location is required"); return; }
@@ -716,7 +716,7 @@ export default function FacilitiesPage() {
                 createMoveMutation.mutate({ fromLocation: moveForm.fromLocation || undefined, toLocation: moveForm.toLocation, moveDate: moveForm.moveDate ? new Date(moveForm.moveDate).toISOString() : undefined, notes: moveForm.notes || undefined });
               }}
               disabled={createMoveMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createMoveMutation.isPending ? "Submitting…" : "Submit Request"}
             </button>
@@ -729,7 +729,7 @@ export default function FacilitiesPage() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold flex items-center gap-2">
+            <h2 className="text-body-sm font-bold flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-primary" /> New Facility Request
             </h2>
             <button onClick={() => setShowFacReqForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
@@ -767,7 +767,7 @@ export default function FacilitiesPage() {
             </div>
           </div>
           <div className="flex gap-2 mt-6">
-            <button onClick={() => setShowFacReqForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowFacReqForm(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!facReqForm.title.trim()) { toast.error("Summary is required"); return; }
@@ -775,7 +775,7 @@ export default function FacilitiesPage() {
                 createFacReqMutation.mutate({ type: facReqForm.type, title: facReqForm.title, description: facReqForm.description || undefined, spaceId: facReqForm.spaceId || undefined });
               }}
               disabled={createFacReqMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createFacReqMutation.isPending ? "Submitting…" : "Submit Request"}
             </button>
@@ -787,7 +787,7 @@ export default function FacilitiesPage() {
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl p-5 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold flex items-center gap-2">
+            <h2 className="text-body-sm font-bold flex items-center gap-2">
               <Building2 className="w-4 h-4 text-primary" /> Add New Building
             </h2>
             <button onClick={() => setShowBuildingForm(false)}><XCircle className="w-4 h-4 text-muted-foreground" /></button>
@@ -828,7 +828,7 @@ export default function FacilitiesPage() {
             </div>
           </div>
           <div className="flex gap-2 mt-6">
-            <button onClick={() => setShowBuildingForm(false)} className="flex-1 px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+            <button onClick={() => setShowBuildingForm(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
                 if (!buildingForm.name.trim()) { toast.error("Building name is required"); return; }
@@ -847,7 +847,7 @@ export default function FacilitiesPage() {
                 });
               }}
               disabled={createBuildingMutation.isPending}
-              className="flex-1 px-3 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {createBuildingMutation.isPending ? "Saving…" : "Save Building"}
             </button>

@@ -40,9 +40,9 @@ export function HubPrimaryCard({
       {/* Full-width gradient accent band — accent prop now provides the gradient classes */}
       <div className={cn("h-[3px] w-full", accent)} />
       <header className="px-4 md:px-5 pt-4 pb-2">
-        <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">{title}</h2>
+        <h2 className="text-body font-bold text-slate-800 dark:text-slate-100 tracking-tight">{title}</h2>
         {subtitle ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
+          <p className="text-caption text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
         ) : null}
       </header>
       <div className="px-4 md:px-5 pb-4 md:pb-5">{children}</div>
@@ -87,19 +87,19 @@ export function HubStatTile({
         {state ? (
           <span className={cn("h-2 w-2 rounded-full shrink-0", stateDot[state] ?? "bg-slate-300")} aria-hidden />
         ) : null}
-        <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400 truncate">
+        <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
           {label}
         </span>
       </div>
-      <span className={cn("text-xl font-black tabular-nums leading-tight", valCls)}>{value}</span>
-      {hint ? <span className="text-[11px] text-slate-400 truncate">{hint}</span> : null}
+      <span className={cn("text-h4 font-black tabular-nums leading-tight", valCls)}>{value}</span>
+      {hint ? <span className="text-[11px] text-slate-400">{hint}</span> : null}
     </div>
   );
 }
 
 export function HubEmptyState({ message }: { message: string }) {
   return (
-    <div className="text-xs text-slate-400 text-center py-10 border border-dashed border-slate-200 rounded-xl bg-slate-50/60">
+    <div className="text-caption text-slate-400 text-center py-10 border border-dashed border-slate-200 rounded-xl bg-slate-50/60">
       {message}
     </div>
   );

@@ -441,7 +441,7 @@ export default function HRPage() {
             <label className="text-[11px] text-muted-foreground">Archival Note (optional)</label>
             <textarea
               rows={3}
-              className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background resize-none"
+              className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background resize-none"
               placeholder="Describe how this case was archived…"
               value={archiveNote}
               onChange={(e) => setArchiveNote(e.target.value)}
@@ -467,7 +467,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Onboarding Details - {editingOnboardingEmployee.name}</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Onboarding Details - {editingOnboardingEmployee.name}</h2>
               <button onClick={() => setEditingOnboardingEmployee(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             {loadOnboardingDetails.isFetching ? (
@@ -532,7 +532,7 @@ export default function HRPage() {
                         type="text"
                         value={onboardingForm.educationDocs}
                         onChange={(e) => setOnboardingForm(prev => ({ ...prev, educationDocs: e.target.value }))}
-                        className="w-full border border-border rounded px-3 py-1.5 text-xs bg-card text-foreground"
+                        className="w-full border border-border rounded px-3 py-1.5 text-caption bg-card text-foreground"
                       />
                     </div>
                     <div>
@@ -541,7 +541,7 @@ export default function HRPage() {
                         type="text"
                         value={onboardingForm.employeeDocs}
                         onChange={(e) => setOnboardingForm(prev => ({ ...prev, employeeDocs: e.target.value }))}
-                        className="w-full border border-border rounded px-3 py-1.5 text-xs bg-card text-foreground"
+                        className="w-full border border-border rounded px-3 py-1.5 text-caption bg-card text-foreground"
                       />
                     </div>
                     <div>
@@ -550,7 +550,7 @@ export default function HRPage() {
                         type="text"
                         value={onboardingForm.signedOfferLetter}
                         onChange={(e) => setOnboardingForm(prev => ({ ...prev, signedOfferLetter: e.target.value }))}
-                        className="w-full border border-border rounded px-3 py-1.5 text-xs bg-card text-foreground"
+                        className="w-full border border-border rounded px-3 py-1.5 text-caption bg-card text-foreground"
                       />
                     </div>
                     <div>
@@ -559,7 +559,7 @@ export default function HRPage() {
                         type="text"
                         value={onboardingForm.photo}
                         onChange={(e) => setOnboardingForm(prev => ({ ...prev, photo: e.target.value }))}
-                        className="w-full border border-border rounded px-3 py-1.5 text-xs bg-card text-foreground"
+                        className="w-full border border-border rounded px-3 py-1.5 text-caption bg-card text-foreground"
                       />
                     </div>
                   </div>
@@ -585,7 +585,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h2 className="text-body-sm font-semibold text-foreground flex items-center gap-2">
                 <Plus className="w-4 h-4 text-primary" /> Start New Onboarding
               </h2>
               <button onClick={() => setShowOnboardingForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
@@ -647,7 +647,7 @@ export default function HRPage() {
               </div>
 
               <div className="border-t border-border pt-4">
-                <h3 className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wider">Required Attachments</h3>
+                <h3 className="text-caption font-semibold text-foreground mb-3 uppercase tracking-wider">Required Attachments</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Education Docs</label>
@@ -656,10 +656,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={onboardingCreateForm.educationDocs}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -680,10 +680,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={onboardingCreateForm.employeeDocs}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -704,10 +704,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={onboardingCreateForm.signedOfferLetter}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -728,10 +728,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={onboardingCreateForm.photo}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -772,7 +772,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Edit Leave Request</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Edit Leave Request</h2>
               <button onClick={() => setEditingLeave(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-4">
@@ -852,7 +852,7 @@ export default function HRPage() {
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold">Add employee</h3>
-              <button type="button" onClick={() => setShowAddEmployee(false)} className="text-muted-foreground hover:text-foreground text-xs">
+              <button type="button" onClick={() => setShowAddEmployee(false)} className="text-muted-foreground hover:text-foreground text-caption">
                 Close
               </button>
             </div>
@@ -863,7 +863,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">User *</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.userId}
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, userId: e.target.value }))}
                 >
@@ -883,7 +883,7 @@ export default function HRPage() {
                   <div className="w-1/2">
                     <label className="text-[11px] text-muted-foreground">New User Name *</label>
                     <input
-                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                       value={addEmpForm.userName}
                       onChange={(e) => setAddEmpForm((f) => ({ ...f, userName: e.target.value }))}
                       placeholder="John Doe"
@@ -893,7 +893,7 @@ export default function HRPage() {
                     <label className="text-[11px] text-muted-foreground">New User Email *</label>
                     <input
                       type="email"
-                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                       value={addEmpForm.userEmail}
                       onChange={(e) => setAddEmpForm((f) => ({ ...f, userEmail: e.target.value }))}
                       placeholder="john@example.com"
@@ -904,7 +904,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Department</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.department}
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, department: e.target.value }))}
                 />
@@ -912,7 +912,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Title</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.title}
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, title: e.target.value }))}
                 />
@@ -920,7 +920,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Location</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.location}
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, location: e.target.value }))}
                 />
@@ -928,7 +928,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Employment type</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.employmentType}
                   onChange={(e) =>
                     setAddEmpForm((f) => ({
@@ -946,7 +946,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Manager</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.managerId}
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, managerId: e.target.value }))}
                 >
@@ -962,7 +962,7 @@ export default function HRPage() {
                 <label className="text-[11px] text-muted-foreground">Start date</label>
                 <input
                   type="date"
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={addEmpForm.startDate}
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, startDate: e.target.value }))}
                 />
@@ -1005,7 +1005,7 @@ export default function HRPage() {
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold">Edit employee</h3>
-              <button type="button" onClick={() => setEditingEmployee(null)} className="text-muted-foreground hover:text-foreground text-xs">
+              <button type="button" onClick={() => setEditingEmployee(null)} className="text-muted-foreground hover:text-foreground text-caption">
                 Close
               </button>
             </div>
@@ -1013,7 +1013,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Department</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editEmpForm.department}
                   onChange={(e) => setEditEmpForm((f) => ({ ...f, department: e.target.value }))}
                 />
@@ -1021,7 +1021,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Title</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editEmpForm.title}
                   onChange={(e) => setEditEmpForm((f) => ({ ...f, title: e.target.value }))}
                 />
@@ -1029,7 +1029,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Location</label>
                 <input
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editEmpForm.location}
                   onChange={(e) => setEditEmpForm((f) => ({ ...f, location: e.target.value }))}
                 />
@@ -1037,7 +1037,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Employment type</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editEmpForm.employmentType}
                   onChange={(e) =>
                     setEditEmpForm((f) => ({
@@ -1055,7 +1055,7 @@ export default function HRPage() {
               <div>
                 <label className="text-[11px] text-muted-foreground">Manager</label>
                 <select
-                  className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                   value={editEmpForm.managerId}
                   onChange={(e) => setEditEmpForm((f) => ({ ...f, managerId: e.target.value }))}
                 >
@@ -1099,7 +1099,7 @@ export default function HRPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <UserCheck className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">HR Service Delivery</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">HR Service Delivery</h1>
           <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">HR Cases · Onboarding · Offboarding · Lifecycle</span>
         </div>
         {can("hr", "write") && (
@@ -1120,7 +1120,7 @@ export default function HRPage() {
           { label: "TDS / ECR Pending",   value: pendingTDS + pendingECR,                                                                                 color: pendingTDS + pendingECR > 0 ? "text-red-600" : "text-muted-foreground" },
         ].map((k) => (
           <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -1156,12 +1156,12 @@ export default function HRPage() {
             {!employeesData || (employeesData as any[]).length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
                 <UserCheck className="w-5 h-5 opacity-30" />
-                <span className="text-xs">No employees found.</span>
+                <span className="text-caption">No employees found.</span>
                 {can("hr", "write") && (
                   <button
                     type="button"
                     onClick={() => setShowAddEmployee(true)}
-                    className="mt-2 text-xs text-primary hover:underline"
+                    className="mt-2 text-caption text-primary hover:underline"
                   >
                     Add employee record
                   </button>
@@ -1264,8 +1264,8 @@ export default function HRPage() {
             <div className="bg-card border border-border rounded-lg w-full max-w-lg shadow-xl">
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <div>
-                  <h2 className="text-base font-semibold">Policy acknowledgement e-sign</h2>
-                  <p className="text-xs text-muted-foreground">
+                  <h2 className="text-body font-semibold">Policy acknowledgement e-sign</h2>
+                  <p className="text-caption text-muted-foreground">
                     {(policyEsignFor.name as string) ??
                       ([policyEsignFor.firstName, policyEsignFor.lastName].filter(Boolean).join(" ") ||
                         "Employee")}
@@ -1324,7 +1324,7 @@ export default function HRPage() {
                   <div>
                     <label className="text-[11px] text-muted-foreground">Leave Type</label>
                     <select
-                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                       value={leaveForm.type}
                       onChange={(e) => setLeaveForm(f => ({ ...f, type: e.target.value }))}
                     >
@@ -1340,7 +1340,7 @@ export default function HRPage() {
                     <label className="text-[11px] text-muted-foreground">Start Date *</label>
                     <input
                       type="date"
-                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                       value={leaveForm.startDate}
                       onChange={(e) => setLeaveForm(f => ({ ...f, startDate: e.target.value }))}
                     />
@@ -1349,7 +1349,7 @@ export default function HRPage() {
                     <label className="text-[11px] text-muted-foreground">End Date *</label>
                     <input
                       type="date"
-                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                       value={leaveForm.endDate}
                       onChange={(e) => setLeaveForm(f => ({ ...f, endDate: e.target.value }))}
                     />
@@ -1357,7 +1357,7 @@ export default function HRPage() {
                   <div className="col-span-3">
                     <label className="text-[11px] text-muted-foreground">Reason</label>
                     <input
-                      className="w-full mt-0.5 text-xs border border-border rounded px-2 py-1.5 bg-background"
+                      className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                       placeholder="Brief reason for leave"
                       value={leaveForm.reason}
                       onChange={(e) => setLeaveForm(f => ({ ...f, reason: e.target.value }))}
@@ -1414,7 +1414,7 @@ export default function HRPage() {
                       <td className="text-muted-foreground text-[11px]">{req.startDate ? new Date(req.startDate).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{req.endDate ? new Date(req.endDate).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }) : "—"}</td>
                       <td className="text-center font-medium text-foreground">{req.days ?? "—"}</td>
-                      <td className="text-muted-foreground text-[11px] max-w-[180px] truncate">{req.reason ?? "—"}</td>
+                      <td className="text-muted-foreground text-[11px] max-w-[180px]">{req.reason ?? "—"}</td>
                       <td>
                         <span className={`status-badge capitalize ${
                           req.status === "approved" ? "text-green-700 bg-green-100" :
@@ -1464,12 +1464,12 @@ export default function HRPage() {
           casesLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading HR cases…</span>
+              <span className="text-caption">Loading HR cases…</span>
             </div>
           ) : hrCases.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <FileText className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No HR cases found.</span>
+              <span className="text-caption">No HR cases found.</span>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -1501,7 +1501,7 @@ export default function HRPage() {
                       <td className="p-0"><div className={`priority-bar ${casePriority === "high" ? "bg-orange-500" : casePriority === "medium" ? "bg-yellow-500" : "bg-green-500"}`} /></td>
                       <td className="font-mono text-[11px] text-primary">{c.hrCase?.id?.slice(-8)?.toUpperCase() ?? "—"}</td>
                       <td><span className="status-badge text-muted-foreground bg-muted">{c.hrCase?.caseType ?? "—"}</span></td>
-                      <td className="max-w-xs"><span className="truncate block text-foreground">{c.hrCase?.notes?.replace(/\[(RESOLVED|ARCHIVED):.*?\]\s*/g, "") || "—"}</span></td>
+                      <td className="max-w-xs"><span className="block text-foreground">{c.hrCase?.notes?.replace(/\[(RESOLVED|ARCHIVED):.*?\]\s*/g, "") || "—"}</span></td>
                       <td className="text-muted-foreground">{c.employee?.employeeId ?? "—"}</td>
                       <td className="text-muted-foreground text-[11px]">{c.employee?.department ?? "—"}</td>
                       <td><span className={`status-badge capitalize ${CASE_STATE_COLOR[displayStatus] ?? "text-muted-foreground bg-muted"}`}>{displayStatus.replace(/_/g, " ")}</span></td>
@@ -1596,7 +1596,7 @@ export default function HRPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-xs font-medium text-foreground">{details?.primaryEmail || "—"}</div>
+                            <div className="text-caption font-medium text-foreground">{details?.primaryEmail || "—"}</div>
                             <div className="text-[10px] text-muted-foreground">{details?.phone || "—"}</div>
                           </td>
                           <td className="px-4 py-3">
@@ -1778,7 +1778,7 @@ export default function HRPage() {
                 <tbody className="divide-y divide-border">
                   {!lifecycleEvents || lifecycleEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                      <td colSpan={7} className="px-4 py-8 text-center text-caption text-muted-foreground">
                         No lifecycle events recorded.
                       </td>
                     </tr>
@@ -1790,10 +1790,10 @@ export default function HRPage() {
                           {evt.lifecycleEvent.notes && <div className="text-[10px] text-muted-foreground">{evt.lifecycleEvent.notes}</div>}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-xs font-semibold text-foreground">{evt.employee?.name || "Unnamed"}</div>
+                          <div className="text-caption font-semibold text-foreground">{evt.employee?.name || "Unnamed"}</div>
                           <div className="text-[10px] font-mono text-muted-foreground">{evt.employee?.employeeId || "—"}</div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{evt.lifecycleEvent.eventType}</td>
+                        <td className="px-4 py-3 text-caption text-muted-foreground">{evt.lifecycleEvent.eventType}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={`status-badge capitalize ${evt.lifecycleEvent.hrTaskStatus === "completed" ? "text-green-700 bg-green-100" : "text-yellow-700 bg-yellow-100"}`}>
                             {evt.lifecycleEvent.hrTaskStatus}
@@ -1846,7 +1846,7 @@ export default function HRPage() {
             {/* TDS Challans */}
             <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <h3 className="text-body-sm font-bold text-foreground flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-primary rounded-full"></span>
                     TDS Challans (ITNS 281)
                   </h3>
@@ -1855,8 +1855,8 @@ export default function HRPage() {
 
                 {tdsChallans.length === 0 && !tdsChallansQuery.isLoading ? (
                   <div className="py-12 border border-dashed border-border rounded-xl text-center flex flex-col items-center justify-center bg-muted/10">
-                    <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3 text-2xl">📝</div>
-                    <p className="text-sm font-medium text-foreground">No TDS challans recorded</p>
+                    <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3 text-h3">📝</div>
+                    <p className="text-body-sm font-medium text-foreground">No TDS challans recorded</p>
                     <p className="text-[12px] text-muted-foreground mt-1">Run monthly payroll to generate TDS entries.</p>
                   </div>
                 ) : (
@@ -1872,7 +1872,7 @@ export default function HRPage() {
                               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-primary/10 text-primary mb-1">
                                 {c.formType}
                               </span>
-                              <h4 className="text-sm font-semibold text-foreground">
+                              <h4 className="text-body-sm font-semibold text-foreground">
                                 {c.month ? `${c.month} ` : ""}Q{c.quarter} FY {c.fy}
                               </h4>
                             </div>
@@ -1896,7 +1896,7 @@ export default function HRPage() {
                             </div>
                             <div className="col-span-2 pt-2 border-t border-border/50">
                               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Total Payable</p>
-                              <p className="text-lg font-mono text-foreground font-bold">₹{Number(c.totalPayable ?? 0).toLocaleString("en-IN")}</p>
+                              <p className="text-body-lg font-mono text-foreground font-bold">₹{Number(c.totalPayable ?? 0).toLocaleString("en-IN")}</p>
                             </div>
                           </div>
 
@@ -2096,16 +2096,16 @@ export default function HRPage() {
                   <tbody className="divide-y divide-border">
                     {!employeeDocuments || employeeDocuments.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                        <td colSpan={4} className="px-4 py-8 text-center text-caption text-muted-foreground">
                           No documents collected for this employee.
                         </td>
                       </tr>
                     ) : (
                       employeeDocuments.map((doc, idx) => (
                         <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-3 text-xs font-semibold text-foreground">{doc.type}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground capitalize">{doc.category}</td>
-                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{doc.filename}</td>
+                          <td className="px-4 py-3 text-caption font-semibold text-foreground">{doc.type}</td>
+                          <td className="px-4 py-3 text-caption text-muted-foreground capitalize">{doc.category}</td>
+                          <td className="px-4 py-3 text-caption font-mono text-muted-foreground">{doc.filename}</td>
                           <td className="px-4 py-3 text-right">
                             <button
                               onClick={() => toast.success(`Downloading ${doc.filename} (${doc.type})`)}
@@ -2135,7 +2135,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Edit HR Case</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Edit HR Case</h2>
               <button onClick={() => setEditingCase(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-4">
@@ -2180,7 +2180,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h2 className="text-body-sm font-semibold text-foreground flex items-center gap-2">
                 <Plus className="w-4 h-4 text-primary" /> New HR Case
               </h2>
               <button onClick={() => setShowCaseForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
@@ -2265,7 +2265,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Edit Offboarding Details</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Edit Offboarding Details</h2>
               <button onClick={() => setEditingOffboardingEmployee(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
@@ -2348,7 +2348,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h2 className="text-body-sm font-semibold text-foreground flex items-center gap-2">
                 <Plus className="w-4 h-4 text-primary" /> Start New Offboarding
               </h2>
               <button onClick={() => setShowOffboardingForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
@@ -2388,7 +2388,7 @@ export default function HRPage() {
                 />
               </div>
               <div className="border-t border-border pt-4">
-                <h3 className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wider">Offboarding Attachments</h3>
+                <h3 className="text-caption font-semibold text-foreground mb-3 uppercase tracking-wider">Offboarding Attachments</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Separation Forms</label>
@@ -2397,10 +2397,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={offboardingCreateForm.separationDocs}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -2420,10 +2420,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={offboardingCreateForm.clearanceDocs}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -2443,10 +2443,10 @@ export default function HRPage() {
                         type="text"
                         placeholder="No file chosen"
                         value={offboardingCreateForm.securityClearance}
-                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-xs bg-muted/30 text-foreground"
+                        className="flex-1 border border-border rounded px-2.5 py-1.5 text-caption bg-muted/30 text-foreground"
                         readOnly
                       />
-                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-xs rounded border border-border cursor-pointer hover:bg-secondary/80">
+                      <label className="px-2 py-1.5 bg-secondary text-secondary-foreground text-caption rounded border border-border cursor-pointer hover:bg-secondary/80">
                         Upload
                         <input
                           type="file"
@@ -2507,7 +2507,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h2 className="text-body-sm font-semibold text-foreground flex items-center gap-2">
                 <Plus className="w-4 h-4 text-primary" /> Create Lifecycle Event
               </h2>
               <button onClick={() => setShowLifecycleForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
@@ -2613,7 +2613,7 @@ export default function HRPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Edit Lifecycle Event</h2>
+              <h2 className="text-body-sm font-semibold text-foreground">Edit Lifecycle Event</h2>
               <button onClick={() => setEditingLifecycleEvent(null)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">

@@ -33,7 +33,7 @@ export function TrendCard({ t, href }: { t: Trend; href?: string }) {
     prev != null && t.state !== "no_data" && pct != null ? (
       <span
         className={cn(
-          "text-xs font-bold tabular-nums",
+          "text-caption font-bold tabular-nums",
           sem === "healthy" && "text-emerald-600",
           sem === "stressed" && "text-rose-600",
           sem === "neutral" && "text-slate-500",
@@ -57,9 +57,9 @@ export function TrendCard({ t, href }: { t: Trend; href?: string }) {
       )}
     >
       <div className="p-3.5">
-        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide line-clamp-2">{t.label}</div>
+        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{t.label}</div>
         <div className="flex items-baseline justify-between gap-2 mt-1.5">
-          <div className="text-xl font-bold tabular-nums text-slate-900">
+          <div className="text-h4 font-bold tabular-nums text-slate-900">
             {formatMetricValue(t.current, t.unit, t.state, { compact: true })}
           </div>
           {deltaPct}

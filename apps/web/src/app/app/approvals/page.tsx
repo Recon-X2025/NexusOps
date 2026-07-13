@@ -137,7 +137,7 @@ export default function ApprovalsPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <CheckSquare className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Approval Queue</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Approval Queue</h1>
           <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">Pending decisions across all modules</span>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto">
@@ -164,7 +164,7 @@ export default function ApprovalsPage() {
             onClick={() => setActiveFilter(k.id as any)}
             className={`bg-card border rounded px-3 py-2 cursor-pointer transition-colors ${activeFilter === k.id ? "ring-2 ring-primary border-transparent" : "border-border hover:bg-muted/30"}`}
           >
-            <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-body-lg font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}

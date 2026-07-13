@@ -39,8 +39,8 @@ export function HeatmapCell({
         FILL[state],
       )}
     >
-      <div className={cn("text-[10px] font-semibold uppercase tracking-wide truncate", TEXT[state])}>{label}</div>
-      <div className={cn("text-sm font-bold tabular-nums mt-0.5", TEXT[state])}>{display}</div>
+      <div className={cn("text-[10px] font-semibold uppercase tracking-wide", TEXT[state])}>{label}</div>
+      <div className={cn("text-body-sm font-bold tabular-nums mt-0.5", TEXT[state])}>{display}</div>
     </div>
   );
   if (href) {

@@ -66,10 +66,10 @@ export function ConfirmDialog({
                 )} />
               </div>
             )}
-            <DialogTitle className="text-base">{title}</DialogTitle>
+            <DialogTitle className="text-[16px]">{title}</DialogTitle>
           </div>
           {description && (
-            <DialogDescription className="text-sm text-muted-foreground">
+            <DialogDescription className="text-[14px] text-muted-foreground">
               {description}
             </DialogDescription>
           )}
@@ -82,7 +82,7 @@ export function ConfirmDialog({
             type="button"
             onClick={() => { onCancel?.(); onOpenChange(false); }}
             disabled={loading}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-[14px] border border-border rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50"
           >
             {cancelLabel}
           </button>
@@ -91,7 +91,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={loading || disableConfirm}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors disabled:opacity-50",
+              "flex items-center gap-1.5 px-3 py-1.5 text-[14px] rounded-lg transition-colors disabled:opacity-50",
               confirmColors[variant],
             )}
           >

@@ -120,7 +120,7 @@ export function FileUpload({
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cn(
-          "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-sm transition-colors",
+          "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-[14px] transition-colors",
           dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
           (disabled || uploading) && "opacity-50 cursor-not-allowed",
         )}
@@ -133,7 +133,7 @@ export function FileUpload({
         <span className="font-medium text-foreground">
           {uploading ? "Uploading…" : "Click to upload or drag and drop"}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[12px] text-muted-foreground">
           {accept ? accept.split(",").join(", ") : "Any file"} · max {maxSizeMb} MB
         </span>
       </button>
@@ -148,7 +148,7 @@ export function FileUpload({
       />
 
       {error && (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="text-[12px] text-destructive">{error}</p>
       )}
 
       {/* Uploaded files list */}
@@ -158,7 +158,7 @@ export function FileUpload({
             <li key={i} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
               {fileIcon(f.type)}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium truncate text-foreground">{f.name}</p>
+                <p className="text-[12px] font-medium truncate text-foreground">{f.name}</p>
                 <p className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</p>
               </div>
               <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />

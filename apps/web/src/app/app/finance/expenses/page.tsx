@@ -127,7 +127,7 @@ export default function FinanceExpensesQueuePage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Receipt className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Expenses &amp; Reimbursements</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Expenses &amp; Reimbursements</h1>
           <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">
             Finance approver queue · Approve · Reimburse
           </span>
@@ -179,7 +179,7 @@ export default function FinanceExpensesQueuePage() {
         ].map((k) => (
           <div key={k.l} className="bg-card border border-border rounded px-3 py-2">
             <k.I className="w-4 h-4 text-muted-foreground/70 mb-1" />
-            <div className={`text-lg font-bold ${k.c}`}>{k.v}</div>
+            <div className={`text-body-lg font-bold ${k.c}`}>{k.v}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.l}</div>
           </div>
         ))}
@@ -261,7 +261,7 @@ export default function FinanceExpensesQueuePage() {
                       <td className="px-3 py-2.5 font-medium text-foreground whitespace-nowrap">
                         {row.employee ? `${row.employee.firstName} ${row.employee.lastName}` : "—"}
                       </td>
-                      <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px] truncate">{c.title}</td>
+                      <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]">{c.title}</td>
                       <td className="px-3 py-2.5 capitalize text-muted-foreground">
                         {(c.category ?? "").replace(/_/g, " ")}
                       </td>

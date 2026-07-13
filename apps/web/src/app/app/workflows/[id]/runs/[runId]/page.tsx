@@ -68,7 +68,7 @@ function StatusBadge({ status }: { status: StepStatus | RunStatus }) {
   };
   const c = (cfg[status] ?? cfg["pending"])!;
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium", c.cls)}>
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption font-medium", c.cls)}>
       {c.icon}{c.label}
     </span>
   );
@@ -86,9 +86,9 @@ function formatTs(ts?: Date | string | null) {
 }
 
 function JsonBlock({ data }: { data: Record<string, unknown> | null | undefined }) {
-  if (!data || Object.keys(data).length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+  if (!data || Object.keys(data).length === 0) return <span className="text-muted-foreground text-caption">—</span>;
   return (
-    <pre className="mt-1 max-h-40 overflow-auto rounded bg-muted/50 p-2 text-xs">
+    <pre className="mt-1 max-h-40 overflow-auto rounded bg-muted/50 p-2 text-caption">
       {JSON.stringify(data, null, 2)}
     </pre>
   );
@@ -119,17 +119,17 @@ function StepCard({ step, index }: { step: StepRun; index: number }) {
             {nodeIcon(step.nodeType)}
           </div>
           <div>
-            <p className="text-sm font-semibold">
+            <p className="text-body-sm font-semibold">
               Step {index + 1} — {step.nodeType.replace(/_/g, " ")}
             </p>
-            <p className="text-xs text-muted-foreground font-mono">{step.nodeId}</p>
+            <p className="text-caption text-muted-foreground font-mono">{step.nodeId}</p>
           </div>
         </div>
         <StatusBadge status={step.status} />
       </div>
 
       {/* Timing */}
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-caption">
         <div>
           <p className="text-muted-foreground">Started</p>
           <p className="font-medium">{formatTs(step.startedAt)}</p>
@@ -145,7 +145,7 @@ function StepCard({ step, index }: { step: StepRun; index: number }) {
       </div>
 
       {step.attemptCount > 1 && (
-        <p className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
+        <p className="mt-2 text-caption text-yellow-600 dark:text-yellow-400">
           ⚠ {step.attemptCount} attempts
         </p>
       )}
@@ -154,7 +154,7 @@ function StepCard({ step, index }: { step: StepRun; index: number }) {
       {step.error && (
         <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950 p-2">
           <AlertTriangle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
-          <p className="text-xs text-red-700 dark:text-red-300 font-mono break-all">{step.error}</p>
+          <p className="text-caption text-red-700 dark:text-red-300 font-mono break-all">{step.error}</p>
         </div>
       )}
 
@@ -163,13 +163,13 @@ function StepCard({ step, index }: { step: StepRun; index: number }) {
         <div className="mt-3 grid grid-cols-2 gap-3">
           {step.input && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Input</p>
+              <p className="text-caption font-medium text-muted-foreground uppercase tracking-wide mb-1">Input</p>
               <JsonBlock data={step.input} />
             </div>
           )}
           {step.output && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Output</p>
+              <p className="text-caption font-medium text-muted-foreground uppercase tracking-wide mb-1">Output</p>
               <JsonBlock data={step.output} />
             </div>
           )}
@@ -203,10 +203,10 @@ export default function WorkflowRunPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
         <AlertTriangle className="h-8 w-8 text-destructive" />
-        <p className="text-sm text-muted-foreground">Run not found or access denied.</p>
+        <p className="text-body-sm text-muted-foreground">Run not found or access denied.</p>
         <Link
           href={`/app/workflows/${id}`}
-          className="text-sm text-indigo-600 hover:underline"
+          className="text-body-sm text-indigo-600 hover:underline"
         >
           ← Back to workflow
         </Link>
@@ -225,7 +225,7 @@ export default function WorkflowRunPage() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb nav */}
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-body-sm text-muted-foreground">
         <Link href="/app/workflows" className="hover:text-foreground">Workflows</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         {wf ? (
@@ -242,14 +242,14 @@ export default function WorkflowRunPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">Workflow Run</h1>
+              <h1 className="text-h4 font-bold">Workflow Run</h1>
               <StatusBadge status={run.status} />
             </div>
-            <p className="mt-1 text-xs text-muted-foreground font-mono">{run.id}</p>
+            <p className="mt-1 text-caption text-muted-foreground font-mono">{run.id}</p>
           </div>
           <Link
             href={`/app/workflows/${id}`}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-accent"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-body-sm hover:bg-accent"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to workflow
@@ -258,20 +258,20 @@ export default function WorkflowRunPage() {
 
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <p className="text-xs text-muted-foreground">Started</p>
-            <p className="text-sm font-medium">{formatTs(run.startedAt)}</p>
+            <p className="text-caption text-muted-foreground">Started</p>
+            <p className="text-body-sm font-medium">{formatTs(run.startedAt)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Completed</p>
-            <p className="text-sm font-medium">{formatTs(run.completedAt)}</p>
+            <p className="text-caption text-muted-foreground">Completed</p>
+            <p className="text-body-sm font-medium">{formatTs(run.completedAt)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Total duration</p>
-            <p className="text-sm font-medium">{formatDuration(totalMs)}</p>
+            <p className="text-caption text-muted-foreground">Total duration</p>
+            <p className="text-body-sm font-medium">{formatDuration(totalMs)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Steps</p>
-            <p className="text-sm font-medium">{steps.length}</p>
+            <p className="text-caption text-muted-foreground">Steps</p>
+            <p className="text-body-sm font-medium">{steps.length}</p>
           </div>
         </div>
 
@@ -279,15 +279,15 @@ export default function WorkflowRunPage() {
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950 p-3">
             <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-red-700 dark:text-red-300">Run failed</p>
-              <p className="text-xs text-red-600 dark:text-red-400 font-mono mt-0.5">{run.error}</p>
+              <p className="text-body-sm font-medium text-red-700 dark:text-red-300">Run failed</p>
+              <p className="text-caption text-red-600 dark:text-red-400 font-mono mt-0.5">{run.error}</p>
             </div>
           </div>
         )}
 
         {run.triggerData && Object.keys(run.triggerData).length > 0 && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Trigger data</p>
+            <p className="text-caption font-medium text-muted-foreground uppercase tracking-wide mb-1">Trigger data</p>
             <JsonBlock data={run.triggerData} />
           </div>
         )}
@@ -295,11 +295,11 @@ export default function WorkflowRunPage() {
 
       {/* Step timeline */}
       <div>
-        <h2 className="text-base font-semibold mb-3">Step Timeline</h2>
+        <h2 className="text-body font-semibold mb-3">Step Timeline</h2>
         {steps.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-12">
             <Clock className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No step data recorded for this run.</p>
+            <p className="text-body-sm text-muted-foreground">No step data recorded for this run.</p>
           </div>
         ) : (
           <div className="space-y-3">

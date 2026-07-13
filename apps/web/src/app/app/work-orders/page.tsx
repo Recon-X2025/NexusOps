@@ -170,7 +170,7 @@ export default function WorkOrdersPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wrench className="w-4 h-4 text-muted-foreground" />
-          <h1 className="text-sm font-semibold text-foreground">Work Orders</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Work Orders</h1>
           <span className="text-[11px] text-muted-foreground/70 font-normal">
             Field Service Management
           </span>
@@ -207,7 +207,7 @@ export default function WorkOrdersPage() {
             { label: "SLA Breached", value: metrics.breached, color: "text-red-700" },
           ].map((k) => (
             <div key={k.label} className="bg-card border border-border rounded px-3 py-2">
-              <div className={`text-lg font-bold ${k.color}`}>{k.value}</div>
+              <div className={`text-body-lg font-bold ${k.color}`}>{k.value}</div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
             </div>
           ))}
@@ -374,7 +374,7 @@ export default function WorkOrdersPage() {
                         )}
                         <Link
                           href={`/app/work-orders/${wo.id}`}
-                          className="truncate hover:underline text-foreground"
+                          className="hover:underline text-foreground"
                         >
                           {wo.shortDescription}
                         </Link>
@@ -490,7 +490,7 @@ export default function WorkOrdersPage() {
             <select
               value={woNewState}
               onChange={(e) => setWoNewState(e.target.value)}
-              className="text-xs border border-border rounded px-2 py-0.5 bg-background"
+              className="text-caption border border-border rounded px-2 py-0.5 bg-background"
             >
               <option value="">— Choose —</option>
               {(["open","pending_dispatch","dispatched","work_in_progress","on_hold","complete","closed"] as WOState[]).map((s) => (

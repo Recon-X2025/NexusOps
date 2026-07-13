@@ -151,7 +151,7 @@ function ChangeRequestModal({ ci, blastRadius, onClose }: { ci: CINode; blastRad
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-card border border-border rounded-lg w-full max-w-lg shadow-xl flex flex-col gap-3 p-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Create Change Request</h3>
+          <h3 className="text-body-sm font-semibold">Create Change Request</h3>
           <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
         </div>
 
@@ -163,47 +163,47 @@ function ChangeRequestModal({ ci, blastRadius, onClose }: { ci: CINode; blastRad
         )}
 
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium">Title <span className="text-red-500">*</span></label>
+          <label className="text-caption font-medium">Title <span className="text-red-500">*</span></label>
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+            className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium">Description</label>
+          <label className="text-caption font-medium">Description</label>
           <textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+            className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium">Type</label>
+            <label className="text-caption font-medium">Type</label>
             <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}
-              className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+              className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
               {["normal", "standard", "emergency", "expedited"].map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium">Risk Level</label>
+            <label className="text-caption font-medium">Risk Level</label>
             <select value={form.risk} onChange={e => setForm(f => ({ ...f, risk: e.target.value as any }))}
-              className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+              className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
               {["low", "medium", "high", "critical"].map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
             </select>
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium">Rollback Plan</label>
+          <label className="text-caption font-medium">Rollback Plan</label>
           <textarea rows={2} value={form.rollbackPlan} onChange={e => setForm(f => ({ ...f, rollbackPlan: e.target.value }))}
             placeholder="Describe rollback steps…"
-            className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+            className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
-          <button onClick={onClose} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+          <button onClick={onClose} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
           <button
             onClick={() => create.mutate({ ...form, rollbackPlan: form.rollbackPlan || undefined, implementationPlan: undefined })}
             disabled={!form.title.trim() || create.isPending}
-            className="px-4 py-1.5 text-xs bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
+            className="px-4 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50">
             {create.isPending ? "Creating…" : "Create Change Request"}
           </button>
         </div>
@@ -242,7 +242,7 @@ export default function ImpactAnalysisPage() {
 
   if (!can("cmdb", "read")) {
     return (
-      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-body-sm">
         Access denied — requires CMDB read permission
       </div>
     );
@@ -250,7 +250,7 @@ export default function ImpactAnalysisPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-body-sm">
         Loading impact analysis…
       </div>
     );
@@ -259,8 +259,8 @@ export default function ImpactAnalysisPage() {
   if (!ci) {
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-3">
-        <p className="text-muted-foreground text-sm">Configuration item not found</p>
-        <Link href="/app/cmdb" className="text-xs text-primary underline">← Back to CMDB</Link>
+        <p className="text-muted-foreground text-body-sm">Configuration item not found</p>
+        <Link href="/app/cmdb" className="text-caption text-primary underline">← Back to CMDB</Link>
       </div>
     );
   }
@@ -277,13 +277,13 @@ export default function ImpactAnalysisPage() {
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-3.5 h-3.5" /> CMDB
           </Link>
-          <span className="text-muted-foreground/40 text-xs">/</span>
+          <span className="text-muted-foreground/40 text-caption">/</span>
           <span className="text-[11px] text-muted-foreground">Impact Analysis</span>
         </div>
         {can("changes", "write") && (
           <button
             onClick={() => setShowChangeModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs rounded hover:bg-primary/90">
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-caption rounded hover:bg-primary/90">
             <Zap className="w-3.5 h-3.5" /> Create Change Request
           </button>
         )}
@@ -296,13 +296,13 @@ export default function ImpactAnalysisPage() {
             <span className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize ${colorClass}`}>{ci.type}</span>
             <span className={`text-[11px] capitalize ${statusClass}`}>{ci.status}</span>
           </div>
-          <h1 className="text-lg font-semibold text-foreground">{ci.name}</h1>
+          <h1 className="text-body-lg font-semibold text-foreground">{ci.name}</h1>
           <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{ci.id}</p>
         </div>
 
         {/* Blast radius badge */}
         <div className={`flex flex-col items-center px-4 py-2 rounded-lg border ${blastRadius > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900" : "border-border bg-muted/30"}`}>
-          <div className={`text-2xl font-bold ${blastRadius > 0 ? "text-red-600" : "text-muted-foreground"}`}>
+          <div className={`text-h3 font-bold ${blastRadius > 0 ? "text-red-600" : "text-muted-foreground"}`}>
             {blastRadius}
           </div>
           <div className="text-[10px] text-muted-foreground whitespace-nowrap">Blast Radius</div>
@@ -322,7 +322,7 @@ export default function ImpactAnalysisPage() {
               <Icon className={`w-3.5 h-3.5 ${color}`} />
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
             </div>
-            <div className={`text-xl font-bold ${color}`}>{value}</div>
+            <div className={`text-h4 font-bold ${color}`}>{value}</div>
           </div>
         ))}
       </div>

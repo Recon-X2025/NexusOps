@@ -145,7 +145,7 @@ export default function SecurityOpsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-red-500" />
-          <h1 className="text-sm font-semibold text-foreground">Security Operations</h1>
+          <h1 className="text-body-sm font-semibold text-foreground">Security Operations</h1>
           <span className="text-[11px] text-muted-foreground">Vulnerability Response · SecOps · Threat Intel</span>
         </div>
         <div className="flex items-center gap-2">
@@ -173,7 +173,7 @@ export default function SecurityOpsPage() {
           { label: "IOCs Blocked",         value: iocCount > 0 ? iocCount : "—", color: "text-green-700",  border: "border-green-200" },
         ].map((k) => (
           <div key={k.label} className={`bg-card border rounded px-3 py-2 ${k.border}`}>
-            <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+            <div className={`text-h4 font-bold ${k.color}`}>{k.value}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.label}</div>
           </div>
         ))}
@@ -206,18 +206,18 @@ export default function SecurityOpsPage() {
         {tab === "vulnerabilities" && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between px-2 pt-2">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Detected Vulnerabilities</div>
+              <div className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Detected Vulnerabilities</div>
               <button className="text-[11px] text-primary hover:underline" onClick={() => setShowNewVulnerability(true)}>+ Add Vulnerability</button>
             </div>
           {vulnsLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading vulnerabilities…</span>
+              <span className="text-caption">Loading vulnerabilities…</span>
             </div>
           ) : vulnList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Shield className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No vulnerabilities found.</span>
+              <span className="text-caption">No vulnerabilities found.</span>
             </div>
           ) : (
             <table className="ent-table w-full">
@@ -249,7 +249,7 @@ export default function SecurityOpsPage() {
                       <span className="font-mono text-[11px] text-muted-foreground">{v.cveId ?? "—"}</span>
                     </td>
                     <td className="max-w-xs">
-                      <span className="truncate block text-foreground">{v.title}</span>
+                      <span className="block text-foreground">{v.title}</span>
                     </td>
                     <td>
                       <span className="font-mono text-[11px] text-muted-foreground">
@@ -315,12 +315,12 @@ export default function SecurityOpsPage() {
           incidentsLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading incidents…</span>
+              <span className="text-caption">Loading incidents…</span>
             </div>
           ) : incidentList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
               <Shield className="w-5 h-5 opacity-30" />
-              <span className="text-xs">No security incidents. All clear.</span>
+              <span className="text-caption">No security incidents. All clear.</span>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -405,13 +405,13 @@ export default function SecurityOpsPage() {
         {tab === "threat_intel" && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between px-2">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Threat Intelligence Feeds</div>
+              <div className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Threat Intelligence Feeds</div>
               <button className="text-[11px] text-primary hover:underline" onClick={() => setShowNewThreatIntel(true)}>+ Add to Incident</button>
             </div>
             {threatIntelLoading ? (
               <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-xs">Loading threat intelligence…</span>
+                <span className="text-caption">Loading threat intelligence…</span>
               </div>
             ) : threatIntelList.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
@@ -435,7 +435,7 @@ export default function SecurityOpsPage() {
                     {threatIntelList.map((ti) => (
                       <tr key={ti.id}>
                         <td className="font-medium text-[11px]">{ti.number}</td>
-                        <td className="max-w-[300px] truncate">{ti.description || "—"}</td>
+                        <td className="max-w-[300px]">{ti.description || "—"}</td>
                         <td>
                           <Link href={`/app/security/${ti.incidentId}`} className="text-primary hover:underline">
                             View Incident
@@ -463,7 +463,7 @@ export default function SecurityOpsPage() {
           auditsLoading || policiesLoading ? (
             <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">Loading compliance data…</span>
+              <span className="text-caption">Loading compliance data…</span>
             </div>
           ) : (
             <div className="p-4 space-y-4">
@@ -484,19 +484,19 @@ export default function SecurityOpsPage() {
                   <>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                       <div className={`border rounded px-3 py-2 ${avgScore !== null ? (avgScore >= 80 ? "border-green-200 bg-green-50/30" : avgScore >= 60 ? "border-yellow-200 bg-yellow-50/30" : "border-red-200 bg-red-50/30") : "border-border"}`}>
-                        <div className={`text-2xl font-black ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/40"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
+                        <div className={`text-h3 font-black ${avgScore !== null ? (avgScore >= 80 ? "text-green-700" : avgScore >= 60 ? "text-yellow-700" : "text-red-700") : "text-muted-foreground/40"}`}>{avgScore !== null ? `${avgScore}%` : "—"}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Overall Posture</div>
                       </div>
                       <div className="border border-border rounded px-3 py-2">
-                        <div className={`text-2xl font-black ${openHighRisks > 0 ? "text-red-700" : "text-green-700"}`}>{openHighRisks}</div>
+                        <div className={`text-h3 font-black ${openHighRisks > 0 ? "text-red-700" : "text-green-700"}`}>{openHighRisks}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Open Critical/High Risks</div>
                       </div>
                       <div className="border border-border rounded px-3 py-2">
-                        <div className="text-2xl font-black text-blue-700">{publishedPolicies}</div>
+                        <div className="text-h3 font-black text-blue-700">{publishedPolicies}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Published Policies</div>
                       </div>
                       <div className="border border-border rounded px-3 py-2">
-                        <div className={`text-2xl font-black ${inProgressAudits > 0 ? "text-orange-700" : "text-muted-foreground/40"}`}>{inProgressAudits}</div>
+                        <div className={`text-h3 font-black ${inProgressAudits > 0 ? "text-orange-700" : "text-muted-foreground/40"}`}>{inProgressAudits}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Audits In Progress</div>
                       </div>
                     </div>
@@ -531,7 +531,7 @@ export default function SecurityOpsPage() {
                               return (
                                 <tr key={a.id}>
                                   <td className="font-medium text-foreground max-w-xs">
-                                    <span className="truncate block">{a.title ?? a.name}</span>
+                                    <span className="block">{a.title ?? a.name}</span>
                                   </td>
                                   <td>
                                     {a.framework ? (
@@ -539,7 +539,7 @@ export default function SecurityOpsPage() {
                                     ) : <span className="text-muted-foreground/50">—</span>}
                                   </td>
                                   <td className="text-[11px] text-muted-foreground max-w-[120px]">
-                                    <span className="truncate block">{a.scope ?? "—"}</span>
+                                    <span className="block">{a.scope ?? "—"}</span>
                                   </td>
                                   <td>
                                     <span className={`status-badge capitalize text-[10px] ${
@@ -625,7 +625,7 @@ export default function SecurityOpsPage() {
                           <tbody>
                             {riskList.filter((r: any) => (r.severity === "critical" || r.severity === "high") && r.status !== "closed" && r.status !== "accepted").map((r: any) => (
                               <tr key={r.id}>
-                                <td className="font-medium text-foreground max-w-xs"><span className="truncate block">{r.title}</span></td>
+                                <td className="font-medium text-foreground max-w-xs"><span className="block">{r.title}</span></td>
                                 <td><span className={`status-badge capitalize text-[10px] ${r.severity === "critical" ? "text-red-700 bg-red-100" : "text-orange-700 bg-orange-100"}`}>{r.severity}</span></td>
                                 <td className="text-[11px] text-muted-foreground">{r.category ?? "—"}</td>
                                 <td><span className="status-badge capitalize text-[10px] text-blue-700 bg-blue-100">{r.status?.replace("_", " ")}</span></td>
@@ -649,35 +649,35 @@ export default function SecurityOpsPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-red-700 flex items-center gap-2"><Shield className="w-4 h-4" /> New Security Incident</h2>
+              <h2 className="text-body-sm font-semibold text-red-700 flex items-center gap-2"><Shield className="w-4 h-4" /> New Security Incident</h2>
               <button onClick={() => setShowNewIncident(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Title <span className="text-red-500">*</span></label>
-              <input value={incForm.title} onChange={(e) => setIncForm(f => ({...f, title: e.target.value}))} placeholder="Brief description of the incident…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-destructive" />
+              <label className="text-caption font-medium">Title <span className="text-red-500">*</span></label>
+              <input value={incForm.title} onChange={(e) => setIncForm(f => ({...f, title: e.target.value}))} placeholder="Brief description of the incident…" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-destructive" />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Description</label>
-              <textarea rows={3} value={incForm.description} onChange={(e) => setIncForm(f => ({...f, description: e.target.value}))} placeholder="What happened, affected systems, initial indicators…" className="px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-destructive" />
+              <label className="text-caption font-medium">Description</label>
+              <textarea rows={3} value={incForm.description} onChange={(e) => setIncForm(f => ({...f, description: e.target.value}))} placeholder="What happened, affected systems, initial indicators…" className="px-3 py-2 text-body-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-destructive" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Severity</label>
-                <select value={incForm.severity} onChange={(e) => setIncForm(f => ({...f, severity: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none">
+                <label className="text-caption font-medium">Severity</label>
+                <select value={incForm.severity} onChange={(e) => setIncForm(f => ({...f, severity: e.target.value as any}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none">
                   {["critical","high","medium","low","informational"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium">Attack Vector</label>
-                <input value={incForm.attackVector} onChange={(e) => setIncForm(f => ({...f, attackVector: e.target.value}))} placeholder="e.g. phishing, RCE…" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none" />
+                <label className="text-caption font-medium">Attack Vector</label>
+                <input value={incForm.attackVector} onChange={(e) => setIncForm(f => ({...f, attackVector: e.target.value}))} placeholder="e.g. phishing, RCE…" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none" />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNewIncident(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewIncident(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!incForm.title.trim()) { toast.error("Title is required"); return; } createIncident.mutate({ title: incForm.title.trim(), description: incForm.description || undefined, severity: incForm.severity, attackVector: incForm.attackVector || undefined }); }}
                 disabled={createIncident.isPending}
-                className="px-4 py-1.5 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 disabled:opacity-50">
                 {createIncident.isPending ? "Creating…" : "Declare Incident"}
               </button>
             </div>
@@ -689,12 +689,12 @@ export default function SecurityOpsPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-primary flex items-center gap-2"><Shield className="w-4 h-4" /> New Threat Intelligence</h2>
+              <h2 className="text-body-sm font-semibold text-primary flex items-center gap-2"><Shield className="w-4 h-4" /> New Threat Intelligence</h2>
               <button onClick={() => setShowNewThreatIntel(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Link to Incident <span className="text-red-500">*</span></label>
-              <select value={tiForm.incidentId} onChange={(e) => setTiForm(f => ({...f, incidentId: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+              <label className="text-caption font-medium">Link to Incident <span className="text-red-500">*</span></label>
+              <select value={tiForm.incidentId} onChange={(e) => setTiForm(f => ({...f, incidentId: e.target.value}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="">Select an active incident…</option>
                 {incidentList.filter(inc => inc.status !== "closed" && inc.status !== "false_positive").map(inc => (
                   <option key={inc.id} value={inc.id}>{inc.number || `INC-${inc.id.slice(0, 8)}`} - {inc.title}</option>
@@ -702,19 +702,19 @@ export default function SecurityOpsPage() {
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Description <span className="text-red-500">*</span></label>
-              <textarea rows={3} value={tiForm.description} onChange={(e) => setTiForm(f => ({...f, description: e.target.value}))} placeholder="E.g., Suspected phishing domain, malicious IP..." className="px-3 py-2 text-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">Description <span className="text-red-500">*</span></label>
+              <textarea rows={3} value={tiForm.description} onChange={(e) => setTiForm(f => ({...f, description: e.target.value}))} placeholder="E.g., Suspected phishing domain, malicious IP..." className="px-3 py-2 text-body-sm border border-border rounded bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Document URL</label>
-              <input type="url" value={tiForm.documentUri} onChange={(e) => setTiForm(f => ({...f, documentUri: e.target.value}))} placeholder="https://example.com/report.pdf" className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">Document URL</label>
+              <input type="url" value={tiForm.documentUri} onChange={(e) => setTiForm(f => ({...f, documentUri: e.target.value}))} placeholder="https://example.com/report.pdf" className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNewThreatIntel(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewThreatIntel(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!tiForm.incidentId || !tiForm.description.trim()) { toast.error("Incident and Description are required"); return; } createThreatIntel.mutate({ incidentId: tiForm.incidentId, description: tiForm.description.trim(), documentUri: tiForm.documentUri || undefined }); }}
                 disabled={createThreatIntel.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">
                 {createThreatIntel.isPending ? "Saving…" : "Save Threat Intel"}
               </button>
             </div>
@@ -726,12 +726,12 @@ export default function SecurityOpsPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md p-5 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-primary flex items-center gap-2"><Shield className="w-4 h-4" /> Add Vulnerability</h2>
+              <h2 className="text-body-sm font-semibold text-primary flex items-center gap-2"><Shield className="w-4 h-4" /> Add Vulnerability</h2>
               <button onClick={() => setShowNewVulnerability(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Link to Incident</label>
-              <select value={vulnForm.incidentId} onChange={(e) => setVulnForm(f => ({...f, incidentId: e.target.value}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+              <label className="text-caption font-medium">Link to Incident</label>
+              <select value={vulnForm.incidentId} onChange={(e) => setVulnForm(f => ({...f, incidentId: e.target.value}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="">No incident linked</option>
                 {incidentList.filter(inc => inc.status !== "closed" && inc.status !== "false_positive").map(inc => (
                   <option key={inc.id} value={inc.id}>{inc.number || `INC-${inc.id.slice(0, 8)}`} - {inc.title}</option>
@@ -739,25 +739,25 @@ export default function SecurityOpsPage() {
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">CVE ID</label>
-              <input value={vulnForm.cveId} onChange={(e) => setVulnForm(f => ({...f, cveId: e.target.value}))} placeholder="CVE-2026-..." className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">CVE ID</label>
+              <input value={vulnForm.cveId} onChange={(e) => setVulnForm(f => ({...f, cveId: e.target.value}))} placeholder="CVE-2026-..." className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Title / Description <span className="text-red-500">*</span></label>
-              <input value={vulnForm.title} onChange={(e) => setVulnForm(f => ({...f, title: e.target.value}))} placeholder="Brief title..." className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="text-caption font-medium">Title / Description <span className="text-red-500">*</span></label>
+              <input value={vulnForm.title} onChange={(e) => setVulnForm(f => ({...f, title: e.target.value}))} placeholder="Brief title..." className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium">Severity</label>
-              <select value={vulnForm.severity} onChange={(e) => setVulnForm(f => ({...f, severity: e.target.value as any}))} className="px-3 py-2 text-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
+              <label className="text-caption font-medium">Severity</label>
+              <select value={vulnForm.severity} onChange={(e) => setVulnForm(f => ({...f, severity: e.target.value as any}))} className="px-3 py-2 text-body-sm border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary">
                 {["critical","high","medium","low","none"].map(s => <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNewVulnerability(false)} className="px-3 py-1.5 text-xs border border-border rounded hover:bg-accent">Cancel</button>
+              <button onClick={() => setShowNewVulnerability(false)} className="px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 onClick={() => { if (!vulnForm.title.trim()) { toast.error("Title is required"); return; } createVulnerability.mutate({ incidentId: vulnForm.incidentId || undefined, title: vulnForm.title.trim(), cveId: vulnForm.cveId || undefined, severity: vulnForm.severity as any }); }}
                 disabled={createVulnerability.isPending}
-                className="px-4 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">
+                className="px-4 py-1.5 text-caption bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50">
                 {createVulnerability.isPending ? "Saving…" : "Add Vulnerability"}
               </button>
             </div>
