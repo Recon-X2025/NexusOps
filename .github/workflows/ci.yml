@@ -167,6 +167,9 @@ jobs:
           MEILISEARCH_KEY: test_master_key
           AUTH_SECRET: test-secret-32-chars-minimum-here
           ENCRYPTION_KEY: test-encryption-32-chars-minimum
+          # Required by encryptSecret() (services/encryption.ts) — the TOTP MFA
+          # enroll flow encrypts the secret at rest and throws without this.
+          APP_SECRET: test-app-secret-32-chars-minimum-here
           NODE_ENV: test
         run: pnpm exec playwright test --reporter=line
 
