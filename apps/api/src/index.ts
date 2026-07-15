@@ -207,7 +207,10 @@ async function bootstrap() {
       process.env["NODE_ENV"] === "production" && corsOrigins.length > 0
         ? corsOrigins
         : true,
-    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type"],
+    credentials: false,
+    optionsSuccessStatus: 204,
   });
 
   await fastify.register(helmet, {
