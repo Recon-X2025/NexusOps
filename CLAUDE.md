@@ -7,14 +7,19 @@ Guidance for Claude (and other AI agents) working in this repository.
 **CoheronConnect** (repo: NexusOps) — a multi-tenant Enterprise Operations Platform.
 Production: `connect.coheron.tech`. Remote: `github.com/Recon-X2025/NexusOps.git`.
 
-Monorepo managed with **pnpm@10 + Turborepo**.
+Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`.
 
-- `apps/web` — Next.js 15 frontend
-- `apps/api` — Fastify 5 + tRPC 11 backend (the bulk of business logic + tests)
-- `apps/worker` — background jobs
-- `apps/mobile`, `apps/mac`, `apps/docs` — secondary surfaces
+- `apps/web` — Next.js **16** (webpack) + React 19 frontend (port 3000)
+- `apps/api` — Fastify 5 + tRPC 11 backend (the bulk of business logic + tests); **tsup → `dist/`** (port 3001)
+- `apps/worker` — Temporal 1.11 background workflows (task queue `coheronconnect-workflow`)
+- `apps/mac` — Next.js 15 **super-admin / platform-monitoring console** (port 3004)
+- `apps/mobile` (RN + Expo), `apps/docs` (Nextra, port 3003) — secondary surfaces
 - `packages/db` — Drizzle ORM schema + migrations (PostgreSQL); **built with tsup to `dist/`**
-- `packages/types`, `packages/validators`, `packages/auth`, `packages/ui`, `packages/metrics`, `packages/config`, `packages/cli`
+- `packages/payroll-math` — pure India payroll/tax/GST money-math (tsup → `dist/`; used by `db` + `api`)
+- `packages/types`, `packages/validators`, `packages/ui`, `packages/metrics`, `packages/config`, `packages/cli`
+
+> For an end-to-end current-state map (apps, routers, HTTP surfaces, automation loops, DB, defects),
+> see **`BUILD.md`**.
 
 ## Critical build/test facts
 
@@ -39,6 +44,12 @@ Monorepo managed with **pnpm@10 + Turborepo**.
 - Migration journal gate: `pnpm check:migrations` (`scripts/verify-migration-journal.mjs`) only checks each `.sql` has a matching tag in `_journal.json`; **no hash check**.
 - Generate: `pnpm db:generate` (in `packages/db`). Apply: `pnpm db:migrate`.
 - Always validate new migrations against a throwaway copy of a real DB, not just typechecking. See `docs/DATA_MODEL.md` for the data-model reference (tenancy classes + FK ownership).
+- **Current migration head: `0032_damp_la_nuit`** (33 files, `0000`…`0032`). `0031_workable_spot`
+  (team's super-admin / org-profile expansion) + `0032` (consolidated `mfa_enrollments`,
+  `vulnerability_sla_events` + vuln SLA columns, `dpdp_notification_artifacts` + DPDP regime/erasure
+  columns) landed on branch `merge/team-super-admin`.
+- `packages/db` also carries a `mongodb ^6.12` dependency; no schema module references it (carried for
+  integration/worker use).
 
 ## Demo data seed
 
@@ -85,6 +96,22 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 - zsh quirks observed here: multi-line SQL piped through commands breaks; `cd` with unquoted paths can error "too many arguments"; `!` triggers history expansion in `node -e`. Workaround: write a temp `.cjs` file and quote paths.
 
 ## Gap analysis (where the product actually stands)
+
+> **Accuracy note (current branch `merge/team-super-admin`):** several items the audits below
+> flagged as gaps have since **shipped and are wired/running** — verify against `BUILD.md` before
+> treating any line here as an open to-do. Specifically:
+> - **Tamper-evident audit log — DONE.** Hash chain (`seq`/`prevHash`/`entryHash`) is implemented in
+>   `packages/db/src/schema/auth.ts:285-318`, verified via `verifyAuditChain`. (Was gap priority #9.)
+> - **CVSS→SLA + vulnerability escalation — DONE.** `vulnerabilities.slaBreached`/`escalationLevel` +
+>   `vulnerabilitySlaEvents` + the `coheronconnect-vuln-sla` BullMQ loop (`workflows/vulnerabilitySlaWorkflow.ts`).
+> - **DPDP automation — PARTIAL, no longer "near-blank".** Temporal `dpdpSweepWorkflow` runs on a schedule
+>   (default 1h) and POSTs to `/internal/dpdp/sweep` (consent expiry / breach / DSR dispatch).
+> - **ITSM loops (on-call escalation, event correlation), workflow-trigger + outbound webhook dispatcher —
+>   WIRED** as BullMQ sweeps (see `BUILD.md §4`).
+> - **Super-admin / platform-monitoring role — SHIPPED** (`apps/mac` + `/api/super-admin/*` + `superAdminAuditLogs`);
+>   the "Latest session state" note below saying it doesn't exist yet is superseded.
+> Still genuinely open per the audits: balance sheet, GSTR-1 18% hardcode, depreciation engine,
+> gratuity/leave accrual, SAM reconciliation, lead scoring/lossless conversion, SMS delivery.
 
 Two read-only, code-grounded audits map the gap between what's shipped and what the
 market leaders offer. **No code was modified** producing them.
@@ -151,20 +178,19 @@ Phase 6 = GA hardening.
 
 ## Latest session state
 
-See **`docs/SESSION_HANDOVER_2026-06-30.md`** for the current handover (read it first
-when resuming). Highlights:
-- Branch `main` is **1 commit ahead of origin** (`3e1404f`, demo seed) — **not pushed**
-  (pushing auto-deploys to Vultr; needs user approval).
-- Local test DB (5433) is a **clean slate**: org + founder `admin@coheron.com` + RBAC only.
-- A **read-only whole-monorepo architecture audit** was completed; findings + recommended
-  sequencing are in the handover §4. Top items: money-math duplication (Phase 5),
-  worker Temporal durability (Phase 5), per-router `orgId` scoping (Phase 6), repo-hygiene
-  cleanup (quick win).
-- Deferred: cross-tenant **super-admin / platform-monitoring role** (no such role exists yet).
-- **Gap-identification audits completed** (read-only, no code changed): the 2026-07-03
-  platform gap set (`docs/PLATFORM_GAP_INDEX_2026-07-03.md` + 7 cluster docs + GRC/Legal
-  companions) and the 2026-06-30 competitive gap analysis (`docs/COMPETITIVE_GAP_ANALYSIS_2026-06-30.md`
-  + DOCX). See the new **"Gap analysis"** section above for the synthesis: dominant
-  pattern is *correct schema, missing computation/automation*; cross-cluster maturity
-  ≈50/100; top fixes are DPDP triad, workflow trigger/webhook loop, balance sheet +
-  GSTR-1 fix, gratuity/leave accrual, depreciation.
+Current working branch: **`merge/team-super-admin`** (migration head `0032_damp_la_nuit`).
+- The team's committed super-admin work (`origin/main` @ `4d2f0ec`) has been **merged locally** with
+  prior uncommitted local work (MFA enrollments, vuln-SLA loop, DPDP notification artifacts). The merge
+  is **validated** (33 migrations apply clean on a throwaway DB; typecheck clean; API test suite green)
+  but **not committed to `main` and not pushed** (pushing auto-deploys to Vultr; needs user approval).
+  A pre-merge checkpoint branch `wip/pre-merge-checkpoint` (`1fab82e`) preserves the raw local work.
+- Migration collision resolved: local `0031/0032/0033` were consolidated into `0032_damp_la_nuit`,
+  chained off the team's `0031_workable_spot`; snapshot chain regenerated via `pnpm db:generate`.
+- Dev DB is on **port 5434**; test DB `coheronconnect_test` on **port 5433**.
+- **Known real defect:** the Profile → Phone field silently discards its value — `auth.updateProfile`
+  accepts `phone`/`location`/`jobTitle`/`bio` in Zod but `users` has no such columns, so Drizzle drops
+  them (success toast still fires). See `BUILD.md §9`.
+- **Gap-identification audits** (2026-07-03 platform gap set + 2026-06-30 competitive gap analysis) remain
+  in `docs/` for reference; treat their findings against the **"Accuracy note"** at the top of the Gap
+  analysis section (several flagged gaps have since shipped). See `docs/SESSION_HANDOVER_2026-06-30.md`
+  for the older handover.
