@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "super_admin_audit_logs_org_idx" ON "super_admin_audit_logs" USING btree ("org_id");

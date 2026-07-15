@@ -1,3 +1,7 @@
+> **⚠️ SUPERSEDED (2026-07-15) — merged into `docs/INDIA_ROADMAP.md`.**
+> Its 5 items are re-verified there against code at head `0032_damp_la_nuit`:
+> Vuln-SLA and MFA have since **shipped** (were "to build" here). Archived for reference.
+
 # Security & Compliance Roadmap
 
 **Date:** 2026-07-13

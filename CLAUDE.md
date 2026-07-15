@@ -159,9 +159,19 @@ whole platform to category-competitive across all 9 audits ≈ 40–58 eng-weeks
 
 ## Roadmap reference
 
-The authoritative roadmap is `docs/PRODUCTION_READINESS_PLAN_2026-04-26.md`. That
-document is organised by **Workstreams (WS-1…WS-6)**; this file tracks the same
-work as **Phases 0–6**. The Phase↔WS reconciliation is recorded in §13 of the plan.
+The authoritative roadmaps are now **three verified, market-split docs** (each grounded
+in a `file:line` code audit at migration head `0032_damp_la_nuit`):
+- **`docs/INDIA_ROADMAP.md`** — India go-live + the 5 security items (DPDP, Vuln-SLA,
+  MFA, KMS, RLS). Consolidates the old India/security/GA plans.
+- **`docs/US_ROADMAP.md`** — US market (country/regime model, US COA, QuickBooks, CCPA).
+- **`docs/AI_ROADMAP.md`** — common AI maturity stages (Records→Understanding→
+  Recommendation→Execution→Autonomous) + composite-scoring/weightage decisions.
+
+The old plans (`PRODUCTION_READINESS_PLAN_2026-04-26.md`,
+`SECURITY_COMPLIANCE_ROADMAP_2026-07-13.md`, `INDIA_GOLIVE_*_2026-07-13.md`,
+`US_MARKET_BUILD_PLAN_2026-07-12.md`) are **superseded** and moved to `docs/archive/`
+(retained for decision-history only). The April plan's WS-1…WS-6 / Phase 0–6 framing
+below is historical; treat the three roadmaps above as current.
 
 Phases 0–3 are complete:
 - Phase 0–2 — foundations, data model, FK `onDelete` policy (`docs/DATA_MODEL.md`) ✅

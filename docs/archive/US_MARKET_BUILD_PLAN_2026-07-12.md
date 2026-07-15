@@ -1,3 +1,7 @@
+> **⚠️ SUPERSEDED (2026-07-15) — replaced by `docs/US_ROADMAP.md`.**
+> Its "no US-market code exists yet" baseline was re-verified TRUE at head
+> `0032_damp_la_nuit` (note: baseline migration is now `0032`, not `0030`). Archived.
+
 # US-Market Build Plan — Country Separation + QuickBooks + CCPA
 
 **Date:** 2026-07-12

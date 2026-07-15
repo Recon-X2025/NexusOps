@@ -1,3 +1,9 @@
+> **⚠️ SUPERSEDED (2026-07-15) — archived for decision-history only.**
+> The India/GA work is now tracked in **`docs/INDIA_ROADMAP.md`**; AI in
+> **`docs/AI_ROADMAP.md`**. This file is retained because its §1 *locked decisions*
+> still explain the *why*. Do not treat its status/calendar (§11, §13) as current —
+> several items have since shipped (verified at migration head `0032_damp_la_nuit`).
+
 # CoheronConnect — Production Readiness Plan (locked)
 
 **Date:** 2026-04-26

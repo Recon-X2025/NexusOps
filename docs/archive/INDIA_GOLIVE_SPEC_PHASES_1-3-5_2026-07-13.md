@@ -1,3 +1,7 @@
+> **⚠️ SUPERSEDED (2026-07-15) — merged into `docs/INDIA_ROADMAP.md`.**
+> Detailed impl spec; several targets (MFA enrollment, DPDP artifacts) have since shipped
+> at head `0032_damp_la_nuit`. Retained for its schema/procedure detail. Archived.
+
 # India Go-Live — Detailed Implementation Spec (Phases 1 → 3 → 5)
 
 **Date:** 2026-07-13

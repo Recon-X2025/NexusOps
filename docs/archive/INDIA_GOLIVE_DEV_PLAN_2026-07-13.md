@@ -1,3 +1,7 @@
+> **⚠️ SUPERSEDED (2026-07-15) — merged into `docs/INDIA_ROADMAP.md`.**
+> Re-verified against code at head `0032_damp_la_nuit`: Phases 2 (Vuln-SLA) and 3 (MFA)
+> have since **shipped**. Archived for reference.
+
 # India Go-Live — Phased Development Plan
 
 **Date:** 2026-07-13
