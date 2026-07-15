@@ -637,6 +637,10 @@ async function bootstrap() {
     return { ok: true, orgs: results.length, totals, results, timestamp: new Date().toISOString() };
   });
 
+  // ── Super-Admin REST API ──────────────────────────────────────────────────
+  const { superAdminRoutes } = await import("./http/super-admin.js");
+  fastify.register(superAdminRoutes, { prefix: "/api/super-admin" });
+
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {
     fastify.log.info(`Received ${signal}, shutting down...`);

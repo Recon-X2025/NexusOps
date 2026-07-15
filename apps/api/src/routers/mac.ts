@@ -49,7 +49,7 @@ export const macRouter = router({
       const token = jwt.sign(
         { email: input.email, role: "mac_operator" },
         macSecret,
-        { expiresIn: "8h" },
+        { expiresIn: "15m" },
       );
       return { token };
     }),

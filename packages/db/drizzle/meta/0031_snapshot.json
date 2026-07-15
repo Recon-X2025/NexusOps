@@ -1,5 +1,5 @@
 {
-  "id": "8ee80309-8e87-4c05-a8f2-2cf26a6e4593",
+  "id": "e0118135-1a89-4778-b5b8-a2e077d8a603",
   "prevId": "01d7fabd-52d8-442a-aa56-9a5f3828b672",
   "version": "7",
   "dialect": "postgresql",
@@ -39,6 +39,77 @@
           ]
         }
       },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.super_admin_audit_logs": {
+      "name": "super_admin_audit_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "actor_email": {
+          "name": "actor_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before_json": {
+          "name": "before_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after_json": {
+          "name": "after_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "super_admin_audit_logs_org_id_organizations_id_fk": {
+          "name": "super_admin_audit_logs_org_id_organizations_id_fk",
+          "tableFrom": "super_admin_audit_logs",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -669,6 +740,90 @@
           "primaryKey": false,
           "notNull": false,
           "default": "'#6366f1'"
+        },
+        "industry": {
+          "name": "industry",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "company_size": {
+          "name": "company_size",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "website": {
+          "name": "website",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "support_email": {
+          "name": "support_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pan": {
+          "name": "pan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tan": {
+          "name": "tan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "epf_code": {
+          "name": "epf_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "primary_state_code": {
+          "name": "primary_state_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sla_p1_hours": {
+          "name": "sla_p1_hours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sla_p2_hours": {
+          "name": "sla_p2_hours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sla_p3_hours": {
+          "name": "sla_p3_hours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sla_p4_hours": {
+          "name": "sla_p4_hours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -28599,6 +28754,21 @@
         }
       },
       "indexes": {
+        "gstin_registry_gstin_idx": {
+          "name": "gstin_registry_gstin_idx",
+          "columns": [
+            {
+              "expression": "gstin",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "gstin_registry_org_gstin_idx": {
           "name": "gstin_registry_org_gstin_idx",
           "columns": [
@@ -31585,13 +31755,6 @@
           "notNull": true,
           "default": "'consent'"
         },
-        "regime_code": {
-          "name": "regime_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'DPDP'"
-        },
         "status": {
           "name": "status",
           "type": "dpdp_consent_status",
@@ -31790,13 +31953,6 @@
           "notNull": true,
           "default": "'received'"
         },
-        "regime_code": {
-          "name": "regime_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'DPDP'"
-        },
         "principal_name": {
           "name": "principal_name",
           "type": "text",
@@ -31873,18 +32029,6 @@
         },
         "rejection_reason": {
           "name": "rejection_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "erasure_executed_at": {
-          "name": "erasure_executed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "erasure_summary": {
-          "name": "erasure_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -32168,152 +32312,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.dpdp_notification_artifacts": {
-      "name": "dpdp_notification_artifacts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "org_id": {
-          "name": "org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "related_type": {
-          "name": "related_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "related_id": {
-          "name": "related_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channel": {
-          "name": "channel",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "audience": {
-          "name": "audience",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "subject": {
-          "name": "subject",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'logged'"
-        },
-        "dispatched_at": {
-          "name": "dispatched_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "dpdp_notif_artifacts_related_idx": {
-          "name": "dpdp_notif_artifacts_related_idx",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "related_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "related_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dpdp_notif_artifacts_org_dispatched_idx": {
-          "name": "dpdp_notif_artifacts_org_dispatched_idx",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "dispatched_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dpdp_notification_artifacts_org_id_organizations_id_fk": {
-          "name": "dpdp_notification_artifacts_org_id_organizations_id_fk",
-          "tableFrom": "dpdp_notification_artifacts",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
