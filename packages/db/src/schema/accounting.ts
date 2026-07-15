@@ -204,6 +204,7 @@ export const gstinRegistry = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
+    gstinIdx: uniqueIndex("gstin_registry_gstin_idx").on(t.gstin),
     orgGstinIdx: uniqueIndex("gstin_registry_org_gstin_idx").on(t.orgId, t.gstin),
     orgIdx: index("gstin_registry_org_idx").on(t.orgId),
   }),

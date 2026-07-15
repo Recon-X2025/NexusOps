@@ -45,6 +45,23 @@ export const organizations = pgTable(
     settings: jsonb("settings").$type<OrgSettings>(),
     logoUrl: text("logo_url"),
     primaryColor: text("primary_color").default("#6366f1"),
+    // Profile
+    industry: text("industry"),
+    companySize: text("company_size"),
+    city: text("city"),
+    state: text("state"),
+    website: text("website"),
+    supportEmail: text("support_email"),
+    // Compliance
+    pan: text("pan"),
+    tan: text("tan"),
+    epfCode: text("epf_code"),
+    primaryStateCode: text("primary_state_code"),
+    // ITSM SLA
+    slaP1Hours: integer("sla_p1_hours"),
+    slaP2Hours: integer("sla_p2_hours"),
+    slaP3Hours: integer("sla_p3_hours"),
+    slaP4Hours: integer("sla_p4_hours"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

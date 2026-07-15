@@ -1,4 +1,5 @@
 export * from "./counters";
+export * from "./audit";
 export * from "./auth";
 export * from "./org-settings";
 export * from "./legal-entity";

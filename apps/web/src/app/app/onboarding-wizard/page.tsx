@@ -84,11 +84,12 @@ interface OrgData {
   supportEmail: string;
 }
 
-function OrgProfileStep({ data, onChange, onNext, onBack }: {
+function OrgProfileStep({ data, onChange, onNext, onBack, loading }: {
   data: OrgData;
   onChange: (d: Partial<OrgData>) => void;
   onNext: () => void;
   onBack: () => void;
+  loading?: boolean;
 }) {
   const industries = ["Technology/SaaS", "Manufacturing", "Professional Services", "Healthcare", "Retail/E-commerce", "Finance", "Education", "Real Estate", "Other"];
   const sizes = ["1–10", "11–50", "51–200", "201–500", "500+"];
@@ -148,7 +149,7 @@ function OrgProfileStep({ data, onChange, onNext, onBack }: {
           <input type="email" value={data.supportEmail} onChange={e => onChange({ supportEmail: e.target.value })} placeholder="support@yourcompany.com" className="w-full px-3 py-2 text-[13px] border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
       </div>
-      <StepNav onBack={onBack} onNext={onNext} canNext={canNext} />
+      <StepNav onBack={onBack} onNext={onNext} canNext={canNext} loading={loading} />
     </div>
   );
 }
@@ -164,11 +165,12 @@ interface IndiaData {
   seedCoa: boolean;
 }
 
-function IndiaSetupStep({ data, onChange, onNext, onBack }: {
+function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
   data: IndiaData;
   onChange: (d: Partial<IndiaData>) => void;
   onNext: () => void;
   onBack: () => void;
+  loading?: boolean;
 }) {
   const gstinValid = /^[A-Z0-9]{15}$/.test(data.gstin.trim().toUpperCase());
   const panValid = /^[A-Z0-9]{10}$/.test(data.pan.trim().toUpperCase());
@@ -221,7 +223,7 @@ function IndiaSetupStep({ data, onChange, onNext, onBack }: {
         ))}
       </div>
 
-      <StepNav onBack={onBack} onNext={onNext} canNext={canNext} />
+      <StepNav onBack={onBack} onNext={onNext} canNext={canNext} loading={loading} />
     </div>
   );
 }
@@ -243,9 +245,8 @@ function TeamStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }
   );
 }
 
-function ITSMStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
-  const [sla, setSla] = useState({ p1: "4", p2: "8", p3: "24", p4: "72" });
-  const canNext = Object.values(sla).every(v => {
+function ITSMStep({ sla, setSla, onNext, onBack, loading }: { sla: any, setSla: any, onNext: () => void; onBack: () => void, loading: boolean }) {
+  const canNext = Object.values(sla).every((v: any) => {
     const num = parseInt(v, 10);
     return !isNaN(num) && num >= 1;
   });
@@ -285,7 +286,7 @@ function ITSMStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-[12px] text-blue-700">
         💡 India public holidays from your calendar are automatically excluded from SLA clocks.
       </div>
-      <StepNav onBack={onBack} onNext={onNext} canNext={canNext} />
+      <StepNav onBack={onBack} onNext={onNext} canNext={canNext} loading={loading} />
     </div>
   );
 }
@@ -381,11 +382,76 @@ export default function OnboardingWizardPage() {
     seedHolidays: true, seedCoa: true,
   });
 
+  const [sla, setSla] = useState({ p1: "4", p2: "8", p3: "24", p4: "72" });
+
   const utils = trpc.useUtils();
   const seedCoaMut      = trpc.accounting.coa.seed.useMutation();
   const seedHolidaysMut = trpc.hr.holidays.seedIndiaHolidays.useMutation();
+  const saveWizardMut   = trpc.onboarding.saveWizardData.useMutation();
 
   const currentStep = STEPS[stepIdx]!;
+
+  async function handleProfileNext() {
+    setApplying(true);
+    try {
+      await saveWizardMut.mutateAsync({
+        profile: {
+          displayName: orgData.displayName,
+          industry: orgData.industry,
+          size: orgData.size,
+          city: orgData.city,
+          state: orgData.state,
+          website: orgData.website,
+          supportEmail: orgData.supportEmail,
+        },
+      });
+      next();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to save profile");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  async function handleIndiaNext() {
+    setApplying(true);
+    try {
+      await saveWizardMut.mutateAsync({
+        india: {
+          gstin: indiaData.gstin,
+          pan: indiaData.pan,
+          cin: indiaData.cin,
+          tan: indiaData.tan,
+          pf: indiaData.pf,
+          stateCode: indiaData.stateCode,
+        },
+      });
+      next();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to save India compliance data");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  async function handleItsmNext() {
+    setApplying(true);
+    try {
+      await saveWizardMut.mutateAsync({
+        itsm: {
+          p1: parseInt(sla.p1, 10),
+          p2: parseInt(sla.p2, 10),
+          p3: parseInt(sla.p3, 10),
+          p4: parseInt(sla.p4, 10),
+        },
+      });
+      next();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to save ITSM SLA");
+    } finally {
+      setApplying(false);
+    }
+  }
 
   async function handleFinanceNext() {
     setApplying(true);
@@ -442,10 +508,10 @@ export default function OnboardingWizardPage() {
         {/* Card */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
           {currentStep.key === "welcome"     && <WelcomeStep onNext={next} />}
-          {currentStep.key === "org_profile" && <OrgProfileStep data={orgData} onChange={d => setOrgData(p => ({ ...p, ...d }))} onNext={next} onBack={back} />}
-          {currentStep.key === "india_setup" && <IndiaSetupStep data={indiaData} onChange={d => setIndiaData(p => ({ ...p, ...d }))} onNext={next} onBack={back} />}
+          {currentStep.key === "org_profile" && <OrgProfileStep data={orgData} onChange={d => setOrgData(p => ({ ...p, ...d }))} onNext={handleProfileNext} onBack={back} loading={applying} />}
+          {currentStep.key === "india_setup" && <IndiaSetupStep data={indiaData} onChange={d => setIndiaData(p => ({ ...p, ...d }))} onNext={handleIndiaNext} onBack={back} loading={applying} />}
           {currentStep.key === "team"        && <TeamStep onNext={next} onBack={back} />}
-          {currentStep.key === "itsm"        && <ITSMStep onNext={next} onBack={back} />}
+          {currentStep.key === "itsm"        && <ITSMStep sla={sla} setSla={setSla} onNext={handleItsmNext} onBack={back} loading={applying} />}
           {currentStep.key === "finance"     && <FinanceStep seedCoa={indiaData.seedCoa} onNext={handleFinanceNext} onBack={back} loading={applying} />}
           {currentStep.key === "done"        && <DoneStep />}
         </div>
