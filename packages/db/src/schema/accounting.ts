@@ -204,7 +204,10 @@ export const gstinRegistry = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    gstinIdx: uniqueIndex("gstin_registry_gstin_idx").on(t.gstin),
+    // GSTIN uniqueness is per-tenant: two different orgs must be able to register
+    // records independently, so the constraint is (org_id, gstin). A global unique
+    // on gstin alone (added during a migration-conflict resolution) broke tenant
+    // isolation — dropped here in favour of the org-scoped unique.
     orgGstinIdx: uniqueIndex("gstin_registry_org_gstin_idx").on(t.orgId, t.gstin),
     orgIdx: index("gstin_registry_org_idx").on(t.orgId),
   }),

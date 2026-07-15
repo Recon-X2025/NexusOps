@@ -410,7 +410,7 @@ export const authRouter = router({
      * data URL + the secret for manual entry. Does NOT flip `mfaEnrolled`.
      * Overwrites any prior pending/active enrollment for this user.
      */
-    startEnroll: protectedProcedure.mutation(async ({ ctx }) => {
+    startEnroll: protectedProcedure.input(z.object({}).optional()).mutation(async ({ ctx }) => {
       const { db, user } = ctx;
       const email = typeof user!.email === "string" ? user!.email : user!.id;
       const { secret, otpauthUri } = generateTotpSecret(email);

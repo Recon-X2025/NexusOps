@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS "gstin_registry_gstin_idx";

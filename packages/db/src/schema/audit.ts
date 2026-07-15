@@ -10,8 +10,9 @@ export const superAdminAuditLogs = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     action: text("action").notNull(),
-    beforeJson: jsonb("before_json"),
-    afterJson: jsonb("after_json"),
+    // Before/after snapshots capture arbitrary row shape — a deliberately open blob.
+    beforeJson: jsonb("before_json").$type<Record<string, unknown>>(),
+    afterJson: jsonb("after_json").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
