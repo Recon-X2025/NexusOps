@@ -1,4 +1,5 @@
 import {
+  boolean,
   decimal,
   index,
   integer,
@@ -102,6 +103,8 @@ export const vulnerabilities = pgTable(
     scannerSource: text("scanner_source"),
     remediationSlaDays: integer("remediation_sla_days"),
     remediationDueAt: timestamp("remediation_due_at", { withTimezone: true }),
+    slaBreached: boolean("sla_breached").notNull().default(false),
+    escalationLevel: integer("escalation_level").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -109,6 +112,27 @@ export const vulnerabilities = pgTable(
     orgIdx: index("vulnerabilities_org_idx").on(t.orgId),
     statusIdx: index("vulnerabilities_status_idx").on(t.orgId, t.status),
     cveIdx: index("vulnerabilities_cve_idx").on(t.cveId),
+    slaIdx: index("vulnerabilities_sla_idx").on(t.orgId, t.slaBreached),
+  }),
+);
+
+// ── Vulnerability SLA events (breach / escalation audit log) ───────────────
+export const vulnerabilitySlaEvents = pgTable(
+  "vulnerability_sla_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    vulnerabilityId: uuid("vulnerability_id")
+      .notNull()
+      .references(() => vulnerabilities.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // "breached" | "escalated"
+    level: integer("level"), // escalation tier (null for the initial breach)
+    notifiedUserId: uuid("notified_user_id").references(() => users.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    vulnIdx: index("vuln_sla_events_vuln_idx").on(t.orgId, t.vulnerabilityId),
   }),
 );
 

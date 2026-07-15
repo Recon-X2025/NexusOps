@@ -12,6 +12,8 @@ import {
   verificationTokens,
   roles,
   userRoles,
+  mfaEnrollments,
+  auditLogs,
   eq,
   and,
   sql,
@@ -34,6 +36,16 @@ import { checkLoginRateLimit, recordFailedLogin, clearLoginAttempts } from "../l
 import { sendTransactionalEmail } from "../services/notifications";
 import { hashSessionToken } from "../middleware/auth";
 import { clearSessionStepUp, setSessionStepUpVerified } from "../lib/step-up-session";
+import { setSessionMfaVerified, clearSessionMfa } from "../lib/mfa-session";
+import { issueMfaChallenge, consumeMfaChallenge } from "../lib/mfa-challenge";
+import {
+  generateTotpSecret,
+  buildQrDataUrl,
+  verifyTotp,
+  generateBackupCodes,
+  matchBackupCode,
+} from "../lib/totp";
+import { encryptSecret, decryptSecret } from "../services/encryption";
 
 /** Never return password hashes to clients. */
 function stripPasswordHash<T extends { passwordHash?: string | null }>(row: T) {
@@ -212,6 +224,30 @@ export const authRouter = router({
 
     await clearLoginAttempts(email);
 
+    // ── MFA gate ─────────────────────────────────────────────────────────────
+    // If the user has an ACTIVE TOTP enrollment, do NOT create a session here.
+    // Instead issue a short-lived challenge token the client exchanges via
+    // `verifyMfa`. No usable session exists until TOTP (or a backup code) passes.
+    const [mfa] = await db
+      .select({ id: mfaEnrollments.id })
+      .from(mfaEnrollments)
+      .where(and(eq(mfaEnrollments.userId, user.id), eq(mfaEnrollments.status, "active")))
+      .limit(1);
+
+    if (mfa) {
+      const challengeToken = await issueMfaChallenge(user.id);
+      logInfo("AUTH_LOGIN_MFA_REQUIRED", {
+        request_id: ctx.requestId,
+        user_id: user.id,
+        org_id: user.orgId,
+      });
+      return {
+        mfaRequired: true as const,
+        challengeToken,
+        rememberMe: input.rememberMe ?? false,
+      };
+    }
+
     const session = await createSession(db, user.id, ctx.ipAddress, ctx.userAgent, input.rememberMe ?? false);
     const tSession = Date.now();
 
@@ -240,18 +276,243 @@ export const authRouter = router({
       total_ms:   tTotal - t0,
     });
 
-    return { user: stripPasswordHash(user), org, sessionId: session.token, rememberMe: input.rememberMe ?? false };
+    return {
+      mfaRequired: false as const,
+      user: stripPasswordHash(user),
+      org,
+      sessionId: session.token,
+      rememberMe: input.rememberMe ?? false,
+    };
   }),
 
   logout: protectedProcedure.input(z.object({}).optional()).mutation(async ({ ctx }) => {
     if (ctx.sessionId) {
       await clearSessionStepUp(ctx.sessionId);
+      await clearSessionMfa(ctx.sessionId);
       // DB delete must complete before responding (correctness)
       await ctx.db.delete(sessions).where(eq(sessions.id, ctx.sessionId));
       // L1 + L2: await so the next request cannot read a stale Redis session.
       await invalidateSessionCache(ctx.sessionId);
     }
     return { success: true };
+  }),
+
+  /**
+   * Exchange an MFA challenge token (from `login` when `mfaRequired`) plus a TOTP
+   * code (or a one-time backup code) for a real session. On success the session
+   * is marked MFA-verified. Public: no session exists yet at this point.
+   */
+  verifyMfa: publicProcedure
+    .input(
+      z.object({
+        challengeToken: z.string().min(1),
+        code: z.string().min(1),
+        isBackupCode: z.boolean().optional(),
+        rememberMe: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db } = ctx;
+
+      const userId = await consumeMfaChallenge(input.challengeToken);
+      if (!userId) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "MFA challenge expired or invalid" });
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user || user.status === "disabled") {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
+      }
+
+      const [enrollment] = await db
+        .select()
+        .from(mfaEnrollments)
+        .where(and(eq(mfaEnrollments.userId, userId), eq(mfaEnrollments.status, "active")))
+        .limit(1);
+      if (!enrollment) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "MFA not enrolled" });
+      }
+
+      let ok = false;
+      if (input.isBackupCode) {
+        const idx = await matchBackupCode(input.code, enrollment.backupCodes);
+        if (idx >= 0) {
+          ok = true;
+          const remaining = enrollment.backupCodes.filter((_, i) => i !== idx);
+          await db
+            .update(mfaEnrollments)
+            .set({ backupCodes: remaining, updatedAt: new Date() })
+            .where(eq(mfaEnrollments.id, enrollment.id));
+        }
+      } else {
+        ok = verifyTotp(decryptSecret(enrollment.totpSecret), input.code);
+      }
+
+      if (!ok) {
+        logWarn("AUTH_MFA_FAIL", { user_id: userId, backup: input.isBackupCode ?? false });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
+      }
+
+      const session = await createSession(
+        db,
+        userId,
+        ctx.ipAddress,
+        ctx.userAgent,
+        input.rememberMe ?? false,
+      );
+      await setSessionMfaVerified(session.token);
+
+      await db
+        .update(mfaEnrollments)
+        .set({ lastVerifiedAt: new Date(), updatedAt: new Date() })
+        .where(eq(mfaEnrollments.id, enrollment.id));
+
+      await db
+        .update(users)
+        .set({ lastLoginAt: new Date(), status: user.status === "invited" ? "active" : user.status })
+        .where(eq(users.id, userId));
+
+      const [org] = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, user.orgId))
+        .limit(1);
+
+      logInfo("AUTH_MFA_SUCCESS", { user_id: userId, org_id: user.orgId, backup: input.isBackupCode ?? false });
+
+      return {
+        user: stripPasswordHash(user),
+        org,
+        sessionId: session.token,
+        rememberMe: input.rememberMe ?? false,
+      };
+    }),
+
+  /** TOTP enrollment + management. */
+  mfa: router({
+    /** Current MFA state for the settings UI. */
+    status: protectedProcedure.query(async ({ ctx }) => {
+      const { db, user } = ctx;
+      const [row] = await db
+        .select({ status: mfaEnrollments.status, backupCodes: mfaEnrollments.backupCodes })
+        .from(mfaEnrollments)
+        .where(eq(mfaEnrollments.userId, user!.id))
+        .limit(1);
+      return {
+        enrolled: row?.status === "active",
+        pending: row?.status === "pending",
+        backupCodesRemaining: row?.status === "active" ? row.backupCodes.length : 0,
+      };
+    }),
+
+    /**
+     * Begin enrollment: generate a fresh (pending) TOTP secret and return a QR
+     * data URL + the secret for manual entry. Does NOT flip `mfaEnrolled`.
+     * Overwrites any prior pending/active enrollment for this user.
+     */
+    startEnroll: protectedProcedure.mutation(async ({ ctx }) => {
+      const { db, user } = ctx;
+      const email = typeof user!.email === "string" ? user!.email : user!.id;
+      const { secret, otpauthUri } = generateTotpSecret(email);
+      const qrDataUrl = await buildQrDataUrl(otpauthUri);
+
+      await db.delete(mfaEnrollments).where(eq(mfaEnrollments.userId, user!.id));
+      await db.insert(mfaEnrollments).values({
+        orgId: ctx.orgId!,
+        userId: user!.id,
+        totpSecret: encryptSecret(secret),
+        status: "pending",
+        backupCodes: [],
+      });
+
+      return { qrDataUrl, secret, otpauthUri };
+    }),
+
+    /**
+     * Confirm enrollment with the first TOTP code. On success: status → active,
+     * `users.mfaEnrolled = true`, and 10 one-time backup codes are returned ONCE.
+     */
+    confirmEnroll: protectedProcedure
+      .input(z.object({ code: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, user } = ctx;
+        const [enrollment] = await db
+          .select()
+          .from(mfaEnrollments)
+          .where(and(eq(mfaEnrollments.userId, user!.id), eq(mfaEnrollments.status, "pending")))
+          .limit(1);
+        if (!enrollment) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No pending MFA enrollment; call startEnroll first" });
+        }
+
+        if (!verifyTotp(decryptSecret(enrollment.totpSecret), input.code)) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
+        }
+
+        const { plaintext, hashes } = await generateBackupCodes(10);
+
+        await db
+          .update(mfaEnrollments)
+          .set({
+            status: "active",
+            backupCodes: hashes,
+            confirmedAt: new Date(),
+            lastVerifiedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(mfaEnrollments.id, enrollment.id));
+
+        await db.update(users).set({ mfaEnrolled: true }).where(eq(users.id, user!.id));
+
+        await db.insert(auditLogs).values({
+          orgId: ctx.orgId!,
+          userId: user!.id,
+          action: "mfa_enrolled",
+          resourceType: "security",
+          resourceId: user!.id,
+        });
+
+        return { backupCodes: plaintext };
+      }),
+
+    /**
+     * Disable MFA. Requires a valid current TOTP code (or backup code) to prove
+     * possession. Removes the enrollment and clears `users.mfaEnrolled`.
+     */
+    disable: protectedProcedure
+      .input(z.object({ code: z.string().min(1), isBackupCode: z.boolean().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, user } = ctx;
+        const [enrollment] = await db
+          .select()
+          .from(mfaEnrollments)
+          .where(and(eq(mfaEnrollments.userId, user!.id), eq(mfaEnrollments.status, "active")))
+          .limit(1);
+        if (!enrollment) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "MFA is not enabled" });
+        }
+
+        const ok = input.isBackupCode
+          ? (await matchBackupCode(input.code, enrollment.backupCodes)) >= 0
+          : verifyTotp(decryptSecret(enrollment.totpSecret), input.code);
+        if (!ok) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
+        }
+
+        await db.delete(mfaEnrollments).where(eq(mfaEnrollments.id, enrollment.id));
+        await db.update(users).set({ mfaEnrolled: false }).where(eq(users.id, user!.id));
+        if (ctx.sessionId) await clearSessionMfa(ctx.sessionId);
+
+        await db.insert(auditLogs).values({
+          orgId: ctx.orgId!,
+          userId: user!.id,
+          action: "mfa_disabled",
+          resourceType: "security",
+          resourceId: user!.id,
+        });
+
+        return { success: true };
+      }),
   }),
 
   /**

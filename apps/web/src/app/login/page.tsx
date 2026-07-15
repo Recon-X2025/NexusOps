@@ -17,6 +17,9 @@ export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
   const apiBase = process.env.NEXT_PUBLIC_API_URL ??
     (typeof window !== "undefined"
       ? `${window.location.protocol}//${window.location.hostname}:3001`
@@ -28,25 +31,43 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({
     resolver: zodResolver(LoginSchema),
+    // Seed defaults so the email/password inputs start controlled (avoids the
+    // React "changing an uncontrolled input to be controlled" warning).
+    defaultValues: { email: "", password: "" },
   });
 
-  const utils = trpc.useUtils();
+  // Persist the session and navigate to the app. Shared by the one-step (no MFA)
+  // login path and the two-step verifyMfa path.
+  const completeLogin = (sessionId: string) => {
+    // Store in both localStorage (for tRPC header) and cookie (for middleware).
+    // When "Remember Me" is unchecked the cookie has no max-age (session-scoped);
+    // when checked we persist for 30 days.
+    localStorage.setItem("coheronconnect_session", sessionId);
+    const maxAge = rememberMe ? `; max-age=${60 * 60 * 24 * 30}` : "";
+    document.cookie = `coheronconnect_session=${sessionId}; path=/${maxAge}; SameSite=Lax`;
+    toast.success("Welcome back!");
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect") ?? "/app/dashboard";
+    // Use window.location.href instead of router.push to force a hard navigation.
+    // This prevents the Next.js App Router from using a stale cached redirect
+    // (from when the user was unauthenticated) and bouncing them back to /login.
+    window.location.href = redirect;
+  };
 
   const login = trpc.auth.login.useMutation({
-    onSuccess: async (data) => {
-      // Store in both localStorage (for tRPC header) and cookie (for middleware).
-      // When "Remember Me" is unchecked the cookie has no max-age (session-scoped);
-      // when checked we persist for 30 days.
-      localStorage.setItem("coheronconnect_session", data.sessionId);
-      const maxAge = rememberMe ? `; max-age=${60 * 60 * 24 * 30}` : "";
-      document.cookie = `coheronconnect_session=${data.sessionId}; path=/${maxAge}; SameSite=Lax`;
-      toast.success("Welcome back!");
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get("redirect") ?? "/app/dashboard";
-      // Use window.location.href instead of router.push to force a hard navigation.
-      // This prevents the Next.js App Router from using a stale cached redirect
-      // (from when the user was unauthenticated) and bouncing them back to /login.
-      window.location.href = redirect;
+    onSuccess: (data) => {
+      // MFA-enrolled users get a challenge token instead of a session; switch to
+      // the code-entry step rather than completing login. (superjson widens the
+      // discriminated union's fields to optional, so key off challengeToken.)
+      if ("challengeToken" in data && data.challengeToken) {
+        setMfaChallenge(data.challengeToken);
+        setMfaCode("");
+        setUseBackupCode(false);
+        return;
+      }
+      if ("sessionId" in data && data.sessionId) {
+        completeLogin(data.sessionId);
+      }
     },
     onError: (err) => {
       const code = err.data?.code;
@@ -64,7 +85,31 @@ export default function LoginPage() {
     },
   });
 
+  const verifyMfa = trpc.auth.verifyMfa.useMutation({
+    onSuccess: (data) => completeLogin(data.sessionId),
+    onError: (err) => {
+      toast.error(err.message ?? "Verification failed");
+    },
+  });
+
   const onSubmit = (data: LoginForm) => login.mutate({ ...data, rememberMe });
+
+  const onVerifyMfa = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaChallenge) return;
+    verifyMfa.mutate({
+      challengeToken: mfaChallenge,
+      code: mfaCode.trim(),
+      isBackupCode: useBackupCode,
+      rememberMe,
+    });
+  };
+
+  const cancelMfa = () => {
+    setMfaChallenge(null);
+    setMfaCode("");
+    setUseBackupCode(false);
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 px-4">
@@ -80,6 +125,65 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl backdrop-blur-sm">
+          {mfaChallenge ? (
+            <>
+              <h2 className="mb-1 text-h4 font-semibold text-white">Two-factor authentication</h2>
+              <p className="mb-6 text-body-sm text-slate-400">
+                {useBackupCode
+                  ? "Enter one of your backup codes to finish signing in."
+                  : "Enter the 6-digit code from your authenticator app."}
+              </p>
+
+              <form onSubmit={onVerifyMfa} className="space-y-4" data-testid="mfa-form">
+                <div>
+                  <label className="mb-1.5 block text-body-sm font-medium text-slate-300">
+                    {useBackupCode ? "Backup code" : "Authentication code"}
+                  </label>
+                  <input
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value)}
+                    inputMode={useBackupCode ? "text" : "numeric"}
+                    autoComplete="one-time-code"
+                    autoFocus
+                    placeholder={useBackupCode ? "xxxxx-xxxxx" : "123456"}
+                    data-testid="mfa-code"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-center text-body-sm tracking-[0.3em] text-white placeholder-slate-500 outline-none ring-0 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={verifyMfa.isPending || mfaCode.trim().length === 0}
+                  data-testid="mfa-submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-body-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                >
+                  {verifyMfa.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Verify
+                </button>
+
+                <div className="flex items-center justify-between text-body-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseBackupCode((v) => !v);
+                      setMfaCode("");
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300"
+                  >
+                    {useBackupCode ? "Use authenticator app" : "Use a backup code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelMfa}
+                    className="text-slate-400 hover:text-slate-300"
+                  >
+                    Back to sign in
+                  </button>
+                </div>
+              </form>
+            </>
+          ) : (
+          <>
           <h2 className="mb-1 text-h4 font-semibold text-white">Welcome back</h2>
           <p className="mb-6 text-body-sm text-slate-400">Sign in to your workspace</p>
 
@@ -185,6 +289,8 @@ export default function LoginPage() {
               Continue with Google
             </button>
           </div>
+          </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-body-sm text-slate-500">

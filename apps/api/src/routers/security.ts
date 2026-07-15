@@ -256,6 +256,91 @@ export const securityRouter = router({
       return vuln;
     }),
 
+  /**
+   * Rescore an existing vulnerability. When CVSS/severity change on an
+   * unresolved finding, recompute the remediation SLA so `remediation_due_at`
+   * tracks the new score instead of being frozen at create time.
+   */
+  updateVulnerability: permissionProcedure("vulnerabilities", "write")
+    .input(z.object({
+      id: z.string().uuid(),
+      severity: z.enum(["critical", "high", "medium", "low", "none"]).optional(),
+      cvssScore: z.string().optional(),
+      remediation: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [existing] = await db
+        .select()
+        .from(vulnerabilities)
+        .where(and(eq(vulnerabilities.id, input.id), eq(vulnerabilities.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const changes: Record<string, unknown> = { updatedAt: new Date() };
+      if (input.severity !== undefined) changes["severity"] = input.severity;
+      if (input.cvssScore !== undefined) changes["cvssScore"] = input.cvssScore;
+      if (input.remediation !== undefined) changes["remediation"] = input.remediation;
+
+      // Recompute the SLA only when the score changed and the vuln is still open —
+      // remediated / accepted / false-positive findings keep their historical deadline.
+      const scoreChanged =
+        (input.severity !== undefined && input.severity !== existing.severity) ||
+        (input.cvssScore !== undefined && input.cvssScore !== existing.cvssScore);
+      const isOpen = existing.status === "open" || existing.status === "in_progress";
+      if (scoreChanged && isOpen) {
+        const { remediationSlaDays, remediationDueAt } = computeRemediationSla({
+          cvssScore: input.cvssScore ?? existing.cvssScore ?? undefined,
+          severity: input.severity ?? existing.severity,
+          discoveredAt: existing.discoveredAt ?? existing.createdAt,
+        });
+        changes["remediationSlaDays"] = remediationSlaDays;
+        changes["remediationDueAt"] = remediationDueAt;
+      }
+
+      const [vuln] = await db
+        .update(vulnerabilities)
+        .set(changes)
+        .where(and(eq(vulnerabilities.id, input.id), eq(vulnerabilities.orgId, org!.id)))
+        .returning();
+      return vuln;
+    }),
+
+  /**
+   * Remediation-SLA rollup for the vuln dashboard — mirrors the DSR
+   * `slaSummary`. `overdue` = unresolved & past `remediation_due_at`;
+   * `dueSoon` = unresolved & due within 7 days.
+   */
+  vulnSlaSummary: permissionProcedure("vulnerabilities", "read").query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const rows = await db
+      .select({
+        status: vulnerabilities.status,
+        remediationDueAt: vulnerabilities.remediationDueAt,
+      })
+      .from(vulnerabilities)
+      .where(eq(vulnerabilities.orgId, org!.id));
+
+    const now = Date.now();
+    const soonMs = 7 * 24 * 60 * 60 * 1000;
+    let open = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    let resolved = 0;
+    for (const r of rows) {
+      const isOpen = r.status === "open" || r.status === "in_progress";
+      if (!isOpen) {
+        resolved++;
+        continue;
+      }
+      open++;
+      if (!r.remediationDueAt) continue;
+      const due = new Date(r.remediationDueAt).getTime();
+      if (due < now) overdue++;
+      else if (due - now <= soonMs) dueSoon++;
+    }
+    return { total: rows.length, open, overdue, dueSoon, resolved };
+  }),
+
   statusCounts: permissionProcedure("security", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
     const rows = await db

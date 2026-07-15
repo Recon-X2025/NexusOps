@@ -42,7 +42,7 @@ const ESCALATION_SWEEP_INTERVAL_MS = 60_000;
 /** Hard cap on tickets a single tick may escalate — protects DB + notification volume. */
 const ESCALATION_SWEEP_BATCH_LIMIT = 500;
 
-type EscalationStep = { level: number; userId: string; delayMinutes: number };
+export type EscalationStep = { level: number; userId: string; delayMinutes: number };
 
 export interface EscalationJobData {
   /** Unused — the sweeper queries the DB directly. */
@@ -88,7 +88,7 @@ export async function scheduleEscalationSweep(queue: Queue<EscalationJobData>): 
 }
 
 /** Normalise a raw escalation chain: sorted by level, valid steps only. */
-function normalizeChain(raw: unknown): EscalationStep[] {
+export function normalizeChain(raw: unknown): EscalationStep[] {
   if (!Array.isArray(raw)) return [];
   const steps: EscalationStep[] = [];
   for (const s of raw as EscalationStep[]) {
@@ -107,7 +107,7 @@ function normalizeChain(raw: unknown): EscalationStep[] {
  * `[{level:1,delay:0},{level:2,delay:30}]` chain means level 1 at breach and
  * level 2 thirty minutes later.
  */
-function dueLevel(chain: EscalationStep[], elapsedMinutes: number): number {
+export function dueLevel(chain: EscalationStep[], elapsedMinutes: number): number {
   let cumulative = 0;
   let due = 0;
   for (const step of chain) {
@@ -119,7 +119,7 @@ function dueLevel(chain: EscalationStep[], elapsedMinutes: number): number {
 }
 
 /** Resolve the escalation chain for a ticket from the org's on-call schedules. */
-function resolveChain(
+export function resolveChain(
   schedules: Array<{ team: string | null; escalationChain: unknown }>,
   teamName: string | null,
 ): EscalationStep[] {

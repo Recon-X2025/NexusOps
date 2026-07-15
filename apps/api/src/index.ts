@@ -592,6 +592,51 @@ async function bootstrap() {
     };
   });
 
+  // POST /internal/dpdp/sweep — run the DPDP automation sweeps for every org.
+  //
+  // This is the entry point the Temporal scheduled workflow calls on a
+  // recurring cadence. It keeps the sweep logic in apps/api (where it is
+  // covered by the API test harness against real Postgres) while the worker
+  // stays a thin scheduler. Guarded by the /internal/ X-Internal-Token hook.
+  //
+  // Body (optional): { orgId?: string } — restrict to a single org.
+  // Returns per-org SweepResults plus totals.
+  fastify.post("/internal/dpdp/sweep", async (req) => {
+    const { getDb, organizations, eq } = await import("@coheronconnect/db");
+    const { runDpdpSweepsForOrg } = await import("./lib/dpdp-sweeps.js");
+    const db = getDb();
+
+    const body = (req.body ?? {}) as { orgId?: string };
+    const orgRows = body.orgId
+      ? await db
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(eq(organizations.id, body.orgId))
+      : await db.select({ id: organizations.id }).from(organizations);
+
+    const results: Array<{
+      orgId: string;
+      dsr: { eligible: number; dispatched: number };
+      breach: { eligible: number; dispatched: number };
+      consent: { expired: number };
+    }> = [];
+    for (const org of orgRows) {
+      const r = await runDpdpSweepsForOrg(db, org.id);
+      results.push({ orgId: org.id, ...r });
+    }
+
+    const totals = results.reduce(
+      (acc, r) => ({
+        dsrDispatched: acc.dsrDispatched + r.dsr.dispatched,
+        breachDispatched: acc.breachDispatched + r.breach.dispatched,
+        consentExpired: acc.consentExpired + r.consent.expired,
+      }),
+      { dsrDispatched: 0, breachDispatched: 0, consentExpired: 0 },
+    );
+
+    return { ok: true, orgs: results.length, totals, results, timestamp: new Date().toISOString() };
+  });
+
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {
     fastify.log.info(`Received ${signal}, shutting down...`);

@@ -72,6 +72,10 @@ minio-data
 # Large binary / local assets
 *.pdf
 
+# Ad-hoc dev screenshots dropped at repo root (scoped to root so app/public
+# assets and packages/ui images are unaffected)
+/*.png
+
 # Stress-test output / temp
 stress-test-result-*.json
 

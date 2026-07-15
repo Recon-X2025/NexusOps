@@ -34,6 +34,33 @@ export function decryptIntegrationConfig(encrypted: string): Record<string, stri
 }
 
 /**
+ * Encrypts a plain string secret (e.g. a TOTP base32 secret) at rest using the
+ * same AES-256-CBC + APP_SECRET-derived key as encryptIntegrationConfig.
+ * Format: <ivHex>:<dataHex> — matches decryptSecret.
+ */
+export function encryptSecret(plain: string): string {
+  const appSecret = process.env["APP_SECRET"];
+  if (!appSecret) throw new Error("APP_SECRET is not configured");
+  const key = crypto.createHash("sha256").update(appSecret).digest();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  const data = Buffer.concat([cipher.update(Buffer.from(plain, "utf8")), cipher.final()]);
+  return `${iv.toString("hex")}:${data.toString("hex")}`;
+}
+
+export function decryptSecret(encrypted: string): string {
+  const appSecret = process.env["APP_SECRET"];
+  if (!appSecret) throw new Error("APP_SECRET is not configured");
+  const key = crypto.createHash("sha256").update(appSecret).digest();
+  const [ivHex, dataHex] = encrypted.split(":");
+  if (!ivHex || !dataHex) throw new Error("Invalid encrypted secret format");
+  const iv = Buffer.from(ivHex, "hex");
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+  const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]);
+  return decrypted.toString("utf8");
+}
+
+/**
  * Constant-time compare of an HMAC signature header against the body.
  * Used by webhook receivers (WhatsApp, Razorpay, eMudhra).
  */

@@ -70,6 +70,12 @@ import {
   startCorrelationWorker,
   type CorrelationJobData,
 } from "../workflows/correlationWorkflow";
+import {
+  createVulnSlaQueue,
+  scheduleVulnSlaSweep,
+  startVulnSlaWorker,
+  type VulnSlaJobData,
+} from "../workflows/vulnerabilitySlaWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -83,6 +89,7 @@ interface WorkflowServiceInstance {
   webhookDispatchQueue: Queue<WebhookDispatchJobData>;
   escalationQueue: Queue<EscalationJobData>;
   correlationQueue: Queue<CorrelationJobData>;
+  vulnSlaQueue: Queue<VulnSlaJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -103,6 +110,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const webhookDispatchQueue = createWebhookDispatchQueue();
   const escalationQueue = createEscalationQueue();
   const correlationQueue = createCorrelationQueue();
+  const vulnSlaQueue = createVulnSlaQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -115,6 +123,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const webhookDispatchWorker = startWebhookDispatchWorker(db);
   const escalationWorker = startEscalationWorker(db);
   const correlationWorker = startCorrelationWorker(db);
+  const vulnSlaWorker = startVulnSlaWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -135,6 +144,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   // ITOM correlation sweeper (Sprint 3.4b).
   scheduleCorrelationSweep(correlationQueue).catch((err) => {
     console.warn("[workflow:correlation] Failed to register correlation sweeper:", err);
+  });
+  // Vulnerability remediation-SLA breach + escalation sweepers (Security Phase B).
+  scheduleVulnSlaSweep(vulnSlaQueue).catch((err) => {
+    console.warn("[workflow:vuln-sla] Failed to register vuln SLA sweepers:", err);
   });
 
   approvalWorker.on("failed", (job, err) => {
@@ -170,6 +183,9 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   correlationWorker.on("failed", (job, err) => {
     console.error(`[workflow:correlation] Job ${job?.id} failed:`, err.message);
   });
+  vulnSlaWorker.on("failed", (job, err) => {
+    console.error(`[workflow:vuln-sla] Job ${job?.id} failed:`, err.message);
+  });
 
   _instance = {
     approvalQueue,
@@ -183,6 +199,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     webhookDispatchQueue,
     escalationQueue,
     correlationQueue,
+    vulnSlaQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -196,6 +213,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         webhookDispatchWorker.close(),
         escalationWorker.close(),
         correlationWorker.close(),
+        vulnSlaWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
@@ -207,6 +225,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         webhookDispatchQueue.close(),
         escalationQueue.close(),
         correlationQueue.close(),
+        vulnSlaQueue.close(),
       ]);
       _instance = undefined;
     },

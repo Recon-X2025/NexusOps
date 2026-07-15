@@ -10,6 +10,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { executeErasureForDsr } from "../lib/dpdp-erasure";
 import {
   dpdpDataSubjectRequests,
   dpdpDsrEvents,
@@ -287,6 +288,22 @@ export const complianceRouter = router({
             note: input.note ?? `${from} → ${to}`,
             actorUserId: (user?.id as string) ?? null,
           });
+
+          // Erasure fulfilment (§12): when an erasure-type DSR reaches
+          // "fulfilled", run the erasure executor in the SAME transaction. It is
+          // FLAG-OFF by default (DPDP_ERASURE_ENABLED), so this normally records
+          // a dry-run plan and mutates no Principal data. When enabled, it purges
+          // per the ERASURE_MAP and stamps erasureExecutedAt/erasureSummary.
+          if (current.requestType === "erasure" && to === "fulfilled") {
+            const erasure = await executeErasureForDsr(tx, org!.id, input.id);
+            await tx.insert(dpdpDsrEvents).values({
+              orgId: org!.id,
+              requestId: input.id,
+              eventType: "note",
+              note: `[erasure] ${erasure.summary}`,
+              actorUserId: (user?.id as string) ?? null,
+            });
+          }
           return row!;
         });
       }),

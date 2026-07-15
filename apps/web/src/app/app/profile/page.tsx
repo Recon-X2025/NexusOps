@@ -154,6 +154,208 @@ function ProfileTab() {
   );
 }
 
+/**
+ * Self-contained TOTP MFA panel driven by the `auth.mfa.*` procedures.
+ * Three visual states: not-enrolled (start button), enrolling (QR + code +
+ * backup-codes dialog), enrolled (status + disable).
+ */
+function MfaSection() {
+  const utils = trpc.useUtils();
+  const statusQuery = trpc.auth.mfa.status.useQuery(undefined, { refetchOnWindowFocus: false });
+
+  // Enrollment flow state.
+  const [enroll, setEnroll] = useState<{ qrDataUrl: string; secret: string } | null>(null);
+  const [confirmCode, setConfirmCode] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+
+  // Disable flow state.
+  const [showDisable, setShowDisable] = useState(false);
+  const [disableCode, setDisableCode] = useState("");
+  const [disableIsBackup, setDisableIsBackup] = useState(false);
+
+  const startEnroll = trpc.auth.mfa.startEnroll.useMutation({
+    onSuccess: (data) => {
+      setEnroll({ qrDataUrl: data.qrDataUrl, secret: data.secret });
+      setConfirmCode("");
+    },
+    onError: (err) => toast.error(err?.message ?? "Could not start enrollment"),
+  });
+
+  const confirmEnroll = trpc.auth.mfa.confirmEnroll.useMutation({
+    onSuccess: (data) => {
+      setBackupCodes(data.backupCodes);
+      setEnroll(null);
+      setConfirmCode("");
+      void utils.auth.mfa.status.invalidate();
+      toast.success("Two-factor authentication enabled");
+    },
+    onError: (err) => toast.error(err?.message ?? "Invalid code"),
+  });
+
+  const disable = trpc.auth.mfa.disable.useMutation({
+    onSuccess: () => {
+      setShowDisable(false);
+      setDisableCode("");
+      setDisableIsBackup(false);
+      void utils.auth.mfa.status.invalidate();
+      toast.success("Two-factor authentication disabled");
+    },
+    onError: (err) => toast.error(err?.message ?? "Invalid code"),
+  });
+
+  const enrolled = statusQuery.data?.enrolled ?? false;
+  const remaining = statusQuery.data?.backupCodesRemaining ?? 0;
+
+  return (
+    <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">
+      <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Two-Factor Authentication</h2>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-body-sm font-medium">Authenticator App (TOTP)</p>
+          <p className="text-caption text-muted-foreground">Use Google Authenticator or a similar app to generate codes.</p>
+        </div>
+        {enrolled ? (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">Enabled</span>
+        ) : (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">Not enabled</span>
+        )}
+      </div>
+
+      {/* Enrolled: show remaining backup codes + disable */}
+      {enrolled && !showDisable && (
+        <div className="flex items-center justify-between">
+          <p className="text-caption text-muted-foreground">{remaining} backup code{remaining === 1 ? "" : "s"} remaining</p>
+          <button
+            onClick={() => { setShowDisable(true); setDisableCode(""); setDisableIsBackup(false); }}
+            className="flex items-center gap-2 rounded border border-border px-3 py-1.5 text-caption font-medium hover:bg-accent transition"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            Disable 2FA
+          </button>
+        </div>
+      )}
+
+      {/* Enrolled: disable form (requires a current code) */}
+      {enrolled && showDisable && (
+        <div className="flex flex-col gap-2 border-t border-border pt-3">
+          <p className="text-caption text-muted-foreground">
+            Enter a current {disableIsBackup ? "backup code" : "authenticator code"} to confirm disabling 2FA.
+          </p>
+          <input
+            value={disableCode}
+            onChange={(e) => setDisableCode(e.target.value)}
+            placeholder={disableIsBackup ? "xxxxx-xxxxx" : "123456"}
+            className="w-full max-w-xs rounded border border-input bg-background px-3 py-1.5 text-body-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => disable.mutate({ code: disableCode.trim(), isBackupCode: disableIsBackup })}
+              disabled={disable.isPending || disableCode.trim().length === 0}
+              className="flex items-center gap-2 rounded bg-red-600 px-3 py-1.5 text-caption font-medium text-white hover:bg-red-500 disabled:opacity-60 transition"
+            >
+              {disable.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Confirm disable
+            </button>
+            <button
+              onClick={() => { setDisableIsBackup((v) => !v); setDisableCode(""); }}
+              className="text-caption text-primary hover:underline"
+            >
+              {disableIsBackup ? "Use authenticator code" : "Use a backup code"}
+            </button>
+            <button
+              onClick={() => { setShowDisable(false); setDisableCode(""); }}
+              className="text-caption text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Not enrolled + not mid-enroll: start button */}
+      {!enrolled && !enroll && (
+        <button
+          onClick={() => startEnroll.mutate()}
+          disabled={startEnroll.isPending}
+          className="flex items-center gap-2 self-start rounded border border-border px-3 py-1.5 text-caption font-medium hover:bg-accent transition disabled:opacity-60"
+        >
+          {startEnroll.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
+          Enable 2FA
+        </button>
+      )}
+
+      {/* Mid-enroll: QR + secret + confirm code */}
+      {!enrolled && enroll && (
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <p className="text-caption text-muted-foreground">
+            1. Scan this QR code with your authenticator app (or enter the secret manually).
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={enroll.qrDataUrl} alt="TOTP QR code" className="h-40 w-40 rounded bg-white p-2" />
+          <code className="text-caption break-all rounded bg-muted px-2 py-1 font-mono">{enroll.secret}</code>
+          <p className="text-caption text-muted-foreground">2. Enter the 6-digit code to confirm.</p>
+          <div className="flex items-center gap-2">
+            <input
+              value={confirmCode}
+              onChange={(e) => setConfirmCode(e.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              className="w-32 rounded border border-input bg-background px-3 py-1.5 text-center text-body-sm tracking-widest focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              onClick={() => confirmEnroll.mutate({ code: confirmCode.trim() })}
+              disabled={confirmEnroll.isPending || confirmCode.trim().length === 0}
+              className="flex items-center gap-2 rounded bg-primary px-3 py-1.5 text-caption font-medium text-white hover:bg-primary/90 disabled:opacity-60 transition"
+            >
+              {confirmEnroll.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Confirm
+            </button>
+            <button
+              onClick={() => { setEnroll(null); setConfirmCode(""); }}
+              className="text-caption text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Backup codes dialog (shown once after confirm) */}
+      {backupCodes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-xl flex flex-col gap-3">
+            <h3 className="text-body font-semibold">Save your backup codes</h3>
+            <p className="text-caption text-muted-foreground">
+              Each code can be used once if you lose access to your authenticator. Store them somewhere safe — they will not be shown again.
+            </p>
+            <div className="grid grid-cols-2 gap-2 rounded bg-muted p-3 font-mono text-body-sm">
+              {backupCodes.map((c) => (
+                <span key={c}>{c}</span>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                void navigator.clipboard?.writeText(backupCodes.join("\n"));
+                toast.success("Backup codes copied");
+              }}
+              className="self-start rounded border border-border px-3 py-1.5 text-caption font-medium hover:bg-accent transition"
+            >
+              Copy codes
+            </button>
+            <button
+              onClick={() => setBackupCodes(null)}
+              className="self-end rounded bg-primary px-4 py-2 text-body-sm font-medium text-white hover:bg-primary/90 transition"
+            >
+              I&apos;ve saved them
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SecurityTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
   const [showCurrent, setShowCurrent] = useState(false);
@@ -242,23 +444,7 @@ function SecurityTab() {
       </div>
 
       {/* MFA */}
-      <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">
-        <h2 className="text-caption font-semibold text-muted-foreground uppercase tracking-wider">Two-Factor Authentication</h2>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-body-sm font-medium">Authenticator App (TOTP)</p>
-            <p className="text-caption text-muted-foreground">Use Google Authenticator or similar to generate codes.</p>
-          </div>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200">Not enabled</span>
-        </div>
-        <button
-          onClick={() => toast.info("2FA enrollment is managed by your administrator. Contact your org admin to enable TOTP for your account.")}
-          className="flex items-center gap-2 self-start rounded border border-border px-3 py-1.5 text-caption font-medium hover:bg-accent transition"
-        >
-          <Shield className="h-3.5 w-3.5" />
-          Enable 2FA
-        </button>
-      </div>
+      <MfaSection />
 
       {/* Sessions */}
       <div className="p-4 bg-card border border-border rounded-lg flex flex-col gap-3">

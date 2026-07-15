@@ -434,6 +434,10 @@ export const dpdpDataSubjectRequests = pgTable(
     reference: text("reference").notNull(), // human-facing case number, unique per org
     requestType: dsrRequestTypeEnum("request_type").notNull(),
     status: dsrStatusEnum("status").notNull().default("received"),
+    // Privacy regime this request is handled under. India-only ("DPDP") for now;
+    // the column exists so the same engine can serve other regimes (e.g. CCPA) later
+    // without a data-model retrofit.
+    regimeCode: text("regime_code").notNull().default("DPDP"),
     // Data Principal identity (external individual — not necessarily a platform user)
     principalName: text("principal_name").notNull(),
     principalEmail: text("principal_email"),
@@ -456,6 +460,10 @@ export const dpdpDataSubjectRequests = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     resolutionNote: text("resolution_note"),
     rejectionReason: text("rejection_reason"),
+    // Erasure evidence: stamped when an erasure-type DSR is fulfilled and the
+    // per-table erasure map has actually purged/anonymised the Principal's data.
+    erasureExecutedAt: timestamp("erasure_executed_at", { withTimezone: true }),
+    erasureSummary: text("erasure_summary"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -543,6 +551,9 @@ export const dpdpConsentRecords = pgTable(
       { onDelete: "set null" },
     ),
     lawfulBasis: text("lawful_basis").notNull().default("consent"),
+    // Privacy regime this consent is recorded under. India-only ("DPDP") for now;
+    // present so the ledger can serve other regimes later without a retrofit.
+    regimeCode: text("regime_code").notNull().default("DPDP"),
     status: consentStatusEnum("status").notNull().default("granted"),
     consentArtifact: text("consent_artifact"), // notice version / form ref shown at collection
     version: integer("version").notNull().default(1),
@@ -712,3 +723,43 @@ export const dpdpBreachEventsRelations = relations(dpdpBreachEvents, ({ one }) =
     references: [dpdpBreachIncidents.id],
   }),
 }));
+
+// ── DPDP — Notification artifacts (Phase 1 automation loop) ─────────────────
+// Every notification the automation loop *would* send (DSR overdue alert,
+// breach board/principal notice, consent expiry, etc.) is recorded here as
+// defensible audit evidence: what was said, to whom, on which channel, when.
+// The NotificationDispatcher writes one row per notification. Today the
+// LogOnlyDispatcher only persists here (status "logged"); a real email/SMS
+// adapter added in the external pass will flip status to "sent" / "failed"
+// without any schema change.
+export const dpdpNotificationArtifacts = pgTable(
+  "dpdp_notification_artifacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    // what this notification is about (kept as free text + id rather than an FK
+    // so a single artifact log can serve dsr / breach / consent uniformly)
+    relatedType: text("related_type").notNull(), // dsr | breach | consent
+    relatedId: uuid("related_id").notNull(),
+    channel: text("channel").notNull(), // email | board | principal | internal
+    audience: text("audience").notNull(), // role name, email, or principal ref
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("logged"), // logged | sent | failed
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    relatedIdx: index("dpdp_notif_artifacts_related_idx").on(
+      t.orgId,
+      t.relatedType,
+      t.relatedId,
+    ),
+    orgDispatchedIdx: index("dpdp_notif_artifacts_org_dispatched_idx").on(
+      t.orgId,
+      t.dispatchedAt,
+    ),
+  }),
+);

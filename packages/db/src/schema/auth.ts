@@ -102,6 +102,40 @@ export const sessions = pgTable(
   }),
 );
 
+// ── MFA Enrollments (TOTP) ─────────────────────────────────────────────────
+/**
+ * One active TOTP enrollment per user. `totpSecret` is AES-encrypted at rest
+ * (never plaintext); `backupCodes` holds bcrypt hashes of one-time recovery
+ * codes, each removed from the array as it is consumed. `users.mfaEnrolled`
+ * mirrors `status = 'active'` for fast policy enforcement.
+ */
+export const mfaEnrollments = pgTable(
+  "mfa_enrollments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** AES-encrypted (<ivHex>:<dataHex>) TOTP base32 secret. */
+    totpSecret: text("totp_secret").notNull(),
+    /** `pending` = secret issued, not yet confirmed; `active` = first code verified. */
+    status: text("status").notNull().default("pending"),
+    /** bcrypt hashes of one-time backup codes; entries removed as consumed. */
+    backupCodes: text("backup_codes").array().notNull().default([]),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: uniqueIndex("mfa_enrollments_user_id_idx").on(t.userId),
+    orgIdx: index("mfa_enrollments_org_id_idx").on(t.orgId),
+  }),
+);
+
 // ── Accounts (OAuth) ───────────────────────────────────────────────────────
 export const accounts = pgTable(
   "accounts",
