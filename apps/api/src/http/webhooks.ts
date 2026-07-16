@@ -103,22 +103,22 @@ function getAllowlist(provider: "emudhra" | "aisensy" | "razorpay"): readonly st
 }
 
 export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<void> {
-  // Raw-body parser for webhooks. Fastify default parser drops the raw text
-  // after JSON.parse, which would make HMAC verification impossible.
+  // Webhook receivers verify an HMAC over the EXACT raw request body, so we must
+  // capture the raw string before JSON.parse. This parser preserves it on
+  // req.rawBody for /webhooks/* and otherwise parses JSON normally (empty body →
+  // {}). It is scoped to this encapsulation context; tRPC installs its own
+  // application/json parser inside the fastifyTRPCPlugin scope, so the two do
+  // not conflict.
   fastify.addContentTypeParser(
     "application/json",
     { parseAs: "string", bodyLimit: 1 * 1024 * 1024 },
     (req, body, done) => {
       try {
-        const raw = body as string;
-        // Only stash rawBody for webhook routes — every other route gets the
-        // standard parsed JSON body.
-        if (req.url?.startsWith("/webhooks/")) {
-          (req as RawBodyRequest).rawBody = raw;
-        }
-        const parsed = raw.length > 0 ? JSON.parse(raw) : {};
-        done(null, parsed);
+        const raw = typeof body === "string" ? body : "";
+        (req as RawBodyRequest).rawBody = raw;
+        done(null, raw.length > 0 ? JSON.parse(raw) : {});
       } catch (err) {
+        (err as { statusCode?: number }).statusCode = 400;
         done(err as Error, undefined);
       }
     },

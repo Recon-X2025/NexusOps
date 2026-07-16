@@ -3,6 +3,7 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: "../../.env" });
 loadEnv(); // fallback: also load apps/api/.env if present
 import Fastify from "fastify";
+import { Readable } from "node:stream";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -426,6 +427,34 @@ async function bootstrap() {
     checkHealth();
 
     done();
+  });
+
+  // ── Empty-body coercion for tRPC no-arg mutations ──────────────────────────
+  // tRPC no-arg mutations (auth.mfa.startEnroll, auth.logout, …) are invoked
+  // client-side as `.mutate()` with no argument. The tRPC client still sends a
+  // POST with `content-type: application/json` and an EMPTY body. tRPC's own
+  // Fastify content-type parser (registered inside fastifyTRPCPlugin, which
+  // removes/replaces any parser we set) hands the raw string to tRPC core,
+  // which runs JSON.parse("") → throws "Unexpected end of JSON input" → 400, so
+  // the mutation never executes. Because tRPC overrides the content-type parser,
+  // the only reliable interception point is a preParsing hook: for tRPC routes
+  // with a JSON content-type and no/empty body, substitute a stream carrying
+  // "{}" so tRPC parses a valid empty object.
+  fastify.addHook("preParsing", (req, _reply, payload, done) => {
+    const ct = req.headers["content-type"];
+    const isJson = typeof ct === "string" && ct.includes("application/json");
+    const len = req.headers["content-length"];
+    const isEmpty = len === undefined || len === "0";
+    if (req.url?.startsWith("/trpc/") && isJson && isEmpty) {
+      // Rewrite the length so Fastify's content-length check matches the "{}" we
+      // inject (the original request declared Content-Length: 0 or none).
+      const body = "{}";
+      req.headers["content-length"] = String(Buffer.byteLength(body));
+      const stream = Readable.from([body]) as typeof payload;
+      done(null, stream);
+      return;
+    }
+    done(null, payload);
   });
 
   // ── tRPC ─────────────────────────────────────────────────────────────────
