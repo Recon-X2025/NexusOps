@@ -146,9 +146,8 @@ async function bootstrap() {
     },
     trustProxy: true,
     // Hard limit on incoming request body size.
-    // 1 MB is generous for a tRPC API; anything larger is almost certainly
-    // a mis-configured client or an abuse attempt.
-    bodyLimit: parseInt(process.env["MAX_BODY_BYTES"] ?? String(1 * 1024 * 1024), 10),
+    // 10 MB limit to allow avatar image uploads (up to 5MB file -> ~6.7MB base64).
+    bodyLimit: parseInt(process.env["MAX_BODY_BYTES"] ?? String(10 * 1024 * 1024), 10),
     // Suppress Fastify's default "incoming request" / "request completed" messages.
     // Our onResponse hook (below) emits a single structured REQUEST log per call
     // in the exact shape we want — no duplication.
@@ -207,13 +206,28 @@ async function bootstrap() {
     rawOrigin.split(",").forEach((o) => corsOrigins.push(o.trim()));
   }
   await fastify.register(cors, {
-    origin:
-      process.env["NODE_ENV"] === "production" && corsOrigins.length > 0
-        ? corsOrigins
-        : true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+
+      // Check explicit origins
+      const isAllowedExplicit = corsOrigins.some((allowed) =>
+        typeof allowed === "string" ? allowed === origin : allowed.test(origin)
+      );
+      if (isAllowedExplicit) return cb(null, true);
+
+      // In dev, also allow any localhost or 127.0.0.1 on any port
+      if (process.env["NODE_ENV"] !== "production") {
+        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+          return cb(null, true);
+        }
+      }
+
+      cb(new Error("Not allowed by CORS"), false);
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type"],
     credentials: true,
-    optionsSuccessStatus: 204,
+    optionsSuccessStatus: 204, // Some legacy browsers (IE11, various SmartTVs) choke on 204
   });
 
   await fastify.register(helmet, {

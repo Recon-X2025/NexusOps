@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  CreateBucketCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -66,17 +67,28 @@ export interface PutResult {
 export async function putObject(opts: PutOptions): Promise<PutResult> {
   const sha256 = crypto.createHash("sha256").update(opts.body).digest("hex");
   const fullKey = `${opts.orgId}/${opts.key.replace(/^\/+/, "")}`;
-  await getClient().send(
-    new PutObjectCommand({
-      Bucket: bucket(),
-      Key: fullKey,
-      Body: opts.body,
-      ContentType: opts.mimeType,
-      ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64"),
-      ServerSideEncryption: opts.serverSideEncryption ?? "AES256",
-      ...(opts.kmsKeyId ? { SSEKMSKeyId: opts.kmsKeyId } : {}),
-    }),
-  );
+  const putCmd = new PutObjectCommand({
+    Bucket: bucket(),
+    Key: fullKey,
+    Body: opts.body,
+    ContentType: opts.mimeType,
+    ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64"),
+    ServerSideEncryption: opts.serverSideEncryption ?? "AES256",
+    ...(opts.kmsKeyId ? { SSEKMSKeyId: opts.kmsKeyId } : {}),
+  });
+
+  try {
+    await getClient().send(putCmd);
+  } catch (err: any) {
+    if (err.name === "NoSuchBucket") {
+      // Auto-create bucket for local dev (MinIO)
+      await getClient().send(new CreateBucketCommand({ Bucket: bucket() }));
+      await getClient().send(putCmd);
+    } else {
+      throw err;
+    }
+  }
+
   return { key: fullKey, sha256, sizeBytes: opts.body.length };
 }
 

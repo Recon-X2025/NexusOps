@@ -28,11 +28,11 @@ function ProfileTab() {
   const [form, setForm] = useState({
     name: currentUser.name,
     email: currentUser.email,
-    phone: "",
+    phone: currentUser.phone ?? "",
     department: currentUser.department ?? "",
-    jobTitle: "",
-    location: "",
-    bio: "",
+    jobTitle: currentUser.jobTitle ?? "",
+    location: currentUser.location ?? "",
+    bio: currentUser.bio ?? "",
   });
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
@@ -40,7 +40,15 @@ function ProfileTab() {
       toast.success("Profile updated successfully");
       utils.auth.me.invalidate();
     },
-    onError: (err) => toast.error(err?.message ?? "Something went wrong"),
+    onError: (err) => {
+      const fieldError = err?.data?.zodError?.fieldErrors;
+      if (fieldError) {
+        const firstMessage = Object.values(fieldError).flat()[0];
+        toast.error(firstMessage ?? "Validation failed");
+      } else {
+        toast.error(err?.message ?? "Something went wrong");
+      }
+    },
   });
 
   const uploadAvatar = trpc.auth.uploadAvatar.useMutation({

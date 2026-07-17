@@ -83,6 +83,11 @@ export const users = pgTable(
     /** bcrypt hash; null for OAuth-only users (future) */
     passwordHash: text("password_hash"),
     avatarUrl: text("avatar_url"),
+    phone: text("phone"),
+    department: text("department"),
+    jobTitle: text("job_title"),
+    location: text("location"),
+    bio: text("bio"),
     role: userRoleEnum("role").notNull().default("member"),
     /** Fine-grained RBAC matrix role (e.g. hr_manager, finance_manager). Falls back to role→SystemRole mapping when null. */
     matrixRole: text("matrix_role"),

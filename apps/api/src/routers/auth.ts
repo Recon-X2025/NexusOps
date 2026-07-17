@@ -561,12 +561,12 @@ export const authRouter = router({
   updateProfile: protectedProcedure
     .input(
       z.object({
-        name: z.string().min(2).max(100).optional(),
-        phone: z.string().max(30).optional(),
-        location: z.string().max(100).optional(),
-        department: z.string().max(100).optional(),
-        jobTitle: z.string().max(100).optional(),
-        bio: z.string().max(500).optional(),
+        name: z.string().trim().min(2, "Name must be at least 2 characters").max(100).optional(),
+        phone: z.string().trim().regex(/^\+?[0-9\s\-\(\)]*$/, "Invalid phone format").max(30).optional(),
+        location: z.string().trim().max(100).optional(),
+        department: z.string().trim().max(100).optional(),
+        jobTitle: z.string().trim().max(100).optional(),
+        bio: z.string().trim().max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -576,6 +576,9 @@ export const authRouter = router({
         .set({ ...input, updatedAt: new Date() })
         .where(eq(users.id, user!.id))
         .returning();
+      if (ctx.sessionId) {
+        await invalidateSessionCache(ctx.sessionId);
+      }
       return stripPasswordHash(updated!);
     }),
 
@@ -608,6 +611,9 @@ export const authRouter = router({
         .where(eq(users.id, user!.id))
         .returning();
       const signed = await signedDownloadUrl(put.key, 3600);
+      if (ctx.sessionId) {
+        await invalidateSessionCache(ctx.sessionId);
+      }
       return { ...stripPasswordHash(updated!), avatarUrl: signed };
     }),
 

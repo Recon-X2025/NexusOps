@@ -21,6 +21,10 @@ export interface SystemUser {
   username: string;
   roles: SystemRole[];
   department: string;
+  phone?: string;
+  jobTitle?: string;
+  location?: string;
+  bio?: string;
   manager?: string;
   active: boolean;
   lastLogin?: string;
