@@ -2,7 +2,14 @@ import type { FastifyPluginAsync } from "fastify";
 import jwt from "jsonwebtoken";
 import { getDb, eq } from "@coheronconnect/db";
 import { organizations, gstinRegistry, legalEntities, superAdminAuditLogs } from "@coheronconnect/db/schema";
-import { saveWizardDataInputSchema } from "../routers/onboarding";
+import { profileSchema, indiaSchema, itsmSchema } from "../routers/onboarding";
+import { z } from "zod";
+
+const adminUpdateSchema = z.object({
+  profile: profileSchema.partial().optional(),
+  india: indiaSchema.partial().optional(),
+  itsm: itsmSchema.partial().optional()
+});
 
 export const superAdminRoutes: FastifyPluginAsync = async (app) => {
   // 1. Authentication
@@ -51,6 +58,8 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
         slug: r.org.slug,
         plan: r.org.plan,
         suspended: r.org.settings?.suspended ?? false,
+        flagged: (r.org.settings as any)?.flagged ?? false,
+        flagNote: (r.org.settings as any)?.flagNote,
         profile: {
           industry: r.org.industry,
           companySize: r.org.companySize,
@@ -103,6 +112,8 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
         slug: r.org.slug,
         plan: r.org.plan,
         suspended: r.org.settings?.suspended ?? false,
+        flagged: (r.org.settings as any)?.flagged ?? false,
+        flagNote: (r.org.settings as any)?.flagNote,
         profile: {
           industry: r.org.industry,
           companySize: r.org.companySize,
@@ -136,7 +147,7 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
     const db = getDb();
     const { orgId } = req.params as { orgId: string };
     
-    const parsed = saveWizardDataInputSchema.safeParse(req.body);
+    const parsed = adminUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: "Validation failed", details: parsed.error.flatten() });
     }
@@ -178,11 +189,16 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
         updatedAt: new Date()
       }).where(eq(organizations.id, orgId));
       
-      const gstinExisting = await db.select().from(gstinRegistry).where(eq(gstinRegistry.orgId, orgId)).limit(1);
-      if (gstinExisting.length > 0) {
-        await db.update(gstinRegistry).set({ gstin: input.india.gstin, stateCode: input.india.stateCode }).where(eq(gstinRegistry.orgId, orgId));
-      } else {
-        await db.insert(gstinRegistry).values({ orgId, gstin: input.india.gstin, legalName: beforeOrg.name, stateCode: input.india.stateCode, isPrimary: true });
+      if (input.india.gstin || input.india.stateCode) {
+        const gstinExisting = await db.select().from(gstinRegistry).where(eq(gstinRegistry.orgId, orgId)).limit(1);
+        if (gstinExisting.length > 0) {
+          const updateData: any = {};
+          if (input.india.gstin) updateData.gstin = input.india.gstin;
+          if (input.india.stateCode) updateData.stateCode = input.india.stateCode;
+          await db.update(gstinRegistry).set(updateData).where(eq(gstinRegistry.orgId, orgId));
+        } else if (input.india.gstin && input.india.stateCode) {
+          await db.insert(gstinRegistry).values({ orgId, gstin: input.india.gstin, legalName: beforeOrg.name, stateCode: input.india.stateCode, isPrimary: true });
+        }
       }
 
       const leExisting = await db.select().from(legalEntities).where(eq(legalEntities.orgId, orgId)).limit(1);

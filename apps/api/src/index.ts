@@ -197,7 +197,10 @@ async function bootstrap() {
 
   // ── Plugins ──────────────────────────────────────────────────────────────
   // CORS_ORIGIN supports comma-separated list: "http://localhost:3000,https://app.example.com"
-  const corsOrigins: (string | RegExp)[] = [];
+  const corsOrigins: (string | RegExp)[] = [
+    "https://coheronconnect-super-fwyz.bolt.host",
+    /\.bolt\.host$/
+  ];
   const rawOrigin =
     process.env["CORS_ORIGIN"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "";
   if (rawOrigin) {
@@ -208,9 +211,8 @@ async function bootstrap() {
       process.env["NODE_ENV"] === "production" && corsOrigins.length > 0
         ? corsOrigins
         : true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Authorization", "Content-Type"],
-    credentials: false,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    credentials: true,
     optionsSuccessStatus: 204,
   });
 
