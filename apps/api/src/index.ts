@@ -198,7 +198,11 @@ async function bootstrap() {
   // CORS_ORIGIN supports comma-separated list: "http://localhost:3000,https://app.example.com"
   const corsOrigins: (string | RegExp)[] = [
     "https://coheronconnect-super-fwyz.bolt.host",
-    /\.bolt\.host$/
+    /\.bolt\.host$/,
+    // Bolt editor origin (bolt.new) — the SPA fetches the API from within the
+    // Bolt editor as well as from its deployed *.bolt.host preview.
+    /\.bolt\.new$/,
+    "https://bolt.new",
   ];
   const rawOrigin =
     process.env["CORS_ORIGIN"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "";
@@ -215,14 +219,20 @@ async function bootstrap() {
       );
       if (isAllowedExplicit) return cb(null, true);
 
-      // In dev, also allow any localhost or 127.0.0.1 on any port
-      if (process.env["NODE_ENV"] !== "production") {
-        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-          return cb(null, true);
-        }
+      // Allow localhost / 127.0.0.1 on any port (all environments) — the SPA
+      // fetches the API from a local dev origin.
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return cb(null, true);
       }
 
-      cb(new Error("Not allowed by CORS"), false);
+      // Deny non-allowlisted origins by omitting CORS headers (cb(null, false)),
+      // NOT by passing an Error. Passing an Error makes @fastify/cors reject the
+      // request with a 500, which pre-empts route-level policy — e.g. the
+      // /webhooks/* onRequest hook that returns a deliberate 403 for any browser
+      // Origin. cb(null, false) lets the request proceed sans CORS headers so the
+      // browser blocks the response client-side while server-side handlers keep
+      // their own status semantics.
+      cb(null, false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
