@@ -81,13 +81,21 @@ GHCR_EXPORT=""
 if [[ -n "${GHCR_READ_TOKEN:-}" ]]; then
   GHCR_EXPORT="GHCR_TOKEN=$(printf '%q' "$GHCR_READ_TOKEN") GHCR_USERNAME=$(printf '%q' "${GHCR_USERNAME:-oauth2}") "
 fi
+# Optional: PII_HASH_PEPPER (DPDP). The API boot guard exits(1) without it. If the
+# host's .env.production doesn't yet carry it, inject it here (from a CI secret) so
+# the compose passthrough (docker-compose.vultr-test.yml api.environment) reaches the
+# container. If unset here, the remote's `source .env.production` still supplies it.
+PEPPER_EXPORT=""
+if [[ -n "${PII_HASH_PEPPER:-}" ]]; then
+  PEPPER_EXPORT="PII_HASH_PEPPER=$(printf '%q' "$PII_HASH_PEPPER") "
+fi
 # EXPECT_VERSION lets the remote script assert the running API reports this exact
 # commit (GET /health → version). Only enforced for immutable SHA tags; skipped
 # for moving tags like `latest`/`main`. Defaults to the image tag being deployed.
 EXPECT_VERSION="${EXPECT_VERSION:-$IMG_TAG}"
 # shellcheck disable=SC2029
 ssh -S "$SOCK" -o BatchMode=yes "$SERVER" \
-  "${GHCR_EXPORT}DEPLOY_MODE=$(printf '%q' "$DEPLOY_MODE") \
+  "${GHCR_EXPORT}${PEPPER_EXPORT}DEPLOY_MODE=$(printf '%q' "$DEPLOY_MODE") \
    NO_CACHE=$(printf '%q' "${NO_CACHE:-}") \
    EXPECT_VERSION=$(printf '%q' "$EXPECT_VERSION") \
    NEXUSOPS_WEB_IMAGE=$(printf '%q' "$WEB_IMAGE") \

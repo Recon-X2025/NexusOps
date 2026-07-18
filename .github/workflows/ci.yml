@@ -299,6 +299,10 @@ jobs:
           DEPLOY_MODE: pull
           GHCR_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USERNAME: ${{ github.actor }}
+          # DPDP PII pepper. The API boot guard exits(1) without it. Injected so a
+          # host whose .env.production predates DPDP still boots. If the secret is
+          # unset the passthrough stays empty and the host .env.production is used.
+          PII_HASH_PEPPER: ${{ secrets.PII_HASH_PEPPER }}
         run: |
           export NEXUSOPS_IMAGE_REPO="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           export NEXUSOPS_IMAGE_TAG="$(echo '${{ github.sha }}' | cut -c1-7)"

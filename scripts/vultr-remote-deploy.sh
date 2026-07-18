@@ -22,6 +22,9 @@ fi
 # GitHub Actions can pass GHCR_TOKEN / GHCR_USERNAME for docker login; preserve if .env overwrites or omits them.
 _CI_GHCR_TOKEN="${GHCR_TOKEN:-}"
 _CI_GHCR_USER="${GHCR_USERNAME:-}"
+# PII_HASH_PEPPER (DPDP) may be injected by CI when the host .env.production lacks it.
+# Preserve a non-empty CI value over an empty/absent one in the file.
+_CI_PII_PEPPER="${PII_HASH_PEPPER:-}"
 
 set -a
 # shellcheck disable=SC1091
@@ -30,6 +33,7 @@ set +a
 
 [[ -n "$_CI_GHCR_TOKEN" ]] && export GHCR_TOKEN="$_CI_GHCR_TOKEN"
 [[ -n "$_CI_GHCR_USER" ]] && export GHCR_USERNAME="$_CI_GHCR_USER"
+[[ -n "$_CI_PII_PEPPER" ]] && export PII_HASH_PEPPER="$_CI_PII_PEPPER"
 
 # Compose expects POSTGRES_PASSWORD; .env may only define DATABASE_URL.
 if [[ -z "${POSTGRES_PASSWORD:-}" && -n "${DATABASE_URL:-}" ]]; then

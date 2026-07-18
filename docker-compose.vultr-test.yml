@@ -41,6 +41,12 @@ services:
       NODE_ENV: production
       BCRYPT_CONCURRENCY: "32"
       LIBUV_THREADPOOL_SIZE: "32"
+      # Pepper for HMAC of government identifiers (Aadhaar/PAN). The API boot guard
+      # (index.ts) exits(1) if unset. Sourced from .env.production on the host; this
+      # passthrough lets the deploy inject it via the compose process env (CI secret)
+      # so a host that hasn't been updated still boots. The ${VAR:-} form is empty if
+      # neither is set — the guard then fails fast, as intended.
+      PII_HASH_PEPPER: ${PII_HASH_PEPPER:-}
     env_file:
       - .env.production
     networks:
