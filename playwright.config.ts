@@ -58,6 +58,11 @@ export default defineConfig({
         // pre-seeds an integration row.
         APP_SECRET:
           process.env.APP_SECRET || "test-app-secret-32-chars-minimum-",
+        // PII_HASH_PEPPER seeds the HMAC of government identifiers (Aadhaar/PAN).
+        // The API boot guard (index.ts) exits(1) if unset, which would crash this
+        // webServer. Forwarded here so the child API process always has it.
+        PII_HASH_PEPPER:
+          process.env.PII_HASH_PEPPER || "test-pii-pepper-32-chars-minimum-here",
         LOGIN_RATE_PER_MIN: "1000",
         NODE_ENV: process.env.NODE_ENV || "test",
       },

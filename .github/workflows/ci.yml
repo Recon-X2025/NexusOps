@@ -171,6 +171,9 @@ jobs:
           # TOTP MFA enroll flow and integration-credential wrapping. Set here so
           # CI doesn't depend on the playwright.config.ts fallback default.
           APP_SECRET: test-app-secret-32-chars-minimum-here
+          # Pepper for HMAC of government identifiers (Aadhaar/PAN). The API boot
+          # guard (index.ts) exits(1) if unset, which crashes Playwright's webServer.
+          PII_HASH_PEPPER: test-pii-pepper-32-chars-minimum-here
           NODE_ENV: test
         run: pnpm exec playwright test --reporter=line
 
