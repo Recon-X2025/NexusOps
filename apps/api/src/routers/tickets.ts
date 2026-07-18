@@ -81,6 +81,7 @@ import {
   ilike,
   sql,
 } from "@coheronconnect/db";
+import type { Db } from "@coheronconnect/db";
 import { ensureDefaultTicketStatusesForOrg } from "../lib/ensure-ticket-workflow";
 import { assertTicketTransition } from "../lib/ticket-lifecycle";
 import { resolveSlaPolicyMinutes } from "../services/ticket-sla-policy";
@@ -180,6 +181,95 @@ async function syncTicketSlaJobs(args: {
   } catch (err) {
     console.warn("[tickets] SLA job sync skipped:", err);
   }
+}
+
+/**
+ * Compute a ticket's SLA response/resolve deadlines from (in priority order) an
+ * active `sla_policies` row, else the priority tier's minutes. Deadlines are
+ * rolled forward over weekends/holidays per the org's business calendar, and the
+ * resolve deadline is guaranteed to be strictly after the response deadline.
+ *
+ * Extracted from the create path so the reopen path can recompute deadlines with
+ * identical semantics. Returns `undefined` for a field when no SLA minutes apply
+ * (no policy + null priority minutes) — the caller persists that as NULL.
+ *
+ * `anchor` is the instant the clock starts (ticket create time, or reopen time).
+ */
+async function computeTicketSlaDeadlines(
+  db: Db,
+  orgId: string,
+  args: {
+    anchor: Date;
+    type: string | null | undefined;
+    categoryId: string | null | undefined;
+    priorityId: string | null | undefined;
+  },
+): Promise<{ slaResponseDueAt: Date | undefined; slaResolveDueAt: Date | undefined }> {
+  let slaResponseDueAt: Date | undefined;
+  let slaResolveDueAt: Date | undefined;
+
+  const policyMins = await resolveSlaPolicyMinutes(db, orgId, {
+    type: args.type ?? "request",
+    categoryId: args.categoryId ?? null,
+  });
+
+  let respMin: number | null | undefined;
+  let resMin: number | null | undefined;
+  if (args.priorityId) {
+    const [priority] = await db
+      .select()
+      .from(ticketPriorities)
+      .where(eq(ticketPriorities.id, args.priorityId));
+    if (priority) {
+      respMin = policyMins?.response ?? priority.slaResponseMinutes ?? null;
+      resMin = policyMins?.resolve ?? priority.slaResolveMinutes ?? null;
+    }
+  } else if (policyMins && (policyMins.response != null || policyMins.resolve != null)) {
+    respMin = policyMins.response ?? undefined;
+    resMin = policyMins.resolve ?? undefined;
+  }
+
+  const [orgRow] = await db
+    .select({ settings: organizations.settings })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  const slaCal = parseOrgSlaCalendarSettings(orgRow?.settings);
+
+  if (respMin != null || resMin != null) {
+    const now = args.anchor;
+    if (respMin != null && respMin > 0) {
+      slaResponseDueAt = adjustSlaDeadlineForBusinessCalendar(
+        new Date(now.getTime() + respMin * 60 * 1000),
+        slaCal,
+      );
+    }
+    if (resMin != null && resMin > 0) {
+      const rawResolve = new Date(now.getTime() + resMin * 60 * 1000);
+      slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(rawResolve, slaCal);
+      // Resolution can never be due before — or at the same instant as — first
+      // response. The business-calendar adjustment preserves time-of-day while
+      // rolling over weekends/holidays, so two deadlines that straddle the same
+      // weekend can invert (a later raw deadline with an earlier clock time lands
+      // earlier on the next business day). When that happens, anchor resolution to
+      // the adjusted response deadline plus the original response→resolve gap, then
+      // re-roll, guaranteeing a strictly-ordered, monotonic pair.
+      if (
+        respMin != null &&
+        respMin > 0 &&
+        slaResponseDueAt &&
+        slaResolveDueAt.getTime() <= slaResponseDueAt.getTime()
+      ) {
+        const gapMs = Math.max(resMin - respMin, 1) * 60 * 1000;
+        slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(
+          new Date(slaResponseDueAt.getTime() + gapMs),
+          slaCal,
+        );
+      }
+    }
+  }
+
+  return { slaResponseDueAt, slaResolveDueAt };
 }
 
 export const ticketsRouter = router({
@@ -849,66 +939,13 @@ export const ticketsRouter = router({
     }
 
     // SLA: active `sla_policies` (conditions match) override per-field; else priority tier minutes.
-    let slaResponseDueAt: Date | undefined;
-    let slaResolveDueAt: Date | undefined;
-    const policyMins = await resolveSlaPolicyMinutes(db, org!.id, {
-      type: input.type ?? "request",
+    // Shared with the reopen path via computeTicketSlaDeadlines so both produce identical deadlines.
+    const { slaResponseDueAt, slaResolveDueAt } = await computeTicketSlaDeadlines(db, org!.id, {
+      anchor: new Date(),
+      type: input.type,
       categoryId: input.categoryId ?? null,
+      priorityId: resolvedPriorityId,
     });
-    let respMin: number | null | undefined;
-    let resMin: number | null | undefined;
-    if (resolvedPriorityId) {
-      const [priority] = await db
-        .select()
-        .from(ticketPriorities)
-        .where(eq(ticketPriorities.id, resolvedPriorityId));
-      if (priority) {
-        respMin = policyMins?.response ?? priority.slaResponseMinutes ?? null;
-        resMin = policyMins?.resolve ?? priority.slaResolveMinutes ?? null;
-      }
-    } else if (policyMins && (policyMins.response != null || policyMins.resolve != null)) {
-      respMin = policyMins.response ?? undefined;
-      resMin = policyMins.resolve ?? undefined;
-    }
-
-    const [orgRow] = await db
-      .select({ settings: organizations.settings })
-      .from(organizations)
-      .where(eq(organizations.id, org!.id))
-      .limit(1);
-    const slaCal = parseOrgSlaCalendarSettings(orgRow?.settings);
-    if (respMin != null || resMin != null) {
-      const now = new Date();
-      if (respMin != null && respMin > 0) {
-        slaResponseDueAt = adjustSlaDeadlineForBusinessCalendar(
-          new Date(now.getTime() + respMin * 60 * 1000),
-          slaCal,
-        );
-      }
-      if (resMin != null && resMin > 0) {
-        const rawResolve = new Date(now.getTime() + resMin * 60 * 1000);
-        slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(rawResolve, slaCal);
-        // Resolution can never be due before — or at the same instant as — first
-        // response. The business-calendar adjustment preserves time-of-day while
-        // rolling over weekends/holidays, so two deadlines that straddle the same
-        // weekend can invert (a later raw deadline with an earlier clock time lands
-        // earlier on the next business day). When that happens, anchor resolution to
-        // the adjusted response deadline plus the original response→resolve gap, then
-        // re-roll, guaranteeing a strictly-ordered, monotonic pair.
-        if (
-          respMin != null &&
-          respMin > 0 &&
-          slaResponseDueAt &&
-          slaResolveDueAt.getTime() <= slaResponseDueAt.getTime()
-        ) {
-          const gapMs = Math.max(resMin - respMin, 1) * 60 * 1000;
-          slaResolveDueAt = adjustSlaDeadlineForBusinessCalendar(
-            new Date(slaResponseDueAt.getTime() + gapMs),
-            slaCal,
-          );
-        }
-      }
-    }
 
     if (input.configurationItemId) {
       const [ci] = await db
@@ -1249,6 +1286,51 @@ export const ticketsRouter = router({
         } else if (newStatus?.category === "closed") {
           updateData.closedAt = new Date();
           if (oldStatusRow?.category !== "closed") shouldCreatePir = true;
+        } else if (
+          (oldStatusRow?.category === "resolved" || oldStatusRow?.category === "closed") &&
+          newStatus?.category
+        ) {
+          // ── Reopen ──────────────────────────────────────────────────────────
+          // Moving out of a terminal (resolved/closed) category back into an
+          // active one. Without this branch the ticket kept its stale
+          // resolvedAt/closedAt, so the breach sweeper skipped it, the SLA clock
+          // was never re-armed, and slaBreached stayed frozen — the ticket showed
+          // "on track" forever regardless of age. Clear the terminal stamps,
+          // recompute fresh SLA deadlines (identical semantics to create), and
+          // reset the breach flag so the clock starts again from now.
+          if (existing.resolvedAt != null) {
+            updateData.resolvedAt = null;
+            changes["resolvedAt"] = { from: existing.resolvedAt, to: null };
+          }
+          if (existing.closedAt != null) {
+            updateData.closedAt = null;
+            changes["closedAt"] = { from: existing.closedAt, to: null };
+          }
+
+          const reopenSla = await computeTicketSlaDeadlines(db, org!.id, {
+            anchor: new Date(),
+            type: existing.type,
+            categoryId: existing.categoryId,
+            priorityId: input.data.priorityId ?? existing.priorityId,
+          });
+          updateData.slaResponseDueAt = reopenSla.slaResponseDueAt ?? null;
+          updateData.slaResolveDueAt = reopenSla.slaResolveDueAt ?? null;
+          updateData.slaRespondedAt = null;
+          if (existing.slaBreached) {
+            updateData.slaBreached = false;
+            changes["slaBreached"] = { from: true, to: false };
+          } else {
+            updateData.slaBreached = false;
+          }
+          changes["slaResponseDueAt"] = {
+            from: existing.slaResponseDueAt ?? null,
+            to: updateData.slaResponseDueAt,
+          };
+          changes["slaResolveDueAt"] = {
+            from: existing.slaResolveDueAt ?? null,
+            to: updateData.slaResolveDueAt,
+          };
+          embeddingReason = embeddingReason ?? "updated";
         }
       }
       if (input.data.assigneeId !== undefined) {
