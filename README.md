@@ -65,7 +65,7 @@ are called out per row below.
 | Platform (workflow / integrations) | REAL | Visual workflow engine (Temporal); scheduled triggers + outbound webhook dispatcher + generalised business-rule engine close the automation loop (`workflow-events.ts`, `webhookDispatchWorkflow.ts`). Slack/Teams/Email/Jira/SAP connectors. |
 | ITSM — Ticket Engine + CMDB | REAL | Incidents/requests/problems/changes + SLA; CMDB with cycle detection. ITOM event correlation, on-call escalation timers, and deploy→incident MTTR now fire (`correlationWorkflow.ts`, `escalationWorkflow.ts`). CSAT loop in flight on `feat/csat-loop`. |
 | Governance | REAL | Approvals, audit log (redacted keys) with a tamper-evident hash-chain (`audit-hash.ts`). |
-| GRC / Compliance | REAL | Risks, controls, security incidents, vulnerabilities; DPDP privacy triad (consent / DSR / breach) implemented (`compliance.ts`). |
+| GRC / Compliance | REAL | Risks, controls, security incidents, vulnerabilities; DPDP privacy triad (consent / DSR / breach) implemented (`compliance.ts`). DPDP data-protection layer live: government IDs (Aadhaar/PAN) stored as a peppered HMAC + masked display, never raw (`lib/pii-hash.ts`, `lib/aadhaar.ts`, `lib/pan.ts`); 8-year statutory retention floor stamped on invoices/journals/payslips (`lib/retention.ts`); DSR erasure executor ships flag-off (`DPDP_ERASURE_ENABLED`, `lib/dpdp-erasure.ts`). |
 | Finance / Procurement | REAL | PR→PO→invoice 3-way match; GST/GL posting with dynamic GSTR-1 rates; balance sheet (`accounting.ts`), depreciation + COGS journals, and real accrual accounts (`procurement.ts`) now posted. |
 | IT Asset (ITAM / SAM) | REAL | Asset register, license management, depreciation-driven book value. SAM installed-vs-entitled (ELP) reconciliation remains a STUB. |
 | CRM | PARTIAL | Accounts/contacts/deals/leads with lossless lead→deal conversion. Lead/health scoring is stored but not computed; CPQ has no tax/GST. |
@@ -117,6 +117,9 @@ cp .env.example .env
 # Required secrets — generate and paste into .env:
 #   AUTH_SECRET=$(openssl rand -hex 32)
 #   ENCRYPTION_KEY=$(openssl rand -hex 32)
+#   PII_HASH_PEPPER=$(openssl rand -hex 32)   # DPDP: HMAC pepper for Aadhaar/PAN.
+#     The API fail-fasts (process.exit(1)) at startup if unset. PERMANENT — never
+#     rotate once PII is written, or existing government-ID hashes stop matching.
 
 # Test env — use committed .env.test (DATABASE_URL must point at test Postgres, e.g. localhost:5433/coheronconnect_test)
 ```
@@ -237,6 +240,7 @@ Default credentials (after `pnpm db:seed`): **`admin@coheron.com`** / **`demo123
 |--------|----------------|
 | `ECONNREFUSED` on Postgres | `docker compose -f docker-compose.dev.yml ps` — Postgres should be **healthy** on `localhost:5434`. |
 | API exits on startup | `DATABASE_URL` must match Docker (`postgresql://coheronconnect:coheronconnect@localhost:5434/coheronconnect`). |
+| API fatal-exits with `PII_HASH_PEPPER is required` | The DPDP boot guard fail-fasts when the pepper is unset. Set **`PII_HASH_PEPPER`** in `.env` (dev/prod) — in production it must be in the host `.env.production` **and** the `PII_HASH_PEPPER` GitHub secret (injected into the Vultr api container by the deploy). Use a permanent value. |
 | Login fails after fresh `.env` | Regenerate `AUTH_SECRET` and restart API; existing cookies were signed with the old secret. |
 | `No procedure found on path …` | Run `pnpm check:trpc-parity` and align web calls with `apps/api/src/routers`. |
 | Layer tests fail on missing tables | Run `pnpm docker:test:up` then `pnpm test:local-ready` or `pnpm exec dotenv -e .env.test -- pnpm --filter @coheronconnect/db db:migrate`. |

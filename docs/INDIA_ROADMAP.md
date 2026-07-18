@@ -110,6 +110,17 @@ India pilot holds real PII, so DSR/breach windows are statutory from day one.
 3. **Sweep schedule** — confirm the Temporal Schedule registration that drives the
    `/internal/dpdp/sweep` binding fires end-to-end live.
 
+**Deployment status (2026-07-18):** the 0036–0038 DPDP set is **live in production** on
+Vultr (commit `bb29706`). The fail-fast pepper guard made **`PII_HASH_PEPPER` a hard
+deploy dependency** — the first deploy aborted (`api-1 unhealthy`) until the pepper was
+provisioned. It is now injected into the prod api container from the `PII_HASH_PEPPER`
+GitHub secret via the deploy path (`ci.yml` → `push-to-vultr.sh` → `vultr-remote-deploy.sh`
+→ `docker-compose.vultr-test.yml`). **Operational rule:** the pepper is permanent — never
+rotate it once PII is written (existing Aadhaar/PAN hashes would stop matching). Note the
+Vultr api container migrates *then* boots (`node dist/migrate.mjs && node dist/index.mjs`),
+so migrations — including the irreversible raw-Aadhaar drop — apply even if the api start
+later fails the guard.
+
 **Off-code dependency (now the primary bottleneck):** Indian privacy counsel to sign off
 the erasure map + statutory windows before enabling live erasure across domain tables.
 
@@ -235,6 +246,11 @@ POST-LAUNCH ► §5 KMS → §6 RLS   ‖   §7 SOC2/ISO program (parallel from 
 3. **MFA step-up** — require TOTP (not just password) for finance mutations? (§4)
 4. **KMS provider** — AWS KMS / GCP KMS / Vault (§5).
 5. **RLS session-context** — wrap ctx db handle (recommended) vs per-request tx (§6).
+
+6. **Pepper custody** — `PII_HASH_PEPPER` is now a permanent prod secret held in two
+   places (GitHub Actions secret + host `.env.production`). Decide the long-term custody
+   store (password manager / vault) and back it up; losing it makes every stored Aadhaar/PAN
+   hash unverifiable. Folds naturally into the §5 KMS work.
 
 *Planning only — no application code changed by this document. Certification claims stay
 off public surfaces until earned.*

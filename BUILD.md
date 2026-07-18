@@ -1,9 +1,9 @@
 # BUILD.md — CoheronConnect (NexusOps) current-state map
 
-End-to-end view of what the platform actually **is** and **covers**, as of branch
-`merge/team-super-admin` (migrations at `0032_damp_la_nuit`). This is a *current-state*
-document — it describes what is wired and running, not the roadmap. For the gap analysis
-(shipped vs. market leaders) and the roadmap, see `CLAUDE.md` and `docs/`.
+End-to-end view of what the platform actually **is** and **covers**, as of `main`
+(migrations at `0038_chief_ultimates`). This is a *current-state* document — it describes
+what is wired and running, not the roadmap. For the gap analysis (shipped vs. market
+leaders) and the roadmap, see `CLAUDE.md` and `docs/`.
 
 **CoheronConnect** is a multi-tenant Enterprise Operations Platform (ERP/ITSM/GRC/India-compliance
 suite). Production: `connect.coheron.tech`. Repo: `github.com/Recon-X2025/NexusOps.git`.
@@ -74,6 +74,27 @@ Root router `apps/api/src/routers/index.ts` composes **40+ feature routers**, sp
 - PDF surfaces — payslip, Form-16.
 - Public survey submission surface.
 
+### 3.4 DPDP data-protection layer (government-ID minimisation + retention)
+Live across the write paths that capture government identifiers and statutory financial records:
+
+- **Peppered-HMAC minimisation** — Aadhaar/PAN are stored as `HMAC-SHA256(value, PII_HASH_PEPPER)` plus a
+  masked display (`XXXX-XXXX-1234` / `XXXXXX1234`), never raw. Raw **Aadhaar is dropped** entirely; raw
+  **PAN is retained only where filing needs it**, alongside the hash + masked display. Helpers:
+  `lib/pii-hash.ts` (`peppatedHash`, `assertPiiHashConfigured`), `lib/aadhaar.ts`, `lib/pan.ts`
+  (`panColumns()` / `aadhaarColumns()`). Wired into: `secretarial` (director KYC + share-capital PAN),
+  `procurement` (vendor PAN), `http/super-admin` (org India PAN), `india-compliance`, `onboarding`, `hr`,
+  `ingest` (vendor import, malformed-PAN fallback keeps raw only).
+- **Boot guard (fail-fast)** — `apps/api/src/index.ts` calls `assertPiiHashConfigured()` at startup and
+  `process.exit(1)` if **`PII_HASH_PEPPER`** is unset. Treated as a mini-KMS secret: a missing pepper stops
+  the deploy rather than letting the first PII write throw at runtime. **The pepper is permanent — rotating
+  it after PII is written breaks hash matching.**
+- **Retention floor** — an 8-year statutory `retainUntilDate` is stamped at create on invoices
+  (`financial.ts`), journal entries (`accounting.ts`, `lib/invoice-journal.ts`), and payslips
+  (`payroll.ts`, anchored to `paidAt`). Constant + helper in `lib/retention.ts` (`computeRetainUntil`).
+- **DSR erasure executor** — `lib/dpdp-erasure.ts`: a conservative, retention-aware `ERASURE_MAP`
+  executor, **flag-gated off** (`DPDP_ERASURE_ENABLED !== "true"`). Ships dry-run only; no destructive
+  erasure runs until deliberately enabled after legal sign-off.
+
 ---
 
 ## 4. Automation infrastructure
@@ -132,10 +153,12 @@ Workflow implementations live in `apps/api/src/workflows/*.ts` (one file per loo
   and a `vulnerabilitySlaEvents` audit table (breach/escalation history). Driven by the vuln-SLA BullMQ loop.
 - **FK `onDelete` policy** (repo-wide): `orgId → organizations` and child→parent = **CASCADE**; nullable
   actor = **SET NULL**; NOT NULL actor / lookup = **RESTRICT**.
-- **Migrations**: 33 files, `0000` … **`0032_damp_la_nuit`** (journal `drizzle/meta/_journal.json`).
-  `0032` consolidates `mfa_enrollments`, `vulnerability_sla_events` (+ vuln SLA columns), and
-  `dpdp_notification_artifacts` (+ DPDP regime/erasure columns), chained off the team's `0031_workable_spot`
-  (super-admin / org-profile expansion). Drizzle diffs against its **own snapshot**, not the live DB.
+- **Migrations**: `0000` … **`0038_chief_ultimates`** (journal `drizzle/meta/_journal.json`).
+  `0032_damp_la_nuit` consolidated `mfa_enrollments`, `vulnerability_sla_events` (+ vuln SLA columns), and
+  `dpdp_notification_artifacts` (+ DPDP regime/erasure columns). `0035_light_hobgoblin` (team) is followed by
+  the DPDP data-protection set **`0036`–`0038`**: government-ID hash/masked-display columns + retention
+  floor columns, then the **irreversible raw-Aadhaar column drop**. Drizzle diffs against its **own
+  snapshot**, not the live DB.
 - **Seeds**: `db:seed`, `db:seed:modules`, `db:seed:smb`. The 100-employee/24-month `coheron-demo`
   generator has been **removed** (`seed-demo.ts` does not exist).
 
@@ -181,11 +204,21 @@ deletion-cascade FK tests, and money-invariant tests (journal, payroll, GST, TDS
 
 ## 8. Deploy
 
-- **Deploy Vultr**: manual `workflow_dispatch` GitHub Action (rsync + `scripts/push-to-vultr.sh`).
-- **Migrations** auto-apply in prod via the `migrator` service in `docker-compose.prod.yml`; `api` waits
-  for `migrator: service_completed_successfully`.
-- **CI** (`ci.yml`): build gated on `[lint, test, e2e]`; on `main`, publishes GHCR images (web + api).
-- Pushing `main` auto-deploys to Vultr — requires the user's cloud credentials and explicit approval.
+- **Deploy Vultr**: auto-deploy on push to `main` (`ci.yml` `deploy` job) + manual `deploy-vultr.yml`
+  `workflow_dispatch`; both rsync + `scripts/push-to-vultr.sh` → `scripts/vultr-remote-deploy.sh` on the host.
+- **Prod topology** (`docker-compose.vultr-test.yml` + `docker-compose.vultr.images.yml`, Caddy TLS): the
+  api container runs **`node dist/migrate.mjs && node dist/index.mjs`** — migrations apply first (standalone,
+  no boot guard), then the api boots. There is **no separate `migrator` container** in the Vultr compose
+  (that exists only in `docker-compose.prod.yml`). Consequence: a failed api start still leaves migrations applied.
+- **Required prod secret**: **`PII_HASH_PEPPER`** must be present or the api fail-fasts and the deploy aborts
+  (`container ...-api-1 is unhealthy`). It is threaded from the `PII_HASH_PEPPER` **GitHub secret** →
+  deploy step → SSH → `vultr-remote-deploy.sh` → the api service env (`docker-compose.vultr-test.yml`),
+  mirroring the GHCR-token passthrough. Also keep it in the host `/opt/coheronconnect/.env.production` for
+  manual (non-CI) `docker compose up`. The value is **permanent**.
+- **CI** (`ci.yml`): build gated on `[lint, test, e2e]`; on `main`, publishes GHCR images (web + api) then
+  deploys the immutable short-SHA tag. The remote script asserts `/health.version` matches the deployed SHA.
+- Pushing `main` auto-deploys to Vultr — requires the user's cloud credentials and explicit approval; take a
+  snapshot first.
 
 ---
 
