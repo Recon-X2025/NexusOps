@@ -194,6 +194,20 @@ async function bootstrap() {
     }
   }
 
+  // ── PII hash pepper (DPDP) ────────────────────────────────────────────────
+  // Government identifiers (Aadhaar/PAN) are stored as a peppered HMAC, never raw. The pepper
+  // (PII_HASH_PEPPER) is a mini-KMS secret: without it, the first PII write of any org would throw
+  // at runtime. Fail fast at startup so a missing pepper stops the deploy, never a live org write.
+  {
+    const { assertPiiHashConfigured } = await import("./lib/pii-hash.js");
+    try {
+      assertPiiHashConfigured();
+    } catch (err) {
+      fastify.log.fatal({ err }, "[pii] PII_HASH_PEPPER is required to hash Aadhaar/PAN");
+      process.exit(1);
+    }
+  }
+
   // ── Plugins ──────────────────────────────────────────────────────────────
   // CORS_ORIGIN supports comma-separated list: "http://localhost:3000,https://app.example.com"
   const corsOrigins: (string | RegExp)[] = [

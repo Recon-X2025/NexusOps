@@ -36,10 +36,17 @@ import {
   inArray,
   type SQL,
 } from "@coheronconnect/db";
+import { getTableColumns } from "drizzle-orm";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { CreateLeaveRequestSchema, LeaveTypeEnum } from "@coheronconnect/types";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
+
+/**
+ * Employee columns returned from read paths. Raw Aadhaar is no longer stored (dropped in
+ * migration 0037 for DPDP minimisation), so this mirrors the table.
+ */
+const employeePublicColumns = getTableColumns(employees);
 
 export const hrRouter = router({
   /** Compact counts for platform home (US-HCM-004). */
@@ -160,14 +167,14 @@ export const hrRouter = router({
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [employee] = await db
-          .select()
+          .select(employeePublicColumns)
           .from(employees)
           .where(and(eq(employees.id, input.id), eq(employees.orgId, org!.id)));
 
         if (!employee) throw new TRPCError({ code: "NOT_FOUND" });
 
         const reportees = await db
-          .select()
+          .select(employeePublicColumns)
           .from(employees)
           .where(and(eq(employees.managerId, input.id), eq(employees.orgId, org!.id)));
 

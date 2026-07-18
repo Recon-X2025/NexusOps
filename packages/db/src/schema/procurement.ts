@@ -85,6 +85,12 @@ export const vendors = pgTable(
     vendorType: text("vendor_type").notNull().default("goods_supplier"),
     gstin: text("gstin"),
     pan: text("pan"),
+    /**
+     * DPDP PAN match aids stored alongside raw `pan` (retained for 26AS/TDS filing).
+     * `panMaskedHash` = peppered HMAC-SHA256 (lib/pii-hash.ts); `panMaskedDisplay` = `XXXXXX234A`.
+     */
+    panMaskedHash: text("pan_masked_hash"),
+    panMaskedDisplay: text("pan_masked_display"),
     tdsSection: tdsSectionEnum("tds_section").notNull().default("nil"),
     tdsRate: decimal("tds_rate", { precision: 5, scale: 2 }).notNull().default("0"),
     isMsme: boolean("is_msme").notNull().default(false),
@@ -187,6 +193,12 @@ export const purchaseOrders = pgTable(
     expectedDelivery: timestamp("expected_delivery", { withTimezone: true }),
     notes: text("notes"),
     legalEntityId: uuid("legal_entity_id").references(() => legalEntities.id, { onDelete: "set null" }),
+    /**
+     * DPDP retention floor: statutory retention expiry (anchor `createdAt` + 8y). The erasure
+     * executor must not anonymise/delete this PO's identity link until this date passes
+     * (GST / Income Tax procurement retention). Nullable for legacy rows (backfilled).
+     */
+    retainUntilDate: timestamp("retain_until_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -194,6 +206,7 @@ export const purchaseOrders = pgTable(
     orgPoNumberIdx: uniqueIndex("purchase_orders_org_po_number_idx").on(t.orgId, t.poNumber),
     orgIdx: index("purchase_orders_org_idx").on(t.orgId),
     legalEntityIdx: index("purchase_orders_legal_entity_idx").on(t.legalEntityId),
+    orgRetainIdx: index("purchase_orders_org_retain_idx").on(t.orgId, t.retainUntilDate),
   }),
 );
 
@@ -323,6 +336,12 @@ export const invoices = pgTable(
     paidAt: timestamp("paid_at", { withTimezone: true }),
     approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
     paymentMethod: text("payment_method"),
+    /**
+     * DPDP retention floor: statutory retention expiry (anchor `invoiceDate` + 8y). The erasure
+     * executor must not anonymise/delete this invoice's identity link until this date passes
+     * (GST / Income Tax retention). Nullable for legacy rows (backfilled).
+     */
+    retainUntilDate: timestamp("retain_until_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -333,6 +352,7 @@ export const invoices = pgTable(
     poIdx: index("invoices_po_idx").on(t.poId),
     statusIdx: index("invoices_status_idx").on(t.status),
     eInvoiceStatusIdx: index("invoices_e_invoice_status_idx").on(t.orgId, t.eInvoiceStatus),
+    orgRetainIdx: index("invoices_org_retain_idx").on(t.orgId, t.retainUntilDate),
   }),
 );
 

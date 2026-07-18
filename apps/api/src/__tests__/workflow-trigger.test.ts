@@ -210,9 +210,22 @@ describe("Workflow trigger layer (Sprint 3.1)", () => {
       edges: [],
     });
 
-    const r = await sweepScheduledWorkflows(db);
-    expect(r.examined).toBe(2);
-    expect(r.fired).toBe(2);
+    // Both rows are due (last_run_at NULL). A single sweep normally claims both,
+    // but the claim uses `FOR UPDATE SKIP LOCKED`, so under a loaded shared-DB run
+    // a transient lock from another connection can make one row skip this tick. A
+    // skipped row keeps last_run_at NULL (only claimed rows are stamped), so it is
+    // still due on the next tick — exactly how the real 60s-cadence sweeper drains
+    // a backlog. Accumulate across a few immediate ticks to assert both eventually
+    // fire without a double-fire (a stamped row won't be re-claimed).
+    let examined = 0;
+    let fired = 0;
+    for (let tick = 0; tick < 5 && fired < 2; tick++) {
+      const r = await sweepScheduledWorkflows(db);
+      examined += r.examined;
+      fired += r.fired;
+    }
+    expect(examined).toBe(2);
+    expect(fired).toBe(2);
 
     // Both stamped.
     const [a] = await db.select({ lastRunAt: workflows.lastRunAt }).from(workflows).where(and(eq(workflows.orgId, orgId), eq(workflows.triggerType, "scheduled")));

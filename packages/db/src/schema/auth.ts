@@ -54,6 +54,12 @@ export const organizations = pgTable(
     supportEmail: text("support_email"),
     // Compliance
     pan: text("pan"),
+    /**
+     * DPDP PAN match aids stored alongside raw `pan` (an entity PAN, retained for filing).
+     * `panMaskedHash` = peppered HMAC-SHA256 (lib/pii-hash.ts); `panMaskedDisplay` = `XXXXXX234A`.
+     */
+    panMaskedHash: text("pan_masked_hash"),
+    panMaskedDisplay: text("pan_masked_display"),
     tan: text("tan"),
     epfCode: text("epf_code"),
     primaryStateCode: text("primary_state_code"),

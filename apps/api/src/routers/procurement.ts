@@ -36,6 +36,7 @@ import {
   getDuplicatePayablePolicy,
 } from "../lib/org-settings";
 import { computeInvoicePoMatch } from "../lib/invoice-po-match";
+import { computeRetainUntil } from "../lib/retention";
 
 async function determineApproval(amount: number, orgSettings: unknown): Promise<string> {
   const { prAutoApproveBelow, prDeptHeadMax } = getProcurementApprovalTiers(orgSettings);
@@ -430,6 +431,7 @@ export const procurementRouter = router({
               notes: input.notes,
               expectedDelivery: input.expectedDelivery,
               legalEntityId: input.legalEntityId ?? null,
+              retainUntilDate: computeRetainUntil(new Date()),
             })
             .returning();
 
@@ -469,6 +471,7 @@ export const procurementRouter = router({
             totalDebit: input.totalAmount.toString(),
             totalCredit: input.totalAmount.toString(),
             createdById: ctx.user!.id,
+            retainUntilDate: computeRetainUntil(new Date()),
           }).returning();
 
           if (je) {
@@ -556,6 +559,7 @@ export const procurementRouter = router({
               status: "draft",
               expectedDelivery: input.expectedDelivery,
               legalEntityId: input.legalEntityId ?? null,
+              retainUntilDate: computeRetainUntil(new Date()),
             })
             .returning();
 

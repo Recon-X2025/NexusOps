@@ -15,6 +15,15 @@ export function validatePAN(pan: string): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
+/**
+ * Visual mask for a PAN, showing only the last 4 characters (e.g. `XXXXXX234A`). Used for
+ * UI/audit display alongside a stored hash; never a substitute for the raw PAN in filing.
+ */
+export function maskPAN(pan: string): string {
+  const cleaned = pan.trim().toUpperCase();
+  return `XXXXXX${cleaned.slice(-4)}`;
+}
+
 // ── Aadhaar (Verhoeff check digit) ────────────────────────────────────────
 const VERHOEFF_D = [
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],

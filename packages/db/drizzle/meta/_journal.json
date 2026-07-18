@@ -253,6 +253,27 @@
       "when": 1784296438807,
       "tag": "0035_light_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784296500000,
+      "tag": "0036_old_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1784296600000,
+      "tag": "0037_optimal_vision",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1784296700000,
+      "tag": "0038_chief_ultimates",
+      "breakpoints": true
     }
   ]
 }

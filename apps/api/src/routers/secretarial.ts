@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { panColumns } from "../lib/pan";
 import {
   boardMeetings, boardResolutions, secretarialFilings,
   shareCapital, esopGrants, companyDirectors,
@@ -390,7 +391,11 @@ export const secretarialRouter = router({
         const { db, org } = ctx;
         const [last] = await db.select({ n: count() }).from(shareCapital).where(eq(shareCapital.orgId, org!.id));
         const folio = `SH-${String((last?.n ?? 0) + 1).padStart(4, "0")}`;
-        const [row] = await db.insert(shareCapital).values({ ...input, orgId: org!.id, folio }).returning();
+        const { pan: _pan, ...shareInput } = input;
+        const [row] = await db
+          .insert(shareCapital)
+          .values({ ...shareInput, ...panColumns(input.pan), orgId: org!.id, folio })
+          .returning();
         return row;
       }),
 
@@ -407,9 +412,9 @@ export const secretarialRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, ...rest } = input;
+        const { id, pan: _pan, ...rest } = input;
         const [row] = await db.update(shareCapital)
-          .set({ ...rest, updatedAt: new Date() })
+          .set({ ...rest, ...panColumns(input.pan), updatedAt: new Date() })
           .where(and(eq(shareCapital.id, id), eq(shareCapital.orgId, org!.id))).returning();
         return row;
       }),
@@ -566,8 +571,10 @@ export const secretarialRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        const { pan: _pan, ...directorInput } = input;
         const [row] = await db.insert(companyDirectors).values({
-          ...input,
+          ...directorInput,
+          ...panColumns(input.pan),
           orgId: org!.id,
           isActive: true,
           kyc: "pending",
@@ -617,8 +624,12 @@ export const secretarialRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, appointedAt, ...rest } = input;
-        const updates: Partial<typeof companyDirectors.$inferInsert> = { ...rest, updatedAt: new Date() };
+        const { id, appointedAt, pan: _pan, ...rest } = input;
+        const updates: Partial<typeof companyDirectors.$inferInsert> = {
+          ...rest,
+          ...panColumns(input.pan),
+          updatedAt: new Date(),
+        };
         if (appointedAt !== undefined) {
           updates.appointedAt = appointedAt ? new Date(appointedAt) : null;
         }

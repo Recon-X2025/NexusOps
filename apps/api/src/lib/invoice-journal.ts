@@ -9,6 +9,7 @@ import {
   sql,
   type DbOrTx,
 } from "@coheronconnect/db";
+import { computeRetainUntil } from "./retention";
 
 /**
  * Posts the general-ledger journal entry for an invoice.
@@ -143,6 +144,7 @@ export async function postInvoiceJournalEntry(
       postedAt: date,
       financialYear,
       period: date.getMonth() + 1,
+      retainUntilDate: computeRetainUntil(date),
     })
     .returning();
 
@@ -268,6 +270,7 @@ export async function postInvoiceSettlementEntry(
       postedAt: date,
       financialYear,
       period: date.getMonth() + 1,
+      retainUntilDate: computeRetainUntil(date),
     })
     .returning();
 
@@ -364,6 +367,7 @@ export async function reverseInvoiceJournalEntry(
       postedAt: date,
       financialYear,
       period: date.getMonth() + 1,
+      retainUntilDate: computeRetainUntil(date),
     })
     .returning();
 

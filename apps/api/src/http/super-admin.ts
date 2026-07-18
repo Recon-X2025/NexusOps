@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { getDb, eq } from "@coheronconnect/db";
 import { organizations, gstinRegistry, legalEntities, superAdminAuditLogs } from "@coheronconnect/db/schema";
 import { profileSchema, indiaSchema, itsmSchema } from "../routers/onboarding";
+import { panColumns } from "../lib/pan";
 import { z } from "zod";
 
 const adminUpdateSchema = z.object({
@@ -181,8 +182,9 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (input.india) {
+      // DPDP: keep raw PAN (entity PAN, needed for filing) + stamp match hash/display.
       await db.update(organizations).set({
-        pan: input.india.pan,
+        ...panColumns(input.india.pan),
         tan: input.india.tan,
         epfCode: (input.india as any).pf,
         primaryStateCode: input.india.stateCode,

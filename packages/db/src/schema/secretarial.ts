@@ -125,6 +125,9 @@ export const shareCapital = pgTable("share_capital", {
   quantity:     integer("quantity").notNull(),
   paidUpValue:  integer("paid_up_value"),
   pan:          text("pan"),
+  // DPDP PAN match aids stored alongside raw `pan` (shareholder PAN retained for filing).
+  panMaskedHash:    text("pan_masked_hash"),    // peppered HMAC-SHA256 (lib/pii-hash.ts)
+  panMaskedDisplay: text("pan_masked_display"), // XXXXXX234A visual mask
   dematAccount: text("demat_account"),
   address:      text("address"),
   notes:        text("notes"),
@@ -164,6 +167,9 @@ export const companyDirectors = pgTable("company_directors", {
   category:    text("category").default("non_executive"), // executive, non_executive, independent
   dob:         timestamp("dob"),
   pan:         text("pan"),
+  // DPDP PAN match aids stored alongside raw `pan` (director PAN retained for filing).
+  panMaskedHash:    text("pan_masked_hash"),    // peppered HMAC-SHA256 (lib/pii-hash.ts)
+  panMaskedDisplay: text("pan_masked_display"), // XXXXXX234A visual mask
   email:       text("email"),
   phone:       text("phone"),
   appointedAt: timestamp("appointed_at"),

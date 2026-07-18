@@ -19,6 +19,8 @@ import {
   journalEntryStatusEnum,
 } from "@coheronconnect/db";
 
+import { computeRetainUntil } from "../lib/retention";
+
 type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
 type JeRow = InferSelectModel<typeof journalEntriesTbl>;
 type JelRow = InferSelectModel<typeof journalEntryLinesTbl>;
@@ -305,6 +307,7 @@ export const accountingRouter = router({
           createdById: user!.id,
           financialYear: fy,
           period: input.date.getMonth() + 1,
+          retainUntilDate: computeRetainUntil(input.date),
         }).returning();
 
         const lineRows = input.lines.map((l, i) => ({
@@ -392,6 +395,7 @@ export const accountingRouter = router({
           reversalOfId: je.id,
           financialYear: currentFY(revDate),
           period: revDate.getMonth() + 1,
+          retainUntilDate: computeRetainUntil(revDate),
         }).returning();
 
         const revLines = lines.map((l: JelRow, i: number) => ({

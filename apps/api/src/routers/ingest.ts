@@ -17,6 +17,8 @@ import {
 import { getNextNumber, syncOrgCounters } from "../lib/auto-number";
 import { computeGST, type GSTRate } from "../lib/india/gst-engine";
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
+import { computeRetainUntil } from "../lib/retention";
+import { panColumns, type PanColumns } from "../lib/pan";
 import { currentFY } from "./accounting";
 
 const MatterIngestSchema = z.object({
@@ -263,9 +265,19 @@ export const ingestRouter = router({
             const results: string[] = [];
 
             for (const item of input) {
+                const { pan: rawPan, ...vendorItem } = item;
+                // DPDP: keep raw PAN + stamp match hash/display. On a malformed PAN in a bulk
+                // row, fall back to storing raw only rather than aborting the whole import.
+                let panCols: Partial<PanColumns> = {};
+                try {
+                    panCols = panColumns(rawPan);
+                } catch {
+                    panCols = rawPan ? { pan: rawPan.trim().toUpperCase() } : {};
+                }
                 const [row] = await db.insert(vendors).values({
                     orgId: org!.id,
-                    ...item,
+                    ...vendorItem,
+                    ...panCols,
                 }).returning();
                 results.push(row!.id);
             }
@@ -346,6 +358,7 @@ export const ingestRouter = router({
                         status: "pending",
                         matchingStatus: "pending",
                         invoiceDate,
+                        retainUntilDate: computeRetainUntil(invoiceDate),
                         dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
                     }).returning();
                     await postInvoiceJournalEntry(tx, {

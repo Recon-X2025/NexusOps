@@ -8,6 +8,7 @@
  */
 import { router, protectedProcedure } from "../lib/trpc";
 import { z } from "zod";
+import { panColumns } from "../lib/pan";
 import {
   users,
   tickets,
@@ -184,9 +185,10 @@ export const onboardingRouter = router({
           });
         }
         
-        // Update org compliance fields
+        // Update org compliance fields. DPDP: keep raw PAN (entity PAN, needed for filing) and
+        // stamp the match hash/display via panColumns.
         await db.update(organizations).set({
-          pan: input.india.pan,
+          ...panColumns(input.india.pan),
           tan: input.india.tan,
           epfCode: input.india.pf,
           primaryStateCode: input.india.stateCode,

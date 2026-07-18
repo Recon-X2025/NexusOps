@@ -1,12 +1,21 @@
 # CoheronConnect — India Roadmap (consolidated, verified)
 
-**Date:** 2026-07-15
+**Date:** 2026-07-18 (rev; orig 2026-07-15)
 **Owner:** Product
 **Status:** Current — supersedes the India/security/GA planning docs listed in §0.
-**Verification basis:** read-only code audit at migration head **`0032_damp_la_nuit`**
-(33 migrations, 0000–0032), post-merge `c88aaf2`. Every status below is cited to
-`file:line`. Where a superseded plan's claim no longer matches code, it is flagged
-**[DISCREPANCY]**.
+**Verification basis:** read-only code audit at migration head **`0038_chief_ultimates`**
+(39 migrations, 0000–0038). Every status below is cited to `file:line`. Where a
+superseded plan's claim no longer matches code, it is flagged **[DISCREPANCY]**.
+
+> **2026-07-18 revision:** since the original `0032` audit, the DPDP privacy track has
+> shipped the pieces the plan called its launch-blocker "trap": DSR **erasure execution**
+> (wired into the fulfil transition, retention-floor-aware, flag-gated, unit-tested), the
+> 8-year **retention floor**, **Aadhaar minimisation** (peppered-HMAC + masked display,
+> raw dropped) and **PAN** hashing, plus a **fail-fast pepper boot guard**. DPDP moves
+> from **PARTIAL launch-blocker** to **near-closed** — what remains is real notification
+> **delivery** (still `LogOnlyDispatcher`) and Indian privacy-counsel **sign-off** to flip
+> `DPDP_ERASURE_ENABLED` on and extend the erasure map to domain tables. Migrations
+> `0036–0038` carry this work.
 
 > Companion roadmaps: **`docs/US_ROADMAP.md`** (US market) · **`docs/AI_ROADMAP.md`**
 > (common AI maturity stages). Effort labels are relative sizing (S/M/L), **not time
@@ -33,21 +42,24 @@ items are now **done**. This roadmap reflects the verified post-merge reality.
 
 ## 1. Verified status — the five security/go-live items
 
-| # | Item | Plan (07-13) said | **Verified now** | Gap that remains | Effort |
+| # | Item | Plan (07-13) said | **Verified now (0038)** | Gap that remains | Effort |
 |---|------|-------------------|------------------|------------------|--------|
-| 1 | **DPDP privacy engine** | ~90%, "finish the loop" | **PARTIAL** | Erasure *execution*; sweep HTTP binding; real dispatch | S–M |
+| 1 | **DPDP privacy engine** | ~90%, "finish the loop" | **NEAR-CLOSED** | Real notification *delivery*; counsel sign-off to enable live erasure + extend map | S + legal |
 | 2 | **Vulnerability SLA escalation** | "to build" | **REAL — shipped** | `slaSummary()` view only (minor) | — |
 | 3 | **MFA (TOTP)** | "enrollment missing" | **REAL — shipped** | Step-up asks password, not TOTP (minor) | S |
 | 4 | **KMS + secrets rotation** | STUB, plumbed | **STUB** (AES only) | Full KMS envelope + rotation | M–L |
 | 5 | **DB row-level security (RLS)** | not started | **NOT-STARTED** | All Postgres RLS | L |
 
 **[DISCREPANCY] Items 2 & 3 are already DONE** — the archived plans list them as future
-work. **[DISCREPANCY]** CLAUDE.md once cited head `0031_workable_spot`; actual head is
-`0032_damp_la_nuit` (consolidated MFA + vuln-SLA + DPDP).
+work. **[UPDATED 0038] Item 1 is no longer a hard blocker on code** — the erasure
+executor is wired and tested (see §2); the only remaining code item is delivery, and the
+gating dependency is legal sign-off, not engineering. **[DISCREPANCY]** CLAUDE.md once
+cited head `0031_workable_spot`; the audited head is now `0038_chief_ultimates`
+(0036–0038 add retention floor, PAN/Aadhaar minimisation, raw-Aadhaar drop).
 
 ---
 
-## 2. Priority 1 — DPDP privacy engine (finish the loop) 🔴 LAUNCH BLOCKER · S–M
+## 2. Priority 1 — DPDP privacy engine (finish the loop) 🟠 NEAR-CLOSED · S + legal
 
 India pilot holds real PII, so DSR/breach windows are statutory from day one.
 
@@ -66,24 +78,44 @@ India pilot holds real PII, so DSR/breach windows are statutory from day one.
   breach `jurisdictionCode` (`:660`, default `"IN"`) — the cheap US forward-hook is
   in place.
 
-**Genuinely still missing (the real work):**
-1. **DSR erasure EXECUTION — the trap.** `erasureExecutedAt`/`erasureSummary` columns
-   exist (`issuer-programme.ts:465-466`) but **no code purges/anonymizes data** when an
-   erasure DSR reaches `fulfilled`. State advances; data persists. Build a documented
-   **per-table erasure map** (delete | anonymize | retain-with-reason), executor stamps
-   evidence, guarded behind a config flag until counsel signs off.
-2. **Sweep wiring** — confirm/complete the Temporal Schedule registration and the
-   `/internal/dpdp/sweep` HTTP binding the sweep drives (workflow exists; end-to-end
-   firing must be verified live).
-3. **Real notification delivery** — artifacts default `status:'logged'`
-   (`LogOnlyDispatcher`). Swap to an email/SMS adapter to actually notify (the final
-   external pass that closes the gate).
+**Shipped since the 0032 audit (0036–0038) — the trap is now closed in code:**
+1. **DSR erasure EXECUTION — BUILT + WIRED.** `executeErasureForDsr`
+   (`apps/api/src/lib/dpdp-erasure.ts:199`) walks a declarative per-table `ERASURE_MAP`
+   (`:67`, anonymise | delete) inside one transaction and stamps
+   `erasureExecutedAt`/`erasureSummary` on the DSR. It is **invoked from the fulfil
+   transition** — `apps/api/src/routers/compliance.ts:297-298` runs it in the same tx
+   when an erasure DSR moves to `fulfilled`, logging the summary (`:303`). Unit-tested
+   (dry-run + forced-destructive + retention-defer) in
+   `apps/api/src/__tests__/dpdp-sweeps.test.ts:255-304`.
+   - **Retention-floor aware:** rows still inside their statutory window are DEFERRED,
+     never touched, even under live erasure (`dpdp-erasure.ts:137-141`) — reconciles §12
+     erasure with §8(7). 8-year floor in `apps/api/src/lib/retention.ts`.
+   - **Flag-gated for legal:** ships FLAG-OFF in DRY-RUN; destructive path only runs when
+     `DPDP_ERASURE_ENABLED === "true"` (`dpdp-erasure.ts:106-108`). The map is
+     deliberately CONSERVATIVE (only the DSR record + notification artifacts), NOT domain
+     tables — extending it is a counsel-gated follow-up (`dpdp-erasure.ts:20-24`).
+2. **PII minimisation shipped** — Aadhaar peppered-HMAC hash + masked display, raw
+   dropped (migration `0038_chief_ultimates`); PAN hash/display alongside retained raw
+   (for filing); fail-fast pepper boot guard (`assertPiiHashConfigured`). See
+   `docs/DPDP_ERASURE_STRATEGY.md`.
+3. **Sweep HTTP binding present** — `POST /internal/dpdp/sweep` (`apps/api/src/index.ts:676`).
 
-**Off-code dependency (start in parallel — the bottleneck):** Indian privacy counsel to
-sign off the erasure map + statutory windows.
+**Genuinely still missing (the real work):**
+1. **Real notification delivery** — artifacts default `status:'logged'`; the active
+   dispatcher is still `LogOnlyDispatcher` (`apps/api/src/lib/notification-dispatcher.ts:72`).
+   Swap to an email/SMS adapter to actually notify (the final external pass).
+2. **Enable + extend erasure (counsel-gated)** — flip `DPDP_ERASURE_ENABLED` on in prod
+   and extend `ERASURE_MAP` to domain tables (CRM/HR) once counsel signs off delete-vs-
+   anonymise per table.
+3. **Sweep schedule** — confirm the Temporal Schedule registration that drives the
+   `/internal/dpdp/sweep` binding fires end-to-end live.
+
+**Off-code dependency (now the primary bottleneck):** Indian privacy counsel to sign off
+the erasure map + statutory windows before enabling live erasure across domain tables.
 
 **Exit:** overdue DSRs alert on schedule; breach clock fires; consent expiry runs;
-fulfilled erasure DSRs actually purge/anonymize with evidence; notifications delivered.
+fulfilled erasure DSRs purge/anonymize with evidence (✅ built, flag-off);
+notifications *delivered* (pending); erasure flag enabled after sign-off (pending legal).
 
 ---
 
@@ -146,8 +178,9 @@ credentials** — code is buildable in-house; provisioning is not.
 ## 6. Priority 5 — Database RLS backstop 🟢 DELIBERATE POST-LAUNCH · L · NOT-STARTED
 
 **Verified state:** **Zero** Postgres RLS (no `CREATE POLICY` / `ENABLE ROW LEVEL
-SECURITY` in any of the 33 migrations). Isolation is app-layer only — ~716 hand-written
-`eq(table.orgId, …)` predicates; `withOrg` helper exists but is **unused**
+SECURITY` in any of the 39 migrations; 0036–0038 add none). Isolation is app-layer only
+— ~700+ hand-written `eq(table.orgId, …)` predicates; `withOrg` helper exists but is
+**unused**
 (`apps/api/src/lib/with-org.ts`). Cross-tenant tests pass
 (`apps/api/src/__tests__/tenant-isolation.test.ts`).
 
@@ -184,8 +217,9 @@ publish any SOC 2 / ISO claim until earned** (per the 2026-07-13 website brief).
 ## 9. Critical path
 
 ```
-LAUNCH GATE ► §2 DPDP loop (erasure execution + dispatch)   [blocker; legal in parallel]
-SHIPPED     ► §3 Vuln-SLA ✓   §4 MFA ✓   (verify + minor polish)
+LAUNCH GATE ► §2 DPDP: notification DELIVERY (code, S) + counsel sign-off to enable
+              live erasure (legal)   [erasure execution itself ✅ built/wired/tested]
+SHIPPED     ► §2 erasure execution ✓   §3 Vuln-SLA ✓   §4 MFA ✓   (verify + minor polish)
 POST-LAUNCH ► §5 KMS → §6 RLS   ‖   §7 SOC2/ISO program (parallel from day one)
 ```
 
@@ -193,10 +227,14 @@ POST-LAUNCH ► §5 KMS → §6 RLS   ‖   §7 SOC2/ISO program (parallel from 
 
 ## 10. Decisions needed
 
-1. **Erasure map + statutory windows** — engage Indian privacy counsel (gates §2).
-2. **MFA step-up** — require TOTP (not just password) for finance mutations? (§4)
-3. **KMS provider** — AWS KMS / GCP KMS / Vault (§5).
-4. **RLS session-context** — wrap ctx db handle (recommended) vs per-request tx (§6).
+1. **Erasure sign-off + map extension** — engage Indian privacy counsel to approve
+   delete-vs-anonymise per table and statutory windows, then flip `DPDP_ERASURE_ENABLED`
+   and extend `ERASURE_MAP` to domain tables (gates §2; executor already built).
+2. **Notification delivery adapter** — email vs SMS (vs both) to replace
+   `LogOnlyDispatcher` for DPDP notices (§2, §8).
+3. **MFA step-up** — require TOTP (not just password) for finance mutations? (§4)
+4. **KMS provider** — AWS KMS / GCP KMS / Vault (§5).
+5. **RLS session-context** — wrap ctx db handle (recommended) vs per-request tx (§6).
 
 *Planning only — no application code changed by this document. Certification claims stay
 off public surfaces until earned.*

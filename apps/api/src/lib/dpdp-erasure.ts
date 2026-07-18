@@ -48,6 +48,15 @@ export interface ErasureMapEntry {
   action: "anonymise" | "delete";
   /** Columns to redact when action === "anonymise". */
   columns?: string[];
+  /**
+   * Statutory retention-floor guard. When set, this table carries a
+   * `retainUntilDate`-style column; rows whose retention window has not yet
+   * elapsed are DEFERRED (never touched) even under live erasure. The row is
+   * only eligible once `<retentionColumn> IS NULL OR <retentionColumn> <= now()`.
+   * Reconciles DPDP §12 erasure with §8(7) statutory-retention exemptions
+   * (RBI / Companies Act / Income Tax 8-year floor). See lib/retention.ts.
+   */
+  retentionColumn?: string;
   description: string;
 }
 
@@ -78,7 +87,10 @@ const REDACTED = "[erased]";
 export interface ErasurePlanStep {
   table: string;
   action: "anonymise" | "delete";
+  /** Rows eligible for erasure (retention window elapsed or no retention guard). */
   matched: number;
+  /** Rows skipped because they are still inside their statutory retention window. */
+  deferred: number;
   columns?: string[];
 }
 
@@ -103,10 +115,51 @@ interface DsrRow {
 }
 
 /**
- * Count how many rows a given map entry matches for this DSR/org. Uses raw SQL
- * so the map can reference tables generically without importing every schema.
+ * Build the WHERE predicate that matches a Principal's rows in `entry.table`.
+ * Returns `null` when the entry can never match (e.g. principalEmail with no email).
  */
-async function countMatches(db: DbOrTx, entry: ErasureMapEntry, dsr: DsrRow): Promise<number> {
+function matchCondition(entry: ErasureMapEntry, dsr: DsrRow): ReturnType<typeof sql> | null {
+  if (entry.match.kind === "dsrId") {
+    return sql`id = ${dsr.id} AND org_id = ${dsr.orgId}`;
+  }
+  // principalEmail
+  if (!dsr.principalEmail) return null;
+  return sql`org_id = ${dsr.orgId} AND related_type = 'dsr' AND related_id = ${dsr.id}`;
+}
+
+/**
+ * Retention-floor predicate for a map entry. When the entry declares a
+ * `retentionColumn`, a row is only ELIGIBLE once its retention window has
+ * elapsed (`col IS NULL OR col <= now()`). Passing `eligible = false` inverts
+ * it to count DEFERRED rows (still inside the window). Entries without a
+ * retention column are unguarded → eligible = everything, deferred = nothing.
+ */
+function retentionPredicate(entry: ErasureMapEntry, eligible: boolean): ReturnType<typeof sql> | null {
+  if (!entry.retentionColumn) return eligible ? null : sql`false`;
+  const col = sql.identifier(entry.retentionColumn);
+  return eligible ? sql`(${col} IS NULL OR ${col} <= now())` : sql`(${col} IS NOT NULL AND ${col} > now())`;
+}
+
+/** AND two optional predicates, dropping nulls. */
+function andSql(
+  a: ReturnType<typeof sql> | null,
+  b: ReturnType<typeof sql> | null,
+): ReturnType<typeof sql> | null {
+  if (a && b) return sql`${a} AND ${b}`;
+  return a ?? b;
+}
+
+/**
+ * Count how many rows a given map entry matches for this DSR/org, split into
+ * rows eligible for erasure now vs. rows deferred by the retention floor. Uses
+ * raw SQL so the map can reference tables generically without importing every
+ * schema.
+ */
+async function countMatches(
+  db: DbOrTx,
+  entry: ErasureMapEntry,
+  dsr: DsrRow,
+): Promise<{ matched: number; deferred: number }> {
   // postgres.js execute() returns an array of row objects; some drivers wrap it
   // as { rows }. Handle both shapes (mirrors auto-number.ts).
   type CountRow = { n: string | number };
@@ -115,18 +168,26 @@ async function countMatches(db: DbOrTx, entry: ErasureMapEntry, dsr: DsrRow): Pr
     return Number(row?.n ?? 0);
   };
 
-  if (entry.match.kind === "dsrId") {
+  const base = matchCondition(entry, dsr);
+  if (!base) return { matched: 0, deferred: 0 };
+
+  const runCount = async (where: ReturnType<typeof sql>): Promise<number> => {
     const res = (await db.execute(
-      sql`SELECT count(*)::int AS n FROM ${sql.identifier(entry.table)} WHERE id = ${dsr.id} AND org_id = ${dsr.orgId}`,
+      sql`SELECT count(*)::int AS n FROM ${sql.identifier(entry.table)} WHERE ${where}`,
     )) as unknown as CountRow[] | { rows: CountRow[] };
     return readCount(res);
+  };
+
+  const eligibleWhere = andSql(base, retentionPredicate(entry, true));
+  const matched = eligibleWhere ? await runCount(eligibleWhere) : 0;
+
+  let deferred = 0;
+  if (entry.retentionColumn) {
+    const deferredWhere = andSql(base, retentionPredicate(entry, false));
+    deferred = deferredWhere ? await runCount(deferredWhere) : 0;
   }
-  // principalEmail
-  if (!dsr.principalEmail) return 0;
-  const res = (await db.execute(
-    sql`SELECT count(*)::int AS n FROM ${sql.identifier(entry.table)} WHERE org_id = ${dsr.orgId} AND related_type = 'dsr' AND related_id = ${dsr.id}`,
-  )) as unknown as CountRow[] | { rows: CountRow[] };
-  return readCount(res);
+
+  return { matched, deferred };
 }
 
 /**
@@ -162,53 +223,47 @@ export async function executeErasureForDsr(
   // Build the plan (match counts) first — this is safe in both modes.
   const steps: ErasurePlanStep[] = [];
   for (const entry of ERASURE_MAP) {
-    const matched = await countMatches(db, entry, dsr as DsrRow);
-    steps.push({ table: entry.table, action: entry.action, matched, columns: entry.columns });
+    const { matched, deferred } = await countMatches(db, entry, dsr as DsrRow);
+    steps.push({ table: entry.table, action: entry.action, matched, deferred, columns: entry.columns });
   }
+
+  const totalDeferred = steps.reduce((n, s) => n + s.deferred, 0);
+  const deferralNote =
+    totalDeferred > 0 ? ` ${totalDeferred} row(s) deferred by retention floor.` : "";
 
   if (!enabled) {
     return {
       executed: false,
       summary: `DRY-RUN (DPDP_ERASURE_ENABLED not set): would erase across ${steps.length} table(s): ${steps
         .map((s) => `${s.table}(${s.matched})`)
-        .join(", ")}.`,
+        .join(", ")}.${deferralNote}`,
       steps,
     };
   }
 
   // Destructive path — run every map entry, then stamp evidence, atomically.
+  // Every statement AND-s in the retention-floor predicate so rows still inside
+  // their statutory window are never touched, even under live erasure.
   await db.transaction(async (tx) => {
     for (const entry of ERASURE_MAP) {
+      const where = andSql(matchCondition(entry, dsr as DsrRow), retentionPredicate(entry, true));
+      if (!where) continue; // entry can never match this DSR (e.g. no principal email)
+
       if (entry.action === "anonymise") {
         const setClause = (entry.columns ?? [])
           .map((c) => sql`${sql.identifier(c)} = ${REDACTED}`)
           .reduce((acc, cur, i) => (i === 0 ? cur : sql`${acc}, ${cur}`));
-        if (entry.match.kind === "dsrId") {
-          await tx.execute(
-            sql`UPDATE ${sql.identifier(entry.table)} SET ${setClause} WHERE id = ${dsr.id} AND org_id = ${dsr.orgId}`,
-          );
-        } else {
-          await tx.execute(
-            sql`UPDATE ${sql.identifier(entry.table)} SET ${setClause} WHERE org_id = ${dsr.orgId} AND related_type = 'dsr' AND related_id = ${dsr.id}`,
-          );
-        }
+        await tx.execute(
+          sql`UPDATE ${sql.identifier(entry.table)} SET ${setClause} WHERE ${where}`,
+        );
       } else {
-        // delete
-        if (entry.match.kind === "dsrId") {
-          await tx.execute(
-            sql`DELETE FROM ${sql.identifier(entry.table)} WHERE id = ${dsr.id} AND org_id = ${dsr.orgId}`,
-          );
-        } else {
-          await tx.execute(
-            sql`DELETE FROM ${sql.identifier(entry.table)} WHERE org_id = ${dsr.orgId} AND related_type = 'dsr' AND related_id = ${dsr.id}`,
-          );
-        }
+        await tx.execute(sql`DELETE FROM ${sql.identifier(entry.table)} WHERE ${where}`);
       }
     }
 
     const summary = `Erased Principal data across ${steps.length} table(s): ${steps
       .map((s) => `${s.table}(${s.matched} ${s.action})`)
-      .join(", ")}.`;
+      .join(", ")}.${deferralNote}`;
 
     await tx
       .update(dpdpDataSubjectRequests)
@@ -218,6 +273,6 @@ export async function executeErasureForDsr(
 
   const summary = `Erased Principal data across ${steps.length} table(s): ${steps
     .map((s) => `${s.table}(${s.matched} ${s.action})`)
-    .join(", ")}.`;
+    .join(", ")}.${deferralNote}`;
   return { executed: true, summary, steps };
 }

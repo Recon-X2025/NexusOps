@@ -33,6 +33,7 @@ import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
+import { computeRetainUntil } from "../lib/retention";
 import {
   buildEmployeePayrollInput,
   calendarToFyMonth,
@@ -378,6 +379,9 @@ const runsRouter = router({
       }
 
       const fyMonth = calendarToFyMonth(row.month);
+      // DPDP retention floor anchor: prefer the run's paidAt; payslips are generated
+      // pre-payment (TDS_COMPUTED), so fall back to now when the run is not yet paid.
+      const retainUntilDate = computeRetainUntil(row.paidAt ?? new Date());
       const empRows = await db
         .select({ emp: employees, st: salaryStructures })
         .from(employees)
@@ -413,6 +417,7 @@ const runsRouter = router({
             ytdGross: String(slip.ytdGross),
             ytdTds: String(slip.ytdTDS),
             taxRegimeUsed: emp.taxRegime,
+            retainUntilDate,
           });
         }
         await tx

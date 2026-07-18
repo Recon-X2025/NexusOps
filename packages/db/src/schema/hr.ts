@@ -124,7 +124,21 @@ export const employees = pgTable(
     state: text("state"),
     isMetroCity: boolean("is_metro_city").notNull().default(false),
     pan: text("pan"),
-    aadhaar: text("aadhaar"),
+    /**
+     * DPDP PAN minimisation match aids, stored ALONGSIDE raw `pan` (raw is retained for
+     * TDS/Form-16 filing). `panMaskedHash` = peppered HMAC-SHA256 (lib/pii-hash.ts) match key;
+     * `panMaskedDisplay` = `XXXXXX234A` visual mask. Never a substitute for the raw value.
+     */
+    panMaskedHash: text("pan_masked_hash"),
+    panMaskedDisplay: text("pan_masked_display"),
+    /**
+     * DPDP Aadhaar minimisation: raw Aadhaar is never stored (raw column dropped in migration
+     * 0037 after backfill). `aadhaarMaskedHash` is a peppered HMAC-SHA256 of the raw value
+     * (statutory match only, see apps/api lib/pii-hash.ts); `aadhaarMaskedDisplay` is the
+     * `XXXX-XXXX-1234` visual mask. Mirrors `esigners.aadhaarMaskedHash`.
+     */
+    aadhaarMaskedHash: text("aadhaar_masked_hash"),
+    aadhaarMaskedDisplay: text("aadhaar_masked_display"),
     uan: text("uan"),
     bankAccountNumber: text("bank_account_number"),
     bankIfsc: text("bank_ifsc"),
@@ -386,12 +400,19 @@ export const payslips = pgTable(
     ytdTds: decimal("ytd_tds", { precision: 12, scale: 2 }).notNull().default("0"),
     taxRegimeUsed: taxRegimeEnum("tax_regime_used").notNull().default("new"),
     pdfUrl: text("pdf_url"),
+    /**
+     * DPDP retention floor: statutory retention expiry (run `paidAt` + 8y, fallback create
+     * time + 8y). The erasure executor must not anonymise/delete this payslip's identity link
+     * until this date passes (RBI / Income Tax payroll retention). Nullable legacy (backfilled).
+     */
+    retainUntilDate: timestamp("retain_until_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     employeeMonthYearIdx: uniqueIndex("payslips_employee_month_year_idx").on(t.employeeId, t.month, t.year),
     orgIdx: index("payslips_org_idx").on(t.orgId),
     payrollRunIdx: index("payslips_payroll_run_idx").on(t.payrollRunId),
+    orgRetainIdx: index("payslips_org_retain_idx").on(t.orgId, t.retainUntilDate),
   }),
 );
 

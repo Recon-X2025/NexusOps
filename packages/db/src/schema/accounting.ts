@@ -139,6 +139,12 @@ export const journalEntries = pgTable(
     postedAt: timestamp("posted_at", { withTimezone: true }),
     financialYear: text("financial_year"),
     period: integer("period"),
+    /**
+     * DPDP retention floor: statutory retention expiry (anchor `date` + 8y). Until this
+     * date passes, the erasure executor must not anonymise/delete this row's identity link
+     * (RBI / Companies Act / Income Tax retention). Nullable for legacy rows (backfilled).
+     */
+    retainUntilDate: timestamp("retain_until_date", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -147,6 +153,7 @@ export const journalEntries = pgTable(
     orgStatusIdx: index("je_org_status_idx").on(t.orgId, t.status),
     orgNumberIdx: uniqueIndex("je_org_number_idx").on(t.orgId, t.number),
     orgFyPeriodIdx: index("je_org_fy_period_idx").on(t.orgId, t.financialYear, t.period),
+    orgRetainIdx: index("je_org_retain_idx").on(t.orgId, t.retainUntilDate),
   }),
 );
 

@@ -1,6 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { getTableColumns } from "drizzle-orm";
 import {
   complianceCalendarItems,
   directors,
@@ -18,6 +19,15 @@ import {
   lte,
   sql,
 } from "@coheronconnect/db";
+import { deriveAadhaar } from "../lib/aadhaar";
+import { panColumns } from "../lib/pan";
+
+/**
+ * Director columns returned from read paths. Raw Aadhaar is no longer stored (dropped in
+ * migration 0037 for DPDP minimisation); only `aadhaarMaskedHash`/`aadhaarMaskedDisplay` and
+ * the raw PAN + its masked aids remain, so this mirrors the table.
+ */
+const directorPublicColumns = getTableColumns(directors);
 
 export const indiaComplianceRouter = router({
   // ── Compliance Calendar ──────────────────────────────────────────────────
@@ -288,7 +298,7 @@ export const indiaComplianceRouter = router({
         const conditions = [eq(directors.orgId, org!.id)];
         if (input.isActive !== undefined) conditions.push(eq(directors.isActive, input.isActive));
         if (input.dinKycStatus) conditions.push(eq(directors.dinKycStatus, input.dinKycStatus));
-        return db.select().from(directors).where(and(...conditions));
+        return db.select(directorPublicColumns).from(directors).where(and(...conditions));
       }),
 
     create: permissionProcedure("secretarial", "write")
@@ -306,19 +316,44 @@ export const indiaComplianceRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { validateDIN, validatePAN } = await import("../lib/india/validators.js");
+        const { validateDIN } = await import("../lib/india/validators.js");
 
         const dinValidation = validateDIN(input.din);
         if (!dinValidation.valid) throw new TRPCError({ code: "BAD_REQUEST", message: dinValidation.error });
 
-        if (input.pan) {
-          const panValidation = validatePAN(input.pan);
-          if (!panValidation.valid) throw new TRPCError({ code: "BAD_REQUEST", message: panValidation.error });
+        // DPDP Aadhaar minimisation: never persist raw Aadhaar. Derive a one-way hash +
+        // visual mask and drop the raw value before insert. (`aadhaar` and `pan` are
+        // intentionally pulled out of the spread below.)
+        const { aadhaar: rawAadhaar, pan: rawPan, ...directorInput } = input;
+        let aadhaarMaskedHash: string | undefined;
+        let aadhaarMaskedDisplay: string | undefined;
+        if (rawAadhaar) {
+          const derived = deriveAadhaar(rawAadhaar);
+          if ("error" in derived) throw new TRPCError({ code: "BAD_REQUEST", message: derived.error });
+          aadhaarMaskedHash = derived.hash;
+          aadhaarMaskedDisplay = derived.masked;
+        }
+
+        // DPDP PAN minimisation: keep raw PAN (statutory filing) + stamp the match hash/display.
+        // panColumns validates and throws on an invalid PAN; surface it as BAD_REQUEST.
+        let panCols: ReturnType<typeof panColumns>;
+        try {
+          panCols = panColumns(rawPan);
+        } catch (e) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: (e as Error).message });
         }
 
         const [director] = await db
           .insert(directors)
-          .values({ orgId: org!.id, ...input, dinKycStatus: "active", isActive: true })
+          .values({
+            orgId: org!.id,
+            ...directorInput,
+            ...panCols,
+            aadhaarMaskedHash,
+            aadhaarMaskedDisplay,
+            dinKycStatus: "active",
+            isActive: true,
+          })
           .returning();
         return director;
       }),
@@ -333,7 +368,7 @@ export const indiaComplianceRouter = router({
         const daysUntilDeadline = Math.ceil(msUntilDeadline / (1000 * 60 * 60 * 24));
 
         const activeDirectors = await db
-          .select()
+          .select(directorPublicColumns)
           .from(directors)
           .where(and(eq(directors.orgId, org!.id), eq(directors.isActive, true), eq(directors.dinKycStatus, "active")));
 

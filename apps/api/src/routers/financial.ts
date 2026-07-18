@@ -40,6 +40,7 @@ import {
   reverseInvoiceJournalEntry,
 } from "../lib/invoice-journal";
 import { currentFY } from "./accounting";
+import { computeRetainUntil } from "../lib/retention";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
 
@@ -243,6 +244,7 @@ export const financialRouter = router({
           status: "pending",
           matchingStatus: "pending",
           invoiceDate,
+          retainUntilDate: computeRetainUntil(invoiceDate),
           dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         }).returning();
         await postInvoiceJournalEntry(tx, {
@@ -330,6 +332,7 @@ export const financialRouter = router({
             status: "pending",
             matchingStatus: "pending",
             invoiceDate,
+            retainUntilDate: computeRetainUntil(invoiceDate),
             dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
           })
           .returning();
@@ -953,6 +956,7 @@ export const financialRouter = router({
             totalTaxAmount: String(totalTax),
             amount: String(totalAmount),
             invoiceDate: input.invoiceDate,
+            retainUntilDate: computeRetainUntil(new Date(input.invoiceDate)),
             status: "confirmed",
             matchingStatus: "pending",
           })

@@ -107,7 +107,21 @@ export const directors = pgTable(
     din: text("din").notNull(),
     fullName: text("full_name").notNull(),
     pan: text("pan"),
-    aadhaar: text("aadhaar"),
+    /**
+     * DPDP PAN minimisation match aids, stored ALONGSIDE raw `pan` (raw is retained for
+     * statutory filing). `panMaskedHash` = peppered HMAC-SHA256 (lib/pii-hash.ts) match key;
+     * `panMaskedDisplay` = `XXXXXX234A` visual mask. Never a substitute for the raw value.
+     */
+    panMaskedHash: text("pan_masked_hash"),
+    panMaskedDisplay: text("pan_masked_display"),
+    /**
+     * DPDP Aadhaar minimisation: raw Aadhaar is never stored (raw column dropped in migration
+     * 0037 after backfill). `aadhaarMaskedHash` is a peppered HMAC-SHA256 of the raw value
+     * (statutory match only, see apps/api lib/pii-hash.ts); `aadhaarMaskedDisplay` is the
+     * `XXXX-XXXX-1234` visual mask. Mirrors `esigners.aadhaarMaskedHash`.
+     */
+    aadhaarMaskedHash: text("aadhaar_masked_hash"),
+    aadhaarMaskedDisplay: text("aadhaar_masked_display"),
     dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
     nationality: text("nationality").notNull().default("Indian"),
     residentialStatus: text("residential_status").notNull().default("resident"),

@@ -12,6 +12,10 @@ build
 apps/docs/html-export
 *.tsbuildinfo
 
+# MS Office lock/temp files
+~$*
+.~lock.*
+
 # Next.js generated type shim (regenerated on every build; do not track)
 next-env.d.ts
 
