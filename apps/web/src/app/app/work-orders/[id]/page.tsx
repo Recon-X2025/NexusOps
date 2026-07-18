@@ -234,7 +234,7 @@ export default function WorkOrderDetailPage() {
           </div>
           <div className="flex gap-2 mt-4 justify-end border-t border-border pt-4">
             <button onClick={() => setIsEditing(false)} className="px-4 py-1.5 text-[12px] font-medium border border-border rounded hover:bg-muted/30">Cancel</button>
-            <button onClick={() => updateWO.mutate({ id: wo.id, ...editValues, estimatedHours: editValues.estimatedHours ? Number(editValues.estimatedHours) : undefined, scheduledStartDate: editValues.scheduledStartDate || null, scheduledEndDate: editValues.scheduledEndDate || null })} className="px-4 py-1.5 text-[12px] font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90" disabled={updateWO.isPending}>{updateWO.isPending ? "Saving..." : "Save Changes"}</button>
+            <button onClick={() => updateWO.mutate({ id: wo.id, ...editValues, estimatedHours: editValues.estimatedHours ? Number(editValues.estimatedHours) : undefined, scheduledStartDate: editValues.scheduledStartDate ? new Date(editValues.scheduledStartDate).toISOString() : null, scheduledEndDate: editValues.scheduledEndDate ? new Date(editValues.scheduledEndDate).toISOString() : null })} className="px-4 py-1.5 text-[12px] font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90" disabled={updateWO.isPending}>{updateWO.isPending ? "Saving..." : "Save Changes"}</button>
           </div>
         </div>
       ) : (
