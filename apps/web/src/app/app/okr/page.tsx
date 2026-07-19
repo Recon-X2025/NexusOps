@@ -42,7 +42,7 @@ export default function OKRPage() {
   const objectivesQ   = trpc.hr.okr.listObjectives.useQuery({ year, cycle: cycle || undefined }, mergeTrpcQueryOpts("hr.okr.listObjectives", { enabled: canView }));
   const employeesQ    = trpc.hr.listEmployees.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.listEmployees", { enabled: canView && showNewObj }));
 
-  const createObjMut  = trpc.hr.okr.createObjective.useMutation({ onSuccess: (data, variables) => { toast.success("Objective created"); setShowNewObj(false); setYear(variables.year); setCycle(variables.cycle); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
+  const createObjMut  = trpc.hr.okr.createObjective.useMutation({ onSuccess: () => { toast.success("Objective created"); setShowNewObj(false); setYear(objForm.year); setCycle(objForm.cycle); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const createKRMut   = trpc.hr.okr.createKeyResult.useMutation({ onSuccess: () => { toast.success("Key Result added"); setShowNewKR(null); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const updateKRMut   = trpc.hr.okr.updateKeyResult.useMutation({ onSuccess: () => { toast.success("Progress updated"); setUpdateKR(null); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
 

@@ -238,8 +238,14 @@ async function bootstrap() {
         return cb(null, true);
       }
 
-      // Reject unknown origins explicitly rather than silently echoing them back.
-      cb(new Error("CORS origin not allowed"), false);
+      // Deny non-allowlisted origins by omitting CORS headers (cb(null, false)),
+      // NOT by passing an Error. Passing an Error makes @fastify/cors reject the
+      // request with a 500, which pre-empts route-level policy — e.g. the
+      // /webhooks/* onRequest hook that returns a deliberate 403 for any browser
+      // Origin. cb(null, false) lets the request proceed sans CORS headers so the
+      // browser blocks the response client-side while server-side handlers keep
+      // their own status semantics.
+      cb(null, false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
