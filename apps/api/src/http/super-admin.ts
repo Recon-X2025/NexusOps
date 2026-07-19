@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
 import jwt from "jsonwebtoken";
 import { getDb, eq } from "@coheronconnect/db";
-import { organizations, gstinRegistry, legalEntities, superAdminAuditLogs } from "@coheronconnect/db/schema";
+import { alias } from "drizzle-orm/pg-core";
+import { organizations, gstinRegistry, legalEntities, superAdminAuditLogs, users } from "@coheronconnect/db/schema";
 import { profileSchema, indiaSchema, itsmSchema } from "../routers/onboarding";
-import { panColumns } from "../lib/pan";
+import { writeWizardData, DuplicateGstinError } from "../services/orgWizardWrite";
 import { z } from "zod";
 
 const adminUpdateSchema = z.object({
@@ -42,13 +43,20 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
     const limit = parseInt(query.limit ?? "50", 10);
     const offset = parseInt(query.offset ?? "0", 10);
 
+    const completedByUser = alias(users, "completed_by_user");
+    const lastEditedByUser = alias(users, "last_edited_by_user");
+
     const rows = await db.select({
       org: organizations,
       gstin: gstinRegistry.gstin,
-      cin: legalEntities.cin
+      cin: legalEntities.cin,
+      completedEmail: completedByUser.email,
+      lastEditedEmail: lastEditedByUser.email
     }).from(organizations)
       .leftJoin(gstinRegistry, eq(gstinRegistry.orgId, organizations.id))
       .leftJoin(legalEntities, eq(legalEntities.orgId, organizations.id))
+      .leftJoin(completedByUser, eq(completedByUser.id, organizations.onboardingCompletedBy))
+      .leftJoin(lastEditedByUser, eq(lastEditedByUser.id, organizations.onboardingLastEditedBy))
       .limit(limit)
       .offset(offset);
 
@@ -61,6 +69,10 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
         suspended: r.org.settings?.suspended ?? false,
         flagged: (r.org.settings as any)?.flagged ?? false,
         flagNote: (r.org.settings as any)?.flagNote,
+        onboardingStep: r.org.onboardingStep,
+        onboardingCompletedAt: r.org.onboardingCompletedAt,
+        onboardingCompletedBy: r.completedEmail,
+        onboardingLastEditedBy: r.lastEditedEmail,
         profile: {
           industry: r.org.industry,
           companySize: r.org.companySize,
@@ -93,13 +105,21 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
   app.get("/orgs/:orgId", async (req, reply) => {
     const db = getDb();
     const { orgId } = req.params as { orgId: string };
+
+    const completedByUser = alias(users, "completed_by_user");
+    const lastEditedByUser = alias(users, "last_edited_by_user");
+
     const rows = await db.select({
       org: organizations,
       gstin: gstinRegistry.gstin,
-      cin: legalEntities.cin
+      cin: legalEntities.cin,
+      completedEmail: completedByUser.email,
+      lastEditedEmail: lastEditedByUser.email
     }).from(organizations)
       .leftJoin(gstinRegistry, eq(gstinRegistry.orgId, organizations.id))
       .leftJoin(legalEntities, eq(legalEntities.orgId, organizations.id))
+      .leftJoin(completedByUser, eq(completedByUser.id, organizations.onboardingCompletedBy))
+      .leftJoin(lastEditedByUser, eq(lastEditedByUser.id, organizations.onboardingLastEditedBy))
       .where(eq(organizations.id, orgId))
       .limit(1);
 
@@ -115,6 +135,10 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
         suspended: r.org.settings?.suspended ?? false,
         flagged: (r.org.settings as any)?.flagged ?? false,
         flagNote: (r.org.settings as any)?.flagNote,
+        onboardingStep: r.org.onboardingStep,
+        onboardingCompletedAt: r.org.onboardingCompletedAt,
+        onboardingCompletedBy: r.completedEmail,
+        onboardingLastEditedBy: r.lastEditedEmail,
         profile: {
           industry: r.org.industry,
           companySize: r.org.companySize,
@@ -154,75 +178,21 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
     }
     const input = parsed.data;
 
-    // Fetch before state for audit
-    const beforeState = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
-    const beforeOrg = beforeState[0];
-    if (!beforeOrg) return reply.status(404).send({ error: "Organization not found" });
-
-    if (input.profile) {
-      await db.update(organizations).set({
-        industry: input.profile.industry,
-        companySize: input.profile.size,
-        city: input.profile.city,
-        state: input.profile.state,
-        website: input.profile.website,
-        supportEmail: input.profile.supportEmail,
-        updatedAt: new Date()
-      }).where(eq(organizations.id, orgId));
-    }
-
-    if (input.itsm) {
-      await db.update(organizations).set({
-        slaP1Hours: input.itsm.p1,
-        slaP2Hours: input.itsm.p2,
-        slaP3Hours: input.itsm.p3,
-        slaP4Hours: input.itsm.p4,
-        updatedAt: new Date()
-      }).where(eq(organizations.id, orgId));
-    }
-
-    if (input.india) {
-      // DPDP: keep raw PAN (entity PAN, needed for filing) + stamp match hash/display.
-      await db.update(organizations).set({
-        ...panColumns(input.india.pan),
-        tan: input.india.tan,
-        epfCode: (input.india as any).pf,
-        primaryStateCode: input.india.stateCode,
-        updatedAt: new Date()
-      }).where(eq(organizations.id, orgId));
-      
-      if (input.india.gstin || input.india.stateCode) {
-        const gstinExisting = await db.select().from(gstinRegistry).where(eq(gstinRegistry.orgId, orgId)).limit(1);
-        if (gstinExisting.length > 0) {
-          const updateData: any = {};
-          if (input.india.gstin) updateData.gstin = input.india.gstin;
-          if (input.india.stateCode) updateData.stateCode = input.india.stateCode;
-          await db.update(gstinRegistry).set(updateData).where(eq(gstinRegistry.orgId, orgId));
-        } else if (input.india.gstin && input.india.stateCode) {
-          await db.insert(gstinRegistry).values({ orgId, gstin: input.india.gstin, legalName: beforeOrg.name, stateCode: input.india.stateCode, isPrimary: true });
-        }
+    try {
+      await writeWizardData(db, orgId, input, {
+        type: "mac_operator",
+        id: (req as any).macOperator
+      });
+      return { ok: true, message: "Organization updated successfully" };
+    } catch (e: any) { // any-ratchet-allow: custom postgres error handling
+      if (e instanceof DuplicateGstinError) {
+        return reply.status(400).send({
+          error: "Validation failed",
+          message: e.message
+        });
       }
-
-      const leExisting = await db.select().from(legalEntities).where(eq(legalEntities.orgId, orgId)).limit(1);
-      if (leExisting.length > 0) {
-        await db.update(legalEntities).set({ cin: input.india.cin, updatedAt: new Date() }).where(eq(legalEntities.orgId, orgId));
-      } else {
-        await db.insert(legalEntities).values({ orgId, name: beforeOrg.name, code: "HQ", cin: input.india.cin });
-      }
+      throw e;
     }
-
-    const afterState = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
-    const afterOrg = afterState[0];
-
-    await db.insert(superAdminAuditLogs).values({
-      actorEmail: (req as any).macOperator,
-      orgId,
-      action: "UPDATE_WIZARD_DATA",
-      beforeJson: beforeOrg,
-      afterJson: afterOrg
-    });
-
-    return { ok: true, message: "Organization updated successfully" };
   });
 
   // 5. Endpoint: POST flag
@@ -276,5 +246,30 @@ export const superAdminRoutes: FastifyPluginAsync = async (app) => {
     });
 
     return { ok: true, message: "Organization suspended" };
+  });
+
+  // 7. Endpoint: GET Audit Logs
+  const auditLogsQuerySchema = z.object({
+    orgId: z.string().uuid().optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
+  });
+
+  app.get("/audit-logs", async (req, reply) => {
+    const db = getDb();
+    const parsed = auditLogsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Validation failed", details: parsed.error.flatten() });
+    }
+    const { orgId, limit, offset } = parsed.data;
+
+    const { desc } = await import("@coheronconnect/db");
+
+    let query = db.select().from(superAdminAuditLogs);
+    if (orgId) {
+      query = query.where(eq(superAdminAuditLogs.orgId, orgId)) as any;
+    }
+    const logs = await query.orderBy(desc(superAdminAuditLogs.createdAt)).limit(limit).offset(offset);
+    return { data: logs };
   });
 };

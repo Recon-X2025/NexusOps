@@ -274,6 +274,20 @@
       "when": 1784296700000,
       "tag": "0038_chief_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784456496184,
+      "tag": "0039_lively_leper_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784462653257,
+      "tag": "0040_great_paladin",
+      "breakpoints": true
     }
   ]
 }

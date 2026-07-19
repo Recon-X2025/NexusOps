@@ -1,13 +1,6 @@
-/**
- * Onboarding — first-run "getting started" checklist.
- *
- * Read-only: progress is *derived* from existing data (user/ticket/invoice/COA
- * counts), so there are no new tables and nothing to keep in sync. A brand-new
- * pilot org lands on the Command Center and sees this checklist; each item deep-
- * links into the module or the existing /app/onboarding-wizard.
- */
 import { router, protectedProcedure } from "../lib/trpc";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { panColumns } from "../lib/pan";
 import {
   users,
@@ -18,7 +11,10 @@ import {
   eq,
   and,
   count,
+  sql,
 } from "@coheronconnect/db";
+
+import { writeWizardData, DuplicateGstinError } from "../services/orgWizardWrite";
 
 export const profileSchema = z.object({
   displayName: z.string().min(1),
@@ -49,7 +45,8 @@ export const itsmSchema = z.object({
 export const saveWizardDataInputSchema = z.object({
   profile: profileSchema.optional(),
   india: indiaSchema.optional(),
-  itsm: itsmSchema.optional()
+  itsm: itsmSchema.optional(),
+  step: z.number().int().positive().optional(),
 });
 
 export type OnboardingItemKey =
@@ -154,72 +151,102 @@ export const onboardingRouter = router({
   saveWizardData: protectedProcedure
     .input(saveWizardDataInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
+      const { db, org, user } = ctx;
       const orgId = org!.id;
 
-      if (input.profile) {
-        await db.update(organizations).set({
-          name: input.profile.displayName,
-          industry: input.profile.industry,
-          companySize: input.profile.size,
-          city: input.profile.city,
-          state: input.profile.state,
-          website: input.profile.website,
-          supportEmail: input.profile.supportEmail,
-          updatedAt: new Date(),
-        }).where(eq(organizations.id, orgId));
-      }
-
-      if (input.india) {
-        // Upsert gstin
-        const { gstinRegistry } = await import("@coheronconnect/db/schema");
-        const existing = await db.select().from(gstinRegistry).where(eq(gstinRegistry.orgId, orgId)).limit(1);
-        if (existing.length > 0) {
-          await db.update(gstinRegistry).set({ gstin: input.india.gstin, updatedAt: new Date() }).where(eq(gstinRegistry.orgId, orgId));
-        } else {
-          await db.insert(gstinRegistry).values({
-            orgId,
-            gstin: input.india.gstin,
-            legalName: org!.name,
-            stateCode: input.india.stateCode,
+      try {
+        await writeWizardData(db, orgId, input, {
+          type: "tenant_user",
+          id: user!.id
+        });
+        return { success: true };
+      } catch (e: any) { // any-ratchet-allow: custom postgres error handling
+        if (e instanceof DuplicateGstinError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message
           });
         }
-        
-        // Update org compliance fields. DPDP: keep raw PAN (entity PAN, needed for filing) and
-        // stamp the match hash/display via panColumns.
-        await db.update(organizations).set({
-          ...panColumns(input.india.pan),
-          tan: input.india.tan,
-          epfCode: input.india.pf,
-          primaryStateCode: input.india.stateCode,
-          updatedAt: new Date(),
-        }).where(eq(organizations.id, orgId));
-
-        // Upsert legal_entity for CIN (assuming one primary legal entity per org for simplicity in wizard)
-        const { legalEntities } = await import("@coheronconnect/db/schema");
-        const leExisting = await db.select().from(legalEntities).where(eq(legalEntities.orgId, orgId)).limit(1);
-        if (leExisting.length > 0) {
-          await db.update(legalEntities).set({ cin: input.india.cin, updatedAt: new Date() }).where(eq(legalEntities.orgId, orgId));
-        } else {
-          await db.insert(legalEntities).values({
-            orgId,
-            name: org!.name,
-            code: "HQ",
-            cin: input.india.cin,
-          });
-        }
+        throw e;
       }
+    }),
 
-      if (input.itsm) {
-        await db.update(organizations).set({
-          slaP1Hours: input.itsm.p1,
-          slaP2Hours: input.itsm.p2,
-          slaP3Hours: input.itsm.p3,
-          slaP4Hours: input.itsm.p4,
-          updatedAt: new Date(),
-        }).where(eq(organizations.id, orgId));
-      }
-
+  /**
+   * Complete onboarding wizard.
+   */
+  completeWizard: protectedProcedure
+    .input(z.object({}))
+    .mutation(async ({ ctx }) => {
+      const { db, org, user } = ctx;
+      const orgId = org!.id;
+      await db.update(organizations).set({
+        onboardingStep: 7,
+        onboardingCompletedAt: new Date(),
+        onboardingCompletedBy: user!.id,
+        updatedAt: new Date(),
+      }).where(eq(organizations.id, orgId));
       return { success: true };
     }),
+
+  /**
+   * Retrieve current onboarding wizard state.
+   */
+  getWizardData: protectedProcedure.query(async ({ ctx }) => {
+    const { db, org } = ctx;
+    const orgId = org!.id;
+
+    const [orgRow] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+
+    if (!orgRow) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Organisation not found",
+      });
+    }
+
+    const { gstinRegistry, legalEntities } = await import("@coheronconnect/db/schema");
+    const [gstinRow] = await db
+      .select()
+      .from(gstinRegistry)
+      .where(eq(gstinRegistry.orgId, orgId))
+      .limit(1);
+
+    const [leRow] = await db
+      .select()
+      .from(legalEntities)
+      .where(eq(legalEntities.orgId, orgId))
+      .limit(1);
+
+    return {
+      profile: {
+        displayName: orgRow.name,
+        industry: orgRow.industry ?? "",
+        size: orgRow.companySize ?? "",
+        city: orgRow.city ?? "",
+        state: orgRow.state ?? "",
+        website: orgRow.website ?? "",
+        supportEmail: orgRow.supportEmail ?? "",
+      },
+      india: {
+        gstin: gstinRow?.gstin ?? "",
+        pan: orgRow.pan ?? "",
+        cin: leRow?.cin ?? "",
+        tan: orgRow.tan ?? "",
+        pf: orgRow.epfCode ?? "",
+        stateCode: orgRow.primaryStateCode ?? "",
+      },
+      itsm: {
+        p1: orgRow.slaP1Hours ?? 4,
+        p2: orgRow.slaP2Hours ?? 8,
+        p3: orgRow.slaP3Hours ?? 24,
+        p4: orgRow.slaP4Hours ?? 72,
+      },
+      onboardingStep: orgRow.onboardingStep ?? 1,
+      onboardingCompletedAt: orgRow.onboardingCompletedAt,
+    };
+  }),
 });

@@ -233,20 +233,13 @@ async function bootstrap() {
       );
       if (isAllowedExplicit) return cb(null, true);
 
-      // Allow localhost / 127.0.0.1 on any port (all environments) — the SPA
-      // fetches the API from a local dev origin.
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      // Allow localhost / 127.0.0.1 on any port only in non-production environments
+      if (process.env["NODE_ENV"] !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return cb(null, true);
       }
 
-      // Deny non-allowlisted origins by omitting CORS headers (cb(null, false)),
-      // NOT by passing an Error. Passing an Error makes @fastify/cors reject the
-      // request with a 500, which pre-empts route-level policy — e.g. the
-      // /webhooks/* onRequest hook that returns a deliberate 403 for any browser
-      // Origin. cb(null, false) lets the request proceed sans CORS headers so the
-      // browser blocks the response client-side while server-side handlers keep
-      // their own status semantics.
-      cb(null, false);
+      // Reject unknown origins explicitly rather than silently echoing them back.
+      cb(new Error("CORS origin not allowed"), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
@@ -711,7 +704,7 @@ async function bootstrap() {
 
   // ── Super-Admin REST API ──────────────────────────────────────────────────
   const { superAdminRoutes } = await import("./http/super-admin.js");
-  fastify.register(superAdminRoutes, { prefix: "/api/super-admin" });
+  fastify.register(superAdminRoutes, { prefix: "/super-admin" });
 
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {

@@ -37,6 +37,7 @@
     "db:seed:modules": "tsx src/seed-modules.ts",
     "db:seed:smb": "tsx src/seed-smb-analytics.ts",
     "db:clean": "tsx src/clean.ts",
+    "db:check-schema": "tsx src/check_db_schema.ts",
     "check-db": "tsx ../../scratch.ts",
     "backfill:sla": "tsx src/scripts/backfill-sla-deadlines.ts",
     "db:studio": "drizzle-kit studio",

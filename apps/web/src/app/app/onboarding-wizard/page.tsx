@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2, Circle, Zap, Building2, Users, Shield, BookOpen, Globe,
@@ -370,8 +370,10 @@ function StepNav({ onBack, onNext, canNext = true, nextLabel = "Continue", loadi
 
 // ── Main wizard ────────────────────────────────────────────────────────────
 export default function OnboardingWizardPage() {
+  const router = useRouter();
   const [stepIdx, setStepIdx] = useState(0);
   const [applying, setApplying] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   const [orgData, setOrgData] = useState<OrgData>({
     displayName: "", industry: "", size: "", city: "", state: "KA", website: "", supportEmail: "",
@@ -384,12 +386,185 @@ export default function OnboardingWizardPage() {
 
   const [sla, setSla] = useState({ p1: "4", p2: "8", p3: "24", p4: "72" });
 
+  const { data, isLoading } = trpc.onboarding.getWizardData.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
   const utils = trpc.useUtils();
   const seedCoaMut      = trpc.accounting.coa.seed.useMutation();
   const seedHolidaysMut = trpc.hr.holidays.seedIndiaHolidays.useMutation();
   const saveWizardMut   = trpc.onboarding.saveWizardData.useMutation();
+  const completeWizardMut = trpc.onboarding.completeWizard.useMutation();
 
   const currentStep = STEPS[stepIdx]!;
+
+  useEffect(() => {
+    if (data && !initialized) {
+      if (data.profile) {
+        setOrgData({
+          displayName: data.profile.displayName ?? "",
+          industry: data.profile.industry ?? "",
+          size: data.profile.size ?? "",
+          city: data.profile.city ?? "",
+          state: data.profile.state ?? "KA",
+          website: data.profile.website ?? "",
+          supportEmail: data.profile.supportEmail ?? "",
+        });
+      }
+      if (data.india) {
+        setIndiaData(p => ({
+          ...p,
+          gstin: data.india.gstin ?? "",
+          pan: data.india.pan ?? "",
+          cin: data.india.cin ?? "",
+          tan: data.india.tan ?? "",
+          pf: data.india.pf ?? "",
+          stateCode: data.india.stateCode ?? "KA",
+        }));
+      }
+      if (data.itsm) {
+        setSla({
+          p1: String(data.itsm.p1 ?? 4),
+          p2: String(data.itsm.p2 ?? 8),
+          p3: String(data.itsm.p3 ?? 24),
+          p4: String(data.itsm.p4 ?? 72),
+        });
+      }
+      if (!data.onboardingCompletedAt) {
+        setStepIdx(Math.max(0, (data.onboardingStep ?? 1) - 1));
+      }
+      setInitialized(true);
+    }
+  }, [data, initialized]);
+
+  if (isLoading || (data && !initialized)) {
+    return (
+      <div className="flex h-[80vh] w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (data?.onboardingCompletedAt) {
+    return (
+      <div className="min-h-full flex items-start justify-center py-8 px-4">
+        <div className="w-full max-w-2xl bg-card border border-border rounded-2xl p-8 shadow-sm flex flex-col gap-6">
+          <div className="flex items-center gap-3 pb-4 border-b border-border">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-700">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-h4 font-bold text-foreground">Setup Completed</h2>
+              <p className="text-body-xs text-muted-foreground">
+                This workspace completed onboarding on {new Date(data.onboardingCompletedAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="col-span-2">
+              <h3 className="text-body-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-primary" /> Organisation Profile
+              </h3>
+              <div className="grid grid-cols-2 gap-3 bg-muted/20 p-4 rounded-xl text-body-xs">
+                <div>
+                  <span className="text-muted-foreground block">Company Name</span>
+                  <span className="font-medium text-foreground">{orgData.displayName}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Industry</span>
+                  <span className="font-medium text-foreground">{orgData.industry}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Company Size</span>
+                  <span className="font-medium text-foreground">{orgData.size} employees</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Location</span>
+                  <span className="font-medium text-foreground">{orgData.city}, {orgData.state}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Website</span>
+                  <span className="font-medium text-foreground">{orgData.website}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Support Email</span>
+                  <span className="font-medium text-foreground">{orgData.supportEmail}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-span-2">
+              <h3 className="text-body-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-primary" /> India Compliance
+              </h3>
+              <div className="grid grid-cols-2 gap-3 bg-muted/20 p-4 rounded-xl text-body-xs">
+                <div>
+                  <span className="text-muted-foreground block">GSTIN</span>
+                  <span className="font-medium text-foreground font-mono">{indiaData.gstin}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">PAN</span>
+                  <span className="font-medium text-foreground font-mono">{indiaData.pan}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">CIN</span>
+                  <span className="font-medium text-foreground font-mono">{indiaData.cin}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">TAN (TDS)</span>
+                  <span className="font-medium text-foreground font-mono">{indiaData.tan}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-muted-foreground block">EPF Establishment Code</span>
+                  <span className="font-medium text-foreground font-mono">{indiaData.pf}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-span-2">
+              <h3 className="text-body-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" /> ITSM Configuration
+              </h3>
+              <div className="grid grid-cols-4 gap-3 bg-muted/20 p-4 rounded-xl text-body-xs">
+                <div>
+                  <span className="text-muted-foreground block">P1</span>
+                  <span className="font-semibold text-red-600">{sla.p1} hrs</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">P2</span>
+                  <span className="font-semibold text-orange-600">{sla.p2} hrs</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">P3</span>
+                  <span className="font-semibold text-yellow-600">{sla.p3} hrs</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">P4</span>
+                  <span className="font-semibold text-muted-foreground">{sla.p4} hrs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
+            <a
+              href="/app/settings"
+              className="text-body-sm text-primary hover:underline font-medium"
+            >
+              Edit in Settings
+            </a>
+            <button
+              onClick={() => router.push("/app/dashboard")}
+              className="px-5 py-2 bg-primary text-white rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   async function handleProfileNext() {
     setApplying(true);
@@ -404,6 +579,7 @@ export default function OnboardingWizardPage() {
           website: orgData.website,
           supportEmail: orgData.supportEmail,
         },
+        step: 3,
       });
       next();
     } catch (e: any) {
@@ -425,6 +601,7 @@ export default function OnboardingWizardPage() {
           pf: indiaData.pf,
           stateCode: indiaData.stateCode,
         },
+        step: 4,
       });
       next();
     } catch (e: any) {
@@ -444,6 +621,7 @@ export default function OnboardingWizardPage() {
           p3: parseInt(sla.p3, 10),
           p4: parseInt(sla.p4, 10),
         },
+        step: 6,
       });
       next();
     } catch (e: any) {
@@ -458,6 +636,7 @@ export default function OnboardingWizardPage() {
     try {
       if (indiaData.seedCoa)      await seedCoaMut.mutateAsync();
       if (indiaData.seedHolidays) await seedHolidaysMut.mutateAsync({ year: new Date().getFullYear() });
+      await completeWizardMut.mutateAsync();
       toast.success("Setup applied successfully!");
     } catch (e: any) {
       toast.error(e?.message ?? "Setup failed");

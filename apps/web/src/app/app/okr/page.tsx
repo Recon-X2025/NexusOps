@@ -42,7 +42,7 @@ export default function OKRPage() {
   const objectivesQ   = trpc.hr.okr.listObjectives.useQuery({ year, cycle: cycle || undefined }, mergeTrpcQueryOpts("hr.okr.listObjectives", { enabled: canView }));
   const employeesQ    = trpc.hr.listEmployees.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.listEmployees", { enabled: canView && showNewObj }));
 
-  const createObjMut  = trpc.hr.okr.createObjective.useMutation({ onSuccess: () => { toast.success("Objective created"); setShowNewObj(false); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
+  const createObjMut  = trpc.hr.okr.createObjective.useMutation({ onSuccess: (data, variables) => { toast.success("Objective created"); setShowNewObj(false); setYear(variables.year); setCycle(variables.cycle); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const createKRMut   = trpc.hr.okr.createKeyResult.useMutation({ onSuccess: () => { toast.success("Key Result added"); setShowNewKR(null); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
   const updateKRMut   = trpc.hr.okr.updateKeyResult.useMutation({ onSuccess: () => { toast.success("Progress updated"); setUpdateKR(null); void utils.hr.okr.listObjectives.invalidate(); }, onError: (e: any) => toast.error(e?.message ?? "Failed") });
 
@@ -140,7 +140,7 @@ export default function OKRPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Cycle</label><select value={objForm.cycle} onChange={e => setObjForm(f => ({ ...f, cycle: e.target.value as any }))} className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none">{CYCLES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}</select></div>
                 <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Year</label><input type="number" value={objForm.year} onChange={e => setObjForm(f => ({ ...f, year: +e.target.value }))} className="w-full px-3 py-2 text-[12px] border border-border rounded outline-none" /></div>
-                <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Owner</label><select value={objForm.ownerId} onChange={e => setObjForm(f => ({ ...f, ownerId: e.target.value }))} className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none"><option value="">Select…</option>{((employeesQ.data as any)?.items ?? []).map((emp: any) => <option key={emp.userId ?? emp.id} value={emp.userId ?? emp.id}>{emp.firstName} {emp.lastName}</option>)}</select></div>
+                <div><label className="text-[11px] font-medium text-muted-foreground block mb-1">Owner</label><select value={objForm.ownerId} onChange={e => setObjForm(f => ({ ...f, ownerId: e.target.value }))} className="w-full px-3 py-2 text-[12px] border border-border rounded bg-background outline-none"><option value="">Select…</option>{(Array.isArray(employeesQ.data) ? employeesQ.data : []).map((emp: any) => <option key={emp.userId ?? emp.id} value={emp.userId ?? emp.id}>{emp.name || "Unknown"}</option>)}</select></div>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 mt-4">
