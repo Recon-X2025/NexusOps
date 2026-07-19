@@ -128,6 +128,12 @@ Workflow implementations live in `apps/api/src/workflows/*.ts` (one file per loo
   nodes, BFS from the TRIGGER node.
 - **`dpdpSweepWorkflow`** — DPDP consent-expiry + breach + DSR dispatch. Runs on a Temporal Schedule
   (`dpdp-sweep-schedule`, default `1h`, overlap=SKIP) that POSTs to the API's `/internal/dpdp/sweep`.
+  **Prod caveat:** `apps/worker` (and Temporal) are **not** deployed on Vultr — CI publishes only web+api
+  images and the Vultr compose has no `worker`/`temporal` service — so this schedule never registers in
+  prod. The endpoint is instead driven by a `dpdp-sweeper` sidecar (`curlimages/curl`) in
+  `docker-compose.vultr-test.yml` / `docker-compose.prod.yml`, which POSTs `/internal/dpdp/sweep` every
+  `DPDP_SWEEP_INTERVAL_SECONDS` (default 3600s) over the internal Docker network (no token needed — the
+  `/internal` guard admits Docker-network callers). Restore the worker to retire the sidecar.
 
 ### 4.3 Notification delivery (verified state)
 - **In-app**: synchronous write to `notifications` (`apps/api/src/lib/notifications.ts`).

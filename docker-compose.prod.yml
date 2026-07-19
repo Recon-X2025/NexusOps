@@ -96,6 +96,33 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── DPDP sweep driver ───────────────────────────────────────────────────────
+  # The Temporal worker (apps/worker) is not deployed here, so its
+  # dpdp-sweep-schedule never registers. This sidecar drives the same work by
+  # POSTing the API's internal sweep endpoint on a fixed cadence. On the default
+  # compose network the API's /internal guard (index.ts) admits it without a
+  # token. Interval is DPDP_SWEEP_INTERVAL_SECONDS (default 3600 = 1h).
+  dpdp-sweeper:
+    image: curlimages/curl:8.11.1
+    restart: unless-stopped
+    environment:
+      SWEEP_INTERVAL_SECONDS: ${DPDP_SWEEP_INTERVAL_SECONDS:-3600}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          sleep "$$SWEEP_INTERVAL_SECONDS"
+          if curl -fsS -m 300 -X POST http://api:3001/internal/dpdp/sweep -H 'Content-Type: application/json' -d '{}'; then
+            echo "[dpdp-sweeper] sweep ok $$(date -u +%FT%TZ)"
+          else
+            echo "[dpdp-sweeper] sweep failed $$(date -u +%FT%TZ)"
+          fi
+        done
+    depends_on:
+      api:
+        condition: service_healthy
+
   minio:
     image: minio/minio:latest
     restart: unless-stopped
