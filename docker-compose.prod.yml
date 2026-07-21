@@ -31,6 +31,12 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
     env_file: .env.production
+    environment:
+      # KMS envelope encryption (G15). The API refuses to boot in production
+      # unless KMS is explicitly configured. Default to APP_SECRET-derived local
+      # key wrapping so a deploy without a managed KMS still starts. To use a real
+      # KMS, set KMS_PROVIDER=aws + AWS_KMS_KEY_ID in .env.production (those win).
+      ALLOW_LOCAL_KMS_IN_PROD: ${ALLOW_LOCAL_KMS_IN_PROD:-true}
     depends_on:
       postgres:
         condition: service_healthy
