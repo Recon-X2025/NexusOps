@@ -47,6 +47,12 @@ services:
       # so a host that hasn't been updated still boots. The ${VAR:-} form is empty if
       # neither is set — the guard then fails fast, as intended.
       PII_HASH_PEPPER: ${PII_HASH_PEPPER:-}
+      # KMS envelope encryption (G15). The API boot guard (assertKmsConfigured,
+      # apps/api/src/services/kms.ts) exits(1) in production unless KMS is configured.
+      # Default to APP_SECRET-derived local key wrapping so a deploy without a managed
+      # KMS still boots. To use a real KMS, set KMS_PROVIDER=aws + AWS_KMS_KEY_ID in
+      # .env.production (those override this default).
+      ALLOW_LOCAL_KMS_IN_PROD: ${ALLOW_LOCAL_KMS_IN_PROD:-true}
     env_file:
       - .env.production
     networks:
