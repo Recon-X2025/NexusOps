@@ -1,10 +1,15 @@
 import { integrations, eq, and, type Db } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "../encryption";
+import { decryptIntegrationConfigEnvelope } from "../encryption";
 import type { IntegrationAdapter } from "./types";
 import { whatsAppAiSensyAdapter } from "./whatsapp-aisensy";
 import { smsMsg91Adapter } from "./sms-msg91";
 import { razorpayAdapter } from "./razorpay";
 import { clearTaxGstAdapter } from "./cleartax-gst";
+import { epfoEcrAdapter } from "./epfo-ecr";
+import { esicReturnAdapter } from "./esic-return";
+import { ptChallanAdapter } from "./pt-challan";
+import { nicEwayBillAdapter } from "./nic-ewaybill";
+import { mca21Adapter } from "./mca21";
 import { googleWorkspaceAdapter } from "./google-workspace";
 import { microsoft365Adapter } from "./microsoft-365";
 import { slackAdapter } from "./slack";
@@ -22,6 +27,11 @@ const adapters: Record<string, IntegrationAdapter<any, any>> = {
   sms_msg91: smsMsg91Adapter,
   razorpay: razorpayAdapter,
   cleartax_gst: clearTaxGstAdapter,
+  epfo_ecr: epfoEcrAdapter,
+  esic_return: esicReturnAdapter,
+  pt_challan: ptChallanAdapter,
+  nic_ewaybill: nicEwayBillAdapter,
+  mca21: mca21Adapter,
   google_workspace: googleWorkspaceAdapter,
   microsoft_365: microsoft365Adapter,
   slack: slackAdapter,
@@ -58,7 +68,7 @@ export async function resolveConnectedConfig(
     .where(and(eq(integrations.orgId, orgId), eq(integrations.provider, provider)));
   if (!row || row.status !== "connected" || !row.configEncrypted) return null;
   try {
-    return decryptIntegrationConfig(row.configEncrypted);
+    return await decryptIntegrationConfigEnvelope(row.configEncrypted);
   } catch (err) {
     console.error(`[integrations] Failed to decrypt ${provider} config for org ${orgId}:`, err);
     return null;

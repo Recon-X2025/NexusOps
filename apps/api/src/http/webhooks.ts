@@ -8,7 +8,7 @@ import {
   eq,
   and,
 } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "../services/encryption";
+import { decryptIntegrationConfigEnvelope } from "../services/encryption";
 import { getEsignProvider } from "../services/esign";
 import { getIntegrationAdapter } from "../services/integrations/registry";
 
@@ -95,7 +95,9 @@ function ipMatches(ip: string, allowlist: readonly string[]): boolean {
 
 const ALLOWLISTS: Record<string, readonly string[]> = {};
 
-function getAllowlist(provider: "emudhra" | "aisensy" | "razorpay"): readonly string[] {
+function getAllowlist(
+  provider: "emudhra" | "docusign" | "aisensy" | "razorpay",
+): readonly string[] {
   if (!(provider in ALLOWLISTS)) {
     ALLOWLISTS[provider] = parseAllowlist(`WEBHOOK_ALLOWLIST_${provider.toUpperCase()}`);
   }
@@ -158,7 +160,7 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
   });
 
   const enforceAllowlist = (
-    provider: "emudhra" | "aisensy" | "razorpay",
+    provider: "emudhra" | "docusign" | "aisensy" | "razorpay",
     req: FastifyRequest,
     reply: import("fastify").FastifyReply,
   ): boolean => {
@@ -172,18 +174,27 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
     return true;
   };
 
-  // ── eMudhra e-sign callbacks ────────────────────────────────────────────
-  fastify.post("/webhooks/esign/emudhra", async (req, reply) => {
-    if (!enforceAllowlist("emudhra", req, reply)) return;
+  /**
+   * Provider-generic e-sign callback handler. Both eMudhra and DocuSign post a
+   * JSON body carrying the envelopeId; the per-provider adapter owns signature
+   * verification + status normalisation. Idempotent: re-receiving the same
+   * terminal event re-writes the same status + appends an audit row.
+   */
+  const handleEsignCallback = async (
+    provider: "emudhra" | "docusign",
+    req: FastifyRequest,
+    reply: import("fastify").FastifyReply,
+  ) => {
+    if (!enforceAllowlist(provider, req, reply)) return;
     const raw = (req as RawBodyRequest).rawBody ?? "";
     if (!raw) return reply.status(400).send({ error: "Empty body" });
-    let envelopeId: string | undefined;
+    let probe: { envelopeId?: string; data?: { envelopeId?: string } };
     try {
-      const probe = JSON.parse(raw) as { envelopeId?: string };
-      envelopeId = probe.envelopeId;
+      probe = JSON.parse(raw) as { envelopeId?: string; data?: { envelopeId?: string } };
     } catch {
       return reply.status(400).send({ error: "Invalid JSON" });
     }
+    const envelopeId = probe.envelopeId ?? probe.data?.envelopeId;
     if (!envelopeId) return reply.status(400).send({ error: "Missing envelopeId" });
 
     const db = getDb();
@@ -200,7 +211,7 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
       .where(
         and(
           eq(integrations.orgId, reqRow.orgId),
-          eq(integrations.provider, "emudhra"),
+          eq(integrations.provider, provider),
           eq(integrations.status, "connected"),
         ),
       )
@@ -208,19 +219,19 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
     if (!integration?.configEncrypted) {
       return reply.status(412).send({ error: "Integration not configured" });
     }
-    const provider = getEsignProvider("emudhra");
-    if (!provider?.verifyCallback) {
+    const esign = getEsignProvider(provider);
+    if (!esign?.verifyCallback) {
       return reply.status(500).send({ error: "Provider missing verifyCallback" });
     }
 
-    const config = decryptIntegrationConfig(integration.configEncrypted);
+    const config = await decryptIntegrationConfigEnvelope(integration.configEncrypted);
     const headers = normalizeHeaders(req.headers);
 
     let parsed: { envelopeId: string; status: "sent" | "viewed" | "signed" | "declined" | "expired" | "voided" | "completed" };
     try {
-      parsed = await provider.verifyCallback(config, raw, headers);
+      parsed = await esign.verifyCallback(config, raw, headers);
     } catch (e) {
-      req.log.warn({ err: e, envelopeId }, "[webhook] eMudhra signature verification failed");
+      req.log.warn({ err: e, envelopeId, provider }, "[webhook] e-sign signature verification failed");
       return reply.status(401).send({ error: "Invalid signature" });
     }
 
@@ -243,7 +254,15 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
     });
 
     return { ok: true };
-  });
+  };
+
+  // ── e-sign callbacks (eMudhra + DocuSign) ────────────────────────────────
+  fastify.post("/webhooks/esign/emudhra", (req, reply) =>
+    handleEsignCallback("emudhra", req, reply),
+  );
+  fastify.post("/webhooks/esign/docusign", (req, reply) =>
+    handleEsignCallback("docusign", req, reply),
+  );
 
   // ── WhatsApp (AiSensy) inbound + delivery status ─────────────────────────
   fastify.post<{ Params: { integrationId: string } }>(
@@ -273,7 +292,7 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
       if (!adapter?.receiveWebhook) {
         return reply.status(500).send({ error: "Adapter missing receiveWebhook" });
       }
-      const config = decryptIntegrationConfig(integration.configEncrypted);
+      const config = await decryptIntegrationConfigEnvelope(integration.configEncrypted);
       const headers = normalizeHeaders(req.headers);
 
       try {
@@ -320,7 +339,7 @@ export async function registerWebhookRoutes(fastify: FastifyInstance): Promise<v
       if (!adapter?.receiveWebhook) {
         return reply.status(500).send({ error: "Adapter missing receiveWebhook" });
       }
-      const config = decryptIntegrationConfig(integration.configEncrypted);
+      const config = await decryptIntegrationConfigEnvelope(integration.configEncrypted);
       const headers = normalizeHeaders(req.headers);
 
       let env;

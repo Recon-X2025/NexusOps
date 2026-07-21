@@ -93,3 +93,4 @@ tests/chaos-vertical/results/
 
 # Playwright MCP runtime artifacts
 .playwright-mcp/
+qa-run/

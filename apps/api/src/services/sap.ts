@@ -1,5 +1,5 @@
 import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and, type DbOrTx } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "./encryption";
+import { decryptIntegrationConfigEnvelope } from "./encryption";
 
 interface SapConfig {
   baseUrl: string;
@@ -53,7 +53,9 @@ export async function syncSapToNexus(db: DbOrTx, orgId: string, integrationId: s
 
   if (!integration?.configEncrypted) throw new Error("Integration not found or missing config");
 
-  const config = decryptIntegrationConfig(integration.configEncrypted) as unknown as SapConfig;
+  const config = (await decryptIntegrationConfigEnvelope(
+    integration.configEncrypted,
+  )) as unknown as SapConfig;
   const incidents = await fetchSapIncidents(config);
 
   const [defaultStatus] = await db

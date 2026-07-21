@@ -11,6 +11,8 @@ import {
   hrCaseTasks,
   leaveRequests,
   leaveBalances,
+  attendanceRecords,
+  shiftSchedules,
   onboardingTemplates,
   onboardingDetails,
   offboardingDetails,
@@ -35,9 +37,13 @@ import {
   gte,
   inArray,
   type SQL,
+  type DbOrTx,
 } from "@coheronconnect/db";
 import { getTableColumns } from "drizzle-orm";
 import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
+import { expandLeaveToAttendance } from "../lib/india/leave-attendance";
+import { normaliseFeed, type RawAttendanceFeedRow } from "../lib/india/attendance-ingest";
+import { resolveShift, derivePunch, type ShiftDefinition } from "../lib/india/shift-schedule";
 import { CreateLeaveRequestSchema, LeaveTypeEnum } from "@coheronconnect/types";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
@@ -47,6 +53,56 @@ import { emitDomainEvent } from "../services/workflow-events";
  * migration 0037 for DPDP minimisation), so this mirrors the table.
  */
 const employeePublicColumns = getTableColumns(employees);
+
+/**
+ * Resolve the authenticated user's own employee record plus their *effective*
+ * shift for self-service attendance (G8). Precedence: the employee's assigned
+ * shift → the org's default shift (`shiftSchedules.isDefault`) → the built-in
+ * baseline (handled by `resolveShift`). Returns `null` when the user has no
+ * linked employee so the caller can raise the standard FORBIDDEN.
+ */
+async function resolveSelfEmployeeWithShift(
+  db: DbOrTx,
+  userId: string,
+  orgId: string,
+): Promise<{ id: string; shift: ShiftDefinition } | null> {
+  const [emp] = await db
+    .select({ id: employees.id, shiftScheduleId: employees.shiftScheduleId })
+    .from(employees)
+    .where(and(eq(employees.userId, userId), eq(employees.orgId, orgId)))
+    .limit(1);
+  if (!emp) return null;
+
+  let assigned: ShiftDefinition | null = null;
+  if (emp.shiftScheduleId) {
+    const [s] = await db
+      .select({
+        startMinutes: shiftSchedules.startMinutes,
+        durationMinutes: shiftSchedules.durationMinutes,
+        graceMinutes: shiftSchedules.graceMinutes,
+      })
+      .from(shiftSchedules)
+      .where(and(eq(shiftSchedules.id, emp.shiftScheduleId), eq(shiftSchedules.orgId, orgId)))
+      .limit(1);
+    assigned = s ?? null;
+  }
+
+  let orgDefault: ShiftDefinition | null = null;
+  if (!assigned) {
+    const [d] = await db
+      .select({
+        startMinutes: shiftSchedules.startMinutes,
+        durationMinutes: shiftSchedules.durationMinutes,
+        graceMinutes: shiftSchedules.graceMinutes,
+      })
+      .from(shiftSchedules)
+      .where(and(eq(shiftSchedules.orgId, orgId), eq(shiftSchedules.isDefault, true)))
+      .limit(1);
+    orgDefault = d ?? null;
+  }
+
+  return { id: emp.id, shift: resolveShift(assigned, orgDefault) };
+}
 
 export const hrRouter = router({
   /** Compact counts for platform home (US-HCM-004). */
@@ -599,26 +655,57 @@ export const hrRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Leave request is not pending" });
         }
 
-        const [updated] = await db
-          .update(leaveRequests)
-          .set({ status: "approved", approvedById: user!.id, approvedAt: new Date() })
-          .where(eq(leaveRequests.id, input.id))
-          .returning();
+        // Status flip, balance move, and the attendance reflex must be atomic:
+        // an approved leave that didn't reach the attendance sheet would silently
+        // over- or under-pay the employee at payroll (G8).
+        const updated = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(leaveRequests)
+            .set({ status: "approved", approvedById: user!.id, approvedAt: new Date() })
+            .where(eq(leaveRequests.id, input.id))
+            .returning();
 
-        // Update balance: move from pending to used
-        await db
-          .update(leaveBalances)
-          .set({
-            usedDays: sql`${leaveBalances.usedDays} + ${request.days}`,
-            pendingDays: sql`GREATEST(0, ${leaveBalances.pendingDays} - ${request.days})`,
-          })
-          .where(
-            and(
-              eq(leaveBalances.employeeId, request.employeeId),
-              eq(leaveBalances.type, request.type),
-              eq(leaveBalances.year, request.startDate.getFullYear()),
-            ),
-          );
+          // Update balance: move from pending to used
+          await tx
+            .update(leaveBalances)
+            .set({
+              usedDays: sql`${leaveBalances.usedDays} + ${request.days}`,
+              pendingDays: sql`GREATEST(0, ${leaveBalances.pendingDays} - ${request.days})`,
+            })
+            .where(
+              and(
+                eq(leaveBalances.employeeId, request.employeeId),
+                eq(leaveBalances.type, request.type),
+                eq(leaveBalances.year, request.startDate.getFullYear()),
+              ),
+            );
+
+          // G8: reflect the leave in attendance so payroll LOP picks it up.
+          // unpaid → absent (LOP); every other type → on_leave (paid). Upsert so
+          // the leave-derived status wins over any prior default `present` row and
+          // re-approval stays idempotent.
+          const attRows = expandLeaveToAttendance(
+            request.employeeId,
+            request.type,
+            request.startDate,
+            request.endDate,
+          ).map((r) => ({ ...r, orgId: org!.id }));
+          if (attRows.length > 0) {
+            await tx
+              .insert(attendanceRecords)
+              .values(attRows)
+              .onConflictDoUpdate({
+                target: [
+                  attendanceRecords.orgId,
+                  attendanceRecords.employeeId,
+                  attendanceRecords.date,
+                ],
+                set: { status: sql`excluded.status`, updatedAt: new Date() },
+              });
+          }
+
+          return row;
+        });
 
         return updated;
       }),
@@ -1589,6 +1676,140 @@ export const hrRouter = router({
       return updated!;
     }),
 
+    /**
+     * Employee self-service sign-in (G8). First-party HRMS capture: the
+     * authenticated employee punches their OWN attendance — no `hr.write`,
+     * no passing someone else's id. Resolves the employee from `ctx.user`
+     * (`employees.userId`) and upserts today's row.
+     *
+     * One row per (org, employee, day). Idempotent: signing in again the same
+     * day is a no-op that keeps the EARLIEST `checkIn` (first-in) — the upsert
+     * only writes `check_in` when the existing value is null, so a double-punch
+     * never resets the clock or wipes a later `check_out`.
+     */
+    signIn: protectedProcedure
+      .input(z.object({
+        shiftType: z.enum(["morning", "afternoon", "night", "flexible", "remote"]).default("flexible"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { org, db, user } = ctx;
+        const emp = await resolveSelfEmployeeWithShift(db, user!.id, org!.id);
+        if (!emp) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "No employee record linked to this user account. Ask HR to provision your profile.",
+          });
+        }
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // Derive late-ness at sign-in against the effective shift (open shift:
+        // no check-out yet, so only present/late + lateMinutes are meaningful).
+        const punch = derivePunch(now, null, emp.shift);
+        const [rec] = await db
+          .insert(attendanceRecords)
+          .values({
+            orgId: org!.id,
+            employeeId: emp.id,
+            date: today,
+            status: punch.status,
+            shiftType: input.shiftType,
+            checkIn: now,
+            lateMinutes: punch.lateMinutes,
+          })
+          .onConflictDoUpdate({
+            target: [attendanceRecords.orgId, attendanceRecords.employeeId, attendanceRecords.date],
+            set: {
+              // First-in wins: only stamp check_in if the day has none yet, so a
+              // re-punch keeps the earliest sign-in and never disturbs check_out.
+              checkIn: sql`coalesce(${attendanceRecords.checkIn}, excluded.check_in)`,
+              updatedAt: new Date(),
+            },
+          })
+          .returning();
+        return rec!;
+      }),
+
+    /**
+     * Employee self-service sign-out (G8). Sets `check_out = now` (last-out)
+     * and recomputes `hours_worked` from the day's `check_in`. Errors clearly
+     * when the employee never signed in, so payroll never sees a check_out
+     * without a matching check_in.
+     */
+    signOut: protectedProcedure
+      .input(z.object({}))
+      .mutation(async ({ ctx }) => {
+        const { org, db, user } = ctx;
+        const emp = await resolveSelfEmployeeWithShift(db, user!.id, org!.id);
+        if (!emp) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "No employee record linked to this user account. Ask HR to provision your profile.",
+          });
+        }
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const [rec] = await db
+          .select()
+          .from(attendanceRecords)
+          .where(and(
+            eq(attendanceRecords.orgId, org!.id),
+            eq(attendanceRecords.employeeId, emp.id),
+            eq(attendanceRecords.date, today),
+          ))
+          .limit(1);
+        if (!rec?.checkIn) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "You have not signed in today.",
+          });
+        }
+
+        // Recompute the whole day against the effective shift now that both
+        // punches exist: status (present/late/half_day), hoursWorked, overtime,
+        // and late minutes all derive from the check-in→check-out pair.
+        const punch = derivePunch(new Date(rec.checkIn), now, emp.shift);
+        const [updated] = await db
+          .update(attendanceRecords)
+          .set({
+            checkOut: now,
+            status: punch.status,
+            hoursWorked: punch.hoursWorked,
+            lateMinutes: punch.lateMinutes,
+            overtimeMinutes: punch.overtimeMinutes,
+            updatedAt: new Date(),
+          })
+          .where(eq(attendanceRecords.id, rec.id))
+          .returning();
+        return updated!;
+      }),
+
+    /** The authenticated employee's own attendance row for today (UI state). */
+    myToday: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { org, db, user } = ctx;
+        const [emp] = await db
+          .select({ id: employees.id })
+          .from(employees)
+          .where(and(eq(employees.userId, user!.id), eq(employees.orgId, org!.id)))
+          .limit(1);
+        if (!emp) return null;
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const [rec] = await db
+          .select()
+          .from(attendanceRecords)
+          .where(and(
+            eq(attendanceRecords.orgId, org!.id),
+            eq(attendanceRecords.employeeId, emp.id),
+            eq(attendanceRecords.date, today),
+          ))
+          .limit(1);
+        return rec ?? null;
+      }),
+
     bulkMark: permissionProcedure("hr", "write").input(z.object({
       records: z.array(z.object({
         employeeId: z.string().uuid(),
@@ -1598,10 +1819,227 @@ export const hrRouter = router({
       })),
     })).mutation(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { attendanceRecords } = await import("@coheronconnect/db");
       const rows = input.records.map(r => ({ ...r, orgId: org!.id, date: new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate()) }));
-      await db.insert(attendanceRecords).values(rows).onConflictDoNothing();
+      if (rows.length === 0) return { count: 0 };
+      // Upsert so a correction (e.g. re-marking a wrongly-`absent` day as
+      // `present`) actually updates the existing row instead of being dropped.
+      await db
+        .insert(attendanceRecords)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [attendanceRecords.orgId, attendanceRecords.employeeId, attendanceRecords.date],
+          set: {
+            status: sql`excluded.status`,
+            shiftType: sql`excluded.shift_type`,
+            updatedAt: new Date(),
+          },
+        });
       return { count: rows.length };
+    }),
+
+    /**
+     * External daily-attendance ingest (G8). Accepts a raw feed as a
+     * biometric device or upstream HRMS would emit it — keyed by the human
+     * `employeeCode` (employees.employeeId, e.g. "EMP-0001"), not our UUID.
+     *
+     * The feed is normalised (`normaliseFeed`: derives status/hours/late/
+     * overtime, last-write-wins per employee+day), codes are resolved to
+     * UUIDs scoped to this org, and rows are idempotently upserted on the
+     * unique (orgId, employeeId, date) index so a device can safely re-send
+     * a batch. Unknown/foreign codes are skipped and reported, never inserted.
+     */
+    ingest: permissionProcedure("hr", "write").input(z.object({
+      records: z.array(z.object({
+        employeeCode: z.string().min(1),
+        date: z.coerce.date(),
+        checkIn: z.coerce.date().nullish(),
+        checkOut: z.coerce.date().nullish(),
+        status: z.enum(["present", "absent", "half_day", "late", "on_leave", "holiday", "weekend"]).nullish(),
+        shiftStart: z.coerce.date().nullish(),
+        shiftMinutes: z.number().int().positive().nullish(),
+        notes: z.string().max(2000).nullish(),
+      })).min(1).max(5000),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+
+      const normalised = normaliseFeed(input.records as RawAttendanceFeedRow[]);
+
+      // Resolve the distinct employee codes in this batch to UUIDs, scoped to
+      // the tenant, in a single query. A code that resolves to no org employee
+      // is a foreign/unknown code and is skipped (never silently mis-attributed).
+      const codes = [...new Set(normalised.map((r) => r.employeeCode))];
+      const found = await db
+        .select({ id: employees.id, code: employees.employeeId })
+        .from(employees)
+        .where(and(eq(employees.orgId, org!.id), inArray(employees.employeeId, codes)));
+      const codeToId = new Map(found.map((e) => [e.code, e.id]));
+
+      const skipped: string[] = [];
+      const rows = normalised.flatMap((r) => {
+        const employeeId = codeToId.get(r.employeeCode);
+        if (!employeeId) {
+          skipped.push(r.employeeCode);
+          return [];
+        }
+        return [{
+          orgId: org!.id,
+          employeeId,
+          date: r.date,
+          status: r.status,
+          checkIn: r.checkIn,
+          checkOut: r.checkOut,
+          hoursWorked: r.hoursWorked,
+          lateMinutes: r.lateMinutes,
+          overtimeMinutes: r.overtimeMinutes,
+          notes: r.notes,
+        }];
+      });
+
+      if (rows.length === 0) {
+        return { ingested: 0, skipped: [...new Set(skipped)] };
+      }
+
+      await db
+        .insert(attendanceRecords)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [attendanceRecords.orgId, attendanceRecords.employeeId, attendanceRecords.date],
+          set: {
+            status: sql`excluded.status`,
+            checkIn: sql`excluded.check_in`,
+            checkOut: sql`excluded.check_out`,
+            hoursWorked: sql`excluded.hours_worked`,
+            lateMinutes: sql`excluded.late_minutes`,
+            overtimeMinutes: sql`excluded.overtime_minutes`,
+            notes: sql`excluded.notes`,
+            updatedAt: new Date(),
+          },
+        });
+
+      return { ingested: rows.length, skipped: [...new Set(skipped)] };
+    }),
+  }),
+
+  // ── Shift Schedules (G8) ────────────────────────────────────────────────
+  // Admin-managed working-time definitions. A shift is stored as minute
+  // offsets from local midnight (timezone-agnostic) so a self-service punch's
+  // wall-clock minute can be compared to derive late/half-day/overtime.
+  // Precedence at punch time: employee-assigned shift → org default → built-in.
+  shifts: router({
+    list: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+      const { org, db } = ctx;
+      return db
+        .select()
+        .from(shiftSchedules)
+        .where(eq(shiftSchedules.orgId, org!.id))
+        .orderBy(desc(shiftSchedules.isDefault), shiftSchedules.name);
+    }),
+
+    create: permissionProcedure("hr", "write").input(z.object({
+      name: z.string().min(1).max(120),
+      startMinutes: z.number().int().min(0).max(1439).default(540),
+      durationMinutes: z.number().int().min(1).max(1440).default(480),
+      graceMinutes: z.number().int().min(0).max(240).default(10),
+      isDefault: z.boolean().default(false),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      // A new default demotes the incumbent so the partial unique index
+      // (one is_default=true per org) is never violated.
+      return db.transaction(async (tx) => {
+        if (input.isDefault) {
+          await tx
+            .update(shiftSchedules)
+            .set({ isDefault: false, updatedAt: new Date() })
+            .where(and(eq(shiftSchedules.orgId, org!.id), eq(shiftSchedules.isDefault, true)));
+        }
+        const [created] = await tx
+          .insert(shiftSchedules)
+          .values({
+            orgId: org!.id,
+            name: input.name,
+            startMinutes: input.startMinutes,
+            durationMinutes: input.durationMinutes,
+            graceMinutes: input.graceMinutes,
+            isDefault: input.isDefault,
+          })
+          .returning();
+        return created!;
+      });
+    }),
+
+    update: permissionProcedure("hr", "write").input(z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1).max(120).optional(),
+      startMinutes: z.number().int().min(0).max(1439).optional(),
+      durationMinutes: z.number().int().min(1).max(1440).optional(),
+      graceMinutes: z.number().int().min(0).max(240).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      const { id, ...patch } = input;
+      const [updated] = await db
+        .update(shiftSchedules)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(and(eq(shiftSchedules.id, id), eq(shiftSchedules.orgId, org!.id)))
+        .returning();
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Shift schedule not found" });
+      }
+      return updated;
+    }),
+
+    setDefault: permissionProcedure("hr", "write").input(z.object({
+      id: z.string().uuid(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      return db.transaction(async (tx) => {
+        // Target must belong to this org before we touch the incumbent.
+        const [target] = await tx
+          .select({ id: shiftSchedules.id })
+          .from(shiftSchedules)
+          .where(and(eq(shiftSchedules.id, input.id), eq(shiftSchedules.orgId, org!.id)))
+          .limit(1);
+        if (!target) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Shift schedule not found" });
+        }
+        // Clear the prior default first (partial unique index rejects two).
+        await tx
+          .update(shiftSchedules)
+          .set({ isDefault: false, updatedAt: new Date() })
+          .where(and(eq(shiftSchedules.orgId, org!.id), eq(shiftSchedules.isDefault, true)));
+        const [promoted] = await tx
+          .update(shiftSchedules)
+          .set({ isDefault: true, updatedAt: new Date() })
+          .where(and(eq(shiftSchedules.id, input.id), eq(shiftSchedules.orgId, org!.id)))
+          .returning();
+        return promoted!;
+      });
+    }),
+
+    assign: permissionProcedure("hr", "write").input(z.object({
+      employeeId: z.string().uuid(),
+      shiftScheduleId: z.string().uuid().nullable(),
+    })).mutation(async ({ ctx, input }) => {
+      const { org, db } = ctx;
+      // A non-null shift must belong to this org (no cross-tenant assignment).
+      if (input.shiftScheduleId) {
+        const [shift] = await db
+          .select({ id: shiftSchedules.id })
+          .from(shiftSchedules)
+          .where(and(eq(shiftSchedules.id, input.shiftScheduleId), eq(shiftSchedules.orgId, org!.id)))
+          .limit(1);
+        if (!shift) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Shift schedule not found" });
+        }
+      }
+      const [updated] = await db
+        .update(employees)
+        .set({ shiftScheduleId: input.shiftScheduleId, updatedAt: new Date() })
+        .where(and(eq(employees.id, input.employeeId), eq(employees.orgId, org!.id)))
+        .returning({ id: employees.id, shiftScheduleId: employees.shiftScheduleId });
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      }
+      return updated;
     }),
   }),
 
@@ -1960,6 +2398,10 @@ export const hrRouter = router({
         .set({ parentObjectiveId: input.parentObjectiveId, updatedAt: new Date() })
         .where(dbAnd(dbEq(okrObjectives.id, input.id), dbEq(okrObjectives.orgId, org!.id)))
         .returning();
+      // G12: re-parenting moves this subtree, changing which ancestors' rollups
+      // include it — re-persist the whole org's rollup.
+      const { persistOrgRollup } = await import("../lib/hr/okr-rollup.js");
+      await persistOrgRollup(db, org!.id);
       return updated!;
     }),
 
@@ -1985,7 +2427,10 @@ export const hrRouter = router({
       type Row = (typeof rows)[number];
       type Node = Row & { children: Node[]; rollupProgress: number };
       const nodes = new Map<string, Node>();
-      for (const r of rows) nodes.set(r.objective.id, { ...r, children: [], rollupProgress: r.objective.overallProgress });
+      // G12: rollupProgress is now a persisted column, kept fresh on every KR /
+      // re-parent change, so we surface the stored value directly rather than
+      // recomputing the forest on read.
+      for (const r of rows) nodes.set(r.objective.id, { ...r, children: [], rollupProgress: r.objective.rollupProgress });
 
       const roots: Node[] = [];
       for (const node of nodes.values()) {
@@ -1995,16 +2440,6 @@ export const hrRouter = router({
         if (parentId && nodes.has(parentId)) nodes.get(parentId)!.children.push(node);
         else roots.push(node);
       }
-
-      // Post-order rollup: a node's rollupProgress averages its own progress
-      // with every descendant's own progress.
-      const rollup = (node: Node): number[] => {
-        const own = [node.objective.overallProgress];
-        for (const child of node.children) own.push(...rollup(child));
-        node.rollupProgress = Math.round(own.reduce((s, p) => s + p, 0) / own.length);
-        return own;
-      };
-      for (const root of roots) rollup(root);
 
       return { roots };
     }),
@@ -2023,6 +2458,9 @@ export const hrRouter = router({
         .where(dbAnd(dbEq(okrObjectives.id, input.objectiveId), dbEq(okrObjectives.orgId, org!.id))).limit(1);
       if (!parent) throw new TRPCError({ code: "NOT_FOUND" });
       const [kr] = await db.insert(okrKeyResults).values({ ...input, orgId: org!.id, targetValue: String(input.targetValue), status: "on_track" }).returning();
+      // G12: a new KR shifts this objective's own progress; recompute + roll up.
+      const { recomputeAfterKeyResultChange } = await import("../lib/hr/okr-rollup.js");
+      await recomputeAfterKeyResultChange(db, org!.id, input.objectiveId);
       return kr!;
     }),
 
@@ -2033,16 +2471,16 @@ export const hrRouter = router({
       notes: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { okrKeyResults, okrObjectives, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
+      const { okrKeyResults, eq: dbEq, and: dbAnd } = await import("@coheronconnect/db");
       // Tenant guard: scope the key-result update to the caller's org so an
       // out-of-org caller cannot mutate another tenant's KR (and cascade into
       // their objective's progress below).
       const [kr] = await db.update(okrKeyResults).set({ currentValue: String(input.currentValue), status: input.status, notes: input.notes, updatedAt: new Date() }).where(dbAnd(dbEq(okrKeyResults.id, input.id), dbEq(okrKeyResults.orgId, org!.id))).returning();
       if (kr) {
-        const allKRs = await db.select().from(okrKeyResults).where(dbAnd(dbEq(okrKeyResults.objectiveId, kr.objectiveId), dbEq(okrKeyResults.orgId, org!.id)));
-        const pcts = allKRs.map((k: (typeof allKRs)[number]) => (Number(k.currentValue) / Math.max(Number(k.targetValue), 1)) * 100);
-        const avg = pcts.length ? Math.round(pcts.reduce((s: number, p: number) => s + p, 0) / pcts.length) : 0;
-        await db.update(okrObjectives).set({ overallProgress: avg, updatedAt: new Date() }).where(dbAnd(dbEq(okrObjectives.id, kr.objectiveId), dbEq(okrObjectives.orgId, org!.id)));
+        // G12: refresh this objective's own progress, then re-persist the whole
+        // org's rollup so every ancestor reflects the change (not on-read only).
+        const { recomputeAfterKeyResultChange } = await import("../lib/hr/okr-rollup.js");
+        await recomputeAfterKeyResultChange(db, org!.id, kr.objectiveId);
       }
       return kr!;
     }),

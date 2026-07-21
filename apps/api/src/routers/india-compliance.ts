@@ -8,6 +8,10 @@ import {
   portalUsers,
   tdsChallanRecords,
   epfoEcrSubmissions,
+  esiChallanRecords,
+  ptChallanRecords,
+  statutoryCeilings,
+  statutoryMetricKeyEnum,
   complianceItemStatusEnum,
   complianceTypeEnum,
   dinKycStatusEnum,
@@ -17,6 +21,8 @@ import {
   desc,
   gte,
   lte,
+  isNull,
+  or,
   sql,
 } from "@coheronconnect/db";
 import { deriveAadhaar } from "../lib/aadhaar";
@@ -579,6 +585,364 @@ export const indiaComplianceRouter = router({
           .returning();
         if (!ecr) throw new TRPCError({ code: "NOT_FOUND" });
         return ecr;
+      }),
+  }),
+
+  // ── Statutory Ceilings (G1: versioned PF/ESI/PT/LWF config) ───────────────
+  statutoryCeilings: router({
+    list: permissionProcedure("hr", "read")
+      .input(
+        z
+          .object({ metricKey: z.enum(statutoryMetricKeyEnum.enumValues).optional() })
+          .optional(),
+      )
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conditions = [
+          or(eq(statutoryCeilings.orgId, org!.id), isNull(statutoryCeilings.orgId)),
+        ];
+        if (input?.metricKey) {
+          conditions.push(eq(statutoryCeilings.metricKey, input.metricKey));
+        }
+        return db
+          .select()
+          .from(statutoryCeilings)
+          .where(and(...conditions))
+          .orderBy(desc(statutoryCeilings.effectiveFrom));
+      }),
+
+    upsert: permissionProcedure("hr", "write")
+      .input(
+        z
+          .object({
+            metricKey: z.enum(statutoryMetricKeyEnum.enumValues),
+            stateCode: z.string().min(1).optional(),
+            value: z.number().nonnegative().optional(),
+            slabsJson: z.record(z.string(), z.unknown()).optional(),
+            effectiveFrom: z.coerce.date(),
+            effectiveTo: z.coerce.date().optional(),
+            sourceRef: z.string().optional(),
+          })
+          .refine(
+            (v) =>
+              v.metricKey === "pt_slab" || v.metricKey === "lwf_rate"
+                ? v.slabsJson !== undefined && !!v.stateCode
+                : v.value !== undefined,
+            {
+              message:
+                "pt_slab/lwf_rate require stateCode + slabsJson; pf/esi ceilings require value.",
+            },
+          ),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .insert(statutoryCeilings)
+          .values({
+            orgId: org!.id,
+            metricKey: input.metricKey,
+            stateCode: input.stateCode ?? null,
+            value: input.value !== undefined ? String(input.value) : null,
+            slabsJson: input.slabsJson ?? null,
+            effectiveFrom: input.effectiveFrom,
+            effectiveTo: input.effectiveTo ?? null,
+            sourceRef: input.sourceRef ?? null,
+          })
+          .returning();
+        return row;
+      }),
+  }),
+
+  // ── Statutory filing portal push (G2) ────────────────────────────────────
+  // Closes the compute→file loop: `submit` rebuilds the canonical ECR member
+  // body for a generated return, enqueues the EPFO GSP push (idempotent per
+  // submission, soft-fails `not_configured` until creds land), and `status`
+  // surfaces the persisted TRRN / error the worker writes back.
+  filing: router({
+    submit: permissionProcedure("hr", "write")
+      .input(z.object({ ecrSubmissionId: z.string().uuid(), force: z.boolean().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [submission] = await db
+          .select()
+          .from(epfoEcrSubmissions)
+          .where(
+            and(
+              eq(epfoEcrSubmissions.id, input.ecrSubmissionId),
+              eq(epfoEcrSubmissions.orgId, org!.id),
+            ),
+          );
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "ECR submission not found" });
+        if (!input.force && submission.epfoAckNumber) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "ECR already filed (ack present)" });
+        }
+
+        // Rebuild the canonical `#~#` ECR body from the payroll run behind this
+        // return so the pushed payload is always regenerated from source of truth.
+        const { payrollRuns, payslips: payslipsTable, employees: employeesTable } = await import(
+          "@coheronconnect/db"
+        );
+        const { formatECRFile } = await import("../lib/india/payroll-engine.js");
+
+        const [run] = await db
+          .select()
+          .from(payrollRuns)
+          .where(
+            and(
+              eq(payrollRuns.orgId, org!.id),
+              eq(payrollRuns.month, submission.month),
+              eq(payrollRuns.year, submission.year),
+            ),
+          );
+        if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run for this return not found" });
+
+        const slips = await db
+          .select()
+          .from(payslipsTable)
+          .where(eq(payslipsTable.payrollRunId, run.id));
+
+        const ecrLines = await Promise.all(
+          slips.map(async (slip) => {
+            const [emp] = await db
+              .select()
+              .from(employeesTable)
+              .where(eq(employeesTable.id, slip.employeeId));
+            const pfWages = Math.min(Number(slip.basic), 15000);
+            return {
+              uan: emp?.uan ?? "UNKNOWN",
+              memberName: emp?.employeeId ?? "EMPLOYEE",
+              grossWages: Number(slip.grossEarnings),
+              epfWages: pfWages,
+              epsWages: pfWages,
+              edliWages: pfWages,
+              employeeEpf: Number(slip.pfEmployee),
+              employerEps: Math.min(Math.round(pfWages * 0.0833), 1250),
+              employerEpf: Number(slip.pfEmployer),
+              ncp: 0,
+              refund: 0,
+            };
+          }),
+        );
+        const orgEpfoId = `EPFO_${org!.id.slice(0, 8).toUpperCase()}`;
+        const ecrBody = formatECRFile(orgEpfoId, submission.month, submission.year, ecrLines);
+
+        const { enqueueStatutoryFilingJob } = await import(
+          "../workflows/statutoryFilingWorkflow.js"
+        );
+        const { getWorkflowService } = await import("../services/workflow.js");
+        await enqueueStatutoryFilingJob(getWorkflowService().statutoryFilingQueue, {
+          ecrSubmissionId: submission.id,
+          orgId: org!.id,
+          ecrBody,
+          force: input.force,
+        });
+
+        return { queued: true, ecrSubmissionId: submission.id, lines: ecrLines.length };
+      }),
+
+    status: permissionProcedure("hr", "read")
+      .input(z.object({ ecrSubmissionId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [submission] = await db
+          .select()
+          .from(epfoEcrSubmissions)
+          .where(
+            and(
+              eq(epfoEcrSubmissions.id, input.ecrSubmissionId),
+              eq(epfoEcrSubmissions.orgId, org!.id),
+            ),
+          );
+        if (!submission) throw new TRPCError({ code: "NOT_FOUND", message: "ECR submission not found" });
+        return submission;
+      }),
+
+    // ── ESI monthly return push ────────────────────────────────────────────
+    // Rebuilds the ESIC monthly-contribution (MC) line list from the payroll
+    // run behind the record, then enqueues the ESIC GSP push (idempotent per
+    // record, soft-fails `not_configured` until creds land).
+    submitEsi: permissionProcedure("hr", "write")
+      .input(z.object({ esiChallanId: z.string().uuid(), force: z.boolean().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [record] = await db
+          .select()
+          .from(esiChallanRecords)
+          .where(
+            and(
+              eq(esiChallanRecords.id, input.esiChallanId),
+              eq(esiChallanRecords.orgId, org!.id),
+            ),
+          );
+        if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "ESI challan record not found" });
+        if (!input.force && record.challanNumber) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "ESI return already filed (challan present)" });
+        }
+
+        // Rebuild the canonical MC lines from the payroll run: one `#~#` member
+        // line per employee with gross + the ESI employee/employer split at the
+        // statutory rates (0.75% employee, 3.25% employer) so the pushed payload
+        // is always regenerated from the source-of-truth roster.
+        const { payrollRuns, payslips: payslipsTable, employees: employeesTable } = await import(
+          "@coheronconnect/db"
+        );
+        const [run] = await db
+          .select()
+          .from(payrollRuns)
+          .where(
+            and(
+              eq(payrollRuns.orgId, org!.id),
+              eq(payrollRuns.month, record.month),
+              eq(payrollRuns.year, record.year),
+            ),
+          );
+        if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run for this return not found" });
+
+        const slips = await db
+          .select()
+          .from(payslipsTable)
+          .where(eq(payslipsTable.payrollRunId, run.id));
+
+        const mcRows = await Promise.all(
+          slips.map(async (slip) => {
+            const [emp] = await db
+              .select()
+              .from(employeesTable)
+              .where(eq(employeesTable.id, slip.employeeId));
+            const gross = Number(slip.grossEarnings);
+            // ESI applies only up to the wage ceiling; the resolved ceiling lives
+            // on the record's persisted totals, so we derive per-IP contributions
+            // at statutory rates and let the portal reconcile against the ceiling.
+            const employee = Math.round(gross * 0.0075);
+            const employer = Math.round(gross * 0.0325);
+            return [
+              emp?.uan ?? emp?.employeeId ?? "UNKNOWN",
+              emp?.employeeId ?? "EMPLOYEE",
+              gross,
+              employee,
+              employer,
+            ].join("#~#");
+          }),
+        );
+        const mcLines = mcRows.join("\n");
+
+        const { enqueueEsiReturnJob } = await import("../workflows/esiReturnWorkflow.js");
+        const { getWorkflowService } = await import("../services/workflow.js");
+        await enqueueEsiReturnJob(getWorkflowService().esiReturnQueue, {
+          esiChallanId: record.id,
+          orgId: org!.id,
+          mcLines,
+          force: input.force,
+        });
+
+        return { queued: true, esiChallanId: record.id, lines: mcRows.length };
+      }),
+
+    statusEsi: permissionProcedure("hr", "read")
+      .input(z.object({ esiChallanId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [record] = await db
+          .select()
+          .from(esiChallanRecords)
+          .where(
+            and(
+              eq(esiChallanRecords.id, input.esiChallanId),
+              eq(esiChallanRecords.orgId, org!.id),
+            ),
+          );
+        if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "ESI challan record not found" });
+        return record;
+      }),
+
+    // ── PT challan push ────────────────────────────────────────────────────
+    // Rebuilds the per-employee PT line list from the payroll run behind the
+    // record, then enqueues the state-PT GSP push (idempotent per record,
+    // soft-fails `not_configured` until creds land).
+    submitPt: permissionProcedure("hr", "write")
+      .input(z.object({ ptChallanId: z.string().uuid(), force: z.boolean().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [record] = await db
+          .select()
+          .from(ptChallanRecords)
+          .where(
+            and(
+              eq(ptChallanRecords.id, input.ptChallanId),
+              eq(ptChallanRecords.orgId, org!.id),
+            ),
+          );
+        if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PT challan record not found" });
+        if (!input.force && record.challanNumber) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "PT challan already filed (challan present)" });
+        }
+
+        const { payrollRuns, payslips: payslipsTable, employees: employeesTable } = await import(
+          "@coheronconnect/db"
+        );
+        const [run] = await db
+          .select()
+          .from(payrollRuns)
+          .where(
+            and(
+              eq(payrollRuns.orgId, org!.id),
+              eq(payrollRuns.month, record.month),
+              eq(payrollRuns.year, record.year),
+            ),
+          );
+        if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run for this challan not found" });
+
+        const slips = await db
+          .select()
+          .from(payslipsTable)
+          .where(eq(payslipsTable.payrollRunId, run.id));
+
+        // One line per employee with PT withheld > 0 (PT is a flat state slab, so
+        // employees below the first slab contribute nothing and are omitted).
+        const ptRows = await Promise.all(
+          slips
+            .filter((slip) => Number(slip.professionalTax) > 0)
+            .map(async (slip) => {
+              const [emp] = await db
+                .select()
+                .from(employeesTable)
+                .where(eq(employeesTable.id, slip.employeeId));
+              return [
+                emp?.employeeId ?? "EMPLOYEE",
+                Number(slip.grossEarnings),
+                Number(slip.professionalTax),
+              ].join("#~#");
+            }),
+        );
+        const ptLines = ptRows.join("\n");
+
+        const { enqueuePtChallanJob } = await import("../workflows/ptChallanWorkflow.js");
+        const { getWorkflowService } = await import("../services/workflow.js");
+        await enqueuePtChallanJob(getWorkflowService().ptChallanQueue, {
+          ptChallanId: record.id,
+          orgId: org!.id,
+          ptLines,
+          force: input.force,
+        });
+
+        return { queued: true, ptChallanId: record.id, lines: ptRows.length };
+      }),
+
+    statusPt: permissionProcedure("hr", "read")
+      .input(z.object({ ptChallanId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [record] = await db
+          .select()
+          .from(ptChallanRecords)
+          .where(
+            and(
+              eq(ptChallanRecords.id, input.ptChallanId),
+              eq(ptChallanRecords.orgId, org!.id),
+            ),
+          );
+        if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PT challan record not found" });
+        return record;
       }),
   }),
 });

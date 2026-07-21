@@ -6,7 +6,16 @@
  */
 import { router, permissionProcedure } from "../../lib/trpc";
 import { z } from "zod";
-import { crmLeads, crmDeals, leadStatusEnum, leadSourceEnum, eq, and, desc, count } from "@coheronconnect/db";
+import {
+  crmLeads,
+  leadStatusEnum,
+  leadSourceEnum,
+  eq,
+  and,
+  desc,
+} from "@coheronconnect/db";
+import { convertLeadToDeal } from "../../lib/crm/lead-convert";
+import { createScoredLead, updateScoredLead } from "../../lib/crm/lead-write";
 
 export const crmLeadsRouter = router({
   list: permissionProcedure("accounts", "read")
@@ -30,8 +39,8 @@ export const crmLeadsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source }).returning();
-      return lead;
+      // G5 — score persisted on write via the shared scoring config resolver.
+      return createScoredLead(db, { orgId: org!.id, ownerId: user!.id, ...input });
     }),
 
   update: permissionProcedure("accounts", "write")
@@ -48,27 +57,26 @@ export const crmLeadsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { id, ...data } = input;
-      const [lead] = await db.update(crmLeads).set({ ...data, updatedAt: new Date() })
-        .where(and(eq(crmLeads.id, id), eq(crmLeads.orgId, org!.id))).returning();
-      return lead;
+      const { id, ...patch } = input;
+      // G5 — re-score on write so a status/title/source change updates the score.
+      return updateScoredLead(db, org!.id, id, patch);
     }),
 
   convert: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid(), dealTitle: z.string(), dealValue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      // Atomicity: the deal insert and the lead status/link update must commit
-      // together so a converted deal can never exist without its source lead
-      // being flagged "converted" and pointed at that deal.
-      return await db.transaction(async (tx) => {
-        const [deal] = await tx.insert(crmDeals).values({
-          orgId: org!.id, title: input.dealTitle, value: input.dealValue, ownerId: user!.id,
-          weightedValue: input.dealValue ? String(Number(input.dealValue) * 0.1) : undefined,
-        }).returning();
-        await tx.update(crmLeads).set({ status: "converted", convertedDealId: deal!.id, updatedAt: new Date() })
-          .where(and(eq(crmLeads.id, input.id), eq(crmLeads.orgId, org!.id)));
-        return deal;
-      });
+      // G6 — lossless conversion (see lib/crm/lead-convert). One tx so a
+      // converted deal can never exist without its source lead flagged
+      // "converted" and linked to the account/contact it came from.
+      return await db.transaction((tx) =>
+        convertLeadToDeal(tx, {
+          leadId: input.id,
+          orgId: org!.id,
+          actorId: user!.id,
+          dealTitle: input.dealTitle,
+          dealValue: input.dealValue,
+        }),
+      );
     }),
 });

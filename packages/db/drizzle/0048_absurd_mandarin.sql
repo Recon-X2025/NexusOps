@@ -1,0 +1,2 @@
+ALTER TABLE "dpdp_processing_activities" ADD COLUMN "status" text DEFAULT 'active' NOT NULL;--> statement-breakpoint
+ALTER TABLE "dpdp_processing_activities" ADD COLUMN "retired_at" timestamp with time zone;

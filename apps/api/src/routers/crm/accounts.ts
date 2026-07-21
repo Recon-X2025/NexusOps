@@ -35,6 +35,8 @@ export const crmAccountsRouter = router({
       tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"),
       website: z.string().url().optional(),
       annualRevenue: z.string().optional(),
+      stateCode: z.string().optional(),
+      gstin: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -43,7 +45,7 @@ export const crmAccountsRouter = router({
     }),
 
   update: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional(), annualRevenue: z.string().optional(), stateCode: z.string().optional(), gstin: z.string().optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;

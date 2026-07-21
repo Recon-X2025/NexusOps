@@ -24,6 +24,7 @@ import {
   privacyBreachNotificationProfiles,
   dsrRequestTypeEnum,
   dsrStatusEnum,
+  dpdpProcessingActivities,
   eq,
   and,
   desc,
@@ -917,5 +918,143 @@ export const complianceRouter = router({
       }
       return { total: rows.length, open, overdue, dueSoon, closed };
     }),
+  }),
+
+  // ── RoPA (1.4): §5 Record of Processing Activities register ──────────────────
+  // First-class CRUD over dpdp_processing_activities: the auditable inventory of
+  // every processing purpose, its lawful basis, and data categories, with a DPO
+  // sign-off gate and a soft-retire lifecycle (retired rows stay for audit).
+  ropa: router({
+    list: permissionProcedure("compliance", "read")
+      .input(
+        z
+          .object({
+            status: z.enum(["active", "retired"]).optional(),
+            lawfulBasis: z.string().optional(),
+          })
+          .optional(),
+      )
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conditions = [eq(dpdpProcessingActivities.orgId, org!.id)];
+        if (input?.status) conditions.push(eq(dpdpProcessingActivities.status, input.status));
+        if (input?.lawfulBasis)
+          conditions.push(eq(dpdpProcessingActivities.lawfulBasis, input.lawfulBasis));
+        return db
+          .select()
+          .from(dpdpProcessingActivities)
+          .where(and(...conditions))
+          .orderBy(desc(dpdpProcessingActivities.updatedAt));
+      }),
+
+    get: permissionProcedure("compliance", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select()
+          .from(dpdpProcessingActivities)
+          .where(
+            and(
+              eq(dpdpProcessingActivities.id, input.id),
+              eq(dpdpProcessingActivities.orgId, org!.id),
+            ),
+          )
+          .limit(1);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Processing activity not found" });
+        return row;
+      }),
+
+    create: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          activityName: z.string().min(1),
+          purpose: z.string().optional(),
+          lawfulBasis: z.string().optional(),
+          dataCategories: z.string().optional(),
+          linkedPrivacyMatterId: z.string().uuid().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .insert(dpdpProcessingActivities)
+          .values({
+            orgId: org!.id,
+            activityName: input.activityName,
+            purpose: input.purpose,
+            lawfulBasis: input.lawfulBasis,
+            dataCategories: input.dataCategories,
+            linkedPrivacyMatterId: input.linkedPrivacyMatterId,
+          })
+          .returning();
+        return row!;
+      }),
+
+    update: permissionProcedure("compliance", "write")
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          activityName: z.string().min(1).optional(),
+          purpose: z.string().optional(),
+          lawfulBasis: z.string().optional(),
+          dataCategories: z.string().optional(),
+          linkedPrivacyMatterId: z.string().uuid().nullable().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...patch } = input;
+        const [existing] = await db
+          .select({ id: dpdpProcessingActivities.id, status: dpdpProcessingActivities.status })
+          .from(dpdpProcessingActivities)
+          .where(and(eq(dpdpProcessingActivities.id, id), eq(dpdpProcessingActivities.orgId, org!.id)))
+          .limit(1);
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Processing activity not found" });
+        if (existing.status === "retired")
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot edit a retired activity" });
+        const [row] = await db
+          .update(dpdpProcessingActivities)
+          .set({ ...patch, updatedAt: new Date() })
+          .where(and(eq(dpdpProcessingActivities.id, id), eq(dpdpProcessingActivities.orgId, org!.id)))
+          .returning();
+        return row!;
+      }),
+
+    signOff: permissionProcedure("compliance", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .update(dpdpProcessingActivities)
+          .set({ dpoSignOffAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(dpdpProcessingActivities.id, input.id),
+              eq(dpdpProcessingActivities.orgId, org!.id),
+            ),
+          )
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Processing activity not found" });
+        return row;
+      }),
+
+    retire: permissionProcedure("compliance", "write")
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .update(dpdpProcessingActivities)
+          .set({ status: "retired", retiredAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(dpdpProcessingActivities.id, input.id),
+              eq(dpdpProcessingActivities.orgId, org!.id),
+            ),
+          )
+          .returning();
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Processing activity not found" });
+        return row;
+      }),
   }),
 });

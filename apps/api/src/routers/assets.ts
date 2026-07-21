@@ -903,6 +903,30 @@ export const assetsRouter = router({
 
         return updated;
       }),
+
+    /**
+     * G11 SAM: installed-vs-entitled reconciliation for the whole org. Surfaces
+     * over-deployment (audit risk) first, then under-utilization (wasted spend).
+     */
+    reconcile: permissionProcedure("sam", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const { reconcileOrgLicenses } = await import("../lib/sam/license-reconcile.js");
+      return reconcileOrgLicenses(db, org!.id);
+    }),
+
+    /**
+     * G11 SAM: ingest a discovered installed count for one license (e.g. from an
+     * M365 / endpoint inventory feed) and re-reconcile it. Tenant-scoped.
+     */
+    ingestInstalled: permissionProcedure("sam", "write")
+      .input(z.object({ licenseId: z.string().uuid(), installedCount: z.coerce.number().int().min(0) }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { ingestInstalledCount } = await import("../lib/sam/license-reconcile.js");
+        const recon = await ingestInstalledCount(db, org!.id, input.licenseId, input.installedCount);
+        if (!recon) throw new TRPCError({ code: "NOT_FOUND" });
+        return recon;
+      }),
   }),
 
   // ── HAM - Hardware Asset Management ───────────────────────────────────────

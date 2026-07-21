@@ -13,7 +13,11 @@ import {
 } from "@coheronconnect/db";
 import { syncJiraToNexus } from "../services/jira";
 import { syncSapToNexus } from "../services/sap";
-import { encryptIntegrationConfig, decryptIntegrationConfig } from "../services/encryption";
+import {
+  encryptIntegrationConfigEnvelope,
+  decryptIntegrationConfigEnvelope,
+} from "../services/encryption";
+import { getKmsProvider } from "../services/kms";
 import { getIntegrationAdapter } from "../services/integrations/registry";
 import { getEsignProvider } from "../services/esign";
 
@@ -227,6 +231,30 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
         ] },
     ],
   },
+  {
+    provider: "docusign",
+    displayName: "DocuSign eSignature",
+    category: "esign",
+    testable: true,
+    description:
+      "ESIGN Act / eIDAS electronic signature for cross-border contracts, offer letters and NDAs where an Aadhaar-bound signature is not required.",
+    docsUrl: "https://developers.docusign.com/docs/esign-rest-api/",
+    fields: [
+      { key: "accessToken", label: "OAuth Access Token", type: "password", required: true,
+        helpText: "Bearer token provisioned via JWT-grant or auth-code; refreshed out-of-band." },
+      { key: "accountId", label: "API Account ID", required: true,
+        helpText: "DocuSign API account GUID." },
+      { key: "basePath", label: "Account Base URI", required: true,
+        helpText: "e.g. https://demo.docusign.net (sandbox) or the account's assigned https://naN.docusign.net." },
+      { key: "hmacKey", label: "Connect HMAC Key", type: "password", required: true,
+        helpText: "Used to verify status callbacks at /webhooks/esign/docusign." },
+      { key: "environment", label: "Environment", type: "select", required: true,
+        options: [
+          { value: "sandbox", label: "Sandbox" },
+          { value: "production", label: "Production" },
+        ] },
+    ],
+  },
 ] as const;
 
 const PROVIDER_IDS = PROVIDER_CATALOG.map((c) => c.provider) as [string, ...string[]];
@@ -287,22 +315,18 @@ export const integrationsRouter = router({
         });
       }
 
-      const appSecret = process.env["APP_SECRET"];
-      if (!appSecret) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "APP_SECRET is not configured" });
-      }
-      const encrypted = encryptIntegrationConfig(input.config);
+      // Envelope-encrypt: a fresh KMS-wrapped DEK per config, AES-256-GCM payload.
+      // The wrapped DEK + key id live inside `encrypted`; kmsKeyId records the
+      // active KEK for rotation/audit and dekWrappedB64 fingerprints the wrapped
+      // DEK so a key rotation is auditable without decrypting the config.
+      const encrypted = await encryptIntegrationConfigEnvelope(input.config);
+      const kmsKeyId = getKmsProvider().keyId();
+      const dekWrappedB64 = crypto.createHash("sha256").update(encrypted).digest("base64");
 
       const existing = await db
         .select({ id: integrations.id })
         .from(integrations)
         .where(and(eq(integrations.orgId, org!.id), eq(integrations.provider, input.provider)));
-
-      const kmsKeyId = process.env["INTEGRATIONS_KMS_KEY_ID"] ?? "coheronconnect:local-dev-kek";
-      const dekWrappedB64 = crypto
-        .createHash("sha256")
-        .update(appSecret + ":" + kmsKeyId)
-        .digest("base64");
 
       if (existing[0]) {
         const [updated] = await db
@@ -395,7 +419,7 @@ export const integrationsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Integration not configured. Save credentials first." });
       }
 
-      const config = decryptIntegrationConfig(row.configEncrypted);
+      const config = await decryptIntegrationConfigEnvelope(row.configEncrypted);
 
       if (catalog.category === "esign") {
         const provider = getEsignProvider(input.provider);

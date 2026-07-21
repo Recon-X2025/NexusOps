@@ -227,7 +227,7 @@ function AddCandidateModal({ jobs, onClose, onCreated }: { jobs: any[]; onClose:
               <label className="block text-body-sm font-medium mb-1">Apply to Job</label>
               <select value={form.jobId} onChange={e => set("jobId", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
                 <option value="">— Optional —</option>
-                {jobs.filter(j => j.status === "open").map(j => <option key={j.id} value={j.id}>{j.number}: {j.title}</option>)}
+                {jobs.filter(j => j.status !== "closed" && j.status !== "cancelled").map(j => <option key={j.id} value={j.id}>{j.number}: {j.title}</option>)}
               </select>
             </div>
             <div className="col-span-2">
@@ -247,6 +247,153 @@ function AddCandidateModal({ jobs, onClose, onCreated }: { jobs: any[]; onClose:
             onClick={() => createCand.mutate({ ...form, experience: form.experience ? +form.experience : undefined, skills: form.skills.split(",").map(s => s.trim()).filter(Boolean), jobId: form.jobId || undefined } as Parameters<typeof createCand.mutate>[0])}
             className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
           >{createCand.isPending ? "Adding..." : "Add Candidate"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal: Schedule Interview ────────────────────────────────────────────────────
+
+function ScheduleInterviewModal({ applications, presetApplicationId, onClose, onScheduled }: { applications: any[]; presetApplicationId?: string; onClose: () => void; onScheduled: () => void }) {
+  const schedule = trpc.recruitment.interviews.schedule.useMutation({
+    onSuccess: () => { toast.success("Interview scheduled"); onScheduled(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const [form, setForm] = useState({ applicationId: presetApplicationId ?? "", type: "video", title: "", scheduledAt: "", durationMins: "60", location: "", meetingLink: "" });
+  const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-h4 font-bold">Schedule Interview</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-body-sm font-medium mb-1">Candidate *</label>
+              <select value={form.applicationId} onChange={e => set("applicationId", e.target.value)} disabled={!!presetApplicationId} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background disabled:opacity-60">
+                <option value="">— Select candidate —</option>
+                {applications.map(a => <option key={a.applicationId} value={a.applicationId}>{a.firstName} {a.lastName} — {a.jobTitle}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Type</label>
+              <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
+                {["phone","video","onsite","technical","case_study","hr"].map(t => <option key={t} value={t}>{t.replace("_"," ").replace(/\b\w/g, c => c.toUpperCase())}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Duration (mins)</label>
+              <input type="number" min={15} value={form.durationMins} onChange={e => set("durationMins", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-body-sm font-medium mb-1">Title *</label>
+              <input value={form.title} onChange={e => set("title", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="e.g. Technical Round 1" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-body-sm font-medium mb-1">Scheduled At *</label>
+              <input type="datetime-local" value={form.scheduledAt} onChange={e => set("scheduledAt", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Location</label>
+              <input value={form.location} onChange={e => set("location", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Meeting Link</label>
+              <input value={form.meetingLink} onChange={e => set("meetingLink", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+          </div>
+        </div>
+        <div className="p-6 border-t border-border flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted transition-colors">Cancel</button>
+          <button
+            disabled={!form.applicationId || !form.title || !form.scheduledAt || schedule.isPending}
+            onClick={() => schedule.mutate({ applicationId: form.applicationId, type: form.type as any, title: form.title, scheduledAt: form.scheduledAt, durationMins: form.durationMins ? +form.durationMins : undefined, location: form.location || undefined, meetingLink: form.meetingLink || undefined } as Parameters<typeof schedule.mutate>[0])}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >{schedule.isPending ? "Scheduling..." : "Schedule Interview"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal: Create Offer ──────────────────────────────────────────────────────────
+
+function CreateOfferModal({ applications, presetApplicationId, presetCandidateId: _presetCandidateId, onClose, onCreated }: { applications: any[]; presetApplicationId?: string; presetCandidateId?: string; onClose: () => void; onCreated: () => void }) {
+  const createOffer = trpc.recruitment.offers.create.useMutation({
+    onSuccess: () => { toast.success("Offer created"); onCreated(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const [form, setForm] = useState({ applicationId: presetApplicationId ?? "", title: "", department: "", baseSalary: "", variablePay: "", joiningBonus: "", currency: "INR", startDate: "", expiryDate: "", notes: "" });
+  const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
+  const selected = applications.find(a => a.applicationId === form.applicationId);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-h4 font-bold">Create Offer</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-body-sm font-medium mb-1">Candidate *</label>
+              <select value={form.applicationId} onChange={e => set("applicationId", e.target.value)} disabled={!!presetApplicationId} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background disabled:opacity-60">
+                <option value="">— Select candidate —</option>
+                {applications.map(a => <option key={a.applicationId} value={a.applicationId}>{a.firstName} {a.lastName} — {a.jobTitle}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-body-sm font-medium mb-1">Offer Title *</label>
+              <input value={form.title} onChange={e => set("title", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" placeholder="e.g. Senior Engineer" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Department</label>
+              <input value={form.department} onChange={e => set("department", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Currency</label>
+              <select value={form.currency} onChange={e => set("currency", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background">
+                {["INR","USD","EUR","GBP","SGD","AED"].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Base Salary</label>
+              <input type="number" min={0} value={form.baseSalary} onChange={e => set("baseSalary", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Variable Pay</label>
+              <input type="number" min={0} value={form.variablePay} onChange={e => set("variablePay", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Joining Bonus</label>
+              <input type="number" min={0} value={form.joiningBonus} onChange={e => set("joiningBonus", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Start Date</label>
+              <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium mb-1">Expiry Date</label>
+              <input type="date" value={form.expiryDate} onChange={e => set("expiryDate", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-body-sm font-medium mb-1">Notes</label>
+              <textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-body-sm bg-background resize-none" />
+            </div>
+          </div>
+        </div>
+        <div className="p-6 border-t border-border flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-body-sm font-medium hover:bg-muted transition-colors">Cancel</button>
+          <button
+            disabled={!form.applicationId || !form.title || !selected || createOffer.isPending}
+            onClick={() => createOffer.mutate({ applicationId: form.applicationId, candidateId: selected.candidateId, title: form.title, department: form.department || undefined, baseSalary: form.baseSalary ? +form.baseSalary : undefined, variablePay: form.variablePay ? +form.variablePay : undefined, joiningBonus: form.joiningBonus ? +form.joiningBonus : undefined, currency: form.currency, startDate: form.startDate || undefined, expiryDate: form.expiryDate || undefined, notes: form.notes || undefined } as Parameters<typeof createOffer.mutate>[0])}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-body-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >{createOffer.isPending ? "Creating..." : "Create Offer"}</button>
         </div>
       </div>
     </div>
@@ -442,10 +589,13 @@ function RequisitionsTab({ onViewPipeline }: { onViewPipeline: (id: string, titl
 function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
   const { mergeTrpcQueryOpts } = useRBAC();
   const { data: pipeline, refetch } = trpc.recruitment.applications.pipeline.useQuery({ jobId }, mergeTrpcQueryOpts("recruitment.applications.pipeline", undefined));
+  const { data: applications = [] } = trpc.recruitment.applications.list.useQuery({ activeOnly: true }, mergeTrpcQueryOpts("recruitment.applications.list", undefined));
   const moveStage = trpc.recruitment.applications.moveStage.useMutation({
     onSuccess: () => { toast.success("Stage updated"); refetch(); },
     onError: e => toast.error(e.message),
   });
+  const [scheduleFor, setScheduleFor] = useState<string | null>(null);
+  const [offerFor, setOfferFor] = useState<{ applicationId: string; candidateId: string } | null>(null);
 
   return (
     <div>
@@ -478,6 +628,12 @@ function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
                         ))}
                         <button onClick={() => moveStage.mutate({ applicationId: c.application.id, stage: "rejected" })} className="text-caption px-1.5 py-0.5 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors">✕</button>
                       </div>
+                      <PermissionGate module="recruitment" action="write">
+                        <div className="mt-2 flex gap-1">
+                          <button onClick={() => setScheduleFor(c.application.id)} className="text-caption px-1.5 py-0.5 border border-blue-200 text-blue-600 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"><Calendar className="w-3 h-3" /> Interview</button>
+                          <button onClick={() => setOfferFor({ applicationId: c.application.id, candidateId: c.candidate.id })} className="text-caption px-1.5 py-0.5 border border-green-200 text-green-600 rounded hover:bg-green-50 transition-colors flex items-center gap-1"><FileText className="w-3 h-3" /> Offer</button>
+                        </div>
+                      </PermissionGate>
                     </div>
                   ))}
                   {cards.length === 0 && <div className="text-caption text-muted-foreground p-2 text-center border border-dashed border-border rounded-lg">Empty</div>}
@@ -487,6 +643,8 @@ function PipelineTab({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
           })}
         </div>
       </div>
+      {scheduleFor && <ScheduleInterviewModal applications={applications as any[]} presetApplicationId={scheduleFor} onClose={() => setScheduleFor(null)} onScheduled={() => {}} />}
+      {offerFor && <CreateOfferModal applications={applications as any[]} presetApplicationId={offerFor.applicationId} presetCandidateId={offerFor.candidateId} onClose={() => setOfferFor(null)} onCreated={() => {}} />}
     </div>
   );
 }
@@ -555,7 +713,9 @@ function CandidatesTab({ jobs, onShowAdd }: { jobs: any[]; onShowAdd: () => void
 
 function InterviewsTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
-  const { data: interviews = [] } = trpc.recruitment.interviews.list.useQuery({ upcoming: false }, mergeTrpcQueryOpts("recruitment.interviews.list", undefined));
+  const { data: interviews = [], refetch } = trpc.recruitment.interviews.list.useQuery({ upcoming: false }, mergeTrpcQueryOpts("recruitment.interviews.list", undefined));
+  const { data: applications = [] } = trpc.recruitment.applications.list.useQuery({ activeOnly: true }, mergeTrpcQueryOpts("recruitment.applications.list", undefined));
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const statusStyle: Record<string, string> = {
     scheduled:  "bg-blue-100 text-blue-700",
@@ -568,7 +728,15 @@ function InterviewsTab() {
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <PermissionGate module="recruitment" action="write">
+          <button onClick={() => setShowSchedule(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors">
+            <Plus className="w-4 h-4" /> Schedule Interview
+          </button>
+        </PermissionGate>
+      </div>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-body-sm">
           <thead className="bg-muted/50 border-b border-border">
@@ -598,6 +766,8 @@ function InterviewsTab() {
           </tbody>
         </table>
       </div>
+      </div>
+      {showSchedule && <ScheduleInterviewModal applications={applications as any[]} onClose={() => setShowSchedule(false)} onScheduled={() => refetch()} />}
     </div>
   );
 }
@@ -606,15 +776,25 @@ function InterviewsTab() {
 
 function OffersTab() {
   const { mergeTrpcQueryOpts } = useRBAC();
-  const { data: offers = [] } = trpc.recruitment.offers.list.useQuery({}, mergeTrpcQueryOpts("recruitment.offers.list", undefined));
+  const { data: offers = [], refetch } = trpc.recruitment.offers.list.useQuery({}, mergeTrpcQueryOpts("recruitment.offers.list", undefined));
+  const { data: applications = [] } = trpc.recruitment.applications.list.useQuery({ activeOnly: true }, mergeTrpcQueryOpts("recruitment.applications.list", undefined));
   const updateStatus = trpc.recruitment.offers.updateStatus.useMutation({
-    onSuccess: () => toast.success("Offer status updated"),
+    onSuccess: () => { toast.success("Offer status updated"); refetch(); },
     onError: e => toast.error(e.message),
   });
   const [esignOpen, setEsignOpen] = useState<{ id: string; title: string; candidateName?: string; candidateEmail?: string } | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <PermissionGate module="recruitment" action="write">
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-body-sm font-medium hover:bg-primary/90 transition-colors">
+            <Plus className="w-4 h-4" /> Create Offer
+          </button>
+        </PermissionGate>
+      </div>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-body-sm">
           <thead className="bg-muted/50 border-b border-border">
@@ -697,6 +877,8 @@ function OffersTab() {
           </div>
         </div>
       )}
+      </div>
+      {showCreate && <CreateOfferModal applications={applications as any[]} onClose={() => setShowCreate(false)} onCreated={() => refetch()} />}
     </div>
   );
 }

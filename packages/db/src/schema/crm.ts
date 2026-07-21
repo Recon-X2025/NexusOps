@@ -83,6 +83,10 @@ export const crmAccounts = pgTable(
     website: text("website"),
     billingAddress: text("billing_address"),
     creditLimit: decimal("credit_limit", { precision: 14, scale: 2 }),
+    /** G7: GST place-of-supply state for this customer (drives intra vs inter-state on quotes). */
+    stateCode: text("state_code"),
+    /** G7: customer GSTIN (for B2B quotes / eventual invoice conversion). */
+    gstin: text("gstin"),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
     notes: text("notes"),
     archived: boolean("archived").default(false).notNull(),
@@ -166,6 +170,9 @@ export const crmLeads = pgTable(
     score: integer("score").notNull().default(0),
     status: leadStatusEnum("status").notNull().default("new"),
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    /** G6: account/contact upserted on conversion so no company/person is dropped. */
+    accountId: uuid("account_id").references(() => crmAccounts.id, { onDelete: "set null" }),
+    contactId: uuid("contact_id").references(() => crmContacts.id, { onDelete: "set null" }),
     convertedDealId: uuid("converted_deal_id").references(() => crmDeals.id, { onDelete: "set null" }),
     notes: text("notes"),
     archived: boolean("archived").default(false).notNull(),
@@ -215,9 +222,17 @@ export const crmQuotes = pgTable(
     quoteNumber: text("quote_number").notNull(),
     status: quoteStatusEnum("status").notNull().default("draft"),
     validUntil: timestamp("valid_until", { withTimezone: true }),
-    items: jsonb("items").$type<Array<{ description: string; quantity: number; unitPrice: string; total: string }>>().default([]),
+    items: jsonb("items").$type<Array<{ description: string; quantity: number; unitPrice: string; total: string; hsnCode?: string; gstRate?: number }>>().default([]),
     subtotal: decimal("subtotal", { precision: 14, scale: 2 }).notNull().default("0"),
     discountPct: decimal("discount_pct", { precision: 5, scale: 2 }).default("0"),
+    /** G7: GST — place of supply + intra/inter split, computed on the discounted taxable value. */
+    placeOfSupply: text("place_of_supply"),
+    isInterstate: boolean("is_interstate").notNull().default(false),
+    taxableValue: decimal("taxable_value", { precision: 14, scale: 2 }).notNull().default("0"),
+    cgstAmount: decimal("cgst_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    sgstAmount: decimal("sgst_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    igstAmount: decimal("igst_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    taxTotal: decimal("tax_total", { precision: 12, scale: 2 }).notNull().default("0"),
     total: decimal("total", { precision: 14, scale: 2 }).notNull().default("0"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -252,6 +267,40 @@ export const crmPipelineStages = pgTable(
   (t) => ({
     orgKeyIdx: uniqueIndex("crm_pipeline_stages_org_key_idx").on(t.orgId, t.key),
     orgRankIdx: index("crm_pipeline_stages_org_rank_idx").on(t.orgId, t.rank),
+  }),
+);
+
+// ── Lead Scoring Rules (versioned, per-org config) ─────────────────────────
+// G5 — versioned weight table for computing `crm_leads.score`. Mirrors the
+// statutory-ceilings pattern: a platform default row (orgId NULL) provides the
+// baseline; an org-scoped row overrides it; within a scope the latest
+// `effectiveFrom` (where effectiveFrom <= now < effectiveTo) wins. When no row
+// resolves, the scorer falls back to built-in default weights so behaviour is
+// deterministic even on a fresh install.
+export const leadScoringRules = pgTable(
+  "lead_scoring_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    /** Full weight table: source/title/status weights + completeness bonuses + cap. */
+    config: jsonb("config")
+      .$type<{
+        sourceWeights?: Record<string, number>;
+        statusWeights?: Record<string, number>;
+        titleWeights?: Record<string, number>;
+        hasEmail?: number;
+        hasPhone?: number;
+        hasCompany?: number;
+        maxScore?: number;
+      }>()
+      .notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp("effective_to", { withTimezone: true }),
+    sourceRef: text("source_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    lookupIdx: index("lead_scoring_rules_lookup_idx").on(t.orgId, t.effectiveFrom),
   }),
 );
 

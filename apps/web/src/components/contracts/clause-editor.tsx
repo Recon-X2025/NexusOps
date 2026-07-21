@@ -138,7 +138,7 @@ export function ClauseEditor({ clauses, onChange, currencyCode = "INR" }: Clause
       {clauses.map((c, index) => {
         const isOpen = !!expanded[c.id];
         const displayIndex = index + 1;
-        const previewValue = getDisplayedClauseBody(c);
+        const previewValue = getDisplayedClauseBody(c, sym);
 
         return (
           <div
@@ -347,11 +347,12 @@ export function buildContractDocumentHtml(params: {
   title: string;
   counterparty: string;
   clauses: WizardClauseState[];
+  currencySymbol?: string;
 }): string {
   const enabled = params.clauses.filter((c) => c.isEnabled);
   const sections = enabled
     .map((c) => {
-      const body = getDisplayedClauseBody(c).replace(/\n/g, "<br/>");
+      const body = getDisplayedClauseBody(c, params.currencySymbol).replace(/\n/g, "<br/>");
       return `<section style="margin-bottom:1.25rem"><h2 style="font-size:14px;margin:0 0 0.5rem">${escapeHtml(c.title)}</h2><div style="font-size:12px;line-height:1.55;color:#334155">${body}</div></section>`;
     })
     .join("");

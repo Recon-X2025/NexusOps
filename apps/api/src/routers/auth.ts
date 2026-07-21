@@ -45,7 +45,7 @@ import {
   generateBackupCodes,
   matchBackupCode,
 } from "../lib/totp";
-import { encryptSecret, decryptSecret } from "../services/encryption";
+import { encryptSecretEnvelope, decryptSecretEnvelope } from "../services/encryption";
 
 /** Never return password hashes to clients. */
 function stripPasswordHash<T extends { passwordHash?: string | null }>(row: T) {
@@ -345,7 +345,7 @@ export const authRouter = router({
             .where(eq(mfaEnrollments.id, enrollment.id));
         }
       } else {
-        ok = verifyTotp(decryptSecret(enrollment.totpSecret), input.code);
+        ok = verifyTotp(await decryptSecretEnvelope(enrollment.totpSecret), input.code);
       }
 
       if (!ok) {
@@ -420,7 +420,7 @@ export const authRouter = router({
       await db.insert(mfaEnrollments).values({
         orgId: ctx.orgId!,
         userId: user!.id,
-        totpSecret: encryptSecret(secret),
+        totpSecret: await encryptSecretEnvelope(secret),
         status: "pending",
         backupCodes: [],
       });
@@ -445,7 +445,7 @@ export const authRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "No pending MFA enrollment; call startEnroll first" });
         }
 
-        if (!verifyTotp(decryptSecret(enrollment.totpSecret), input.code)) {
+        if (!verifyTotp(await decryptSecretEnvelope(enrollment.totpSecret), input.code)) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
         }
 
@@ -494,7 +494,7 @@ export const authRouter = router({
 
         const ok = input.isBackupCode
           ? (await matchBackupCode(input.code, enrollment.backupCodes)) >= 0
-          : verifyTotp(decryptSecret(enrollment.totpSecret), input.code);
+          : verifyTotp(await decryptSecretEnvelope(enrollment.totpSecret), input.code);
         if (!ok) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
         }

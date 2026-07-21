@@ -1,7 +1,7 @@
 import { integrations, integrationSyncLogs, tickets, ticketStatuses, users, organizations, eq, and, type DbOrTx } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "./encryption";
+import { decryptIntegrationConfigEnvelope } from "./encryption";
 
-export { decryptIntegrationConfig };
+export { decryptIntegrationConfigEnvelope };
 
 interface JiraConfig {
   baseUrl: string;
@@ -118,7 +118,9 @@ export async function syncJiraToNexus(db: DbOrTx, orgId: string, integrationId: 
 
   if (!integration?.configEncrypted) throw new Error("Integration not found or missing config");
 
-  const config = decryptIntegrationConfig(integration.configEncrypted) as unknown as JiraConfig;
+  const config = (await decryptIntegrationConfigEnvelope(
+    integration.configEncrypted,
+  )) as unknown as JiraConfig;
   const issues = await fetchJiraIssues(config);
 
   const [defaultStatus] = await db

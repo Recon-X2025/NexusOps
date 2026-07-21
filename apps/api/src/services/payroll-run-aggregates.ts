@@ -5,6 +5,8 @@
 
 import { employees, salaryStructures, eq, and } from "@coheronconnect/db";
 import { computeEmployeePayslip, type EmployeePayrollInput } from "../lib/payroll-cycle";
+import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
+import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 
 /** India FY month: April = 1 … March = 12 */
 export function calendarToFyMonth(calendarMonth: number): number {
@@ -28,6 +30,7 @@ export function buildEmployeePayrollInput(
   struct: typeof salaryStructures.$inferSelect,
   month: number,
   year: number,
+  attendance?: { daysInMonth: number; daysWorked: number; lopDays: number },
 ): EmployeePayrollInput {
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
@@ -37,6 +40,9 @@ export function buildEmployeePayrollInput(
   const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - hraMonthly - 2500);
   const ltaAnnual = Number(struct.ltaAnnual || 0);
   const daysInMonth = new Date(year, month, 0).getDate();
+  // G8: LOP derived from attendance. Absent a record, treat as a full paid month.
+  const daysWorked = attendance ? attendance.daysWorked : daysInMonth;
+  const lopDays = attendance ? attendance.lopDays : 0;
   const join = emp.startDate ? new Date(emp.startDate) : new Date(year, month - 1, 1);
 
   return {
@@ -64,8 +70,8 @@ export function buildEmployeePayrollInput(
     otherExemptions: 0,
     rentPaid: 0,
     daysInMonth,
-    daysWorked: daysInMonth,
-    lopDays: 0,
+    daysWorked,
+    lopDays,
     overtime: 0,
     arrears: 0,
     bonus: 0,
@@ -108,10 +114,15 @@ export async function computePayrollRunTotals(
   let totalTds = 0;
   let employeeCount = 0;
 
+  // G1: resolve effective-dated statutory ceilings so previews match the run.
+  const ceilings = await resolveStatutoryCeilings(db, orgId, new Date(year, month - 1, 1));
+  // G8: derive LOP from attendance for the period so previews match the run.
+  const lopMap = await computeAttendanceLopForPeriod(db, orgId, month, year);
+
   for (const { emp, st } of rows) {
     try {
-      const input = buildEmployeePayrollInput(emp, st, month, year);
-      const slip = computeEmployeePayslip(input, fyMonth);
+      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id));
+      const slip = computeEmployeePayslip(input, fyMonth, ceilings);
       totalGross += slip.grossEarnings;
       totalDeductions += slip.totalDeductions;
       totalNet += slip.netPay;

@@ -76,6 +76,37 @@ import {
   startVulnSlaWorker,
   type VulnSlaJobData,
 } from "../workflows/vulnerabilitySlaWorkflow";
+import {
+  createExpiryAlertQueue,
+  scheduleExpiryAlertSweep,
+  startExpiryAlertWorker,
+  type ExpiryAlertJobData,
+} from "../workflows/expiryAlertWorkflow";
+import {
+  createStatutoryFilingQueue,
+  startStatutoryFilingWorker,
+  type StatutoryFilingJobData,
+} from "../workflows/statutoryFilingWorkflow";
+import {
+  createEwayBillQueue,
+  startEwayBillWorker,
+  type EwayBillJobData,
+} from "../workflows/ewayBillWorkflow";
+import {
+  createMca21FilingQueue,
+  startMca21FilingWorker,
+  type Mca21FilingJobData,
+} from "../workflows/mca21FilingWorkflow";
+import {
+  createEsiReturnQueue,
+  startEsiReturnWorker,
+  type EsiReturnJobData,
+} from "../workflows/esiReturnWorkflow";
+import {
+  createPtChallanQueue,
+  startPtChallanWorker,
+  type PtChallanJobData,
+} from "../workflows/ptChallanWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -90,6 +121,12 @@ interface WorkflowServiceInstance {
   escalationQueue: Queue<EscalationJobData>;
   correlationQueue: Queue<CorrelationJobData>;
   vulnSlaQueue: Queue<VulnSlaJobData>;
+  expiryAlertQueue: Queue<ExpiryAlertJobData>;
+  statutoryFilingQueue: Queue<StatutoryFilingJobData>;
+  ewayBillQueue: Queue<EwayBillJobData>;
+  mca21FilingQueue: Queue<Mca21FilingJobData>;
+  esiReturnQueue: Queue<EsiReturnJobData>;
+  ptChallanQueue: Queue<PtChallanJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -111,6 +148,12 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const escalationQueue = createEscalationQueue();
   const correlationQueue = createCorrelationQueue();
   const vulnSlaQueue = createVulnSlaQueue();
+  const expiryAlertQueue = createExpiryAlertQueue();
+  const statutoryFilingQueue = createStatutoryFilingQueue();
+  const ewayBillQueue = createEwayBillQueue();
+  const mca21FilingQueue = createMca21FilingQueue();
+  const esiReturnQueue = createEsiReturnQueue();
+  const ptChallanQueue = createPtChallanQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -124,6 +167,12 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const escalationWorker = startEscalationWorker(db);
   const correlationWorker = startCorrelationWorker(db);
   const vulnSlaWorker = startVulnSlaWorker(db);
+  const expiryAlertWorker = startExpiryAlertWorker(db);
+  const statutoryFilingWorker = startStatutoryFilingWorker(db);
+  const ewayBillWorker = startEwayBillWorker(db);
+  const mca21FilingWorker = startMca21FilingWorker(db);
+  const esiReturnWorker = startEsiReturnWorker(db);
+  const ptChallanWorker = startPtChallanWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -148,6 +197,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   // Vulnerability remediation-SLA breach + escalation sweepers (Security Phase B).
   scheduleVulnSlaSweep(vulnSlaQueue).catch((err) => {
     console.warn("[workflow:vuln-sla] Failed to register vuln SLA sweepers:", err);
+  });
+  // Asset-warranty + contract-renewal expiry alert sweepers (G9).
+  scheduleExpiryAlertSweep(expiryAlertQueue).catch((err) => {
+    console.warn("[workflow:expiry-alert] Failed to register expiry alert sweepers:", err);
   });
 
   approvalWorker.on("failed", (job, err) => {
@@ -186,6 +239,24 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   vulnSlaWorker.on("failed", (job, err) => {
     console.error(`[workflow:vuln-sla] Job ${job?.id} failed:`, err.message);
   });
+  expiryAlertWorker.on("failed", (job, err) => {
+    console.error(`[workflow:expiry-alert] Job ${job?.id} failed:`, err.message);
+  });
+  statutoryFilingWorker.on("failed", (job, err) => {
+    console.error(`[workflow:statutory-filing] Job ${job?.id} failed:`, err.message);
+  });
+  ewayBillWorker.on("failed", (job, err) => {
+    console.error(`[workflow:eway-bill] Job ${job?.id} failed:`, err.message);
+  });
+  mca21FilingWorker.on("failed", (job, err) => {
+    console.error(`[workflow:mca21-filing] Job ${job?.id} failed:`, err.message);
+  });
+  esiReturnWorker.on("failed", (job, err) => {
+    console.error(`[workflow:esi-return] Job ${job?.id} failed:`, err.message);
+  });
+  ptChallanWorker.on("failed", (job, err) => {
+    console.error(`[workflow:pt-challan] Job ${job?.id} failed:`, err.message);
+  });
 
   _instance = {
     approvalQueue,
@@ -200,6 +271,12 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     escalationQueue,
     correlationQueue,
     vulnSlaQueue,
+    expiryAlertQueue,
+    statutoryFilingQueue,
+    ewayBillQueue,
+    mca21FilingQueue,
+    esiReturnQueue,
+    ptChallanQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -214,6 +291,12 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         escalationWorker.close(),
         correlationWorker.close(),
         vulnSlaWorker.close(),
+        expiryAlertWorker.close(),
+        statutoryFilingWorker.close(),
+        ewayBillWorker.close(),
+        mca21FilingWorker.close(),
+        esiReturnWorker.close(),
+        ptChallanWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
@@ -226,6 +309,12 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         escalationQueue.close(),
         correlationQueue.close(),
         vulnSlaQueue.close(),
+        expiryAlertQueue.close(),
+        statutoryFilingQueue.close(),
+        ewayBillQueue.close(),
+        mca21FilingQueue.close(),
+        esiReturnQueue.close(),
+        ptChallanQueue.close(),
       ]);
       _instance = undefined;
     },

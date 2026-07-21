@@ -34,7 +34,7 @@ import {
   vendors,
   type Db,
 } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "../services/encryption";
+import { decryptIntegrationConfigEnvelope } from "../services/encryption";
 import {
   clearTaxGstAdapter,
   type IrnRequest,
@@ -195,7 +195,7 @@ export async function processIrnJob(
     .from(invoiceLineItems)
     .where(eq(invoiceLineItems.invoiceId, invoiceId));
 
-  const config = decryptIntegrationConfig(int.configEncrypted) as unknown as Parameters<
+  const config = await decryptIntegrationConfigEnvelope(int.configEncrypted) as unknown as Parameters<
     NonNullable<typeof clearTaxGstAdapter.send>
   >[0];
 

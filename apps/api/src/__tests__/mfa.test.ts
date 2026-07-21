@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 
-// encryptSecret/decryptSecret read APP_SECRET lazily; ensure it exists for tests.
+// Envelope secret codec reads APP_SECRET lazily; ensure it exists for tests.
 process.env["APP_SECRET"] = process.env["APP_SECRET"] ?? "test-app-secret-for-mfa-do-not-use-in-prod";
 
 import { authenticator } from "otplib";
@@ -18,7 +18,7 @@ import { nanoid } from "nanoid";
 import { seedTestOrg, seedUser as baseSeedUser, authedCaller, testDb } from "./helpers";
 import { appRouter } from "../routers";
 import { mfaEnrollments, users, eq } from "@coheronconnect/db";
-import { decryptSecret } from "../services/encryption";
+import { decryptSecretEnvelope, isEnvelope } from "../services/encryption";
 
 /**
  * Seed a user with a guaranteed-lowercase email. `login` normalizes email to
@@ -57,7 +57,7 @@ async function currentCodeForUser(userId: string): Promise<string> {
     .from(mfaEnrollments)
     .where(eq(mfaEnrollments.userId, userId))
     .limit(1);
-  return authenticator.generate(decryptSecret(row!.totpSecret));
+  return authenticator.generate(await decryptSecretEnvelope(row!.totpSecret));
 }
 
 /** Full enroll helper: startEnroll + confirmEnroll, returns backup codes. */
@@ -97,9 +97,10 @@ describe("MFA (TOTP)", () => {
     expect(enr?.status).toBe("pending");
     const [u] = await db.select().from(users).where(eq(users.id, userId));
     expect(u?.mfaEnrolled).toBe(false);
-    // Secret is stored encrypted, not plaintext.
+    // Secret is stored as a KMS envelope, not plaintext, and round-trips.
     expect(enr?.totpSecret).not.toBe(res.secret);
-    expect(decryptSecret(enr!.totpSecret)).toBe(res.secret);
+    expect(isEnvelope(enr!.totpSecret)).toBe(true);
+    expect(await decryptSecretEnvelope(enr!.totpSecret)).toBe(res.secret);
   });
 
   it("confirmEnroll with a valid code activates MFA and returns 10 backup codes", async () => {

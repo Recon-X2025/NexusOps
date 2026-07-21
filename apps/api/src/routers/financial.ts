@@ -12,6 +12,7 @@ import {
   legalEntities,
   gstinRegistry,
   organizations,
+  ewayBills,
   eq,
   and,
   or,
@@ -33,6 +34,9 @@ import {
 import {
   enqueueIrnGenerationJob,
 } from "../workflows/irnGenerationWorkflow";
+import {
+  enqueueEwayBillJob,
+} from "../workflows/ewayBillWorkflow";
 import { getWorkflowService } from "../services/workflow";
 import {
   postInvoiceJournalEntry,
@@ -1443,6 +1447,204 @@ export const financialRouter = router({
           checks: [...checks],
           allClear,
         };
+      }),
+  }),
+
+  /**
+   * E-Way Bill (G3) — generate / cancel / status against the NIC portal.
+   *
+   * `generate` gates on the statutory threshold (isEWayBillRequired: goods,
+   * consignment value > ₹50k), builds the canonical NIC EWB-01 payload from the
+   * invoice, persists an `eway_bills` row, and enqueues the NIC push (soft-fails
+   * `not_configured` when no NIC integration is connected). The push is
+   * idempotent per invoice; a live (non-cancelled) row is reused on retry.
+   */
+  ewayBill: router({
+    generate: permissionProcedure("financial", "write")
+      .use(mfaGate)
+      .input(
+        z.object({
+          invoiceId: z.string().uuid(),
+          transDistance: z.number().int().nonnegative().default(0),
+          transportMode: z.enum(["road", "rail", "air", "ship"]).default("road"),
+          hsnCode: z.string().min(4).default("9999"),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { isEWayBillRequired } = await import("../lib/india/gst-engine.js");
+
+        const [inv] = await db
+          .select()
+          .from(invoices)
+          .where(and(eq(invoices.id, input.invoiceId), eq(invoices.orgId, org!.id)));
+        if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+
+        const consignmentValue = Number(inv.taxableValue ?? 0);
+        if (!isEWayBillRequired({ isGoods: true, consignmentValue })) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "E-Way Bill not required: consignment value at or below ₹50,000",
+          });
+        }
+        if (!inv.supplierGstin) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Supplier GSTIN missing on invoice; cannot raise E-Way Bill",
+          });
+        }
+
+        // Reuse a live (non-cancelled, non-failed) EWB row for this invoice so
+        // the loop is idempotent; only spawn a new row when none is live.
+        const existing = await db
+          .select()
+          .from(ewayBills)
+          .where(and(eq(ewayBills.orgId, org!.id), eq(ewayBills.invoiceId, inv.id)));
+        const live = existing.find(
+          (r) => r.status === "generated" || r.status === "generating" || r.status === "pending",
+        );
+        if (live && live.status === "generated") {
+          return { ewayBillId: live.id, status: live.status, ewbNo: live.ewbNo, queued: false };
+        }
+
+        const fromGstin = inv.supplierGstin;
+        const toGstin = inv.buyerGstin ?? inv.supplierGstin;
+        const fromStateCode = Number(fromGstin.slice(0, 2));
+        const toStateCode = Number(toGstin.slice(0, 2));
+        const invoiceDate = inv.invoiceDate ? new Date(inv.invoiceDate) : new Date();
+        const nicDate = `${String(invoiceDate.getDate()).padStart(2, "0")}/${String(invoiceDate.getMonth() + 1).padStart(2, "0")}/${invoiceDate.getFullYear()}`;
+
+        const payload = {
+          op: "generate" as const,
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: nicDate,
+          supplyType: "O" as const,
+          subSupplyType: "1",
+          docType: "INV" as const,
+          fromGstin,
+          toGstin,
+          fromStateCode,
+          toStateCode,
+          transDistance: input.transDistance,
+          totalValue: Number(inv.amount ?? 0),
+          cgstValue: Number(inv.cgstAmount ?? 0),
+          sgstValue: Number(inv.sgstAmount ?? 0),
+          igstValue: Number(inv.igstAmount ?? 0),
+          itemList: [
+            {
+              productName: `Invoice ${inv.invoiceNumber}`,
+              hsnCode: input.hsnCode,
+              quantity: 1,
+              taxableAmount: consignmentValue,
+              cgstRate: 0,
+              sgstRate: 0,
+              igstRate: 0,
+            },
+          ],
+        };
+
+        const [row] = live
+          ? await db
+              .update(ewayBills)
+              .set({
+                status: "pending",
+                consignmentValue: String(consignmentValue),
+                payloadJson: payload,
+                portalError: null,
+                updatedAt: new Date(),
+              })
+              .where(eq(ewayBills.id, live.id))
+              .returning()
+          : await db
+              .insert(ewayBills)
+              .values({
+                orgId: org!.id,
+                invoiceId: inv.id,
+                invoiceNumber: inv.invoiceNumber,
+                status: "pending",
+                consignmentValue: String(consignmentValue),
+                payloadJson: payload,
+              })
+              .returning();
+
+        let queued = false;
+        try {
+          await enqueueEwayBillJob(getWorkflowService().ewayBillQueue, {
+            ewayBillId: row!.id,
+            orgId: org!.id,
+            op: "generate",
+          });
+          queued = true;
+        } catch (err) {
+          console.warn("[financial] E-Way Bill enqueue skipped:", (err as Error).message);
+        }
+
+        return { ewayBillId: row!.id, status: row!.status, ewbNo: row!.ewbNo, queued };
+      }),
+
+    cancel: permissionProcedure("financial", "write")
+      .use(mfaGate)
+      .input(
+        z.object({
+          ewayBillId: z.string().uuid(),
+          reasonCode: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).default(2),
+          remark: z.string().min(3).max(200).default("Order cancelled"),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select()
+          .from(ewayBills)
+          .where(and(eq(ewayBills.id, input.ewayBillId), eq(ewayBills.orgId, org!.id)));
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "E-Way Bill not found" });
+        if (!row.ewbNo) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Cannot cancel: E-Way Bill has not been generated yet",
+          });
+        }
+        if (row.status === "cancelled") {
+          return { ewayBillId: row.id, status: row.status, queued: false };
+        }
+
+        let queued = false;
+        try {
+          await enqueueEwayBillJob(getWorkflowService().ewayBillQueue, {
+            ewayBillId: row.id,
+            orgId: org!.id,
+            op: "cancel",
+            cancelRsnCode: input.reasonCode,
+            cancelRemark: input.remark,
+          });
+          queued = true;
+        } catch (err) {
+          console.warn("[financial] E-Way Bill cancel enqueue skipped:", (err as Error).message);
+        }
+        return { ewayBillId: row.id, status: row.status, queued };
+      }),
+
+    status: permissionProcedure("financial", "read")
+      .input(z.object({ ewayBillId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select()
+          .from(ewayBills)
+          .where(and(eq(ewayBills.id, input.ewayBillId), eq(ewayBills.orgId, org!.id)));
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "E-Way Bill not found" });
+        return row;
+      }),
+
+    listForInvoice: permissionProcedure("financial", "read")
+      .input(z.object({ invoiceId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        return db
+          .select()
+          .from(ewayBills)
+          .where(and(eq(ewayBills.orgId, org!.id), eq(ewayBills.invoiceId, input.invoiceId)))
+          .orderBy(desc(ewayBills.createdAt));
       }),
   }),
 });

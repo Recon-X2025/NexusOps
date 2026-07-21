@@ -145,6 +145,14 @@ export const employees = pgTable(
     bankName: text("bank_name"),
     taxRegime: taxRegimeEnum("tax_regime").notNull().default("new"),
     salaryStructureId: uuid("salary_structure_id").references(() => salaryStructures.id, { onDelete: "set null" }),
+    /**
+     * Assigned working shift (G8). Drives late / half-day derivation on
+     * self-service punches. Nullable — when unset, capture falls back to the
+     * org's default shift (`shiftSchedules.isDefault`), then to a built-in
+     * 09:00 / 8h / 10-min-grace baseline. `set null` on delete so retiring a
+     * shift definition un-assigns rather than orphaning the employee.
+     */
+    shiftScheduleId: uuid("shift_schedule_id").references((): AnyPgColumn => shiftSchedules.id, { onDelete: "set null" }),
     startDate: timestamp("start_date", { withTimezone: true }),
     confirmationDate: timestamp("confirmation_date", { withTimezone: true }),
     endDate: timestamp("end_date", { withTimezone: true }),
@@ -381,6 +389,9 @@ export const payslips = pgTable(
       .references(() => payrollRuns.id, { onDelete: "cascade" }),
     month: integer("month").notNull(),
     year: integer("year").notNull(),
+    /** G8: attendance basis of this payslip's gross (paid days vs loss-of-pay days). */
+    paidDays: decimal("paid_days", { precision: 5, scale: 1 }).notNull().default("0"),
+    lopDays: decimal("lop_days", { precision: 5, scale: 1 }).notNull().default("0"),
     basic: decimal("basic", { precision: 12, scale: 2 }).notNull().default("0"),
     hra: decimal("hra", { precision: 12, scale: 2 }).notNull().default("0"),
     specialAllowance: decimal("special_allowance", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -691,6 +702,45 @@ export const attendanceRecords = pgTable(
   }),
 );
 
+// ── Shift schedules (G8) ──────────────────────────────────────────────────
+/**
+ * A named working-shift definition. `startMinutes` is minutes-from-local-
+ * midnight (e.g. 540 = 09:00) and `durationMinutes` the expected working span
+ * (e.g. 480 = 8h) — stored as offsets (not a `time`/`timestamp`) so they are
+ * timezone-agnostic and compare cleanly against a punch's local wall-clock.
+ * `graceMinutes` is the lateness tolerance before a check-in counts as `late`.
+ * Exactly one row per org may carry `isDefault = true` (partial unique index):
+ * it is the fallback shift for employees with no explicit assignment.
+ */
+export const shiftSchedules = pgTable(
+  "shift_schedules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Minutes from local midnight the shift starts (e.g. 540 = 09:00). */
+    startMinutes: integer("start_minutes").notNull().default(540),
+    /** Expected working span in minutes (e.g. 480 = 8h). */
+    durationMinutes: integer("duration_minutes").notNull().default(480),
+    /** Lateness tolerance before a check-in is flagged `late`. */
+    graceMinutes: integer("grace_minutes").notNull().default(10),
+    /** The org fallback shift for employees with no assignment. */
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("shift_schedules_org_idx").on(t.orgId),
+    orgNameIdx: uniqueIndex("shift_schedules_org_name_idx").on(t.orgId, t.name),
+    // At most one default shift per org.
+    orgDefaultIdx: uniqueIndex("shift_schedules_org_default_idx")
+      .on(t.orgId)
+      .where(sql`${t.isDefault} = true`),
+  }),
+);
+
 // ── Expense Management (enums: ./expenses) ────────────────────────────────
 export const expenseClaims = pgTable(
   "expense_claims",
@@ -768,7 +818,15 @@ export const okrObjectives = pgTable(
     cycle: okrCycleEnum("cycle").notNull().default("q1"),
     year: integer("year").notNull(),
     status: okrStatusEnum("status").notNull().default("draft"),
+    /** Own progress: average attainment of this objective's own key results. */
     overallProgress: integer("overall_progress").notNull().default(0),
+    /**
+     * G12: persisted cascade rollup — average of this objective's own progress
+     * and every descendant's own progress. Recomputed and walked up the parent
+     * chain on every key-result change, so a parent always reflects how its
+     * aligned children are tracking without an on-read traversal.
+     */
+    rollupProgress: integer("rollup_progress").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

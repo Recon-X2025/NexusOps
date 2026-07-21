@@ -1,0 +1,1 @@
+ALTER TABLE "okr_objectives" ADD COLUMN "rollup_progress" integer DEFAULT 0 NOT NULL;

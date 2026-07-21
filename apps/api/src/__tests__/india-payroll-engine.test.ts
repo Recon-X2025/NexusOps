@@ -232,6 +232,12 @@ describe("EPF Computation", () => {
     const result = computePF(50_000, true);
     expect(result.employerEPS).toBe(Math.round(15_000 * 0.0833));
   });
+
+  it("G1: honours an override PF wage ceiling", () => {
+    const result = computePF(50_000, false, 21_000);
+    expect(result.pfWageBase).toBe(21_000);
+    expect(result.employeePF).toBe(Math.round(21_000 * 0.12));
+  });
 });
 
 describe("ESI Computation", () => {
@@ -246,6 +252,12 @@ describe("ESI Computation", () => {
     const result = computeESI(25_000);
     expect(result.isApplicable).toBe(false);
     expect(result.employeeESI).toBe(0);
+  });
+
+  it("G1: honours an override ESI wage ceiling", () => {
+    const result = computeESI(25_000, 27_000);
+    expect(result.isApplicable).toBe(true);
+    expect(result.employeeESI).toBe(Math.round(25_000 * 0.0075));
   });
 });
 

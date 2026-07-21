@@ -302,6 +302,15 @@ export const softwareLicenses = pgTable(
     purchaseDate: timestamp("purchase_date", { withTimezone: true }),
     expiryDate: timestamp("expiry_date", { withTimezone: true }),
     isActive: boolean("is_active").notNull().default(true),
+    /**
+     * G11 SAM: number of actual installs discovered in the estate (e.g. from an
+     * M365 / endpoint inventory ingest). Compared against `totalSeats`
+     * (entitlement) to surface over-deployment (audit risk) vs unused spend.
+     * Null until the first reconciliation ingest lands.
+     */
+    installedCount: integer("installed_count"),
+    /** G11 SAM: when installed-vs-entitled was last reconciled. */
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

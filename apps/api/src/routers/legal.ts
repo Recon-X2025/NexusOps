@@ -17,6 +17,7 @@ import {
   issuerProgrammeMatrix,
   relatedPartyTransactions,
   dpdpProcessingActivities,
+  mcaFilingRecords,
   eq,
   and,
   desc,
@@ -33,6 +34,8 @@ import { checkDbUserPermission } from "../lib/rbac-db";
 import { getNextNumber } from "../lib/auto-number";
 import { getRedis } from "../lib/redis";
 import { rateLimit } from "../lib/rate-limit";
+import { getWorkflowService } from "../services/workflow";
+import { enqueueMca21FilingJob } from "../workflows/mca21FilingWorkflow";
 import type { Context } from "../lib/trpc";
 
 const ISSUER_MATRIX_SEED: Array<{
@@ -766,4 +769,97 @@ export const legalRouter = router({
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
       return row;
     }),
+
+  // ── MCA21 V3 filing (G4) ─────────────────────────────────────────────────────
+  // Prepare an ROC e-Form (SRN capture), push it to the MCA21 gateway via the
+  // BullMQ portal-push loop, and reconcile the SRN/ack back onto the record.
+  mca21: router({
+    prepare: permissionProcedure("legal", "write")
+      .input(
+        z.object({
+          formCode: z.string().min(1),
+          period: z.string().optional(),
+          formData: z.record(z.unknown()).default({}),
+          dueAt: z.coerce.date().optional(),
+          notes: z.string().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .insert(mcaFilingRecords)
+          .values({
+            orgId: org!.id,
+            formCode: input.formCode,
+            status: "prepared",
+            dueAt: input.dueAt ?? null,
+            notes: input.notes ?? null,
+            payloadJson: {
+              formCode: input.formCode,
+              period: input.period,
+              formData: input.formData,
+            },
+          })
+          .returning();
+        return row;
+      }),
+
+    submit: permissionProcedure("legal", "write")
+      .input(z.object({ id: z.string().uuid(), force: z.boolean().default(false) }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select()
+          .from(mcaFilingRecords)
+          .where(and(eq(mcaFilingRecords.id, input.id), eq(mcaFilingRecords.orgId, org!.id)));
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!row.payloadJson || !(row.payloadJson as { formCode?: string }).formCode) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "MCA filing record has no prepared e-Form payload",
+          });
+        }
+        if (row.srn && !input.force) {
+          return { id: row.id, status: row.status, srn: row.srn, queued: false };
+        }
+
+        let queued = false;
+        try {
+          await enqueueMca21FilingJob(getWorkflowService().mca21FilingQueue, {
+            mcaFilingRecordId: row.id,
+            orgId: org!.id,
+            force: input.force,
+          });
+          queued = true;
+        } catch (err) {
+          console.warn("[legal] MCA21 filing enqueue skipped:", (err as Error).message);
+        }
+        return { id: row.id, status: row.status, srn: row.srn, queued };
+      }),
+
+    status: permissionProcedure("legal", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .select()
+          .from(mcaFilingRecords)
+          .where(and(eq(mcaFilingRecords.id, input.id), eq(mcaFilingRecords.orgId, org!.id)));
+        if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+        return row;
+      }),
+
+    list: permissionProcedure("legal", "read")
+      .input(z.object({ formCode: z.string().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conds = [eq(mcaFilingRecords.orgId, org!.id)];
+        if (input?.formCode) conds.push(eq(mcaFilingRecords.formCode, input.formCode));
+        return db
+          .select()
+          .from(mcaFilingRecords)
+          .where(and(...conds))
+          .orderBy(desc(mcaFilingRecords.createdAt));
+      }),
+  }),
 });

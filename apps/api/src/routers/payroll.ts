@@ -33,6 +33,8 @@ import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
+import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
+import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 import { computeRetainUntil } from "../lib/retention";
 import {
   buildEmployeePayrollInput,
@@ -388,17 +390,28 @@ const runsRouter = router({
         .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
         .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
 
+      // G1: resolve effective-dated statutory ceilings for this pay period.
+      const ceilings = await resolveStatutoryCeilings(
+        db,
+        org!.id,
+        new Date(row.year, row.month - 1, 1),
+      );
+      // G8: derive LOP from attendance so unpaid absence reduces gross pay.
+      const lopMap = await computeAttendanceLopForPeriod(db, org!.id, row.month, row.year);
+
       await db.transaction(async (tx) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
         for (const { emp, st } of empRows) {
-          const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year);
-          const slip = computeEmployeePayslip(empInput, fyMonth);
+          const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id));
+          const slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
           await tx.insert(payslips).values({
             orgId: org!.id,
             employeeId: emp.id,
             payrollRunId: row.id,
             month: row.month,
             year: row.year,
+            paidDays: String(slip.daysWorked),
+            lopDays: String(slip.lopDays),
             basic: String(slip.basicEarned),
             hra: String(slip.hraEarned),
             specialAllowance: String(slip.specialAllowance),

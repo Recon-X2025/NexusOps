@@ -38,10 +38,14 @@ import {
 // ── Import sub-routers ────────────────────────────────────────────────────────
 import { crmAccountsRouter } from "./accounts";
 import { crmContactsRouter } from "./contacts";
-import { crmDealsRouter } from "./deals";
+import { crmDealsRouter, serializeQuote } from "./deals";
 import { crmLeadsRouter } from "./leads";
+import { crmLeadScoringRouter } from "./lead-scoring";
 import { crmActivitiesRouter } from "./activities";
 import { crmDashboardRouter } from "./dashboard";
+import { convertLeadToDeal } from "../../lib/crm/lead-convert";
+import { createScoredLead, updateScoredLead } from "../../lib/crm/lead-write";
+import { buildQuoteTaxColumns, type QuoteLine } from "../../lib/crm/quote-tax";
 
 // ─── Dashboard helper (shared between legacy + new sub-router) ────────────────
 async function getCrmExecutiveSummary(db: DbOrTx, orgId: string) {
@@ -77,6 +81,7 @@ export const crmRouter = router({
   contacts: crmContactsRouter,
   deals: crmDealsRouter,
   leads: crmLeadsRouter,
+  leadScoring: crmLeadScoringRouter,
   activities: crmActivitiesRouter,
   dashboard: crmDashboardRouter,
 
@@ -317,26 +322,34 @@ export const crmRouter = router({
     .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().email(), phone: z.string(), company: z.string().optional(), title: z.string().optional(), source: z.enum(leadSourceEnum.enumValues).default("website") }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [lead] = await db.insert(crmLeads).values({ orgId: org!.id, ...input, ownerId: user!.id, source: input.source }).returning();
-      return lead;
+      // G5 — score persisted on write via the shared scoring config resolver.
+      return createScoredLead(db, { orgId: org!.id, ownerId: user!.id, ...input });
     }),
   /** @deprecated Use trpc.crm.leads.update */
   updateLead: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid(), firstName: z.string().optional(), lastName: z.string().optional(), email: z.string().email().optional(), phone: z.string().optional(), company: z.string().optional(), title: z.string().optional(), status: z.enum(["new", "contacted", "qualified", "disqualified", "converted"]).optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { id, ...data } = input;
-      const [lead] = await db.update(crmLeads).set({ ...data, updatedAt: new Date() }).where(and(eq(crmLeads.id, id), eq(crmLeads.orgId, org!.id))).returning();
-      return lead;
+      const { id, ...patch } = input;
+      // G5 — re-score on write so a status/title/source change updates the score.
+      return updateScoredLead(db, org!.id, id, patch);
     }),
   /** @deprecated Use trpc.crm.leads.convert */
   convertLead: permissionProcedure("accounts", "write")
     .input(z.object({ id: z.string().uuid(), dealTitle: z.string(), dealValue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
-      const [deal] = await db.insert(crmDeals).values({ orgId: org!.id, title: input.dealTitle, value: input.dealValue, ownerId: user!.id, weightedValue: input.dealValue ? String(Number(input.dealValue) * 0.1) : undefined }).returning();
-      await db.update(crmLeads).set({ status: "converted", convertedDealId: deal!.id, updatedAt: new Date() }).where(and(eq(crmLeads.id, input.id), eq(crmLeads.orgId, org!.id)));
-      return deal;
+      // G6 — lossless conversion (see lib/crm/lead-convert). Runs in one tx so
+      // account/contact upsert + deal + lead flag commit atomically.
+      return await db.transaction((tx) =>
+        convertLeadToDeal(tx, {
+          leadId: input.id,
+          orgId: org!.id,
+          actorId: user!.id,
+          dealTitle: input.dealTitle,
+          dealValue: input.dealValue,
+        }),
+      );
     }),
 
   // ── Activities ─────────────────────────────────────────────────────────────
@@ -408,66 +421,67 @@ export const crmRouter = router({
       if (input.dealId) conditions.push(eq(crmQuotes.dealId, input.dealId));
       if (input.status) conditions.push(eq(crmQuotes.status, input.status));
       const rows = await db.select().from(crmQuotes).where(and(...conditions)).orderBy(desc(crmQuotes.createdAt));
-      return rows.map((q) => {
-        const items = Array.isArray(q.items) ? q.items : [];
-        return {
-          ...q,
-          lineItems: items.map((item, idx) => ({
-            line: idx + 1,
-            product: item.description || "Line Item",
-            description: item.description || "",
-            qty: item.quantity || 1,
-            unitPrice: Number(item.unitPrice || 0),
-            discount: 0,
-            total: Number(item.total || 0),
-          })),
-        };
-      });
+      return rows.map(serializeQuote);
     }),
   /** @deprecated Use trpc.crm.deals.quotes.create */
   createQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ dealId: z.string().uuid().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
+    .input(z.object({ dealId: z.string().uuid().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional() })).default([]), discountPct: z.string().default("0"), validUntil: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const quoteNumber = await getNextNumber(db, org!.id, "QT");
-      const subtotal = input.items.reduce((acc, i) => acc + Number(i.total), 0);
-      const total = subtotal * (1 - Number(input.discountPct) / 100);
-      const [quote] = await db.insert(crmQuotes).values({ orgId: org!.id, quoteNumber, ...input, subtotal: String(subtotal), total: String(total), validUntil: input.validUntil ? new Date(input.validUntil) : undefined }).returning();
-      const items = Array.isArray(quote?.items) ? quote.items : [];
-      return {
-        ...quote,
-        lineItems: items.map((item, idx) => ({
-          line: idx + 1,
-          product: item.description || "Line Item",
-          description: item.description || "",
-          qty: item.quantity || 1,
-          unitPrice: Number(item.unitPrice || 0),
-          discount: 0,
-          total: Number(item.total || 0),
-        })),
-      };
+      // G7 — GST computed via the shared quote-tax helper (discount before tax).
+      const tax = await buildQuoteTaxColumns(db, {
+        orgId: org!.id,
+        dealId: input.dealId ?? null,
+        items: input.items as QuoteLine[],
+        discountPct: input.discountPct,
+      });
+      const [quote] = await db.insert(crmQuotes).values({
+        orgId: org!.id,
+        quoteNumber,
+        dealId: input.dealId,
+        items: input.items,
+        discountPct: input.discountPct,
+        subtotal: tax.subtotal,
+        placeOfSupply: tax.placeOfSupply,
+        isInterstate: tax.isInterstate,
+        taxableValue: tax.taxableValue,
+        cgstAmount: tax.cgstAmount,
+        sgstAmount: tax.sgstAmount,
+        igstAmount: tax.igstAmount,
+        taxTotal: tax.taxTotal,
+        total: tax.total,
+        validUntil: input.validUntil ? new Date(input.validUntil) : undefined,
+      }).returning();
+      return serializeQuote(quote!);
     }),
   /** @deprecated Use trpc.crm.deals.quotes.update */
   updateQuote: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional() }))
+    .input(z.object({ id: z.string().uuid(), status: z.enum(quoteStatusEnum.enumValues).optional(), notes: z.string().optional(), items: z.array(z.object({ description: z.string(), quantity: z.coerce.number(), unitPrice: z.string(), total: z.string(), hsnCode: z.string().optional(), gstRate: z.number().optional() })).optional(), discountPct: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const { id, ...data } = input;
-      const [quote] = await db.update(crmQuotes).set({ ...data, updatedAt: new Date() }).where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
-      if (!quote) throw new TRPCError({ code: "NOT_FOUND" });
-      const items = Array.isArray(quote?.items) ? quote.items : [];
-      return {
-        ...quote,
-        lineItems: items.map((item, idx) => ({
-          line: idx + 1,
-          product: item.description || "Line Item",
-          description: item.description || "",
-          qty: item.quantity || 1,
-          unitPrice: Number(item.unitPrice || 0),
-          discount: 0,
-          total: Number(item.total || 0),
-        })),
-      };
+      const { id, items, discountPct, ...data } = input;
+      const [existing] = await db.select().from(crmQuotes).where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id)));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      const patch: Partial<typeof crmQuotes.$inferInsert> = { ...data, updatedAt: new Date() };
+      if (items !== undefined || discountPct !== undefined) {
+        const nextItems = (items ?? existing.items ?? []) as QuoteLine[];
+        const nextDiscount = discountPct ?? existing.discountPct ?? "0";
+        const tax = await buildQuoteTaxColumns(db, { orgId: org!.id, dealId: existing.dealId, items: nextItems, discountPct: nextDiscount });
+        patch.items = nextItems;
+        patch.discountPct = nextDiscount;
+        patch.subtotal = tax.subtotal;
+        patch.placeOfSupply = tax.placeOfSupply;
+        patch.isInterstate = tax.isInterstate;
+        patch.taxableValue = tax.taxableValue;
+        patch.cgstAmount = tax.cgstAmount;
+        patch.sgstAmount = tax.sgstAmount;
+        patch.igstAmount = tax.igstAmount;
+        patch.taxTotal = tax.taxTotal;
+        patch.total = tax.total;
+      }
+      const [quote] = await db.update(crmQuotes).set(patch).where(and(eq(crmQuotes.id, id), eq(crmQuotes.orgId, org!.id))).returning();
+      return serializeQuote(quote!);
     }),
 
   // ── Dashboard Metrics ──────────────────────────────────────────────────────

@@ -22,7 +22,10 @@
 import { computeTax, type EmployeeTaxProfile, type TaxComputation } from "./tax-engine";
 import {
   computeMonthlyStatutory,
+  calculateLabourCodeWageBase,
+  computeStatutoryBonusEligibility,
   type MonthlyStatutoryDeductions,
+  type StatutoryCeilingOverrides,
 } from "./statutory-deductions";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
@@ -218,18 +221,53 @@ export function computeGross(emp: EmployeePayrollInput): {
  */
 export function computeEmployeePayslip(
   emp: EmployeePayrollInput,
-  fyMonth: number
+  fyMonth: number,
+  ceilings: StatutoryCeilingOverrides = {}
 ): EmployeePayslip {
-  // Step 2: Gross
-  const { basicEarned, hraEarned, grossEarnings } = computeGross(emp);
+  // Labour Codes 2025 (Code on Wages s.2(y)): when a bonus-eligibility ceiling is
+  // resolved the Labour-Code "wages" definition is in force, so (a) lift the
+  // PF/ESI wage base via the 50%-inclusion proviso BEFORE the ceiling clamp, and
+  // (b) gate the statutory bonus on the Payment of Bonus Act eligibility ceiling.
+  // The gate is `bonusEligibilityCeiling` (only ever set by the 2025-11-21 seed),
+  // so orgs on the pre-Labour-Code config keep their exact prior behaviour.
+  const labourCodesInForce = ceilings.bonusEligibilityCeiling !== undefined;
+
+  // Statutory bonus eligibility gate: under the Payment of Bonus Act an employee
+  // is eligible only if Basic+DA ≤ the ceiling. `basicMonthly` (not LOP-adjusted)
+  // is the contractual wage tested for eligibility. Ineligible ⇒ statutory bonus
+  // is not payable, so it is removed from gross.
+  const bonusEligible = labourCodesInForce
+    ? computeStatutoryBonusEligibility(emp.basicMonthly, ceilings.bonusEligibilityCeiling)
+        .isEligible
+    : true;
+  const effectiveBonus = bonusEligible ? emp.bonus : 0;
+
+  // Step 2: Gross (recomputed with the eligibility-gated bonus).
+  const { basicEarned, hraEarned, grossEarnings } = computeGross({
+    ...emp,
+    bonus: effectiveBonus,
+  });
+
+  const excludedAllowances =
+    hraEarned +
+    Math.round(emp.specialAllowance * (emp.daysWorked / emp.daysInMonth)) +
+    Math.round((emp.ltaAnnual / 12) * (emp.daysWorked / emp.daysInMonth)) +
+    emp.overtime +
+    emp.arrears +
+    effectiveBonus +
+    emp.otherEarnings;
+  const wageBase = labourCodesInForce
+    ? calculateLabourCodeWageBase(basicEarned, excludedAllowances).statutoryWageBase
+    : basicEarned;
 
   // Steps 3-6: Statutory deductions
   const statutory = computeMonthlyStatutory(
-    basicEarned, // basic + DA (DA = 0 for most private sector)
+    wageBase, // basic + DA lifted by the s.2(y) 50% proviso (Labour Codes)
     grossEarnings,
     emp.state,
     fyMonth,
-    emp.isVoluntaryHigherPF
+    emp.isVoluntaryHigherPF,
+    ceilings
   );
 
   // Step 7: TDS
@@ -298,7 +336,7 @@ export function computeEmployeePayslip(
     lta: Math.round((emp.ltaAnnual / 12) * (emp.daysWorked / emp.daysInMonth)),
     overtime: emp.overtime,
     arrears: emp.arrears,
-    bonus: emp.bonus,
+    bonus: effectiveBonus,
     otherEarnings: emp.otherEarnings,
     grossEarnings,
     // Deductions

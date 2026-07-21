@@ -1,12 +1,16 @@
 /**
  * Notification service — sends in-app notifications (always), email (when SMTP
- * configured), and fans out to external channels (Slack) via a durable BullMQ
- * worker when the org has the integration connected.
+ * configured), and fans out to external channels (Slack, SMS) via a durable
+ * BullMQ worker when the org has the integration connected.
  */
 import { getDb, notifications } from "@coheronconnect/db";
 import nodemailer from "nodemailer";
 import { getWorkflowService } from "./workflow";
-import { enqueueNotificationDispatch } from "../workflows/notificationDispatchWorkflow";
+import {
+  enqueueNotificationDispatch,
+  type NotificationDispatchChannel,
+  type SmsDispatchPayload,
+} from "../workflows/notificationDispatchWorkflow";
 
 export interface NotificationPayload {
   orgId: string;
@@ -17,6 +21,12 @@ export interface NotificationPayload {
   type?: "info" | "warning" | "success" | "error";
   sourceType?: string;
   sourceId?: string;
+  /**
+   * DLT-compliant SMS payload. When present, "sms" is added to the external
+   * fan-out and the message is delivered via MSG91 (best-effort, no-op when the
+   * org has not connected the sms_msg91 integration).
+   */
+  sms?: SmsDispatchPayload;
 }
 
 let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
@@ -129,16 +139,19 @@ export async function sendNotification(
   // source of truth and is never blocked by external-channel delivery.
   try {
     const queue = getWorkflowService().notificationDispatchQueue;
+    const channels: NotificationDispatchChannel[] = ["slack"];
+    if (payload.sms) channels.push("sms");
     const dispatch: Parameters<typeof enqueueNotificationDispatch>[1] = {
       orgId: payload.orgId,
-      channels: ["slack"],
+      channels,
       title: payload.title,
       body: payload.body,
     };
     if (payload.link) dispatch.link = payload.link;
     if (payload.type) dispatch.type = payload.type;
+    if (payload.sms) dispatch.sms = payload.sms;
     await enqueueNotificationDispatch(queue, dispatch);
   } catch (err) {
-    console.error("[NOTIFY] Slack fan-out enqueue skipped:", (err as Error).message);
+    console.error("[NOTIFY] External fan-out enqueue skipped:", (err as Error).message);
   }
 }

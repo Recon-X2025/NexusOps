@@ -10,7 +10,7 @@ import {
   and,
   desc,
 } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "../services/encryption";
+import { decryptIntegrationConfigEnvelope } from "../services/encryption";
 import { getEsignProvider, IMPLEMENTED_ESIGN_PROVIDERS } from "../services/esign";
 import { checkDbUserPermission } from "../lib/rbac-db";
 
@@ -131,7 +131,7 @@ export const esignRouter = router({
       if (!provider) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Provider unsupported" });
       }
-      const config = decryptIntegrationConfig(integration.configEncrypted);
+      const config = await decryptIntegrationConfigEnvelope(integration.configEncrypted);
 
       const [reqRow] = await db
         .insert(signatureRequests)

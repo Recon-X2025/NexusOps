@@ -208,6 +208,21 @@ async function bootstrap() {
     }
   }
 
+  // ── KMS envelope encryption (G15) ─────────────────────────────────────────
+  // Integration secrets + TOTP seeds are sealed with a KMS-wrapped data key. In
+  // production a real KMS provider (KMS_PROVIDER=aws + AWS_KMS_KEY_ID) is expected;
+  // fail fast at startup if the KMS config is missing/invalid, never on the first
+  // encrypt of a live org's credentials.
+  {
+    const { assertKmsConfigured } = await import("./services/kms.js");
+    try {
+      assertKmsConfigured();
+    } catch (err) {
+      fastify.log.fatal({ err }, "[kms] KMS provider is misconfigured; refusing to start");
+      process.exit(1);
+    }
+  }
+
   // ── Plugins ──────────────────────────────────────────────────────────────
   // CORS_ORIGIN supports comma-separated list: "http://localhost:3000,https://app.example.com"
   const corsOrigins: (string | RegExp)[] = [

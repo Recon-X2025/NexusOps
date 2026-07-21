@@ -58,10 +58,13 @@ export const dpdpProcessingActivities = pgTable(
     purpose: text("purpose"),
     lawfulBasis: text("lawful_basis"),
     dataCategories: text("data_categories"),
+    // RoPA lifecycle: active → retired (soft, keeps the register auditable).
+    status: text("status").notNull().default("active"),
     linkedPrivacyMatterId: uuid("linked_privacy_matter_id").references(() => legalMatters.id, {
       onDelete: "set null",
     }),
     dpoSignOffAt: timestamp("dpo_sign_off_at", { withTimezone: true }),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -95,13 +98,23 @@ export const mcaFilingRecords = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     formCode: text("form_code").notNull(),
     srn: text("srn"),
+    // Lifecycle: prepared → submitting → filed (SRN issued) | not_configured | failed.
     status: text("status").notNull().default("prepared"),
     dueAt: timestamp("due_at", { withTimezone: true }),
     filedAt: timestamp("filed_at", { withTimezone: true }),
     notes: text("notes"),
+    // MCA21 V3 portal push (G4): the prepared e-Form body + the portal ack, plus
+    // the retry/soft-fail tracking that mirrors the EPFO ECR / E-Way Bill loops.
+    payloadJson: jsonb("payload_json").$type<Record<string, unknown>>(),
+    ackJson: jsonb("ack_json").$type<Record<string, unknown>>(),
+    portalError: text("portal_error"),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({ orgIdx: index("mca_filing_records_org_idx").on(t.orgId) }),
+  (t) => ({
+    orgIdx: index("mca_filing_records_org_idx").on(t.orgId),
+    srnIdx: index("mca_filing_records_srn_idx").on(t.srn),
+  }),
 );
 
 export const xbrlExportJobs = pgTable(

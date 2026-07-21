@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import jwt from "jsonwebtoken";
 import { z, ZodError } from "zod";
+import { sql } from "drizzle-orm";
 import type { Module, RbacAction } from "@coheronconnect/types";
 import { users, organizations, type Db } from "@coheronconnect/db";
 import { checkDbUserPermission } from "./rbac-db";
@@ -493,11 +494,50 @@ const retryMutation = t.middleware(async (opts) => {
   return result;
 });
 
+// ── RLS tenant isolation middleware (G14) ─────────────────────────────────────
+//
+// Postgres Row-Level Security (migration 0052) is the second wall behind the
+// app-layer eq(*.orgId) filters. RLS only *constrains* a query when two things
+// are true on the executing connection:
+//   1. the current role is NOT a superuser and NOT BYPASSRLS, and
+//   2. the GUC 'app.org_id' is set to the caller's org.
+//
+// The pooled connection logs in as the table owner (a superuser — the postgres
+// image default), which RLS always exempts. So for every authenticated request
+// we open a transaction and, inside it, drop to the non-privileged `app_runtime`
+// role and set the org GUC — both with SET LOCAL, so they are scoped to this one
+// transaction and cannot leak to the next request that reuses the connection.
+// ctx.db is swapped to the transaction handle for the duration of the handler.
+//
+// Placement: this is the INNERMOST middleware (below retryMutation), so each
+// retry attempt runs in its own fresh transaction — a serialization failure
+// aborts only that attempt's tx, and the next attempt starts clean. Handlers
+// that open their own db.transaction() nest cleanly via SAVEPOINTs.
+//
+// Reads (queries) and writes (mutations) both flow through here whenever a user
+// + org are present. Unauthenticated/public procedures never reach this layer.
+const rlsTenant = t.middleware(async ({ ctx, next }) => {
+  const orgId = ctx.orgId;
+  // No org on the context (should not happen below enforceAuth, but guard so a
+  // race can never run an un-scoped query). Fall through un-wrapped; the
+  // app-layer filters still apply and the pooled owner connection is used.
+  if (!orgId) return next();
+
+  return ctx.db.transaction(async (tx) => {
+    // Transaction-local: both reset automatically at COMMIT/ROLLBACK. set_config
+    // with the third arg `true` = local. Parameterised to avoid any injection.
+    await tx.execute(sql`select set_config('app.org_id', ${orgId}, true)`);
+    await tx.execute(sql.raw("set local role app_runtime"));
+    return next({ ctx: { ...ctx, db: tx as unknown as Db } });
+  });
+});
+
 export const protectedProcedure = t.procedure
   .use(loggingMiddleware)
   .use(enforceAuth)
   .use(auditMutation)
-  .use(retryMutation);
+  .use(retryMutation)
+  .use(rlsTenant);
 
 export function permissionProcedure(module: Module, action: RbacAction) {
   return protectedProcedure.use(({ ctx, path, next }) => {

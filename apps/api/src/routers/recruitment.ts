@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   jobRequisitions, candidates, candidateApplications, interviews, jobOffers,
   candidateSourceEnum, jobStatusEnum, offerStatusEnum,
-  eq, and, desc, asc, count, sql, inArray,
+  eq, and, desc, asc, count, sql, inArray, notInArray,
 } from "@coheronconnect/db";
 
 const STAGE_ORDER = [
@@ -253,6 +253,31 @@ export const recruitmentRouter = router({
         byStage["rejected"] = [];
         for (const a of apps) (byStage[a.application.stage] ??= []).push(a);
         return { byStage, total: apps.length };
+      }),
+
+    list: permissionProcedure("recruitment", "read")
+      .input(z.object({ activeOnly: z.boolean().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const conds = [eq(candidateApplications.orgId, org!.id)];
+        if (input.activeOnly) {
+          conds.push(notInArray(candidateApplications.stage, ["hired", "rejected", "withdrawn"]));
+        }
+        return db.select({
+          applicationId: candidateApplications.id,
+          candidateId:   candidateApplications.candidateId,
+          jobId:         candidateApplications.jobId,
+          stage:         candidateApplications.stage,
+          firstName:     candidates.firstName,
+          lastName:      candidates.lastName,
+          email:         candidates.email,
+          jobTitle:      jobRequisitions.title,
+        })
+          .from(candidateApplications)
+          .innerJoin(candidates, eq(candidates.id, candidateApplications.candidateId))
+          .innerJoin(jobRequisitions, eq(jobRequisitions.id, candidateApplications.jobId))
+          .where(and(...conds))
+          .orderBy(asc(candidates.firstName));
       }),
 
     moveStage: permissionProcedure("recruitment", "write")

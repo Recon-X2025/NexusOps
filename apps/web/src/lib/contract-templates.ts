@@ -76,20 +76,45 @@ export const TEMPLATE_ID_TO_DB_TYPE: Record<string, ContractWizardDbType> = {
   sla_support: "sla_support",
 };
 
+/** Resolve a currency ISO code to its display symbol (falls back to the code). */
+export function currencySymbolFor(code: string): string {
+  try {
+    return (
+      new Intl.NumberFormat("en-IN", { style: "currency", currency: code })
+        .formatToParts(0)
+        .find((p) => p.type === "currency")?.value ?? code
+    );
+  } catch {
+    return code;
+  }
+}
+
 export function substituteClausePlaceholders(
   template: string,
   values: Record<string, string | number>,
+  opts?: { currencyFieldIds?: Set<string>; currencySymbol?: string },
 ): string {
+  const currencyIds = opts?.currencyFieldIds;
+  const sym = opts?.currencySymbol ?? "";
   return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key: string) => {
     const v = values[key];
     if (v === undefined || v === null || v === "") return `{{${key}}}`;
+    if (sym && currencyIds?.has(key)) return `${sym}${String(v)}`;
     return String(v);
   });
 }
 
-export function getDisplayedClauseBody(c: WizardClauseState): string {
+/** Field ids on a clause that are currency-typed (so the symbol can be prefixed). */
+function currencyFieldIds(c: WizardClauseState): Set<string> {
+  return new Set(c.fields.filter((f) => f.type === "currency").map((f) => f.id));
+}
+
+export function getDisplayedClauseBody(c: WizardClauseState, currencySymbol?: string): string {
   if (c.bodyOverride != null && c.bodyOverride.length > 0) return c.bodyOverride;
-  return substituteClausePlaceholders(c.bodyTemplate, c.fieldValues);
+  return substituteClausePlaceholders(c.bodyTemplate, c.fieldValues, {
+    currencyFieldIds: currencyFieldIds(c),
+    currencySymbol,
+  });
 }
 
 export function defaultFieldValues(clause: Clause): Record<string, string | number> {
@@ -122,9 +147,12 @@ function fieldValuesMatchDefaults(c: WizardClauseState): boolean {
 }
 
 /** Serialize all clauses (including disabled) for audit / DB */
-export function toStoredClauses(clauses: WizardClauseState[]): StoredContractClause[] {
+export function toStoredClauses(clauses: WizardClauseState[], currencySymbol?: string): StoredContractClause[] {
   return clauses.map((c) => {
-    const substituted = substituteClausePlaceholders(c.bodyTemplate, c.fieldValues);
+    const substituted = substituteClausePlaceholders(c.bodyTemplate, c.fieldValues, {
+      currencyFieldIds: currencyFieldIds(c),
+      currencySymbol,
+    });
     const hasOverride = c.bodyOverride != null && c.bodyOverride.length > 0;
     const body = hasOverride ? c.bodyOverride! : substituted;
     const wasModified = hasOverride || !fieldValuesMatchDefaults(c);
@@ -168,8 +196,11 @@ const MUTUAL_NDA: ContractTemplate = {
             "evaluating a potential business relationship between the parties",
           helperText: "Describe why confidential information will be shared",
         },
+        { id: "nda_effective_date", label: "Effective Date", type: "date", defaultValue: "", helperText: "Leave blank to use the date of last signature" },
       ],
-      body: `"Confidential Information" means any and all non-public technical, business, financial, or other information disclosed by one party (the "Disclosing Party") to the other party (the "Receiving Party"), whether orally, in writing, electronically, or by inspection of tangible objects, that is designated as "confidential" or "proprietary" at the time of disclosure or that reasonably should be understood to be confidential given the nature of the information and the circumstances of disclosure. 
+      body: `"Effective Date" means {{nda_effective_date}}, or, if no date is stated, the date on which the last party signs this Agreement.
+
+"Confidential Information" means any and all non-public technical, business, financial, or other information disclosed by one party (the "Disclosing Party") to the other party (the "Receiving Party"), whether orally, in writing, electronically, or by inspection of tangible objects, that is designated as "confidential" or "proprietary" at the time of disclosure or that reasonably should be understood to be confidential given the nature of the information and the circumstances of disclosure.
 
 Confidential Information includes, without limitation: (a) trade secrets, inventions, ideas, processes, formulas, source and object code, data, programs, and other works of authorship; (b) business plans, strategies, financial data, and budgets; (c) customer, vendor, and partner lists and information; (d) product designs, specifications, roadmaps, and technical data; (e) personnel information; and (f) any analysis, compilations, studies, or derivative works prepared by the Receiving Party that contain or reflect such information.
 
@@ -276,7 +307,7 @@ ALL CONFIDENTIAL INFORMATION IS PROVIDED "AS IS." THE DISCLOSING PARTY MAKES NO 
       isEnabled: true,
       category: "legal",
       fields: [],
-      body: `Each party acknowledges that any breach or threatened breach of this Agreement may cause irreparable harm to the Disclosing Party for which monetary damages would be an inadequate remedy. Accordingly, the Disclosing Party shall be entitled to seek equitable relief, including injunction and specific performance, in addition to all other remedies available at law or in equity, without the necessity of proving actual damages or posting any bond or other security.`,
+      body: `Each party acknowledges that any breach or threatened breach of this Agreement may cause irreparable harm to the Disclosing Party for which monetary damages would be an inadequate remedy. Accordingly, the Disclosing Party shall be entitled to seek interim, interlocutory and permanent injunctive relief and specific performance under the Specific Relief Act, 1963 and the Code of Civil Procedure, 1908, in addition to all other remedies available in law or in equity, without prejudice to any claim for damages. Any requirement for the Disclosing Party to furnish security or an undertaking as to damages as a condition of interim relief shall be as the competent court may direct.`,
     },
     {
       id: "nda_nonsolicitation",
@@ -342,8 +373,12 @@ const VENDOR_MSA: ContractTemplate = {
       isRequired: true,
       isEnabled: true,
       category: "core",
-      fields: [],
-      body: `The Service Provider shall perform the services ("Services") as described in one or more Statements of Work ("SOW") executed by both parties. Each SOW shall reference this Agreement, describe the specific services, deliverables, timelines, and fees, and shall be subject to all terms and conditions of this Agreement.
+      fields: [
+        { id: "msa_effective_date", label: "Effective Date", type: "date", defaultValue: "", helperText: "Leave blank to use the date of last signature" },
+      ],
+      body: `"Effective Date" means {{msa_effective_date}}, or, if no date is stated, the date on which the last party signs this Agreement.
+
+The Service Provider shall perform the services ("Services") as described in one or more Statements of Work ("SOW") executed by both parties. Each SOW shall reference this Agreement, describe the specific services, deliverables, timelines, and fees, and shall be subject to all terms and conditions of this Agreement.
 
 In the event of any conflict between the terms of a SOW and this Agreement, the terms of this Agreement shall prevail unless the SOW expressly states that it is intended to supersede a specific provision of this Agreement.
 
@@ -367,7 +402,11 @@ Late payments shall bear interest at the rate of {{msa_late_rate}}% per month, o
 
 Expenses. Reasonable, pre-approved out-of-pocket expenses shall be reimbursed at cost. Expenses exceeding {{msa_expense_approval}} individually require prior written approval from Client.
 
-Taxes. Fees are exclusive of all taxes. Client shall be responsible for all applicable taxes, excluding taxes based on Service Provider's income.
+Taxes (GST). All fees are exclusive of Goods and Services Tax ("GST"). Service Provider shall raise a tax invoice compliant with the Central Goods and Services Tax Act, 2017 and rules thereunder, quoting its GSTIN, HSN/SAC codes and the place of supply, and shall charge CGST and SGST/UTGST or IGST as applicable. Service Provider shall duly deposit the GST so collected and file the corresponding returns so that Client can avail input tax credit; if Client is denied input tax credit on account of Service Provider's default (non-payment or non-filing), Service Provider shall indemnify Client for the credit so lost.
+
+Tax Deducted at Source (TDS). Client shall deduct income tax at source at the rates prescribed under the Income-tax Act, 1961 on payments to Service Provider and deposit the same with the tax authorities, and shall issue Form 16A within the statutory timeline. TDS so deducted shall be treated as payment of the corresponding portion of the invoice. Each party shall provide its PAN and any other tax particulars reasonably required.
+
+Other Taxes. Save for GST and TDS as set out above, each party shall bear taxes on its own income. Any new or increased tax, levy or cess payable on the supply of the Services after the Effective Date shall be to Client's account, subject to Service Provider providing a compliant invoice.
 
 Disputes. Client may dispute any invoice in good faith by providing written notice within fifteen (15) days of receipt, specifying the disputed items in reasonable detail. Undisputed portions must be paid when due.`,
     },
@@ -549,10 +588,25 @@ The parties shall execute a Data Processing Agreement ("DPA") as required under 
             "Courts at Bengaluru, Karnataka, India",
           ],
         },
+        { id: "msa_arb_seat", label: "Arbitration seat & venue (city)", type: "text", defaultValue: "Bengaluru, Karnataka, India" },
+        {
+          id: "msa_arb_count",
+          label: "Number of arbitrators",
+          type: "select",
+          defaultValue: "a sole arbitrator",
+          options: ["a sole arbitrator", "a tribunal of three (3) arbitrators"],
+        },
+        { id: "msa_arb_language", label: "Language of arbitration", type: "text", defaultValue: "English" },
       ],
-      body: `Governing Law. This Agreement shall be governed by the laws of {{msa_governing_law}}.
+      body: `Governing Law. This Agreement shall be governed by and construed in accordance with the laws of {{msa_governing_law}}, without regard to its conflict of law provisions.
 
-Dispute Resolution. Any dispute arising out of or in connection with this Agreement shall be resolved by {{msa_dispute_method}}.
+Dispute Resolution. The parties shall first attempt to resolve any dispute arising out of or in connection with this Agreement (including its existence, validity or termination) amicably through good-faith negotiations between senior management within thirty (30) days of written notice of the dispute. Failing amicable resolution, the dispute shall be finally resolved by {{msa_dispute_method}}.
+
+Arbitration Mechanism. Where this Agreement provides for arbitration, the arbitration shall be conducted under the Arbitration and Conciliation Act, 1996 (as amended) by {{msa_arb_count}}. Where a sole arbitrator applies, the arbitrator shall be appointed by mutual agreement of the parties; failing agreement within thirty (30) days, the appointment shall be made in accordance with the Act. Where three arbitrators apply, each party shall appoint one arbitrator and the two so appointed shall appoint the third, who shall preside. The seat and venue of arbitration shall be {{msa_arb_seat}}, and the language of the proceedings shall be {{msa_arb_language}}. The award shall be final and binding, and judgment on the award may be entered in any court of competent jurisdiction. Nothing herein shall prevent either party from seeking interim or conservatory relief from a competent court under Section 9 of the said Act.
+
+Anti-Bribery and Anti-Corruption. Each party shall comply with all applicable anti-bribery and anti-corruption laws, including the Prevention of Corruption Act, 1988. Neither party shall, directly or indirectly, offer, promise, give or authorise any bribe, kickback, facilitation payment or other improper advantage to any public official or private person in connection with this Agreement. A breach of this provision shall be a material breach entitling the non-defaulting party to terminate immediately without cure.
+
+Order of Precedence. In the event of any conflict or inconsistency between the documents forming part of this Agreement, the following order of precedence shall apply (highest first): (1) the executed Data Processing Agreement (if any); (2) this Agreement; (3) any schedule or annexure to this Agreement; and (4) the applicable SOW; except where a SOW expressly identifies the specific provision of this Agreement it is intended to supersede.
 
 Force Majeure. Neither party shall be liable for failure to perform due to causes beyond its reasonable control, including natural disasters, war, terrorism, pandemics, government actions, or failures of third-party telecommunications or power supply, provided the affected party gives prompt notice and uses reasonable efforts to mitigate the impact.
 
@@ -589,8 +643,9 @@ const SOW_TEMPLATE: ContractTemplate = {
         { id: "sow_project_name", label: "Project name", type: "text", defaultValue: "" },
         { id: "sow_background", label: "Background and objectives", type: "textarea", defaultValue: "" },
         { id: "sow_ref_msa", label: "Reference MSA number", type: "text", defaultValue: "", helperText: "If this SOW is under an existing MSA" },
+        { id: "sow_msa_date", label: "MSA date", type: "date", defaultValue: "", helperText: "Execution date of the Master Services Agreement this SOW is issued under" },
       ],
-      body: `This Statement of Work ("SOW") is entered into pursuant to the Master Services Agreement dated [MSA Date] between the parties (the "Agreement"), reference {{sow_ref_msa}}.
+      body: `This Statement of Work ("SOW") is entered into pursuant to the Master Services Agreement dated {{sow_msa_date}} between the parties (the "Agreement"), reference {{sow_ref_msa}}.
 
 Project Name: {{sow_project_name}}
 
@@ -752,6 +807,23 @@ Changes to these assumptions or failure to fulfil Client responsibilities may re
 
 Service Provider shall not remove or replace Key Personnel without Client's prior written consent, except for reasons beyond Service Provider's reasonable control (e.g., resignation, illness). Service Provider shall provide a replacement of comparable qualifications within a reasonable timeframe.`,
     },
+    {
+      id: "sow_general",
+      title: "10. Governing Law and Dispute Resolution",
+      description: "Applies where no MSA governs this SOW",
+      isRequired: false,
+      isEnabled: true,
+      category: "legal",
+      fields: [
+        { id: "sow_governing_law", label: "Governing law", type: "text", defaultValue: "Republic of India" },
+        { id: "sow_dispute_seat", label: "Arbitration seat & venue (city)", type: "text", defaultValue: "Bengaluru, Karnataka, India" },
+      ],
+      body: `Precedence. Where this SOW is issued under a Master Services Agreement, the governing law, dispute resolution, confidentiality, indemnity and limitation-of-liability terms of that Agreement shall apply and this clause shall not derogate from them. This clause applies only to the extent no such Agreement governs.
+
+Governing Law. This SOW shall be governed by and construed in accordance with the laws of {{sow_governing_law}}.
+
+Dispute Resolution. Any dispute arising out of or in connection with this SOW shall first be referred to good-faith negotiations between senior representatives within thirty (30) days of written notice and, failing resolution, shall be finally settled by arbitration by a sole arbitrator under the Arbitration and Conciliation Act, 1996. The seat and venue shall be {{sow_dispute_seat}} and the language shall be English. Either party may seek interim relief from a competent court under Section 9 of the said Act.`,
+    },
   ],
 };
 
@@ -793,8 +865,11 @@ const SOFTWARE_LICENSE: ContractTemplate = {
         },
         { id: "sl_seat_count", label: "Number of authorized users/seats", type: "number", defaultValue: 10 },
         { id: "sl_territory", label: "Territory", type: "text", defaultValue: "Worldwide" },
+        { id: "sl_effective_date", label: "Effective Date", type: "date", defaultValue: "", helperText: "Leave blank to use the date of last signature" },
       ],
-      body: `Subject to the terms of this Agreement and payment of applicable fees, Licensor grants Licensee a {{sl_license_type}} license to use the Software identified in the applicable Order Form solely for Licensee's internal business purposes.
+      body: `"Effective Date" means {{sl_effective_date}}, or, if no date is stated, the date on which the last party signs this Agreement.
+
+Subject to the terms of this Agreement and payment of applicable fees, Licensor grants Licensee a {{sl_license_type}} license to use the Software identified in the applicable Order Form solely for Licensee's internal business purposes.
 
 License Scope: {{sl_license_scope}}
 Authorized Users/Seats: {{sl_seat_count}}
@@ -878,6 +953,8 @@ Payment Terms: Net {{sl_payment_terms}} days from invoice date.
 
 For subscription licenses, fees are due in advance of each subscription period. Licensor may increase subscription fees upon renewal by providing at least sixty (60) days' prior written notice.
 
+Taxes (GST / TDS). All fees are exclusive of Goods and Services Tax ("GST"), which Licensor shall charge on a tax invoice compliant with the Central Goods and Services Tax Act, 2017 (quoting GSTIN, HSN/SAC and place of supply), charging CGST and SGST/UTGST or IGST as applicable, and shall deposit and file returns so that Licensee can avail input tax credit. Licensee shall deduct tax at source under the Income-tax Act, 1961 where applicable, deposit it with the authorities and issue Form 16A; TDS so deducted shall count as payment of the corresponding portion of the invoice. Each party shall furnish its PAN and GSTIN.
+
 Non-payment. If fees remain unpaid for more than fifteen (15) days past the due date, Licensor may, upon written notice, suspend Licensee's access to the Software until payment is received.`,
     },
     {
@@ -934,12 +1011,16 @@ Data Protection. Licensor shall implement and maintain industry-standard technic
           options: ["1 year", "2 years", "3 years", "Perpetual"],
         },
         { id: "sl_auto_renew", label: "Auto-renew", type: "select", defaultValue: "Yes", options: ["Yes", "No"] },
+        { id: "sl_governing_law", label: "Governing law", type: "text", defaultValue: "Republic of India" },
+        { id: "sl_dispute_seat", label: "Arbitration seat & venue (city)", type: "text", defaultValue: "Bengaluru, Karnataka, India" },
       ],
       body: `Term. This Agreement shall commence on the Effective Date and continue for {{sl_initial_term}}, auto-renewing: {{sl_auto_renew}}.
 
 Termination for Breach. Either party may terminate upon thirty (30) days' written notice if the other party materially breaches and fails to cure.
 
-Effect of Termination. Upon termination: (a) all license rights cease immediately; (b) Licensee shall cease use of the Software and destroy all copies; (c) Licensor shall, upon request, provide Licensee's data in a standard format within thirty (30) days; and (d) accrued payment obligations survive.`,
+Effect of Termination. Upon termination: (a) all license rights cease immediately; (b) Licensee shall cease use of the Software and destroy all copies; (c) Licensor shall, upon request, provide Licensee's data in a standard format within thirty (30) days; and (d) accrued payment obligations survive.
+
+Governing Law and Dispute Resolution. This Agreement shall be governed by and construed in accordance with the laws of {{sl_governing_law}}. Any dispute arising out of or in connection with this Agreement shall first be referred to good-faith negotiations between senior representatives within thirty (30) days of written notice and, failing resolution, shall be finally settled by arbitration by a sole arbitrator under the Arbitration and Conciliation Act, 1996. The seat and venue shall be {{sl_dispute_seat}} and the language shall be English. Either party may seek interim relief from a competent court under Section 9 of the said Act.`,
     },
   ],
 };
@@ -980,7 +1061,9 @@ The specific scope, deliverables, service levels, and fees for each engagement s
           options: ["Monthly in arrears", "Quarterly in advance", "Annually in advance", "Upon delivery"],
         },
       ],
-      body: `Customer shall pay the fees as set forth in the applicable Order Form. Billing: {{ca_billing_frequency}}. Payment due: Net {{ca_payment_terms}} days. Late payments accrue interest at 1.5% per month or the maximum legal rate, whichever is lower. All fees are exclusive of applicable taxes, which are Customer's responsibility.`,
+      body: `Customer shall pay the fees as set forth in the applicable Order Form. Billing: {{ca_billing_frequency}}. Payment due: Net {{ca_payment_terms}} days. Late payments accrue interest at 1.5% per month or the maximum legal rate, whichever is lower.
+
+Taxes (GST / TDS). All fees are exclusive of Goods and Services Tax ("GST"). Provider shall raise a tax invoice compliant with the Central Goods and Services Tax Act, 2017 (quoting GSTIN, HSN/SAC and place of supply), charge CGST and SGST/UTGST or IGST as applicable, and deposit the tax and file returns so that Customer can avail input tax credit. Customer shall deduct tax at source under the Income-tax Act, 1961 where applicable, deposit it and issue Form 16A; TDS so deducted counts as payment of the corresponding portion of the invoice. Each party shall furnish its PAN and GSTIN. Save for GST and TDS, each party bears taxes on its own income.`,
     },
     {
       id: "ca_sla",
@@ -1066,8 +1149,15 @@ The specific scope, deliverables, service levels, and fees for each engagement s
       isRequired: true,
       isEnabled: true,
       category: "legal",
-      fields: [{ id: "ca_governing_law", label: "Governing law", type: "text", defaultValue: "Republic of India" }],
-      body: `Governing Law: {{ca_governing_law}}. This Agreement constitutes the entire agreement. Amendments require mutual written consent. Assignment only with consent except for M&A. Severability, waiver, and force majeure provisions apply. Notices in writing to addresses on the Cover Page.`,
+      fields: [
+        { id: "ca_governing_law", label: "Governing law", type: "text", defaultValue: "Republic of India" },
+        { id: "ca_dispute_seat", label: "Arbitration seat & venue (city)", type: "text", defaultValue: "Bengaluru, Karnataka, India" },
+      ],
+      body: `Governing Law: {{ca_governing_law}}.
+
+Dispute Resolution. Any dispute arising out of or in connection with this Agreement shall first be referred to good-faith negotiations between senior representatives within thirty (30) days of written notice and, failing resolution, shall be finally settled by arbitration by a sole arbitrator under the Arbitration and Conciliation Act, 1996. The seat and venue shall be {{ca_dispute_seat}} and the language shall be English. Either party may seek interim relief from a competent court under Section 9 of the said Act.
+
+This Agreement constitutes the entire agreement. Amendments require mutual written consent. Assignment only with consent except for M&A. Severability, waiver, and force majeure provisions apply. Notices in writing to addresses on the Cover Page.`,
     },
   ],
 };
@@ -1139,7 +1229,9 @@ Customer shall have 24/7 physical access to the Premises, subject to Provider's 
 
 Annual Escalation. The monthly charge shall increase by {{cl_escalation}}% on each anniversary of the Commencement Date.
 
-The monthly charge includes base rent and standard services. Power, connectivity, and additional services are charged separately as specified in Schedule B.`,
+The monthly charge includes base rent and standard services. Power, connectivity, and additional services are charged separately as specified in Schedule B.
+
+Taxes (GST / TDS). All charges are exclusive of Goods and Services Tax ("GST"), which Provider shall levy on a tax invoice compliant with the Central Goods and Services Tax Act, 2017 (quoting GSTIN, SAC and place of supply). Customer shall deduct tax at source on rent under the Income-tax Act, 1961 where applicable, deposit it and issue Form 16A; such TDS counts as payment of the corresponding portion of the charge. Each party shall furnish its PAN and GSTIN.`,
     },
     {
       id: "cl_power",
@@ -1236,8 +1328,18 @@ Termination for Cause. Either party may terminate upon thirty (30) days' notice 
       isRequired: true,
       isEnabled: true,
       category: "legal",
-      fields: [{ id: "cl_governing_law", label: "Governing law", type: "text", defaultValue: "Republic of India" }],
-      body: `Governing Law: {{cl_governing_law}}. Force majeure applies. Assignment requires consent except for M&A. Notices in writing. Entire agreement; amendments require mutual written consent.`,
+      fields: [
+        { id: "cl_governing_law", label: "Governing law", type: "text", defaultValue: "Republic of India" },
+        { id: "cl_stamp_state", label: "State of stamping / registration", type: "text", defaultValue: "Karnataka", helperText: "State whose Stamp Act governs the duty (place of execution / where the Premises are situated)" },
+        { id: "cl_dispute_seat", label: "Arbitration seat & venue (city)", type: "text", defaultValue: "Bengaluru, Karnataka, India" },
+      ],
+      body: `Governing Law. This Agreement shall be governed by and construed in accordance with the laws of {{cl_governing_law}}.
+
+Stamp Duty and Registration. This Agreement (being an instrument creating an interest in immovable property) shall be duly stamped with the stamp duty payable under the applicable Stamp Act of {{cl_stamp_state}} prior to or at the time of execution, and, where the term (including renewals) so requires under the Registration Act, 1908, shall be registered with the jurisdictional Sub-Registrar. The stamp duty and registration charges (and any deficit duty or penalty subsequently levied) shall be borne by Customer unless the parties agree otherwise in writing. An insufficiently stamped instrument may be impounded; the parties shall cooperate to cure any deficiency.
+
+Dispute Resolution. Any dispute arising out of or in connection with this Agreement shall first be referred to good-faith negotiations between senior representatives within thirty (30) days of written notice and, failing resolution, shall be finally settled by arbitration by a sole arbitrator under the Arbitration and Conciliation Act, 1996. The seat and venue shall be {{cl_dispute_seat}} and the language shall be English. Either party may seek interim relief from a competent court under Section 9 of the said Act.
+
+Force Majeure. Force majeure applies. Assignment requires consent except for M&A. Notices in writing. Entire agreement; amendments require mutual written consent.`,
     },
   ],
 };

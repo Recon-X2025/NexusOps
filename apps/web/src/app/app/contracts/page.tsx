@@ -23,6 +23,7 @@ import {
   TEMPLATE_ID_TO_DB_TYPE,
   toStoredClauses,
   getDisplayedClauseBody,
+  currencySymbolFor,
   type ContractTemplate,
   type WizardClauseState,
 } from "@/lib/contract-templates";
@@ -183,7 +184,7 @@ function ContractCreationWizard() {
       autoRenew: form.autoRenew,
       governingLaw: form.governingLaw || undefined,
       noticePeriodDays: parseInt(form.noticePeriodDays, 10) || 30,
-      clauses: toStoredClauses(wizardClauses),
+      clauses: toStoredClauses(wizardClauses, currencySymbolFor(form.currency)),
       submitForReview,
       obligations: [],
     });
@@ -485,6 +486,7 @@ function ContractCreationWizard() {
                       title: form.title.trim() || selectedTemplate.name,
                       counterparty: form.counterparty.trim() || "—",
                       clauses: wizardClauses,
+                      currencySymbol: currencySymbolFor(form.currency),
                     }),
                   )
                 }

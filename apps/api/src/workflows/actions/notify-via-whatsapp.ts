@@ -1,5 +1,5 @@
 import { integrations, eq, and } from "@coheronconnect/db";
-import { decryptIntegrationConfig } from "../../services/encryption";
+import { decryptIntegrationConfigEnvelope } from "../../services/encryption";
 import { whatsAppAiSensyAdapter } from "../../services/integrations/whatsapp-aisensy";
 import type { WorkflowAction } from "./types";
 
@@ -35,7 +35,7 @@ export const notifyViaWhatsAppAction: WorkflowAction<Input> = {
     if (!int?.configEncrypted) {
       return { ok: false, details: "WhatsApp (AiSensy) not connected" };
     }
-    const config = decryptIntegrationConfig(int.configEncrypted) as unknown as Parameters<
+    const config = await decryptIntegrationConfigEnvelope(int.configEncrypted) as unknown as Parameters<
       NonNullable<typeof whatsAppAiSensyAdapter.send>
     >[0];
     const result = await whatsAppAiSensyAdapter.send!(config, {
