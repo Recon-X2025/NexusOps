@@ -101,7 +101,7 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.accounts.create */
   createAccount: permissionProcedure("accounts", "write")
-    .input(z.object({ name: z.string(), industry: z.string(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional() }))
+    .input(z.object({ name: z.string().min(1).regex(/^[^0-9]+$/, "Name cannot contain numbers"), industry: z.string().regex(/^[^0-9]+$/, "Industry cannot contain numbers").optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
       const [account] = await db.insert(crmAccounts).values({ orgId: org!.id, ...input, ownerId: user!.id }).returning();
@@ -109,7 +109,7 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.accounts.update */
   updateAccount: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().regex(/^[^0-9]+$/, "Name cannot contain numbers").optional(), industry: z.string().regex(/^[^0-9]+$/, "Industry cannot contain numbers").optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional().nullable(), annualRevenue: z.string().optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;
@@ -146,7 +146,7 @@ export const crmRouter = router({
       return db.select().from(crmContacts).where(and(...conditions)).orderBy(crmContacts.lastName).limit(input.limit);
     }),
   createContact: permissionProcedure("accounts", "write")
-    .input(z.object({ firstName: z.string(), lastName: z.string(), email: z.string().email().optional().nullable(), phone: z.string().optional().nullable(), title: z.string().optional().nullable(), accountId: z.string().uuid().optional().nullable() }))
+    .input(z.object({ firstName: z.string().min(1).regex(/^[^0-9]+$/, "First name cannot contain numbers"), lastName: z.string().min(1).regex(/^[^0-9]+$/, "Last name cannot contain numbers"), email: z.string().email().optional().nullable(), phone: z.string().regex(/^[+\d\s\-()]+$/, "Invalid phone number format").optional().nullable(), title: z.string().regex(/^[^0-9]+$/, "Title cannot contain numbers").optional().nullable(), accountId: z.string().uuid().optional().nullable() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const [contact] = await db.insert(crmContacts).values({ orgId: org!.id, ...input }).returning();
@@ -154,7 +154,7 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.contacts.update */
   updateContact: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), firstName: z.string().optional(), lastName: z.string().optional(), email: z.string().email().optional().nullable(), phone: z.string().optional().nullable(), title: z.string().optional().nullable(), accountId: z.string().uuid().optional().nullable(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), firstName: z.string().regex(/^[^0-9]+$/, "First name cannot contain numbers").optional(), lastName: z.string().regex(/^[^0-9]+$/, "Last name cannot contain numbers").optional(), email: z.string().email().optional().nullable(), phone: z.string().regex(/^[+\d\s\-()]+$/, "Invalid phone number format").optional().nullable(), title: z.string().regex(/^[^0-9]+$/, "Title cannot contain numbers").optional().nullable(), accountId: z.string().uuid().optional().nullable(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;

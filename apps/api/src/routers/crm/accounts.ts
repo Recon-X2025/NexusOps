@@ -30,8 +30,8 @@ export const crmAccountsRouter = router({
 
   create: permissionProcedure("accounts", "write")
     .input(z.object({
-      name: z.string(),
-      industry: z.string().optional(),
+      name: z.string().min(1).regex(/^[^0-9]+$/, "Name cannot contain numbers"),
+      industry: z.string().regex(/^[^0-9]+$/, "Industry cannot contain numbers").optional(),
       tier: z.enum(["enterprise", "mid_market", "smb"]).default("smb"),
       website: z.string().url().optional(),
       annualRevenue: z.string().optional(),
@@ -45,7 +45,7 @@ export const crmAccountsRouter = router({
     }),
 
   update: permissionProcedure("accounts", "write")
-    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().optional(), industry: z.string().optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional(), annualRevenue: z.string().optional(), stateCode: z.string().optional(), gstin: z.string().optional(), archived: z.boolean().optional() }))
+    .input(z.object({ id: z.string().uuid(), healthScore: z.coerce.number().optional(), notes: z.string().optional(), name: z.string().regex(/^[^0-9]+$/, "Name cannot contain numbers").optional(), industry: z.string().regex(/^[^0-9]+$/, "Industry cannot contain numbers").optional(), tier: z.enum(["enterprise", "mid_market", "smb"]).optional(), website: z.string().url().optional(), annualRevenue: z.string().optional(), stateCode: z.string().optional(), gstin: z.string().optional(), archived: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       const { id, ...data } = input;

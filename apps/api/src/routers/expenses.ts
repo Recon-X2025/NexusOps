@@ -20,7 +20,7 @@ import {
 } from "@coheronconnect/db";
 
 const expenseReportInput = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().min(1).max(200).regex(/^[^0-9]+$/, "Title cannot contain numbers"),
   businessPurpose: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
   currency: z.string().length(3).default("INR"),

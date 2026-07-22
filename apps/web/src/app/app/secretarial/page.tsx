@@ -15,6 +15,15 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { EsignPanel } from "@/components/esign/EsignPanel";
 
+
+const formatError = (e: any) => {
+  try {
+    const parsed = JSON.parse(e.message);
+    if (Array.isArray(parsed)) return parsed.map((err: any) => err.message).join(", ");
+  } catch { /* ignore */ }
+  return e.message || "An error occurred";
+};
+
 // ── Shared style maps ─────────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<string, string> = {
@@ -147,15 +156,15 @@ function BoardTab() {
   const { data: resolutions = [], refetch: refetchResolutions } = trpc.secretarial.resolutions.list.useQuery({}, mergeTrpcQueryOpts("secretarial.resolutions.list", undefined));
   const updateKyc = trpc.secretarial.directors.updateKyc.useMutation({
     onSuccess: () => { toast.success("KYC status updated"); refetchDirectors(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const updateMtgStatus = trpc.secretarial.meetings.updateStatus.useMutation({
     onSuccess: () => { toast.success("Meeting updated"); refetchMeetings(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const passResolution = trpc.secretarial.resolutions.pass.useMutation({
     onSuccess: () => { toast.success("Resolution passed"); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<string | null>(null);
@@ -195,7 +204,7 @@ function BoardTab() {
       });
       refetchDirectors();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(formatError(e)),
   });
 
   const updateDirector = trpc.secretarial.directors.update.useMutation({
@@ -216,7 +225,7 @@ function BoardTab() {
       });
       refetchDirectors();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(formatError(e)),
   });
 
   const deleteDirector = trpc.secretarial.directors.delete.useMutation({
@@ -224,7 +233,7 @@ function BoardTab() {
       toast.success("Director removed successfully");
       refetchDirectors();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(formatError(e)),
   });
 
   const handleCloseDirectorModal = () => {
@@ -245,15 +254,15 @@ function BoardTab() {
 
   const createResolution = trpc.secretarial.resolutions.create.useMutation({
     onSuccess: () => refetchResolutions(),
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const createMeeting = trpc.secretarial.meetings.create.useMutation({
     onSuccess: () => { toast.success("Meeting scheduled"); refetchMeetings(); setShowNewMeeting(false); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const updateMeeting = trpc.secretarial.meetings.update.useMutation({
     onSuccess: () => { toast.success("Meeting updated"); refetchMeetings(); setShowNewMeeting(false); setEditingMeeting(null); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
 
   return (
@@ -686,7 +695,7 @@ function BoardTab() {
                   if (!dirForm.name.trim()) { toast.error("Full Name is required"); return; }
                   if (!dirForm.din.trim() || dirForm.din.trim().length < 8) { toast.error("DIN is required and must be at least 8 characters"); return; }
                   if (!dirForm.designation.trim()) { toast.error("Designation is required"); return; }
-                  
+
                   const payload = {
                     name: dirForm.name.trim(),
                     din: dirForm.din.trim(),
@@ -727,22 +736,22 @@ function FilingsTab() {
   const [statusFilter, setStatusFilter] = useState("");
   const markFiled = trpc.secretarial.filings.markFiled.useMutation({
     onSuccess: () => { toast.success("Filing marked as filed"); refetch(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const [showCreate, setShowCreate] = useState(false);
   const [editingFiling, setEditingFiling] = useState<string | null>(null);
   const [form, setForm] = useState({ formNumber: "MGT-7", title: "", authority: "MCA", category: "annual_return", dueDate: "", fy: "2024-25", fees: "", notes: "" });
   const createFiling = trpc.secretarial.filings.create.useMutation({
     onSuccess: () => { toast.success("Filing created"); refetch(); setShowCreate(false); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const updateFiling = trpc.secretarial.filings.update.useMutation({
     onSuccess: () => { toast.success("Filing updated"); refetch(); setShowCreate(false); setEditingFiling(null); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const seedFilings = trpc.secretarial.filings.seed.useMutation({
     onSuccess: (data) => { toast.success(`Seeded ${data.seeded} standard filings`); refetch(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
 
   const filtered = statusFilter ? filings.filter((f: any) => f.status === statusFilter) : filings;
@@ -892,15 +901,15 @@ function ShareCapitalTab() {
   const [form, setForm] = useState({ holderName: "", holderType: "individual", shareClass: "equity" as const, nominalValue: 10, quantity: 1, pan: "", address: "" });
   const createShare = trpc.secretarial.shares.create.useMutation({
     onSuccess: () => { toast.success("Shareholder added"); refetch(); handleCloseModal(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const updateShare = trpc.secretarial.shares.update.useMutation({
     onSuccess: () => { toast.success("Shareholder updated"); refetch(); handleCloseModal(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const deleteShare = trpc.secretarial.shares.delete.useMutation({
     onSuccess: () => { toast.success("Shareholder removed"); refetch(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
 
   const handleCloseModal = () => {
@@ -1038,15 +1047,15 @@ function EsopTab() {
   const [form, setForm] = useState({ employeeName: "", options: 100, exercisePrice: 1000, grantDate: "", vestingStart: "", vestingEnd: "", notes: "" });
   const grantEsop = trpc.secretarial.esop.grant.useMutation({
     onSuccess: () => { toast.success("ESOP grant created"); refetch(); handleCloseModal(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const updateEsop = trpc.secretarial.esop.update.useMutation({
     onSuccess: () => { toast.success("ESOP grant updated"); refetch(); handleCloseModal(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
   const deleteEsop = trpc.secretarial.esop.delete.useMutation({
     onSuccess: () => { toast.success("ESOP grant deleted"); refetch(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
 
   const handleCloseModal = () => {
@@ -1209,7 +1218,7 @@ function CalendarTab() {
   const { data: calendar = [], refetch: refetchCalendar } = trpc.indiaCompliance.calendar.list.useQuery({ financialYear: selectedFY }, mergeTrpcQueryOpts("indiaCompliance.calendar.list", undefined));
   const seedCalendar = trpc.indiaCompliance.calendar.seed.useMutation({
     onSuccess: (data) => { toast.success(`Seeded ${data.seeded} items to compliance calendar`); refetchCalendar(); },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatError(e)),
   });
 
   type FilingRow = { status: string; dueDate: string | Date; id: string; title: string; formNumber?: string; authority?: string; fy?: string | null; eventName?: string };
@@ -1335,8 +1344,8 @@ function SecretarialContent() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-3 text-body-sm font-medium border-b-2 transition-colors ${activeTab === t.key
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                 }`}
             >
               <t.icon className="w-4 h-4" />

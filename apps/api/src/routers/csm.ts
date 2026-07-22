@@ -53,7 +53,7 @@ export const csmRouter = router({
 
     create: permissionProcedure("csm", "write")
       .input(z.object({
-        title: z.string().min(1),
+        title: z.string().min(1).regex(/[a-zA-Z]/, "Title must contain at least one letter"),
         description: z.string().optional(),
         priority: z.string().default("medium"),
         accountId: z.string().uuid().optional(),

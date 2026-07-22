@@ -1047,10 +1047,7 @@ export default function AdminConsolePage() {
                               >
                                 {runningJobId === j.id ? "Running…" : "Run Now"}
                               </button>
-                              <button
-                                onClick={() => toast.info(`Job "${j.name}" — schedule: ${j.schedule}. Edit job schedules via infrastructure config (cron.yaml).`, { duration: 6000 })}
-                                className="text-[11px] text-muted-foreground/70 hover:underline"
-                              >Edit</button>
+
                             </div>
                           </td>
                         </tr>
@@ -1095,102 +1092,7 @@ export default function AdminConsolePage() {
         </div>
       </div>
 
-      {/* ── Invite User Modal ─────────────────────────────────────── */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-[460px] max-w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-body-sm font-semibold text-foreground">Invite New User</h3>
-              <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="text-muted-foreground hover:text-foreground">
-                <XCircle className="w-4 h-4" />
-              </button>
-            </div>
-            {!inviteResult ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">Email *</label>
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="user@company.com"
-                    className="w-full border border-border rounded px-2 py-1.5 text-[12px] outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">Membership Role</label>
-                  <select
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as any)}
-                    className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background outline-none focus:border-primary"
-                  >
-                    <option value="member">Member — standard access</option>
-                    <option value="viewer">Viewer — read-only</option>
-                    <option value="admin">Admin — full platform admin</option>
-                    <option value="owner">Owner — full owner rights</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">
-                    System Role <span className="text-muted-foreground/60">(fine-grained RBAC)</span>
-                  </label>
-                  <select
-                    value={inviteMatrixRole}
-                    onChange={(e) => setInviteMatrixRole(e.target.value)}
-                    className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background outline-none focus:border-primary"
-                  >
-                    <option value="">— None (uses membership role only) —</option>
-                    {SYSTEM_ROLES_CATALOG.map((r) => (
-                      <option key={r.role} value={r.role}>{r.displayName} — {r.description.slice(0, 60)}</option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-muted-foreground/70 mt-1">
-                    The system role controls which modules this user can access (e.g. itil, security_analyst, hr_manager).
-                  </p>
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button onClick={() => setShowInviteModal(false)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
-                  <button
-                    disabled={!inviteEmail.trim() || inviteUserMutation.isPending}
-                    onClick={async () => {
-                      const invite = await inviteUserMutation.mutateAsync({ email: inviteEmail.trim(), role: inviteRole, matrixRole: inviteMatrixRole || null });
-                      setInviteResult(invite.inviteUrl);
-                    }}
-                    className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-40"
-                  >
-                    {inviteUserMutation.isPending ? "Sending…" : "Send Invite"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-green-700">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-[12px] font-medium">Invite created for {inviteEmail}</span>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">Invite URL (share with user)</label>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-[11px] bg-muted/40 border border-border rounded px-2 py-1.5 break-all">{inviteResult}</code>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(inviteResult); toast.success("Copied!"); }}
-                      className="px-2 py-1.5 border border-border rounded text-[11px] hover:bg-muted/30"
-                    >Copy</button>
-                  </div>
-                </div>
-                {inviteMatrixRole && (
-                  <p className="text-[11px] text-muted-foreground bg-blue-50 border border-blue-200 rounded px-3 py-2">
-                    After the user accepts the invite, use <strong>Edit Role</strong> to assign the <code>{inviteMatrixRole}</code> system role.
-                  </p>
-                )}
-                <div className="flex justify-end">
-                  <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90">Done</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {/* ── Edit User Role Modal ───────────────────────────────────── */}
       {editUser && (
