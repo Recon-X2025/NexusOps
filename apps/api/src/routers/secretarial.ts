@@ -864,9 +864,9 @@ export const secretarialRouter = router({
     create: permissionProcedure("secretarial", "write")
       .input(
         z.object({
-          name: z.string().min(2).regex(/^[^0-9]*$/, "Numbers are not allowed in the name"),
+          name: z.string().min(2),
           din: z.string().min(8),
-          designation: z.string().min(2).regex(/^[^0-9]*$/, "Numbers are not allowed in the designation"),
+          designation: z.string().min(2),
           category: z.string().default("non_executive"),
           pan: z.string().optional(),
           email: z.string().email().optional(),
@@ -942,9 +942,9 @@ export const secretarialRouter = router({
       .input(
         z.object({
           id: z.string().uuid(),
-          name: z.string().min(2).regex(/^[^0-9]*$/, "Numbers are not allowed in the name").optional(),
+          name: z.string().min(2).optional(),
           din: z.string().min(8).optional(),
-          designation: z.string().min(2).regex(/^[^0-9]*$/, "Numbers are not allowed in the designation").optional(),
+          designation: z.string().min(2).optional(),
           category: z.string().optional(),
           pan: z.string().optional(),
           email: z.string().email().optional(),

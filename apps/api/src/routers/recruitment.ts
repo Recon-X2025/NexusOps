@@ -165,12 +165,12 @@ export const recruitmentRouter = router({
 
     create: permissionProcedure("recruitment", "write")
       .input(z.object({
-        firstName:    z.string().min(1).regex(/^[^0-9]+$/, "First name cannot contain numbers"),
-        lastName:     z.string().min(1).regex(/^[^0-9]+$/, "Last name cannot contain numbers"),
+        firstName:    z.string().min(1),
+        lastName:     z.string().min(1),
         email:        z.string().email(),
-        phone:        z.string().regex(/^[+\d\s\-()]+$/, "Invalid phone number format").optional(),
+        phone:        z.string().optional(),
         location:     z.string().optional(),
-        currentTitle: z.string().regex(/^[^0-9]+$/, "Title cannot contain numbers").optional(),
+        currentTitle: z.string().optional(),
         currentCo:    z.string().optional(),
         experience:   z.number().optional(),
         skills:       z.array(z.string()).default([]),

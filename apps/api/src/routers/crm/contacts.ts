@@ -30,11 +30,11 @@ export const crmContactsRouter = router({
 
   create: permissionProcedure("accounts", "write")
     .input(z.object({
-      firstName: z.string().min(1).regex(/^[^0-9]+$/, "First name cannot contain numbers"),
-      lastName: z.string().min(1).regex(/^[^0-9]+$/, "Last name cannot contain numbers"),
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
       email: z.string().email().optional(),
-      phone: z.string().regex(/^[+\d\s\-()]+$/, "Invalid phone number format").optional(),
-      title: z.string().regex(/^[^0-9]+$/, "Title cannot contain numbers").optional(),
+      phone: z.string().optional(),
+      title: z.string().optional(),
       accountId: z.string().uuid(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -46,11 +46,11 @@ export const crmContactsRouter = router({
   update: permissionProcedure("accounts", "write")
     .input(z.object({
       id: z.string().uuid(),
-      firstName: z.string().regex(/^[^0-9]+$/, "First name cannot contain numbers").optional(),
-      lastName: z.string().regex(/^[^0-9]+$/, "Last name cannot contain numbers").optional(),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
       email: z.string().email().optional(),
-      phone: z.string().regex(/^[+\d\s\-()]+$/, "Invalid phone number format").optional(),
-      title: z.string().regex(/^[^0-9]+$/, "Title cannot contain numbers").optional(),
+      phone: z.string().optional(),
+      title: z.string().optional(),
       accountId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
