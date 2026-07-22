@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import {
   UserPlus, Briefcase, Users, Calendar, FileText, BarChart2,
@@ -896,7 +897,26 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 
 export default function RecruitmentPage() {
   const { can, mergeTrpcQueryOpts } = useRBAC();
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  const urlTab = searchParams.get("tab") as Tab | null;
+  const [tab, _setTab] = useState<Tab>(urlTab && TABS.some(t => t.key === urlTab) ? urlTab : "dashboard");
+
+  useEffect(() => {
+    if (urlTab && TABS.some(t => t.key === urlTab) && urlTab !== tab) {
+      _setTab(urlTab);
+    }
+  }, [urlTab, tab]);
+
+  const setTab = useCallback((newTab: Tab) => {
+    _setTab(newTab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", newTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, pathname, router]);
+
   const [pipelineJobId, setPipelineJobId] = useState<string | null>(null);
   const [pipelineJobTitle, setPipelineJobTitle] = useState<string>("");
   const [showAddCandidate, setShowAddCandidate] = useState(false);

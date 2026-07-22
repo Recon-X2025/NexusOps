@@ -259,7 +259,7 @@ export default function FinanceExpensesQueuePage() {
                     <tr key={c.id} className="bg-card hover:bg-muted/20 transition-colors">
                       <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground whitespace-nowrap">{c.number}</td>
                       <td className="px-3 py-2.5 font-medium text-foreground whitespace-nowrap">
-                        {row.employee ? `${row.employee.firstName} ${row.employee.lastName}` : "—"}
+                        {row.employee ? (row.employee.name || "—") : "—"}
                       </td>
                       <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]">{c.title}</td>
                       <td className="px-3 py-2.5 capitalize text-muted-foreground">

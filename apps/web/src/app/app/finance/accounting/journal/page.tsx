@@ -288,11 +288,11 @@ export default function JournalPage() {
                                               {je.number}
                                           </td>
                                           <td className="px-4 py-3">
-                                              <p className="text-body-sm font-medium text-foreground">{je.subject}</p>
-                                              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{je.sourceType}</p>
+                                              <p className="text-body-sm font-medium text-foreground">{je.description}</p>
+                                              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">{je.type}</p>
                                           </td>
                                           <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
-                                              ₹{Number(je.totalAmount).toLocaleString()}
+                                              ₹{Number(je.totalDebit).toLocaleString()}
                                           </td>
                                           <td className="px-4 py-3 text-right">
                                               <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">

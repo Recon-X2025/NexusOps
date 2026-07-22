@@ -2051,13 +2051,16 @@ export const hrRouter = router({
       limit: z.number().int().min(1).max(200).default(50),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { expenseClaims, employees: emps, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
+      const { expenseClaims, employees: emps, users, eq: dbEq, and: dbAnd, desc: dbDesc } = await import("@coheronconnect/db");
       const conds: SQL[] = [dbEq(expenseClaims.orgId, org!.id)];
       if (input.employeeId) conds.push(dbEq(expenseClaims.employeeId, input.employeeId));
       if (input.status) conds.push(dbEq(expenseClaims.status, input.status));
-      return db.select({ claim: expenseClaims, employee: emps })
-        .from(expenseClaims).leftJoin(emps, dbEq(expenseClaims.employeeId, emps.id))
+      const res = await db.select({ claim: expenseClaims, employee: emps, userName: users.name })
+        .from(expenseClaims)
+        .leftJoin(emps, dbEq(expenseClaims.employeeId, emps.id))
+        .leftJoin(users, dbEq(emps.userId, users.id))
         .where(dbAnd(...conds)).orderBy(dbDesc(expenseClaims.createdAt)).limit(input.limit);
+      return res.map(r => ({ claim: r.claim, employee: r.employee ? { ...r.employee, name: r.userName } : null }));
     }),
 
     create: permissionProcedure("hr", "write").input(z.object({
