@@ -129,7 +129,7 @@ export default function PayrollPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
   const [createYear, setCreateYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<"runs" | "structures" | "declarations">("runs");
+  const [activeTab, setActiveTab] = useState<"runs" | "structures" | "form16s">("runs");
   const [form16For, setForm16For] = useState<Record<string, unknown> | null>(null);
   const [structureEditor, setStructureEditor] = useState<StructureFormState | null>(null);
 
@@ -160,7 +160,7 @@ export default function PayrollPage() {
   // Employees drive the Form 16 e-sign list under the Declarations tab.
   const employeesQuery = trpc.hr.employees.list.useQuery(
     { limit: 200 },
-    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "declarations" }),
+    mergeTrpcQueryOpts("hr.employees.list", { enabled: activeTab === "form16s" }),
   );
   const selectedRun = trpc.payroll.runs.get.useQuery(
     { id: selectedRunId! },
@@ -242,7 +242,7 @@ export default function PayrollPage() {
             Payroll
           </h1>
           <p className="text-body-sm text-gray-500 mt-1">
-            12-step payroll cycle with statutory compliance
+            14-step payroll cycle with statutory compliance
           </p>
         </div>
         <button
@@ -258,7 +258,7 @@ export default function PayrollPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-        {(["runs", "structures", "declarations"] as const).map((tab) => (
+        {(["runs", "structures", "form16s"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -268,7 +268,7 @@ export default function PayrollPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
-            {tab === "runs" ? "Payroll runs" : tab === "structures" ? "Salary structures" : "TDS declarations"}
+            {tab === "runs" ? "Payroll runs" : tab === "structures" ? "Salary structures" : "Form 16 issuance"}
           </button>
         ))}
       </div>
@@ -353,7 +353,7 @@ export default function PayrollPage() {
                   {/* Statutory breakdown */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
                     {[
-                      { label: "PF", value: `₹${Number(run.totalPF || 0).toLocaleString("en-IN")}` },
+                      { label: "Total PF (Emp + Empr)", value: `₹${Number(run.totalPF || 0).toLocaleString("en-IN")}` },
                       { label: "ESI", value: `₹${Number(run.totalESI || 0).toLocaleString("en-IN")}` },
                       { label: "Prof. tax", value: `₹${Number(run.totalPT || 0).toLocaleString("en-IN")}` },
                       { label: "TDS", value: `₹${Number(run.totalTDS || 0).toLocaleString("en-IN")}` },
@@ -613,7 +613,7 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {activeTab === "declarations" && (
+      {activeTab === "form16s" && (
         <div className="space-y-3">
           <p className="text-body-sm text-gray-500 dark:text-gray-400">
             Issue Form 16 (TDS certificate) to an employee for e-signature.

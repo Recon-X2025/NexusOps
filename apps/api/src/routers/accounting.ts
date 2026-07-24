@@ -145,7 +145,7 @@ export const accountingRouter = router({
     list: permissionProcedure("financial", "read").input(z.object({
       type: z.enum(accountTypeEnum.enumValues).optional(),
       activeOnly: z.boolean().default(true),
-      limit: z.coerce.number().int().min(1).max(200).default(50),
+      limit: z.coerce.number().int().min(1).max(1000).default(50),
       offset: z.coerce.number().int().min(0).default(0),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;

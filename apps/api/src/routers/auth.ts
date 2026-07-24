@@ -182,18 +182,26 @@ export const authRouter = router({
     // saturate the bcrypt semaphore even when the password is correct.
     await checkLoginRateLimit(email);
 
-    const [user] = await db
+    const usersList = await db
       .select()
       .from(users)
       .where(eq(users.email, email))
-      .limit(1);
+      .limit(2);
 
     const tDbUser = Date.now();
+
+    const user = usersList[0];
 
     if (!user) {
       await recordFailedLogin(email, ctx.ipAddress);
       logWarn("AUTH_LOGIN_FAIL", { reason: "user_not_found", email, db_ms: tDbUser - t0 });
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
+    }
+
+    if (usersList.length > 1) {
+      await recordFailedLogin(email, ctx.ipAddress);
+      logWarn("AUTH_LOGIN_FAIL", { reason: "ambiguous_account", email, db_ms: tDbUser - t0 });
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Account belongs to multiple organizations. Workspace-specific login required." });
     }
 
     if (user.status === "disabled") {
@@ -520,20 +528,60 @@ export const authRouter = router({
    * Org must set `organizations.settings.security.requireStepUpForMatrixRoles` (e.g. `["finance_manager"]`).
    */
   verifyStepUp: protectedProcedure
-    .input(z.object({ password: z.string().min(1) }))
+    .input(z.object({
+      password: z.string().optional(),
+      code: z.string().optional(),
+      isBackupCode: z.boolean().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const { db, user, sessionId } = ctx;
       if (!sessionId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No active session" });
       }
-      const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
-      if (!row?.passwordHash) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
+
+      // Check if user has an active MFA enrollment
+      const [enrollment] = await db
+        .select()
+        .from(mfaEnrollments)
+        .where(and(eq(mfaEnrollments.userId, user!.id), eq(mfaEnrollments.status, "active")))
+        .limit(1);
+
+      if (enrollment) {
+        if (!input.code) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "MFA code required for step-up" });
+        }
+        let ok = false;
+        if (input.isBackupCode) {
+          const idx = await matchBackupCode(input.code, enrollment.backupCodes);
+          if (idx >= 0) {
+            ok = true;
+            const remaining = enrollment.backupCodes.filter((_, i) => i !== idx);
+            await db
+              .update(mfaEnrollments)
+              .set({ backupCodes: remaining, updatedAt: new Date() })
+              .where(eq(mfaEnrollments.id, enrollment.id));
+          }
+        } else {
+          ok = verifyTotp(await decryptSecretEnvelope(enrollment.totpSecret), input.code);
+        }
+        if (!ok) {
+          logWarn("AUTH_MFA_FAIL", { user_id: user!.id, backup: input.isBackupCode ?? false, context: "step-up" });
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
+        }
+      } else {
+        if (!input.password) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Password required for step-up" });
+        }
+        const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
+        if (!row?.passwordHash) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
+        }
+        const valid = await withBcryptSlot(() => verifyPassword(input.password!, row.passwordHash!));
+        if (!valid) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
+        }
       }
-      const valid = await verifyPassword(input.password, row.passwordHash);
-      if (!valid) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
-      }
+
       await setSessionStepUpVerified(sessionId);
       const until = new Date(Date.now() + 15 * 60 * 1000);
       return { stepUpVerifiedUntil: until.toISOString() };
@@ -791,7 +839,7 @@ export const authRouter = router({
         })
         .returning();
 
-      const inviteUrl = `${process.env["AUTH_URL"] ?? "http://localhost:3000"}/invite/${token}`;
+      const inviteUrl = `${input.origin || process.env["AUTH_URL"] || "http://localhost:3000"}/invite/${token}`;
       await sendTransactionalEmail(
         inviteEmail,
         `You've been invited to join ${org!.name} on CoheronConnect`,

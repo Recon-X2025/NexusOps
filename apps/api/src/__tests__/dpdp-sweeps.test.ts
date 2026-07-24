@@ -27,7 +27,7 @@ import {
   consentExpirySweep,
   runDpdpSweepsForOrg,
 } from "../lib/dpdp-sweeps";
-import { LogOnlyDispatcher, getNotificationDispatcher } from "../lib/notification-dispatcher";
+import { LogOnlyDispatcher, EmailDispatcher, getNotificationDispatcher } from "../lib/notification-dispatcher";
 import { executeErasureForDsr } from "../lib/dpdp-erasure";
 
 describe("DPDP automation loop (Phase 1)", () => {
@@ -65,8 +65,8 @@ describe("DPDP automation loop (Phase 1)", () => {
       expect(row!.status).toBe("logged");
     });
 
-    it("the default active dispatcher is a LogOnlyDispatcher", () => {
-      expect(getNotificationDispatcher()).toBeInstanceOf(LogOnlyDispatcher);
+    it("the default active dispatcher is an EmailDispatcher", () => {
+      expect(getNotificationDispatcher()).toBeInstanceOf(EmailDispatcher);
     });
   });
 

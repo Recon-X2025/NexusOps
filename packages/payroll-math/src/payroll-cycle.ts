@@ -193,6 +193,8 @@ export interface EmployeePayrollInput {
 export function computeGross(emp: EmployeePayrollInput): {
   basicEarned: number;
   hraEarned: number;
+  specialAllowanceEarned: number;
+  ltaEarned: number;
   grossEarnings: number;
 } {
   const lopFactor =
@@ -200,20 +202,20 @@ export function computeGross(emp: EmployeePayrollInput): {
 
   const basicEarned = Math.round(emp.basicMonthly * lopFactor);
   const hraEarned = Math.round(emp.hraMonthly * lopFactor);
-  const specialAllowance = Math.round(emp.specialAllowance * lopFactor);
-  const lta = Math.round((emp.ltaAnnual / 12) * lopFactor);
+  const specialAllowanceEarned = Math.round(emp.specialAllowance * lopFactor);
+  const ltaEarned = Math.round((emp.ltaAnnual / 12) * lopFactor);
 
   const grossEarnings =
     basicEarned +
     hraEarned +
-    specialAllowance +
-    lta +
+    specialAllowanceEarned +
+    ltaEarned +
     emp.overtime +
     emp.arrears +
     emp.bonus +
     emp.otherEarnings;
 
-  return { basicEarned, hraEarned, grossEarnings };
+  return { basicEarned, hraEarned, specialAllowanceEarned, ltaEarned, grossEarnings };
 }
 
 /**
@@ -243,15 +245,15 @@ export function computeEmployeePayslip(
   const effectiveBonus = bonusEligible ? emp.bonus : 0;
 
   // Step 2: Gross (recomputed with the eligibility-gated bonus).
-  const { basicEarned, hraEarned, grossEarnings } = computeGross({
+  const { basicEarned, hraEarned, specialAllowanceEarned, ltaEarned, grossEarnings } = computeGross({
     ...emp,
     bonus: effectiveBonus,
   });
 
   const excludedAllowances =
     hraEarned +
-    Math.round(emp.specialAllowance * (emp.daysWorked / emp.daysInMonth)) +
-    Math.round((emp.ltaAnnual / 12) * (emp.daysWorked / emp.daysInMonth)) +
+    specialAllowanceEarned +
+    ltaEarned +
     emp.overtime +
     emp.arrears +
     effectiveBonus +
@@ -332,8 +334,8 @@ export function computeEmployeePayslip(
     // Earnings
     basicEarned,
     hraEarned,
-    specialAllowance: Math.round(emp.specialAllowance * (emp.daysWorked / emp.daysInMonth)),
-    lta: Math.round((emp.ltaAnnual / 12) * (emp.daysWorked / emp.daysInMonth)),
+    specialAllowance: specialAllowanceEarned,
+    lta: ltaEarned,
     overtime: emp.overtime,
     arrears: emp.arrears,
     bonus: effectiveBonus,
@@ -472,11 +474,11 @@ export function generateITNS281(
 
   // Approximate surcharge and cess from individual computations
   const totalSurcharge = payslips.reduce(
-    (sum, ps) => sum + ps.taxComputation.surcharge / ps.taxComputation.monthlyTDS * ps.tds || 0,
+    (sum, ps) => sum + (ps.taxComputation.monthlyTDS > 0 ? (ps.taxComputation.surcharge / ps.taxComputation.monthlyTDS) * ps.tds : 0),
     0
   );
   const totalCess = payslips.reduce(
-    (sum, ps) => sum + ps.taxComputation.cess / ps.taxComputation.monthlyTDS * ps.tds || 0,
+    (sum, ps) => sum + (ps.taxComputation.monthlyTDS > 0 ? (ps.taxComputation.cess / ps.taxComputation.monthlyTDS) * ps.tds : 0),
     0
   );
 
@@ -620,10 +622,10 @@ export function generateForm16Data(
     incomeFromOtherSources: 0,
     grossTotalIncome: taxComp.taxableIncome,
     deductionsUnderChapter6A: {
-      section80C: Math.min(first.taxComputation.chapter6ADeductions, 150_000),
-      section80D: 0,
-      section80CCD1B: 0,
-      section80TTA: 0,
+      section80C: taxComp.chapter6ABreakdown?.section80C ?? 0,
+      section80D: taxComp.chapter6ABreakdown?.section80D ?? 0,
+      section80CCD1B: taxComp.chapter6ABreakdown?.section80CCD1B ?? 0,
+      section80TTA: taxComp.chapter6ABreakdown?.section80TTA ?? 0,
       total: taxComp.chapter6ADeductions,
     },
     totalIncome: taxComp.taxableIncome,

@@ -85,7 +85,7 @@ export const secretarialRouter = router({
               "creditors",
             ])
             .default("board"),
-          title: z.string().min(2).regex(/[a-zA-Z]/, "Title must contain at least one letter"),
+          title: z.string().min(2).regex(/[a-zA-Z0-9]/, "Title must contain at least one letter or number"),
           scheduledAt: z.string(),
           duration: z.number().default(120),
           venue: z.string().optional(),
@@ -169,7 +169,7 @@ export const secretarialRouter = router({
               "creditors",
             ])
             .optional(),
-          title: z.string().min(2).regex(/[a-zA-Z]/, "Title must contain at least one letter").optional(),
+          title: z.string().min(2).regex(/[a-zA-Z0-9]/, "Title must contain at least one letter or number").optional(),
           scheduledAt: z.string().optional(),
           duration: z.number().optional(),
           venue: z.string().optional(),

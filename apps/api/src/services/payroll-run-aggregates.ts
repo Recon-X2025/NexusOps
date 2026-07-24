@@ -61,6 +61,8 @@ export function buildEmployeePayrollInput(
     specialAllowance,
     ltaAnnual,
     regime: emp.taxRegime === "old" ? "OLD" : "NEW",
+    // TODO(compliance): Wire up actual employee tax declarations intake table.
+    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
     section80C: 0,
     section80D: 0,
     section80CCD1B: 0,
@@ -110,6 +112,8 @@ export async function computePayrollRunTotals(
   let totalNet = 0;
   let totalPfEmployee = 0;
   let totalPfEmployer = 0;
+  let totalEsiEmployee = 0;
+  let totalEsiEmployer = 0;
   let totalPt = 0;
   let totalTds = 0;
   let employeeCount = 0;
@@ -128,6 +132,8 @@ export async function computePayrollRunTotals(
       totalNet += slip.netPay;
       totalPfEmployee += slip.employeePF;
       totalPfEmployer += slip.employerPF;
+      totalEsiEmployee += slip.employeeESI;
+      totalEsiEmployer += slip.employerESI;
       totalPt += slip.professionalTax;
       totalTds += slip.tds;
       employeeCount += 1;
@@ -145,6 +151,8 @@ export async function computePayrollRunTotals(
     totalNet,
     totalPfEmployee,
     totalPfEmployer,
+    totalEsiEmployee,
+    totalEsiEmployer,
     totalPt,
     totalTds,
     employeeCount,

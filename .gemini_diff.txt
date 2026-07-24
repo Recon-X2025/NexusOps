@@ -1,0 +1,583 @@
+diff --git a/BUILD.md b/BUILD.md
+index 9cb85a4..c4ebdad 100644
+--- a/BUILD.md
++++ b/BUILD.md
+@@ -230,10 +230,5 @@ deletion-cascade FK tests, and money-invariant tests (journal, payroll, GST, TDS
+ 
+ ## 9. Known real defects (verified, current)
+ 
+-- **Profile → Phone field silently discards its value.** `apps/web/.../profile/page.tsx` binds a `phone`
+-  input and calls `auth.updateProfile`; the router (`apps/api/src/routers/auth.ts:561-580`) accepts `phone`
+-  in Zod but `db.update(users).set({ ...input })` — and `users` has **no** `phone`/`location`/`jobTitle`/`bio`
+-  column, so Drizzle **silently drops** those keys. The success toast fires; nothing persists. (Proven via
+-  runtime probe.) Fix path: add the columns to `schema/auth.ts` + migration, or strip the phantom fields.
+ - **SMS delivery is a stub** — MSG91 adapter is complete but not enumerated in the notification-dispatch
+   channels; and no `users.phone` exists to address SMS to (only nullable `onboarding_details.phone`).
+diff --git a/apps/api/src/__tests__/dpdp-sweeps.test.ts b/apps/api/src/__tests__/dpdp-sweeps.test.ts
+index 900a7ca..2af7ed3 100644
+--- a/apps/api/src/__tests__/dpdp-sweeps.test.ts
++++ b/apps/api/src/__tests__/dpdp-sweeps.test.ts
+@@ -27,7 +27,7 @@ import {
+   consentExpirySweep,
+   runDpdpSweepsForOrg,
+ } from "../lib/dpdp-sweeps";
+-import { LogOnlyDispatcher, getNotificationDispatcher } from "../lib/notification-dispatcher";
++import { LogOnlyDispatcher, EmailDispatcher, getNotificationDispatcher } from "../lib/notification-dispatcher";
+ import { executeErasureForDsr } from "../lib/dpdp-erasure";
+ 
+ describe("DPDP automation loop (Phase 1)", () => {
+@@ -65,8 +65,8 @@ describe("DPDP automation loop (Phase 1)", () => {
+       expect(row!.status).toBe("logged");
+     });
+ 
+-    it("the default active dispatcher is a LogOnlyDispatcher", () => {
+-      expect(getNotificationDispatcher()).toBeInstanceOf(LogOnlyDispatcher);
++    it("the default active dispatcher is an EmailDispatcher", () => {
++      expect(getNotificationDispatcher()).toBeInstanceOf(EmailDispatcher);
+     });
+   });
+ 
+diff --git a/apps/api/src/index.ts b/apps/api/src/index.ts
+index c18105d..f45eb60 100644
+--- a/apps/api/src/index.ts
++++ b/apps/api/src/index.ts
+@@ -352,6 +352,10 @@ async function bootstrap() {
+   const { registerSamlRoutes } = await import("./services/saml.js");
+   await registerSamlRoutes(fastify);
+ 
++  // ── Integration OAuth Routes ───────────────────────────────────────────────
++  const { registerIntegrationOAuthRoutes } = await import("./http/integration-oauth.js");
++  await registerIntegrationOAuthRoutes(fastify);
++
+   // ── Burst rate limiter ────────────────────────────────────────────────────
+   // Secondary, shorter-window limiter that caps instantaneous bursts.
+   // Registered only when RATE_LIMIT_BURST_MAX > 0 (enabled by default).
+diff --git a/apps/api/src/lib/notification-dispatcher.ts b/apps/api/src/lib/notification-dispatcher.ts
+index f7fe738..125e6a0 100644
+--- a/apps/api/src/lib/notification-dispatcher.ts
++++ b/apps/api/src/lib/notification-dispatcher.ts
+@@ -38,6 +38,9 @@ export interface NotificationDispatcher {
+   dispatch(db: DbOrTx, input: NotificationInput): Promise<NotificationResult>;
+ }
+ 
++import { sendTransactionalEmail } from "../services/notifications";
++import { eq } from "drizzle-orm";
++
+ /**
+  * LogOnlyDispatcher — records the notification as an audit artifact and does not
+  * deliver it externally. This is the only dispatcher available while external
+@@ -64,12 +67,57 @@ export class LogOnlyDispatcher implements NotificationDispatcher {
+   }
+ }
+ 
++/**
++ * EmailDispatcher — records the notification as an audit artifact and attempts
++ * to deliver it externally via email. Updates the artifact status to "sent" or "failed".
++ */
++export class EmailDispatcher implements NotificationDispatcher {
++  async dispatch(db: DbOrTx, input: NotificationInput): Promise<NotificationResult> {
++    const [row] = await db
++      .insert(dpdpNotificationArtifacts)
++      .values({
++        orgId: input.orgId,
++        relatedType: input.relatedType,
++        relatedId: input.relatedId,
++        channel: input.channel,
++        audience: input.audience,
++        subject: input.subject,
++        body: input.body,
++        status: "logged",
++      })
++      .returning({ id: dpdpNotificationArtifacts.id });
++
++    const artifactId = row!.id;
++    const isEmail = input.audience.includes("@");
++
++    if (isEmail && (input.channel === "email" || input.channel === "principal" || input.channel === "internal")) {
++      try {
++        await sendTransactionalEmail(input.audience, input.subject, input.body);
++        
++        await db.update(dpdpNotificationArtifacts)
++          .set({ status: "sent" })
++          .where(eq(dpdpNotificationArtifacts.id, artifactId));
++          
++        return { artifactId, status: "sent" };
++      } catch (err) {
++        await db.update(dpdpNotificationArtifacts)
++          .set({ status: "failed" })
++          .where(eq(dpdpNotificationArtifacts.id, artifactId));
++          
++        return { artifactId, status: "failed" };
++      }
++    }
++
++    return { artifactId, status: "logged" };
++  }
++}
++
+ /**
+  * The process-wide dispatcher. Swap this binding in the external pass to route
+  * through a real delivery adapter. Kept as a module-level singleton so callers
+  * (sweeps, router) share one instance.
+  */
+-let activeDispatcher: NotificationDispatcher = new LogOnlyDispatcher();
++let activeDispatcher: NotificationDispatcher = new EmailDispatcher();
+ 
+ export function getNotificationDispatcher(): NotificationDispatcher {
+   return activeDispatcher;
+diff --git a/apps/api/src/lib/trpc.ts b/apps/api/src/lib/trpc.ts
+index 08cd48e..e45e91c 100644
+--- a/apps/api/src/lib/trpc.ts
++++ b/apps/api/src/lib/trpc.ts
+@@ -78,8 +78,16 @@ export type Context = {
+ 
+ const t = initTRPC.context<Context>().create({
+   errorFormatter({ shape, error, ctx }) {
++    let message = shape.message;
++    if (error.cause instanceof ZodError) {
++      const firstError = error.cause.errors[0];
++      if (firstError) {
++        message = firstError.message;
++      }
++    }
+     return {
+       ...shape,
++      message,
+       data: {
+         ...shape.data,
+         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+diff --git a/apps/api/src/routers/accounting.ts b/apps/api/src/routers/accounting.ts
+index 55fc0f8..2670bb6 100644
+--- a/apps/api/src/routers/accounting.ts
++++ b/apps/api/src/routers/accounting.ts
+@@ -145,7 +145,7 @@ export const accountingRouter = router({
+     list: permissionProcedure("financial", "read").input(z.object({
+       type: z.enum(accountTypeEnum.enumValues).optional(),
+       activeOnly: z.boolean().default(true),
+-      limit: z.coerce.number().int().min(1).max(200).default(50),
++      limit: z.coerce.number().int().min(1).max(1000).default(50),
+       offset: z.coerce.number().int().min(0).default(0),
+     })).query(async ({ ctx, input }) => {
+       const { org, db } = ctx;
+diff --git a/apps/api/src/routers/auth.ts b/apps/api/src/routers/auth.ts
+index 78cda1f..773716a 100644
+--- a/apps/api/src/routers/auth.ts
++++ b/apps/api/src/routers/auth.ts
+@@ -182,20 +182,28 @@ export const authRouter = router({
+     // saturate the bcrypt semaphore even when the password is correct.
+     await checkLoginRateLimit(email);
+ 
+-    const [user] = await db
++    const usersList = await db
+       .select()
+       .from(users)
+       .where(eq(users.email, email))
+-      .limit(1);
++      .limit(2);
+ 
+     const tDbUser = Date.now();
+ 
+-    if (!user) {
++    if (usersList.length === 0) {
+       await recordFailedLogin(email, ctx.ipAddress);
+       logWarn("AUTH_LOGIN_FAIL", { reason: "user_not_found", email, db_ms: tDbUser - t0 });
+       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credentials" });
+     }
+ 
++    if (usersList.length > 1) {
++      await recordFailedLogin(email, ctx.ipAddress);
++      logWarn("AUTH_LOGIN_FAIL", { reason: "ambiguous_account", email, db_ms: tDbUser - t0 });
++      throw new TRPCError({ code: "BAD_REQUEST", message: "Account belongs to multiple organizations. Workspace-specific login required." });
++    }
++
++    const user = usersList[0];
++
+     if (user.status === "disabled") {
+       await recordFailedLogin(email, ctx.ipAddress);
+       logWarn("AUTH_LOGIN_FAIL", { reason: "account_disabled", user_id: user.id });
+@@ -520,20 +528,60 @@ export const authRouter = router({
+    * Org must set `organizations.settings.security.requireStepUpForMatrixRoles` (e.g. `["finance_manager"]`).
+    */
+   verifyStepUp: protectedProcedure
+-    .input(z.object({ password: z.string().min(1) }))
++    .input(z.object({
++      password: z.string().optional(),
++      code: z.string().optional(),
++      isBackupCode: z.boolean().optional(),
++    }))
+     .mutation(async ({ ctx, input }) => {
+       const { db, user, sessionId } = ctx;
+       if (!sessionId) {
+         throw new TRPCError({ code: "BAD_REQUEST", message: "No active session" });
+       }
+-      const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
+-      if (!row?.passwordHash) {
+-        throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
+-      }
+-      const valid = await verifyPassword(input.password, row.passwordHash);
+-      if (!valid) {
+-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
++
++      // Check if user has an active MFA enrollment
++      const [enrollment] = await db
++        .select()
++        .from(mfaEnrollments)
++        .where(and(eq(mfaEnrollments.userId, user!.id), eq(mfaEnrollments.status, "active")))
++        .limit(1);
++
++      if (enrollment) {
++        if (!input.code) {
++          throw new TRPCError({ code: "BAD_REQUEST", message: "MFA code required for step-up" });
++        }
++        let ok = false;
++        if (input.isBackupCode) {
++          const idx = await matchBackupCode(input.code, enrollment.backupCodes);
++          if (idx >= 0) {
++            ok = true;
++            const remaining = enrollment.backupCodes.filter((_, i) => i !== idx);
++            await db
++              .update(mfaEnrollments)
++              .set({ backupCodes: remaining, updatedAt: new Date() })
++              .where(eq(mfaEnrollments.id, enrollment.id));
++          }
++        } else {
++          ok = verifyTotp(await decryptSecretEnvelope(enrollment.totpSecret), input.code);
++        }
++        if (!ok) {
++          logWarn("AUTH_MFA_FAIL", { user_id: user!.id, backup: input.isBackupCode ?? false, context: "step-up" });
++          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid MFA code" });
++        }
++      } else {
++        if (!input.password) {
++          throw new TRPCError({ code: "BAD_REQUEST", message: "Password required for step-up" });
++        }
++        const [row] = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
++        if (!row?.passwordHash) {
++          throw new TRPCError({ code: "BAD_REQUEST", message: "No password set on this account" });
++        }
++        const valid = await withBcryptSlot(() => verifyPassword(input.password!, row.passwordHash!));
++        if (!valid) {
++          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
++        }
+       }
++
+       await setSessionStepUpVerified(sessionId);
+       const until = new Date(Date.now() + 15 * 60 * 1000);
+       return { stepUpVerifiedUntil: until.toISOString() };
+@@ -791,7 +839,7 @@ export const authRouter = router({
+         })
+         .returning();
+ 
+-      const inviteUrl = `${process.env["AUTH_URL"] ?? "http://localhost:3000"}/invite/${token}`;
++      const inviteUrl = `${input.origin || process.env["AUTH_URL"] || "http://localhost:3000"}/invite/${token}`;
+       await sendTransactionalEmail(
+         inviteEmail,
+         `You've been invited to join ${org!.name} on CoheronConnect`,
+diff --git a/apps/api/src/routers/csm.ts b/apps/api/src/routers/csm.ts
+index 54b5db6..fd9f331 100644
+--- a/apps/api/src/routers/csm.ts
++++ b/apps/api/src/routers/csm.ts
+@@ -53,7 +53,7 @@ export const csmRouter = router({
+ 
+     create: permissionProcedure("csm", "write")
+       .input(z.object({
+-        title: z.string().min(1).regex(/[a-zA-Z]/, "Title must contain at least one letter"),
++        title: z.string().min(1).regex(/[a-zA-Z0-9]/, "Title must contain at least one letter or number"),
+         description: z.string().optional(),
+         priority: z.string().default("medium"),
+         accountId: z.string().uuid().optional(),
+diff --git a/apps/api/src/routers/hr.ts b/apps/api/src/routers/hr.ts
+index 727ea92..5463590 100644
+--- a/apps/api/src/routers/hr.ts
++++ b/apps/api/src/routers/hr.ts
+@@ -341,6 +341,7 @@ export const hrRouter = router({
+         dottedLineManagerId: z.string().uuid().nullable().optional(),
+         location: z.string().optional(),
+         employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).optional(),
++        salaryStructureId: z.string().uuid().nullable().optional(),
+       }))
+       .mutation(async ({ ctx, input }) => {
+         const { db, org } = ctx;
+diff --git a/apps/api/src/routers/integrations.ts b/apps/api/src/routers/integrations.ts
+index c857d5f..6bdfd30 100644
+--- a/apps/api/src/routers/integrations.ts
++++ b/apps/api/src/routers/integrations.ts
+@@ -52,6 +52,7 @@ type ProviderCatalogEntry = {
+   category: "chat" | "email" | "itsm" | "messaging" | "payments" | "tax" | "identity" | "esign";
+   /** True when the registry can run a live test() to validate the config. */
+   testable: boolean;
++  oauth?: boolean;
+   description: string;
+   docsUrl?: string;
+   fields: readonly ConfigField[];
+@@ -185,24 +186,18 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
+     displayName: "Google Workspace",
+     category: "identity",
+     testable: false,
++    oauth: true,
+     description: "OAuth-based directory + calendar + email integration. Requires Workspace admin consent.",
+-    fields: [
+-      { key: "clientId", label: "OAuth Client ID", required: true },
+-      { key: "clientSecret", label: "OAuth Client Secret", type: "password", required: true },
+-      { key: "domain", label: "Workspace Domain", required: true, placeholder: "yourcompany.com" },
+-    ],
++    fields: [],
+   },
+   {
+     provider: "microsoft_365",
+     displayName: "Microsoft 365",
+     category: "identity",
+     testable: false,
++    oauth: true,
+     description: "Azure AD OAuth + Graph API for SSO, calendar, and Outlook mail-tap.",
+-    fields: [
+-      { key: "tenantId", label: "Azure Tenant ID", required: true },
+-      { key: "clientId", label: "App Client ID", required: true },
+-      { key: "clientSecret", label: "Client Secret", type: "password", required: true },
+-    ],
++    fields: [],
+   },
+   // ── E-sign provider — keyed as integrations.provider = "emudhra" so it ──
+   // matches signatureRequests.provider, the esign router lookup in
+diff --git a/apps/api/src/routers/secretarial.ts b/apps/api/src/routers/secretarial.ts
+index 5663a75..08d6741 100644
+--- a/apps/api/src/routers/secretarial.ts
++++ b/apps/api/src/routers/secretarial.ts
+@@ -85,7 +85,7 @@ export const secretarialRouter = router({
+               "creditors",
+             ])
+             .default("board"),
+-          title: z.string().min(2).regex(/[a-zA-Z]/, "Title must contain at least one letter"),
++          title: z.string().min(2).regex(/[a-zA-Z0-9]/, "Title must contain at least one letter or number"),
+           scheduledAt: z.string(),
+           duration: z.number().default(120),
+           venue: z.string().optional(),
+@@ -169,7 +169,7 @@ export const secretarialRouter = router({
+               "creditors",
+             ])
+             .optional(),
+-          title: z.string().min(2).regex(/[a-zA-Z]/, "Title must contain at least one letter").optional(),
++          title: z.string().min(2).regex(/[a-zA-Z0-9]/, "Title must contain at least one letter or number").optional(),
+           scheduledAt: z.string().optional(),
+           duration: z.number().optional(),
+           venue: z.string().optional(),
+diff --git a/apps/web/src/app/app/admin/page.tsx b/apps/web/src/app/app/admin/page.tsx
+index 3655900..1100d9d 100644
+--- a/apps/web/src/app/app/admin/page.tsx
++++ b/apps/web/src/app/app/admin/page.tsx
+@@ -239,7 +239,7 @@ export default function AdminConsolePage() {
+                   <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+                   <button
+                     disabled={!inviteEmail.includes("@") || inviteUserMutation.isPending}
+-                    onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined })}
++                    onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined, origin: window.location.origin })}
+                     className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                   >
+                     {inviteUserMutation.isPending ? "Sending..." : "Send Invite"}
+diff --git a/apps/web/src/app/app/hr/page.tsx b/apps/web/src/app/app/hr/page.tsx
+index 603e4f1..74fa09a 100644
+--- a/apps/web/src/app/app/hr/page.tsx
++++ b/apps/web/src/app/app/hr/page.tsx
+@@ -47,6 +47,7 @@ export default function HRPage() {
+   const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { refetchOnWindowFocus: false },));
+   // employees list — drives Employee Directory tab
+   const { data: employeesData } = trpc.hr.employees.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.employees.list", { refetchOnWindowFocus: false },));
++  const { data: structuresData } = trpc.payroll.salaryStructures.list.useQuery(undefined, mergeTrpcQueryOpts("payroll.salaryStructures.list", { refetchOnWindowFocus: false }));
+ 
+   const [showAddEmployee, setShowAddEmployee] = useState(false);
+   const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null);
+@@ -68,6 +69,7 @@ export default function HRPage() {
+     location: "",
+     employmentType: "full_time" as "full_time" | "part_time" | "contractor" | "intern",
+     managerId: "",
++    salaryStructureId: "",
+   });
+ 
+   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
+@@ -1069,6 +1071,21 @@ export default function HRPage() {
+                     ))}
+                 </select>
+               </div>
++              <div>
++                <label className="text-[11px] text-muted-foreground">Salary structure</label>
++                <select
++                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
++                  value={editEmpForm.salaryStructureId}
++                  onChange={(e) => setEditEmpForm((f) => ({ ...f, salaryStructureId: e.target.value }))}
++                >
++                  <option value="">None</option>
++                  {((structuresData as any[]) ?? []).map((s: any) => (
++                    <option key={s.id} value={s.id}>
++                      {s.name}
++                    </option>
++                  ))}
++                </select>
++              </div>
+             </div>
+             <div className="flex gap-2 mt-4">
+               <button
+@@ -1082,6 +1099,7 @@ export default function HRPage() {
+                     location: editEmpForm.location || undefined,
+                     employmentType: editEmpForm.employmentType,
+                     managerId: editEmpForm.managerId === "" ? null : editEmpForm.managerId,
++                    salaryStructureId: editEmpForm.salaryStructureId === "" ? null : editEmpForm.salaryStructureId,
+                   })
+                 }
+                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
+@@ -1240,6 +1258,7 @@ export default function HRPage() {
+                                   location: String(emp.location ?? ""),
+                                   employmentType: (emp.employmentType ?? "full_time") as typeof editEmpForm.employmentType,
+                                   managerId: emp.managerId ? String(emp.managerId) : "",
++                                  salaryStructureId: emp.salaryStructureId ? String(emp.salaryStructureId) : "",
+                                 });
+                               }}
+                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"
+diff --git a/apps/web/src/app/app/settings/integrations/page.tsx b/apps/web/src/app/app/settings/integrations/page.tsx
+index e24ceb1..ebfdb30 100644
+--- a/apps/web/src/app/app/settings/integrations/page.tsx
++++ b/apps/web/src/app/app/settings/integrations/page.tsx
+@@ -46,6 +46,7 @@ type ProviderCatalogEntry = {
+   displayName: string;
+   category: string;
+   testable: boolean;
++  oauth?: boolean;
+   description: string;
+   docsUrl?: string;
+   fields: readonly ConfigField[];
+@@ -122,6 +123,7 @@ function IntegrationCard({
+   isDisconnecting: boolean;
+   isTesting: boolean;
+ }) {
++  const { currentUser } = useRBAC();
+   const [open, setOpen] = useState(false);
+   const [form, setForm] = useState<Record<string, string>>({});
+ 
+@@ -189,54 +191,70 @@ function IntegrationCard({
+               Provider documentation
+             </a>
+           )}
+-          {def.fields.map((field) => (
+-            <div key={field.key}>
+-              <label className="block text-caption font-medium text-muted-foreground mb-1">
+-                {field.label}
+-                {field.required && <span className="text-destructive ml-0.5">*</span>}
+-              </label>
+-              {field.type === "select" ? (
+-                <select
+-                  value={form[field.key] ?? ""}
+-                  onChange={(e) =>
+-                    setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
+-                  }
+-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+-                >
+-                  <option value="">Select…</option>
+-                  {field.options?.map((o) => (
+-                    <option key={o.value} value={o.value}>
+-                      {o.label}
+-                    </option>
+-                  ))}
+-                </select>
+-              ) : (
+-                <input
+-                  type={field.type ?? "text"}
+-                  placeholder={field.placeholder}
+-                  value={form[field.key] ?? ""}
+-                  autoComplete="off"
+-                  onChange={(e) =>
+-                    setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
+-                  }
+-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+-                />
+-              )}
+-              {field.helpText && (
+-                <p className="text-[10px] text-muted-foreground/70 mt-0.5">{field.helpText}</p>
+-              )}
++          {def.oauth ? (
++            <div className="py-4">
++              <a
++                href={`/api/integrations/oauth/${def.provider}/begin?orgId=${currentUser.orgId}`}
++                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-body-sm font-medium text-white hover:bg-indigo-500"
++              >
++                Connect via OAuth
++              </a>
++              <p className="text-[10px] text-muted-foreground/70 mt-2">
++                You will be redirected to the provider to authorize access.
++              </p>
+             </div>
+-          ))}
++          ) : (
++            def.fields.map((field) => (
++              <div key={field.key}>
++                <label className="block text-caption font-medium text-muted-foreground mb-1">
++                  {field.label}
++                  {field.required && <span className="text-destructive ml-0.5">*</span>}
++                </label>
++                {field.type === "select" ? (
++                  <select
++                    value={form[field.key] ?? ""}
++                    onChange={(e) =>
++                      setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
++                    }
++                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
++                  >
++                    <option value="">Select…</option>
++                    {field.options?.map((o) => (
++                      <option key={o.value} value={o.value}>
++                        {o.label}
++                      </option>
++                    ))}
++                  </select>
++                ) : (
++                  <input
++                    type={field.type ?? "text"}
++                    placeholder={field.placeholder}
++                    value={form[field.key] ?? ""}
++                    autoComplete="off"
++                    onChange={(e) =>
++                      setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
++                    }
++                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
++                  />
++                )}
++                {field.helpText && (
++                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">{field.helpText}</p>
++                )}
++              </div>
++            ))
++          )}
+           <div className="flex items-center gap-2 pt-1 flex-wrap">
+-            <button
+-              type="button"
+-              disabled={isSaving}
+-              onClick={handleSave}
+-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+-            >
+-              {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+-              {isConnected ? "Update credentials" : "Save credentials"}
+-            </button>
++            {!def.oauth && (
++              <button
++                type="button"
++                disabled={isSaving}
++                onClick={handleSave}
++                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
++              >
++                {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
++                {isConnected ? "Update credentials" : "Save credentials"}
++              </button>
++            )}
+             {isConnected && def.testable && (
+               <button
+                 type="button"
+diff --git a/packages/types/src/auth.ts b/packages/types/src/auth.ts
+index feb0d4e..435838c 100644
+--- a/packages/types/src/auth.ts
++++ b/packages/types/src/auth.ts
+@@ -127,6 +127,7 @@ export const InviteCreateSchema = z.object({
+   role: UserRoleEnum,
+   matrixRole: z.string().nullable().optional(),
+   name: z.string().min(1).max(100).optional(),
++  origin: z.string().url().optional(),
+ });
+ 
+ // ── RBAC ───────────────────────────────────────────────────────────────────

@@ -41,6 +41,7 @@ import {
   calendarToFyMonth,
   computePayrollRunTotals,
 } from "../services/payroll-run-aggregates";
+import { checkDbUserPermission } from "../lib/rbac-db";
 
 function legacyStatusForPipeline(pipeline: string) {
   if (pipeline === "DRAFT") return "draft" as const;
@@ -81,9 +82,9 @@ function mapRunRow(row: typeof payrollRuns.$inferSelect) {
     totalGross: tg,
     totalDeductions: Number(row.totalDeductions || 0),
     totalNet: Number(row.totalNet || 0),
-    totalEmployerCost: tg + tpr,
+    totalEmployerCost: tg + tpr + Number(row.totalEsiEmployer || 0),
     totalPF: tpe + tpr,
-    totalESI: 0,
+    totalESI: Number(row.totalEsiEmployee || 0) + Number(row.totalEsiEmployer || 0),
     totalPT: Number(row.totalPt || 0),
     totalTDS: Number(row.totalTds || 0),
     errors: meta.errors,
@@ -122,6 +123,8 @@ function taxComputationFromPayslip(p: typeof payslips.$inferSelect) {
     hraMonthly: hraM,
     specialAllowance: specM,
     lta: Number(p.lta || 0) || 30_000,
+    // TODO(compliance): Wire up actual employee tax declarations intake table.
+    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
     section80C: 0,
     section80D: 0,
     section80CCD1B: 0,
@@ -198,6 +201,8 @@ function buildTaxProfileFromEmployee(args: {
     hraMonthly,
     specialAllowance: specialMonthly,
     lta: ltaAnnual,
+    // TODO(compliance): Wire up actual employee tax declarations intake table.
+    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
     section80C: 0,
     section80D: 0,
     section80CCD1B: 0,
@@ -401,9 +406,31 @@ const runsRouter = router({
 
       await db.transaction(async (tx) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
+
+        let newTotalGross = 0;
+        let newTotalDeductions = 0;
+        let newTotalNet = 0;
+        let newTotalPfEmployee = 0;
+        let newTotalPfEmployer = 0;
+        let newTotalEsiEmployee = 0;
+        let newTotalEsiEmployer = 0;
+        let newTotalPt = 0;
+        let newTotalTds = 0;
+
         for (const { emp, st } of empRows) {
           const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id));
           const slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
+          
+          newTotalGross += slip.grossEarnings;
+          newTotalDeductions += slip.totalDeductions;
+          newTotalNet += slip.netPay;
+          newTotalPfEmployee += slip.employeePF;
+          newTotalPfEmployer += slip.employerPF;
+          newTotalEsiEmployee += slip.employeeESI;
+          newTotalEsiEmployer += slip.employerESI;
+          newTotalPt += slip.professionalTax;
+          newTotalTds += slip.tds;
+
           await tx.insert(payslips).values({
             orgId: org!.id,
             employeeId: emp.id,
@@ -422,6 +449,8 @@ const runsRouter = router({
             grossEarnings: String(slip.grossEarnings),
             pfEmployee: String(slip.employeePF),
             pfEmployer: String(slip.employerPF),
+            esiEmployee: String(slip.employeeESI),
+            esiEmployer: String(slip.employerESI),
             professionalTax: String(slip.professionalTax),
             lwf: String(slip.lwf),
             tds: String(slip.tds),
@@ -438,6 +467,15 @@ const runsRouter = router({
           .set({
             pipelineStatus: "PAYSLIPS_GENERATED",
             status: legacyStatusForPipeline("PAYSLIPS_GENERATED"),
+            totalGross: String(newTotalGross),
+            totalDeductions: String(newTotalDeductions),
+            totalNet: String(newTotalNet),
+            totalPfEmployee: String(newTotalPfEmployee),
+            totalPfEmployer: String(newTotalPfEmployer),
+            totalEsiEmployee: String(newTotalEsiEmployee),
+            totalEsiEmployer: String(newTotalEsiEmployer),
+            totalPt: String(newTotalPt),
+            totalTds: String(newTotalTds),
           })
           .where(eq(payrollRuns.id, input.runId));
       });
@@ -449,7 +487,7 @@ const runsRouter = router({
       return mapRunRow(updated!);
     }),
 
-  approve: permissionProcedure("hr", "write")
+  approve: protectedProcedure
     .input(
       z.object({
         runId: z.string().uuid(),
@@ -459,11 +497,41 @@ const runsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      
+      const role = String(ctx.user!.role ?? "");
+      const matrixRole = ctx.user!.matrixRole as string | null | undefined;
+      const requiredModule = input.step === "HR" ? "hr" : "financial";
+      
+      if (!checkDbUserPermission(role, requiredModule, "write", matrixRole)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Permission denied: ${requiredModule}.write required for ${input.step} approval`,
+        });
+      }
+
       const [row] = await db
         .select()
         .from(payrollRuns)
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.decision === "APPROVED") {
+        if (input.step === "FINANCE" && row.approvedByHrId === ctx.user!.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Segregation of duties: cannot approve FINANCE step if you approved HR step.",
+          });
+        }
+        if (
+          input.step === "CFO" &&
+          (row.approvedByHrId === ctx.user!.id || row.approvedByFinanceId === ctx.user!.id)
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Segregation of duties: cannot approve CFO step if you approved a previous step.",
+          });
+        }
+      }
 
       const meta: PayrollWorkflowMeta = row.workflowMetadata ?? { errors: [], approvals: [] };
       const approval = {
@@ -788,6 +856,13 @@ export const payrollRouter = router({
         .from(payrollRuns)
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found" });
+
+      if (!["CFO_APPROVED", "STATUTORY_GENERATED", "COMPLETED"].includes(run.pipelineStatus)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Payroll run must be CFO approved to generate bank disbursement files.",
+        });
+      }
 
       // Pull all payslips for the run, joined to the employee for bank/IFSC.
       const slipRows = await db

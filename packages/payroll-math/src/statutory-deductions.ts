@@ -223,25 +223,26 @@ export function computePT(
   grossMonthly: number,
   state: string,
   monthInFY: number, // 1=April, 12=March
-  slabTable: Record<string, { slabs: PTSlab[]; annualCap: number }> = PT_SLABS
+  overrides?: Record<string, { slabs: PTSlab[]; annualCap: number }>
 ): PTComputation {
   const stateKey = state.toUpperCase().replace(/\s+/g, "_");
-  const config = slabTable[stateKey];
+  const config = overrides?.[stateKey] || PT_SLABS[stateKey];
 
   if (!config || config.slabs.length === 0) {
     return { state, grossMonthly, ptAmount: 0, annualPT: 0 };
   }
 
   let ptAmount = 0;
+  const roundedGross = Math.round(grossMonthly);
   for (const slab of config.slabs) {
-    if (grossMonthly >= slab.from && grossMonthly <= slab.to) {
+    if (roundedGross >= slab.from && roundedGross <= slab.to) {
       ptAmount = slab.monthly;
       break;
     }
   }
 
   // Maharashtra special: February (month 11 in FY) deducts extra to hit ₹2500 cap
-  if (stateKey === "MAHARASHTRA" && monthInFY === 11 && grossMonthly > 10_000) {
+  if (stateKey === "MAHARASHTRA" && monthInFY === 11 && roundedGross > 10_000) {
     ptAmount = 300;
   }
 
@@ -266,13 +267,13 @@ const LWF_RATES: Record<string, { employee: number; employer: number; frequency:
 
 export function computeLWF(
   state: string,
-  rateTable: Record<
+  overrides?: Record<
     string,
     { employee: number; employer: number; frequency: "HALF_YEARLY" | "ANNUAL" }
-  > = LWF_RATES
+  >
 ): LWFComputation {
   const stateKey = state.toUpperCase().replace(/\s+/g, "_");
-  const config = rateTable[stateKey];
+  const config = overrides?.[stateKey] || LWF_RATES[stateKey];
 
   if (!config) {
     return { state, employeeLWF: 0, employerLWF: 0 };

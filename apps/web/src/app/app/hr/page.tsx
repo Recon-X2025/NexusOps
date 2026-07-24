@@ -47,6 +47,7 @@ export default function HRPage() {
   const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { refetchOnWindowFocus: false },));
   // employees list — drives Employee Directory tab
   const { data: employeesData } = trpc.hr.employees.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.employees.list", { refetchOnWindowFocus: false },));
+  const { data: structuresData } = trpc.payroll.salaryStructures.list.useQuery(undefined, mergeTrpcQueryOpts("payroll.salaryStructures.list", { refetchOnWindowFocus: false }));
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null);
@@ -60,6 +61,7 @@ export default function HRPage() {
     location: "",
     employmentType: "full_time" as "full_time" | "part_time" | "contractor" | "intern",
     managerId: "",
+    salaryStructureId: "",
     startDate: "",
   });
   const [editEmpForm, setEditEmpForm] = useState({
@@ -68,6 +70,7 @@ export default function HRPage() {
     location: "",
     employmentType: "full_time" as "full_time" | "part_time" | "contractor" | "intern",
     managerId: "",
+    salaryStructureId: "",
   });
 
   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
@@ -959,6 +962,21 @@ export default function HRPage() {
                 </select>
               </div>
               <div>
+                <label className="text-[11px] text-muted-foreground">Salary structure</label>
+                <select
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.salaryStructureId}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, salaryStructureId: e.target.value }))}
+                >
+                  <option value="">None</option>
+                  {((structuresData as any[]) ?? []).map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="text-[11px] text-muted-foreground">Start date</label>
                 <input
                   type="date"
@@ -985,6 +1003,7 @@ export default function HRPage() {
                     location: addEmpForm.location || undefined,
                     employmentType: addEmpForm.employmentType,
                     managerId: addEmpForm.managerId || undefined,
+                    salaryStructureId: addEmpForm.salaryStructureId || undefined,
                     startDate: addEmpForm.startDate ? new Date(`${addEmpForm.startDate}T12:00:00`) : undefined,
                   })
                 }
@@ -1069,6 +1088,21 @@ export default function HRPage() {
                     ))}
                 </select>
               </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Salary structure</label>
+                <select
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.salaryStructureId}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, salaryStructureId: e.target.value }))}
+                >
+                  <option value="">None</option>
+                  {((structuresData as any[]) ?? []).map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -1082,6 +1116,7 @@ export default function HRPage() {
                     location: editEmpForm.location || undefined,
                     employmentType: editEmpForm.employmentType,
                     managerId: editEmpForm.managerId === "" ? null : editEmpForm.managerId,
+                    salaryStructureId: editEmpForm.salaryStructureId === "" ? null : editEmpForm.salaryStructureId,
                   })
                 }
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
@@ -1240,6 +1275,7 @@ export default function HRPage() {
                                   location: String(emp.location ?? ""),
                                   employmentType: (emp.employmentType ?? "full_time") as typeof editEmpForm.employmentType,
                                   managerId: emp.managerId ? String(emp.managerId) : "",
+                                  salaryStructureId: emp.salaryStructureId ? String(emp.salaryStructureId) : "",
                                 });
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"

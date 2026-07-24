@@ -232,6 +232,7 @@ async function bootstrap() {
     // Bolt editor as well as from its deployed *.bolt.host preview.
     /\.bolt\.new$/,
     "https://bolt.new",
+    "http://localhost:5173", // Allow local Vite frontend
   ];
   const rawOrigin =
     process.env["CORS_ORIGIN"] ?? process.env["NEXT_PUBLIC_APP_URL"] ?? "";
@@ -351,6 +352,10 @@ async function bootstrap() {
   // ── SAML 2.0 SSO Routes ───────────────────────────────────────────────────
   const { registerSamlRoutes } = await import("./services/saml.js");
   await registerSamlRoutes(fastify);
+
+  // ── Integration OAuth Routes ───────────────────────────────────────────────
+  const { registerIntegrationOAuthRoutes } = await import("./http/integration-oauth.js");
+  await registerIntegrationOAuthRoutes(fastify);
 
   // ── Burst rate limiter ────────────────────────────────────────────────────
   // Secondary, shorter-window limiter that caps instantaneous bursts.

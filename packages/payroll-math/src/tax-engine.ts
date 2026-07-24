@@ -52,6 +52,12 @@ export interface TaxComputation {
   professionalTax: number;
   hraExemption: number;
   chapter6ADeductions: number;
+  chapter6ABreakdown: {
+    section80C: number;
+    section80D: number;
+    section80CCD1B: number;
+    section80TTA: number;
+  };
   section24bDeduction: number;
   totalDeductions: number;
   taxableIncome: number;
@@ -237,6 +243,12 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
   let standardDeduction: number;
   let hraExemption = 0;
   let chapter6ADeductions = 0;
+  let chapter6ABreakdown = {
+    section80C: 0,
+    section80D: 0,
+    section80CCD1B: 0,
+    section80TTA: 0,
+  };
   let section24bDeduction = 0;
 
   if (regime === "NEW") {
@@ -245,11 +257,17 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
     // Old regime
     standardDeduction = Math.min(50_000, grossSalary);
     hraExemption = profile.hraExemption;
+    chapter6ABreakdown = {
+      section80C: Math.min(profile.section80C, 150_000),
+      section80D: Math.min(profile.section80D, 75_000), // 25K self + 25K parents + 25K senior parents
+      section80CCD1B: Math.min(profile.section80CCD1B, 50_000),
+      section80TTA: Math.min(profile.section80TTA, 10_000),
+    };
     chapter6ADeductions = Math.min(
-      Math.min(profile.section80C, 150_000) +
-        Math.min(profile.section80D, 75_000) + // 25K self + 25K parents + 25K senior parents
-        Math.min(profile.section80CCD1B, 50_000) +
-        Math.min(profile.section80TTA, 10_000),
+      chapter6ABreakdown.section80C +
+        chapter6ABreakdown.section80D +
+        chapter6ABreakdown.section80CCD1B +
+        chapter6ABreakdown.section80TTA,
       // Total 80C+80CCD(1)+80CCD(1B) capped at 2L effectively
       350_000
     );
@@ -317,6 +335,7 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
     professionalTax,
     hraExemption,
     chapter6ADeductions,
+    chapter6ABreakdown,
     section24bDeduction,
     totalDeductions,
     taxableIncome,

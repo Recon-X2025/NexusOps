@@ -239,7 +239,7 @@ export default function AdminConsolePage() {
                   <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
                   <button
                     disabled={!inviteEmail.includes("@") || inviteUserMutation.isPending}
-                    onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined })}
+                    onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined, origin: window.location.origin })}
                     className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                   >
                     {inviteUserMutation.isPending ? "Sending..." : "Send Invite"}

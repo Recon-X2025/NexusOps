@@ -52,6 +52,7 @@ type ProviderCatalogEntry = {
   category: "chat" | "email" | "itsm" | "messaging" | "payments" | "tax" | "identity" | "esign";
   /** True when the registry can run a live test() to validate the config. */
   testable: boolean;
+  oauth?: boolean;
   description: string;
   docsUrl?: string;
   fields: readonly ConfigField[];
@@ -185,24 +186,18 @@ const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     displayName: "Google Workspace",
     category: "identity",
     testable: false,
+    oauth: true,
     description: "OAuth-based directory + calendar + email integration. Requires Workspace admin consent.",
-    fields: [
-      { key: "clientId", label: "OAuth Client ID", required: true },
-      { key: "clientSecret", label: "OAuth Client Secret", type: "password", required: true },
-      { key: "domain", label: "Workspace Domain", required: true, placeholder: "yourcompany.com" },
-    ],
+    fields: [],
   },
   {
     provider: "microsoft_365",
     displayName: "Microsoft 365",
     category: "identity",
     testable: false,
+    oauth: true,
     description: "Azure AD OAuth + Graph API for SSO, calendar, and Outlook mail-tap.",
-    fields: [
-      { key: "tenantId", label: "Azure Tenant ID", required: true },
-      { key: "clientId", label: "App Client ID", required: true },
-      { key: "clientSecret", label: "Client Secret", type: "password", required: true },
-    ],
+    fields: [],
   },
   // ── E-sign provider — keyed as integrations.provider = "emudhra" so it ──
   // matches signatureRequests.provider, the esign router lookup in

@@ -38,6 +38,9 @@ export interface NotificationDispatcher {
   dispatch(db: DbOrTx, input: NotificationInput): Promise<NotificationResult>;
 }
 
+import { sendTransactionalEmail } from "../services/notifications";
+import { eq } from "drizzle-orm";
+
 /**
  * LogOnlyDispatcher — records the notification as an audit artifact and does not
  * deliver it externally. This is the only dispatcher available while external
@@ -65,11 +68,56 @@ export class LogOnlyDispatcher implements NotificationDispatcher {
 }
 
 /**
+ * EmailDispatcher — records the notification as an audit artifact and attempts
+ * to deliver it externally via email. Updates the artifact status to "sent" or "failed".
+ */
+export class EmailDispatcher implements NotificationDispatcher {
+  async dispatch(db: DbOrTx, input: NotificationInput): Promise<NotificationResult> {
+    const [row] = await db
+      .insert(dpdpNotificationArtifacts)
+      .values({
+        orgId: input.orgId,
+        relatedType: input.relatedType,
+        relatedId: input.relatedId,
+        channel: input.channel,
+        audience: input.audience,
+        subject: input.subject,
+        body: input.body,
+        status: "logged",
+      })
+      .returning({ id: dpdpNotificationArtifacts.id });
+
+    const artifactId = row!.id;
+    const isEmail = input.audience.includes("@");
+
+    if (isEmail && (input.channel === "email" || input.channel === "principal" || input.channel === "internal")) {
+      try {
+        await sendTransactionalEmail(input.audience, input.subject, input.body);
+        
+        await db.update(dpdpNotificationArtifacts)
+          .set({ status: "sent" })
+          .where(eq(dpdpNotificationArtifacts.id, artifactId));
+          
+        return { artifactId, status: "sent" };
+      } catch (err) {
+        await db.update(dpdpNotificationArtifacts)
+          .set({ status: "failed" })
+          .where(eq(dpdpNotificationArtifacts.id, artifactId));
+          
+        return { artifactId, status: "failed" };
+      }
+    }
+
+    return { artifactId, status: "logged" };
+  }
+}
+
+/**
  * The process-wide dispatcher. Swap this binding in the external pass to route
  * through a real delivery adapter. Kept as a module-level singleton so callers
  * (sweeps, router) share one instance.
  */
-let activeDispatcher: NotificationDispatcher = new LogOnlyDispatcher();
+let activeDispatcher: NotificationDispatcher = new EmailDispatcher();
 
 export function getNotificationDispatcher(): NotificationDispatcher {
   return activeDispatcher;

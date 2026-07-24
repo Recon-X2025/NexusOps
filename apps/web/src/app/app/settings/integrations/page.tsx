@@ -46,6 +46,7 @@ type ProviderCatalogEntry = {
   displayName: string;
   category: string;
   testable: boolean;
+  oauth?: boolean;
   description: string;
   docsUrl?: string;
   fields: readonly ConfigField[];
@@ -122,6 +123,7 @@ function IntegrationCard({
   isDisconnecting: boolean;
   isTesting: boolean;
 }) {
+  const { currentUser } = useRBAC();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
 
@@ -189,54 +191,70 @@ function IntegrationCard({
               Provider documentation
             </a>
           )}
-          {def.fields.map((field) => (
-            <div key={field.key}>
-              <label className="block text-caption font-medium text-muted-foreground mb-1">
-                {field.label}
-                {field.required && <span className="text-destructive ml-0.5">*</span>}
-              </label>
-              {field.type === "select" ? (
-                <select
-                  value={form[field.key] ?? ""}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Select…</option>
-                  {field.options?.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type={field.type ?? "text"}
-                  placeholder={field.placeholder}
-                  value={form[field.key] ?? ""}
-                  autoComplete="off"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              )}
-              {field.helpText && (
-                <p className="text-[10px] text-muted-foreground/70 mt-0.5">{field.helpText}</p>
-              )}
+          {def.oauth ? (
+            <div className="py-4">
+              <a
+                href={`/api/integrations/oauth/${def.provider}/begin?orgId=${currentUser.orgId}`}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-body-sm font-medium text-white hover:bg-indigo-500"
+              >
+                Connect via OAuth
+              </a>
+              <p className="text-[10px] text-muted-foreground/70 mt-2">
+                You will be redirected to the provider to authorize access.
+              </p>
             </div>
-          ))}
+          ) : (
+            def.fields.map((field) => (
+              <div key={field.key}>
+                <label className="block text-caption font-medium text-muted-foreground mb-1">
+                  {field.label}
+                  {field.required && <span className="text-destructive ml-0.5">*</span>}
+                </label>
+                {field.type === "select" ? (
+                  <select
+                    value={form[field.key] ?? ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Select…</option>
+                    {field.options?.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={field.type ?? "text"}
+                    placeholder={field.placeholder}
+                    value={form[field.key] ?? ""}
+                    autoComplete="off"
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-body-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+                {field.helpText && (
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">{field.helpText}</p>
+                )}
+              </div>
+            ))
+          )}
           <div className="flex items-center gap-2 pt-1 flex-wrap">
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={handleSave}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {isConnected ? "Update credentials" : "Save credentials"}
-            </button>
+            {!def.oauth && (
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={handleSave}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-body-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isConnected ? "Update credentials" : "Save credentials"}
+              </button>
+            )}
             {isConnected && def.testable && (
               <button
                 type="button"

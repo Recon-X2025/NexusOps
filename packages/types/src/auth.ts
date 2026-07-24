@@ -127,6 +127,7 @@ export const InviteCreateSchema = z.object({
   role: UserRoleEnum,
   matrixRole: z.string().nullable().optional(),
   name: z.string().min(1).max(100).optional(),
+  origin: z.string().url().optional(),
 });
 
 // ── RBAC ───────────────────────────────────────────────────────────────────

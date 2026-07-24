@@ -251,6 +251,7 @@ export const hrRouter = router({
           employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).default("full_time"),
           location: z.string().optional(),
           startDate: z.coerce.date().optional(),
+          salaryStructureId: z.string().uuid().nullable().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -317,6 +318,7 @@ export const hrRouter = router({
             employmentType: input.employmentType,
             location: input.location,
             startDate: input.startDate,
+            salaryStructureId: input.salaryStructureId,
             status: "active",
           })
           .returning();
@@ -341,6 +343,7 @@ export const hrRouter = router({
         dottedLineManagerId: z.string().uuid().nullable().optional(),
         location: z.string().optional(),
         employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).optional(),
+        salaryStructureId: z.string().uuid().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;

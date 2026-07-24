@@ -78,8 +78,16 @@ export type Context = {
 
 const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error, ctx }) {
+    let message = shape.message;
+    if (error.cause instanceof ZodError) {
+      const firstError = error.cause.errors[0];
+      if (firstError) {
+        message = firstError.message;
+      }
+    }
     return {
       ...shape,
+      message,
       data: {
         ...shape.data,
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,

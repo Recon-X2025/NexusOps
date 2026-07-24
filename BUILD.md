@@ -230,10 +230,5 @@ deletion-cascade FK tests, and money-invariant tests (journal, payroll, GST, TDS
 
 ## 9. Known real defects (verified, current)
 
-- **Profile → Phone field silently discards its value.** `apps/web/.../profile/page.tsx` binds a `phone`
-  input and calls `auth.updateProfile`; the router (`apps/api/src/routers/auth.ts:561-580`) accepts `phone`
-  in Zod but `db.update(users).set({ ...input })` — and `users` has **no** `phone`/`location`/`jobTitle`/`bio`
-  column, so Drizzle **silently drops** those keys. The success toast fires; nothing persists. (Proven via
-  runtime probe.) Fix path: add the columns to `schema/auth.ts` + migration, or strip the phantom fields.
 - **SMS delivery is a stub** — MSG91 adapter is complete but not enumerated in the notification-dispatch
   channels; and no `users.phone` exists to address SMS to (only nullable `onboarding_details.phone`).
