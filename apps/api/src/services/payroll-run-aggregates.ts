@@ -19,6 +19,8 @@ export type PayrollAggregateTotals = {
   totalNet: number;
   totalPfEmployee: number;
   totalPfEmployer: number;
+  totalEsiEmployee: number;
+  totalEsiEmployer: number;
   totalPt: number;
   totalTds: number;
   employeeCount: number;

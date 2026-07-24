@@ -95,6 +95,7 @@ export default function HRPage() {
         location: "",
         employmentType: "full_time",
         managerId: "",
+        salaryStructureId: "",
         startDate: "",
       });
     },
