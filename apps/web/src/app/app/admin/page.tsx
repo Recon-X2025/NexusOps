@@ -9,7 +9,7 @@ import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
   Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
-  GitBranch, ShoppingCart, Building2, Calendar, CircleDollarSign, PauseCircle, Landmark,
+  GitBranch, ShoppingCart, Building2, Calendar, CircleDollarSign, PauseCircle, Landmark, Archive
 } from "lucide-react";
 import {
   SYSTEM_ROLES_CATALOG, type SystemRole,
@@ -67,18 +67,22 @@ export default function AdminConsolePage() {
   const [selectedRole, setSelectedRole] = useState<SystemRole | null>(null);
   const [showSensitive, setShowSensitive] = useState(false);
 
-  // ── User management modal state ──────────────────────────────────────────
+  // ── Invite Form state ────────────────────────────────────────────────────
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "member" | "viewer">("member");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "owner" | "member" | "viewer">("member");
   const [inviteMatrixRole, setInviteMatrixRole] = useState("");
-  const [inviteResult, setInviteResult] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ inviteUrl?: string } | null>(null);
 
   const [editUser, setEditUser] = useState<{ id: string; name: string; role: string; matrixRole: string | null; status: string; mfaEnrolled?: boolean } | null>(null);
   const [editRole, setEditRole] = useState<"owner" | "admin" | "member" | "viewer">("member");
   const [editMatrixRole, setEditMatrixRole] = useState("");
   const [editMfaEnrolled, setEditMfaEnrolled] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
+  
+  const [showCustomRoleForm, setShowCustomRoleForm] = useState(false);
+  const [customRoleForm, setCustomRoleForm] = useState<{ id?: string, name: string, description: string, permissions: { resource: string, action: string }[] }>({ name: "", description: "", permissions: [] });
 
   // @ts-ignore
   const slaQuery = trpc.admin.slaDefinitions.list.useQuery(undefined, mergeTrpcQueryOpts("admin.slaDefinitions.list", undefined));
@@ -95,12 +99,21 @@ export default function AdminConsolePage() {
 
   const inviteUserMutation = trpc.auth.inviteUser.useMutation({
     onSuccess: (res) => {
-      setInviteResult(res.inviteUrl);
+      setInviteResult(res);
       usersQuery.refetch();
-      toast.success(`Invite sent to ${inviteEmail}`);
+      if (res.inviteUrl) {
+        toast.success("Invite sent!", {
+          description: `Link: ${res.inviteUrl}`,
+          duration: 15000,
+        });
+      } else {
+        toast.success(`Invite sent to ${inviteEmail}`);
+      }
     },
     onError: (e: any) => toast.error(e.message || "Failed to send invite"),
   });
+  // @ts-ignore
+  const rolesQuery = trpc.admin.roles.list.useQuery(undefined, mergeTrpcQueryOpts("admin.roles.list", undefined));
   const updateUserMutation = trpc.admin.users.update.useMutation({
     onSuccess: () => { usersQuery.refetch(); setEditUser(null); toast.success("User role updated"); },
     onError: (e: any) => toast.error(e.message || "Failed to update user"),
@@ -113,9 +126,25 @@ export default function AdminConsolePage() {
     },
     onError: (e: any) => toast.error(e.message || "Failed to update user status"),
   });
-  const deleteUserMutation = trpc.auth.deleteUser.useMutation({
+  const deleteUserMutation = trpc.admin.users.delete.useMutation({
     onSuccess: () => { usersQuery.refetch(); setConfirmDeleteUser(null); toast.success("User deleted"); },
     onError: (e: any) => toast.error(e.message || "Failed to delete user"),
+  });
+
+  // @ts-ignore
+  const createRoleMutation = trpc.admin.roles.create.useMutation({
+    onSuccess: () => { rolesQuery.refetch(); setShowCustomRoleForm(false); toast.success("Custom role created"); },
+    onError: (e: any) => toast.error(e.message || "Failed to create role"),
+  });
+  // @ts-ignore
+  const updateRoleMutation = trpc.admin.roles.update.useMutation({
+    onSuccess: () => { rolesQuery.refetch(); setShowCustomRoleForm(false); toast.success("Custom role updated"); },
+    onError: (e: any) => toast.error(e.message || "Failed to update role"),
+  });
+  // @ts-ignore
+  const archiveRoleMutation = trpc.admin.roles.archive.useMutation({
+    onSuccess: (_r: any, vars: any) => { rolesQuery.refetch(); toast.success(`Role ${vars.archive ? "archived" : "unarchived"}`); },
+    onError: (e: any) => toast.error(e.message || "Failed to update role status"),
   });
 
   // @ts-ignore
@@ -137,10 +166,21 @@ export default function AdminConsolePage() {
   // ── SLA form state ───────────────────────────────────────────────────────
   const [showSlaForm, setShowSlaForm] = useState(false);
   const [editSlaId, setEditSlaId] = useState<string | null>(null);
-  const [slaForm, setSlaForm] = useState({ name: "", priority: "P2", responseMinutes: 60, resolveMinutes: 480 });
+  const defaultSlaForm = { name: "", priority: "P2", category: "IT", metric: "Resolution Time", schedule: "24x7", businessHoursOnly: false, pauseOnHold: true, responseMinutes: 60, resolveMinutes: 480 };
+  const [slaForm, setSlaForm] = useState(defaultSlaForm);
   // @ts-ignore
   const slaUpsertMutation = trpc.admin.slaDefinitions.upsert.useMutation({
-    onSuccess: () => { slaQuery.refetch(); setShowSlaForm(false); setEditSlaId(null); setSlaForm({ name: "", priority: "P2", responseMinutes: 60, resolveMinutes: 480 }); toast.success(editSlaId ? "SLA updated" : "SLA created"); },
+    onSuccess: () => { slaQuery.refetch(); setShowSlaForm(false); setEditSlaId(null); setSlaForm(defaultSlaForm); toast.success(editSlaId ? "SLA updated" : "SLA created"); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // @ts-ignore
+  const slaArchiveMutation = trpc.admin.slaDefinitions.archive.useMutation({
+    onSuccess: () => { slaQuery.refetch(); toast.success("SLA archived"); },
+    onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
+  });
+  // @ts-ignore
+  const slaToggleActiveMutation = trpc.admin.slaDefinitions.toggleActive.useMutation({
+    onSuccess: () => { slaQuery.refetch(); toast.success("SLA status updated"); },
     onError: (e: any) => toast.error(e?.message ?? "Something went wrong"),
   });
 
@@ -197,9 +237,19 @@ export default function AdminConsolePage() {
             {!inviteResult ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email Address *</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Full Name *</label>
                   <input
                     autoFocus
+                    type="text"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email Address *</label>
+                  <input
                     type="email"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
@@ -229,17 +279,26 @@ export default function AdminConsolePage() {
                       className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                     >
                       <option value="">None</option>
-                      {SYSTEM_ROLES_CATALOG.filter(r => !["admin", "owner", "member", "viewer"].includes(r.role)).map(r => (
-                        <option key={r.role} value={r.role}>{r.displayName}</option>
-                      ))}
+                      <optgroup label="System Roles">
+                        {SYSTEM_ROLES_CATALOG.filter(r => !["admin", "owner", "member", "viewer"].includes(r.role)).map(r => (
+                          <option key={r.role} value={r.role}>{r.displayName}</option>
+                        ))}
+                      </optgroup>
+                      {rolesQuery.data && rolesQuery.data.filter((r: any) => !r.isArchived).length > 0 && (
+                        <optgroup label="Custom Roles">
+                          {rolesQuery.data.filter((r: any) => !r.isArchived).map((r: any) => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <button onClick={() => setShowInviteModal(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
                   <button
-                    disabled={!inviteEmail.includes("@") || inviteUserMutation.isPending}
-                    onClick={() => inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined, origin: window.location.origin })}
+                    disabled={!inviteEmail.includes("@") || !inviteName.trim() || inviteUserMutation.isPending}
+                    onClick={() => inviteUserMutation.mutate({ name: inviteName, email: inviteEmail, role: inviteRole, matrixRole: inviteMatrixRole || undefined, origin: window.location.origin })}
                     className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                   >
                     {inviteUserMutation.isPending ? "Sending..." : "Send Invite"}
@@ -254,10 +313,10 @@ export default function AdminConsolePage() {
                 <h4 className="font-bold">Invite Generated!</h4>
                 <p className="text-caption text-muted-foreground">Share this link with the user to complete their registration:</p>
                 <div className="p-3 bg-muted rounded-xl break-all font-mono text-[10px] select-all border border-border">
-                  {inviteResult}
+                  {inviteResult.inviteUrl}
                 </div>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(inviteResult); toast.success("Link copied!"); }}
+                  onClick={() => { navigator.clipboard.writeText(inviteResult.inviteUrl || ""); toast.success("Link copied!"); }}
                   className="w-full py-2 bg-muted border border-border rounded-lg text-caption font-bold hover:bg-accent"
                 >
                   Copy to Clipboard
@@ -306,9 +365,18 @@ export default function AdminConsolePage() {
                     className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
                   >
                     <option value="">None</option>
-                    {SYSTEM_ROLES_CATALOG.filter(r => !["admin", "owner", "member", "viewer"].includes(r.role)).map(r => (
-                      <option key={r.role} value={r.role}>{r.displayName}</option>
-                    ))}
+                    <optgroup label="System Roles">
+                      {SYSTEM_ROLES_CATALOG.filter(r => !["admin", "owner", "member", "viewer"].includes(r.role)).map(r => (
+                        <option key={r.role} value={r.role}>{r.displayName}</option>
+                      ))}
+                    </optgroup>
+                    {rolesQuery.data && rolesQuery.data.filter((r: any) => !r.isArchived).length > 0 && (
+                      <optgroup label="Custom Roles">
+                        {rolesQuery.data.filter((r: any) => !r.isArchived).map((r: any) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -337,27 +405,98 @@ export default function AdminConsolePage() {
             </div>
           </div>
         </div>
+
       )}
 
-      {/* Delete User Confirmation Modal */}
-      {confirmDeleteUser && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-5 h-5" />
-              <h3 className="text-body-lg font-bold">Delete User?</h3>
+      {/* Custom Role Modal */}
+      {showCustomRoleForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-4xl bg-card border border-border rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-body-lg font-bold">{customRoleForm.id ? "Edit Custom Role" : "Create Custom Role"}</h3>
+                <p className="text-caption text-muted-foreground">Define a custom matrix role and assign granular permissions.</p>
+              </div>
+              <button onClick={() => setShowCustomRoleForm(false)} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-5 h-5" />
+              </button>
             </div>
-            <p className="text-body-sm text-muted-foreground">
-              Are you sure you want to delete <strong>{confirmDeleteUser.name}</strong>? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setConfirmDeleteUser(null)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+
+            <div className="grid grid-cols-2 gap-4 mb-4 flex-shrink-0">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Role Name *</label>
+                <input
+                  type="text"
+                  value={customRoleForm.name}
+                  onChange={(e) => setCustomRoleForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Regional IT Lead"
+                  className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Description</label>
+                <input
+                  type="text"
+                  value={customRoleForm.description}
+                  onChange={(e) => setCustomRoleForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Short description of this role"
+                  className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto border border-border rounded-xl mb-4">
+              <table className="w-full text-left text-[11px]">
+                <thead className="bg-muted sticky top-0 z-10">
+                  <tr>
+                    <th className="p-2 font-semibold border-b border-r">Module</th>
+                    {["read", "write", "delete", "admin", "approve", "assign", "close"].map(act => (
+                      <th key={act} className="p-2 font-semibold border-b text-center capitalize">{act}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ALL_MODULES.map((mod) => (
+                    <tr key={mod} className="border-b hover:bg-muted/30">
+                      <td className="p-2 border-r font-medium text-foreground">{MODULE_LABELS[mod] || mod}</td>
+                      {["read", "write", "delete", "admin", "approve", "assign", "close"].map(act => {
+                        const isChecked = customRoleForm.permissions.some(p => p.resource === mod && p.action === act);
+                        return (
+                          <td key={act} className="p-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                setCustomRoleForm(prev => {
+                                  const filtered = prev.permissions.filter(p => !(p.resource === mod && p.action === act));
+                                  if (e.target.checked) {
+                                    filtered.push({ resource: mod, action: act });
+                                  }
+                                  return { ...prev, permissions: filtered };
+                                });
+                              }}
+                              className="w-3.5 h-3.5 rounded text-primary border-border"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 flex-shrink-0 border-t border-border mt-2">
+              <button onClick={() => setShowCustomRoleForm(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
               <button
-                disabled={deleteUserMutation.isPending}
-                onClick={() => deleteUserMutation.mutate({ userId: confirmDeleteUser.id })}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg text-body-sm font-bold hover:bg-red-700 shadow-lg shadow-red-500/20 disabled:opacity-50"
+                disabled={!customRoleForm.name.trim() || createRoleMutation.isPending || updateRoleMutation.isPending}
+                onClick={() => {
+                  if (customRoleForm.id) updateRoleMutation.mutate({ id: customRoleForm.id, name: customRoleForm.name, description: customRoleForm.description, permissions: customRoleForm.permissions });
+                  else createRoleMutation.mutate({ name: customRoleForm.name, description: customRoleForm.description, permissions: customRoleForm.permissions });
+                }}
+                className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
               >
-                {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+                {createRoleMutation.isPending || updateRoleMutation.isPending ? "Saving..." : "Save Custom Role"}
               </button>
             </div>
           </div>
@@ -591,15 +730,9 @@ export default function AdminConsolePage() {
                               <button
                                 onClick={() => deactivateUserMutation.mutate({ userId: user.id, status: user.status === "active" ? "disabled" : "active" })}
                                 className={`p-1 ${user.status === "active" ? "text-muted-foreground/70 hover:text-orange-600" : "text-orange-600 hover:text-muted-foreground/70"}`}
-                                title={user.status === "active" ? "Suspend user" : "Activate user"}
+                                title={user.status === "active" ? "Archive user" : "Restore user"}
                                 disabled={user.id === currentUser.id}
-                              ><Lock className="w-3 h-3" /></button>
-                              <button
-                                onClick={() => setConfirmDeleteUser({ id: user.id, name: user.name })}
-                                className="p-1 text-muted-foreground/70 hover:text-red-600"
-                                title="Delete user"
-                                disabled={user.id === currentUser.id}
-                              ><Trash2 className="w-3 h-3" /></button>
+                              ><Archive className="w-3 h-3" /></button>
                             </div>
                           </td>
                         </tr>
@@ -614,11 +747,63 @@ export default function AdminConsolePage() {
             {tab === "roles" && (
               <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[12px] font-semibold text-foreground/80">{SYSTEM_ROLES_CATALOG.length} roles available in library</span>
-                  <button onClick={() => toast.info("Custom role creation is coming in a future release. For now, assign one of the 23 built-in system roles to users via the Users tab → Edit Role.", { duration: 6000 })} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <span className="text-[12px] font-semibold text-foreground/80">{SYSTEM_ROLES_CATALOG.length} system roles available in library</span>
+                  <button onClick={() => { setCustomRoleForm({ name: "", description: "", permissions: [] }); setShowCustomRoleForm(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> Create Custom Role
                   </button>
                 </div>
+                
+                {rolesQuery.data && rolesQuery.data.length > 0 && (
+                  <div className="border border-border rounded overflow-hidden mb-6">
+                    <div className="px-3 py-2 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex justify-between">
+                      <span>Custom Roles</span>
+                    </div>
+                    <table className="ent-table w-full">
+                      <thead>
+                        <tr>
+                          <th>Role Name</th>
+                          <th>Description</th>
+                          <th>Users</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rolesQuery.data.map((r: any) => (
+                          <tr key={r.id} className={r.isArchived ? "opacity-50" : ""}>
+                            <td className="font-medium text-foreground">{r.name}</td>
+                            <td className="text-[11px] text-muted-foreground">{r.description || "—"}</td>
+                            <td className="text-[11px] font-mono">{r.usersCount} users</td>
+                            <td>
+                              <span className={`status-badge capitalize ${r.isArchived ? "text-muted-foreground bg-muted" : "text-green-700 bg-green-100"}`}>
+                                {r.isArchived ? "Archived" : "Active"}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setCustomRoleForm({ id: r.id, name: r.name, description: r.description || "", permissions: r.permissions });
+                                    setShowCustomRoleForm(true);
+                                  }}
+                                  className="p-1 text-muted-foreground hover:text-primary"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => archiveRoleMutation.mutate({ id: r.id, archive: !r.isArchived })}
+                                  className={`p-1 ${r.isArchived ? "text-orange-600" : "text-muted-foreground hover:text-orange-600"}`}
+                                >
+                                  <Archive className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 {["Platform", "ITSM", "Security", "GRC", "HR", "Procurement", "Finance", "PMO", "Asset", "Analytics"].map((cat) => {
                   const catRoles = SYSTEM_ROLES_CATALOG.filter((r) => r.category === cat);
                   if (catRoles.length === 0) return null;
@@ -739,7 +924,7 @@ export default function AdminConsolePage() {
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[12px] font-semibold text-foreground/80">{slaItems.length} SLA definitions</span>
-                  <button onClick={() => { setEditSlaId(null); setSlaForm({ name: "", priority: "P2", responseMinutes: 60, resolveMinutes: 480 }); setShowSlaForm(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
+                  <button onClick={() => { setEditSlaId(null); setSlaForm(defaultSlaForm); setShowSlaForm(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
                     <Plus className="w-3 h-3" /> New SLA
                   </button>
                 </div>
@@ -755,9 +940,21 @@ export default function AdminConsolePage() {
                         <input value={slaForm.name} onChange={(e) => setSlaForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. P1 Incident Response" />
                       </div>
                       <div>
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Category</label>
+                        <input value={slaForm.category} onChange={(e) => setSlaForm((f) => ({ ...f, category: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. IT" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Metric</label>
+                        <input value={slaForm.metric} onChange={(e) => setSlaForm((f) => ({ ...f, metric: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. Resolution Time" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Schedule</label>
+                        <input value={slaForm.schedule} onChange={(e) => setSlaForm((f) => ({ ...f, schedule: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. 24x7" />
+                      </div>
+                      <div>
                         <label className="text-[11px] text-muted-foreground mb-1 block">Priority</label>
                         <select value={slaForm.priority} onChange={(e) => setSlaForm((f) => ({ ...f, priority: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
-                          {["P1", "P2", "P3", "P4"].map((p) => <option key={p} value={p}>{p}</option>)}
+                          {["P0", "P1", "P2", "P3", "P4", "P5"].map((p) => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
                       <div>
@@ -768,10 +965,18 @@ export default function AdminConsolePage() {
                         <label className="text-[11px] text-muted-foreground mb-1 block">Resolution Target (minutes)</label>
                         <input type="number" min={1} value={slaForm.resolveMinutes} onChange={(e) => setSlaForm((f) => ({ ...f, resolveMinutes: Number(e.target.value) }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" />
                       </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input type="checkbox" checked={slaForm.businessHoursOnly} onChange={(e) => setSlaForm((f) => ({ ...f, businessHoursOnly: e.target.checked }))} id="biz-hours" className="rounded border-border text-primary focus:ring-primary" />
+                        <label htmlFor="biz-hours" className="text-[11px] text-muted-foreground">Business Hours Only</label>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input type="checkbox" checked={slaForm.pauseOnHold} onChange={(e) => setSlaForm((f) => ({ ...f, pauseOnHold: e.target.checked }))} id="pause-on-hold" className="rounded border-border text-primary focus:ring-primary" />
+                        <label htmlFor="pause-on-hold" className="text-[11px] text-muted-foreground">Pause on Hold</label>
+                      </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-1">
                       <button onClick={() => { setShowSlaForm(false); setEditSlaId(null); }} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
-                      <button disabled={!slaForm.name.trim() || slaUpsertMutation.isPending} onClick={() => slaUpsertMutation.mutate({ ...(editSlaId ? { id: editSlaId } : {}), name: slaForm.name.trim(), priority: slaForm.priority, responseMinutes: slaForm.responseMinutes, resolveMinutes: slaForm.resolveMinutes })} className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">
+                      <button disabled={!slaForm.name.trim() || slaUpsertMutation.isPending} onClick={() => slaUpsertMutation.mutate({ ...(editSlaId ? { id: editSlaId } : {}), ...slaForm, name: slaForm.name.trim() })} className="px-3 py-1.5 text-[11px] bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">
                         {slaUpsertMutation.isPending ? "Saving…" : editSlaId ? "Update SLA" : "Create SLA"}
                       </button>
                     </div>
@@ -801,17 +1006,23 @@ export default function AdminConsolePage() {
                     <tbody>
                       {slaItems.map((s: any) => (
                         <tr key={s.id}>
-                          <td className="font-mono text-[11px] text-primary">{s.id}</td>
+                          <td className="font-mono text-[11px] text-primary">{s.displayId || s.id.substring(0, 8)}</td>
                           <td className="font-medium text-foreground">{s.name}</td>
                           <td><span className="status-badge text-muted-foreground bg-muted">{s.category}</span></td>
-                          <td><span className={`status-badge ${s.priority === "P1" ? "text-red-700 bg-red-100" : s.priority === "P2" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{s.priority}</span></td>
+                          <td><span className={`status-badge ${s.priority === "P0" ? "text-purple-700 bg-purple-100" : s.priority === "P1" ? "text-red-700 bg-red-100" : s.priority === "P2" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{s.priority}</span></td>
                           <td className="text-muted-foreground">{s.metric}</td>
-                          <td><span className="font-mono text-[12px] font-bold text-foreground">{s.target}</span></td>
+                          <td><span className="font-mono text-[12px] font-bold text-foreground">{s.responseMinutes}m / {s.resolveMinutes}m</span></td>
                           <td className="text-muted-foreground text-[11px]">{s.schedule}</td>
                           <td className="text-center">{s.businessHoursOnly ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <XCircle className="w-3.5 h-3.5 text-slate-300 inline" />}</td>
                           <td className="text-center">{s.pauseOnHold ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 inline" /> : <XCircle className="w-3.5 h-3.5 text-slate-300 inline" />}</td>
                           <td><span className={`status-badge ${s.active ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>{s.active ? "Active" : "Inactive"}</span></td>
-                          <td><button onClick={() => { setEditSlaId(s.id); setSlaForm({ name: s.name, priority: s.priority ?? "P2", responseMinutes: s.responseMinutes ?? 60, resolveMinutes: s.resolveMinutes ?? 480 }); setShowSlaForm(true); }} className="text-[11px] text-primary hover:underline">Edit</button></td>
+                          <td>
+                            <div className="flex gap-2 items-center">
+                              <button onClick={() => { setEditSlaId(s.id); setSlaForm({ name: s.name, priority: s.priority ?? "P2", category: s.category ?? "IT", metric: s.metric ?? "Resolution Time", schedule: s.schedule ?? "24x7", businessHoursOnly: s.businessHoursOnly ?? false, pauseOnHold: s.pauseOnHold ?? true, responseMinutes: s.responseMinutes ?? 60, resolveMinutes: s.resolveMinutes ?? 480 }); setShowSlaForm(true); }} className="text-[11px] text-primary hover:underline">Edit</button>
+                              <button onClick={() => slaToggleActiveMutation.mutate({ id: s.id, active: !s.active })} className="text-[11px] text-muted-foreground hover:text-foreground hover:underline">{s.active ? "Deactivate" : "Activate"}</button>
+                              <button onClick={() => slaArchiveMutation.mutate({ id: s.id, archive: true })} className="text-[11px] text-red-600 hover:underline">Archive</button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -926,8 +1137,13 @@ export default function AdminConsolePage() {
                         </select>
                       </div>
                       <div className="col-span-2">
-                        <label className="text-[11px] text-muted-foreground mb-1 block">Recipients * <span className="text-muted-foreground/60">(comma-separated emails, role names or team names)</span></label>
-                        <input value={nrForm.recipients} onChange={(e) => setNrForm((f) => ({ ...f, recipients: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. itil, john@example.com, support-team" />
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Recipient * <span className="text-muted-foreground/60">(select an active user)</span></label>
+                        <select value={nrForm.recipients} onChange={(e) => setNrForm((f) => ({ ...f, recipients: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
+                          <option value="">Select a user...</option>
+                          {allUsers.filter((u: any) => u.status === "active").map((u: any) => (
+                            <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-span-2">
                         <label className="text-[11px] text-muted-foreground mb-1 block">Conditions <span className="text-muted-foreground/60">(optional — leave blank to apply to all)</span></label>
@@ -970,7 +1186,10 @@ export default function AdminConsolePage() {
                           <td className="font-medium text-foreground">{r.name}</td>
                           <td><span className="status-badge text-blue-700 bg-blue-100">{r.event}</span></td>
                           <td className="text-muted-foreground text-[11px]">{r.channel}</td>
-                          <td className="text-muted-foreground text-[11px]">{r.recipients}</td>
+                          <td className="text-muted-foreground text-[11px]">{(() => {
+                            const u = allUsers.find((x: any) => x.id === r.recipients);
+                            return u ? `${u.name} (${u.email})` : r.recipients;
+                          })()}</td>
                           <td>
                             <span className={`status-badge ${r.active ? "text-green-700 bg-green-100" : "text-muted-foreground bg-muted"}`}>
                               {r.active ? "Active" : "Inactive"}
@@ -1327,8 +1546,8 @@ function LegalEntitiesTab() {
             className="border border-border rounded px-2 py-1.5 text-[12px] bg-background w-32 font-mono"
             placeholder="IN-HO"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
-            maxLength={32}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            maxLength={16}
           />
         </div>
         <div className="flex-1 min-w-[12rem]">
@@ -1345,7 +1564,14 @@ function LegalEntitiesTab() {
         <button
           type="button"
           disabled={createLe.isPending || !code.trim() || !name.trim()}
-          onClick={() => createLe.mutate({ code: code.trim(), name: name.trim() })}
+          onClick={() => {
+            const cleanCode = code.trim().toUpperCase();
+            if (!/^[A-Z0-9]+(-[A-Z0-9]+)*$/.test(cleanCode) || cleanCode.length < 2 || cleanCode.length > 16) {
+              toast.error("Code must be 2-16 characters, uppercase alphanumeric and hyphens only.");
+              return;
+            }
+            createLe.mutate({ code: cleanCode, name: name.trim() });
+          }}
           className="text-[11px] px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           {createLe.isPending ? "Adding…" : "Add entity"}
@@ -1459,7 +1685,7 @@ function AccountingPeriodsTab() {
           disabled={q.isLoading}
           onClick={() => {
             const t = newPeriod.trim();
-            if (!/^\d{4}-\d{2}$/.test(t)) {
+            if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(t)) {
               toast.error("Use YYYY-MM (e.g. 2026-03).");
               return;
             }
@@ -1639,14 +1865,17 @@ function CrmDealThresholdsTab() {
       </div>
       <div className="space-y-2">
         <label className="block text-[11px] font-medium text-foreground">Currency code (ISO 4217)</label>
-        <input
-          type="text"
-          maxLength={3}
-          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background uppercase"
+        <select
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
           value={currency}
-          onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+          onChange={(e) => setCurrency(e.target.value)}
           disabled={q.isLoading}
-        />
+        >
+          <option value="INR">INR - Indian Rupee</option>
+          <option value="USD">USD - United States Dollar</option>
+          <option value="EUR">EUR - Euro</option>
+          <option value="GBP">GBP - Pound Sterling</option>
+        </select>
       </div>
       <div className="space-y-2">
         <label className="block text-[11px] font-medium text-foreground">No approval below (deal value &lt; this)</label>
@@ -1681,6 +1910,10 @@ function CrmDealThresholdsTab() {
           const high = Number(execAbove);
           if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
             toast.error("Executive threshold must be greater than the no-approval ceiling.");
+            return;
+          }
+          if (low < 0 || high < 0) {
+            toast.error("Thresholds cannot be negative.");
             return;
           }
           save.mutate({
@@ -1925,19 +2158,18 @@ function ProcurementPolicyTab() {
 function PeopleWorkplacePolicyTab() {
   const { mergeTrpcQueryOpts, isAdmin } = useRBAC();
   const utils = trpc.useUtils();
-  const meQ = trpc.auth.me.useQuery(undefined, mergeTrpcQueryOpts("auth.me", undefined));
-  const pw = ((meQ.data?.org as Record<string, unknown> | null)?.settings as Record<string, unknown> | undefined)?.peopleWorkplace as Record<string, unknown> | undefined;
+  const q = trpc.hr.peopleWorkplace.getIntegrationFlags.useQuery(undefined, mergeTrpcQueryOpts("hr.peopleWorkplace.getIntegrationFlags", undefined));
   const [facilitiesLive, setFacilitiesLive] = useState(true);
 
   useEffect(() => {
-    if (!meQ.isLoading && meQ.data?.org) {
-      setFacilitiesLive(pw?.facilitiesLive !== false);
+    if (q.data) {
+      setFacilitiesLive(q.data.facilitiesLive);
     }
-  }, [meQ.isLoading, meQ.data?.org, pw?.facilitiesLive]);
+  }, [q.data]);
 
   const save = trpc.hr.peopleWorkplace.updateIntegrationFlags.useMutation({
     onSuccess: () => {
-      utils.auth.me.invalidate();
+      utils.hr.peopleWorkplace.getIntegrationFlags.invalidate();
       toast.success("Workplace hub integration flags saved.");
     },
     onError: (e: { message?: string }) => toast.error(e.message ?? "Save failed"),
@@ -1975,7 +2207,7 @@ function PeopleWorkplacePolicyTab() {
       </div>
       <button
         type="button"
-        disabled={save.isPending || meQ.isLoading}
+        disabled={save.isPending || q.isLoading}
         onClick={() => save.mutate({ facilitiesLive })}
         className="px-3 py-1.5 text-[11px] rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
       >
@@ -2745,7 +2977,7 @@ function GroupsTab() {
       <div className="p-4 border-b border-border bg-muted/10 flex items-center justify-between">
         <div>
           <span className="text-[12px] font-semibold text-foreground/80">Groups & Teams</span>
-          <p className="text-[11px] text-muted-foreground/70">Manage assignment groups and member rosters.</p>
+          <p className="text-[11px] text-muted-foreground/70">Manage assignment groups and their members.</p>
         </div>
         <button
           onClick={() => { resetForm(); setEditId(null); setShowForm(true); }}
@@ -2793,7 +3025,7 @@ function GroupsTab() {
               {/* Group Header Actions */}
               <div className="flex items-center justify-between">
                 <h3 className="text-body-sm font-bold text-foreground">
-                  {selectedGroup.name} roster
+                  {selectedGroup.name} Members
                 </h3>
                 <div className="flex items-center gap-2">
                   <button
@@ -2802,15 +3034,25 @@ function GroupsTab() {
                   >Edit Details</button>
                   <button
                     onClick={() => {
+                      if (!selectedGroup.isArchived && currentMembers.length > 0) {
+                        alert("This group contains active users. Please move all users to another group before archiving this group.");
+                        return;
+                      }
                       if (confirm(selectedGroup.isArchived ? "Unarchive this group?" : "Archive this group?")) {
                         updateMutation.mutate({ id: selectedGroupId, isArchived: !selectedGroup.isArchived });
                       }
                     }}
-                    className="text-[11px] text-orange-500 hover:underline"
+                    className={`text-[11px] hover:underline ${!selectedGroup.isArchived && currentMembers.length > 0 ? "text-orange-500/50 cursor-not-allowed" : "text-orange-500"}`}
                   >{selectedGroup.isArchived ? "Unarchive Group" : "Archive Group"}</button>
                   <button
-                    onClick={() => { if (confirm("Delete this group?")) deleteMutation.mutate({ id: selectedGroupId }); }}
-                    className="text-[11px] text-red-500 hover:underline"
+                    onClick={() => { 
+                      if (currentMembers.length > 0) {
+                        alert("This group contains active users. Please move all users to another group before deleting this group.");
+                        return;
+                      }
+                      if (confirm("Delete this group?")) deleteMutation.mutate({ id: selectedGroupId }); 
+                    }}
+                    className={`text-[11px] hover:underline ${currentMembers.length > 0 ? "text-red-500/50 cursor-not-allowed" : "text-red-500"}`}
                   >Delete Group</button>
                 </div>
               </div>
@@ -2860,7 +3102,7 @@ function GroupsTab() {
               <div className="space-y-2">
                 <label className="text-[10px] font-semibold text-muted-foreground uppercase">Current Members</label>
                 {membersQuery.isLoading ? (
-                  <div className="py-4 text-center text-[11px] text-muted-foreground animate-pulse">Loading roster...</div>
+                  <div className="py-4 text-center text-[11px] text-muted-foreground animate-pulse">Loading members...</div>
                 ) : currentMembers.length === 0 ? (
                   <div className="py-8 text-center text-[11px] text-muted-foreground bg-muted/10 border border-dashed border-border rounded">
                     No members in this group yet.
@@ -2895,7 +3137,7 @@ function GroupsTab() {
               <Users className="w-12 h-12" />
               <div>
                 <p className="text-[13px] font-medium">Select a group to manage</p>
-                <p className="text-[11px]">Select a team from the left sidebar to view and edit its member roster.</p>
+                <p className="text-[11px]">Select a team from the left sidebar to view and edit its members.</p>
               </div>
             </div>
           )}

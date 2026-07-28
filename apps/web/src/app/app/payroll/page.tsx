@@ -15,8 +15,9 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { useRBAC } from "@/lib/rbac-context";
+import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { FileSignature, X, Plus, Pencil, Trash2 } from "lucide-react";
 import { EsignPanel } from "@/components/esign/EsignPanel";
 
@@ -125,6 +126,10 @@ function inr(v: string | number | null | undefined): string {
 export default function PayrollPage() {
   const utils = trpc.useUtils();
   const { mergeTrpcQueryOpts, can } = useRBAC();
+
+  if (!can("payroll", "read")) {
+    return <AccessDenied module="payroll" />;
+  }
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createMonth, setCreateMonth] = useState(new Date().getMonth() + 1);
@@ -203,6 +208,9 @@ export default function PayrollPage() {
       selectedRun.refetch();
       runsQuery.refetch();
     },
+    onError: (err) => {
+      toast.error(err.message);
+    },
   });
 
   const generateStatutory = trpc.payroll.runs.generateStatutory.useMutation({
@@ -216,6 +224,20 @@ export default function PayrollPage() {
     onSuccess: () => {
       selectedRun.refetch();
       runsQuery.refetch();
+    },
+  });
+
+  const exportBankFile = trpc.payroll.exportBankFile.useMutation({
+    onSuccess: (data) => {
+      const blob = new Blob([data.contentBase64], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     },
   });
 
@@ -353,7 +375,8 @@ export default function PayrollPage() {
                   {/* Statutory breakdown */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
                     {[
-                      { label: "Total PF (Emp + Empr)", value: `₹${Number(run.totalPF || 0).toLocaleString("en-IN")}` },
+                      { label: "Emp. PF", value: `₹${Number(run.totalPfEmployee || 0).toLocaleString("en-IN")}` },
+                      { label: "Empr. PF", value: `₹${Number(run.totalPfEmployer || 0).toLocaleString("en-IN")}` },
                       { label: "ESI", value: `₹${Number(run.totalESI || 0).toLocaleString("en-IN")}` },
                       { label: "Prof. tax", value: `₹${Number(run.totalPT || 0).toLocaleString("en-IN")}` },
                       { label: "TDS", value: `₹${Number(run.totalTDS || 0).toLocaleString("en-IN")}` },
@@ -503,6 +526,27 @@ export default function PayrollPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+                
+                {/* Bank File Export */}
+                {(run.status === "CFO_APPROVED" || run.status === "COMPLETED") && can("payroll", "write") && (
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-body-sm font-medium text-gray-900 dark:text-gray-100">
+                        Disbursement
+                      </h3>
+                      <p className="text-caption text-gray-500 mt-1">
+                        Download the NEFT/NACH-Credit bank file for this payroll run.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => exportBankFile.mutate({ runId: run.id, format: "hdfc_neft", debitAccount: "1234567890" })}
+                      disabled={exportBankFile.isPending}
+                      className="text-caption px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                    >
+                      {exportBankFile.isPending ? "Exporting..." : "Export Bank File"}
+                    </button>
                   </div>
                 )}
               </div>

@@ -12,12 +12,13 @@ import {
   asc,
   desc,
   and,
+  inArray,
 } from "@coheronconnect/db";
 import { evaluateEvent, type CorrelatableEvent } from "../services/itom-correlation";
 
 export const eventsRouter = router({
   /**
-   * Ingest a monitoring event (Sprint 3.4b). Deduplicates against the org's OPEN
+   * Ingest a monitoring event (Sprint 3.4b). Deduplicates against the org's ACTIVE
    * event with the same (node, metric): a repeat bumps `count` + `lastOccurrence`
    * instead of inserting a new row. After the upsert, suppression rules and
    * correlation policies are evaluated — a matching `create_incident` policy
@@ -39,7 +40,7 @@ export const eventsRouter = router({
       const orgId = org!.id;
       const now = new Date();
 
-      // Dedup against the current OPEN event for this node+metric.
+      // Dedup against the current ACTIVE event (open, in_progress, flapping) for this node+metric.
       const [existing] = await db
         .select()
         .from(itomEvents)
@@ -48,7 +49,7 @@ export const eventsRouter = router({
             eq(itomEvents.orgId, orgId),
             eq(itomEvents.node, input.node),
             eq(itomEvents.metric, input.metric),
-            eq(itomEvents.state, "open"),
+            inArray(itomEvents.state, ["open", "in_progress", "flapping"]),
           ),
         )
         .limit(1);

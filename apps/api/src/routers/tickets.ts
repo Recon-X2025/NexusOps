@@ -1229,7 +1229,8 @@ export const ticketsRouter = router({
         }
 
         if (newStatus?.category === "pending") {
-          const pauseCatalog = getSlaPauseReasonsCatalog(org!.settings);
+          const [orgRow] = await db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, org!.id));
+          const pauseCatalog = getSlaPauseReasonsCatalog(orgRow?.settings ?? org!.settings);
           if (pauseCatalog.length > 0) {
             const code = input.data.slaPauseReasonCode?.trim();
             if (!code || !pauseCatalog.some((r) => r.code === code)) {
@@ -1405,7 +1406,8 @@ export const ticketsRouter = router({
         updateData.parentTicketId = pid ?? null;
       }
       if (input.data.slaPauseReasonCode !== undefined && input.data.statusId === undefined) {
-        const pauseCatalog = getSlaPauseReasonsCatalog(org!.settings);
+        const [orgRow] = await db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, org!.id));
+        const pauseCatalog = getSlaPauseReasonsCatalog(orgRow?.settings ?? org!.settings);
         const raw = input.data.slaPauseReasonCode;
         const trimmed = raw == null || raw === "" ? null : String(raw).trim();
 
@@ -2057,9 +2059,10 @@ export const ticketsRouter = router({
   }),
 
   slaPauseReasonsCatalog: router({
-    get: permissionProcedure("incidents", "read").query(async ({ ctx }) => ({
-      reasons: getSlaPauseReasonsCatalog(ctx.org!.settings),
-    })),
+    get: permissionProcedure("incidents", "read").query(async ({ ctx }) => {
+      const [orgRow] = await ctx.db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, ctx.org!.id));
+      return { reasons: getSlaPauseReasonsCatalog(orgRow?.settings ?? ctx.org!.settings) };
+    }),
 
     update: adminProcedure
       .input(

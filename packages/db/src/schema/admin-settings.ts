@@ -27,10 +27,17 @@ export const slaDefinitions = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    priority: text("priority").notNull(), // low | medium | high | critical
+    priority: text("priority").notNull(), // P0 | P1 | P2 | P3 | P4 | P5
+    displayId: text("display_id").notNull().default(""), // e.g. SLA-P1-001
+    category: text("category").notNull().default("IT"),
+    metric: text("metric").notNull().default("Resolution Time"),
+    schedule: text("schedule").notNull().default("24x7"),
+    businessHoursOnly: boolean("business_hours_only").notNull().default(false),
+    pauseOnHold: boolean("pause_on_hold").notNull().default(true),
     responseMinutes: integer("response_minutes").notNull(),
     resolveMinutes: integer("resolve_minutes").notNull(),
     active: boolean("active").notNull().default(true),
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

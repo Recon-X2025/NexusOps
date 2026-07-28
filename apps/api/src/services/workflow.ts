@@ -47,6 +47,12 @@ import {
   type NotificationDispatchJobData,
 } from "../workflows/notificationDispatchWorkflow";
 import {
+  createHrPeriodicQueue,
+  scheduleHrPeriodicSweeps,
+  startHrPeriodicWorker,
+  type HrPeriodicJobData,
+} from "../workflows/hrPeriodicWorkflow";
+import {
   createWorkflowTriggerQueue,
   scheduleWorkflowTriggerSweep,
   startWorkflowTriggerWorker,
@@ -127,6 +133,7 @@ interface WorkflowServiceInstance {
   mca21FilingQueue: Queue<Mca21FilingJobData>;
   esiReturnQueue: Queue<EsiReturnJobData>;
   ptChallanQueue: Queue<PtChallanJobData>;
+  hrPeriodicQueue: Queue<HrPeriodicJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -154,6 +161,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const mca21FilingQueue = createMca21FilingQueue();
   const esiReturnQueue = createEsiReturnQueue();
   const ptChallanQueue = createPtChallanQueue();
+  const hrPeriodicQueue = createHrPeriodicQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -173,6 +181,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const mca21FilingWorker = startMca21FilingWorker(db);
   const esiReturnWorker = startEsiReturnWorker(db);
   const ptChallanWorker = startPtChallanWorker(db);
+  const hrPeriodicWorker = startHrPeriodicWorker();
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -186,6 +195,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   scheduleWebhookDispatchSweep(webhookDispatchQueue).catch((err) => {
     console.warn("[workflow:webhook] Failed to register outbound webhook dispatcher:", err);
   });
+  // Register the repeatable HR periodic sweepers.
+  scheduleHrPeriodicSweeps(hrPeriodicQueue).catch((err: any) =>
+    console.error("[workflow] hr-periodic-sweep schedule fail", err),
+  );
   // On-call escalation sweeper (Sprint 3.4a).
   scheduleEscalationSweep(escalationQueue).catch((err) => {
     console.warn("[workflow:escalation] Failed to register escalation sweeper:", err);
@@ -277,6 +290,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     mca21FilingQueue,
     esiReturnQueue,
     ptChallanQueue,
+    hrPeriodicQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -297,6 +311,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         mca21FilingWorker.close(),
         esiReturnWorker.close(),
         ptChallanWorker.close(),
+        hrPeriodicWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),

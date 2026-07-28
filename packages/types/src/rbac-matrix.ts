@@ -63,6 +63,7 @@ export type Module =
   | "legal"                 // Legal service delivery (matters, requests, investigations)
   | "compliance"            // NEW: Data-protection compliance (DPDP DSR / consent / breach)
   | "hr"
+  | "payroll"
   | "onboarding"
   | "offboarding"
   | "procurement"
@@ -344,6 +345,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
   // ── HR ────────────────────────────────────────────────────────────────────
   hr_manager: {
     hr:                   ["read", "write", "delete", "admin", "assign", "close", "approve"],
+    payroll:              ["read", "write", "delete", "admin", "approve"],
     onboarding:           ["read", "write", "admin"],
     offboarding:          ["read", "write", "admin"],
     recruitment:          ["read", "write", "delete", "admin", "assign", "close"],
@@ -360,6 +362,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, PermissionMatrix> = {
 
   hr_analyst: {
     hr:                   ["read", "write", "assign", "close", "approve"],
+    payroll:              ["read", "write", "approve"],
     onboarding:           ["read", "write"],
     offboarding:          ["read", "write"],
     recruitment:          ["read", "write", "assign"],
@@ -520,7 +523,7 @@ export function getVisibleModules(roles: SystemRole[]): Set<Module> {
       "knowledge", "catalog", "approvals", "events",
       "security", "vulnerabilities", "threat_intel",
       "grc", "risk", "audit", "policy", "secretarial", "legal", "compliance",
-      "hr", "onboarding", "recruitment", "workforce_analytics",
+      "hr", "payroll", "onboarding", "recruitment", "workforce_analytics",
       "procurement", "inventory", "purchase_orders",
       "financial", "budget", "chargebacks",
       "projects", "resources", "demand",

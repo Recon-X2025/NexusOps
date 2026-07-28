@@ -5,6 +5,7 @@
  */
 import { users, eq, and, type Db } from "@coheronconnect/db";
 import { sendNotification } from "../services/notifications";
+import { appendAuditEntry } from "../lib/audit-hash";
 
 export interface ActivityContext {
   db: Db;
@@ -63,8 +64,7 @@ export async function writeWorkflowAuditLog(
   },
 ): Promise<void> {
   try {
-    const { auditLogs } = await import("@coheronconnect/db");
-    await ctx.db.insert(auditLogs).values({
+    await appendAuditEntry(ctx.db, {
       orgId: ctx.orgId,
       userId: ctx.actorId === "system" ? undefined : ctx.actorId,
       resourceType: payload.resource,

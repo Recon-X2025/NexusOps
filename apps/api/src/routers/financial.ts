@@ -192,6 +192,7 @@ export const financialRouter = router({
       invoiceDate: z.string().optional(),
       notes: z.string().optional(),
       legalEntityId: z.string().uuid().optional(),
+      gstinId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -218,7 +219,26 @@ export const financialRouter = router({
         .select({ gstin: vendors.gstin, state: vendors.state })
         .from(vendors)
         .where(and(eq(vendors.id, input.vendorId), eq(vendors.orgId, org!.id)));
-      const orgState = await resolveOrgState(db, org!.id);
+      
+      const { gstinRegistry } = await import("@coheronconnect/db");
+      let orgGstin;
+      if (input.gstinId) {
+        [orgGstin] = await db
+          .select()
+          .from(gstinRegistry)
+          .where(and(eq(gstinRegistry.id, input.gstinId), eq(gstinRegistry.orgId, org!.id)));
+      } else {
+        [orgGstin] = await db
+          .select()
+          .from(gstinRegistry)
+          .where(and(eq(gstinRegistry.orgId, org!.id), eq(gstinRegistry.isActive, true)))
+          .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
+          .limit(1);
+      }
+      const orgState = orgGstin?.stateName ?? orgGstin?.stateCode ?? null;
+      const orgGstinId = orgGstin?.id ?? null;
+      const orgGstinNum = orgGstin?.gstin ?? null;
+
       const gst = gstInvoiceColumns({
         taxableValue: Number(input.amount),
         gstRate: input.gstRate as GSTRate,
@@ -237,6 +257,8 @@ export const financialRouter = router({
           invoiceFlow: "payable",
           invoiceNumber: input.invoiceNumber,
           invoiceType: "tax_invoice",
+          gstinId: orgGstinId,
+          buyerGstin: orgGstinNum,
           supplierGstin: vendorRow?.gstin ?? null,
           amount: gst.amount,
           taxableValue: gst.taxableValue,
@@ -290,6 +312,7 @@ export const financialRouter = router({
         dueDate: z.string().optional(),
         invoiceDate: z.string().optional(),
         legalEntityId: z.string().uuid().optional(),
+        gstinId: z.string().uuid().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -306,7 +329,26 @@ export const financialRouter = router({
         .select({ gstin: vendors.gstin, state: vendors.state })
         .from(vendors)
         .where(and(eq(vendors.id, input.customerVendorId), eq(vendors.orgId, org!.id)));
-      const orgState = await resolveOrgState(db, org!.id);
+        
+      const { gstinRegistry } = await import("@coheronconnect/db");
+      let orgGstin;
+      if (input.gstinId) {
+        [orgGstin] = await db
+          .select()
+          .from(gstinRegistry)
+          .where(and(eq(gstinRegistry.id, input.gstinId), eq(gstinRegistry.orgId, org!.id)));
+      } else {
+        [orgGstin] = await db
+          .select()
+          .from(gstinRegistry)
+          .where(and(eq(gstinRegistry.orgId, org!.id), eq(gstinRegistry.isActive, true)))
+          .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
+          .limit(1);
+      }
+      const orgState = orgGstin?.stateName ?? orgGstin?.stateCode ?? null;
+      const orgGstinId = orgGstin?.id ?? null;
+      const orgGstinNum = orgGstin?.gstin ?? null;
+
       const gst = gstInvoiceColumns({
         taxableValue: Number(input.amount),
         gstRate: input.gstRate as GSTRate,
@@ -325,6 +367,8 @@ export const financialRouter = router({
             invoiceFlow: "receivable",
             invoiceNumber: input.invoiceNumber,
             invoiceType: "tax_invoice",
+            gstinId: orgGstinId,
+            supplierGstin: orgGstinNum,
             buyerGstin: customerRow?.gstin ?? null,
             amount: gst.amount,
             taxableValue: gst.taxableValue,
@@ -399,12 +443,22 @@ export const financialRouter = router({
         .from(invoices)
         .where(and(...conditions));
 
-      const orgState = await resolveOrgState(db, org!.id);
+      const { gstinRegistry } = await import("@coheronconnect/db");
+      const [orgGstin] = await db
+        .select()
+        .from(gstinRegistry)
+        .where(and(eq(gstinRegistry.orgId, org!.id), eq(gstinRegistry.isActive, true)))
+        .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
+        .limit(1);
+      
+      const orgState = orgGstin?.stateName ?? orgGstin?.stateCode ?? null;
+      const orgGstinId = orgGstin?.id ?? null;
+      const orgGstinNum = orgGstin?.gstin ?? null;
       const updated: Array<{ id: string; taxableValue: number; totalTax: number; total: number }> = [];
 
       for (const row of rows) {
         const [counterparty] = await db
-          .select({ state: vendors.state })
+          .select({ state: vendors.state, gstin: vendors.gstin })
           .from(vendors)
           .where(and(eq(vendors.id, row.vendorId), eq(vendors.orgId, org!.id)));
         // Prefer the stored taxable value; older rows set it equal to `amount`.
@@ -425,6 +479,9 @@ export const financialRouter = router({
           await tx
             .update(invoices)
             .set({
+              gstinId: orgGstinId,
+              buyerGstin: flow === "payable" ? orgGstinNum : (counterparty?.gstin ?? null),
+              supplierGstin: flow === "receivable" ? orgGstinNum : (counterparty?.gstin ?? null),
               taxableValue: gst.taxableValue,
               cgstAmount: gst.cgstAmount,
               sgstAmount: gst.sgstAmount,
@@ -778,12 +835,20 @@ export const financialRouter = router({
   createLegalEntity: permissionProcedure("financial", "write")
     .input(
       z.object({
-        code: z.string().min(1).max(32),
+        code: z.string().min(2).max(16).regex(/^[A-Z0-9]+(-[A-Z0-9]+)*$/),
         name: z.string().min(1).max(200),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      const [existing] = await db
+        .select()
+        .from(legalEntities)
+        .where(and(eq(legalEntities.orgId, org!.id), eq(legalEntities.code, input.code)))
+        .limit(1);
+      if (existing) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "A legal entity with this code already exists." });
+      }
       const [row] = await db
         .insert(legalEntities)
         .values({ orgId: org!.id, code: input.code, name: input.name })
@@ -1290,7 +1355,7 @@ export const financialRouter = router({
     setClosedPeriods: adminProcedure
       .input(
         z.object({
-          periods: z.array(z.string().regex(/^\d{4}-\d{2}$/)).max(240),
+          periods: z.array(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)).max(240),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -1324,7 +1389,7 @@ export const financialRouter = router({
      * US-CRM-007 / US-FIN-007 — finance self-service before adding the month to `closedPeriods`.
      */
     preflight: permissionProcedure("financial", "read")
-      .input(z.object({ period: z.string().regex(/^\d{4}-\d{2}$/) }))
+      .input(z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [y, mo] = input.period.split("-").map((x) => Number(x));

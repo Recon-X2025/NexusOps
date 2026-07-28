@@ -1912,7 +1912,7 @@ export default function CRMPage() {
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Lead Source</label>
                 <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={leadForm.source} onChange={(e) => setLeadForm(f => ({ ...f, source: e.target.value }))}>
-                  {["website", "linkedin", "partner_referral", "event", "cold_outreach", "webinar", "trial", "other"].map(s => (
+                  {["website", "referral", "event", "cold_outreach", "partner", "advertising", "other"].map(s => (
                     <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
                   ))}
                 </select>
@@ -1963,12 +1963,20 @@ export default function CRMPage() {
                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Email *</label>
                 <input type="email" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.email} onChange={(e) => setEditLeadForm(f => ({ ...f, email: e.target.value }))} />
               </div>
+              <div className="col-span-2">
+                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+                <select className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={editLeadForm.status} onChange={(e) => setEditLeadForm(f => ({ ...f, status: e.target.value }))}>
+                  {["new", "contacted", "qualified", "disqualified"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setEditingLead(null)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
               <button
                 disabled={!editLeadForm.firstName.trim() || !editLeadForm.lastName.trim() || !editLeadForm.company.trim() || !editLeadForm.email.trim() || !editLeadForm.phone.trim() || updateLeadMutation.isPending}
-                onClick={() => updateLeadMutation.mutate({ id: editingLead.id, firstName: editLeadForm.firstName.trim(), lastName: editLeadForm.lastName.trim(), email: editLeadForm.email.trim(), phone: editLeadForm.phone.trim(), company: editLeadForm.company.trim(), title: editLeadForm.title.trim() || undefined })}
+                onClick={() => updateLeadMutation.mutate({ id: editingLead.id, firstName: editLeadForm.firstName.trim(), lastName: editLeadForm.lastName.trim(), email: editLeadForm.email.trim(), phone: editLeadForm.phone.trim(), company: editLeadForm.company.trim(), title: editLeadForm.title.trim() || undefined, status: editLeadForm.status as any })}
                 className="flex-1 px-3 py-1.5 text-caption bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-50"
               >{updateLeadMutation.isPending ? "Saving…" : "Save Changes"}</button>
             </div>

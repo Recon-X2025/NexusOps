@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Building2, ArrowLeft, ChevronRight, Star, TrendingUp,
@@ -52,7 +53,10 @@ export default function VendorDetailPage() {
   const { data: perf } = trpc.vendors.performance.useQuery({ vendorId: id }, mergeTrpcQueryOpts("vendors.performance", { enabled: !!id }));
 
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });
+  const [editForm, setEditForm] = useState({ 
+    name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "",
+    gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: ""
+  });
 
   const update = trpc.vendors.update.useMutation({
     onSuccess: () => {
@@ -87,14 +91,12 @@ export default function VendorDetailPage() {
   const score = Number(v.performanceScore ?? v.rating ?? 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <button onClick={() => router.push("/app/vendors")}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" /> Vendors
-        </button>
-        <ChevronRight className="w-3 h-3 text-muted-foreground/40" />
-        <span className="text-[11px] text-muted-foreground font-mono">{v.name}</span>
+    <div className="flex flex-col gap-3 max-w-[1200px] mx-auto w-full pb-10">
+      
+      <div className="flex items-center gap-2 mb-2">
+        <Link href="/app/vendors" className="text-muted-foreground hover:text-foreground">Vendors</Link>
+        <ChevronRight className="w-3 h-3 text-muted-foreground" />
+        <span className="text-foreground font-medium text-[13px]">{v.name}</span>
       </div>
 
       <div className="bg-card border border-border rounded overflow-hidden">
@@ -113,7 +115,10 @@ export default function VendorDetailPage() {
           <PermissionGate module="procurement" action="write">
             <button
               onClick={() => {
-                setEditForm({ name: v.name ?? "", contactEmail: v.contactEmail ?? "", contactPhone: v.contactPhone ?? "", address: v.address ?? "", paymentTerms: v.paymentTerms ?? "", notes: v.notes ?? "" });
+                setEditForm({ 
+                  name: v.name ?? "", contactEmail: v.contactEmail ?? "", contactPhone: v.contactPhone ?? "", address: v.address ?? "", paymentTerms: v.paymentTerms ?? "", notes: v.notes ?? "",
+                  gstin: v.gstin ?? "", state: v.state ?? "", pan: v.pan ?? "", tdsSection: v.tdsSection === "nil" ? "" : (v.tdsSection ?? ""), tdsRate: (v.tdsRate ?? "").toString(), isMsme: v.isMsme ?? false, msmeUdyamNumber: v.msmeUdyamNumber ?? ""
+                });
                 setEditing(!editing);
               }}
               className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90">
@@ -127,6 +132,9 @@ export default function VendorDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: "Vendor Name", key: "name" },
+                { label: "GSTIN", key: "gstin" },
+                { label: "State (Code or Name)", key: "state" },
+                { label: "PAN", key: "pan" },
                 { label: "Contact Email", key: "contactEmail" },
                 { label: "Contact Phone", key: "contactPhone" },
                 { label: "Payment Terms", key: "paymentTerms" },
@@ -140,6 +148,29 @@ export default function VendorDetailPage() {
                   />
                 </div>
               ))}
+              
+              <div>
+                <label className="text-[11px] text-muted-foreground">MSME Udyam Number</label>
+                <div className="flex gap-2 items-center mt-0.5">
+                  <input type="checkbox" checked={editForm.isMsme} onChange={(e) => setEditForm(f => ({ ...f, isMsme: e.target.checked }))} />
+                  <input className="w-full text-caption border border-border rounded px-2 py-1 bg-background" placeholder="Udyam No." value={editForm.msmeUdyamNumber} onChange={(e) => setEditForm(f => ({ ...f, msmeUdyamNumber: e.target.value }))} disabled={!editForm.isMsme} />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">TDS Section</label>
+                <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={editForm.tdsSection} onChange={(e) => setEditForm(f => ({ ...f, tdsSection: e.target.value }))}>
+                  <option value="">Select (Nil)</option>
+                  <option value="194C">194C (Contractors)</option>
+                  <option value="194H">194H (Commission)</option>
+                  <option value="194J">194J (Professional)</option>
+                  <option value="194Q">194Q (Goods)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">TDS Rate (%)</label>
+                <input type="number" step="0.1" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1 bg-background" value={editForm.tdsRate} onChange={(e) => setEditForm(f => ({ ...f, tdsRate: e.target.value }))} />
+              </div>
+
               <div className="col-span-2">
                 <label className="text-[11px] text-muted-foreground">Address</label>
                 <input
@@ -159,7 +190,14 @@ export default function VendorDetailPage() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => update.mutate({ id, ...editForm })}
+                onClick={() => update.mutate({ 
+                  id, 
+                  ...editForm,
+                  tdsSection: editForm.tdsSection || undefined,
+                  tdsRate: editForm.tdsRate || undefined,
+                  isMsme: editForm.isMsme,
+                  msmeUdyamNumber: editForm.isMsme ? (editForm.msmeUdyamNumber || undefined) : undefined,
+                })}
                 disabled={update.isPending}
                 className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded disabled:opacity-50">
                 <Save className="w-3 h-3" /> {update.isPending ? "Saving…" : "Save Changes"}

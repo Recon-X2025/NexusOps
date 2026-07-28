@@ -179,6 +179,15 @@ function makeRetentionDb(state: MockState) {
             },
           };
         }
+        if (kind === "auditLogs") {
+          return {
+            where: () => ({
+              orderBy: () => ({
+                limit: () => Promise.resolve([{ seq: 0, entryHash: "mock-hash" }]),
+              }),
+            }),
+          };
+        }
         return {
           leftJoin: () => ({
             where: () => ({
@@ -202,9 +211,15 @@ function makeRetentionDb(state: MockState) {
     insert: (table: { _kind?: string }) => ({
       values: (vals: Record<string, unknown>) => {
         if (table._kind === "auditLogs") state.auditEvents.push(vals);
-        return Promise.resolve();
+        return {
+          returning: () => Promise.resolve([{ id: "mock-id", seq: 1, entryHash: "mock-hash" }]),
+        };
       },
     }),
+    transaction: async function (cb: (tx: any) => Promise<any>) {
+      // Pass 'this' so the callback uses the same mock db methods
+      return cb(this);
+    },
   };
 }
 

@@ -28,7 +28,9 @@ import { assertMfaIfRequired } from "./mfa-policy";
  * (`withoutPasswordHash`) and is therefore absent from this type — the
  * credential hash must never travel through the request context.
  */
-export type ContextUser = Omit<typeof users.$inferSelect, "passwordHash">;
+export type ContextUser = Omit<typeof users.$inferSelect, "passwordHash"> & {
+  customPermissions?: { resource: string; action: string }[];
+};
 export type ContextOrg = typeof organizations.$inferSelect;
 
 /**
@@ -572,7 +574,7 @@ export function permissionProcedure(module: Module, action: RbacAction) {
     const role = String(ctx.user.role ?? "");
     const matrixRole = ctx.user.matrixRole as string | null | undefined;
 
-    if (!checkDbUserPermission(role, module, action, matrixRole)) {
+    if (!checkDbUserPermission(role, module, action, matrixRole, ctx.user.customPermissions)) {
       logRbacDenied({
         requestId: ctx.requestId ?? null,
         userId:    ctx.user.id as string,

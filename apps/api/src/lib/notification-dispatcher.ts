@@ -88,11 +88,22 @@ export class EmailDispatcher implements NotificationDispatcher {
       .returning({ id: dpdpNotificationArtifacts.id });
 
     const artifactId = row!.id;
-    const isEmail = input.audience.includes("@");
+    
+    // Resolve symbolic audiences to email addresses for delivery
+    let emailAddress = input.audience;
+    if (input.audience === "privacy_officer") {
+      emailAddress = "privacy@coheronconnect.coheron.com";
+    } else if (input.audience === "data_protection_board") {
+      emailAddress = "dpb-india@coheronconnect.coheron.com";
+    } else if (input.audience === "affected_principals") {
+      emailAddress = "privacy@coheronconnect.coheron.com";
+    }
 
-    if (isEmail && (input.channel === "email" || input.channel === "principal" || input.channel === "internal")) {
+    const isEmail = emailAddress.includes("@");
+
+    if (isEmail && (input.channel === "email" || input.channel === "principal" || input.channel === "internal" || input.channel === "board")) {
       try {
-        await sendTransactionalEmail(input.audience, input.subject, input.body);
+        await sendTransactionalEmail(emailAddress, input.subject, input.body);
         
         await db.update(dpdpNotificationArtifacts)
           .set({ status: "sent" })

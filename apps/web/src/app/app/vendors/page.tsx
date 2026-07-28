@@ -71,7 +71,10 @@ export default function VendorsPage() {
   const [tab, setTab] = useState(visibleTabs[0]?.key ?? "vendors");
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [vendorForm, setVendorForm] = useState({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });
+  const [vendorForm, setVendorForm] = useState({ 
+    name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "",
+    gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: ""
+  });
   // @ts-ignore
   const importVendors = trpc.ingest.importVendors.useMutation();
 
@@ -90,7 +93,10 @@ export default function VendorsPage() {
       vendorsQuery.refetch();
       toast.success("Vendor created");
       setShowAddVendor(false);
-      setVendorForm({ name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "" });
+      setVendorForm({ 
+        name: "", contactEmail: "", contactPhone: "", address: "", paymentTerms: "", notes: "",
+        gstin: "", state: "", pan: "", tdsSection: "", tdsRate: "", isMsme: false, msmeUdyamNumber: ""
+      });
     },
     onError: (e: any) => { toast.error(e.message || "Failed to create vendor"); },
   });
@@ -119,6 +125,39 @@ export default function VendorsPage() {
                 <input autoFocus className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.name} onChange={(e) => setVendorForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               <div>
+                <label className="text-[11px] text-muted-foreground">GSTIN</label>
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.gstin} onChange={(e) => setVendorForm(f => ({ ...f, gstin: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">State (Code or Name)</label>
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.state} onChange={(e) => setVendorForm(f => ({ ...f, state: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">PAN</label>
+                <input className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.pan} onChange={(e) => setVendorForm(f => ({ ...f, pan: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">MSME Udyam Number</label>
+                <div className="flex gap-2 items-center mt-0.5">
+                  <input type="checkbox" checked={vendorForm.isMsme} onChange={(e) => setVendorForm(f => ({ ...f, isMsme: e.target.checked }))} />
+                  <input className="w-full text-caption border border-border rounded px-2 py-1.5 bg-background" placeholder="Udyam No." value={vendorForm.msmeUdyamNumber} onChange={(e) => setVendorForm(f => ({ ...f, msmeUdyamNumber: e.target.value }))} disabled={!vendorForm.isMsme} />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">TDS Section</label>
+                <select className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.tdsSection} onChange={(e) => setVendorForm(f => ({ ...f, tdsSection: e.target.value }))}>
+                  <option value="">Select (Nil)</option>
+                  <option value="194C">194C (Contractors)</option>
+                  <option value="194H">194H (Commission)</option>
+                  <option value="194J">194J (Professional)</option>
+                  <option value="194Q">194Q (Goods)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">TDS Rate (%)</label>
+                <input type="number" step="0.1" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.tdsRate} onChange={(e) => setVendorForm(f => ({ ...f, tdsRate: e.target.value }))} />
+              </div>
+              <div>
                 <label className="text-[11px] text-muted-foreground">Contact Email</label>
                 <input type="email" className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background" value={vendorForm.contactEmail} onChange={(e) => setVendorForm(f => ({ ...f, contactEmail: e.target.value }))} />
               </div>
@@ -142,7 +181,21 @@ export default function VendorsPage() {
             <div className="flex gap-2 mt-4">
               <button
                 disabled={!vendorForm.name || createVendorMutation.isPending}
-                onClick={() => createVendorMutation.mutate({ name: vendorForm.name, contactEmail: vendorForm.contactEmail || undefined, contactPhone: vendorForm.contactPhone || undefined, address: vendorForm.address || undefined, paymentTerms: vendorForm.paymentTerms || undefined, notes: vendorForm.notes || undefined } as any)}
+                onClick={() => createVendorMutation.mutate({ 
+                  name: vendorForm.name, 
+                  gstin: vendorForm.gstin || undefined,
+                  state: vendorForm.state || undefined,
+                  pan: vendorForm.pan || undefined,
+                  tdsSection: vendorForm.tdsSection || undefined,
+                  tdsRate: vendorForm.tdsRate || undefined,
+                  isMsme: vendorForm.isMsme,
+                  msmeUdyamNumber: vendorForm.isMsme ? (vendorForm.msmeUdyamNumber || undefined) : undefined,
+                  contactEmail: vendorForm.contactEmail || undefined, 
+                  contactPhone: vendorForm.contactPhone || undefined, 
+                  address: vendorForm.address || undefined, 
+                  paymentTerms: vendorForm.paymentTerms || undefined, 
+                  notes: vendorForm.notes || undefined 
+                } as any)}
                 className="px-4 py-1.5 rounded bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
               >
                 {createVendorMutation.isPending ? "Creating…" : "Create Vendor"}

@@ -43,6 +43,13 @@ export const teamsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       
+      const existing = await db.query.teams.findFirst({
+        where: and(eq(teams.name, input.name), eq(teams.orgId, org!.id)),
+      });
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "A group with this name already exists" });
+      }
+
       const [newTeam] = await db
         .insert(teams)
         .values({
@@ -68,6 +75,22 @@ export const teamsRouter = router({
       const { db, org } = ctx;
       const { id, ...patch } = input;
       
+      if (input.name) {
+        const existing = await db.query.teams.findFirst({
+          where: and(eq(teams.name, input.name), eq(teams.orgId, org!.id)),
+        });
+        if (existing && existing.id !== id) {
+          throw new TRPCError({ code: "CONFLICT", message: "A group with this name already exists" });
+        }
+      }
+
+      if (input.isArchived === true) {
+        const [memberCount] = await db.select({ count: count() }).from(teamMembers).where(eq(teamMembers.teamId, id));
+        if (memberCount && memberCount.count > 0) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This group contains active users. Please move all users to another group before archiving this group." });
+        }
+      }
+
       const [updatedTeam] = await db
         .update(teams)
         .set({ ...patch })
@@ -86,6 +109,11 @@ export const teamsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       
+      const [memberCount] = await db.select({ count: count() }).from(teamMembers).where(eq(teamMembers.teamId, input.id));
+      if (memberCount && memberCount.count > 0) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This group contains active users. Please move all users to another group before deleting this group." });
+      }
+
       const [deletedTeam] = await db
         .delete(teams)
         .where(and(eq(teams.id, input.id), eq(teams.orgId, org!.id)))

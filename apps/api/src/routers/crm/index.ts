@@ -239,7 +239,11 @@ export const crmRouter = router({
     }),
   /** @deprecated Use trpc.crm.deals.approvalThresholds */
   dealApprovalThresholds: router({
-    get: permissionProcedure("accounts", "read").query(async ({ ctx }) => { const { org } = ctx; return getCrmDealApprovalThresholds(org!.settings); }),
+    get: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [freshOrg] = await db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, org!.id)).limit(1);
+      return getCrmDealApprovalThresholds(freshOrg?.settings ?? org!.settings);
+    }),
     update: adminProcedure.input(z.object({ dealApprovalCurrency: z.string().length(3).transform((s) => s.toUpperCase()), dealCloseNoApprovalBelow: z.coerce.number().min(0).max(1e14), dealCloseExecutiveAbove: z.coerce.number().min(1).max(1e14) }))
       .mutation(async ({ ctx, input }) => {
         if (input.dealCloseExecutiveAbove <= input.dealCloseNoApprovalBelow) throw new TRPCError({ code: "BAD_REQUEST", message: "dealCloseExecutiveAbove must be greater than dealCloseNoApprovalBelow" });

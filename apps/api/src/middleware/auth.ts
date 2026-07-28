@@ -232,7 +232,7 @@ async function fetchSession(
     .where(eq(users.id, session.userId))
     .limit(1);
 
-  const user = withoutPasswordHash(rawUser);
+  const user = withoutPasswordHash(rawUser) as ContextUser | null;
   let org: ContextOrg | null = null;
 
   if (user) {
@@ -242,6 +242,20 @@ async function fetchSession(
       .where(eq(organizations.id, user.orgId))
       .limit(1);
     org = rawOrg ?? null;
+
+    // Resolve custom permissions if matrixRole is a UUID
+    if (user.matrixRole && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(user.matrixRole)) {
+      const customPerms = await db.execute(sql`
+        SELECT p.resource, p.action 
+        FROM role_permissions rp
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE rp.role_id = ${user.matrixRole}
+      `);
+      user.customPermissions = customPerms.map(p => ({
+        resource: p.resource as string,
+        action: p.action as string,
+      }));
+    }
   }
 
   const sessionExpiresAt =

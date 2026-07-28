@@ -6,6 +6,8 @@ import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { EsignPanel } from "@/components/esign/EsignPanel";
+import { LeaveAccrualsTab } from "@/components/hr/LeaveAccrualsTab";
+import { GratuityTab } from "@/components/hr/GratuityTab";
 
 const HR_TABS = [
   { key: "directory",  label: "Employee Directory",   module: "hr"         as const, action: "read"  as const },
@@ -15,6 +17,8 @@ const HR_TABS = [
   { key: "offboarding", label: "Offboarding",          module: "hr"         as const, action: "write" as const },
   { key: "lifecycle",   label: "Lifecycle Events",     module: "hr"         as const, action: "write" as const },
   { key: "payroll_compliance", label: "Payroll Compliance", module: "hr"   as const, action: "admin" as const },
+  { key: "leave_accruals", label: "Leave Accruals", module: "hr" as const, action: "admin" as const },
+  { key: "gratuity", label: "Gratuity", module: "hr" as const, action: "admin" as const },
   { key: "documents",   label: "Employee Documents",   module: "hr"         as const, action: "read"  as const },
 ];
 
@@ -2098,6 +2102,18 @@ export default function HRPage() {
                 </table>
               )}
             </div>
+          </div>
+        )}
+
+        {tab === "leave_accruals" && (
+          <div className="p-4">
+            <LeaveAccrualsTab />
+          </div>
+        )}
+
+        {tab === "gratuity" && (
+          <div className="p-4">
+            <GratuityTab />
           </div>
         )}
 

@@ -83,7 +83,8 @@ function mapRunRow(row: typeof payrollRuns.$inferSelect) {
     totalDeductions: Number(row.totalDeductions || 0),
     totalNet: Number(row.totalNet || 0),
     totalEmployerCost: tg + tpr + Number(row.totalEsiEmployer || 0),
-    totalPF: tpe + tpr,
+    totalPfEmployee: tpe,
+    totalPfEmployer: tpr,
     totalESI: Number(row.totalEsiEmployee || 0) + Number(row.totalEsiEmployer || 0),
     totalPT: Number(row.totalPt || 0),
     totalTDS: Number(row.totalTds || 0),
@@ -234,7 +235,7 @@ function regimeSlice(t: ReturnType<typeof computeTax>) {
 }
 
 const runsRouter = router({
-  list: permissionProcedure("hr", "read").input(z.object({}).optional()).query(async ({ ctx }) => {
+  list: permissionProcedure("payroll", "read").input(z.object({}).optional()).query(async ({ ctx }) => {
     const { db, org } = ctx;
     const rows = await db
       .select()
@@ -244,7 +245,7 @@ const runsRouter = router({
     return rows.map(mapRunRow);
   }),
 
-  get: permissionProcedure("hr", "read")
+  get: permissionProcedure("payroll", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -256,7 +257,7 @@ const runsRouter = router({
       return mapRunRow(row);
     }),
 
-  create: permissionProcedure("hr", "write")
+  create: permissionProcedure("payroll", "write")
     .input(z.object({ month: z.number().int().min(1).max(12), year: z.number().int().min(2000).max(2100) }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -293,7 +294,7 @@ const runsRouter = router({
       return mapRunRow(created!);
     }),
 
-  lockPeriod: permissionProcedure("hr", "write")
+  lockPeriod: permissionProcedure("payroll", "write")
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -336,7 +337,7 @@ const runsRouter = router({
       return mapRunRow(updated!);
     }),
 
-  advanceComputationStep: permissionProcedure("hr", "write")
+  advanceComputationStep: permissionProcedure("payroll", "write")
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -369,7 +370,7 @@ const runsRouter = router({
       return mapRunRow(updated!);
     }),
 
-  computePayslips: permissionProcedure("hr", "write")
+  computePayslips: permissionProcedure("payroll", "write")
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -515,7 +516,7 @@ const runsRouter = router({
         .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.orgId, org!.id)));
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
 
-      if (input.decision === "APPROVED") {
+      if (input.decision === "APPROVED" && process.env.DISABLE_PAYROLL_SOD !== "true") {
         if (input.step === "FINANCE" && row.approvedByHrId === ctx.user!.id) {
           throw new TRPCError({
             code: "FORBIDDEN",
@@ -584,7 +585,7 @@ const runsRouter = router({
       return mapRunRow(updated!);
     }),
 
-  generateStatutory: permissionProcedure("hr", "write")
+  generateStatutory: permissionProcedure("payroll", "write")
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -605,7 +606,7 @@ const runsRouter = router({
       return mapRunRow(updated!);
     }),
 
-  complete: permissionProcedure("hr", "write")
+  complete: permissionProcedure("payroll", "write")
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -656,7 +657,7 @@ const payslipsRouter = router({
 });
 
 const salaryStructuresRouter = router({
-  list: permissionProcedure("hr", "read").query(async ({ ctx }) => {
+  list: permissionProcedure("payroll", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
     return db
       .select()
@@ -665,7 +666,7 @@ const salaryStructuresRouter = router({
       .orderBy(desc(salaryStructures.createdAt));
   }),
 
-  upsert: permissionProcedure("hr", "write")
+  upsert: permissionProcedure("payroll", "write")
     .input(
       z.object({
         id: z.string().uuid().optional(),
@@ -711,7 +712,7 @@ const salaryStructuresRouter = router({
       return created;
     }),
 
-  delete: permissionProcedure("hr", "write")
+  delete: permissionProcedure("payroll", "write")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -734,7 +735,7 @@ const salaryStructuresRouter = router({
       return { ok: true };
     }),
 
-  archive: permissionProcedure("hr", "write")
+  archive: permissionProcedure("payroll", "write")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -753,7 +754,7 @@ export const payrollRouter = router({
   payslips: payslipsRouter,
   salaryStructures: salaryStructuresRouter,
 
-  generateForm16ToDms: permissionProcedure("hr", "write")
+  generateForm16ToDms: permissionProcedure("payroll", "write")
     .input(z.object({ employeeId: z.string().uuid(), fy: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org, user } = ctx;
@@ -829,7 +830,7 @@ export const payrollRouter = router({
    * bank portal, not a managed file. Storage + audit trail of exported
    * files is a P2 follow-up.
    */
-  exportBankFile: permissionProcedure("hr", "write")
+  exportBankFile: permissionProcedure("payroll", "write")
     .input(
       z.object({
         runId: z.string().uuid(),

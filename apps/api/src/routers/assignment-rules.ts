@@ -69,7 +69,18 @@ export const assignmentRulesRouter = router({
         capacityThreshold: z.number().int().min(1).max(500).default(20),
         isActive: z.boolean().default(true),
         sortOrder: z.number().int().default(0),
-      }),
+      }).superRefine((data, ctx) => {
+        if (data.entityType === "ticket" && data.matchValue) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(data.matchValue)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Match On must be a valid UUID for Ticket categories (or empty for catch-all)",
+              path: ["matchValue"],
+            });
+          }
+        }
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
@@ -111,7 +122,7 @@ export const assignmentRulesRouter = router({
         isActive: z.boolean().optional(),
         sortOrder: z.number().int().optional(),
         matchValue: z.string().nullable().optional(),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;

@@ -138,6 +138,18 @@ export const hrRouter = router({
   }),
 
   peopleWorkplace: router({
+    getIntegrationFlags: adminProcedure.query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      const [row] = await db
+        .select({ settings: organizations.settings })
+        .from(organizations)
+        .where(eq(organizations.id, org!.id));
+      const raw = (row?.settings ?? {}) as Record<string, unknown>;
+      const pw = (raw.peopleWorkplace as Record<string, unknown> | undefined) ?? {};
+      return {
+        facilitiesLive: pw.facilitiesLive !== false,
+      };
+    }),
     updateIntegrationFlags: adminProcedure
       .input(z.object({
         facilitiesLive: z.boolean().optional(),
@@ -200,7 +212,7 @@ export const hrRouter = router({
       }),
 
     /** Org users who do not yet have an employee row (for linking a new employee record). */
-    listUsersWithoutEmployee: permissionProcedure("hr", "write")
+    listUsersWithoutEmployee: permissionProcedure("hr", "assign")
       .input(paginationInput)
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
@@ -237,7 +249,7 @@ export const hrRouter = router({
         return { employee, reportees };
       }),
 
-    create: permissionProcedure("hr", "write")
+    create: permissionProcedure("hr", "assign")
       .input(
         z.object({
           userId: z.string().uuid().optional(),
@@ -333,7 +345,7 @@ export const hrRouter = router({
         return employee;
       }),
 
-    update: permissionProcedure("hr", "write")
+    update: permissionProcedure("hr", "assign")
       .input(z.object({
         id: z.string().uuid(),
         department: z.string().optional(),
@@ -1141,7 +1153,7 @@ export const hrRouter = router({
           .orderBy(desc(lifecycleEvents.createdAt));
       }),
 
-    create: permissionProcedure("hr", "write")
+    create: permissionProcedure("hr", "assign")
       .input(
         z.object({
           employeeId: z.string().uuid(),

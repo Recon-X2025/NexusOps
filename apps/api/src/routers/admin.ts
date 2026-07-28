@@ -4,6 +4,9 @@ import { TRPCError } from "@trpc/server";
 import {
   auditLogs,
   users,
+  roles,
+  permissions,
+  rolePermissions,
   businessRules,
   slaDefinitions,
   systemProperties,
@@ -17,11 +20,24 @@ import {
   gte,
   lte,
   count,
+  inArray,
 } from "@coheronconnect/db";
 import { BusinessRuleCreateSchema } from "../services/business-rules-engine";
 import { parseOrgSettings } from "../lib/org-settings";
 import { sanitizeForAudit } from "../lib/audit-sanitize";
 import { invalidateSessionCache } from "../middleware/auth";
+
+function getCategoryForKey(key: string) {
+  if (key.startsWith("platform.")) return "Platform";
+  if (key.startsWith("session.")) return "Auth";
+  if (key.startsWith("rate_limit.")) return "Security";
+  if (key.startsWith("email.")) return "Email";
+  if (key.startsWith("itsm.")) return "ITSM";
+  if (key.startsWith("meilisearch.")) return "Discovery";
+  if (key.startsWith("procurement.")) return "Procurement";
+  if (key.startsWith("analytics.")) return "Analytics";
+  return "Platform";
+}
 
 export const adminRouter = router({
   auditLog: router({
@@ -39,16 +55,19 @@ export const adminRouter = router({
       )
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { page, limit, dateFrom, dateTo, userId, action, resourceType } = input;
+        const { page, limit, dateFrom, dateTo, userId, action, resourceType } =
+          input;
         const offset = (page - 1) * limit;
 
         const conditions = [eq(auditLogs.orgId, org!.id)];
 
-        if (dateFrom) conditions.push(gte(auditLogs.createdAt, new Date(dateFrom)));
+        if (dateFrom)
+          conditions.push(gte(auditLogs.createdAt, new Date(dateFrom)));
         if (dateTo) conditions.push(lte(auditLogs.createdAt, new Date(dateTo)));
         if (userId) conditions.push(eq(auditLogs.userId, userId));
         if (action) conditions.push(eq(auditLogs.action, action));
-        if (resourceType) conditions.push(eq(auditLogs.resourceType, resourceType));
+        if (resourceType)
+          conditions.push(eq(auditLogs.resourceType, resourceType));
 
         const [totalRow] = await db
           .select({ total: count() })
@@ -130,7 +149,10 @@ export const adminRouter = router({
             .where(and(eq(users.id, userId), eq(users.orgId, org!.id)));
           prevMfa = p?.mfaEnrolled ?? null;
         }
-        const patch: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+        const patch: Record<string, unknown> = {
+          ...rest,
+          updatedAt: new Date(),
+        };
         if (mfaEnrolled !== undefined) patch.mfaEnrolled = mfaEnrolled;
         const [user] = await db
           .update(users)
@@ -145,9 +167,25 @@ export const adminRouter = router({
             status: users.status,
             mfaEnrolled: users.mfaEnrolled,
           });
+
+        if (
+          user &&
+          (mfaEnrolled !== undefined ||
+            input.role !== undefined ||
+            input.matrixRole !== undefined ||
+            input.status !== undefined)
+        ) {
+          const sess = await db
+            .select({ id: sessions.id })
+            .from(sessions)
+            .where(eq(sessions.userId, userId));
+          await db.delete(sessions).where(eq(sessions.userId, userId));
+          await Promise.all(
+            sess.map((s: { id: string }) => invalidateSessionCache(s.id)),
+          );
+        }
+
         if (mfaEnrolled !== undefined && user) {
-          const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
-          await Promise.all(sess.map((s: { id: string }) => invalidateSessionCache(s.id)));
           if (prevMfa !== mfaEnrolled) {
             await db.insert(auditLogs).values({
               orgId: org!.id,
@@ -155,16 +193,50 @@ export const adminRouter = router({
               action: "user_mfa_attestation",
               resourceType: "user",
               resourceId: userId,
-              changes: sanitizeForAudit({ mfaEnrolled: { from: prevMfa, to: mfaEnrolled } }) as Record<
-                string,
-                unknown
-              >,
+              changes: sanitizeForAudit({
+                mfaEnrolled: { from: prevMfa, to: mfaEnrolled },
+              }) as Record<string, unknown>,
               ipAddress: ctx.ipAddress ?? undefined,
               userAgent: ctx.userAgent ?? undefined,
             });
           }
         }
         return user;
+      }),
+      
+    delete: adminProcedure
+      .input(z.object({ userId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        
+        const [deletedUser] = await db
+          .delete(users)
+          .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
+          .returning();
+
+        if (!deletedUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+        }
+
+        // Clean up sessions
+        const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, input.userId));
+        if (sess.length > 0) {
+          await db.delete(sessions).where(eq(sessions.userId, input.userId));
+          await Promise.all(sess.map((s: { id: string }) => invalidateSessionCache(s.id)));
+        }
+
+        await db.insert(auditLogs).values({
+          orgId: org!.id,
+          userId: ctx.user!.id as string,
+          action: "user_delete",
+          resourceType: "user",
+          resourceId: input.userId,
+          changes: sanitizeForAudit({ email: deletedUser.email }) as Record<string, unknown>,
+          ipAddress: ctx.ipAddress ?? undefined,
+          userAgent: ctx.userAgent ?? undefined,
+        });
+
+        return { ok: true as const };
       }),
   }),
 
@@ -178,7 +250,9 @@ export const adminRouter = router({
         .where(eq(organizations.id, org!.id));
       const sec = parseOrgSettings(row?.settings ?? org!.settings).security;
       return {
-        requireStepUpForMatrixRoles: [...(sec?.requireStepUpForMatrixRoles ?? [])],
+        requireStepUpForMatrixRoles: [
+          ...(sec?.requireStepUpForMatrixRoles ?? []),
+        ],
         requireMfaForMatrixRoles: [...(sec?.requireMfaForMatrixRoles ?? [])],
       };
     }),
@@ -186,13 +260,25 @@ export const adminRouter = router({
     update: adminProcedure
       .input(
         z.object({
-          requireStepUpForMatrixRoles: z.array(z.string().max(64)).max(40).optional(),
-          requireMfaForMatrixRoles: z.array(z.string().max(64)).max(40).optional(),
+          requireStepUpForMatrixRoles: z
+            .array(z.string().max(64))
+            .max(40)
+            .optional(),
+          requireMfaForMatrixRoles: z
+            .array(z.string().max(64))
+            .max(40)
+            .optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        if (input.requireStepUpForMatrixRoles === undefined && input.requireMfaForMatrixRoles === undefined) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "No security policy fields to update" });
+        if (
+          input.requireStepUpForMatrixRoles === undefined &&
+          input.requireMfaForMatrixRoles === undefined
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No security policy fields to update",
+          });
         }
         const { db, org } = ctx;
         const [row] = await db
@@ -200,10 +286,12 @@ export const adminRouter = router({
           .from(organizations)
           .where(eq(organizations.id, org!.id));
         const raw = (row?.settings ?? {}) as Record<string, unknown>;
-        const prevSec = (raw.security as Record<string, unknown> | undefined) ?? {};
+        const prevSec =
+          (raw.security as Record<string, unknown> | undefined) ?? {};
         const security: Record<string, unknown> = { ...prevSec };
         if (input.requireStepUpForMatrixRoles !== undefined) {
-          security.requireStepUpForMatrixRoles = input.requireStepUpForMatrixRoles;
+          security.requireStepUpForMatrixRoles =
+            input.requireStepUpForMatrixRoles;
         }
         if (input.requireMfaForMatrixRoles !== undefined) {
           security.requireMfaForMatrixRoles = input.requireMfaForMatrixRoles;
@@ -287,7 +375,10 @@ export const adminRouter = router({
       .mutation(async ({ ctx, input }) => {
         // Refuse to enable an incomplete config — without the IdP endpoint and
         // its signing cert, assertion signatures cannot be verified.
-        if (input.enabled && (!input.entryPoint?.trim() || !input.idpCert?.trim())) {
+        if (
+          input.enabled &&
+          (!input.entryPoint?.trim() || !input.idpCert?.trim())
+        ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "entryPoint and idpCert are required to enable SAML SSO",
@@ -301,16 +392,20 @@ export const adminRouter = router({
           .where(eq(organizations.id, org!.id));
         const raw = (row?.settings ?? {}) as Record<string, unknown>;
         const prevSso = (raw.sso as Record<string, unknown> | undefined) ?? {};
-        const prevSaml = (prevSso.saml as Record<string, unknown> | undefined) ?? {};
+        const prevSaml =
+          (prevSso.saml as Record<string, unknown> | undefined) ?? {};
 
         const saml: Record<string, unknown> = {
           ...prevSaml,
           enabled: input.enabled,
         };
-        if (input.entryPoint !== undefined) saml.entryPoint = input.entryPoint.trim();
-        if (input.idpIssuer !== undefined) saml.idpIssuer = input.idpIssuer.trim();
+        if (input.entryPoint !== undefined)
+          saml.entryPoint = input.entryPoint.trim();
+        if (input.idpIssuer !== undefined)
+          saml.idpIssuer = input.idpIssuer.trim();
         if (input.idpCert !== undefined) saml.idpCert = input.idpCert.trim();
-        if (input.attributeMapping !== undefined) saml.attributeMapping = input.attributeMapping;
+        if (input.attributeMapping !== undefined)
+          saml.attributeMapping = input.attributeMapping;
 
         await db
           .update(organizations)
@@ -325,8 +420,14 @@ export const adminRouter = router({
           resourceType: "organization",
           resourceId: org!.id,
           changes: sanitizeForAudit({
-            enabled: { before: prevSaml.enabled ?? false, after: input.enabled },
-            entryPoint: { before: prevSaml.entryPoint ?? null, after: saml.entryPoint ?? null },
+            enabled: {
+              before: prevSaml.enabled ?? false,
+              after: input.enabled,
+            },
+            entryPoint: {
+              before: prevSaml.entryPoint ?? null,
+              after: saml.entryPoint ?? null,
+            },
             idpCertChanged: input.idpCert !== undefined,
           }) as Record<string, unknown>,
           ipAddress: ctx.ipAddress ?? undefined,
@@ -343,24 +444,77 @@ export const adminRouter = router({
       return db
         .select()
         .from(slaDefinitions)
-        .where(eq(slaDefinitions.orgId, org!.id))
+        .where(
+          and(
+            eq(slaDefinitions.orgId, org!.id),
+            eq(slaDefinitions.isArchived, false)
+          )
+        )
         .orderBy(asc(slaDefinitions.name));
     }),
     upsert: adminProcedure
-      .input(z.object({
-        id: z.string().uuid().optional(),
-        name: z.string().min(1),
-        // Accepts the UI's P1..P4 ladder or any short priority label.
-        priority: z.string().min(1).max(32),
-        responseMinutes: z.coerce.number().int().positive(),
-        resolveMinutes: z.coerce.number().int().positive(),
-        active: z.boolean().default(true),
-      }))
+      .input(
+        z.object({
+          id: z.string().uuid().optional(),
+          name: z.string().min(1),
+          priority: z.string().min(1).max(32),
+          category: z.string().default("IT"),
+          metric: z.string().default("Resolution Time"),
+          schedule: z.string().default("24x7"),
+          businessHoursOnly: z.boolean().default(false),
+          pauseOnHold: z.boolean().default(true),
+          responseMinutes: z.coerce.number().int().positive(),
+          resolveMinutes: z.coerce.number().int().positive(),
+          active: z.boolean().default(true),
+        }),
+      )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        
+        // Priority hierarchy validation (BUG-014)
+        const priorityLevels: Record<string, number> = { "P0": 0, "P1": 1, "P2": 2, "P3": 3, "P4": 4, "P5": 5 };
+        const inputLevel = priorityLevels[input.priority];
+        
+        if (inputLevel !== undefined) {
+          const otherSlas = await db
+            .select()
+            .from(slaDefinitions)
+            .where(
+              and(
+                eq(slaDefinitions.orgId, org!.id),
+                eq(slaDefinitions.isArchived, false)
+              )
+            );
+            
+          for (const other of otherSlas) {
+            const otherLevel = priorityLevels[other.priority];
+            if (otherLevel !== undefined && other.id !== input.id) {
+              // If input is higher priority (lower number) than other
+              if (inputLevel < otherLevel) {
+                if (input.responseMinutes > other.responseMinutes || input.resolveMinutes > other.resolveMinutes) {
+                  throw new TRPCError({ code: "BAD_REQUEST", message: `Hierarchy violation: ${input.priority} SLA cannot have longer targets than existing ${other.priority} SLA (${other.name}).` });
+                }
+              }
+              // If input is lower priority (higher number) than other
+              else if (inputLevel > otherLevel) {
+                if (input.responseMinutes < other.responseMinutes || input.resolveMinutes < other.resolveMinutes) {
+                  throw new TRPCError({ code: "BAD_REQUEST", message: `Hierarchy violation: ${input.priority} SLA cannot have shorter targets than existing ${other.priority} SLA (${other.name}).` });
+                }
+              }
+            }
+          }
+        }
+
+        const displayId = `SLA-${input.priority}-${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`;
+
         const values = {
           name: input.name,
           priority: input.priority,
+          category: input.category,
+          metric: input.metric,
+          schedule: input.schedule,
+          businessHoursOnly: input.businessHoursOnly,
+          pauseOnHold: input.pauseOnHold,
           responseMinutes: input.responseMinutes,
           resolveMinutes: input.resolveMinutes,
           active: input.active,
@@ -370,27 +524,55 @@ export const adminRouter = router({
           const [updated] = await db
             .update(slaDefinitions)
             .set(values)
-            .where(and(eq(slaDefinitions.id, input.id), eq(slaDefinitions.orgId, org!.id)))
+            .where(
+              and(
+                eq(slaDefinitions.id, input.id),
+                eq(slaDefinitions.orgId, org!.id),
+              ),
+            )
             .returning();
           if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
           return updated;
         }
         const [created] = await db
           .insert(slaDefinitions)
-          .values({ orgId: org!.id, ...values })
+          .values({ orgId: org!.id, displayId, ...values })
           .returning();
         return created;
       }),
-    delete: adminProcedure
-      .input(z.object({ id: z.string().uuid() }))
+    archive: adminProcedure
+      .input(z.object({ id: z.string().uuid(), archive: z.boolean() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const [deleted] = await db
-          .delete(slaDefinitions)
-          .where(and(eq(slaDefinitions.id, input.id), eq(slaDefinitions.orgId, org!.id)))
+        const [updated] = await db
+          .update(slaDefinitions)
+          .set({ isArchived: input.archive, active: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(slaDefinitions.id, input.id),
+              eq(slaDefinitions.orgId, org!.id),
+            ),
+          )
           .returning();
-        if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
-        return { ok: true as const };
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
+      }),
+    toggleActive: adminProcedure
+      .input(z.object({ id: z.string().uuid(), active: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [updated] = await db
+          .update(slaDefinitions)
+          .set({ active: input.active, updatedAt: new Date() })
+          .where(
+            and(
+              eq(slaDefinitions.id, input.id),
+              eq(slaDefinitions.orgId, org!.id),
+            ),
+          )
+          .returning();
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
       }),
   }),
 
@@ -406,34 +588,82 @@ export const adminRouter = router({
       // Seed-on-read defaults so the screen is never empty for a fresh org.
       // Any default whose key already has a stored override is hidden.
       const defaults = [
-        { key: "platform.name", value: "CoheronConnect", description: "Platform display name", environment: "all" },
-        { key: "session.timeout_hours", value: "24", description: "Session sliding window hours", environment: "all" },
-        { key: "rate_limit.login_attempts", value: "10", description: "Max failed login attempts before lockout", environment: "all" },
-        { key: "email.from_address", value: process.env.SMTP_FROM ?? "noreply@coheronconnect.io", description: "Email from address", environment: "all" },
-        { key: "meilisearch.enabled", value: process.env.MEILISEARCH_URL ? "true" : "false", description: "Global search enabled", environment: "all" },
+        {
+          key: "platform.name",
+          value: "CoheronConnect",
+          description: "Platform display name",
+          environment: "all",
+        },
+        {
+          key: "session.timeout_hours",
+          value: "24",
+          description: "Session sliding window hours",
+          environment: "all",
+        },
+        {
+          key: "rate_limit.login_attempts",
+          value: "10",
+          description: "Max failed login attempts before lockout",
+          environment: "all",
+        },
+        {
+          key: "email.from_address",
+          value: process.env.SMTP_FROM ?? "noreply@coheronconnect.io",
+          description: "Email from address",
+          environment: "all",
+        },
+        {
+          key: "meilisearch.enabled",
+          value: process.env.MEILISEARCH_URL ? "true" : "false",
+          description: "Global search enabled",
+          environment: "all",
+        },
       ];
       const storedKeys = new Set(rows.map((r) => r.key));
       const missingDefaults = defaults
         .filter((d) => !storedKeys.has(d.key))
         .map((d) => ({ id: null, ...d, isDefault: true }));
-      return [...rows.map((r) => ({ ...r, isDefault: false })), ...missingDefaults];
+      const result = [
+        ...rows.map((r) => ({ ...r, isDefault: false })),
+        ...missingDefaults,
+      ];
+      return result.map(r => ({
+        ...r,
+        category: getCategoryForKey(r.key),
+      }));
     }),
     update: adminProcedure
-      .input(z.object({ key: z.string().min(1), value: z.string(), description: z.string().optional(), environment: z.string().optional() }))
+      .input(
+        z.object({
+          key: z.string().min(1),
+          value: z.string(),
+          description: z.string().optional(),
+          environment: z.string().optional(),
+        }),
+      )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const [existing] = await db
           .select()
           .from(systemProperties)
-          .where(and(eq(systemProperties.orgId, org!.id), eq(systemProperties.key, input.key)))
+          .where(
+            and(
+              eq(systemProperties.orgId, org!.id),
+              eq(systemProperties.key, input.key),
+            ),
+          )
           .limit(1);
         if (existing) {
           const [updated] = await db
             .update(systemProperties)
             .set({
               value: input.value,
-              ...(input.description !== undefined ? { description: input.description } : {}),
-              ...(input.environment !== undefined ? { environment: input.environment } : {}),
+              ...(input.description !== undefined
+                ? { description: input.description }
+                : {}),
+              ...(input.environment !== undefined
+                ? { environment: input.environment }
+                : {}),
               updatedAt: new Date(),
             })
             .where(eq(systemProperties.id, existing.id))
@@ -464,16 +694,29 @@ export const adminRouter = router({
         .orderBy(desc(notificationRules.createdAt));
     }),
     create: adminProcedure
-      .input(z.object({
-        name: z.string().min(1),
-        event: z.string().min(1),
-        channel: z.enum(["email", "slack", "teams", "in_app"]),
-        recipients: z.string().min(1),
-        conditions: z.string().optional(),
-        active: z.boolean().default(true),
-      }))
+      .input(
+        z.object({
+          name: z.string().min(1),
+          event: z.string().min(1),
+          channel: z.enum(["email", "slack", "teams", "in_app"]),
+          recipients: z.string().uuid(),
+          conditions: z.string().optional(),
+          active: z.boolean().default(true),
+        }),
+      )
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
+
+        // Ensure recipient exists and is active
+        const [recipientUser] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.id, input.recipients), eq(users.orgId, org!.id)));
+        
+        if (!recipientUser || recipientUser.status !== "active") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or inactive recipient selected." });
+        }
+
         const [created] = await db
           .insert(notificationRules)
           .values({
@@ -490,22 +733,41 @@ export const adminRouter = router({
         return created;
       }),
     update: adminProcedure
-      .input(z.object({
-        id: z.string().uuid(),
-        name: z.string().min(1).optional(),
-        event: z.string().min(1).optional(),
-        channel: z.enum(["email", "slack", "teams", "in_app"]).optional(),
-        recipients: z.string().min(1).optional(),
-        conditions: z.string().nullable().optional(),
-        active: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          name: z.string().min(1).optional(),
+          event: z.string().min(1).optional(),
+          channel: z.enum(["email", "slack", "teams", "in_app"]).optional(),
+          recipients: z.string().uuid().optional(),
+          conditions: z.string().nullable().optional(),
+          active: z.boolean().optional(),
+        }),
+      )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, ...patch } = input;
+
+        if (patch.recipients) {
+          const [recipientUser] = await db
+            .select()
+            .from(users)
+            .where(and(eq(users.id, patch.recipients), eq(users.orgId, org!.id)));
+          
+          if (!recipientUser || recipientUser.status !== "active") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or inactive recipient selected." });
+          }
+        }
+
         const [updated] = await db
           .update(notificationRules)
           .set({ ...patch, updatedAt: new Date() })
-          .where(and(eq(notificationRules.id, id), eq(notificationRules.orgId, org!.id)))
+          .where(
+            and(
+              eq(notificationRules.id, id),
+              eq(notificationRules.orgId, org!.id),
+            ),
+          )
           .returning();
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
         return updated;
@@ -516,7 +778,12 @@ export const adminRouter = router({
         const { db, org } = ctx;
         const [deleted] = await db
           .delete(notificationRules)
-          .where(and(eq(notificationRules.id, input.id), eq(notificationRules.orgId, org!.id)))
+          .where(
+            and(
+              eq(notificationRules.id, input.id),
+              eq(notificationRules.orgId, org!.id),
+            ),
+          )
           .returning();
         if (!deleted) throw new TRPCError({ code: "NOT_FOUND" });
         return { ok: true as const };
@@ -524,75 +791,170 @@ export const adminRouter = router({
   }),
 
   businessRules: router({
-    list: adminProcedure.input(paginationInput).query(async ({ ctx, input }) => {
-      const { db, org } = ctx;
-      return db
-        .select()
-        .from(businessRules)
-        .where(eq(businessRules.orgId, org!.id))
-        .orderBy(asc(businessRules.priority), desc(businessRules.updatedAt))
-        .limit(input.limit)
-        .offset(input.offset);
-    }),
-
-    create: adminProcedure.input(BusinessRuleCreateSchema).mutation(async ({ ctx, input }) => {
-      const { db, org, user } = ctx;
-      const [row] = await db
-        .insert(businessRules)
-        .values({
-          orgId: org!.id,
-          createdBy: user!.id,
-          name: input.name,
-          description: input.description ?? null,
-          entityType: input.entityType,
-          events: input.events,
-          conditions: input.conditions as unknown[],
-          actions: input.actions as unknown[],
-          priority: input.priority,
-          enabled: input.enabled,
-        })
-        .returning();
-      return row;
-    }),
-
-    update: adminProcedure
-      .input(z.object({ id: z.string().uuid() }).merge(BusinessRuleCreateSchema.partial()))
-      .mutation(async ({ ctx, input }) => {
+    list: adminProcedure
+      .input(paginationInput)
+      .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, ...patch } = input;
-        const keys = Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== undefined);
-        if (keys.length === 0) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "No fields to update" });
+        return db
+          .select()
+          .from(businessRules)
+          .where(eq(businessRules.orgId, org!.id))
+          .orderBy(asc(businessRules.priority), asc(businessRules.createdAt))
+          .limit(input.limit)
+          .offset(input.offset);
+      }),
+
+    create: adminProcedure
+      .input(BusinessRuleCreateSchema)
+      .mutation(async ({ ctx, input }) => {
+        const { db, org, user } = ctx;
+
+        if (!input.events || (input.events as unknown[]).length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "At least one trigger event is required." });
         }
+
+        const [existingPriority] = await db
+          .select()
+          .from(businessRules)
+          .where(and(
+            eq(businessRules.orgId, org!.id),
+            eq(businessRules.entityType, input.entityType),
+            eq(businessRules.priority, input.priority)
+          ))
+          .limit(1);
+        if (existingPriority) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "A rule with this priority already exists. Priorities must be unique." });
+        }
+
         const [row] = await db
-          .update(businessRules)
-          .set({ ...patch, updatedAt: new Date() } as typeof businessRules.$inferInsert)
-          .where(and(eq(businessRules.id, id), eq(businessRules.orgId, org!.id)))
+          .insert(businessRules)
+          .values({
+            orgId: org!.id,
+            createdBy: user!.id,
+            name: input.name,
+            description: input.description ?? null,
+            entityType: input.entityType,
+            events: input.events,
+            conditions: input.conditions as unknown[],
+            actions: input.actions as unknown[],
+            priority: input.priority,
+            enabled: input.enabled,
+          })
           .returning();
-        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
         return row;
       }),
 
-    delete: adminProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
-      const { db, org } = ctx;
-      const [row] = await db
-        .delete(businessRules)
-        .where(and(eq(businessRules.id, input.id), eq(businessRules.orgId, org!.id)))
-        .returning({ id: businessRules.id });
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
-      return { ok: true };
-    }),
+    update: adminProcedure
+      .input(
+        z
+          .object({ id: z.string().uuid() })
+          .merge(BusinessRuleCreateSchema.partial()),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const { id, ...patch } = input;
+        const keys = Object.keys(patch).filter(
+          (k) => (patch as Record<string, unknown>)[k] !== undefined,
+        );
+        if (keys.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No fields to update",
+          });
+        }
+
+        if (patch.events !== undefined) {
+          const evArr = patch.events as unknown[];
+          if (!evArr || evArr.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "At least one trigger event is required." });
+          }
+        }
+
+        if (patch.priority !== undefined || patch.entityType !== undefined) {
+          const [currentRule] = await db.select({ entityType: businessRules.entityType, priority: businessRules.priority }).from(businessRules).where(eq(businessRules.id, id)).limit(1);
+          if (!currentRule) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+
+          const entityTypeToCheck = patch.entityType ?? currentRule.entityType;
+          const priorityToCheck = patch.priority ?? currentRule.priority;
+
+          const [existingPriority] = await db
+            .select()
+            .from(businessRules)
+            .where(
+              and(
+                eq(businessRules.orgId, org!.id),
+                eq(businessRules.entityType, entityTypeToCheck),
+                eq(businessRules.priority, priorityToCheck)
+              )
+            )
+            .limit(1);
+          if (existingPriority && existingPriority.id !== id) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "A rule with this priority already exists. Priorities must be unique." });
+          }
+        }
+
+        const [row] = await db
+          .update(businessRules)
+          .set({
+            ...patch,
+            updatedAt: new Date(),
+          } as typeof businessRules.$inferInsert)
+          .where(
+            and(eq(businessRules.id, id), eq(businessRules.orgId, org!.id)),
+          )
+          .returning();
+        if (!row)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        return row;
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [row] = await db
+          .delete(businessRules)
+          .where(
+            and(
+              eq(businessRules.id, input.id),
+              eq(businessRules.orgId, org!.id),
+            ),
+          )
+          .returning({ id: businessRules.id });
+        if (!row)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        return { ok: true };
+      }),
 
     toggle: adminProcedure
       .input(z.object({ id: z.string().uuid(), enabled: z.boolean() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+
+        if (input.enabled) {
+          const [rule] = await db
+            .select()
+            .from(businessRules)
+            .where(and(eq(businessRules.id, input.id), eq(businessRules.orgId, org!.id)))
+            .limit(1);
+          if (!rule) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+          if (!rule.events || !Array.isArray(rule.events) || rule.events.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot enable a rule without trigger events." });
+          }
+        }
+
         const [row] = await db
           .update(businessRules)
           .set({ enabled: input.enabled, updatedAt: new Date() })
-          .where(and(eq(businessRules.id, input.id), eq(businessRules.orgId, org!.id)))
+          .where(
+            and(
+              eq(businessRules.id, input.id),
+              eq(businessRules.orgId, org!.id),
+            ),
+          )
           .returning();
-        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
+        if (!row)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Rule not found" });
         return row;
       }),
   }),
@@ -600,10 +962,38 @@ export const adminRouter = router({
   scheduledJobs: router({
     list: adminProcedure.query(async () => {
       return [
-        { id: "sla-checker", name: "SLA Breach Checker", schedule: "*/5 * * * *", lastRun: new Date(Date.now() - 5 * 60 * 1000), nextRun: new Date(Date.now() + 5 * 60 * 1000), status: "success" },
-        { id: "notification-digest", name: "Notification Digest", schedule: "0 9 * * 1-5", lastRun: new Date(Date.now() - 86400 * 1000), nextRun: new Date(Date.now() + 3600 * 1000), status: "success" },
-        { id: "contract-expiry", name: "Contract Expiry Alerts", schedule: "0 8 * * *", lastRun: new Date(Date.now() - 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "success" },
-        { id: "report-aggregator", name: "Executive Report Aggregation", schedule: "0 6 * * 1", lastRun: new Date(Date.now() - 7 * 86400 * 1000), nextRun: new Date(Date.now() + 86400 * 1000), status: "success" },
+        {
+          id: "sla-checker",
+          name: "SLA Breach Checker",
+          schedule: "*/5 * * * *",
+          lastRun: new Date(Date.now() - 5 * 60 * 1000),
+          nextRun: new Date(Date.now() + 5 * 60 * 1000),
+          status: "success",
+        },
+        {
+          id: "notification-digest",
+          name: "Notification Digest",
+          schedule: "0 9 * * 1-5",
+          lastRun: new Date(Date.now() - 86400 * 1000),
+          nextRun: new Date(Date.now() + 3600 * 1000),
+          status: "success",
+        },
+        {
+          id: "contract-expiry",
+          name: "Contract Expiry Alerts",
+          schedule: "0 8 * * *",
+          lastRun: new Date(Date.now() - 86400 * 1000),
+          nextRun: new Date(Date.now() + 86400 * 1000),
+          status: "success",
+        },
+        {
+          id: "report-aggregator",
+          name: "Executive Report Aggregation",
+          schedule: "0 6 * * 1",
+          lastRun: new Date(Date.now() - 7 * 86400 * 1000),
+          nextRun: new Date(Date.now() + 86400 * 1000),
+          status: "success",
+        },
       ];
     }),
 
@@ -611,15 +1001,171 @@ export const adminRouter = router({
       .input(z.object({ jobId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
-        await db.insert(auditLogs).values({
-          orgId: org!.id,
-          userId: user!.id,
-          action: `scheduled_job.manual_trigger`,
-          resourceType: "scheduled_job",
-          resourceId: input.jobId,
-          changes: { jobId: input.jobId, triggeredAt: new Date().toISOString() } as Record<string, unknown>,
-        }).catch(() => {});
+        await db
+          .insert(auditLogs)
+          .values({
+            orgId: org!.id,
+            userId: user!.id,
+            action: `scheduled_job.manual_trigger`,
+            resourceType: "scheduled_job",
+            resourceId: input.jobId,
+            changes: {
+              jobId: input.jobId,
+              triggeredAt: new Date().toISOString(),
+            } as Record<string, unknown>,
+          })
+          .catch(() => {});
         return { success: true, jobId: input.jobId, triggeredAt: new Date() };
+      }),
+  }),
+
+  roles: router({
+    list: adminProcedure.query(async ({ ctx }) => {
+      const { db } = ctx;
+      const customRoles = await db
+        .select()
+        .from(roles)
+        .where(eq(roles.isSystem, false));
+
+      const perms = await db
+        .select({
+          roleId: rolePermissions.roleId,
+          resource: permissions.resource,
+          action: permissions.action,
+        })
+        .from(rolePermissions)
+        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id));
+        
+      const counts = await db
+        .select({ roleId: users.matrixRole, count: count() })
+        .from(users)
+        .groupBy(users.matrixRole);
+
+      return customRoles.map((r) => ({
+        ...r,
+        permissions: perms.filter((p) => p.roleId === r.id).map(p => ({ resource: p.resource, action: p.action })),
+        usersCount: counts.find((c) => c.roleId === r.id)?.count ?? 0,
+      }));
+    }),
+
+    create: adminProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          description: z.string().optional(),
+          permissions: z.array(z.object({ resource: z.string(), action: z.string() })),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        return db.transaction(async (tx) => {
+          const [newRole] = await tx
+            .insert(roles)
+            .values({ orgId: org!.id, name: input.name, description: input.description, isSystem: false })
+            .returning();
+            
+          if (!newRole) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+            
+          for (const perm of input.permissions) {
+            let [dbPerm] = await tx
+              .select()
+              .from(permissions)
+              .where(and(eq(permissions.resource, perm.resource), eq(permissions.action, perm.action as any))) // any-ratchet-allow: dynamic input from admin payload
+              .limit(1);
+            if (!dbPerm) {
+              [dbPerm] = await tx
+                .insert(permissions)
+                .values({ resource: perm.resource, action: perm.action as any }) // any-ratchet-allow: dynamic input from admin payload
+                .returning();
+            }
+            if (!dbPerm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+            await tx.insert(rolePermissions).values({
+              roleId: newRole.id,
+              permissionId: dbPerm.id,
+            });
+          }
+          
+          return newRole;
+        });
+      }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.string().uuid(),
+          name: z.string().min(1),
+          description: z.string().optional(),
+          permissions: z.array(z.object({ resource: z.string(), action: z.string() })),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        return db.transaction(async (tx) => {
+          const [updated] = await tx
+            .update(roles)
+            .set({ name: input.name, description: input.description })
+            .where(and(eq(roles.id, input.id), eq(roles.orgId, org!.id)))
+            .returning();
+            
+          if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+
+          await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, input.id));
+
+          for (const perm of input.permissions) {
+            let [dbPerm] = await tx
+              .select()
+              .from(permissions)
+              .where(and(eq(permissions.resource, perm.resource), eq(permissions.action, perm.action as any))) // any-ratchet-allow: dynamic input from admin payload
+              .limit(1);
+            if (!dbPerm) {
+              [dbPerm] = await tx
+                .insert(permissions)
+                .values({ resource: perm.resource, action: perm.action as any }) // any-ratchet-allow: dynamic input from admin payload
+                .returning();
+            }
+            if (!dbPerm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+            await tx.insert(rolePermissions).values({
+              roleId: input.id,
+              permissionId: dbPerm.id,
+            });
+          }
+          
+          // Invalidate cache for users with this role
+          const affectedUsers = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.matrixRole, input.id), eq(users.orgId, org!.id)));
+            
+          if (affectedUsers.length > 0) {
+            const userIds = affectedUsers.map(u => u.id);
+            const sess = await tx.select({ id: sessions.id }).from(sessions).where(inArray(sessions.userId, userIds));
+            await Promise.all(sess.map((s: { id: string }) => invalidateSessionCache(s.id)));
+          }
+
+          return updated;
+        });
+      }),
+      
+    archive: adminProcedure
+      .input(z.object({ id: z.string().uuid(), archive: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        
+        if (input.archive) {
+          const [userCount] = await db.select({ count: count() }).from(users).where(and(eq(users.matrixRole, input.id), eq(users.orgId, org!.id)));
+          if (userCount && userCount.count > 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot archive a role that is assigned to users. Reassign the users first." });
+          }
+        }
+        
+        const [updated] = await db
+          .update(roles)
+          .set({ isArchived: input.archive })
+          .where(and(eq(roles.id, input.id), eq(roles.orgId, org!.id)))
+          .returning();
+          
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        return updated;
       }),
   }),
 });

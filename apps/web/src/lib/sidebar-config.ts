@@ -142,6 +142,17 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         module: "security",
       },
       { label: "Risk & Compliance", href: "/app/grc", icon: "Scale", module: "grc" },
+      {
+        label: "DPDP Privacy",
+        href: "/app/dpdp",
+        icon: "ShieldCheck",
+        module: "compliance",
+        children: [
+          { label: "Data Subject Requests", href: "/app/dpdp" },
+          { label: "Consent Ledger", href: "/app/dpdp?tab=consent" },
+          { label: "Breach Register", href: "/app/dpdp?tab=breach" },
+        ],
+      },
       { label: "ESG Reporting", href: "/app/esg", icon: "Leaf", module: "grc" },
       {
         label: "Approvals & Workflow",
@@ -186,7 +197,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
         label: "Payroll",
         href: "/app/payroll",
         icon: "Wallet",
-        module: "hr",
+        module: "payroll",
       },
       {
         label: "Recruitment",

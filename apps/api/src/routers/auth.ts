@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { logInfo, logWarn } from "../lib/logger";
 import { withBcryptSlot } from "../lib/bcrypt-semaphore";
+import { appendAuditEntry } from "../lib/audit-hash";
 import {
   users,
   organizations,
@@ -472,7 +473,7 @@ export const authRouter = router({
 
         await db.update(users).set({ mfaEnrolled: true }).where(eq(users.id, user!.id));
 
-        await db.insert(auditLogs).values({
+        await appendAuditEntry(db, {
           orgId: ctx.orgId!,
           userId: user!.id,
           action: "mfa_enrolled",
@@ -511,7 +512,7 @@ export const authRouter = router({
         await db.update(users).set({ mfaEnrolled: false }).where(eq(users.id, user!.id));
         if (ctx.sessionId) await clearSessionMfa(ctx.sessionId);
 
-        await db.insert(auditLogs).values({
+        await appendAuditEntry(db, {
           orgId: ctx.orgId!,
           userId: user!.id,
           action: "mfa_disabled",
@@ -925,7 +926,7 @@ export const authRouter = router({
     const rows = await db
       .select()
       .from(users)
-      .where(eq(users.orgId, org!.id))
+      .where(and(eq(users.orgId, org!.id), sql`${users.status} != 'disabled'`))
       .orderBy(asc(users.name));
     return rows.map(stripPasswordHash);
   }),
@@ -996,7 +997,7 @@ export const authRouter = router({
         .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
         .limit(1);
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      await db.delete(users).where(eq(users.id, input.userId));
+      await db.update(users).set({ status: "disabled", updatedAt: new Date() }).where(eq(users.id, input.userId));
       return { success: true };
     }),
 

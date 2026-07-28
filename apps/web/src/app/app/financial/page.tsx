@@ -118,7 +118,7 @@ function FinancialPageInner() {
 
   const [showNewInvoice, setShowNewInvoice] = useState(false);
   const [showNewARInvoice, setShowNewARInvoice] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "", gstinId: "" });
   const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
   const { data: legalEntitiesList } = trpc.financial.listLegalEntities.useQuery(
     undefined,
@@ -132,7 +132,7 @@ function FinancialPageInner() {
         toast.success("Invoice created");
       }
       setShowNewInvoice(false);
-      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
+      setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "", gstinId: "" });
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
@@ -156,6 +156,8 @@ function FinancialPageInner() {
   const gstCalendarQuery = trpc.financial.gstFilingCalendar.useQuery({ month: currentMonth, year: currentYear }, mergeTrpcQueryOpts("financial.gstFilingCalendar", { refetchOnWindowFocus: false },));
   const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.tdsChallans.list", { refetchOnWindowFocus: false },));
 
+  const gstinsQuery = trpc.accounting.gstin.list.useQuery(undefined, mergeTrpcQueryOpts("accounting.gstin.list", { refetchOnWindowFocus: false }));
+
   const [periodCloseMonth, setPeriodCloseMonth] = useState(() => {
     const d = new Date();
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -163,7 +165,7 @@ function FinancialPageInner() {
   const periodClosePreflight = trpc.financial.periodClose.preflight.useQuery(
     { period: periodCloseMonth },
     mergeTrpcQueryOpts("financial.periodClose.preflight", {
-      enabled: tab === "period_close" && /^\d{4}-\d{2}$/.test(periodCloseMonth),
+      enabled: tab === "period_close" && /^\d{4}-(0[1-9]|1[0-2])$/.test(periodCloseMonth),
       refetchOnWindowFocus: false,
     }),
   );
@@ -694,7 +696,7 @@ function FinancialPageInner() {
                   type="button"
                   className="text-[11px] px-2 py-1.5 rounded border border-border hover:bg-muted/40 flex items-center gap-1"
                   onClick={() => void periodClosePreflight.refetch()}
-                  disabled={periodClosePreflight.isFetching || !/^\d{4}-\d{2}$/.test(periodCloseMonth)}
+                  disabled={periodClosePreflight.isFetching || !/^\d{4}-(0[1-9]|1[0-2])$/.test(periodCloseMonth)}
                 >
                   <RefreshCw className={`w-3 h-3 ${periodClosePreflight.isFetching ? "animate-spin" : ""}`} />
                   Refresh
@@ -836,13 +838,13 @@ function FinancialPageInner() {
                     </div>
                     {gstFilings.length > 0 ? (
                       gstFilings.map((r: any) => (
-                        <div key={r.form} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                        <div key={r.returnType} className="flex items-center justify-between py-1 border-b border-border last:border-0">
                           <div>
-                            <span className="font-mono text-[11px] font-bold text-primary">{r.form}</span>
+                            <span className="font-mono text-[11px] font-bold text-primary">{r.returnType}</span>
                             <span className="text-[11px] text-muted-foreground ml-2">{r.description}</span>
                           </div>
                           <div className="text-right">
-                            <div className="text-[10px] text-muted-foreground/70">{r.frequency}</div>
+                            <div className="text-[10px] text-muted-foreground/70">{r.frequency || "Monthly"}</div>
                             <div className="text-[10px] font-medium text-foreground/80">Due: {r.dueDate}</div>
                           </div>
                         </div>
@@ -1221,6 +1223,20 @@ function FinancialPageInner() {
               </select>
               <p className="text-[10px] text-muted-foreground/70 mt-0.5">Manage entities under Admin → Legal entities.</p>
             </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Billing GSTIN</label>
+              <select
+                className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+                value={invoiceForm.gstinId}
+                onChange={(e) => setInvoiceForm((f) => ({ ...f, gstinId: e.target.value }))}
+              >
+                <option value="">— Use Org Default —</option>
+                {(gstinsQuery.data ?? []).map((g: any) => (
+                  <option key={g.id} value={g.id}>{g.gstin} ({g.stateCode})</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">Which GST registration is billing this invoice.</p>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={() => setShowNewInvoice(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
@@ -1234,6 +1250,7 @@ function FinancialPageInner() {
                   gstRate: Number(invoiceForm.gstRate) as 0 | 5 | 12 | 18 | 28,
                   dueDate: invoiceForm.dueDate || undefined,
                   legalEntityId: invoiceForm.legalEntityId || undefined,
+                  gstinId: invoiceForm.gstinId || undefined,
                 });
               }}
               disabled={createInvoiceMutation.isPending}

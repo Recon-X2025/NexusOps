@@ -126,7 +126,7 @@ const EMPTY_JE_LINE: JeLine = { accountId: "", debitAmount: "0", creditAmount: "
 
 function NewJournalEntryModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { mergeTrpcQueryOpts } = useRBAC();
-  const coaQ = trpc.accounting.coa.list.useQuery({ activeOnly: true, limit: 500 }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
+  const coaQ = trpc.accounting.coa.list.useQuery({ activeOnly: true, limit: 1000 }, mergeTrpcQueryOpts("accounting.coa.list", undefined));
   const accounts = (coaQ.data ?? []) as any[];
 
   const [header, setHeader] = useState({

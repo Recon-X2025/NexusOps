@@ -15,6 +15,7 @@ import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import { assetTypes } from "./assets";
 import { legalEntities } from "./legal-entity";
+import { gstinRegistry } from "./accounting";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 export const prStatusEnum = pgEnum("pr_status", [
@@ -292,6 +293,7 @@ export const invoices = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    gstinId: uuid("gstin_id").references(() => gstinRegistry.id, { onDelete: "restrict" }),
     invoiceNumber: text("invoice_number").notNull(),
     /** `payable` = vendor AP (default); `receivable` = customer AR when populated. */
     invoiceFlow: text("invoice_flow").notNull().default("payable"),
@@ -472,6 +474,7 @@ export const goodsReceiptNotesRelations = relations(goodsReceiptNotes, ({ one, m
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   org: one(organizations, { fields: [invoices.orgId], references: [organizations.id] }),
+  gstin: one(gstinRegistry, { fields: [invoices.gstinId], references: [gstinRegistry.id] }),
   vendor: one(vendors, { fields: [invoices.vendorId], references: [vendors.id] }),
   legalEntity: one(legalEntities, { fields: [invoices.legalEntityId], references: [legalEntities.id] }),
   po: one(purchaseOrders, { fields: [invoices.poId], references: [purchaseOrders.id] }),

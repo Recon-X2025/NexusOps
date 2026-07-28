@@ -241,8 +241,9 @@ export const crmDealsRouter = router({
   /** DB-backed deal close thresholds (US-CRM-003). */
   approvalThresholds: router({
     get: permissionProcedure("accounts", "read").query(async ({ ctx }) => {
-      const { org } = ctx;
-      return getCrmDealApprovalThresholds(org!.settings);
+      const { db, org } = ctx;
+      const [freshOrg] = await db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, org!.id)).limit(1);
+      return getCrmDealApprovalThresholds(freshOrg?.settings ?? org!.settings);
     }),
     update: adminProcedure
       .input(z.object({

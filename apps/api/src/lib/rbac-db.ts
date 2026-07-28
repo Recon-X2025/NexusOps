@@ -74,6 +74,10 @@ export function checkDbUserPermission(
   module: Module,
   action: RbacAction,
   matrixRole?: string | null,
+  customPermissions?: { resource: string; action: string }[]
 ): boolean {
+  if (customPermissions && customPermissions.some(p => p.resource === module && p.action === action)) {
+    return true;
+  }
   return hasPermission(systemRolesForDbUser(dbRole, matrixRole), module, action);
 }

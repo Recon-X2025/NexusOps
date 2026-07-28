@@ -26,10 +26,10 @@ import {
   documents,
   documentRetentionPolicies,
   documentVersions,
-  auditLogs,
 } from "@coheronconnect/db";
 import type { Db } from "@coheronconnect/db";
 import { deleteObject } from "../services/storage";
+import { appendAuditEntry } from "../lib/audit-hash";
 
 function redisConnection() {
   const url = process.env["REDIS_URL"] ?? "redis://localhost:6379";
@@ -161,7 +161,7 @@ export async function runRetentionSweep(db: Db, batchSize = 500): Promise<SweepR
 
       await db.delete(documents).where(eq(documents.id, row.id));
 
-      await db.insert(auditLogs).values({
+      await appendAuditEntry(db, {
         orgId: row.orgId,
         action: "document.retention.purged",
         resourceType: "document",

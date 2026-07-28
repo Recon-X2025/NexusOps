@@ -473,19 +473,45 @@ export const accountingRouter = router({
     const accounts = await db.select().from(chartOfAccounts)
       .where(dbEq(chartOfAccounts.orgId, org!.id));
 
-    const totalDebit  = accounts.filter((a: CoaRow) => Number(a.currentBalance) > 0).reduce((s: number, a: CoaRow) => s + Number(a.currentBalance), 0);
-    const totalCredit = accounts.filter((a: CoaRow) => Number(a.currentBalance) < 0).reduce((s: number, a: CoaRow) => s + Math.abs(Number(a.currentBalance)), 0);
-    const isBalanced  = Math.abs(totalDebit - totalCredit) < 0.001;
+    const isDebitNormal = (type: string) => ["asset", "expense", "contra_liability", "contra_equity", "contra_income"].includes(type);
 
-    return {
-      lines: accounts.map((a: CoaRow) => ({
+    const lines = accounts.map((a: CoaRow) => {
+      const bal = Number(a.currentBalance);
+      const isDrNormal = isDebitNormal(a.type);
+      
+      let debit = 0;
+      let credit = 0;
+
+      if (isDrNormal) {
+        if (bal >= 0) {
+          debit = bal;
+        } else {
+          credit = Math.abs(bal);
+        }
+      } else {
+        if (bal <= 0) {
+          credit = Math.abs(bal);
+        } else {
+          debit = bal;
+        }
+      }
+
+      return {
         id: a.id,
         code: a.code,
         name: a.name,
         type: a.type,
-        debit: Number(a.currentBalance) > 0 ? Number(a.currentBalance) : 0,
-        credit: Number(a.currentBalance) < 0 ? Math.abs(Number(a.currentBalance)) : 0,
-      })),
+        debit,
+        credit,
+      };
+    });
+
+    const totalDebit  = lines.reduce((s: number, a) => s + a.debit, 0);
+    const totalCredit = lines.reduce((s: number, a) => s + a.credit, 0);
+    const isBalanced  = Math.abs(totalDebit - totalCredit) < 0.001;
+
+    return {
+      lines,
       totalDebit,
       totalCredit,
       isBalanced,
@@ -708,7 +734,12 @@ export const accountingRouter = router({
       const end   = new Date(input.year, input.month, 0, 23, 59, 59);
 
       const invs = await db.select().from(invoices)
-        .where(dbAnd(dbEq(invoices.orgId, org!.id), gte(invoices.invoiceDate, start), lte(invoices.invoiceDate, end)));
+        .where(dbAnd(
+          dbEq(invoices.orgId, org!.id),
+          dbEq(invoices.gstinId, input.gstinId),
+          gte(invoices.invoiceDate, start),
+          lte(invoices.invoiceDate, end)
+        ));
 
       // Fetch line items for all invoices in the period so GSTR-1 `itms` can be
       // grouped by actual GST rate (not a hardcoded 18%). Invoices with no line
@@ -824,7 +855,7 @@ export const accountingRouter = router({
       year: z.number().int(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { invoices, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte, sum } = await import("@coheronconnect/db");
+      const { invoices, gstinRegistry, gstr2bImports, gstr2bReconLines, eq: dbEq, and: dbAnd, gte, lte, sum } = await import("@coheronconnect/db");
       const [gstin] = await db.select().from(gstinRegistry)
         .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
       if (!gstin) throw new TRPCError({ code: "NOT_FOUND" });
@@ -838,13 +869,38 @@ export const accountingRouter = router({
         igst:    sum(invoices.igstAmount),
         cgst:    sum(invoices.cgstAmount),
         sgst:    sum(invoices.sgstAmount),
-      }).from(invoices).where(dbAnd(dbEq(invoices.orgId, org!.id), gte(invoices.invoiceDate, start), lte(invoices.invoiceDate, end)));
+      }).from(invoices).where(dbAnd(
+        dbEq(invoices.orgId, org!.id),
+        dbEq(invoices.gstinId, input.gstinId),
+        gte(invoices.invoiceDate, start),
+        lte(invoices.invoiceDate, end)
+      ));
 
-      // ITC (from purchase bills — approximate from COA balance for now)
+      // ITC (from GSTR-2B matched lines)
+      const [itc] = await db.select({
+        igst: sum(gstr2bReconLines.bookIgst),
+        cgst: sum(gstr2bReconLines.bookCgst),
+        sgst: sum(gstr2bReconLines.bookSgst),
+      })
+      .from(gstr2bReconLines)
+      .innerJoin(gstr2bImports, dbEq(gstr2bReconLines.importId, gstr2bImports.id))
+      .where(dbAnd(
+        dbEq(gstr2bImports.orgId, org!.id),
+        dbEq(gstr2bImports.gstinId, input.gstinId),
+        dbEq(gstr2bImports.month, input.month),
+        dbEq(gstr2bImports.year, input.year),
+        dbEq(gstr2bReconLines.status, "matched")
+      ));
+
       const outputIGST = Number(outward?.igst ?? 0);
       const outputCGST = Number(outward?.cgst ?? 0);
       const outputSGST = Number(outward?.sgst ?? 0);
       const totalOutputTax = outputIGST + outputCGST + outputSGST;
+      
+      const inputIGST = Number(itc?.igst ?? 0);
+      const inputCGST = Number(itc?.cgst ?? 0);
+      const inputSGST = Number(itc?.sgst ?? 0);
+      const totalInputTax = inputIGST + inputCGST + inputSGST;
 
       const payload = {
         gstin: gstin.gstin,
@@ -855,7 +911,7 @@ export const accountingRouter = router({
         },
         "4": {
           desc: "Eligible ITC",
-          itc_avl: { osup_det: { iamt: 0, camt: 0, samt: 0, csamt: 0 } },
+          itc_avl: { osup_det: { iamt: inputIGST, camt: inputCGST, samt: inputSGST, csamt: 0 } },
         },
         "5_1": {
           desc: "Interest and late fee payable",
@@ -865,7 +921,11 @@ export const accountingRouter = router({
 
       return {
         payload,
-        summary: { outputIGST, outputCGST, outputSGST, totalOutputTax, netPayable: totalOutputTax },
+        summary: { 
+          outputIGST, outputCGST, outputSGST, totalOutputTax,
+          inputIGST, inputCGST, inputSGST, totalInputTax,
+          netPayable: Math.max(0, totalOutputTax - totalInputTax) 
+        },
         gstin: gstin.gstin,
         period: `${input.month}/${input.year}`,
       };

@@ -236,6 +236,7 @@ export const roles = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     isSystem: boolean("is_system").notNull().default(false),
+    isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
