@@ -18,8 +18,11 @@ export default defineConfig({
     ["list"],
     ["html", { open: "never", outputFolder: "playwright-report" }],
   ],
+  timeout: process.env.CI ? 120000 : 45000,
   use: {
     baseURL: BASE_URL,
+    navigationTimeout: process.env.CI ? 60000 : 30000,
+    actionTimeout: process.env.CI ? 30000 : 15000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

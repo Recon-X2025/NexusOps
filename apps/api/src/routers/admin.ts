@@ -209,34 +209,29 @@ export const adminRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         
-        const [deletedUser] = await db
-          .delete(users)
+        // Users must never be hard-deleted from the database — archive (disable) instead.
+        const [updatedUser] = await db
+          .update(users)
+          .set({ status: "disabled", updatedAt: new Date() })
           .where(and(eq(users.id, input.userId), eq(users.orgId, org!.id)))
           .returning();
 
-        if (!deletedUser) {
+        if (!updatedUser) {
           throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-        }
-
-        // Clean up sessions
-        const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, input.userId));
-        if (sess.length > 0) {
-          await db.delete(sessions).where(eq(sessions.userId, input.userId));
-          await Promise.all(sess.map((s: { id: string }) => invalidateSessionCache(s.id)));
         }
 
         await db.insert(auditLogs).values({
           orgId: org!.id,
           userId: ctx.user!.id as string,
-          action: "user_delete",
+          action: "user_archive",
           resourceType: "user",
           resourceId: input.userId,
-          changes: sanitizeForAudit({ email: deletedUser.email }) as Record<string, unknown>,
+          changes: sanitizeForAudit({ status: "disabled" }) as Record<string, unknown>,
           ipAddress: ctx.ipAddress ?? undefined,
           userAgent: ctx.userAgent ?? undefined,
         });
 
-        return { ok: true as const };
+        return { success: true, archivedUser: updatedUser };
       }),
   }),
 

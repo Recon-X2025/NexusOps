@@ -43,18 +43,20 @@ export const teamsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
       
-      const existing = await db.query.teams.findFirst({
-        where: and(eq(teams.name, input.name), eq(teams.orgId, org!.id)),
-      });
-      if (existing) {
-        throw new TRPCError({ code: "CONFLICT", message: "A group with this name already exists" });
+      const existing = await db
+        .select({ id: teams.id })
+        .from(teams)
+        .where(and(sql`lower(${teams.name}) = lower(${input.name.trim()})`, eq(teams.orgId, org!.id)))
+        .limit(1);
+      if (existing.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "A group with this name already exists in your organization" });
       }
 
       const [newTeam] = await db
         .insert(teams)
         .values({
           orgId: org!.id,
-          name: input.name,
+          name: input.name.trim(),
           description: input.description,
         })
         .returning();
@@ -76,12 +78,15 @@ export const teamsRouter = router({
       const { id, ...patch } = input;
       
       if (input.name) {
-        const existing = await db.query.teams.findFirst({
-          where: and(eq(teams.name, input.name), eq(teams.orgId, org!.id)),
-        });
-        if (existing && existing.id !== id) {
-          throw new TRPCError({ code: "CONFLICT", message: "A group with this name already exists" });
+        const existing = await db
+          .select({ id: teams.id })
+          .from(teams)
+          .where(and(sql`lower(${teams.name}) = lower(${input.name.trim()})`, eq(teams.orgId, org!.id)))
+          .limit(1);
+        if (existing.length > 0 && existing[0]?.id !== id) {
+          throw new TRPCError({ code: "CONFLICT", message: "A group with this name already exists in your organization" });
         }
+        patch.name = input.name.trim();
       }
 
       if (input.isArchived === true) {

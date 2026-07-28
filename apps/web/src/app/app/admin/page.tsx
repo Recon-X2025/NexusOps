@@ -8,7 +8,7 @@ import {
   Settings, Users, Shield, Key, Bell, Database, Clock, FileText,
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, Download, Eye, EyeOff, ToggleLeft, ToggleRight,
-  Activity, Server, Workflow, BookOpen, ChevronRight, Lock,
+  Activity, Server, Workflow, BookOpen, ChevronRight, Lock, LockKeyhole, Unlock,
   GitBranch, ShoppingCart, Building2, Calendar, CircleDollarSign, PauseCircle, Landmark, Archive
 } from "lucide-react";
 import {
@@ -75,9 +75,11 @@ export default function AdminConsolePage() {
   const [inviteMatrixRole, setInviteMatrixRole] = useState("");
   const [inviteResult, setInviteResult] = useState<{ inviteUrl?: string } | null>(null);
 
+  const trpcUtils = trpc.useUtils();
   const [editUser, setEditUser] = useState<{ id: string; name: string; role: string; matrixRole: string | null; status: string; mfaEnrolled?: boolean } | null>(null);
   const [editRole, setEditRole] = useState<"owner" | "admin" | "member" | "viewer">("member");
   const [editMatrixRole, setEditMatrixRole] = useState("");
+  const [editStatus, setEditStatus] = useState<"active" | "disabled" | "invited">("active");
   const [editMfaEnrolled, setEditMfaEnrolled] = useState(false);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
   
@@ -102,12 +104,12 @@ export default function AdminConsolePage() {
       setInviteResult(res);
       usersQuery.refetch();
       if (res.inviteUrl) {
-        toast.success("Invite sent!", {
+        toast.success("Invite generated & email sent!", {
           description: `Link: ${res.inviteUrl}`,
           duration: 15000,
         });
       } else {
-        toast.success(`Invite sent to ${inviteEmail}`);
+        toast.success(`Invite email sent to ${inviteEmail}`);
       }
     },
     onError: (e: any) => toast.error(e.message || "Failed to send invite"),
@@ -115,20 +117,31 @@ export default function AdminConsolePage() {
   // @ts-ignore
   const rolesQuery = trpc.admin.roles.list.useQuery(undefined, mergeTrpcQueryOpts("admin.roles.list", undefined));
   const updateUserMutation = trpc.admin.users.update.useMutation({
-    onSuccess: () => { usersQuery.refetch(); setEditUser(null); toast.success("User role updated"); },
+    onSuccess: () => {
+      usersQuery.refetch();
+      trpcUtils.auth.me.invalidate();
+      setEditUser(null);
+      toast.success("User updated successfully");
+    },
     onError: (e: any) => toast.error(e.message || "Failed to update user"),
   });
   const deactivateUserMutation = trpc.admin.users.update.useMutation({
     onSuccess: (_r, vars) => {
       usersQuery.refetch();
+      trpcUtils.auth.me.invalidate();
       const st = (vars as { status?: string })?.status;
-      toast.success(`User ${st === "active" ? "activated" : "suspended"}`);
+      toast.success(`User ${st === "active" ? "unlocked & activated" : "locked & suspended"}`);
     },
     onError: (e: any) => toast.error(e.message || "Failed to update user status"),
   });
   const deleteUserMutation = trpc.admin.users.delete.useMutation({
-    onSuccess: () => { usersQuery.refetch(); setConfirmDeleteUser(null); toast.success("User deleted"); },
-    onError: (e: any) => toast.error(e.message || "Failed to delete user"),
+    onSuccess: () => {
+      usersQuery.refetch();
+      trpcUtils.auth.me.invalidate();
+      setConfirmDeleteUser(null);
+      toast.success("User archived (users are preserved and never hard-deleted)");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to archive user"),
   });
 
   // @ts-ignore
@@ -381,6 +394,19 @@ export default function AdminConsolePage() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Account Status / Lock</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full px-3 py-2 text-body-sm bg-muted/20 border border-border rounded-xl outline-none focus:border-primary"
+                >
+                  <option value="active">Active (Unlocked)</option>
+                  <option value="disabled">Disabled (Locked / Suspended)</option>
+                  <option value="invited">Invited</option>
+                </select>
+              </div>
+
               <div className="flex items-center gap-2 p-3 bg-muted/20 border border-border rounded-xl">
                 <input
                   type="checkbox"
@@ -396,7 +422,7 @@ export default function AdminConsolePage() {
                 <button onClick={() => setEditUser(null)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
                 <button
                   disabled={updateUserMutation.isPending}
-                  onClick={() => updateUserMutation.mutate({ userId: editUser.id, role: editRole, matrixRole: editMatrixRole || null })}
+                  onClick={() => updateUserMutation.mutate({ userId: editUser.id, role: editRole, matrixRole: editMatrixRole || null, status: editStatus })}
                   className="px-6 py-2 bg-primary text-white rounded-lg text-body-sm font-bold hover:bg-primary/90 disabled:opacity-50"
                 >
                   {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
@@ -516,7 +542,7 @@ export default function AdminConsolePage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted-foreground/70">Logged in as:</span>
-            <span className="text-[11px] font-mono font-semibold text-foreground/80">{currentUser.username}</span>
+            <span className="text-[11px] font-medium font-sans text-foreground/90">{currentUser.name || currentUser.username}</span>
             <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-mono">{currentUser.roles.filter(r => r !== "requester")[0] ?? "requester"}</span>
           </div>
         </div>
@@ -722,17 +748,26 @@ export default function AdminConsolePage() {
                                   });
                                   setEditRole(user.role as any);
                                   setEditMatrixRole(user.matrixRole ?? "");
+                                  setEditStatus((user.status ?? "active") as any);
                                   setEditMfaEnrolled(user.mfaEnrolled === true);
                                 }}
                                 className="p-1 text-muted-foreground/70 hover:text-primary"
-                                title="Edit role"
-                              ><Edit2 className="w-3 h-3" /></button>
+                                title="Edit user role & status"
+                              ><Edit2 className="w-3.5 h-3.5" /></button>
                               <button
                                 onClick={() => deactivateUserMutation.mutate({ userId: user.id, status: user.status === "active" ? "disabled" : "active" })}
-                                className={`p-1 ${user.status === "active" ? "text-muted-foreground/70 hover:text-orange-600" : "text-orange-600 hover:text-muted-foreground/70"}`}
+                                className={`p-1 ${user.status === "active" ? "text-muted-foreground/70 hover:text-amber-600" : "text-amber-600 hover:text-green-600"}`}
+                                title={user.status === "active" ? "Lock / Suspend user" : "Unlock / Activate user"}
+                                disabled={user.id === currentUser.id}
+                              >
+                                {user.status === "active" ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                onClick={() => deactivateUserMutation.mutate({ userId: user.id, status: user.status === "active" ? "disabled" : "active" })}
+                                className={`p-1 ${user.status === "active" ? "text-muted-foreground/70 hover:text-muted-foreground" : "text-green-600 hover:text-muted-foreground"}`}
                                 title={user.status === "active" ? "Archive user" : "Restore user"}
                                 disabled={user.id === currentUser.id}
-                              ><Archive className="w-3 h-3" /></button>
+                              ><Archive className="w-3.5 h-3.5" /></button>
                             </div>
                           </td>
                         </tr>
@@ -847,7 +882,19 @@ export default function AdminConsolePage() {
                                   <span className="text-[11px] text-muted-foreground">{r.role === "admin" ? "All (bypass)" : `${permCount} grants`}</span>
                                 </td>
                                 <td>
-                                  <button onClick={(e) => { e.stopPropagation(); toast.info(`Role "${r.displayName}" has ${r.role === "admin" ? "all permissions (bypass)" : `${permCount} permission grants`}. System roles have fixed permissions defined in the RBAC matrix. To assign this role to a user, use the Users tab → Edit Role.`, { duration: 6000 }); }} className="text-[11px] text-primary hover:underline">Edit</button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const existingPerms: { resource: string; action: string }[] = [];
+                                      const rolePerms = ROLE_PERMISSIONS[r.role as keyof typeof ROLE_PERMISSIONS] ?? {};
+                                      Object.entries(rolePerms).forEach(([res, actions]) => {
+                                        (actions as string[]).forEach(act => existingPerms.push({ resource: res, action: act }));
+                                      });
+                                      setCustomRoleForm({ name: r.displayName, description: r.description, permissions: existingPerms });
+                                      setShowCustomRoleForm(true);
+                                    }}
+                                    className="text-[11px] text-primary hover:underline font-medium"
+                                  >Edit / Customize</button>
                                 </td>
                               </tr>
                             );
@@ -952,8 +999,28 @@ export default function AdminConsolePage() {
                         <input value={slaForm.schedule} onChange={(e) => setSlaForm((f) => ({ ...f, schedule: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary" placeholder="e.g. 24x7" />
                       </div>
                       <div>
-                        <label className="text-[11px] text-muted-foreground mb-1 block">Priority</label>
-                        <select value={slaForm.priority} onChange={(e) => setSlaForm((f) => ({ ...f, priority: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Priority *</label>
+                        <select
+                          value={slaForm.priority}
+                          onChange={(e) => {
+                            const p = e.target.value;
+                            const defaults: Record<string, { resp: number; res: number }> = {
+                              P0: { resp: 15, res: 60 },
+                              P1: { resp: 30, res: 240 },
+                              P2: { resp: 60, res: 480 },
+                              P3: { resp: 120, res: 1440 },
+                              P4: { resp: 240, res: 2880 },
+                              P5: { resp: 480, res: 4320 },
+                            };
+                            setSlaForm((f) => ({
+                              ...f,
+                              priority: p,
+                              responseMinutes: defaults[p]?.resp ?? f.responseMinutes,
+                              resolveMinutes: defaults[p]?.res ?? f.resolveMinutes,
+                            }));
+                          }}
+                          className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary font-semibold"
+                        >
                           {["P0", "P1", "P2", "P3", "P4", "P5"].map((p) => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
@@ -1006,7 +1073,7 @@ export default function AdminConsolePage() {
                     <tbody>
                       {slaItems.map((s: any) => (
                         <tr key={s.id}>
-                          <td className="font-mono text-[11px] text-primary">{s.displayId || s.id.substring(0, 8)}</td>
+                          <td className="font-mono text-[11px] text-primary">{s.displayId && s.displayId.length > 0 ? s.displayId : `SLA-${s.priority ?? "P1"}-${s.id.substring(0, 4).toUpperCase()}`}</td>
                           <td className="font-medium text-foreground">{s.name}</td>
                           <td><span className="status-badge text-muted-foreground bg-muted">{s.category}</span></td>
                           <td><span className={`status-badge ${s.priority === "P0" ? "text-purple-700 bg-purple-100" : s.priority === "P1" ? "text-red-700 bg-red-100" : s.priority === "P2" ? "text-orange-700 bg-orange-100" : "text-muted-foreground bg-muted"}`}>{s.priority}</span></td>
@@ -1060,45 +1127,48 @@ export default function AdminConsolePage() {
                   </div>
                 ) : (
                   <>
-                    {["Platform", "Security", "Auth", "Email", "ITSM", "Discovery", "Procurement", "Analytics"].map((cat) => {
-                      const props = (sysProps as any[]).filter((p) => p.category === cat);
-                      if (props.length === 0) return null;
-                      return (
-                        <div key={cat} className="mb-3 border border-border rounded overflow-hidden">
-                          <div className="px-3 py-1.5 bg-muted/30 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{cat}</div>
-                          <table className="ent-table w-full">
-                            <thead><tr><th>Property Key</th><th>Value</th><th>Type</th><th>Description</th><th>Actions</th></tr></thead>
-                            <tbody>
-                              {props.map((p: any) => (
-                                <tr key={p.key}>
-                                  <td><code className="text-[11px] text-primary font-mono">{p.key}</code></td>
-                                  <td>
-                                    {editPropKey === p.key ? (
-                                      <div className="flex items-center gap-1">
-                                        <input autoFocus value={editPropValue} onChange={(e) => setEditPropValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") propUpdateMutation.mutate({ key: p.key, value: editPropValue }); if (e.key === "Escape") setEditPropKey(null); }} className="px-1.5 py-0.5 text-[11px] border border-primary rounded font-mono w-40 outline-none" />
-                                        <button onClick={() => propUpdateMutation.mutate({ key: p.key, value: editPropValue })} disabled={propUpdateMutation.isPending} className="text-[10px] px-1.5 py-0.5 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">Save</button>
-                                        <button onClick={() => setEditPropKey(null)} className="text-[10px] px-1.5 py-0.5 border border-border rounded hover:bg-muted/30">✕</button>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        {p.sensitive && !showSensitive
-                                          ? <span className="font-mono text-[11px] text-muted-foreground/70">••••••••</span>
-                                          : <code className={`text-[11px] font-mono font-semibold ${p.type === "boolean" ? (p.value === "true" ? "text-green-700" : "text-red-600") : "text-foreground/80"}`}>{p.value}</code>
-                                        }
-                                        {p.sensitive && <Lock className="w-3 h-3 text-muted-foreground/70 inline ml-1" />}
-                                      </>
-                                    )}
-                                  </td>
-                                  <td><span className="status-badge text-muted-foreground bg-muted font-mono">{p.type}</span></td>
-                                  <td className="text-muted-foreground text-[11px]">{p.description}</td>
-                                  <td><button onClick={() => { setEditPropKey(p.key); setEditPropValue(p.value); }} className="text-[11px] text-primary hover:underline">Edit</button></td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })}
+                    {(() => {
+                      const allCats = Array.from(new Set((sysProps as any[]).map((p) => p.category || "General")));
+                      return allCats.map((cat) => {
+                        const props = (sysProps as any[]).filter((p) => (p.category || "General") === cat);
+                        if (props.length === 0) return null;
+                        return (
+                          <div key={cat} className="mb-3 border border-border rounded overflow-hidden">
+                            <div className="px-3 py-1.5 bg-muted/30 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{cat}</div>
+                            <table className="ent-table w-full">
+                              <thead><tr><th>Property Key</th><th>Value</th><th>Type</th><th>Description</th><th>Actions</th></tr></thead>
+                              <tbody>
+                                {props.map((p: any) => (
+                                  <tr key={p.key}>
+                                    <td><code className="text-[11px] text-primary font-mono">{p.key}</code></td>
+                                    <td>
+                                      {editPropKey === p.key ? (
+                                        <div className="flex items-center gap-1">
+                                          <input autoFocus value={editPropValue} onChange={(e) => setEditPropValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") propUpdateMutation.mutate({ key: p.key, value: editPropValue }); if (e.key === "Escape") setEditPropKey(null); }} className="px-1.5 py-0.5 text-[11px] border border-primary rounded font-mono w-40 outline-none" />
+                                          <button onClick={() => propUpdateMutation.mutate({ key: p.key, value: editPropValue })} disabled={propUpdateMutation.isPending} className="text-[10px] px-1.5 py-0.5 bg-primary text-white rounded hover:bg-primary/90 disabled:opacity-60">Save</button>
+                                          <button onClick={() => setEditPropKey(null)} className="text-[10px] px-1.5 py-0.5 border border-border rounded hover:bg-muted/30">✕</button>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          {p.sensitive && !showSensitive
+                                            ? <span className="font-mono text-[11px] text-muted-foreground/70">••••••••</span>
+                                            : <code className={`text-[11px] font-mono font-semibold ${p.type === "boolean" ? (p.value === "true" ? "text-green-700" : "text-red-600") : "text-foreground/80"}`}>{p.value}</code>
+                                          }
+                                          {p.sensitive && <Lock className="w-3 h-3 text-muted-foreground/70 inline ml-1" />}
+                                        </>
+                                      )}
+                                    </td>
+                                    <td><span className="status-badge text-muted-foreground bg-muted font-mono">{p.type}</span></td>
+                                    <td className="text-muted-foreground text-[11px]">{p.description}</td>
+                                    <td><button onClick={() => { setEditPropKey(p.key); setEditPropValue(p.value); }} className="text-[11px] text-primary hover:underline font-medium">Edit</button></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      });
+                    })()}
                   </>
                 )}
               </div>
@@ -1137,12 +1207,26 @@ export default function AdminConsolePage() {
                         </select>
                       </div>
                       <div className="col-span-2">
-                        <label className="text-[11px] text-muted-foreground mb-1 block">Recipient * <span className="text-muted-foreground/60">(select an active user)</span></label>
-                        <select value={nrForm.recipients} onChange={(e) => setNrForm((f) => ({ ...f, recipients: e.target.value }))} className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary">
-                          <option value="">Select a user...</option>
-                          {allUsers.filter((u: any) => u.status === "active").map((u: any) => (
-                            <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                          ))}
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Recipient * <span className="text-muted-foreground/60">(Select user from User Table)</span></label>
+                        <select
+                          value={nrForm.recipients}
+                          onChange={(e) => setNrForm((f) => ({ ...f, recipients: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-[11px] border border-border rounded bg-background outline-none focus:border-primary font-medium"
+                        >
+                          <option value="">-- Select Recipient from User Table --</option>
+                          <optgroup label="Active Users">
+                            {allUsers.map((u: any) => (
+                              <option key={u.id || u.email} value={u.email || u.id}>
+                                {u.name || u.username} ({u.email}) — {u.role ?? "user"}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="System Roles">
+                            <option value="admin">All Administrators (admin)</option>
+                            <option value="itil">ITIL Service Desk Agents (itil)</option>
+                            <option value="manager">Department Managers (manager)</option>
+                            <option value="requester">All Requesters (requester)</option>
+                          </optgroup>
                         </select>
                       </div>
                       <div className="col-span-2">
@@ -1728,8 +1812,9 @@ function SlaPauseReasonsTab() {
 
   const save = trpc.tickets.slaPauseReasonsCatalog.update.useMutation({
     onSuccess: () => {
+      q.refetch();
       void utils.tickets.slaPauseReasonsCatalog.get.invalidate();
-      toast.success("SLA pause reasons saved. Agents must pick one when moving a ticket to on hold.");
+      toast.success("SLA pause reasons saved successfully");
     },
     onError: (e) => toast.error(e.message ?? "Save failed"),
   });
@@ -1866,15 +1951,25 @@ function CrmDealThresholdsTab() {
       <div className="space-y-2">
         <label className="block text-[11px] font-medium text-foreground">Currency code (ISO 4217)</label>
         <select
-          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background"
+          className="w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background font-medium"
           value={currency}
           onChange={(e) => setCurrency(e.target.value)}
           disabled={q.isLoading}
         >
-          <option value="INR">INR - Indian Rupee</option>
-          <option value="USD">USD - United States Dollar</option>
-          <option value="EUR">EUR - Euro</option>
-          <option value="GBP">GBP - Pound Sterling</option>
+          <option value="INR">INR - Indian Rupee (₹)</option>
+          <option value="USD">USD - United States Dollar ($)</option>
+          <option value="EUR">EUR - Euro (€)</option>
+          <option value="GBP">GBP - Pound Sterling (£)</option>
+          <option value="AED">AED - United Arab Emirates Dirham (AED)</option>
+          <option value="SGD">SGD - Singapore Dollar ($)</option>
+          <option value="AUD">AUD - Australian Dollar ($)</option>
+          <option value="CAD">CAD - Canadian Dollar ($)</option>
+          <option value="JPY">JPY - Japanese Yen (¥)</option>
+          <option value="CNY">CNY - Chinese Yuan (¥)</option>
+          <option value="CHF">CHF - Swiss Franc (CHF)</option>
+          <option value="NZD">NZD - New Zealand Dollar ($)</option>
+          <option value="HKD">HKD - Hong Kong Dollar ($)</option>
+          <option value="SEK">SEK - Swedish Krona (kr)</option>
         </select>
       </div>
       <div className="space-y-2">
@@ -2297,6 +2392,9 @@ function BusinessRulesTab() {
 
   function openCreate() {
     resetFields();
+    const existingRules = listQuery.data || [];
+    const maxPrio = existingRules.length > 0 ? Math.max(...existingRules.map((r: { priority: number }) => r.priority)) : 0;
+    setPriority(maxPrio > 0 ? maxPrio + 10 : 10);
     setShowForm(true);
   }
 
@@ -3024,35 +3122,42 @@ function GroupsTab() {
             <div className="p-4 space-y-6">
               {/* Group Header Actions */}
               <div className="flex items-center justify-between">
-                <h3 className="text-body-sm font-bold text-foreground">
-                  {selectedGroup.name} Members
-                </h3>
+                <div>
+                  <h3 className="text-body-sm font-bold text-foreground">
+                    {selectedGroup.name}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">{currentMembers.length} member{currentMembers.length === 1 ? "" : "s"} assigned</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleEdit(selectedGroup)}
-                    className="text-[11px] text-primary hover:underline"
+                    className="text-[11px] text-primary hover:underline font-medium"
                   >Edit Details</button>
                   <button
+                    disabled={!selectedGroup.isArchived && currentMembers.length > 0}
                     onClick={() => {
                       if (!selectedGroup.isArchived && currentMembers.length > 0) {
-                        alert("This group contains active users. Please move all users to another group before archiving this group.");
+                        toast.error("This group contains active members. Move all users to a different group before archiving.");
                         return;
                       }
                       if (confirm(selectedGroup.isArchived ? "Unarchive this group?" : "Archive this group?")) {
                         updateMutation.mutate({ id: selectedGroupId, isArchived: !selectedGroup.isArchived });
                       }
                     }}
-                    className={`text-[11px] hover:underline ${!selectedGroup.isArchived && currentMembers.length > 0 ? "text-orange-500/50 cursor-not-allowed" : "text-orange-500"}`}
+                    title={!selectedGroup.isArchived && currentMembers.length > 0 ? "Move users to a different group before archiving" : ""}
+                    className={`text-[11px] ${!selectedGroup.isArchived && currentMembers.length > 0 ? "text-muted-foreground/40 cursor-not-allowed" : "text-amber-600 hover:underline font-medium"}`}
                   >{selectedGroup.isArchived ? "Unarchive Group" : "Archive Group"}</button>
                   <button
+                    disabled={currentMembers.length > 0}
                     onClick={() => { 
                       if (currentMembers.length > 0) {
-                        alert("This group contains active users. Please move all users to another group before deleting this group.");
+                        toast.error("This group contains active members. Move all users to a different group before deleting.");
                         return;
                       }
                       if (confirm("Delete this group?")) deleteMutation.mutate({ id: selectedGroupId }); 
                     }}
-                    className={`text-[11px] hover:underline ${currentMembers.length > 0 ? "text-red-500/50 cursor-not-allowed" : "text-red-500"}`}
+                    title={currentMembers.length > 0 ? "Move users to a different group before deleting" : ""}
+                    className={`text-[11px] ${currentMembers.length > 0 ? "text-muted-foreground/40 cursor-not-allowed" : "text-red-600 hover:underline font-medium"}`}
                   >Delete Group</button>
                 </div>
               </div>
