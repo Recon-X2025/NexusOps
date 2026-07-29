@@ -39,7 +39,7 @@ describe("Custom Role Management & RBAC Enforcement", () => {
       description: "Custom role for regional IT operations",
       permissions: [
         { resource: "incidents", action: "read" },
-        { resource: "incidents", action: "write" },
+        { resource: "incidents", action: "update" },
         { resource: "changes", action: "read" },
       ],
     });
@@ -61,7 +61,7 @@ describe("Custom Role Management & RBAC Enforcement", () => {
     expect(found.permissions).toEqual(
       expect.arrayContaining([
         { resource: "incidents", action: "read" },
-        { resource: "incidents", action: "write" },
+        { resource: "incidents", action: "update" },
         { resource: "changes", action: "read" },
       ]),
     );
@@ -76,7 +76,7 @@ describe("Custom Role Management & RBAC Enforcement", () => {
       description: "Updated description",
       permissions: [
         { resource: "incidents", action: "read" },
-        { resource: "incidents", action: "write" },
+        { resource: "incidents", action: "update" },
         { resource: "problems", action: "read" },
       ],
     });
@@ -100,6 +100,7 @@ describe("Custom Role Management & RBAC Enforcement", () => {
     });
 
     expect(updatedUser.matrixRole).toBe(customRoleId);
+    memberToken = await createSession(orgCtx.requesterId);
   });
 
   it("user with custom role has custom permissions applied", async () => {
