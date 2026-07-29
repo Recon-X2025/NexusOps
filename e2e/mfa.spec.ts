@@ -18,6 +18,24 @@ import { test, expect, type Page } from "@playwright/test";
 const ADMIN_EMAIL = "admin@coheron.com";
 const ADMIN_PASSWORD = "demo1234!";
 
+async function resetMfaState() {
+  if (!process.env["DATABASE_URL"]) {
+    process.env["DATABASE_URL"] =
+      "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test";
+  }
+  try {
+    const { getDb, users, mfaEnrollments, eq } = await import("@coheronconnect/db");
+    const database = getDb();
+    const [adminUser] = await database.select().from(users).where(eq(users.email, ADMIN_EMAIL));
+    if (adminUser) {
+      await database.update(users).set({ mfaEnrolled: false }).where(eq(users.id, adminUser.id));
+      await database.delete(mfaEnrollments).where(eq(mfaEnrollments.userId, adminUser.id));
+    }
+  } catch (err) {
+    console.error("MFA DB reset error:", err);
+  }
+}
+
 // ---- RFC 6238 TOTP (matches otplib defaults: base32 secret, SHA1, 6 digits) ----
 
 const B32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -77,6 +95,14 @@ test.describe("MFA (TOTP) end-to-end", () => {
   // The heaviest browser flow in the suite (two logins + enrol + disable, each
   // hitting bcrypt on the API); give it generous headroom.
   test.setTimeout(120_000);
+
+  test.beforeEach(async () => {
+    await resetMfaState();
+  });
+
+  test.afterAll(async () => {
+    await resetMfaState();
+  });
 
   test("enrol, then password + TOTP login, then disable", async ({ page }) => {
     // 1) Log in normally (admin has no MFA yet) and open the Security tab.

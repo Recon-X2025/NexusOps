@@ -61,7 +61,7 @@ export default defineConfig({
         // key, etc.). Must match between the API process and any test that
         // pre-seeds an integration row.
         APP_SECRET:
-          process.env.APP_SECRET || "test-app-secret-32-chars-minimum-",
+          process.env.APP_SECRET || "test-app-secret-32-chars-minimum-here",
         // PII_HASH_PEPPER seeds the HMAC of government identifiers (Aadhaar/PAN).
         // The API boot guard (index.ts) exits(1) if unset, which would crash this
         // webServer. Forwarded here so the child API process always has it.
