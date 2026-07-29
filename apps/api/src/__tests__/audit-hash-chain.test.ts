@@ -8,7 +8,11 @@
  */
 import { describe, it, expect, beforeEach } from "vitest";
 import { seedFullOrg, testDb } from "./helpers";
-import { appendAuditEntry, verifyAuditChain, computeEntryHash } from "../lib/audit-hash";
+import {
+  appendAuditEntry,
+  verifyAuditChain,
+  computeEntryHash,
+} from "../lib/audit-hash";
 import { auditLogs, eq } from "@coheronconnect/db";
 
 describe("Audit hash chain (Sprint 0.4)", () => {
@@ -98,12 +102,18 @@ describe("Audit hash chain (Sprint 0.4)", () => {
       resourceType: "test",
       resourceId: "r1",
     };
-    const h1 = computeEntryHash("prev", 5, { ...base, changes: { a: 1, b: 2 } });
-    const h2 = computeEntryHash("prev", 5, { ...base, changes: { b: 2, a: 1 } });
+    const h1 = computeEntryHash("prev", 5, {
+      ...base,
+      changes: { a: 1, b: 2 },
+    });
+    const h2 = computeEntryHash("prev", 5, {
+      ...base,
+      changes: { b: 2, a: 1 },
+    });
     expect(h1).toBe(h2);
     // Different prevHash → different entry hash.
-    expect(computeEntryHash("other", 5, { ...base, changes: { a: 1 } })).not.toBe(
-      computeEntryHash("prev", 5, { ...base, changes: { a: 1 } }),
-    );
+    expect(
+      computeEntryHash("other", 5, { ...base, changes: { a: 1 } }),
+    ).not.toBe(computeEntryHash("prev", 5, { ...base, changes: { a: 1 } }));
   });
 });

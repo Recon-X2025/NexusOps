@@ -93,7 +93,11 @@ export async function appendAuditEntry(db: any, entry: AuditEntryInput) {
         prevHash,
         entryHash,
       })
-      .returning({ id: auditLogs.id, seq: auditLogs.seq, entryHash: auditLogs.entryHash });
+      .returning({
+        id: auditLogs.id,
+        seq: auditLogs.seq,
+        entryHash: auditLogs.entryHash,
+      });
 
     return row;
   });
@@ -123,7 +127,9 @@ export async function verifyAuditChain(
     .where(eq(auditLogs.orgId, orgId))
     .orderBy(auditLogs.seq);
 
-  const chained = rows.filter((r: any) => r.seq !== null && r.seq !== undefined);
+  const chained = rows.filter(
+    (r: any) => r.seq !== null && r.seq !== undefined,
+  );
   let prevHash: string | null = null;
   let expectedSeq = 1;
 

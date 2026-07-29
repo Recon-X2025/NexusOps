@@ -1215,9 +1215,9 @@ export default function AdminConsolePage() {
                         >
                           <option value="">-- Select Recipient from User Table --</option>
                           <optgroup label="Active Users">
-                            {allUsers.map((u: any) => (
-                              <option key={u.id || u.email} value={u.email || u.id}>
-                                {u.name || u.username} ({u.email}) — {u.role ?? "user"}
+                            {allUsers.filter((u: any) => u.id && (u.status ?? "active") === "active").map((u: any) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name || u.email} ({u.email}) — {u.role ?? "user"}
                               </option>
                             ))}
                           </optgroup>
@@ -1476,22 +1476,22 @@ export default function AdminConsolePage() {
       {confirmDeleteUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-card border border-border rounded-lg shadow-xl w-[380px] max-w-full p-6 space-y-4">
-            <div className="flex items-center gap-3 text-red-600">
-              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-              <h3 className="text-body-sm font-semibold">Delete User</h3>
+            <div className="flex items-center gap-3 text-amber-600">
+              <Archive className="w-5 h-5 flex-shrink-0" />
+              <h3 className="text-body-sm font-semibold">Archive User</h3>
             </div>
             <p className="text-[12px] text-muted-foreground">
-              Are you sure you want to permanently delete <strong>{confirmDeleteUser.name}</strong>?
-              This action cannot be undone and will remove all their sessions and access.
+              Are you sure you want to archive <strong>{confirmDeleteUser.name}</strong>?
+              This will disable their account while retaining all historical references, audit logs, and transaction records.
             </p>
             <div className="flex items-center justify-end gap-2">
               <button onClick={() => setConfirmDeleteUser(null)} className="px-3 py-1.5 text-[11px] border border-border rounded hover:bg-muted/30">Cancel</button>
               <button
                 disabled={deleteUserMutation.isPending}
                 onClick={() => deleteUserMutation.mutate({ userId: confirmDeleteUser.id })}
-                className="px-3 py-1.5 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-40"
+                className="px-3 py-1.5 text-[11px] bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-40"
               >
-                {deleteUserMutation.isPending ? "Deleting…" : "Delete User"}
+                {deleteUserMutation.isPending ? "Archiving…" : "Archive User"}
               </button>
             </div>
           </div>

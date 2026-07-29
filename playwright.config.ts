@@ -44,6 +44,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
       env: {
+        PORT: String(API_PORT),
         DATABASE_URL:
           process.env.DATABASE_URL ||
           "postgresql://coheronconnect_test:coheronconnect_test@localhost:5433/coheronconnect_test",
@@ -78,6 +79,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 60000,
       env: {
+        PORT: String(WEB_PORT),
         // The web tRPC proxy (apps/web/src/lib/trpc.ts) resolves the API via
         // API_INTERNAL_URL server-side; point it at the chosen API port.
         API_INTERNAL_URL:

@@ -96,12 +96,15 @@ function dbUserToSystemUser(
       ? [...baseRoles, user.matrixRole as SystemRole]
       : baseRoles;
 
+  const customPermissions = (user as any).customPermissions as { resource: string; action: string }[] | undefined;
+
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     username: user.email.split("@")[0] ?? user.email,
     roles,
+    customPermissions,
     department: (user as any).department ?? "",
     phone: (user as any).phone ?? "",
     jobTitle: (user as any).jobTitle ?? "",
@@ -148,12 +151,22 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
   const currentUser = isLoadingAuth ? LOADING_USER : (realUser ?? LOADING_USER);
 
   const can = useCallback(
-    (module: Module, action: RbacAction) => hasPermission(currentUser.roles, module, action),
+    (module: Module, action: RbacAction) => {
+      if (currentUser.customPermissions?.some((p) => p.resource === module && (p.action === action || p.action === "admin"))) {
+        return true;
+      }
+      return hasPermission(currentUser.roles, module, action);
+    },
     [currentUser],
   );
 
   const canAccess = useCallback(
-    (module: Module) => canAccessModule(currentUser.roles, module),
+    (module: Module) => {
+      if (currentUser.customPermissions?.some((p) => p.resource === module)) {
+        return true;
+      }
+      return canAccessModule(currentUser.roles, module);
+    },
     [currentUser],
   );
 
@@ -167,7 +180,17 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
     [currentUser],
   );
 
-  const visibleModules = getVisibleModules(currentUser.roles);
+  const visibleModules = React.useMemo(() => {
+    const base = getVisibleModules(currentUser.roles);
+    if (currentUser.customPermissions && currentUser.customPermissions.length > 0) {
+      const set = new Set(base);
+      for (const p of currentUser.customPermissions) {
+        set.add(p.resource as Module);
+      }
+      return set;
+    }
+    return base;
+  }, [currentUser]);
 
   const mergeTrpcQueryOpts = useCallback(
     (
@@ -187,11 +210,11 @@ export function RBACProvider({ children }: { children: React.ReactNode }) {
       } else if (rule.kind === "adminRole") {
         rbacAllow = isAuthenticated && currentUser.roles.includes("admin");
       } else {
-        rbacAllow = isAuthenticated && hasPermission(currentUser.roles, rule.module, rule.action);
+        rbacAllow = isAuthenticated && can(rule.module, rule.action);
       }
       return { ...base, enabled: Boolean(baseEnabled) && rbacAllow };
     },
-    [isAuthenticated, currentUser.roles],
+    [isAuthenticated, currentUser, can],
   );
 
   return (

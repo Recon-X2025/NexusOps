@@ -20,6 +20,7 @@ export interface SystemUser {
   email: string;
   username: string;
   roles: SystemRole[];
+  customPermissions?: { resource: string; action: string }[];
   department: string;
   phone?: string;
   jobTitle?: string;

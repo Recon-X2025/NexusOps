@@ -70,9 +70,9 @@ export const assignmentRulesRouter = router({
         isActive: z.boolean().default(true),
         sortOrder: z.number().int().default(0),
       }).superRefine((data, ctx) => {
-        if (data.entityType === "ticket" && data.matchValue) {
+        if (data.entityType === "ticket" && data.matchValue && data.matchValue.trim().length > 0) {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-          if (!uuidRegex.test(data.matchValue)) {
+          if (!uuidRegex.test(data.matchValue.trim())) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: "Match On must be a valid UUID for Ticket categories (or empty for catch-all)",

@@ -27,7 +27,8 @@ import { test, expect } from "@playwright/test";
 import crypto from "node:crypto";
 import { getDb, signatureRequests, signatureAudit, eq } from "@coheronconnect/db";
 
-const API_BASE = "http://localhost:3001";
+const API_PORT = process.env.API_PORT || "3001";
+const API_BASE = `http://localhost:${API_PORT}`;
 const WEB_HOOK_SECRET = "whk-e2e-test-secret-do-not-reuse-in-prod";
 const PROVIDER_ENVELOPE_ID = `EMUD-E2E-${Date.now()}`;
 
