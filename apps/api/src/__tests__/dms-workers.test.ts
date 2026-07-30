@@ -216,6 +216,10 @@ function makeRetentionDb(state: MockState) {
         };
       },
     }),
+    // appendAuditEntry serialises appends with `tx.execute(sql\`select
+    // pg_advisory_xact_lock(...)\`)`. There is no real Postgres here, so this
+    // is a no-op that just satisfies the call.
+    execute: (_query?: unknown) => Promise.resolve([]),
     transaction: async function (cb: (tx: any) => Promise<any>) {
       // Pass 'this' so the callback uses the same mock db methods
       return cb(this);
