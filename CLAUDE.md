@@ -44,18 +44,29 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
 - Migration journal gate: `pnpm check:migrations` (`scripts/verify-migration-journal.mjs`) only checks each `.sql` has a matching tag in `_journal.json`; **no hash check**.
 - Generate: `pnpm db:generate` (in `packages/db`). Apply: `pnpm db:migrate`.
 - Always validate new migrations against a throwaway copy of a real DB, not just typechecking. See `docs/DATA_MODEL.md` for the data-model reference (tenancy classes + FK ownership).
-- **Current migration head: `0052_odd_forgotten_wall`** (53 files, `0000`…`0052`). `0031_workable_spot`
+- **Current migration head: `0059_volatile_midnight`** (60 files, `0000`…`0059`). `0031_workable_spot`
   (team's super-admin / org-profile expansion) + `0032` (consolidated `mfa_enrollments`,
   `vulnerability_sla_events` + vuln SLA columns, `dpdp_notification_artifacts` + DPDP regime/erasure
   columns) landed on branch `merge/team-super-admin`. Migs `0041`–`0052` are the G1–G17 India-market
   gap-closure run (CRM lossless-convert/scoring/CPQ-tax, OKR rollup, SAM recon, expiry alerts, EPFO/
-  NIC/MCA21 portal push, RoPA, KMS envelope encryption, and `0052` Postgres RLS). **`0052` is
+  NIC/MCA21 portal push, RoPA, KMS envelope encryption, and `0052` Postgres RLS). Migs `0053`–`0055`
+  add shift_schedules (`0053`), Labour-Codes-2025 statutory-ceiling schema + platform-default seed
+  (`0054`, self-contained schema+seed), and ESI challan records + `statutory_return_status` (`0055`).
+  Migs `0056`–`0059` add ESI employee/employer amount columns on `payroll_runs`/`payslips` (`0056`),
+  an `invoices.gstin_id` FK into `gstin_registry` (`0057`), `roles.is_archived` (`0058`), and
+  `sla_definitions` display/category/metric/schedule fields (`0059`).
+  **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
   to `app_runtime` via `SET LOCAL ROLE` — the app DB user is a superuser/BYPASSRLS and would otherwise
   bypass it). See `apps/api/src/lib/trpc.ts` (`rlsTenant` middleware) + `docs/GAP_ANALYSIS.md`.
-- `packages/db` also carries a `mongodb ^6.12` dependency; no schema module references it (carried for
-  integration/worker use).
+- `packages/db` carries a `mongodb ^6.12` dependency for the **hybrid/mongo `DATABASE_PROVIDER` mode**
+  (`postgres | hybrid | mongo`, resolved in `packages/db/src/database-provider.ts`). No schema module
+  references it, but it is **not dead code** — `packages/db/src/mongo-client.ts` is wired into `apps/api`:
+  startup connects when `providerRequiresMongo(dbProvider)` (`apps/api/src/index.ts:186-191`), shutdown
+  calls `closeMongo()` (`index.ts:735-742`), and `middleware/auth.ts` threads `mongoDb` into the request
+  context (`getMongoDb`/`isMongoReady`). Dormant under the default `postgres` provider (no `MONGODB_URI`),
+  so the connect paths no-op — but removing it breaks the API build. Do **not** strip it.
 
 ## Demo data seed
 
@@ -119,8 +130,9 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 > Still genuinely open per the audits: balance sheet, GSTR-1 18% hardcode, depreciation engine,
 > gratuity/leave accrual, SAM reconciliation, lead scoring/lossless conversion, SMS delivery.
 
-**The authoritative, living gap tracker is `docs/GAP_ANALYSIS.md`** — verified against actual
-source at migration head `0032_damp_la_nuit` (2026-07-20). It lists what's shipped (REAL) vs the
+**The authoritative, living gap tracker is `docs/GAP_ANALYSIS.md`** — the tree is now at migration
+head `0059_volatile_midnight` (its shipped/gap claims were last verified at an earlier head and may
+need re-verification). It lists what's shipped (REAL) vs the
 open gaps (PARTIAL/STUB/MISSING) with `file:line` evidence, India go-live sequencing, and an
 owner/target column to fill in. **Update it in place as items ship.**
 
@@ -167,7 +179,8 @@ whole platform to category-competitive across all 9 audits ≈ 40–58 eng-weeks
 ## Roadmap reference
 
 The authoritative roadmaps are now **three verified, market-split docs** (each grounded
-in a `file:line` code audit at migration head `0032_damp_la_nuit`):
+in a `file:line` code audit at an earlier migration head — see each doc's own
+"Verification basis" line; the tree is now at head `0059_volatile_midnight`):
 - **`docs/INDIA_ROADMAP.md`** — India go-live + the 5 security items (DPDP, Vuln-SLA,
   MFA, KMS, RLS). Consolidates the old India/security/GA plans.
 - **`docs/US_ROADMAP.md`** — US market (country/regime model, US COA, QuickBooks, CCPA).
@@ -195,19 +208,20 @@ Phase 6 = GA hardening.
 
 ## Latest session state
 
-Current working branch: **`merge/team-super-admin`** (migration head `0032_damp_la_nuit`).
-- The team's committed super-admin work (`origin/main` @ `4d2f0ec`) has been **merged locally** with
-  prior uncommitted local work (MFA enrollments, vuln-SLA loop, DPDP notification artifacts). The merge
-  is **validated** (33 migrations apply clean on a throwaway DB; typecheck clean; API test suite green)
-  but **not committed to `main` and not pushed** (pushing auto-deploys to Vultr; needs user approval).
-  A pre-merge checkpoint branch `wip/pre-merge-checkpoint` (`1fab82e`) preserves the raw local work.
-- Migration collision resolved: local `0031/0032/0033` were consolidated into `0032_damp_la_nuit`,
-  chained off the team's `0031_workable_spot`; snapshot chain regenerated via `pnpm db:generate`.
+Current working branch: **`main`** (migration head `0059_volatile_midnight`, 60 files), fast-forwarded
+to `origin/main` @ `f8196da`.
+- Local tree is in sync with `origin/main` plus a cleanup increment (not yet committed/pushed —
+  pushing auto-deploys to Vultr; needs user approval): removed the stray `0053_rls_fail_closed.sql`
+  (a byte-for-byte duplicate of `0052` RLS that failed `check:migrations`) and its `gen_mig.js`
+  generator, plus six scratch files (`tmp_financial.ts`, `test-esi.ts`, `update_payroll.js`,
+  `migrate-fix.ts`, `.gemini_diff.txt`, `details.md`). `pnpm check:migrations` is green (60/60).
+- Doc migration-head references reconciled to `0059`.
 - Dev DB is on **port 5434**; test DB `coheronconnect_test` on **port 5433**.
-- **Known real defect:** the Profile → Phone field silently discards its value — `auth.updateProfile`
-  accepts `phone`/`location`/`jobTitle`/`bio` in Zod but `users` has no such columns, so Drizzle drops
-  them (success toast still fires). See `BUILD.md §9`.
-- **Gap tracking:** the live tracker is `docs/GAP_ANALYSIS.md` (verified 2026-07-20 at head
-  `0032_damp_la_nuit`). The dated audits that fed it (2026-07-03 platform gap set, 2026-06-30
+- **Profile fields — FIXED (no longer a defect).** `users` now has `phone`/`jobTitle`/`location`/`bio`
+  nullable text columns (`packages/db/src/schema/auth.ts:96-100`); `auth.updateProfile` persists them
+  and the login response returns them. (The old "silently discarded" note is superseded.)
+- **Gap tracking:** the live tracker is `docs/GAP_ANALYSIS.md` (its shipped/gap claims were last
+  verified at an earlier head; tree is now at `0059_volatile_midnight`). The dated audits that fed it
+  (2026-07-03 platform gap set, 2026-06-30
   competitive analysis, vendor benchmarks) and the older `SESSION_HANDOVER_2026-06-30.md` now live
   in `docs/archive/` for decision-history only.

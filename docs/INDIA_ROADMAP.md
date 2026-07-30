@@ -4,8 +4,10 @@
 **Owner:** Product
 **Status:** Current — supersedes the India/security/GA planning docs listed in §0.
 **Verification basis:** read-only code audit at migration head **`0038_chief_ultimates`**
-(39 migrations, 0000–0038). Every status below is cited to `file:line`. Where a
-superseded plan's claim no longer matches code, it is flagged **[DISCREPANCY]**.
+(39 migrations, 0000–0038). **Note:** the tree has since advanced to head
+**`0059_volatile_midnight`** (60 files); statuses below were cited to `file:line` as of `0038`
+and may need re-verification. Where a superseded plan's claim no longer matches code, it is
+flagged **[DISCREPANCY]**.
 
 > **2026-07-18 revision:** since the original `0032` audit, the DPDP privacy track has
 > shipped the pieces the plan called its launch-blocker "trap": DSR **erasure execution**

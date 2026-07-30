@@ -14,7 +14,7 @@
  * (latest `seq`) so concurrent writers cannot fork the chain.
  */
 import { createHash } from "node:crypto";
-import { auditLogs, eq, and, desc } from "@coheronconnect/db";
+import { auditLogs, eq, and, desc, sql, isNotNull } from "@coheronconnect/db";
 
 export interface AuditEntryInput {
   orgId: string;
@@ -61,46 +61,115 @@ export function computeEntryHash(
 }
 
 /**
+ * Namespace key for the audit-chain advisory lock. `pg_advisory_xact_lock`
+ * takes two int4 keys; the first namespaces this lock so it can never collide
+ * with an advisory lock taken elsewhere in the codebase for a different purpose.
+ * (Arbitrary constant — just needs to be stable and unique to audit appends.)
+ */
+const AUDIT_LOCK_NAMESPACE = 0x4155_4454 | 0; // "AUDT"
+
+/** Max attempts to claim the next chain `seq` if the unique index still fires. */
+const APPEND_MAX_ATTEMPTS = 5;
+
+/**
  * Append an audit entry to the org's hash chain atomically. Returns the inserted
  * row's seq/hash. Any DB (or transaction handle) with the standard drizzle API works.
+ *
+ * Concurrency: the chain requires each entry to read the org's current head
+ * (`seq`, `entryHash`) and then insert `head.seq + 1` hashing `head.entryHash`.
+ * Two writers reading the same head both compute the same next `seq`, and the
+ * loser's insert raises 23505 on `UNIQUE (org_id, seq)` — which previously
+ * bubbled up and made the mutation-retry middleware re-run the caller's
+ * (non-idempotent) handler (the MFA confirmEnroll "No pending enrollment" bug).
+ *
+ * To make appends collision-free we serialise them PER ORG with a
+ * transaction-scoped advisory lock (`pg_advisory_xact_lock`). Writers for the
+ * same org queue; writers for different orgs never contend. The lock is held
+ * only for the head-read + insert and auto-releases at COMMIT/ROLLBACK, so it
+ * cannot leak across pooled connections. A bounded retry on 23505 remains as a
+ * defence-in-depth backstop.
+ *
+ * `ON CONFLICT` is deliberately NOT used: DO UPDATE would overwrite a prior
+ * chain entry and DO NOTHING would drop this one — both break the tamper-evident
+ * chain. The correct recovery is to advance to a fresh `seq`, which the lock
+ * (and, as a backstop, the retry) guarantees.
+ *
+ * Each attempt runs in its own nested transaction — a real sub-transaction when
+ * `db` is a pool handle, or a SAVEPOINT when `db` is an outer transaction handle
+ * (e.g. the MFA enrollment update). Either way a 23505 rolls back only that
+ * attempt, never poisoning the caller's surrounding transaction.
  */
 export async function appendAuditEntry(db: any, entry: AuditEntryInput) {
-  return db.transaction(async (tx: any) => {
-    const [head] = await tx
-      .select({ seq: auditLogs.seq, entryHash: auditLogs.entryHash })
-      .from(auditLogs)
-      .where(and(eq(auditLogs.orgId, entry.orgId)))
-      .orderBy(desc(auditLogs.seq))
-      .limit(1);
+  // Stable per-org signed int4 key from the org UUID (first 8 hex chars).
+  // `| 0` coerces to a signed 32-bit int so it fits Postgres int4 (advisory
+  // lock keys are int4); an unsigned value would overflow (22003).
+  const orgKey = parseInt(entry.orgId.replace(/-/g, "").slice(0, 8), 16) | 0;
 
-    const prevSeq = head?.seq ?? 0;
-    const prevHash = head?.entryHash ?? null;
-    const seq = prevSeq + 1;
-    const entryHash = computeEntryHash(prevHash, seq, entry);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < APPEND_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await db.transaction(async (tx: any) => {
+        // Serialise appends for this org; auto-released at tx end.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(${AUDIT_LOCK_NAMESPACE}, ${orgKey})`,
+        );
 
-    const [row] = await tx
-      .insert(auditLogs)
-      .values({
-        orgId: entry.orgId,
-        userId: entry.userId ?? null,
-        action: entry.action,
-        resourceType: entry.resourceType,
-        resourceId: entry.resourceId ?? null,
-        changes: entry.changes ?? undefined,
-        ipAddress: entry.ipAddress ?? null,
-        userAgent: entry.userAgent ?? null,
-        seq,
-        prevHash,
-        entryHash,
-      })
-      .returning({
-        id: auditLogs.id,
-        seq: auditLogs.seq,
-        entryHash: auditLogs.entryHash,
+        // Head = the org's highest CHAINED entry. `seq IS NOT NULL` is essential:
+        // some paths (e.g. command_center.view) write audit rows directly with a
+        // NULL seq, and Postgres sorts NULLs FIRST under `ORDER BY seq DESC`, so
+        // without this filter the head-read returns a NULL-seq row → prevSeq=0 →
+        // seq=1 → a permanent 23505 collision with the real chain head. (That was
+        // the deterministic MFA confirmEnroll "No pending enrollment" failure.)
+        const [head] = await tx
+          .select({ seq: auditLogs.seq, entryHash: auditLogs.entryHash })
+          .from(auditLogs)
+          .where(and(eq(auditLogs.orgId, entry.orgId), isNotNull(auditLogs.seq)))
+          .orderBy(desc(auditLogs.seq))
+          .limit(1);
+
+        const prevSeq = head?.seq ?? 0;
+        const prevHash = head?.entryHash ?? null;
+        const seq = prevSeq + 1;
+        const entryHash = computeEntryHash(prevHash, seq, entry);
+
+        const [row] = await tx
+          .insert(auditLogs)
+          .values({
+            orgId: entry.orgId,
+            userId: entry.userId ?? null,
+            action: entry.action,
+            resourceType: entry.resourceType,
+            resourceId: entry.resourceId ?? null,
+            changes: entry.changes ?? undefined,
+            ipAddress: entry.ipAddress ?? null,
+            userAgent: entry.userAgent ?? null,
+            seq,
+            prevHash,
+            entryHash,
+          })
+          .returning({
+            id: auditLogs.id,
+            seq: auditLogs.seq,
+            entryHash: auditLogs.entryHash,
+          });
+
+        return row;
       });
-
-    return row;
-  });
+    } catch (err) {
+      // Only a seq race (unique_violation) is retryable; re-read head next loop.
+      // Any other error (or the final attempt) surfaces to the caller.
+      const pgCode =
+        (err as { code?: string })?.code ??
+        (err as { cause?: { code?: string } })?.cause?.code;
+      if (pgCode === "23505" && attempt < APPEND_MAX_ATTEMPTS - 1) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Unreachable in practice (the loop returns or throws); satisfies the type checker.
+  throw lastErr ?? new Error("appendAuditEntry: exhausted attempts");
 }
 
 export interface ChainVerificationResult {

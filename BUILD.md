@@ -1,7 +1,7 @@
 # BUILD.md — CoheronConnect (NexusOps) current-state map
 
 End-to-end view of what the platform actually **is** and **covers**, as of `main`
-(migrations at `0038_chief_ultimates`). This is a *current-state* document — it describes
+(migrations at `0059_volatile_midnight`, 60 files). This is a *current-state* document — it describes
 what is wired and running, not the roadmap. For the gap analysis (shipped vs. market
 leaders) and the roadmap, see `CLAUDE.md` and `docs/`.
 
@@ -159,12 +159,16 @@ Workflow implementations live in `apps/api/src/workflows/*.ts` (one file per loo
   and a `vulnerabilitySlaEvents` audit table (breach/escalation history). Driven by the vuln-SLA BullMQ loop.
 - **FK `onDelete` policy** (repo-wide): `orgId → organizations` and child→parent = **CASCADE**; nullable
   actor = **SET NULL**; NOT NULL actor / lookup = **RESTRICT**.
-- **Migrations**: `0000` … **`0038_chief_ultimates`** (journal `drizzle/meta/_journal.json`).
+- **Migrations**: `0000` … **`0059_volatile_midnight`** (60 files; journal `drizzle/meta/_journal.json`).
   `0032_damp_la_nuit` consolidated `mfa_enrollments`, `vulnerability_sla_events` (+ vuln SLA columns), and
   `dpdp_notification_artifacts` (+ DPDP regime/erasure columns). `0035_light_hobgoblin` (team) is followed by
   the DPDP data-protection set **`0036`–`0038`**: government-ID hash/masked-display columns + retention
-  floor columns, then the **irreversible raw-Aadhaar column drop**. Drizzle diffs against its **own
-  snapshot**, not the live DB.
+  floor columns, then the **irreversible raw-Aadhaar column drop**. `0041`–`0052` are the G1–G17
+  gap-closure run (`0052` = Postgres RLS); `0053`–`0055` add shift_schedules, Labour-Codes-2025
+  statutory ceilings, and ESI challan / statutory-return status; `0056`–`0059` add ESI amount columns
+  on `payroll_runs`/`payslips` (`0056`), an `invoices.gstin_id` FK (`0057`), `roles.is_archived`
+  (`0058`), and `sla_definitions` display/category/metric/schedule fields (`0059`). Drizzle diffs
+  against its **own snapshot**, not the live DB.
 - **Seeds**: `db:seed`, `db:seed:modules`, `db:seed:smb`. The 100-employee/24-month `coheron-demo`
   generator has been **removed** (`seed-demo.ts` does not exist).
 

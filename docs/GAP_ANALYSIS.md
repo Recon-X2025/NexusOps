@@ -3,8 +3,11 @@
 **Authoritative, living gap tracker.** Supersedes the dated 2026-07-03 platform-gap set and
 2026-06-30 competitive analysis (now in `docs/archive/`). Update this file in place as items ship.
 
-- **Last verified:** 2026-07-20 (read-only, `file:line`-grounded code audit)
-- **Migration head:** `0052_odd_forgotten_wall` (G1–G17 gap-closure run: migs `0041`–`0052`)
+- **Last full audit:** 2026-07-20 at head `0052_odd_forgotten_wall` (read-only, `file:line`-grounded).
+  Individual claims below may pre-date the current head and warrant re-verification.
+- **Migration head (current):** `0059_volatile_midnight` (60 files; `0053` shift_schedules, `0054`
+  Labour-Codes-2025 statutory ceilings, `0055` ESI challan / statutory-return status followed `0052` RLS;
+  `0056` ESI amount columns, `0057` invoices→gstin FK, `0058` roles.is_archived, `0059` sla_definitions fields)
 - **Method:** verified against actual source, not prior gap docs (many earlier "gaps" have since shipped).
 - **Legend:** ✅ REAL (shipped, wired, tested) · 🟡 PARTIAL · 🔴 STUB (schema only, no logic) · ⛔ MISSING
 

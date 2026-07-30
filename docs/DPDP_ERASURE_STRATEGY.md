@@ -6,6 +6,8 @@
 **Companion to:** `docs/INDIA_ROADMAP.md` §2 (DPDP privacy engine — the launch blocker).
 **Verification basis:** read-only code audit at migration head `0034_chemical_firedrake`
 (`0033`/`0034` are index-only; no PII-surface change since the `0032` audit).
+**Note:** the tree has since advanced to head `0059_volatile_midnight` (the DPDP raw-Aadhaar
+drop + government-ID hashing landed in `0036`–`0038`); claims below may need re-verification.
 Every code claim below is cited `file:line`.
 
 > Effort labels are relative sizing (S/M/L), **not** time estimates.

@@ -94,6 +94,34 @@ describe("Audit hash chain (Sprint 0.4)", () => {
     expect(result.reason).toMatch(/gap|prevHash/i);
   });
 
+  it("concurrent appends never collide on seq (regression: MFA confirmEnroll 23505)", async () => {
+    // Fire many appends at once. Before the seq-safe retry, two writers reading
+    // the same head both computed the same next seq; the loser raised 23505
+    // (unique on org_id,seq), which bubbled up and made retryMutation re-run the
+    // caller's non-idempotent handler (confirmEnroll → "No pending enrollment").
+    const N = 16;
+    const results = await Promise.allSettled(
+      Array.from({ length: N }, (_, i) => append("race", `r${i}`)),
+    );
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(rejected, JSON.stringify(rejected.map((r) => (r as PromiseRejectedResult).reason?.code))).toHaveLength(0);
+
+    const rows = await testDb()
+      .select({ seq: auditLogs.seq })
+      .from(auditLogs)
+      .where(eq(auditLogs.orgId, orgId))
+      .orderBy(auditLogs.seq);
+    const seqs = rows.map((r) => r.seq);
+    // All N landed at distinct, contiguous seqs 1..N — no duplicates, no gaps.
+    expect(seqs).toHaveLength(N);
+    expect(new Set(seqs).size).toBe(N);
+    expect(seqs).toEqual(Array.from({ length: N }, (_, i) => i + 1));
+
+    const result = await verifyAuditChain(testDb(), orgId);
+    expect(result.ok).toBe(true);
+    expect(result.entries).toBe(N);
+  });
+
   it("computeEntryHash is deterministic and order-independent for changes keys", () => {
     const base = {
       orgId,

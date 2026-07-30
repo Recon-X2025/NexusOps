@@ -4,6 +4,8 @@
 **Owner:** Product
 **Status:** Proposed — supersedes `US_MARKET_BUILD_PLAN_2026-07-12.md` (now archived).
 **Verification basis:** read-only code audit at migration head **`0032_damp_la_nuit`**.
+**Note:** the tree has since advanced to head **`0059_volatile_midnight`** (60 files); statuses
+below were cited to `file:line` as of `0032` and may need re-verification.
 Every status cited to `file:line`.
 
 > Companion roadmaps: **`docs/INDIA_ROADMAP.md`** · **`docs/AI_ROADMAP.md`** (common AI).
