@@ -611,6 +611,13 @@ sign-off. Nothing in this item enables external regulator delivery.
 **What test proves it.** R-3 (tenant-contact resolution, clean refusal when unset,
 no duty-discharged wording).
 
+> **Coverage note.** The scratch `apps/api/src/dpdp-verify.test.ts` was **deleted**
+> in this pass — it asserted the false `status: "sent"` that A3 removes, and was
+> already broken (it read `result.processedCount`, which does not exist on
+> `SweepResult`, so that assertion had been comparing `undefined`). After its
+> removal, **R-3 (`__tests__/dpdp-notice-honesty.test.ts`) is the only test covering
+> DPDP notice delivery** — it carries the whole surface. Do not weaken it.
+
 **Re-run afterwards.** `dpdp-privacy` audit.
 
 #### A4 — "Right to be forgotten" must either erase the person's data or say plainly what it could not reach — never report a fulfilment it didn't perform

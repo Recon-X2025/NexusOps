@@ -421,6 +421,13 @@
       "when": 1785219664462,
       "tag": "0059_volatile_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1785584120261,
+      "tag": "0060_pretty_junta",
+      "breakpoints": true
     }
   ]
 }

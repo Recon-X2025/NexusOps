@@ -63,6 +63,14 @@ export const organizations = pgTable(
     tan: text("tan"),
     epfCode: text("epf_code"),
     primaryStateCode: text("primary_state_code"),
+    /**
+     * Per-tenant DPDP notice destination (a named DPO or in-house compliance
+     * mailbox). DPDP breach/DSR notices are delivered ONLY here; when unset the
+     * notice path refuses cleanly rather than falling back to a platform address.
+     * The platform never notifies the Data Protection Board or principals itself —
+     * that is the tenant's legal act. See lib/notification-dispatcher.ts.
+     */
+    dpdpContactEmail: text("dpdp_contact_email"),
     // ITSM SLA
     slaP1Hours: integer("sla_p1_hours"),
     slaP2Hours: integer("sla_p2_hours"),

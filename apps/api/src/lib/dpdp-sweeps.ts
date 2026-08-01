@@ -106,7 +106,7 @@ export async function dsrOverdueSweep(
     if (due >= now) continue; // not overdue
     eligible++;
     if (await recentlyNotified(db, orgId, "dsr", r.id, "internal", dedupeMs)) continue;
-    await dispatcher.dispatch(db, {
+    const res = await dispatcher.dispatch(db, {
       orgId,
       channel: "internal",
       audience: "privacy_officer",
@@ -117,7 +117,9 @@ export async function dsrOverdueSweep(
       relatedType: "dsr",
       relatedId: r.id,
     });
-    dispatched++;
+    // A refusal (no tenant DPDP contact configured) is not a dispatch: nothing
+    // was recorded or delivered, so it must not be counted.
+    if (res.status !== "refused") dispatched++;
   }
   return { eligible, dispatched };
 }
@@ -159,9 +161,10 @@ export async function breachNotifySweep(
     if (due >= now) continue; // clock not yet elapsed
     eligible++;
 
-    // Board notice
+    // Board notice — prepared for, and delivered to, the tenant's own DPDP
+    // contact (never the Board itself: that filing is the tenant's legal act).
     if (!(await recentlyNotified(db, orgId, "breach", r.id, "board", dedupeMs))) {
-      await dispatcher.dispatch(db, {
+      const res = await dispatcher.dispatch(db, {
         orgId,
         channel: "board",
         audience: "data_protection_board",
@@ -172,11 +175,11 @@ export async function breachNotifySweep(
         relatedType: "breach",
         relatedId: r.id,
       });
-      dispatched++;
+      if (res.status !== "refused") dispatched++;
     }
     // Principal notice
     if (!(await recentlyNotified(db, orgId, "breach", r.id, "principal", dedupeMs))) {
-      await dispatcher.dispatch(db, {
+      const res = await dispatcher.dispatch(db, {
         orgId,
         channel: "principal",
         audience: "affected_principals",
@@ -185,7 +188,7 @@ export async function breachNotifySweep(
         relatedType: "breach",
         relatedId: r.id,
       });
-      dispatched++;
+      if (res.status !== "refused") dispatched++;
     }
   }
   return { eligible, dispatched };
