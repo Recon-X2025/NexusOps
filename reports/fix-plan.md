@@ -355,24 +355,45 @@ functional guard, and F-3 is the record of the discrepancy.
 
 #### B3 / B4 — Guard the other approval read-then-writes and wrap multi-step writes (#2)
 
-**What changes.** Add the same lock/version guard to leave-approve and
-procurement approve/reject (procurement already has an unused `version` column
-built for exactly this — wire it), and wrap the multi-step writes (e.g. leave
-reject) in a transaction; fix the one leave-reject path that stamps the wrong
-tenant's id on a row. Bucket B, but same root cause and adjacent code — do it in
+**What changes.** Add a lock/state-transition guard to leave-approve and
+procurement approve/reject, and wrap the multi-step writes (e.g. leave reject)
+in a transaction; fix the one leave-reject path that omits the caller's `orgId`
+from its write filter. Bucket B, but same root cause and adjacent code — do it in
 the same #2 pass.
 
-**Reference implementation.** Same as A2 (in-transaction lock); the transaction
-wrapper pattern is the `db.transaction(async (tx) => …)` already used in
-`journal.create`/`post` (`accounting.ts:291`, `:340`).
+**Correction (verified while implementing B3/B4).** The earlier draft said
+"procurement already has an unused `version` column built for exactly this — wire
+it." That is wrong. The `version` column is on `approval_requests`
+(`schema/procurement.ts:441`), **not** `purchase_requests` — the latter has no
+version column at all (its definition ends at `updatedAt`,
+`schema/procurement.ts:119-152`). Selecting `purchaseRequests.version` therefore
+resolves to `undefined` and crashes drizzle's `orderSelectedFields`. The shipped
+fix instead carries a `status = 'pending'` predicate in the approve/reject
+UPDATE's own WHERE clause: once the first decision lands, a racing second
+decision matches zero rows and raises CONFLICT (compare-and-set on the single
+legal `pending → approved|rejected` transition). Same guarantee, no schema
+migration needed.
+
+**Reference implementation.** Same as A2 (in-transaction `FOR UPDATE` lock for
+leave-approve); the transaction wrapper pattern is the
+`db.transaction(async (tx) => …)` already used in `journal.create`/`post`
+(`accounting.ts:291`, `:340`).
 
 **What could break.** The wrong-org stamp fix must use the caller's resolved
 `org`, not the input — verify against the `rlsTenant` context.
 
 **What test proves it.** A concurrent approve/reject test (R-4 shape) plus a
-mid-write-failure test asserting no partial write.
+mid-write-failure test asserting no partial write —
+`apps/api/src/__tests__/approval-concurrency.test.ts` (3 tests, fairness-checked:
+leave-approve + procurement RED against the unguarded code, GREEN after).
 
 **Re-run afterwards.** `hr` audit; `sweep-inconsistent-patterns`.
+
+**Status: DONE.** leave.approve now reads under `FOR UPDATE` inside the tx;
+leave.reject wraps both writes in one tx and its status write carries `orgId`;
+procurement approve/reject use the `status = 'pending'` compare-and-set; and
+`expenses.addItem`/`deleteItem` (same non-transactional multi-write shape) are
+each wrapped in a transaction.
 
 ---
 

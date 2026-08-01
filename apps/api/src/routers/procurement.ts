@@ -296,13 +296,34 @@ export const procurementRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 
+        // State-transition guard: a PR may only be decided from `pending`. The
+        // `status = 'pending'` predicate is carried in the UPDATE's own WHERE, so
+        // a second manager acting off a stale (pending) view matches zero rows
+        // once the first decision has landed → CONFLICT, rather than silently
+        // overwriting it. (purchase_requests has no version column; the status
+        // predicate serves the same compare-and-set role for this transition.)
+        const [existing] = await db
+          .select({ status: purchaseRequests.status })
+          .from(purchaseRequests)
+          .where(and(eq(purchaseRequests.id, input.id), eq(purchaseRequests.orgId, org!.id)));
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
         const [updated] = await db
           .update(purchaseRequests)
           .set({ status: "approved", updatedAt: new Date() })
-          .where(and(eq(purchaseRequests.id, input.id), eq(purchaseRequests.orgId, org!.id)))
+          .where(and(
+            eq(purchaseRequests.id, input.id),
+            eq(purchaseRequests.orgId, org!.id),
+            eq(purchaseRequests.status, "pending"),
+          ))
           .returning();
 
-        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!updated) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Purchase request is no longer pending. Please refresh and try again.",
+          });
+        }
 
         if (updated.requesterId) {
           sendNotification({
@@ -325,13 +346,32 @@ export const procurementRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
 
+        // Same state-transition guard as approve: a PR may only be decided from
+        // `pending`. The `status = 'pending'` predicate in the UPDATE's WHERE
+        // means a racing reject on an already-approved request matches zero rows
+        // → CONFLICT, rather than silently flipping the decision.
+        const [existing] = await db
+          .select({ status: purchaseRequests.status })
+          .from(purchaseRequests)
+          .where(and(eq(purchaseRequests.id, input.id), eq(purchaseRequests.orgId, org!.id)));
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
         const [updated] = await db
           .update(purchaseRequests)
           .set({ status: "rejected", updatedAt: new Date() })
-          .where(and(eq(purchaseRequests.id, input.id), eq(purchaseRequests.orgId, org!.id)))
+          .where(and(
+            eq(purchaseRequests.id, input.id),
+            eq(purchaseRequests.orgId, org!.id),
+            eq(purchaseRequests.status, "pending"),
+          ))
           .returning();
 
-        if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!updated) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Purchase request is no longer pending. Please refresh and try again.",
+          });
+        }
 
         if (updated.requesterId) {
           sendNotification({

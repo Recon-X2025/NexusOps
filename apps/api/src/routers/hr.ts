@@ -660,20 +660,25 @@ export const hrRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org, user } = ctx;
 
-        const [request] = await db
-          .select()
-          .from(leaveRequests)
-          .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)));
-
-        if (!request) throw new TRPCError({ code: "NOT_FOUND" });
-        if (request.status !== "pending") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Leave request is not pending" });
-        }
-
-        // Status flip, balance move, and the attendance reflex must be atomic:
-        // an approved leave that didn't reach the attendance sheet would silently
-        // over- or under-pay the employee at payroll (G8).
+        // Read-then-write must be exactly-once: the deciding read ("still
+        // pending?") and the status flip + balance move + attendance reflex must
+        // all be atomic. Without a row lock, two concurrent approves both read
+        // "pending" and both apply the balance move (double count). Take the read
+        // INSIDE the transaction with FOR UPDATE so the second caller blocks at
+        // its read until the first commits, then wakes to see "approved" and
+        // refuses. (Also keeps the G8 attendance reflex atomic with the flip.)
         const updated = await db.transaction(async (tx) => {
+          const [request] = await tx
+            .select()
+            .from(leaveRequests)
+            .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)))
+            .for("update");
+
+          if (!request) throw new TRPCError({ code: "NOT_FOUND" });
+          if (request.status !== "pending") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Leave request is not pending" });
+          }
+
           const [row] = await tx
             .update(leaveRequests)
             .set({ status: "approved", approvedById: user!.id, approvedAt: new Date() })
@@ -737,25 +742,33 @@ export const hrRouter = router({
 
         if (!request) throw new TRPCError({ code: "NOT_FOUND" });
 
-        const [updated] = await db
-          .update(leaveRequests)
-          .set({ status: "rejected", updatedAt: new Date() })
-          .where(eq(leaveRequests.id, input.id))
-          .returning();
+        // Both writes (status flip + pending-balance release) must be atomic:
+        // a failure between them would leave the request rejected but the held
+        // days never released. Wrap them in one transaction. The status write
+        // also carries orgId so it matches the guard read above.
+        const updated = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(leaveRequests)
+            .set({ status: "rejected", updatedAt: new Date() })
+            .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)))
+            .returning();
 
-        // Clear pending balance
-        await db
-          .update(leaveBalances)
-          .set({
-            pendingDays: sql`GREATEST(0, ${leaveBalances.pendingDays} - ${request.days})`,
-          })
-          .where(
-            and(
-              eq(leaveBalances.employeeId, request.employeeId),
-              eq(leaveBalances.type, request.type),
-              eq(leaveBalances.year, request.startDate.getFullYear()),
-            ),
-          );
+          // Clear pending balance
+          await tx
+            .update(leaveBalances)
+            .set({
+              pendingDays: sql`GREATEST(0, ${leaveBalances.pendingDays} - ${request.days})`,
+            })
+            .where(
+              and(
+                eq(leaveBalances.employeeId, request.employeeId),
+                eq(leaveBalances.type, request.type),
+                eq(leaveBalances.year, request.startDate.getFullYear()),
+              ),
+            );
+
+          return row;
+        });
 
         return updated;
       }),
