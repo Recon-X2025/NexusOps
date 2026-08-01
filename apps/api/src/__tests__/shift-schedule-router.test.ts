@@ -61,9 +61,18 @@ describe("G8: shift-schedule admin CRUD + shift-aware punch", () => {
   });
 
   /** Minutes-from-midnight for a wall-clock time offset from *now*. */
+  // A shift start `deltaMinutes` before/after the current wall-clock minute-of-day,
+  // CLAMPED to the same day [0, 1439]. The shift model is minutes-past-midnight
+  // (see lib/india/shift-schedule.ts), so we must NOT let `now + delta` wrap across
+  // 00:00 — a naive wrap makes a future start land earlier in the day than "now"
+  // (and vice-versa), which used to flip the "starting later" case to `late` whenever
+  // the suite ran within ~2h of local midnight. Clamping (not modulo) keeps the
+  // before/after relationship the tests rely on: a future offset stays ≥ now (capped
+  // at end-of-day), a past offset stays ≤ now (capped at start-of-day).
   function minutesFromNow(deltaMinutes: number): number {
-    const t = new Date(Date.now() + deltaMinutes * 60_000);
-    return t.getHours() * 60 + t.getMinutes();
+    const now = new Date();
+    const nowMinuteOfDay = now.getHours() * 60 + now.getMinutes();
+    return Math.max(0, Math.min(1439, nowMinuteOfDay + deltaMinutes));
   }
 
   it("create → list returns the shift; create is org-scoped", async () => {

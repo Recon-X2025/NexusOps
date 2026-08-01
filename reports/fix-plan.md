@@ -50,7 +50,7 @@ it is the summary; the item is the source of truth.
 
 | Item | Bucket / phase | Status |
 |------|----------------|--------|
-| R-1 — all-tables RLS wall test | Phase 1 ratchet | Pending (red; A11 turns it green) |
+| R-1 — all-tables RLS wall test | Phase 1 ratchet | **Done** (green; turned by A11) |
 | R-2 — permission-vocabulary test | Phase 1 ratchet | Pending (red; A6 turns it green) |
 | R-3 — DPDP notice-honesty test | Phase 1 ratchet | **Done** (green; turned by A3/A4) |
 | R-4 — money read-then-write concurrency test | Phase 1 ratchet | **Done** (green; turned by A2) |
@@ -71,7 +71,7 @@ it is the summary; the item is the source of truth.
 | A7 — persist invoice line items | Phase 3 (A) | Pending |
 | A8 — statutory challan create path | Phase 3 (A) | Pending |
 | B1 — first-response clock | Phase 3 pass (B) | Pending |
-| A11 — RLS wall migration (three tables) | Phase 3 (A) | Pending |
+| A11 — RLS wall migration (three tables) | Phase 3 (A) | **Done** (migration 0061; R-1 green) |
 | A16 — logo upload | Phase 3 build | Pending |
 | A15 — one document-header source | Phase 3 build | Pending |
 | A17 — branded invoice / PO PDFs | Phase 3 build | Pending |
@@ -82,14 +82,15 @@ it is the summary; the item is the source of truth.
 | Identity/session theme (B8–B11) | Bucket B | Pending |
 | Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 folded into R-5) |
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
-| Test-hygiene — shift-schedule midnight flake | Bucket B | Pending |
+| Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (helper clamps to same day; no wrap) |
 
 > **Phase 2 (Correctness) is complete** — every item in the Phase 2 (A) and
 > Phase 2 (B) buckets is **Done** except **A13**, which is **Blocked-on-CA** (held
 > pending the chartered accountant's ruling on whether our Part B is a deliverable
 > or a preview; A18 may supersede it). The three DPDP ratchets it touched are
-> settled: **R-3 is green** (turned by A3/A4), R-4 was turned by A2. The remaining
-> red ratchets (R-1, R-2, R-5) are turned by Phase 3 items (A11, A6, B5).
+> settled: **R-3 is green** (turned by A3/A4), R-4 was turned by A2. **R-1 is now
+> green too** (turned by A11, migration 0061). The remaining red ratchets (R-2, R-5)
+> are turned by Phase 3 items (A6, B5).
 
 ---
 
@@ -1030,6 +1031,32 @@ field is cleared (it blesses the "never set" behaviour).
 
 #### A11 — Add the RLS wall to the three unwalled tables
 
+> **Status: DONE — migration `0061_walled_challans`; R-1 red→green.**
+> Hand-written migration `packages/db/drizzle/0061_walled_challans.sql` walls
+> `shift_schedules`, `esi_challan_records`, `pt_challan_records` with
+> `ENABLE`+`FORCE ROW LEVEL SECURITY` + the `tenant_isolation` policy, copied
+> verbatim from `0052`. `app_runtime` already had DML on all three (0052's
+> `ALTER DEFAULT PRIVILEGES` auto-grants tables created after it), so no GRANT was
+> needed. Journal entry `idx 61` added; `check:migrations` green (62/62).
+> - **Framing:** the app-layer `eq(table.orgId, ctx.org.id)` filter is already
+>   present on every current query against these tables, so this closes the
+>   **defence-in-depth backstop** (the second, database wall) — **not** a live leak.
+> - **Verification (RED→GREEN):** R-1 was red on **exactly** these three tables and
+>   nothing else before; green after. Full suite: R-1 now green; the remaining reds
+>   are the known ratchets R-2 (×2, A6) and R-5 (B5), plus the pre-existing
+>   shift-schedule **midnight-wrap flake** (test-hygiene bucket, fix-plan status
+>   table) which surfaces only when the suite finishes within ~2h of local midnight
+>   (`minutesFromNow(120)` wraps past 00:00) — independent of this migration (the
+>   RLS SQL touches no attendance/shift logic; all org-scoped shift reads still pass).
+> - **Snapshot note (finding #32 — do not make it worse):** RLS stays invisible to
+>   the Drizzle snapshot (no snapshot in this repo ever records it). The 0061 snapshot
+>   is therefore a hash-rechained copy of 0060 (id/prevId only), matching the
+>   0052-from-0051 convention. Populating RLS for just these three tables would be
+>   **worse** — it would make the next `db:generate` emit a DROP for them. The correct
+>   fix (declare `.enableRLS()`+`pgPolicy()` across all ~236 schema definitions) is
+>   recorded as its own item under the **Bucket B → Schema-tooling theme (#32)**.
+>   Enforcement stays with the R-1 test (reads the live `pg_class` catalog).
+
 **What changes.** `shift_schedules` (`packages/db/src/schema/hr.ts`),
 `esi_challan_records` and `pt_challan_records`
 (`packages/db/src/schema/india-compliance.ts`) carry `org_id` but were never added
@@ -1263,6 +1290,38 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
          `pan` column, as did several mutation `.returning()` paths (shareCapital,
          companyDirectors, directors create/markKYCComplete, vendor create/update).
          All of these now `decryptPan` before returning.
+- **Schema-tooling theme (finding #32) — RLS is invisible to Drizzle's snapshot.**
+  Every RLS wall in this repo (0052's ~233 tables + A11's three, migration 0061) is
+  installed by **hand-written SQL**, and the Drizzle snapshot never records it: across
+  the entire migration history **no snapshot has `isRLSEnabled: true` or a non-empty
+  `policies` object for any table** — 0052 and everything after show every walled
+  table as `isRLSEnabled: false`, `policies: {}`. The consequence is the actual
+  finding: because the schema tooling has no model of which tables are walled, it can
+  **never flag a new tenant table that is missing its wall** — exactly how
+  `shift_schedules`, `esi_challan_records`, `pt_challan_records` slipped through
+  (A11). The R-1 test (`rls-all-tables.test.ts`) is the *only* thing that catches
+  this, and it does so by reading the live `pg_class` catalog, not the snapshot.
+  - **What is NOT the fix (verified while shipping A11):** do **not** hand-populate
+    `isRLSEnabled`/`policies` in the snapshot for the walled tables. If the snapshot
+    records a table as RLS-enabled but the Drizzle **schema TS** carries no matching
+    `.enableRLS()` / `pgPolicy()` declaration, the next `db:generate` sees the schema
+    as "no RLS", diffs it against the snapshot's "has RLS", and emits a migration to
+    **DROP** the policy and disable RLS — silently tearing the wall down. Recording
+    RLS in the snapshot without the schema-side declaration is strictly worse than
+    the current invisible-but-stable state.
+  - **The actual shape of the work:** make schema and snapshot agree by declaring RLS
+    in the Drizzle **schema definitions**, not the snapshot. Add `.enableRLS()` and a
+    `pgPolicy("tenant_isolation", …)` (the `current_setting('app.org_id', …)` USING +
+    WITH CHECK predicate 0052 uses) to **every one of the ~236 `org_id`-bearing
+    `pgTable` definitions** in `packages/db/src/schema/*.ts`. Only then does
+    `db:generate` (a) reproduce the wall in generated migrations and snapshots and
+    (b) start flagging any future tenant table that lacks it — closing #32 at the
+    tooling layer instead of leaning entirely on the R-1 runtime test. This is a
+    deliberate repo-wide schema pass (all tenant tables at once, so schema/snapshot
+    are consistent and no partial state triggers a DROP); it was out of scope for
+    A11, which only needed the three walls in place and R-1 green. _(Infra/tooling
+    hardening — no user-visible behaviour change; the walls already work at runtime.
+    Do this before relying on `db:generate` to police tenant isolation.)_
 - **Document-header theme (B16, B17) — captured identity the generators don't
   print.** Two defects that leave a self-generated document missing tenant detail
   it already holds. Group with A13 (they share the document-header code area) but
@@ -1288,24 +1347,25 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
     address to the org record, or make the primary-GSTIN registered address the
     canonical document address. This blocks the *address* half of A13 and B16 —
     the PAN/TAN halves do not wait on it.
-- **Test-hygiene theme — midnight-wraparound flake in the shift-schedule suite.**
-  `shift-schedule-router.test.ts` builds shift start times with a `minutesFromNow`
-  helper (`shift-schedule-router.test.ts:64-67`) that converts "now + N minutes"
-  into **minutes-past-midnight** (`t.getHours()*60 + t.getMinutes()`). When the
-  offset pushes the clock across 00:00 — e.g. the "starting later" case uses
-  `minutesFromNow(120)` (`:157`), so any run after ~22:00 wraps to an early-morning
-  minutes value — the computed `startMinutes` lands *earlier* in the day than the
-  real current time, so a shift meant to start 2 h in the future looks already
-  started and the punch is wrongly flagged `late` (expected `present`). This is a
-  **time-dependent test bug, not a code defect**: the shift-aware punch logic is
-  correct; the helper just can't represent a start time that crosses the day
-  boundary. It fails intermittently forever (only when the suite runs late at
-  night). Fix the helper (or the two call sites) so day-boundary crossings are
-  handled — e.g. compare against an absolute timestamp rather than a wrapped
-  minutes-past-midnight value, or skip/normalise the wrap. Test-only; no product
-  code changes. _(Surfaced during B2's full-suite run, which started at 22:15 and
-  tripped the wrap; reproduced in isolation at 23:08. Unrelated to B2's numbering
-  changes — B2 touches no attendance/shift code.)_
+- **Test-hygiene theme — midnight-wraparound flake in the shift-schedule suite —
+  DONE.** `shift-schedule-router.test.ts` built shift start times with a
+  `minutesFromNow` helper that converted "now + N minutes" into
+  **minutes-past-midnight** (`t.getHours()*60 + t.getMinutes()`). When the offset
+  pushed the clock across 00:00 — e.g. the "starting later" case uses
+  `minutesFromNow(120)`, so any run after ~22:00 wrapped to an early-morning minutes
+  value — the computed `startMinutes` landed *earlier* in the day than the real
+  current time, so a shift meant to start 2 h in the future looked already started
+  and the punch was wrongly flagged `late` (expected `present`). This was a
+  **time-dependent test bug, not a code defect**: the shift-aware punch logic
+  (`lib/india/shift-schedule.ts` `derivePunch`) is correct; the helper just couldn't
+  represent a start time that crossed the day boundary. **Fix:** the helper now
+  clamps `nowMinuteOfDay + delta` into the same day `[0, 1439]` (clamp, not modulo),
+  so a future offset stays ≥ now (capped at end-of-day → still `present`) and a past
+  offset stays ≤ now (capped at start-of-day → still `late`) — the before/after
+  relationship the tests rely on is preserved and the wrap is gone. Test-only; no
+  product code changed. Verified by running the suite at 23:10 (inside the old
+  failure window): 11/11 green. _(Originally surfaced during B2's full-suite run at
+  22:15; re-tripped during A11's 22:59 full-suite run, then fixed.)_
 
 ---
 
