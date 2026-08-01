@@ -208,14 +208,29 @@ Phase 6 = GA hardening.
 
 ## Latest session state
 
-Current working branch: **`main`** (migration head `0059_volatile_midnight`, 60 files), fast-forwarded
-to `origin/main` @ `f8196da`.
-- Local tree is in sync with `origin/main` plus a cleanup increment (not yet committed/pushed —
-  pushing auto-deploys to Vultr; needs user approval): removed the stray `0053_rls_fail_closed.sql`
-  (a byte-for-byte duplicate of `0052` RLS that failed `check:migrations`) and its `gen_mig.js`
-  generator, plus six scratch files (`tmp_financial.ts`, `test-esi.ts`, `update_payroll.js`,
-  `migrate-fix.ts`, `.gemini_diff.txt`, `details.md`). `pnpm check:migrations` is green (60/60).
-- Doc migration-head references reconciled to `0059`.
+Current working branch: **`main`** (migration head `0059_volatile_midnight`, 60 files), in sync with
+`origin/main` @ **`2baaa25`**. CI + Vultr deploy are **green** for that HEAD.
+- **MFA confirmEnroll fixed and shipped (`f365314` + `2baaa25`).** Root cause was in
+  `appendAuditEntry` (`apps/api/src/lib/audit-hash.ts`): the hash-chain head-read used
+  `ORDER BY seq DESC LIMIT 1` with no NULL filter. Postgres sorts NULLs **first** in DESC order, and
+  some paths (e.g. `command_center.view`) write audit rows directly with `seq = NULL`, so the
+  head-read returned a NULL-seq row → `prevSeq = 0` → `seq = 1` → a permanent `23505` collision with
+  the real chain head. That bubbled through `retryMutation`, which re-ran the non-idempotent
+  `confirmEnroll` handler; its second attempt found no pending enrollment → 400 "No pending MFA
+  enrollment", deterministically breaking `e2e/mfa.spec.ts:131`. **Fix:** restrict the head-read to
+  chained rows via `isNotNull(auditLogs.seq)`; a per-org `pg_advisory_xact_lock` + bounded 23505 retry
+  were also added as concurrency defense-in-depth, plus a 16-way race regression test in
+  `audit-hash-chain.test.ts`. Follow-up `2baaa25` gave the `dms-workers.test.ts` in-memory mock DB a
+  no-op `execute()` so it matches the real DB surface (the advisory lock calls `tx.execute`).
+  Verified: `mfa.spec.ts` green, audit-hash-chain 5/5, **full API suite 130 files / 1290 tests pass**.
+- The earlier cleanup increment (removed stray `0053_rls_fail_closed.sql` dup of `0052` RLS + its
+  `gen_mig.js`, and six scratch files) landed in `f365314`. `pnpm check:migrations` is green (60/60).
+- **Uncommitted working tree (not yet committed):** deletes four leftover scratch files
+  (`scratch.ts`, `scratch_check_leave.ts`, `scratch_claims.ts`, `financial_diff.txt`) and removes the
+  now-dangling `check-db` script from `packages/db/package.json` that pointed at deleted `scratch.ts`.
+  These should stay deleted (do not recreate). Pushing auto-deploys to Vultr — needs user approval.
+- Doc migration-head references reconciled to `0059`. **The DB has 236 tables** (verified: 236
+  `pgTable` definitions in `packages/db/src/schema/*.ts` == 236 base tables in the migrated DB).
 - Dev DB is on **port 5434**; test DB `coheronconnect_test` on **port 5433**.
 - **Profile fields — FIXED (no longer a defect).** `users` now has `phone`/`jobTitle`/`location`/`bio`
   nullable text columns (`packages/db/src/schema/auth.ts:96-100`); `auth.updateProfile` persists them

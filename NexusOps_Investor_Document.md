@@ -1,10 +1,17 @@
 # CoheronConnect — Investor Document
 
 **Document:** CoheronConnect_Investor_Document.md
-**Date:** April 6, 2026
+**Date:** 2026-07-30 (rev; orig April 6, 2026)
 **Platform Version:** 4.0 (Production-Live)
 **Company:** Coheron
 **Classification:** Confidential — For Investor Review Only
+
+> **2026-07-30 revision note.** Figures below were refreshed against the current tree
+> (migration head `0059_volatile_midnight`, 60 migrations). Verified counts: **236 database
+> tables** (236 `pgTable` defs == 236 base tables in the migrated DB), **~878 tRPC procedures**
+> across **57 API routers**, and **1,290 passing automated tests** (API suite, 130 files). The
+> chaos/300-user load-test and security-injection figures are from the April run and have **not**
+> been re-executed at this head — treat them as historical until re-measured.
 
 ---
 
@@ -12,7 +19,7 @@
 
 **CoheronConnect is a unified enterprise operations platform** that replaces the fragmented stack of tools organisations use to manage IT services, HR, finance, compliance, procurement, and customer service — with a single, deeply integrated SaaS product.
 
-We are live in production. We have 121 database tables, 299 API procedures, and 53 application modules built and verified. We have passed every test we have thrown at it: 194 automated tests, chaos testing, 300-user concurrent load tests, and security injection suites.
+We are live in production. We have **236 database tables, ~878 API procedures across 57 routers, and 53+ application modules** built and verified. The automated test suite now stands at **1,290 passing tests** (API suite). Earlier hardening runs also included chaos testing, 300-user concurrent load tests, and security injection suites (April 2026; pending re-execution at the current migration head).
 
 We are not a prototype. We are not a pitch deck. We are a product ready for customers.
 
@@ -138,9 +145,9 @@ A separate Coheron-operated control plane for fleet management:
 ### Architecture
 
 - **Monorepo:** TypeScript, pnpm workspaces, Turborepo
-- **Frontend:** Next.js 15 (App Router), React 19, Tailwind CSS, Radix UI
+- **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS, Radix UI
 - **Backend:** Fastify 5, tRPC 11 (end-to-end type-safe API)
-- **Database:** PostgreSQL 16 (Drizzle ORM), 121 tables
+- **Database:** PostgreSQL 16 (Drizzle ORM), 236 tables
 - **Cache / Queues:** Redis 7 (session cache, rate limiting, BullMQ)
 - **Workflow Engine:** Temporal.io (durable, resumable workflows)
 - **AI / Search:** pgvector (semantic similarity), Meilisearch (full-text)

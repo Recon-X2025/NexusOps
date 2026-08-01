@@ -1,10 +1,14 @@
 # CoheronConnect — Platform Report for Our First 100 Believers
 
 **Document:** CoheronConnect_Believers_Customer_Report.md
-**Date:** April 6, 2026
+**Date:** 2026-07-30 (rev; orig April 6, 2026)
 **Platform Version:** 4.0 (Production-Live)
 **Built by:** Coheron
 **Prepared for:** The First 100 — Our Founding Customer Community
+
+> **2026-07-30 revision note.** Table counts refreshed to the current tree (migration head
+> `0059_volatile_midnight`): the platform now has **236 database tables**. The April "What's
+> Coming Next" section and any dated delivery projections below are historical.
 
 ---
 
@@ -197,7 +201,7 @@ These are not estimates. These are results from our test runs before launch.
 | XSS injection attempts blocked | 100% |
 | SQL injection attempts blocked | 100% |
 | Platform readiness score | 95 / 100 |
-| Database tables | 121 |
+| Database tables | 236 |
 
 ---
 
@@ -224,7 +228,7 @@ Your CoheronConnect instance runs on dedicated infrastructure:
 
 - **Server:** Vultr cloud (Bangalore region), 8 vCPUs, 16 GB RAM
 - **Stack:** 5 Docker containers (web, API, PostgreSQL, Redis, worker)
-- **Database:** PostgreSQL 16 with 121 tables and automated daily backups
+- **Database:** PostgreSQL 16 with 236 tables and automated daily backups
 - **Reverse proxy:** nginx with HTTPS-ready configuration (pending domain)
 - **Uptime target:** 99.9% (achieved since launch)
 

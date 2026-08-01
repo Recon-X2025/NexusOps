@@ -2,6 +2,19 @@
 
 This document outlines the architecture, data models, API endpoints, and authentication schemas of the **Setup Wizard** (onboarding flow) and how it integrates with the cross-tenant **Super-Admin (MAC)** API surface.
 
+> **⚠️ STALE — point-in-time doc, flagged 2026-07-30 (not rewritten).** This file has not
+> been re-verified against the current tree (head `0059_volatile_midnight`). Known staleness:
+> - **Hardcoded machine-local paths** — file links like
+>   `file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/...` are a specific author's Windows
+>   desktop and will not resolve anywhere else. Treat every such link as "see the repo-relative
+>   path" (e.g. `apps/web/src/app/app/onboarding-wizard/page.tsx`).
+> - **Production API URLs / CORS entries are unverified** — the origin list includes a stale
+>   Bolt preview host (`coheronconnect-super-fwyz.bolt.host`) that is not the production surface
+>   (`connect.coheron.tech`). Do not rely on the URLs/CORS list here as current.
+>
+> Use `BUILD.md`, `docs/GAP_ANALYSIS.md`, and the live `apps/api` source as the sources of truth
+> for the actual wizard/MAC surface.
+
 ---
 
 ## 1. The Setup Wizard
