@@ -328,16 +328,23 @@ export const accountingRouter = router({
       const { org, db, user } = ctx;
       const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, sql } = await import("@coheronconnect/db");
 
-      const [je] = await db.select().from(journalEntries)
-        .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id))).limit(1);
-      if (!je) throw new TRPCError({ code: "NOT_FOUND" });
-      if (je.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft entries can be posted" });
-
-      const lines = await db.select().from(journalEntryLines).where(dbEq(journalEntryLines.journalEntryId, je.id));
-
-      // Balance updates and the status flip must be atomic: a mid-loop failure
-      // would corrupt account running balances while leaving the entry "draft".
+      // Lock, draft-check, balance updates and the status flip are one atomic unit.
+      // The entry row is taken FOR UPDATE *before* the "still draft?" check so two
+      // concurrent posts of the same draft cannot both pass the check and apply the
+      // balances twice: the second caller blocks on the lock until the first commits
+      // "posted", then re-reads that status and stops. (The lock is held until the
+      // outer request transaction commits — releasing this nested savepoint does not
+      // release the row lock — so it spans the balance writes below.)
       return await db.transaction(async (tx) => {
+        const [je] = await tx.select().from(journalEntries)
+          .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id)))
+          .limit(1)
+          .for("update");
+        if (!je) throw new TRPCError({ code: "NOT_FOUND" });
+        if (je.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft entries can be posted" });
+
+        const lines = await tx.select().from(journalEntryLines).where(dbEq(journalEntryLines.journalEntryId, je.id));
+
         for (const line of lines) {
           const net = Number(line.debitAmount) - Number(line.creditAmount);
           await tx.update(chartOfAccounts)
