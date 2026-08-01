@@ -20,6 +20,7 @@ import {
 } from "@coheronconnect/db";
 
 import { computeRetainUntil } from "../lib/retention";
+import { getNextYearScopedSeq } from "../lib/auto-number";
 
 type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
 type JeRow = InferSelectModel<typeof journalEntriesTbl>;
@@ -274,7 +275,7 @@ export const accountingRouter = router({
       })).min(2),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines, count: dbCount, eq: dbEq } = await import("@coheronconnect/db");
+      const { journalEntries, journalEntryLines } = await import("@coheronconnect/db");
 
       // Validate balanced entry
       const totalDebit  = input.lines.reduce((s, l) => s + l.debitAmount, 0);
@@ -286,12 +287,15 @@ export const accountingRouter = router({
       const fy = input.financialYear ?? currentFY(input.date);
 
       // Header + lines are one entry; do them in a transaction so a line-insert
-      // failure can't leave a header with no (or partial) line items, and so the
-      // JE-number sequence read can't race a concurrent create.
+      // failure can't leave a header with no (or partial) line items.
       return await db.transaction(async (tx) => {
-        const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(dbEq(journalEntries.orgId, org!.id));
-        const seq = (c?.n ?? 0) + 1;
-        const number = `JE-${input.date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+        // The JE number is minted by the atomic per-(org, "JE-<year>") counter, not
+        // count()+1: two concurrent creates therefore receive distinct consecutive
+        // numbers with no unique-violation/retry. Format is unchanged — JE-YYYY-00001
+        // (5-pad, year-scoped, restarts each year). Reversals share this same counter.
+        const jeYear = input.date.getFullYear();
+        const seq = await getNextYearScopedSeq(tx, org!.id, "JE", jeYear, "journal_entries", "number");
+        const number = `JE-${jeYear}-${String(seq).padStart(5, "0")}`;
 
         const [je] = await tx.insert(journalEntries).values({
           orgId: org!.id,
@@ -367,7 +371,7 @@ export const accountingRouter = router({
       date: z.coerce.date().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { org, db, user } = ctx;
-      const { journalEntries, journalEntryLines, chartOfAccounts, count: dbCount, eq: dbEq, and: dbAnd, sql } = await import("@coheronconnect/db");
+      const { journalEntries, journalEntryLines, chartOfAccounts, eq: dbEq, and: dbAnd, sql } = await import("@coheronconnect/db");
 
       const [je] = await db.select().from(journalEntries)
         .where(dbAnd(dbEq(journalEntries.id, input.id), dbEq(journalEntries.orgId, org!.id))).limit(1);
@@ -381,9 +385,13 @@ export const accountingRouter = router({
       // are one accounting event: a partial write would leave a half-reversed
       // entry or an orphaned reversal in the ledger.
       return await db.transaction(async (tx) => {
-        const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(dbEq(journalEntries.orgId, org!.id));
-        const seq = (c?.n ?? 0) + 1;
-        const revNumber = `JE-${revDate.getFullYear()}-${String(seq).padStart(5, "0")}-REV`;
+        // Reversals draw from the SAME atomic "JE-<year>" counter as journal.create
+        // (both emit JE-YYYY-NNNNN; a reversal just suffixes "-REV"), so the visible
+        // JE sequence stays a single monotonic run per year and two concurrent number
+        // reads can't collide. Format unchanged: JE-YYYY-00001-REV (5-pad).
+        const revYear = revDate.getFullYear();
+        const seq = await getNextYearScopedSeq(tx, org!.id, "JE", revYear, "journal_entries", "number");
+        const revNumber = `JE-${revYear}-${String(seq).padStart(5, "0")}-REV`;
 
         const [revJe] = await tx.insert(journalEntries).values({
           orgId: org!.id,

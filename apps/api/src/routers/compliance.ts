@@ -11,6 +11,7 @@ import { router, permissionProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { executeErasureForDsr } from "../lib/dpdp-erasure";
+import { getNextYearScopedSeq } from "../lib/auto-number";
 import {
   dpdpDataSubjectRequests,
   dpdpDsrEvents,
@@ -56,33 +57,30 @@ const BREACH_TRANSITIONS: Record<string, string[]> = {
   closed: [],
 };
 
-/** Generates the next per-org, per-year case reference for a given prefix. */
+/**
+ * Generates the next per-org, per-year case reference (`<PREFIX>-YYYY-NNNN`).
+ *
+ * Minted by the atomic per-(org, "<PREFIX>-<year>") counter (getNextYearScopedSeq),
+ * NOT count()+1: two concurrent creates therefore receive distinct consecutive
+ * references with no unique-violation/retry. Format is unchanged — 4-pad, year-scoped
+ * (restarts each year). `tableName`/`refColName` are the raw DB identifiers of the
+ * register the counter seeds from at cutover.
+ */
 async function nextReference(
-  db: any, // any-ratchet-allow: generic over the tx/db handle + any register table
+  db: any, // any-ratchet-allow: generic over the tx/db handle
   orgId: string,
-  table: any, // any-ratchet-allow: reused across DSR/breach tables with differing column sets
-  refCol: any, // any-ratchet-allow: the reference column varies per table
+  tableName: string,
+  refColName: string,
   prefixBase: string,
 ): Promise<string> {
   const year = new Date().getFullYear();
-  const prefix = `${prefixBase}-${year}-`;
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(table)
-    .where(and(eq(table.orgId, orgId), sql`${refCol} LIKE ${prefix + "%"}`));
-  const seq = (row?.n ?? 0) + 1;
-  return `${prefix}${String(seq).padStart(4, "0")}`;
+  const seq = await getNextYearScopedSeq(db, orgId, prefixBase, year, tableName, refColName);
+  return `${prefixBase}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
 /** Generates the next per-org DSR case reference (DSR-YYYY-NNNN). */
 async function nextDsrReference(db: any, orgId: string): Promise<string> { // any-ratchet-allow: forwards the generic db handle to nextReference
-  return nextReference(
-    db,
-    orgId,
-    dpdpDataSubjectRequests,
-    dpdpDataSubjectRequests.reference,
-    "DSR",
-  );
+  return nextReference(db, orgId, "dpdp_data_subject_requests", "reference", "DSR");
 }
 
 export const complianceRouter = router({
@@ -682,8 +680,8 @@ export const complianceRouter = router({
         const reference = await nextReference(
           db,
           org!.id,
-          dpdpBreachIncidents,
-          dpdpBreachIncidents.reference,
+          "dpdp_breach_incidents",
+          "reference",
           "BR",
         );
 
