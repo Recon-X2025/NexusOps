@@ -11,6 +11,8 @@ import {
   purchaseRequestItems,
   purchaseOrders,
   poLineItems,
+  goodsReceiptNotes,
+  grnLineItems,
   invoices,
   approvalRequests,
   assets,
@@ -28,6 +30,7 @@ import {
   count,
   sum,
   sql,
+  inArray,
 } from "@coheronconnect/db";
 import { CreatePurchaseRequestSchema } from "@coheronconnect/types";
 import {
@@ -757,6 +760,209 @@ export const procurementRouter = router({
             lineKeyedMatched: out.lineKeyedMatched,
           },
         };
+      }),
+  }),
+
+  /**
+   * Goods receipts (GRN) — the "receive goods against a PO" document (A9).
+   *
+   * This is the create path the three-way match needs: it writes a
+   * `goods_receipt_notes` header + `grn_line_items`, so an invoice can reference a
+   * real GRN (`invoices.grnId`) and the match reads accepted-qty × PO unit price
+   * (invoice-po-match.ts) instead of silently degrading to a two-way match.
+   *
+   * NOTE (superseded): `purchaseOrders.receive` predates this and only stamps
+   * `poLineItems.receivedQuantity` + PO status — it does NOT create a GRN. It is
+   * left in place for now; new receiving should go through this path.
+   *
+   * OWNERSHIP: this is new write surface. Both checks below are load-bearing —
+   *   (1) the referenced PO must belong to ctx.org, and
+   *   (2) every submitted poLineItemId must belong to THAT PO.
+   * Linking by id without verifying ownership would open a cross-tenant hole; do
+   * not relax either check. The negative tests pin both.
+   */
+  goodsReceipts: router({
+    list: permissionProcedure("purchase_orders", "read").query(async ({ ctx }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(goodsReceiptNotes)
+        .where(eq(goodsReceiptNotes.orgId, org!.id))
+        .orderBy(desc(goodsReceiptNotes.createdAt));
+    }),
+
+    get: permissionProcedure("purchase_orders", "read")
+      .input(z.object({ id: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+        const [grn] = await db
+          .select()
+          .from(goodsReceiptNotes)
+          .where(and(eq(goodsReceiptNotes.id, input.id), eq(goodsReceiptNotes.orgId, org!.id)));
+        if (!grn) throw new TRPCError({ code: "NOT_FOUND", message: "Goods receipt not found" });
+        const lines = await db
+          .select()
+          .from(grnLineItems)
+          .where(eq(grnLineItems.grnId, grn.id));
+        return { ...grn, lines };
+      }),
+
+    create: permissionProcedure("purchase_orders", "write")
+      .input(
+        z.object({
+          poId: z.string().uuid(),
+          vendorDeliveryChallan: z.string().optional(),
+          lines: z
+            .array(
+              z.object({
+                poLineItemId: z.string().uuid(),
+                receivedQuantity: z.coerce.number().int().nonnegative(),
+                acceptedQuantity: z.coerce.number().int().nonnegative(),
+                rejectedQuantity: z.coerce.number().int().nonnegative().optional(),
+                rejectionReason: z.string().optional(),
+              }),
+            )
+            .min(1),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { db, org } = ctx;
+
+        return await db.transaction(async (tx) => {
+          // (1) OWNERSHIP — the PO must belong to this tenant. Load it scoped by
+          //     orgId; a foreign or non-existent PO resolves to nothing and is
+          //     rejected before any write.
+          const [po] = await tx
+            .select({ id: purchaseOrders.id })
+            .from(purchaseOrders)
+            .where(and(eq(purchaseOrders.id, input.poId), eq(purchaseOrders.orgId, org!.id)));
+          if (!po) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase order not found" });
+
+          // (2) MEMBERSHIP — every submitted PO line must belong to THAT PO. We
+          //     load the PO's own lines and reject any submitted id that is not
+          //     among them, so a caller cannot splice in another PO's (or another
+          //     tenant's) line by id.
+          const poLines = await tx
+            .select({
+              id: poLineItems.id,
+              quantity: poLineItems.quantity,
+              receivedQuantity: poLineItems.receivedQuantity,
+              acceptedQuantity: poLineItems.acceptedQuantity,
+            })
+            .from(poLineItems)
+            .where(eq(poLineItems.poId, input.poId));
+          const poLineById = new Map(poLines.map((l) => [l.id, l]));
+
+          for (const line of input.lines) {
+            const poLine = poLineById.get(line.poLineItemId);
+            if (!poLine) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "PO line item does not belong to this purchase order",
+              });
+            }
+
+            // Per-line integrity: accepted + rejected cannot exceed received, and a
+            // rejection must carry a reason.
+            const rejected = line.rejectedQuantity ?? 0;
+            if (line.acceptedQuantity + rejected > line.receivedQuantity) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "accepted + rejected quantity cannot exceed received quantity",
+              });
+            }
+            if (rejected > 0 && !line.rejectionReason?.trim()) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "A rejection reason is required when rejectedQuantity > 0",
+              });
+            }
+
+            // No over-receipt (pilot rule — CONFIRM WITH CUSTOMER): this receipt's
+            // received qty may not push the PO line past its ordered quantity.
+            const outstanding = poLine.quantity - poLine.receivedQuantity;
+            if (line.receivedQuantity > outstanding) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Over-receipt not allowed: received ${line.receivedQuantity} exceeds outstanding ${outstanding} for the PO line`,
+              });
+            }
+          }
+
+          const grnNumber = await getNextNumber(tx, org!.id, "GRN");
+
+          const [grn] = await tx
+            .insert(goodsReceiptNotes)
+            .values({
+              orgId: org!.id,
+              grnNumber,
+              poId: input.poId,
+              receivedById: ctx.user!.id,
+              vendorDeliveryChallan: input.vendorDeliveryChallan,
+              status: "draft", // reconciled below from the line data
+            })
+            .returning();
+
+          const anyRejected = input.lines.some((l) => (l.rejectedQuantity ?? 0) > 0);
+          const anyShort = input.lines.some((l) => {
+            const poLine = poLineById.get(l.poLineItemId)!;
+            return l.receivedQuantity < poLine.quantity - poLine.receivedQuantity;
+          });
+
+          await tx.insert(grnLineItems).values(
+            input.lines.map((l) => {
+              const poLine = poLineById.get(l.poLineItemId)!;
+              return {
+                grnId: grn!.id,
+                poLineItemId: l.poLineItemId,
+                orderedQuantity: poLine.quantity,
+                receivedQuantity: l.receivedQuantity,
+                acceptedQuantity: l.acceptedQuantity,
+                rejectedQuantity: l.rejectedQuantity ?? 0,
+                rejectionReason: l.rejectionReason ?? null,
+              };
+            }),
+          );
+
+          // Roll this receipt's quantities onto the PO lines (summed across GRNs),
+          // then derive PO + GRN status from the resulting state.
+          for (const l of input.lines) {
+            const poLine = poLineById.get(l.poLineItemId)!;
+            await tx
+              .update(poLineItems)
+              .set({
+                receivedQuantity: poLine.receivedQuantity + l.receivedQuantity,
+                acceptedQuantity: (poLine.acceptedQuantity ?? 0) + l.acceptedQuantity,
+              })
+              .where(eq(poLineItems.id, l.poLineItemId));
+          }
+
+          const totalAccepted = input.lines.reduce((n, l) => n + l.acceptedQuantity, 0);
+          const grnStatus = totalAccepted === 0 ? "rejected" : anyRejected || anyShort ? "partial_acceptance" : "accepted";
+
+          await tx
+            .update(goodsReceiptNotes)
+            .set({
+              status: grnStatus,
+              shortageNoted: anyShort,
+              damageNoted: anyRejected,
+              updatedAt: new Date(),
+            })
+            .where(eq(goodsReceiptNotes.id, grn!.id));
+
+          // PO status reflects whether every line is now fully received.
+          const refreshed = await tx
+            .select({ quantity: poLineItems.quantity, receivedQuantity: poLineItems.receivedQuantity })
+            .from(poLineItems)
+            .where(eq(poLineItems.poId, input.poId));
+          const allReceived = refreshed.every((l) => l.receivedQuantity >= l.quantity);
+          await tx
+            .update(purchaseOrders)
+            .set({ status: allReceived ? "received" : "partially_received", updatedAt: new Date() })
+            .where(and(eq(purchaseOrders.id, input.poId), eq(purchaseOrders.orgId, org!.id)));
+
+          return { ...grn!, status: grnStatus };
+        });
       }),
   }),
 

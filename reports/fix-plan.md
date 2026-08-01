@@ -67,7 +67,7 @@ it is the summary; the item is the source of truth.
 | A13 — Form 16 employer PAN/TAN/address header | Phase 2 (A) | Blocked-on-CA (A18 may supersede) |
 | A5 — approvals producer | Phase 3 (A) | Pending |
 | A6 — custom-role save (collapse to five actions) | Phase 3 (A) | Pending |
-| A9 — goods-receipt create path | Phase 3 (A) | Pending |
+| A9 — goods-receipt create path | Phase 3 (A) | API path **Done**; screen deferred (not closed) |
 | A7 — persist invoice line items | Phase 3 (A) | Pending |
 | A8 — statutory challan create path | Phase 3 (A) | Pending |
 | B1 — first-response clock | Phase 3 pass (B) | Pending |
@@ -927,6 +927,28 @@ just invoice ≈ PO). Pair it with A10 so the tax basis is right.
 
 **Dependency.** A10 (tax-basis fix, Phase 2) should land first or together, or the
 new match test can't assert a clean pass.
+
+> **Status: API path DONE — NOT fully resolved until a screen lands.** The create
+> path shipped as `procurement.goodsReceipts.create` (+ `list`/`get`), over the
+> existing schema (no migration). It enforces the ownership pair — the referenced
+> PO must belong to `ctx.org`, and every submitted `poLineItemId` must belong to
+> THAT PO — deriving GRN status (`accepted`/`partial_acceptance`/`rejected`) and
+> rolling received/accepted quantities onto the PO lines + PO status in one
+> transaction. Proven by `__tests__/goods-receipt-create.test.ts` (6 tests):
+> a real three-way match (invoice ≈ PO ≈ GRN, `grnReceivedValue` populated), the
+> two ownership negatives (foreign PO rejected, spliced foreign PO line rejected —
+> both asserting **nothing is written**), the over-receipt reject, the
+> accepted+rejected/reason guards, and a partial-then-second-receipt rollup.
+> - **Screen deferred → A9 is NOT closed.** No `apps/web` screen ships in this
+>   pass, so no user can create a receipt through the product — the feature stays
+>   unreachable end-to-end until a "Receive against PO" screen lands. Track that
+>   screen as the remaining half of A9.
+> - **`purchaseOrders.receive` is superseded** (`procurement.ts` — stamps
+>   `receivedQuantity` + PO status only, creates no GRN). Left in place untouched;
+>   new receiving should go through `goodsReceipts.create`.
+> - **No over-receipt (pilot rule) — CONFIRM WITH CUSTOMER.** The create path
+>   rejects receiving beyond a PO line's outstanding quantity. If the customer
+>   wants an over-receipt tolerance, that is a follow-up config decision.
 
 #### A7 — Persist invoice line items from the real user path
 
