@@ -119,6 +119,14 @@ export interface EmployeePayslip {
   totalDeductions: number;
   // Net
   netPay: number;
+  /**
+   * The amount by which deductions exceeded gross earnings this cycle — i.e. the
+   * shortfall the `max(0, …)` net-pay floor would otherwise discard silently.
+   * `0` whenever net pay is non-negative. Surfacing it (rather than swallowing it)
+   * means money can never vanish at the floor; once a salary-advance / loan-recovery
+   * feature exists this is the amount that must carry forward as still-owed.
+   */
+  unrecoveredShortfall: number;
   // Employer
   employerPF: number;
   employerESI: number;
@@ -282,7 +290,14 @@ export function computeEmployeePayslip(
 
   const taxProfile: EmployeeTaxProfile = {
     regime: emp.regime,
-    annualCTC: emp.basicMonthly * 12 + emp.hraMonthly * 12 + emp.specialAllowance * 12 + emp.ltaAnnual,
+    // Annualise on the LOP-EARNED components (A12 root cause), not the contractual
+    // salary. `computeGross` reduces this month's basic/HRA/special/LTA by
+    // `lopFactor = daysWorked/daysInMonth`; projecting those earned figures ×12 keeps
+    // TDS in step with what the employee is actually paid. Taxing contractual salary
+    // while gross is LOP-reduced pushed deductions above earnings and the net-pay
+    // floor silently discarded the excess. When `lopDays == 0` the earned figures
+    // equal the contractual ones, so this is byte-identical to the prior behaviour.
+    annualCTC: basicEarned * 12 + hraEarned * 12 + specialAllowanceEarned * 12 + ltaEarned * 12,
     basicMonthly: emp.basicMonthly,
     hraMonthly: emp.hraMonthly,
     specialAllowance: emp.specialAllowance,
@@ -311,7 +326,12 @@ export function computeEmployeePayslip(
     taxComputation.monthlyTDS +
     emp.otherDeductions;
 
-  const netPay = Math.max(0, grossEarnings - totalDeductions);
+  // Net pay floors at 0, but the shortfall (deductions over earnings) is surfaced as
+  // `unrecoveredShortfall` rather than silently discarded — money must not vanish at
+  // the floor. It is 0 whenever earnings cover deductions.
+  const netBeforeFloor = grossEarnings - totalDeductions;
+  const netPay = Math.max(0, netBeforeFloor);
+  const unrecoveredShortfall = Math.max(0, -netBeforeFloor);
 
   const totalEmployerCost =
     grossEarnings + statutory.totalEmployerContributions;
@@ -351,6 +371,7 @@ export function computeEmployeePayslip(
     totalDeductions,
     // Net
     netPay,
+    unrecoveredShortfall,
     // Employer
     employerPF: statutory.pf.totalEmployer,
     employerESI: statutory.esi.employerESI,

@@ -198,6 +198,12 @@ describe("Money invariant — Payroll: net == max(0, gross − totalDeductions)"
       // Net never exceeds gross, never negative
       expect(p.netPay).toBeLessThanOrEqual(p.grossEarnings);
       expect(p.netPay).toBeGreaterThanOrEqual(0);
+      // No money vanishes at the floor: with full attendance earnings cover
+      // deductions, so the surfaced shortfall is 0 and gross reconciles exactly.
+      expect(p.unrecoveredShortfall).toBe(0);
+      expect(p.grossEarnings).toBe(
+        p.netPay + (p.totalDeductions - p.unrecoveredShortfall),
+      );
       // totalDeductions equals the sum of its individual deduction components.
       const summed =
         p.employeePF +

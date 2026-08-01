@@ -613,28 +613,126 @@ request cannot close as "fulfilled" while any covered store was skipped.
 
 ### Group 2D — Net-pay floor (payroll money) (#2/#4)
 
-#### A12 — Carry wage recovery forward instead of discarding it at the floor
+#### A12 — Fix the LOP tax over-deduction and surface the net-pay shortfall — DONE
 
-**What changes.** `netPay = max(0, gross − deductions)` silently discards any
-recovery (salary advance, loan) that exceeds one month's pay. Fix per the
-quality-bar correction: when deductions exceed gross, the shortfall **carries
-forward** to the next cycle and stays visible in the employee's outstanding
-balance — money must not vanish at the floor.
+**Premise correction (what the original entry got wrong).** The original entry
+assumed the floor was latent — only reachable through a salary-advance / loan
+recovery — and that the fix should carry the shortfall forward into an
+"outstanding-balance concept the HR module already models". **Neither is true.**
+There is no outstanding-balance / advance / loan model anywhere in
+`packages/db/src/schema/` to carry into. And the floor is **reachable today**,
+with no loan feature, through a real tax defect.
+
+**Root cause (the reachable path).** `computeEmployeePayslip()` built `annualCTC`
+from the **contractual** monthly salary (`basicMonthly*12 + …`,
+`payroll-cycle.ts:285`), then handed it to `computeTax`, which treats `annualCTC`
+as the annual gross and divides the resulting tax into monthly TDS. But
+`computeGross` **LOP-reduces** this month's basic/HRA/special/LTA by
+`lopFactor = daysWorked/daysInMonth`. So an employee on heavy unpaid leave was
+taxed as if fully paid: TDS (plus PF/PT) could exceed the LOP-reduced gross, and
+`netPay = max(0, gross − deductions)` **silently discarded** the excess. Money
+vanished at the floor for anyone with enough unpaid leave.
+
+**What changed.**
+1. **Tax fix** — `annualCTC` now annualises the **LOP-earned** components
+   (`basicEarned*12 + hraEarned*12 + specialAllowanceEarned*12 + ltaEarned*12`),
+   so TDS tracks what the employee is actually paid. When `lopDays == 0` the
+   earned figures equal the contractual ones, so this is **byte-identical** to the
+   prior behaviour for every non-LOP payslip (the mid-year-join monthlies were
+   left contractual — they only feed `computeTax`'s mid-year branch).
+2. **Floor (Option 2)** — the shortfall is surfaced as a new
+   `unrecoveredShortfall` field on `EmployeePayslip` instead of being swallowed:
+   `netBeforeFloor = gross − deductions; netPay = max(0, netBeforeFloor);
+   unrecoveredShortfall = max(0, −netBeforeFloor)`. Money can no longer disappear
+   at the floor.
 
 **Reference implementation.** `computeEmployeePayslip()` in
-`apps/api/src/lib/payroll-cycle.ts` is where the floor lives; the carry-forward
-should write to the outstanding-balance concept the HR module already models.
+`packages/payroll-math/src/payroll-cycle.ts` (the canonical impl behind the
+`apps/api/src/lib/payroll-cycle.ts` re-export shim). Rebuild the package
+(`pnpm --filter @coheronconnect/payroll-math build`) so `apps/api` sees it.
 
-**What could break.** Payroll is the highest-consequence money path; a wrong
-carry-forward is itself a money bug. Change it under the R-4-style guard and the
-money-invariant suite.
+**What test proves it.** `__tests__/payroll-lop-tax-floor.test.ts` (new):
+byte-identical non-LOP invariance (reconstructs the pre-fix TDS via `computeTax`
+with the old contractual `annualCTC` and asserts the payslip matches it exactly);
+LOP lowers TDS; a heavy-LOP employee is not taxed above their own gross; and with
+a large extra deduction `netPay == 0` while `unrecoveredShortfall` captures the
+difference and `gross == netPay + (deductions − shortfall)` reconciles exactly.
+The existing floor-identity blessing test
+(`__tests__/money-invariants.test.ts:197`) stays valid (it uses full attendance)
+and was extended with the `unrecoveredShortfall == 0` reconciliation.
 
-**What test proves it.** The payroll test currently **asserts the floor**
-(`__tests__/money-invariants.test.ts:197` checks `netPay === max(0, gross −
-deductions)`), i.e. it blesses the bug. Under the standing rule this test **must
-change** to assert the shortfall carries forward and nothing disappears.
+**Follow-up (persistence gap — not yet done).** `unrecoveredShortfall` is
+computed and returned but **dropped at persistence**: the `payslips` table has no
+column for it. No migration was added now, but one is required **before any
+salary-advance / loan-recovery feature lands** — otherwise the shortfall will
+vanish at exactly the point it starts mattering (it is the amount that must carry
+forward as still-owed). Tracked as a Phase-3/completeness follow-up.
 
 **Re-run afterwards.** `payroll-tax` audit; `money-invariants` gate.
+
+---
+
+### Group 2E — Statutory document headers (tenant identity on filings) (#1)
+
+These are root cause #1 in a new place: the identity is captured correctly at
+onboarding, but the document generator reads it from the **wrong location** (or a
+hardcoded blank), so the finished certificate reaches the employee/regulator with
+the statutory fields missing. The money is right; the *destination* the header
+reads from is wrong.
+
+#### A13 — Form 16 reads employer PAN / TAN / address from the wrong place
+
+**How Form 16 actually reaches an employee in India (the constraint that reframes
+this item).** TRACES has **no live API** — CAPTCHA and KYC deliberately prevent
+automated sync. The real, standard flow is **manual**: the tenant logs into
+TRACES, clears KYC, requests the **bulk Part A and Part B** text files, downloads
+a zip, runs the **official TRACES PDF Generation Utility** to produce the
+per-employee PDFs, and those are the legally-issued certificates. Because TRACES
+issues Part A **and** Part B, the certificate an employee is entitled to is the
+TRACES-generated one — so our internally-generated Part B is, at most, an interim
+preview, and may be **superseded entirely by the import build (A18)**. That is the
+open question below; it decides whether A13 is worth doing at all.
+
+**What changes.** `buildForm16Input` reads the employer's PAN, TAN and address
+from `org.settings.pan` / `.tan` / `.address`
+(`apps/api/src/lib/india/form16-aggregator.ts:117-122`), but onboarding writes
+those to **direct columns** on the org record — `organizations.pan`,
+`organizations.tan` (`packages/db/src/schema/auth.ts:56,63`) — and never populates
+`settings.{pan,tan,address}`. So every internally-generated Form 16 prints **"—"
+for employer PAN, TAN and address**, even though the values were captured. A Form
+16 without the employer's TAN is not a valid certificate. Fix: read employer PAN
+and TAN from the direct columns (`org.pan` decrypted via `decryptPan`, `org.tan`).
+Address is the open sub-question — see B17; until a real company address exists,
+the employer address should draw from the primary GSTIN's registered address
+rather than a blank.
+
+**Open question (gates whether to do A13 at all) — is our Part B a deliverable or
+only a preview?** If TRACES issues both Part A and Part B and the tenant is
+required to hand employees the TRACES-generated certificate, then our generator is
+a preview and the header-field defect is **not worth fixing** — the import (A18)
+supersedes it. If our Part B is an acceptable interim deliverable (e.g. before the
+TRACES files are ready), the defect is real and A13 stands. **Needs the CA's
+view.** Do not spend effort on A13 until this is answered; the import (A18) is the
+build that matters either way.
+
+**Reference implementation.** The PAN read boundary already exists —
+`decryptPan(org.pan)` is the same call the payslip and Form 16 routes use for the
+*employee* PAN (`http/payroll-form16-pdf.ts:89`). The org row is already loaded in
+the route (`http/payroll-form16-pdf.ts:86`); it just needs the columns threaded
+into the aggregator instead of the `settings` lookup.
+
+**What could break.** The employer PAN is stored encrypted (KMS envelope, H-2), so
+the aggregator must decrypt it — it cannot print the ciphertext. Keep the
+graceful-degrade fallback (a missing value must not crash generation) but see A15:
+for a *statutory* field the right degrade is to **refuse** rather than silently
+print "—".
+
+**What test proves it.** A Form 16 fixture built from an org whose PAN/TAN live in
+the direct columns (the shape onboarding actually writes) asserts the rendered
+input carries the real employer PAN and TAN, not "—". A companion assertion that
+the encrypted `org.pan` is decrypted, not printed as an envelope blob.
+
+**Re-run afterwards.** `payroll-tax` audit; any Form 16 / statutory-document audit.
 
 ---
 
@@ -836,6 +934,155 @@ field is cleared (it blesses the "never set" behaviour).
 
 ---
 
+### Group 3E — Document generation (branding + a single header source) (#4)
+
+Three builds where the *producer* is missing or half-built. The identity to put
+on a document is captured, but there is no way to attach a logo, no single place
+the generators agree to read the header from, and — for invoices/POs — no
+self-generated document at all. Do these together: they share the document-header
+code area and A15's shared source is what makes A13/B16 stop drifting apart.
+
+#### A16 — Logo upload (there is no file-upload capability anywhere)
+
+**What changes.** `organizations.logoUrl` exists
+(`packages/db/src/schema/auth.ts:46`) and the payslip template already has code to
+place a logo (`services/payslip-pdf.ts:158-160`), but **nothing can populate the
+field**: there is no file-upload UI, no upload endpoint, and no object storage
+wired for org branding anywhere in the app (an `Upload` icon is imported into the
+onboarding wizard but never used). This is a **feature build**, not a patch: it
+needs (a) a storage destination for the image, (b) an authenticated upload
+endpoint that validates type/size and writes `logoUrl`, and (c) a branding
+settings screen to drive it. Scope it as such.
+
+**Reference implementation.** The DMS upload/scan path
+(`apps/api/src/services/storage.ts` — upload, size, SHA-256, scan) is the existing
+model for accepting a file server-side; a logo upload is a smaller, image-only,
+org-scoped version writing to `organizations.logoUrl`.
+
+**What could break.** Untrusted image upload is an input boundary — enforce type
+(PNG/JPEG), a size cap, and the same scan the DMS applies; never render an
+unvalidated blob into a PDF. Logo is optional, so every generator must still
+produce a valid document when `logoUrl` is null.
+
+**What test proves it.** An upload test (valid image → `logoUrl` set; oversize /
+wrong-type → rejected) plus a generation test that a payslip renders both with and
+without a logo.
+
+**Re-run afterwards.** any branding / document audit; `storage` / DMS audit.
+
+#### A15 — One tenant document-header source every generator reads from
+
+**What changes.** Today each generator sources the header independently — the
+payslip route from hardcoded blanks (B16), Form 16 from `org.settings` (A13) — so
+the same field (TAN, address) is read three different ways and drifts. Build **one
+tenant document-header resolver**: given an org (and optionally a GSTIN), it
+returns the canonical `{ companyName, address, logo, pan, tan, pfCode, gstin, cin }`
+from the correct columns, decrypting the PAN once. Every generator (payslip, Form
+16, and the future invoice/PO in A17) reads from it. **For a statutory field it
+must refuse, not render a blank**: if a required field (e.g. employer TAN on Form
+16) is missing, generation returns a clear "cannot produce a compliant document —
+TAN not configured" error rather than a certificate with "—" in the mandatory box.
+
+**Reference implementation.** A13 and B16 each already resolve part of this header;
+this collapses them into one function so the resolution lives in a single place.
+The "refuse rather than emit an invalid artifact" stance mirrors R-3/A3's DPDP rule
+(refuse cleanly, record nothing as delivered, rather than claim a duty discharged).
+
+**What could break.** Making a missing statutory field *refuse* turns what is today
+a silent blank into a hard stop at generation time — intended, but it means orgs
+that never finished onboarding (no TAN) can no longer download a Form 16 until they
+do. That is the correct behaviour; surface it as a clear message, not a 500.
+
+**What test proves it.** A13's and B16's assertions re-expressed against the shared
+resolver, plus a refusal test: an org missing a statutory-required field yields a
+clean refusal, never a document with the field blank.
+
+**Dependency.** A13 + B16 fold into this once it exists (they are the interim
+single-generator fixes); B17 (address source of truth) must be decided so the
+resolver has an address column/rule to read.
+
+#### A17 — Branded invoice and purchase-order PDFs (none are generated today)
+
+**What changes.** There is **no self-generated invoice or PO document** — a grep
+for any invoice/PO PDF generator finds nothing. Invoices leave the system only as
+JSON to the e-invoicing portal, which returns the *government*-signed copy; the PO
+is a database record with no printable form. Build invoice + PO PDF generators
+(PDFKit, the same library the payslip/Form 16 use) that read their header from the
+A15 shared source, so the supplier's legal name, address and **GSTIN** — all
+already captured (`gstinRegistry`, `accounting.ts:199-204`) — appear on the
+document, alongside the GST-invoice mandatory fields (invoice no./date, place of
+supply, HSN, CGST/SGST/IGST split). Scope as a feature per document.
+
+**Reference implementation.** `services/payslip-pdf.ts` / `services/form16-pdf.ts`
+are the structural model for a PDFKit generator; the GST field set already exists
+on the invoice + line-item schema (and A7 persists the lines this reads).
+
+**What could break.** A GST tax invoice has legally-mandatory fields; a
+partially-populated invoice PDF is worse than none. Route the header through A15's
+refuse-on-missing gate so an invoice missing GSTIN cannot be produced.
+
+**What test proves it.** A generation test that a produced invoice carries the
+supplier GSTIN + legal name + place of supply + tax split, and refuses cleanly when
+the GSTIN is absent.
+
+**Dependency.** A15 (shared header source) first; A7 (invoice line items persisted)
+for the line/tax body.
+
+#### A18 — Form 16 import (ingest the TRACES-generated PDFs, don't try to sync them)
+
+**What changes.** Form 16 is not something we can pull from TRACES: **TRACES has no
+live API — CAPTCHA and KYC exist specifically to block automated sync.** The real
+flow is manual and lands *outside* the ERP: the tenant logs into TRACES, clears
+KYC, requests the **bulk Part A + Part B** text files, downloads a zip, and runs
+the **official TRACES PDF Generation Utility** to produce one PDF per employee.
+Those are the legally-issued certificates. So the build is **not an integration —
+it is an import**: accept a **zip of TRACES-generated Form 16 PDFs**, match each
+PDF to its employee, store it, and surface it to that employee (self-service
+download). This supersedes, or at minimum outranks, the internally-generated Part B
+(A13) — an imported TRACES certificate is the real thing; our generator is at most
+a preview.
+
+**Matching key — use `panMaskedHash`, never the encrypted PAN column.** Each PDF is
+matched to an employee **by PAN**. But the stored `pan` is now a **non-deterministic
+AES-GCM envelope** (H-2): a fresh DEK per write means the same PAN encrypts to a
+different ciphertext every time, so a direct column comparison **cannot** work and
+must not be attempted. Match on **`panMaskedHash`** — the peppered HMAC-SHA256 that
+is **deterministic, derived from the plaintext PAN before encryption, and already
+stored alongside** every PAN (`lib/pan.ts` `panColumns`, `employees.panMaskedHash`).
+Extract the PAN from the TRACES PDF, run it through the same `derivePan`/peppered
+hash, and look the employee up by `panMaskedHash`. **Recorded here so nobody reaches
+for the encrypted `pan` column to match on later** — it will never equality-compare.
+
+**Reference implementation.** The DMS upload/scan path
+(`apps/api/src/services/storage.ts`) is the model for accepting + storing the
+files; `lib/pan.ts` (`derivePan` → the peppered hash, `panMaskedHash`) is the
+deterministic match key already used for PAN de-dup elsewhere. Employee
+self-service surfacing mirrors the existing Form 16 download route
+(`http/payroll-form16-pdf.ts`).
+
+**What could break.** A zip of untrusted PDFs is an input boundary — enforce
+type/size and run the DMS scan; a PAN that matches no employee (or matches more than
+one) must be surfaced as an unresolved row, not silently dropped or mis-filed onto
+the wrong employee. PAN extraction from a PDF is best-effort; allow a manual
+match-fix for the rows the parser can't resolve.
+
+**What test proves it.** An import test: a small zip of fixture PDFs whose PANs map
+to seeded employees files each to the right employee **via `panMaskedHash`** (with
+an assertion the encrypted `pan` column is *not* used for matching); an
+unmatched-PAN PDF lands in an unresolved bucket rather than being attached to the
+wrong person; and the matched certificate is downloadable by that employee.
+
+**Open question (shared with A13).** Whether our internally-generated Part B (A13)
+remains a deliverable once A18 exists, or is purely a preview superseded by the
+imported TRACES certificate. **Needs the CA's view** — it decides whether A13 is
+worth doing at all. A18 is the build that matters either way.
+
+**Dependency.** Independent of A15/A17 (it imports finished PDFs rather than
+generating them); shares the document code area. If A13's open question resolves to
+"preview only", A13 can be dropped in favour of A18.
+
+---
+
 ### Group 3D — The tenant wall migration (#5)
 
 #### A11 — Add the RLS wall to the three unwalled tables
@@ -924,6 +1171,31 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
          `pan` column, as did several mutation `.returning()` paths (shareCapital,
          companyDirectors, directors create/markKYCComplete, vendor create/update).
          All of these now `decryptPan` before returning.
+- **Document-header theme (B16, B17) — captured identity the generators don't
+  print.** Two defects that leave a self-generated document missing tenant detail
+  it already holds. Group with A13 (they share the document-header code area) but
+  they are bucket B — a watched single customer notices a blank field but is not
+  blocked by it.
+  - **B16 — the payslip route hardcodes the header to blank.** `buildPdfInput`
+    sets `companyAddress: ""`, `tanNumber: "—"`, `pfEstablishmentCode: "—"`
+    (`apps/api/src/http/payroll-payslip-pdf.ts:39-41`) and never passes
+    `companyLogo` at all, even though the payslip *template* has slots for every
+    one of them (`services/payslip-pdf.ts:26-29,158-160`) and the values exist on
+    the org record (`organizations.tan`, `organizations.epfCode`,
+    `packages/db/src/schema/auth.ts:63-64`). So a payslip prints only the company
+    name; address, TAN and PF establishment code come out blank. Fix: read TAN and
+    PF code from the org columns and thread the (future, see build items) address +
+    logo through. The org row is already loaded in the route
+    (`payroll-payslip-pdf.ts:115`).
+  - **B17 — no company address field exists on the org record.** The org captures
+    city / state / website / support email (`auth.ts:51-54`) but **no postal
+    address**; the only address in the system is the one attached to a GSTIN
+    (`gstinRegistry.address`, `packages/db/src/schema/accounting.ts:204`). Every
+    document that wants a company address (payslip B16, Form 16 A13) therefore has
+    nothing org-level to read. Decide the source of truth: either add a company
+    address to the org record, or make the primary-GSTIN registered address the
+    canonical document address. This blocks the *address* half of A13 and B16 —
+    the PAN/TAN halves do not wait on it.
 - **Test-hygiene theme — midnight-wraparound flake in the shift-schedule suite.**
   `shift-schedule-router.test.ts` builds shift start times with a `minutesFromNow`
   helper (`shift-schedule-router.test.ts:64-67`) that converts "now + N minutes"
@@ -972,6 +1244,20 @@ The ordering that actually matters (everything else is grouping for efficiency):
    previously expected to add a permission-enum migration; the decision to collapse
    the UI to the existing five values means A6 no longer touches the schema, so
    there is nothing to batch with A11.)
+9. **A13 / B16 → A15 → A17.** A13 (Form 16 header) and B16 (payslip header) are the
+   interim single-generator fixes; they fold into A15, the one shared header source
+   every generator reads from; A17 (invoice/PO PDFs) reads from A15. B17 (company
+   address source of truth) gates only the *address* half of A13/B16/A15 — the
+   PAN/TAN halves do not wait on it. A16 (logo upload) is independent but supplies
+   the logo A15 exposes and the payslip already has a slot for.
+10. **A18 supersedes A13 (pending the CA's view).** A18 (import the TRACES-generated
+    Form 16 PDFs) is the build that matters for Form 16, because TRACES has no live
+    API and the tenant produces the real certificates manually. Whether A13 (fixing
+    our internally-generated Part B header) is worth doing at all depends on whether
+    that Part B is a deliverable or only a preview — **an open question for the CA.**
+    A18 is independent of A15/A17 (it ingests finished PDFs). Its employee match key
+    must be **`panMaskedHash`** (deterministic, pre-encryption), **never** the
+    non-deterministic AES-GCM `pan` column, which cannot equality-compare.
 
 Everywhere a fix changes a test that blessed the bug, the test change is part of
 the fix (standing rule) — this is called out per item and is not a separate step.
