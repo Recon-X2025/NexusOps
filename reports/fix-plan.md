@@ -479,6 +479,24 @@ correct and must **pass** the three-way match; and a mismatched one that must fa
 
 **Re-run afterwards.** `gst-invoicing` audit.
 
+**Status: DONE** — `invoice-po-match.ts` now compares `invoice.taxableValue` vs
+`po.taxableValue` (both tax-exclusive), matching the already-exclusive GRN received
+value and per-line extended values; the tolerance was left unchanged. New test
+`invoice-po-match-tax-basis.test.ts` covers **both** paths — two-way (PO only) and
+three-way (PO + GRN) — with a genuinely-correct 18% invoice that must pass and an
+over-billed one that must still fail.
+
+**Finding (uncovered while implementing A10).** The corrected matcher exposed that
+`procurement.purchaseOrders.createFromPR` never populated `po.taxableValue` or the
+PO line items' `taxableValue` — they stayed at the schema default of zero. This was
+invisible while the match compared inclusive-to-inclusive, but with the correct
+taxable-vs-taxable basis every PO created from a PR would fail on a phantom gap. The
+PR total is already tax-exclusive (Σ quantity × unit price), so it is carried onto
+`po.taxableValue`, and each line's `taxableValue` is set to quantity × unit price.
+Fixed at the root; the existing `layer8` smoke test (`8.12 applyMatchToOrder`) then
+passed **unmodified** — no blessing-test edit was needed. Full API suite green except
+the pre-existing intentional-RED ratchets.
+
 ---
 
 ### Group 2C — False "done" on a legal duty (#1)

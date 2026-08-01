@@ -588,6 +588,12 @@ export const procurementRouter = router({
         return await db.transaction(async (tx) => {
           const poNumber = await getNextNumber(tx, org!.id, "PO");
 
+          // The PR total is tax-EXCLUSIVE (Σ quantity × unitPrice; unit prices are
+          // taxable prices, no GST added — see purchaseRequests.create), so it is
+          // the PO's taxable value. Carry it onto `taxableValue` so the three-way
+          // match compares like tax basis for like (invoice.taxableValue vs
+          // po.taxableValue). Without this, taxableValue defaults to "0" and every
+          // PO created from a PR fails the match on a phantom gap.
           const [po] = await tx
             .insert(purchaseOrders)
             .values({
@@ -595,6 +601,7 @@ export const procurementRouter = router({
               poNumber,
               prId: input.prId,
               vendorId: input.vendorId,
+              taxableValue: pr.totalAmount,
               totalAmount: pr.totalAmount,
               status: "draft",
               expectedDelivery: input.expectedDelivery,
@@ -610,6 +617,8 @@ export const procurementRouter = router({
                 description: item.description,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                // Per-line taxable value = quantity × unit price (tax-exclusive).
+                taxableValue: (item.quantity * parseFloat(item.unitPrice)).toFixed(2),
                 receivedQuantity: 0,
               })),
             );

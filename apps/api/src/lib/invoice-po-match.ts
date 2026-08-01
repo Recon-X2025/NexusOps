@@ -183,8 +183,14 @@ export async function computeInvoicePoMatch(
     .from(organizations)
     .where(eq(organizations.id, orgId));
   const tolerance = getProcurementMatchToleranceAbs(orgRowMatch?.settings);
-  const invoiceTotal = parseFloat(invoice.amount);
-  const poTotal = parseFloat(po.totalAmount);
+  // Compare like tax basis for like (A10). `invoice.amount` / `po.totalAmount`
+  // are tax-INCLUSIVE gross, but the GRN received value and the per-line
+  // extended values are tax-EXCLUSIVE (unit price × qty, no GST). Comparing the
+  // inclusive header against those exclusive references fails every GST-bearing
+  // invoice on a phantom ~18% gap. Both the two-way header compare and the
+  // three-way GRN compare therefore use the tax-exclusive taxable value.
+  const invoiceTotal = parseFloat(invoice.taxableValue);
+  const poTotal = parseFloat(po.taxableValue);
   const discrepancy = Math.abs(invoiceTotal - poTotal);
   let matched = discrepancy <= tolerance;
 
