@@ -899,6 +899,31 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
   (`encryptIntegrationConfigEnvelope`, `http/integration-oauth.ts:59`). B15 shares
   the vault/code area with the PAN encryption work — land it in the same
   encryption pass, per the triage note.
+  - **PAN encryption-at-rest (H-2) — DONE for new writes; backfill still owed.**
+    `lib/pan.ts` now stores the raw `pan` as a KMS `v2:` envelope (async `panColumns`)
+    and reads through `decryptPan` at every boundary (form16 ×2, hr, payslip-pdf,
+    onboarding, secretarial ×2 lists + ×4 returns, india-compliance list + ×2 returns,
+    vendors list/get/create/update; ingest + orgWizard writes route through it too).
+    Legacy plaintext rows read through unchanged, so **no backfill was done this pass**
+    (the tree has no production PAN data yet). **Follow-up before production data
+    exists:** a one-time backfill that re-writes each existing plaintext `pan` across
+    all six tables (organizations, employees, vendors, directors, shareCapital/
+    shareholders, companyDirectors) through `panColumns` so every stored value is an
+    envelope. `decryptPan`'s `isEnvelope()` gate can be tightened/removed only once
+    that backfill has run and no bare-plaintext rows remain. Pinned by
+    `apps/api/src/__tests__/pan-encryption-at-rest.test.ts`.
+    - **Two gaps surfaced during this pass (both now fixed):**
+      1. **`vendors.create` / `vendors.update` bypassed `panColumns` entirely** —
+         they spread the raw `pan` straight into the write, so they never stored the
+         encrypted value *and* never stamped `panMaskedHash` / `panMaskedDisplay`
+         either (the de-dup/match aids the other five tables all carried). Both now
+         route through `panColumns`.
+      2. **The read surface was wider than the initial map.** Beyond the per-record
+         PDF/detail readers, the shareholder list, director lists (secretarial +
+         india-compliance) and vendor list all return full rows that surfaced the raw
+         `pan` column, as did several mutation `.returning()` paths (shareCapital,
+         companyDirectors, directors create/markKYCComplete, vendor create/update).
+         All of these now `decryptPan` before returning.
 - **Test-hygiene theme — midnight-wraparound flake in the shift-schedule suite.**
   `shift-schedule-router.test.ts` builds shift start times with a `minutesFromNow`
   helper (`shift-schedule-router.test.ts:64-67`) that converts "now + N minutes"

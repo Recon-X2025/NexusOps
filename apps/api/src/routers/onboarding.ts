@@ -1,7 +1,7 @@
 import { router, protectedProcedure } from "../lib/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { panColumns } from "../lib/pan";
+import { panColumns, decryptPan } from "../lib/pan";
 import {
   users,
   tickets,
@@ -221,6 +221,9 @@ export const onboardingRouter = router({
       .where(eq(legalEntities.orgId, orgId))
       .limit(1);
 
+    // Decrypt the stored (envelope) org PAN for display; legacy plaintext rows read through.
+    const orgPan = (await decryptPan(orgRow.pan)) ?? "";
+
     return {
       profile: {
         displayName: orgRow.name,
@@ -233,7 +236,7 @@ export const onboardingRouter = router({
       },
       india: {
         gstin: gstinRow?.gstin ?? "",
-        pan: orgRow.pan ?? "",
+        pan: orgPan,
         cin: leRow?.cin ?? "",
         tan: orgRow.tan ?? "",
         pf: orgRow.epfCode ?? "",

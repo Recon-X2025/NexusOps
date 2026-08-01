@@ -19,6 +19,7 @@ import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
 import { panColumns, type PanColumns } from "../lib/pan";
+import { encryptSecretEnvelope } from "../services/encryption";
 import { currentFY } from "./accounting";
 
 const MatterIngestSchema = z.object({
@@ -268,13 +269,16 @@ export const ingestRouter = router({
 
             for (const item of input) {
                 const { pan: rawPan, ...vendorItem } = item;
-                // DPDP: keep raw PAN + stamp match hash/display. On a malformed PAN in a bulk
-                // row, fall back to storing raw only rather than aborting the whole import.
+                // DPDP: keep raw PAN (encrypted) + stamp match hash/display. On a malformed PAN
+                // in a bulk row, fall back to storing the encrypted raw only (no hash/mask)
+                // rather than aborting the whole import — never as plaintext.
                 let panCols: Partial<PanColumns> = {};
                 try {
-                    panCols = panColumns(rawPan);
+                    panCols = await panColumns(rawPan);
                 } catch {
-                    panCols = rawPan ? { pan: rawPan.trim().toUpperCase() } : {};
+                    panCols = rawPan
+                        ? { pan: await encryptSecretEnvelope(rawPan.trim().toUpperCase()) }
+                        : {};
                 }
                 const [row] = await db.insert(vendors).values({
                     orgId: org!.id,

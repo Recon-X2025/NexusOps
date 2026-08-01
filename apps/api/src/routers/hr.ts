@@ -4,6 +4,7 @@ import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
 import { evaluateExpenseClaim } from "../lib/expense-policy";
 import { extractReceipt } from "../services/ai-receipt-ocr";
+import { decryptPan } from "../lib/pan";
 import {
   employees,
   organizations,
@@ -1334,7 +1335,8 @@ export const hrRouter = router({
             monthlyTds: slip.tds,
           },
           employeeInfo: {
-            pan: emp.pan,
+            // Decrypt the stored (envelope) PAN; legacy plaintext rows pass through unchanged.
+            pan: await decryptPan(emp.pan),
             uan: emp.uan,
             taxRegime: emp.taxRegime,
             state: emp.state,

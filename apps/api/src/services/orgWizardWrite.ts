@@ -90,8 +90,10 @@ export async function writeWizardData(
     // Process India Compliance (partial mapping)
     if (input.india) {
       if (input.india.pan !== undefined) {
-        const panCols = panColumns(input.india.pan);
-        updateFields.pan = input.india.pan;
+        // panColumns encrypts the raw PAN (KMS envelope) and derives the match aids; spread
+        // its `pan` (ciphertext) — never re-assign the plaintext input over it.
+        const panCols = await panColumns(input.india.pan);
+        updateFields.pan = panCols.pan;
         updateFields.panMaskedHash = panCols.panMaskedHash;
         updateFields.panMaskedDisplay = panCols.panMaskedDisplay;
       }
