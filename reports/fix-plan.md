@@ -41,6 +41,51 @@ writer never was; **#5** ownership of a referenced record never checked.
 
 ---
 
+## Status at a glance
+
+Where every item stands. **Done** = fixed, committed and pushed. **Pending** = not
+yet started. **Blocked-on-CA** = needs the chartered accountant's ruling before it
+is worth doing. Keep this table in step with the per-item "Status:" lines below —
+it is the summary; the item is the source of truth.
+
+| Item | Bucket / phase | Status |
+|------|----------------|--------|
+| R-1 — all-tables RLS wall test | Phase 1 ratchet | Pending (red; A11 turns it green) |
+| R-2 — permission-vocabulary test | Phase 1 ratchet | Pending (red; A6 turns it green) |
+| R-3 — DPDP notice-honesty test | Phase 1 ratchet | Pending (red; A3/A4 turn it green) |
+| R-4 — money read-then-write concurrency test | Phase 1 ratchet | **Done** (green; turned by A2) |
+| R-5 — audit-log tail-truncation test | Phase 1 ratchet | Pending (red; B5 head-anchor turns it green) |
+| A2 — journal post double-count lock | Phase 2 (A) | **Done** |
+| B2 — atomic numbering | Phase 2 pass (B) | **Done** |
+| B2-comment — correct retry safeguard comment | Phase 2 pass (B) | **Done** (with B2) |
+| B3 / B4 — approval read-then-write guards | Phase 2 pass (B) | **Done** |
+| A1 — canonical GST state key | Phase 2 (A) | **Done** |
+| A10 — three-way match tax basis | Phase 2 (A) | **Done** |
+| A3 — DPDP notice delivery / honest recording | Phase 2 (A) | Pending |
+| A4 — DPDP erasure honesty | Phase 2 (A) | Pending |
+| A12 — LOP TDS + net-pay shortfall | Phase 2 (A) | **Done** |
+| A13 — Form 16 employer PAN/TAN/address header | Phase 2 (A) | Blocked-on-CA (A18 may supersede) |
+| A5 — approvals producer | Phase 3 (A) | Pending |
+| A6 — custom-role save (collapse to five actions) | Phase 3 (A) | Pending |
+| A9 — goods-receipt create path | Phase 3 (A) | Pending |
+| A7 — persist invoice line items | Phase 3 (A) | Pending |
+| A8 — statutory challan create path | Phase 3 (A) | Pending |
+| B1 — first-response clock | Phase 3 pass (B) | Pending |
+| A11 — RLS wall migration (three tables) | Phase 3 (A) | Pending |
+| A16 — logo upload | Phase 3 build | Pending |
+| A15 — one document-header source | Phase 3 build | Pending |
+| A17 — branded invoice / PO PDFs | Phase 3 build | Pending |
+| A18 — Form 16 TRACES import | Phase 3 build | Pending |
+| B16 — payslip hardcoded header | Bucket B (doc-header theme) | Pending |
+| B17 — no org address field | Bucket B (doc-header theme) | Pending |
+| Ownership cluster (#5) — one shared guard | Bucket B | Pending |
+| Identity/session theme (B8–B11) | Bucket B | Pending |
+| Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 folded into R-5) |
+| KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
+| Test-hygiene — shift-schedule midnight flake | Bucket B | Pending |
+
+---
+
 ## Phase 1 — RATCHETS (build these first; they protect everything after)
 
 These are guardrails: mostly tests, a little enforcement. None of them fixes a
@@ -282,6 +327,11 @@ once.
 
 **Re-run afterwards.** `money-accounting` audit.
 
+**Status: DONE.** `journal.post` now selects the entry `FOR UPDATE` inside the
+transaction before the draft check, so a concurrent post/retry waits and then sees
+`status = 'posted'` and stops — the balances apply exactly once. This turned R-4
+(the concurrent-post "would-collide" test) **green**. Committed and pushed.
+
 #### B2 — Route every "next number" through the atomic counter
 
 **What changes.** Replace the `count()+1` numbering — journal entries
@@ -324,6 +374,12 @@ differ. (R-4 no longer carries a duplicate-number sub-test — see its scope not
 
 **Re-run afterwards.** `money-accounting`, `hr`, `assets` audits;
 `sweep-inconsistent-patterns`.
+
+**Status: DONE.** Seven numbering sites now route through the year-scoped atomic
+counter (`getNextSeq`/`getNextNumber`) instead of `count()+1` — the number format
+is preserved at each. The `retryMutation` safeguard comment (B2-comment below) was
+corrected in the same pass to describe the real mechanism, and now honestly credits
+the counter for these paths. Committed and pushed.
 
 #### B2-comment — Correct the retryMutation safeguard comment that credits a phantom atomic counter
 
@@ -934,6 +990,37 @@ field is cleared (it blesses the "never set" behaviour).
 
 ---
 
+### Group 3D — The tenant wall migration (#5)
+
+#### A11 — Add the RLS wall to the three unwalled tables
+
+**What changes.** `shift_schedules` (`packages/db/src/schema/hr.ts`),
+`esi_challan_records` and `pt_challan_records`
+(`packages/db/src/schema/india-compliance.ts`) carry `org_id` but were never added
+to the RLS policy set. Add a hand-written migration that enables `FORCE ROW LEVEL
+SECURITY` + the `tenant_isolation` policy on all three, matching the others.
+
+**Reference implementation.** `packages/db/drizzle/0052_odd_forgotten_wall.sql` is
+the exact template — copy its `FORCE ROW LEVEL SECURITY` + `tenant_isolation`
+policy stanza for the three tables. Hand-write it (Drizzle won't generate RLS) and
+add the `_journal.json` entry, per `CLAUDE.md`'s migration rules.
+
+**What could break.** RLS only bites via the `app_runtime` role drop in the request
+path; background workers/seeds run as superuser and must already filter by
+`org_id`. Adding the wall on an **empty** instance is safe and cheap — doing it
+after real data exists is the expensive case, which is why this is bucket A.
+
+**What test proves it.** R-1 (the all-tables wall test) goes from red to green.
+
+**Re-run afterwards.** `data-layer-migrations` audit; `tenant-isolation` audit.
+
+**Dependency.** R-1 written first (its red state is the acceptance criterion).
+This migration should precede A8 writing real challan data into two of these
+tables. (A6 no longer touches the schema — the permission-vocabulary decision is to
+collapse the UI, not migrate the enum — so there is nothing to batch with it.)
+
+---
+
 ### Group 3E — Document generation (branding + a single header source) (#4)
 
 Three builds where the *producer* is missing or half-built. The identity to put
@@ -1080,37 +1167,6 @@ worth doing at all. A18 is the build that matters either way.
 **Dependency.** Independent of A15/A17 (it imports finished PDFs rather than
 generating them); shares the document code area. If A13's open question resolves to
 "preview only", A13 can be dropped in favour of A18.
-
----
-
-### Group 3D — The tenant wall migration (#5)
-
-#### A11 — Add the RLS wall to the three unwalled tables
-
-**What changes.** `shift_schedules` (`packages/db/src/schema/hr.ts`),
-`esi_challan_records` and `pt_challan_records`
-(`packages/db/src/schema/india-compliance.ts`) carry `org_id` but were never added
-to the RLS policy set. Add a hand-written migration that enables `FORCE ROW LEVEL
-SECURITY` + the `tenant_isolation` policy on all three, matching the others.
-
-**Reference implementation.** `packages/db/drizzle/0052_odd_forgotten_wall.sql` is
-the exact template — copy its `FORCE ROW LEVEL SECURITY` + `tenant_isolation`
-policy stanza for the three tables. Hand-write it (Drizzle won't generate RLS) and
-add the `_journal.json` entry, per `CLAUDE.md`'s migration rules.
-
-**What could break.** RLS only bites via the `app_runtime` role drop in the request
-path; background workers/seeds run as superuser and must already filter by
-`org_id`. Adding the wall on an **empty** instance is safe and cheap — doing it
-after real data exists is the expensive case, which is why this is bucket A.
-
-**What test proves it.** R-1 (the all-tables wall test) goes from red to green.
-
-**Re-run afterwards.** `data-layer-migrations` audit; `tenant-isolation` audit.
-
-**Dependency.** R-1 written first (its red state is the acceptance criterion).
-This migration should precede A8 writing real challan data into two of these
-tables. (A6 no longer touches the schema — the permission-vocabulary decision is to
-collapse the UI, not migrate the enum — so there is nothing to batch with it.)
 
 ---
 
