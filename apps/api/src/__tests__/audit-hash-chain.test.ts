@@ -13,7 +13,7 @@ import {
   verifyAuditChain,
   computeEntryHash,
 } from "../lib/audit-hash";
-import { auditLogs, eq } from "@coheronconnect/db";
+import { auditLogs, eq, and, gt } from "@coheronconnect/db";
 
 describe("Audit hash chain (Sprint 0.4)", () => {
   let orgId: string;
@@ -143,5 +143,104 @@ describe("Audit hash chain (Sprint 0.4)", () => {
     expect(
       computeEntryHash("other", 5, { ...base, changes: { a: 1 } }),
     ).not.toBe(computeEntryHash("prev", 5, { ...base, changes: { a: 1 } }));
+  });
+});
+
+/**
+ * R-5 — The audit-chain verifier must detect TAIL-TRUNCATION
+ * (Phase 1 ratchet, theme / B5).
+ *
+ * The audit log is tamper-evident: each row's entryHash chains it to the row
+ * before, so editing a row (its hash stops matching) or deleting a row from the
+ * MIDDLE (a seq gap / broken prevHash link) is caught by `verifyAuditChain`.
+ * The existing tests above prove both of those.
+ *
+ * There is one attack shape the chain does NOT catch, and it is the most natural
+ * cover-up of all: deleting the MOST RECENT entries — the tail. When you remove
+ * rows off the END of the chain, whatever remains (seqs 1..k) is still a
+ * perfectly valid, unbroken chain: contiguous seqs, every prevHash links, every
+ * entryHash recomputes. `verifyAuditChain` walks 1..k, finds nothing wrong, and
+ * returns ok:true. The rows an attacker most wants gone — their latest actions —
+ * are exactly the ones it cannot notice are missing.
+ *
+ * The root cause: the verifier has no independent record of how long the chain
+ * SHOULD be. It re-derives the chain purely from the rows still present, so a
+ * shorter-but-internally-consistent chain looks healthy. Detecting truncation
+ * needs an external anchor (a persisted head high-water-mark — max seq / last
+ * entryHash — kept outside the audit table and compared on verify), which does
+ * not exist yet.
+ *
+ * This probe is FAIR — it reveals a real gap, it does not manufacture one:
+ *   • Editing a row, or deleting a middle row, both still go red via the existing
+ *     detectors — so the verifier is not "blind to everything", only to the tail.
+ *   • Once an external head-anchor exists, truncating the tail leaves the stored
+ *     head ahead of the table's max seq and verification fails — green.
+ * Only the current anchorless verifier goes red under it.
+ *
+ * NOTE (expected RED until Phase 2/B5): this test fails against the current code
+ * because the anchorless verifier reports ok:true on a truncated tail. That red
+ * is the proof the ratchet works; the head-anchor fix turns it green. Per the
+ * Phase-1 rule this ratchet is test-only and stays red — the verifier is NOT
+ * modified here, and wiring it into a scheduled sweep is deferred to Phase 2/3.
+ */
+describe("R-5: audit-chain verifier detects tail-truncation", () => {
+  let orgId: string;
+  let userId: string;
+
+  beforeEach(async () => {
+    const seeded = await seedFullOrg();
+    orgId = seeded.orgId;
+    userId = seeded.adminId;
+  });
+
+  async function append(action: string, resourceId: string) {
+    return appendAuditEntry(testDb(), {
+      orgId,
+      userId,
+      action,
+      resourceType: "test",
+      resourceId,
+      changes: { action },
+    });
+  }
+
+  it("flags a chain whose most recent entries were deleted from the end", async () => {
+    // Build a clean 5-entry chain (seqs 1..5) and confirm it verifies.
+    await append("create", "r1");
+    await append("update", "r2");
+    await append("read", "r3");
+    await append("update", "r4");
+    const last = await append("delete", "r5");
+    expect(last.seq).toBe(5);
+
+    const before = await verifyAuditChain(testDb(), orgId);
+    expect(before.ok).toBe(true);
+    expect(before.entries).toBe(5);
+
+    // Attacker removes their two latest tracks: delete seqs 4 and 5 off the END.
+    // What remains (seqs 1,2,3) is still a contiguous, hash-consistent chain.
+    await testDb()
+      .delete(auditLogs)
+      .where(and(eq(auditLogs.orgId, orgId), gt(auditLogs.seq, 3)));
+
+    const remaining = await testDb()
+      .select({ seq: auditLogs.seq })
+      .from(auditLogs)
+      .where(eq(auditLogs.orgId, orgId))
+      .orderBy(auditLogs.seq);
+    // Precondition: the tail really is gone (only 1,2,3 left), so this is a
+    // genuine truncation, not a middle-gap the existing detector would catch.
+    expect(remaining.map((r) => r.seq)).toEqual([1, 2, 3]);
+
+    const after = await verifyAuditChain(testDb(), orgId);
+    expect(
+      { ok: after.ok, entries: after.entries },
+      `The two most recent audit entries (seq 4 and 5) were deleted from the END ` +
+        `of the chain, leaving a shorter but internally-consistent chain (seq 1,2,3). ` +
+        `A tamper-evident log must flag that its tail is missing — otherwise deleting ` +
+        `your latest tracks is undetectable. verifyAuditChain reported ok=${after.ok} ` +
+        `over ${after.entries} entries, i.e. it did NOT notice seq 4,5 vanished ` +
+        `(the verifier has no external head-anchor to compare against — B5).`,
+    ).toEqual({ ok: false, entries: 3 });
   });
 });
