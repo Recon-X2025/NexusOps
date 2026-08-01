@@ -25,7 +25,7 @@ import {
   notInArray,
   type DbOrTx,
 } from "@coheronconnect/db";
-import { computeGST, type GSTRate } from "../lib/india/gst-engine";
+import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/gst-engine";
 import {
   getDuplicatePayablePolicy,
   isInvoicePeriodClosed,
@@ -66,7 +66,9 @@ async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string | null
     .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
     .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
     .limit(1);
-  return row?.stateName ?? row?.stateCode ?? null;
+  // Prefer the canonical 2-digit code (always present, NOT NULL) over the
+  // display name; GST comparison normalises to a code anyway.
+  return row?.stateCode ?? row?.stateName ?? null;
 }
 
 /**
@@ -90,13 +92,19 @@ function gstInvoiceColumns(params: {
   isInterstate: boolean;
   amount: string;
 } {
-  const orgState = params.orgState ?? "";
-  const counterpartyState = params.counterpartyState ?? orgState;
+  // Normalise both sides to the canonical 2-digit GST state code before the
+  // intra-vs-inter-state compare. The org side arrives as a code ("27") from
+  // gstinRegistry; the counterparty (vendor/customer) arrives as a free-text
+  // NAME ("Maharashtra"). Comparing code-vs-name would read a local sale as
+  // inter-state IGST. A non-empty state that fails to normalise is logged
+  // rather than silently defaulted — a typo'd vendor state must leave a signal.
+  const orgState = normaliseGstStateOrWarn(params.orgState, "org");
+  const counterpartyState = normaliseGstStateOrWarn(params.counterpartyState, "counterparty") ?? orgState;
   const gst = computeGST({
     taxableValue: params.taxableValue,
     gstRate: params.gstRate,
-    supplierState: orgState,
-    buyerState: counterpartyState,
+    supplierState: orgState ?? "",
+    buyerState: counterpartyState ?? "",
   });
   return {
     taxableValue: String(gst.taxableValue),

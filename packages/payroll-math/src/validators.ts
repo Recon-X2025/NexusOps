@@ -98,6 +98,27 @@ const GSTIN_STATE_CODES: Record<string, string> = {
   "99": "Centre Jurisdiction",
 };
 
+/** Reverse of GSTIN_STATE_CODES: normalised state NAME → 2-digit code. */
+const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(GSTIN_STATE_CODES).map(([code, name]) => [name.trim().toLowerCase(), code]),
+);
+
+/**
+ * Resolve a state input to its canonical 2-digit GST code. Accepts either a
+ * 2-digit code (returned as-is when it is a known code) or a state NAME
+ * ("Maharashtra"), looked up in the canonical GST state list. Returns `null`
+ * when the input is empty or unrecognised — the caller decides the fallback and
+ * SHOULD log the miss, because an unrecognised state that silently defaults
+ * would hide a wrong intra-vs-inter-state GST split with no signal.
+ */
+export function normaliseStateToCode(state: string | null | undefined): string | null {
+  if (!state) return null;
+  const trimmed = state.trim();
+  if (trimmed === "") return null;
+  if (GSTIN_STATE_CODES[trimmed]) return trimmed; // already a known 2-digit code
+  return STATE_NAME_TO_CODE[trimmed.toLowerCase()] ?? null;
+}
+
 export function validateGSTIN(gstin: string): { valid: boolean; stateCode?: string; stateName?: string; error?: string } {
   const cleaned = gstin.trim().toUpperCase();
   if (!GSTIN_REGEX.test(cleaned)) {

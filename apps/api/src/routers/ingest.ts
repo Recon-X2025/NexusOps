@@ -15,7 +15,7 @@ import {
     type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextNumber, syncOrgCounters } from "../lib/auto-number";
-import { computeGST, type GSTRate } from "../lib/india/gst-engine";
+import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/gst-engine";
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
 import { panColumns, type PanColumns } from "../lib/pan";
@@ -117,7 +117,9 @@ async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string | null
         .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
         .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
         .limit(1);
-    return row?.stateName ?? row?.stateCode ?? null;
+    // Prefer the canonical 2-digit code (always present, NOT NULL) over the
+    // display name; GST comparison normalises to a code anyway.
+    return row?.stateCode ?? row?.stateName ?? null;
 }
 
 export const ingestRouter = router({
@@ -329,12 +331,16 @@ export const ingestRouter = router({
                 // Treat the imported `amount` as the taxable value and derive GST
                 // on top — the bulk path previously stored zero tax and posted no
                 // journal entry, so GL-balance dashboards drifted from AP/AR.
-                const supplierState = orgState ?? "";
+                // Normalise both sides to a canonical GST state code first: the
+                // org side is a code, `vendor.state` is a free-text name — a raw
+                // code-vs-name compare would tax a local sale as inter-state IGST.
+                const supplierState = normaliseGstStateOrWarn(orgState, "org") ?? "";
+                const buyerState = normaliseGstStateOrWarn(vendor.state, "vendor") ?? supplierState;
                 const gst = computeGST({
                     taxableValue: Number(item.amount),
                     gstRate: item.gstRate as GSTRate,
                     supplierState,
-                    buyerState: vendor.state ?? supplierState,
+                    buyerState,
                 });
                 const invoiceDate = item.invoiceDate ? new Date(item.invoiceDate) : new Date();
 

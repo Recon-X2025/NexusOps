@@ -415,26 +415,48 @@ sides to the single canonical 2-digit GST state code at the boundary, before
 `computeGST` is called** — convert names to codes via the existing state lookup so
 the comparison is always code-vs-code.
 
-**Reference implementation.** The CRM quote path already does this correctly:
+**Reference implementation.** The CRM quote path was cited as the clean model:
 `apps/api/src/lib/crm/quote-tax.ts` reads `stateCode` on **both** sides (org via
-`gstinRegistry.stateCode`, account via `crmAccounts.stateCode`) and only falls back
-to a name if the code is absent. Make every GST caller resolve to `stateCode` the
-way `quote-tax.ts` does; `ingest.ts:115-120` (which prefers `stateName`) is the
-one to change.
+`gstinRegistry.stateCode`, account via `crmAccounts.stateCode`).
+
+**Correction 1 (verified while implementing A1).** `quote-tax.ts` was NOT a clean
+reference. There are **three** copies of `resolveOrgState` and they disagreed on
+preference: `financial.ts:69` and `ingest.ts:120` returned `stateName ?? stateCode`
+(prefer the NAME), while `quote-tax.ts:68` returned `stateCode ?? stateName` (prefer
+the CODE). quote-tax only *appeared* correct because its buyer side
+(`crmAccounts.stateCode`) is also a code, so it was code-vs-code by luck; the
+invoice/vendor path is code-vs-freetext-name. The fix does not merely copy quote-tax
+— it normalises **both sides to a canonical code at the compare boundary** (a shared
+`normaliseGstStateOrWarn` reducing code-or-name → code via the existing
+`GSTIN_STATE_CODES` map, reversed once in `payroll-math` as `normaliseStateToCode`),
+and aligns all three `resolveOrgState` copies to prefer `stateCode`.
 
 **What could break.** Anywhere that reads the state as a display name for output
 (an invoice PDF showing "Maharashtra") must keep a code→name mapping for display —
 normalise for *comparison*, not for *display*. A wrong mapping table would
-mis-classify; the lookup must be the canonical GST state list.
+mis-classify; the lookup must be the canonical GST state list. Per the standing
+rule, a present-but-unrecognised state (a typo like "Maharastra") is **logged**
+(`GST_STATE_UNRESOLVED`) rather than silently defaulted, so a wrong split leaves a
+signal; an absent state stays the safe intra-state default.
 
-**What test proves it.** Change the GST test so the two sides are supplied in the
-**formats the live wizard actually produces** — org as code "27", vendor as name
-"Maharashtra" — and assert the result is **intra-state CGST+SGST**. Today's test
-(`__tests__/crm-quote-gst.test.ts`, `invoice-gst.test.ts`) fills both sides as
-matching values, so it blesses the bug. Under the new standing rule, that test
-**must change** as part of this fix.
+**Correction 2 (verified while implementing A1).** The existing tests did NOT bless
+the bug — they **sidestepped** it. `invoice-gst.test.ts` seeded the org GSTIN with
+*both* `stateCode:"27"` and `stateName:"Maharashtra"`, so both sides resolved to the
+matching name and it passed; `crm-quote-gst.test.ts` used codes on both sides. The
+onboarding wizard, however, produces `stateCode` with `stateName` NULL — the shape
+that actually triggers the bug. The test change seeds that real wizard shape
+(`stateCode:"27"`, `stateName:null`) with the vendor as the name "Maharashtra", and
+asserts **intra-state CGST+SGST**. It goes RED against the old code (mis-classified
+IGST) and GREEN after the normaliser.
 
 **Re-run afterwards.** `gst-invoicing` audit; `sweep-tenant-constants`.
+
+**Status: DONE.** `normaliseStateToCode` (payroll-math `validators.ts`) reverses the
+canonical `GSTIN_STATE_CODES` map; `normaliseGstStateOrWarn` (api `gst-engine.ts`)
+wraps it with the log-on-unresolved signal; `financial.ts` (`gstInvoiceColumns`) and
+`ingest.ts` (bulk-invoice path) normalise both sides before `computeGST`; all three
+`resolveOrgState` copies now prefer `stateCode`; `invoice-gst.test.ts` seeds the
+wizard shape. Full API suite green except the pre-existing intentional-RED ratchets.
 
 #### A10 — Three-way match: compare like tax basis for like
 
