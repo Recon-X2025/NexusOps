@@ -52,7 +52,7 @@ it is the summary; the item is the source of truth.
 |------|----------------|--------|
 | R-1 — all-tables RLS wall test | Phase 1 ratchet | Pending (red; A11 turns it green) |
 | R-2 — permission-vocabulary test | Phase 1 ratchet | Pending (red; A6 turns it green) |
-| R-3 — DPDP notice-honesty test | Phase 1 ratchet | Pending (red; A3/A4 turn it green) |
+| R-3 — DPDP notice-honesty test | Phase 1 ratchet | **Done** (green; turned by A3/A4) |
 | R-4 — money read-then-write concurrency test | Phase 1 ratchet | **Done** (green; turned by A2) |
 | R-5 — audit-log tail-truncation test | Phase 1 ratchet | Pending (red; B5 head-anchor turns it green) |
 | A2 — journal post double-count lock | Phase 2 (A) | **Done** |
@@ -61,8 +61,8 @@ it is the summary; the item is the source of truth.
 | B3 / B4 — approval read-then-write guards | Phase 2 pass (B) | **Done** |
 | A1 — canonical GST state key | Phase 2 (A) | **Done** |
 | A10 — three-way match tax basis | Phase 2 (A) | **Done** |
-| A3 — DPDP notice delivery / honest recording | Phase 2 (A) | Pending |
-| A4 — DPDP erasure honesty | Phase 2 (A) | Pending |
+| A3 — DPDP notice delivery / honest recording | Phase 2 (A) | **Done** |
+| A4 — DPDP erasure honesty | Phase 2 (A) | **Done** |
 | A12 — LOP TDS + net-pay shortfall | Phase 2 (A) | **Done** |
 | A13 — Form 16 employer PAN/TAN/address header | Phase 2 (A) | Blocked-on-CA (A18 may supersede) |
 | A5 — approvals producer | Phase 3 (A) | Pending |
@@ -83,6 +83,13 @@ it is the summary; the item is the source of truth.
 | Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 folded into R-5) |
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
 | Test-hygiene — shift-schedule midnight flake | Bucket B | Pending |
+
+> **Phase 2 (Correctness) is complete** — every item in the Phase 2 (A) and
+> Phase 2 (B) buckets is **Done** except **A13**, which is **Blocked-on-CA** (held
+> pending the chartered accountant's ruling on whether our Part B is a deliverable
+> or a preview; A18 may supersede it). The three DPDP ratchets it touched are
+> settled: **R-3 is green** (turned by A3/A4), R-4 was turned by A2. The remaining
+> red ratchets (R-1, R-2, R-5) are turned by Phase 3 items (A11, A6, B5).
 
 ---
 
