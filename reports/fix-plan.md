@@ -54,7 +54,7 @@ it is the summary; the item is the source of truth.
 | R-2 — permission-vocabulary test | Phase 1 ratchet | **Done** (re-scoped + green; turned by A6) |
 | R-3 — DPDP notice-honesty test | Phase 1 ratchet | **Done** (green; turned by A3/A4) |
 | R-4 — money read-then-write concurrency test | Phase 1 ratchet | **Done** (green; turned by A2) |
-| R-5 — audit-log tail-truncation test | Phase 1 ratchet | Pending (red; B5 head-anchor turns it green) |
+| R-5 — audit-log tail-truncation test | Phase 1 ratchet | **Done** (green; turned by B5 head-anchor) |
 | A2 — journal post double-count lock | Phase 2 (A) | **Done** |
 | B2 — atomic numbering | Phase 2 pass (B) | **Done** |
 | B2-comment — correct retry safeguard comment | Phase 2 pass (B) | **Done** (with B2) |
@@ -80,18 +80,19 @@ it is the summary; the item is the source of truth.
 | B17 — no org address field | Bucket B (doc-header theme) | Pending |
 | Ownership cluster (#5) — one shared guard | Bucket B | Pending |
 | Identity/session theme (B8–B11) | Bucket B | Pending |
-| Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 folded into R-5) |
+| Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 **Done** — folded into R-5) |
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
 
+> **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
+> migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
+> (turned by A2), and now **R-5 (turned by B5** — the audit-log head anchor +
+> scheduled verifier; see the R-5 section). There is no longer a red ratchet.
+>
 > **Phase 2 (Correctness) is complete** — every item in the Phase 2 (A) and
 > Phase 2 (B) buckets is **Done** except **A13**, which is **Blocked-on-CA** (held
 > pending the chartered accountant's ruling on whether our Part B is a deliverable
-> or a preview; A18 may supersede it). The three DPDP ratchets it touched are
-> settled: **R-3 is green** (turned by A3/A4), R-4 was turned by A2. **R-1 is now
-> green too** (turned by A11, migration 0061). **R-2 is now green too** (turned by
-> A6 — and re-scoped in the process; see the R-2 section). The only remaining red
-> ratchet is **R-5** (turned by Phase 3 item B5).
+> or a preview; A18 may supersede it).
 
 ---
 
@@ -300,17 +301,74 @@ seqs) and asserts the verifier flags it. Red today; the head-anchor fix turns it
 
 **Re-run afterwards.** `audit-log-integrity` audit.
 
+**Pre-scheduling census (2026-08-02, before wiring the sweep).** Ran the real
+`verifyAuditChain` across every org in both live DBs so no alarm starts firing blind:
+- **Dev DB (real data, :5434): CLEAN.** 1 org (`95f138a7…`), 1 chained entry, `ok:true`.
+  No real broken chain exists to alarm on.
+- **Test DB (:5433): 10,067 orgs / 2,271 broken — test noise, not a finding** (tests
+  that deliberately tamper and never tear down; see Bucket B item below).
+- **The E2E-recorded broken chain (org `d03d1d9b…`, seq 2 missing,
+  `docs/E2E_EVALUATION_FINDINGS.md:907-917`) is UNVERIFIABLE, not resolved.** That org
+  no longer exists in the dev database, so we cannot tell whether the break was real or
+  a snapshot artifact. Do not treat it as closed — if it recurs on data we still hold,
+  the scheduled verifier will now catch it.
+
+**Backfill contract (condition 2).** The one-time anchor backfill must NOT bless an
+existing break. Anchoring a failing chain to its current `MAX(seq)` would permanently
+accept the gap. Decision: the anchor row carries a `status` (`ok` | `broken`). A clean
+org is anchored `ok` at its real head; an org that fails verification at backfill time
+is anchored `broken` (recorded, not skipped) so the verifier/sweep keeps flagging it
+every run until a human resolves it. Skipping silently was rejected — an anchorless
+broken chain is indistinguishable from a legitimately new org and would never alarm.
+
+**Dependency.** None; independent ratchet. (Its Phase-2 partner is the B5 head-anchor
++ scheduled-sweep work.)
+
+**B5 shipped (2026-08-02) — R-5 is now green.** Both halves landed:
+- **Head anchor.** New `audit_chain_anchors` table (`org_id` PK, `max_seq`,
+  `head_hash`, `status` `ok|broken`, `updated_at`) in `schema/auth.ts`; migration
+  `0062_warm_blacklash`. `appendAuditEntry` (`audit-hash.ts`) upserts the anchor
+  inside the same per-org advisory-locked transaction as the insert, so the head
+  advances atomically with each append. `verifyAuditChain` now, after its
+  re-derivation walk, compares the live head against the anchor and fails on a
+  shortfall (tail truncation), a head-hash mismatch, or a `status='broken'` latch.
+  Orgs with no anchor (legacy chains) skip the check. The backfill honours the
+  condition-2 contract above (structural breaks → `broken`).
+- **Scheduled verifier.** `workflows/auditVerifyWorkflow.ts` — an hourly BullMQ
+  sweep registered in `services/workflow.ts` beside the other sweeps. It re-derives
+  every anchored org (most-recent-`updated_at` first, batch-capped) and, on the
+  **first** detection of a break, latches the anchor to `broken`, writes a chained
+  `audit.chain.verification_failed` row, and notifies the org's owners/admins.
+  The `status` latch makes it notify-once (no storm on repeated ticks). A
+  detector nobody runs detects nothing — this closes H-2.
+- **Tests.** R-5 green; new `audit-verify-sweep.test.ts` (anchor advance,
+  tail-truncation via anchor, legacy no-anchor stays green, sweep clean-no-notify,
+  sweep latch+audit+notify-once). Full API suite **140 files / 1332 tests** green.
+
+**Three regressions caught during B5 — the ratchet system working as designed.**
+Adding the anchor table tripped guards that then made me fix the collateral damage
+before declaring green:
+1. **R-1 fired on the new anchor table.** `audit_chain_anchors` carries `org_id`,
+   so by the exact rule 0052/R-1 use it is a tenant table and must be walled — R-1
+   failed until I added `ENABLE + FORCE ROW LEVEL SECURITY + tenant_isolation` to
+   migration 0062 (stanza copied verbatim from 0061). **This is R-1 doing its job:**
+   the moment a new tenant table appeared without its wall, the ratchet named it.
+2. **dms-workers mock DB.** Its in-memory `insert().values()` builder had no
+   `.onConflictDoUpdate` — which the new anchor upsert calls through
+   `appendAuditEntry`. Added a no-op to match the real DB surface.
+3. **asset-expiry-alerts pollution flake.** Failed only under the full-suite run
+   (cross-test pollution), passes in isolation and in the clean full run. Pre-existing
+   — the B16 test-hygiene theme (tests don't tear down seed data), not a B5 defect.
+
 **Dependency.** None; independent ratchet. (Its Phase-2 partner is the B5 head-anchor
 + scheduled-sweep work.)
 
 ---
 
-**Phase 1 exit condition:** R-1 through R-5 are committed and **red** (or landed
-together with their Phase-2/3 partners). (R-5 was originally expected green on the
-assumption the verifier already caught tail-truncation; verified during
-implementation, it does not — so all five ratchets are red until their Phase-2/3
-fixes.) From here on, every later fix has a test waiting to confirm it and to stop it
-regressing.
+**Phase 1 exit condition — MET (2026-08-02): R-1 through R-5 are all green.** Each
+was committed red first (or landed with its Phase-2/3 partner), then turned by the
+corresponding fix: R-1←A11, R-2←A6, R-3←A3/A4, R-4←A2, R-5←B5. From here on, every
+later fix has a test waiting to confirm it and to stop it regressing.
 
 ---
 
@@ -1290,6 +1348,18 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
   DB query cancel path and the portal connectors; fix the false
   "idempotent"/"locked" comments and the notifier that double-sends on retry;
   fail-closed on the `/internal/*` token instead of trusting the Docker network.
+- **Test-hygiene theme (B16) — tests don't tear down their seed data.** Observed
+  2026-08-02 while running the pre-B5 chain census: the test DB (`:5433`) has
+  accumulated **10,067 orgs across prior runs** (9,827 named `"QA Test Org"`, plus
+  named fixtures and `dup-org-*` rows), with **2,271 broken audit chains** left behind
+  by tests that deliberately tamper/truncate/delete chain rows (e.g. the R-5
+  tail-truncation test) and never clean up. Each suite seeds a fresh org per
+  CLAUDE.md's self-isolation rule but does not delete it afterward, so seed data grows
+  unbounded. Not urgent and not a production issue, but it (a) slows the suite and
+  (b) makes any `count(*)`/aggregate query against the test DB meaningless (as it did
+  for the census — the real signal was the clean dev DB, not the test DB's 2,271
+  "broken"). Fix: per-suite teardown (or a `pnpm docker:test:reset` in CI before the
+  run) so the test DB starts each run empty. Bucket B.
 - **KMS legacy theme (B14, and B15 from the triage update).** Re-wrap legacy CBC
   secrets and fix "decrypt-fail reads as not-connected"; and **encrypt the
   plaintext SSO OAuth tokens** (`accounts.accessToken/refreshToken`,

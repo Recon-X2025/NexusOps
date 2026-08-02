@@ -341,6 +341,42 @@ export const auditLogs = pgTable(
   }),
 );
 
+// ── Audit Chain Anchor ─────────────────────────────────────────────────────
+/**
+ * Per-org tamper-evidence head anchor (B5). `verifyAuditChain` re-derives the
+ * chain purely from the rows still present, so deleting entries off the END of
+ * the chain leaves a shorter-but-internally-consistent chain that the verifier
+ * cannot tell is truncated. This table is the INDEPENDENT record of how long the
+ * chain should be: `maxSeq` / `headHash` are the org's committed head, updated
+ * inside the same per-org advisory-locked transaction as each `appendAuditEntry`.
+ * A later verify compares the table's actual max seq against this anchor — if the
+ * anchor is ahead, the tail was truncated.
+ *
+ * `status` records whether the chain was intact when the anchor was established:
+ *  - "ok":     anchored at a verified-clean head; the sweep expects the chain to
+ *              match `maxSeq`/`headHash`.
+ *  - "broken": the chain already FAILED verification at anchor time (a pre-existing
+ *              break). We deliberately record it rather than blessing the current
+ *              MAX(seq) as correct (which would accept the gap forever) or skipping
+ *              silently (which would make a broken chain indistinguishable from a
+ *              legitimately new, unanchored org). The verifier keeps reporting this
+ *              org broken every run until a human resolves it.
+ */
+export const auditChainStatusEnum = pgEnum("audit_chain_status", ["ok", "broken"]);
+
+export const auditChainAnchors = pgTable("audit_chain_anchors", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  /** Highest committed chain seq for this org (the expected head). */
+  maxSeq: integer("max_seq").notNull(),
+  /** entryHash of the head entry (seq == maxSeq). */
+  headHash: text("head_hash").notNull(),
+  /** Whether the chain was intact when this anchor was (re)established. */
+  status: auditChainStatusEnum("status").notNull().default("ok"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Invite Tokens ──────────────────────────────────────────────────────────
 export const invites = pgTable(
   "invites",

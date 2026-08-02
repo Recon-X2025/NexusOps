@@ -213,6 +213,10 @@ function makeRetentionDb(state: MockState) {
         if (table._kind === "auditLogs") state.auditEvents.push(vals);
         return {
           returning: () => Promise.resolve([{ id: "mock-id", seq: 1, entryHash: "mock-hash" }]),
+          // appendAuditEntry also upserts the per-org head anchor
+          // (`auditChainAnchors`) in the same txn; there is no real Postgres
+          // here, so this is a no-op that just satisfies the call.
+          onConflictDoUpdate: () => Promise.resolve(),
         };
       },
     }),
