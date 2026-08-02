@@ -40,6 +40,13 @@ const ADMIN_TABS = [
   { key: "integrations", label: "Integration Hub", icon: Server, module: "admin" as const, action: "admin" as const },
 ];
 
+// The five permission verbs the custom-role save path accepts. Must stay in
+// lockstep with the API's `ROLE_PERMISSION_ACTIONS` (admin.ts) — the create/update
+// mutation input is `z.enum(ROLE_PERMISSION_ACTIONS)`, so the checkbox matrix may
+// only produce these values or the Postgres permission_action enum would reject them.
+const ROLE_PERMISSION_ACTIONS = ["create", "read", "update", "delete", "manage"] as const;
+type RolePermissionAction = (typeof ROLE_PERMISSION_ACTIONS)[number];
+
 // All modules for RBAC matrix
 const ALL_MODULES: Module[] = [
   "incidents", "requests", "changes", "problems", "work_orders", "escalations", "knowledge", "catalog", "approvals",
@@ -84,7 +91,7 @@ export default function AdminConsolePage() {
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ id: string; name: string } | null>(null);
   
   const [showCustomRoleForm, setShowCustomRoleForm] = useState(false);
-  const [customRoleForm, setCustomRoleForm] = useState<{ id?: string, name: string, description: string, permissions: { resource: string, action: string }[] }>({ name: "", description: "", permissions: [] });
+  const [customRoleForm, setCustomRoleForm] = useState<{ id?: string, name: string, description: string, permissions: { resource: string, action: RolePermissionAction }[] }>({ name: "", description: "", permissions: [] });
 
   // @ts-ignore
   const slaQuery = trpc.admin.slaDefinitions.list.useQuery(undefined, mergeTrpcQueryOpts("admin.slaDefinitions.list", undefined));
@@ -476,7 +483,7 @@ export default function AdminConsolePage() {
                 <thead className="bg-muted sticky top-0 z-10">
                   <tr>
                     <th className="p-2 font-semibold border-b border-r">Module</th>
-                    {["create", "read", "update", "delete", "manage"].map(act =>(
+                    {ROLE_PERMISSION_ACTIONS.map(act =>(
                       <th key={act} className="p-2 font-semibold border-b text-center capitalize">{act}</th>
                     ))}
                   </tr>
@@ -485,7 +492,7 @@ export default function AdminConsolePage() {
                   {ALL_MODULES.map((mod) => (
                     <tr key={mod} className="border-b hover:bg-muted/30">
                       <td className="p-2 border-r font-medium text-foreground">{MODULE_LABELS[mod] || mod}</td>
-                      {["create", "read", "update", "delete", "manage"].map(act =>{
+                      {ROLE_PERMISSION_ACTIONS.map(act =>{
                         const isChecked = customRoleForm.permissions.some(p => p.resource === mod && p.action === act);
                         return (
                           <td key={act} className="p-2 text-center">
@@ -885,10 +892,18 @@ export default function AdminConsolePage() {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const existingPerms: { resource: string; action: string }[] = [];
+                                      const existingPerms: { resource: string; action: RolePermissionAction }[] = [];
                                       const rolePerms = ROLE_PERMISSIONS[r.role as keyof typeof ROLE_PERMISSIONS] ?? {};
+                                      // Seed only the five CRUD verbs the checkbox matrix (and the save
+                                      // mutation) accept. The display catalog also carries workflow verbs
+                                      // (write/admin/approve/assign/close) that the matrix cannot represent
+                                      // and the permission_action enum would reject, so they are dropped here.
+                                      const isRoleAction = (a: string): a is RolePermissionAction =>
+                                        (ROLE_PERMISSION_ACTIONS as readonly string[]).includes(a);
                                       Object.entries(rolePerms).forEach(([res, actions]) => {
-                                        (actions as string[]).forEach(act => existingPerms.push({ resource: res, action: act }));
+                                        (actions as string[]).forEach(act => {
+                                          if (isRoleAction(act)) existingPerms.push({ resource: res, action: act });
+                                        });
                                       });
                                       setCustomRoleForm({ name: r.displayName, description: r.description, permissions: existingPerms });
                                       setShowCustomRoleForm(true);

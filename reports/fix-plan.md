@@ -1002,6 +1002,24 @@ approved.
 >   casts in `update`). `perm.action` is now a genuine enum value; the compiler
 >   enforces the alignment from here on.
 >
+> **Addendum (2026-08-02) — the edit path had the same hidden defect.** The initial
+> A6 fix narrowed the *create* path and the checkbox grid, but a second call site
+> survived: the **"Edit / Customize"** button (`apps/web/src/app/app/admin/page.tsx`
+> ~:895-900) seeded the custom-role form by iterating `ROLE_PERMISSIONS` — the
+> seven-verb *display* catalog — straight into the form's `permissions` array. So
+> opening a built-in role in the custom-role editor pre-loaded `approve`/`assign`/
+> `close`, verbs the CRUD matrix cannot represent and the `permission_action` enum
+> rejects. The old `as any` casts had hidden this on the edit path exactly as they
+> did on create; once the casts were gone, the compiler flagged it (this was the CI
+> "Type check Web" failure). **Fix:** the form state's `action` field is now typed to
+> the five-literal `RolePermissionAction`, and the edit-seed loop filters through a
+> runtime type guard (`isRoleAction`) that keeps only the five CRUD verbs — the
+> unrepresentable workflow verbs are dropped rather than seeded into a form whose save
+> the enum would reject. No cast, and the API input schema was **not** loosened. The
+> five-literal `ROLE_PERMISSION_ACTIONS` constant is now declared in the web page and
+> kept in lockstep with the API's identical constant. Verified: `pnpm lint` (all 9
+> workspaces, incl. the exact `cd apps/web && npx tsc --noEmit` CI runs) green.
+>
 > **R-2 was rewritten to pin the correct invariant** — see the R-2 row in the status
 > table and the "Ratchet re-scoped" note below. Verified RED before (2 failing
 > assertions on `[write, admin, approve, assign, close]`) and GREEN after (3/3).

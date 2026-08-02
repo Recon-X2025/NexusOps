@@ -23,6 +23,14 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
 
 ## Critical build/test facts
 
+- **Before every merge, run `pnpm lint` from the repo root.** This is the single pre-merge
+  gate: `turbo run lint` typechecks **every** workspace (api, web, mac, worker, and the
+  packages) in one command, so it catches the same class of failure CI's "Lint & Type Check"
+  job does. CI typechecks **both** `apps/api` **and** `apps/web` (`cd apps/web && npx tsc
+  --noEmit`) — a green `apps/api` typecheck alone is **not** sufficient and will let a web
+  type error through to CI, where it blocks Build+Deploy (both gated behind lint passing).
+  The full CI pipeline is: Lint & Type Check → Unit & Integration Tests (`pnpm test`) →
+  E2E Playwright → Build Docker Images (main only) → Deploy to Vultr (main only).
 - **`packages/db` is consumed via its compiled `dist/`.** After editing schema/types in `packages/db`, run `pnpm --filter @coheronconnect/db build` before `apps/api` typechecks will see the changes.
 - **Tests run against a real Postgres** (Docker), not mocks. The test DB is `coheronconnect_test` on **port 5433**.
   - Start it: `pnpm docker:test:up`
