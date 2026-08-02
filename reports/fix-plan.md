@@ -1144,6 +1144,27 @@ that a line set whose rounded sum differs from the header by ₹0.01 is **reject
 Related: **C7** (GSTR-1 structural gaps) reads these persisted lines — A7 gives it
 real per-line data to segregate into B2B/B2CL/B2CS and to build the HSN summary.
 
+**Implemented (2026-08-02).** Shipped as scoped. New shared helper
+`apps/api/src/lib/invoice-lines.ts` (`computeInvoiceFromLines`): computes each line
+with the GST engine (half-up 2dp), sums the **already-rounded** lines into the header
+using integer-paise addition (so float drift can't creep in), and throws a
+`BAD_REQUEST` if a caller-supplied header total differs from the summed lines by even
+₹0.01. All three create paths take an optional `lines[]` and both compute the header
+from it **and** persist the rows to `invoice_line_items` in the existing transaction:
+`financial.createInvoice`, `financial.createReceivableInvoice`, and
+`ingest.importInvoices`. When `lines` is omitted every path keeps its old single-line
+behaviour byte-for-byte (back-compat). The persisted line shape matches exactly what
+the GSTR-1 rate-grouping already reads (`accounting.ts:777-813`).
+
+> **C7 CARRY-FORWARD — negative-line rounding.** The per-line rounder is
+> `Math.round(v)/100`, which is **half-up for positive amounts only**:
+> `Math.round(-0.5)` is `0`, not `-1` (it rounds toward +∞, not away from zero). Every
+> `taxableValue` in A7 is a positive sale value, so the ruling holds today. But **credit
+> notes and any negative lines (C7) must not reuse this path as-is** — they need an
+> explicit away-from-zero rounder, or negative tax would round the wrong way and break
+> the exact-sum reconciliation. This caveat is written inline in `invoice-lines.ts` at
+> the `computeGST` call so it can't be missed when C7 credit notes are built.
+
 #### A8 — Build the create path for India statutory challans (TDS/ESI/PF/PT)
 
 **What changes.** The challan tables exist
