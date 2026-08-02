@@ -234,8 +234,8 @@ accepted — it is the main lever for reducing repeat noise.
 > SMS/notification delivery — have **shipped and are wired**; they were removed
 > so the register stops telling reviewers to skip working features. Do NOT
 > re-add them as debt; if they regress, file a fresh finding. One former entry
-> (DPDP external notification) turned out to hide a **live defect** and has been
-> escalated out of accepted debt — see the LIVE BLOCKER note below.
+> (DPDP external notification) was escalated to a live blocker on 2026-07-31 and
+> has since been **resolved** (fix A3/A4) — see the RESOLVED note below.
 
 - **GSTR-1 rate** — NOT accepted debt. The invoice UI offers 0/5/12/18/28%; whether
   the chosen rate flows into the GSTR-1 return, or GSTR-1 re-hardcodes 18%, is an
@@ -245,21 +245,19 @@ accepted — it is the main lever for reducing repeat noise.
   per-line path reads `invoiceLineItems`, which has no production write path, so
   real invoices take the header fallback.)
 
-### LIVE — NOT accepted debt (do not skip)
+### RESOLVED — DPDP external notification (was a LIVE BLOCKER on 2026-07-31)
 
-- **DPDP external notification — LIVE BLOCKER, misrouted statutory notices.**
-  This was previously listed as accepted debt ("sweeps log artifacts, outbound
-  delivery not wired"). That is now **false and dangerous**: delivery *is* wired
-  (`notification-dispatcher.ts:131` binds `EmailDispatcher`, which really sends
-  via `sendTransactionalEmail → transporter.sendMail`). But the two **statutory**
-  recipients are hardcoded to **internal mailboxes** —
-  `data_protection_board → dpb-india@coheronconnect.coheron.com` and
-  `affected_principals → privacy@coheronconnect.coheron.com`
-  (`notification-dispatcher.ts:92-100`) — and the artifact is then stamped
-  `status: "sent"` (`:108-112`). The breach sweep raises both notices on the
-  statutory clock (`dpdp-sweeps.ts:163-189`), and the sweep file header still
-  wrongly claims "only logs an artifact" (`dpdp-sweeps.ts:10-11`). Net effect:
-  a DPDP breach notice to the Data Protection Board and to affected principals
-  is **recorded as delivered while going to internal inboxes** — fabricated proof
-  of statutory notice. Treat as a **BLOCKER**, audit it, do not wave off as
-  known debt. (Tracked in `GAP_ANALYSIS.md` as an open gap, not shipped.)
+- **DPDP external notification — RESOLVED (fix A3/A4). Verified against source
+  2026-08-02.** The 2026-07-31 blocker was: delivery was wired but the two
+  **statutory** recipients were hardcoded to internal mailboxes
+  (`dpb-india@…`, `privacy@…`) and the artifact was stamped `status: "sent"`,
+  fabricating proof of statutory notice. **That is fixed.** The dispatcher now
+  routes a DPDP notice ONLY to the tenant's own configured
+  `organizations.dpdp_contact_email` (`notification-dispatcher.ts:67-75`),
+  **refuses cleanly** (records nothing, delivers nothing) when that contact is
+  unset (`:87`, `:118`), and there is **no `sent` state at all** — a successful
+  send leaves the artifact `logged`, because the software cannot know a statutory
+  duty was discharged (`:99`, `:138-141`, honesty contract at `:8-18`). The
+  regulator/principal are never addressed directly. Do not re-report the old
+  misrouting; if a `sent` state or a platform/regulator fallback address
+  reappears, file a fresh BLOCKER.

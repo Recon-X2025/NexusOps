@@ -4,15 +4,17 @@
 **Date:** 2026-07-30 (rev; v2.1 orig April 4, 2026)
 **Status:** Active
 **Author:** Platform Engineering Team
-**Source:** `packages/db/src/schema/` (**48 schema files, 236 tables** at migration head
-`0059_volatile_midnight`, 60 migrations, Drizzle ORM / PostgreSQL 16)
+**Source:** `packages/db/src/schema/` (**236 tables** across 46 schema files, Drizzle
+ORM / PostgreSQL 16). For the live migration head read
+`packages/db/drizzle/meta/_journal.json`; do not trust a head number quoted in prose.
 
-> **2026-07-30 reconciliation note.** The authoritative current count is **236 base tables**
-> (verified: 236 `pgTable` definitions across `packages/db/src/schema/*.ts` == 236 base tables in
-> the migrated DB, excluding `__drizzle_migrations`). The older changelog rows below (v1.x/2.0/2.1,
-> April 2026) quote intermediate counts (~85, 121, 132) that pre-date migrations `0005`–`0059`; the
-> per-domain diagrams further down have **not** all been regenerated to the current schema and may
-> lag. Treat the 236 header count as ground truth; the domain diagrams are indicative, not exhaustive.
+> **Reconciliation note (table count re-verified 2026-08-02).** The count is **236 base
+> tables** — 236 `pgTable` definitions across `packages/db/src/schema/*.ts`, still exact
+> after migrations `0060`/`0061` (which add a column and RLS policies, not tables). The
+> older changelog rows below (v1.x/2.0/2.1, April 2026) quote intermediate counts (~85,
+> 121, 132) that pre-date later migrations; the per-domain diagrams further down have
+> **not** all been regenerated to the current schema and may lag. Treat the 236 count as
+> ground truth; the domain diagrams are indicative, not exhaustive.
 
 ---
 

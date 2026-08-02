@@ -44,17 +44,26 @@ Monorepo managed with **pnpm@10.33.0 + Turborepo** (`turbo ^2.0.0`), Node `>=20`
 - Migration journal gate: `pnpm check:migrations` (`scripts/verify-migration-journal.mjs`) only checks each `.sql` has a matching tag in `_journal.json`; **no hash check**.
 - Generate: `pnpm db:generate` (in `packages/db`). Apply: `pnpm db:migrate`.
 - Always validate new migrations against a throwaway copy of a real DB, not just typechecking. See `docs/DATA_MODEL.md` for the data-model reference (tenancy classes + FK ownership).
-- **Current migration head: `0059_volatile_midnight`** (60 files, `0000`…`0059`). `0031_workable_spot`
-  (team's super-admin / org-profile expansion) + `0032` (consolidated `mfa_enrollments`,
-  `vulnerability_sla_events` + vuln SLA columns, `dpdp_notification_artifacts` + DPDP regime/erasure
-  columns) landed on branch `merge/team-super-admin`. Migs `0041`–`0052` are the G1–G17 India-market
-  gap-closure run (CRM lossless-convert/scoring/CPQ-tax, OKR rollup, SAM recon, expiry alerts, EPFO/
-  NIC/MCA21 portal push, RoPA, KMS envelope encryption, and `0052` Postgres RLS). Migs `0053`–`0055`
-  add shift_schedules (`0053`), Labour-Codes-2025 statutory-ceiling schema + platform-default seed
-  (`0054`, self-contained schema+seed), and ESI challan records + `statutory_return_status` (`0055`).
-  Migs `0056`–`0059` add ESI employee/employer amount columns on `payroll_runs`/`payslips` (`0056`),
-  an `invoices.gstin_id` FK into `gstin_registry` (`0057`), `roles.is_archived` (`0058`), and
-  `sla_definitions` display/category/metric/schedule fields (`0059`).
+- **Migration head — source of truth is the last entry in
+  `packages/db/drizzle/meta/_journal.json`** (and the highest-numbered `.sql` in
+  `packages/db/drizzle/`). Do not trust a head number hardcoded in prose here or in any
+  doc; check the journal. The count is `head-number + 1` files (`0000`…`NNNN`).
+  What the notable migrations do (stable regardless of the current head):
+  `0031_workable_spot` (team's super-admin / org-profile expansion) + `0032` (consolidated
+  `mfa_enrollments`, `vulnerability_sla_events` + vuln SLA columns, `dpdp_notification_artifacts`
+  + DPDP regime/erasure columns) landed on branch `merge/team-super-admin`. Migs `0041`–`0052`
+  are the G1–G17 India-market gap-closure run (CRM lossless-convert/scoring/CPQ-tax, OKR rollup,
+  SAM recon, expiry alerts, EPFO/NIC/MCA21 portal push, RoPA, KMS envelope encryption, and `0052`
+  Postgres RLS). Migs `0053`–`0055` add shift_schedules (`0053`), Labour-Codes-2025
+  statutory-ceiling schema + platform-default seed (`0054`, self-contained schema+seed), and ESI
+  challan records + `statutory_return_status` (`0055`). Migs `0056`–`0059` add ESI employee/employer
+  amount columns on `payroll_runs`/`payslips` (`0056`), an `invoices.gstin_id` FK into
+  `gstin_registry` (`0057`), `roles.is_archived` (`0058`), and `sla_definitions`
+  display/category/metric/schedule fields (`0059`). `0060_pretty_junta` adds
+  `organizations.dpdp_contact_email` (the tenant DPDP-notice target, fix A3/A4); `0061_walled_challans`
+  extends the RLS wall (`FORCE ROW LEVEL SECURITY` + `tenant_isolation` policy) to `shift_schedules`,
+  `esi_challan_records`, `pt_challan_records` — the three tenant tables added after `0052` that the
+  wall had missed (fix A11).
   **`0052` is
   hand-written:** it provisions the non-privileged `app_runtime` role + `FORCE ROW LEVEL SECURITY` +
   `tenant_isolation` policies on all tenant tables (RLS only enforces because the request path drops
@@ -127,12 +136,15 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 >   WIRED** as BullMQ sweeps (see `BUILD.md §4`).
 > - **Super-admin / platform-monitoring role — SHIPPED** (`apps/mac` + `/api/super-admin/*` + `superAdminAuditLogs`);
 >   the "Latest session state" note below saying it doesn't exist yet is superseded.
-> Still genuinely open per the audits: balance sheet, GSTR-1 18% hardcode, depreciation engine,
-> gratuity/leave accrual, SAM reconciliation, lead scoring/lossless conversion, SMS delivery.
+> Still genuinely open per the audits: balance sheet, depreciation engine, gratuity/leave accrual,
+> SAM reconciliation, lead scoring/lossless conversion, SMS delivery. (Note: the old "GSTR-1 18%
+> hardcode" is NOT a rate hardcode — `accounting.ts:744-797` groups by the real per-line rate with a
+> header-derived fallback; the residual is that the per-line path reads `invoiceLineItems`, which has
+> no production write path, so real invoices take the header fallback. See `docs/quality-bar.md` #10.)
 
-**The authoritative, living gap tracker is `docs/GAP_ANALYSIS.md`** — the tree is now at migration
-head `0059_volatile_midnight` (its shipped/gap claims were last verified at an earlier head and may
-need re-verification). It lists what's shipped (REAL) vs the
+**The authoritative, living gap tracker is `docs/GAP_ANALYSIS.md`** — its shipped/gap claims were
+last verified at an earlier migration head and may need re-verification (for the live head read
+`packages/db/drizzle/meta/_journal.json`). It lists what's shipped (REAL) vs the
 open gaps (PARTIAL/STUB/MISSING) with `file:line` evidence, India go-live sequencing, and an
 owner/target column to fill in. **Update it in place as items ship.**
 
@@ -180,7 +192,7 @@ whole platform to category-competitive across all 9 audits ≈ 40–58 eng-weeks
 
 The authoritative roadmaps are now **three verified, market-split docs** (each grounded
 in a `file:line` code audit at an earlier migration head — see each doc's own
-"Verification basis" line; the tree is now at head `0059_volatile_midnight`):
+"Verification basis" line; for the live head read `packages/db/drizzle/meta/_journal.json`):
 - **`docs/INDIA_ROADMAP.md`** — India go-live + the 5 security items (DPDP, Vuln-SLA,
   MFA, KMS, RLS). Consolidates the old India/security/GA plans.
 - **`docs/US_ROADMAP.md`** — US market (country/regime model, US COA, QuickBooks, CCPA).
@@ -208,8 +220,18 @@ Phase 6 = GA hardening.
 
 ## Latest session state
 
-Current working branch: **`main`** (migration head `0059_volatile_midnight`, 60 files), in sync with
-`origin/main` @ **`2baaa25`**. CI + Vultr deploy are **green** for that HEAD.
+_Snapshot — dated content below. For the live migration head always read
+`packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
+do not trust a commit SHA or head number quoted here._
+
+**As of 2026-08-02:** active branch is **`fixes/phase-2`** (Phase-2 correctness run —
+A3/A4 DPDP notice routing + honest erasure, A6 custom-role save path, A9 goods-receipt
+create, A11 RLS wall on three tenant tables; migrations `0060`/`0061` landed on this
+branch). `origin/main` is at **`2baaa25`** (head `0059`); the Phase-2 work has **not**
+been merged to `main` yet. The prior `main` snapshot below is kept as history.
+
+Prior snapshot: `main` was in sync with `origin/main` @ **`2baaa25`** (migration head
+`0059_volatile_midnight`). CI + Vultr deploy were **green** for that HEAD.
 - **MFA confirmEnroll fixed and shipped (`f365314` + `2baaa25`).** Root cause was in
   `appendAuditEntry` (`apps/api/src/lib/audit-hash.ts`): the hash-chain head-read used
   `ORDER BY seq DESC LIMIT 1` with no NULL filter. Postgres sorts NULLs **first** in DESC order, and
@@ -236,7 +258,7 @@ Current working branch: **`main`** (migration head `0059_volatile_midnight`, 60 
   nullable text columns (`packages/db/src/schema/auth.ts:96-100`); `auth.updateProfile` persists them
   and the login response returns them. (The old "silently discarded" note is superseded.)
 - **Gap tracking:** the live tracker is `docs/GAP_ANALYSIS.md` (its shipped/gap claims were last
-  verified at an earlier head; tree is now at `0059_volatile_midnight`). The dated audits that fed it
+  verified at an earlier head; for the live head read `packages/db/drizzle/meta/_journal.json`). The dated audits that fed it
   (2026-07-03 platform gap set, 2026-06-30
   competitive analysis, vendor benchmarks) and the older `SESSION_HANDOVER_2026-06-30.md` now live
   in `docs/archive/` for decision-history only.

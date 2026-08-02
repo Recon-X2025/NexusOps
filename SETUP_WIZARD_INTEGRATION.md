@@ -2,12 +2,12 @@
 
 This document outlines the architecture, data models, API endpoints, and authentication schemas of the **Setup Wizard** (onboarding flow) and how it integrates with the cross-tenant **Super-Admin (MAC)** API surface.
 
-> **⚠️ STALE — point-in-time doc, flagged 2026-07-30 (not rewritten).** This file has not
-> been re-verified against the current tree (head `0059_volatile_midnight`). Known staleness:
-> - **Hardcoded machine-local paths** — file links like
->   `file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/...` are a specific author's Windows
->   desktop and will not resolve anywhere else. Treat every such link as "see the repo-relative
->   path" (e.g. `apps/web/src/app/app/onboarding-wizard/page.tsx`).
+> **⚠️ STALE — point-in-time doc (flagged 2026-07-30).** This file has not been
+> re-verified against the current tree. Known staleness:
+> - **File links** were the original author's Windows-desktop absolute paths
+>   (`file:///c:/Users/…/CoheronConnect/…`); they have been rewritten to repo-relative
+>   paths (2026-08-02), but the line numbers / contents they point at have **not** been
+>   re-verified against current source.
 > - **Production API URLs / CORS entries are unverified** — the origin list includes a stale
 >   Bolt preview host (`coheronconnect-super-fwyz.bolt.host`) that is not the production surface
 >   (`connect.coheron.tech`). Do not rely on the URLs/CORS list here as current.
@@ -20,7 +20,7 @@ This document outlines the architecture, data models, API endpoints, and authent
 ## 1. The Setup Wizard
 
 ### Steps & Purpose
-The wizard consists of **7 steps** defined in [page.tsx](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/web/src/app/app/onboarding-wizard/page.tsx). They are categorized as follows:
+The wizard consists of **7 steps** defined in [page.tsx](apps/web/src/app/app/onboarding-wizard/page.tsx). They are categorized as follows:
 
 | Step Number | Step Key | Step Label | Purpose | Type |
 |-------------|----------|------------|---------|------|
@@ -35,7 +35,7 @@ The wizard consists of **7 steps** defined in [page.tsx](file:///c:/Users/jbbas/
 ---
 
 ### Fields & Validation Rules
-Grounding references for all fields are in [page.tsx](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/web/src/app/app/onboarding-wizard/page.tsx) (UI validation) and [onboarding.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/routers/onboarding.ts) (API schemas).
+Grounding references for all fields are in [page.tsx](apps/web/src/app/app/onboarding-wizard/page.tsx) (UI validation) and [onboarding.ts](apps/api/src/routers/onboarding.ts) (API schemas).
 
 #### Step 2: Organisation Profile (`org_profile`)
 - **Company Name (`displayName`)**:
@@ -121,7 +121,7 @@ Grounding references for all fields are in [page.tsx](file:///c:/Users/jbbas/One
 
 ## 2. Where the Data is Stored
 
-The schema is defined in [auth.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/packages/db/src/schema/auth.ts) and [accounting.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/packages/db/src/schema/accounting.ts).
+The schema is defined in [auth.ts](packages/db/src/schema/auth.ts) and [accounting.ts](packages/db/src/schema/accounting.ts).
 
 ### Wizard Field to Database Mapping
 
@@ -150,11 +150,11 @@ The schema is defined in [auth.ts](file:///c:/Users/jbbas/OneDrive/Desktop/Coher
 ---
 
 ### Migrations
-1. **[0031_workable_spot.sql](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/packages/db/drizzle/0031_workable_spot.sql)**:
+1. **[0031_workable_spot.sql](packages/db/drizzle/0031_workable_spot.sql)**:
    - Added all primary setup wizard columns to the `organizations` table (`industry`, `company_size`, `city`, `state`, `website`, `support_email`, `pan`, `tan`, `epf_code`, `primary_state_code`, `sla_p1_hours`, `sla_p2_hours`, `sla_p3_hours`, `sla_p4_hours`).
    - Created the `super_admin_audit_logs` table.
    - Created the index `gstin_registry_gstin_idx`.
-2. **[0037_optimal_vision.sql](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/packages/db/drizzle/0037_optimal_vision.sql)**:
+2. **[0037_optimal_vision.sql](packages/db/drizzle/0037_optimal_vision.sql)**:
    - Added `pan_masked_hash` and `pan_masked_display` columns to the `organizations` table (for compliance with DPDP data minimization).
 
 ---
@@ -163,7 +163,7 @@ The schema is defined in [auth.ts](file:///c:/Users/jbbas/OneDrive/Desktop/Coher
 - **Uniqueness on GSTIN**: 
   Migration `0031` created `gstin_registry_gstin_idx` as a global `UNIQUE` constraint on the `gstin` column of `gstin_registry`.
   > [!WARNING]
-  > This global unique constraint conflicts with the multi-tenant unique index `gstin_registry_org_gstin_idx` defined on `(org_id, gstin)` in [accounting.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/packages/db/src/schema/accounting.ts), which was meant to allow multiple orgs to independently register records.
+  > This global unique constraint conflicts with the multi-tenant unique index `gstin_registry_org_gstin_idx` defined on `(org_id, gstin)` in [accounting.ts](packages/db/src/schema/accounting.ts), which was meant to allow multiple orgs to independently register records.
 - **Nullability**: All wizard-specific columns inside `organizations` are nullable at the database schema level (`notNull()` is omitted), meaning the database itself does not block partial saves.
 
 ---
@@ -171,7 +171,7 @@ The schema is defined in [auth.ts](file:///c:/Users/jbbas/OneDrive/Desktop/Coher
 ## 3. The Save Path
 
 ### Mutation & Input Schema
-The wizard invokes the tRPC mutation `trpc.onboarding.saveWizardData` defined in [onboarding.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/routers/onboarding.ts).
+The wizard invokes the tRPC mutation `trpc.onboarding.saveWizardData` defined in [onboarding.ts](apps/api/src/routers/onboarding.ts).
 
 **Nesting Schema**:
 ```typescript
@@ -212,7 +212,7 @@ Saves trigger **per-step** as the user completes each block of the form and clic
 
 ### Re-entry Behavior
 1. **Does it pre-fill?**
-   **No**. The component states in [page.tsx](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/web/src/app/app/onboarding-wizard/page.tsx) are initialized as empty. There is no query fetch that retrieves existing onboarding settings from the database upon opening the wizard.
+   **No**. The component states in [page.tsx](apps/web/src/app/app/onboarding-wizard/page.tsx) are initialized as empty. There is no query fetch that retrieves existing onboarding settings from the database upon opening the wizard.
 2. **Does it overwrite, merge or reject?**
    It **overwrites** existing values. When a step is submitted again, the mutation performs updates on the respective columns.
 3. **Is there a "setup completed" flag?**
@@ -235,13 +235,13 @@ graph TD
 ```
 
 ### Tenant User Auth
-- **Endpoint**: `auth.login` / `auth.me` (defined in [auth.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/routers/auth.ts)).
-- **Mechanism**: Session-cookie tracking using the cookie `coheronconnect_session` (resolved in [trpc.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/lib/trpc.ts)).
+- **Endpoint**: `auth.login` / `auth.me` (defined in [auth.ts](apps/api/src/routers/auth.ts)).
+- **Mechanism**: Session-cookie tracking using the cookie `coheronconnect_session` (resolved in [trpc.ts](apps/api/src/lib/trpc.ts)).
 - **Scope**: Tied to a single tenant organization (`ctx.orgId` resolved from database).
 - **Returned payload**: `{ user, org, sessionId }`.
 
 ### MAC Operator Auth (Super-Admin)
-- **Endpoint**: `mac.login` (defined in [mac.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/routers/mac.ts)).
+- **Endpoint**: `mac.login` (defined in [mac.ts](apps/api/src/routers/mac.ts)).
 - **Mechanism**: Validates credentials against `MAC_OPERATOR_EMAIL` and `MAC_OPERATOR_PASSWORD` environment variables. Issues a JWT signed using `MAC_JWT_SECRET`.
 - **Token Location**: Sent in the `token` key in the response payload.
 - **TTL**: 15 minutes (`expiresIn: "15m"`).
@@ -254,7 +254,7 @@ graph TD
 
 ## 5. Super-Admin API
 
-Grounding reference: [super-admin.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/http/super-admin.ts).
+Grounding reference: [super-admin.ts](apps/api/src/http/super-admin.ts).
 
 ### Endpoints Details
 
@@ -412,12 +412,12 @@ The following is an actual JSON body fetched from a localhost call to `/api/supe
 ## 6. Audit Logging
 
 ### Audit Table & Schema
-Grounding reference: [audit.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/packages/db/src/schema/audit.ts).
+Grounding reference: [audit.ts](packages/db/src/schema/audit.ts).
 - Table name: `super_admin_audit_logs`
 - Schema columns: `id`, `actor_email` (`actorEmail`), `org_id` (`orgId`), `action`, `before_json` (`beforeJson`), `after_json` (`afterJson`), `created_at` (`createdAt`).
 
 ### Write Trigger Events
-Write records are inserted in [super-admin.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/http/super-admin.ts) during these state changes:
+Write records are inserted in [super-admin.ts](apps/api/src/http/super-admin.ts) during these state changes:
 - `UPDATE_WIZARD_DATA`: Logged during PUT `/orgs/:orgId`.
 - `FLAG_ORG` / `UNFLAG_ORG`: Logged during POST `/orgs/:orgId/flag`.
 - `SUSPEND_ORG`: Logged during DELETE `/orgs/:orgId`.
@@ -430,7 +430,7 @@ Write records are inserted in [super-admin.ts](file:///c:/Users/jbbas/OneDrive/D
 ## 7. CORS & Deployment
 
 ### Configuration Location
-CORS rules are configured in [index.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/index.ts).
+CORS rules are configured in [index.ts](apps/api/src/index.ts).
 
 ### Allowed Origins
 1. **Hardcoded origins**:
@@ -453,6 +453,6 @@ CORS rules are configured in [index.ts](file:///c:/Users/jbbas/OneDrive/Desktop/
 
 The following behaviors remain **unverified** or **unimplemented**:
 1. **Completion Check logic**: There is no gate, redirection, or read logic to identify if the setup wizard has already been completed by an organization. An admin can visit `/app/onboarding-wizard` at any point and overwrite settings.
-2. **REST API Test Coverage**: There are no automated integration test files validating the REST API endpoints under `/api/super-admin/*` (unlike the tRPC `mac` router tests in [mac-auth.test.ts](file:///c:/Users/jbbas/OneDrive/Desktop/CoheronConnect/apps/api/src/__tests__/mac-auth.test.ts)).
+2. **REST API Test Coverage**: There are no automated integration test files validating the REST API endpoints under `/api/super-admin/*` (unlike the tRPC `mac` router tests in [mac-auth.test.ts](apps/api/src/__tests__/mac-auth.test.ts)).
 3. **Production URL verification**: The domain name/URL of the production REST API is undocumented and unverified.
 4. **GSTIN Registry Index Constraint Clash**: There is an unresolved clash in migrations between the global unique index `gstin_registry_gstin_idx` on `gstin` and the tenant-scoped index `gstin_registry_org_gstin_idx`.

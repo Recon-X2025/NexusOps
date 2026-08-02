@@ -7,8 +7,14 @@
  * logic here (rather than inside a Temporal activity) means it is testable with
  * the normal API test harness (real Postgres) without a running Temporal server.
  *
- * None of these functions perform external delivery — they route every outbound
- * notice through the NotificationDispatcher, which today only logs an artifact.
+ * None of these functions deliver directly — they route every outbound notice
+ * through the NotificationDispatcher. The active binding is `EmailDispatcher`
+ * (notification-dispatcher.ts:157), which records an audit artifact AND delivers
+ * the notice to the tenant's own configured DPDP contact
+ * (`organizations.dpdp_contact_email`), or refuses cleanly (recording nothing,
+ * delivering nothing) when that contact is unset — never a platform inbox, never
+ * a regulator address, and never a `sent` state. See the honesty contract in
+ * notification-dispatcher.ts:8-18 (fix A3/A4).
  *
  * All three are idempotent per run window:
  *  - consentExpirySweep mutates state that no longer matches after it runs.

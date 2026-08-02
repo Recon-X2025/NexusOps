@@ -19,7 +19,10 @@ drift detection, trpc.ts "hard timeout", client.ts pool-exhaustion detection) ar
 
 ## Plain English summary
 
-Three safeguard comments claim a protection the code does not deliver.
+Four false safeguard comments in total. Three (F-1, F-2, F-3) claim a protection the
+code does not deliver; a fourth (F-4, found and fixed 2026-08-02) ran the opposite way
+— it claimed a DPDP dispatcher "only logs" when the active binding actually delivers to
+the tenant contact. F-3 and F-4 are resolved; F-1 and F-2 remain open.
 
 1. **A "duplicate notifications are ignored" comment that is not true.** A helper
    that sends workflow notifications (approval outcomes, SLA breaches, on-call
@@ -192,6 +195,44 @@ maintainer to treat the retry as redundant over an already-atomic allocator and 
 weaken it, which would re-expose the duplicate-number failure. (The proper fix — route
 these paths through the real `getNextSeq` allocator — is tracked as B2 in
 `reports/fix-plan.md`; this finding is the comment-correction half of it.)
+
+---
+
+### F-4 — "the NotificationDispatcher … today only logs an artifact" — the active dispatcher delivers to the tenant DPDP contact
+
+**Status: RESOLVED on discovery (2026-08-02).** The comment was corrected in the same
+pass that found it; the code was already correct — only the comment lagged.
+
+**Where:** `apps/api/src/lib/dpdp-sweeps.ts:10-11` (file-header comment) over the three
+sweep functions (`consentExpirySweep` / `dsrOverdueSweep` / `breachNotifySweep`).
+
+**The comment claimed:**
+> None of these functions perform external delivery — they route every outbound notice through the NotificationDispatcher, which today only logs an artifact.
+
+**What the code actually does:** the process-wide dispatcher binding is
+`EmailDispatcher` (`notification-dispatcher.ts:157`), not a log-only stub. Its
+`dispatch` (`notification-dispatcher.ts:116-149`) records an audit artifact **and**
+calls `sendTransactionalEmail(contact, …)` (`:137`) to deliver the notice to the
+tenant's own configured `organizations.dpdp_contact_email` — or refuses cleanly
+(records nothing, delivers nothing) when that contact is unset (`:117-118`). The A3/A4
+work that landed this replaced the earlier log-only behaviour the comment described;
+the comment was never updated.
+
+**Direction of the falsehood (why this one differs from F-1/F-2):** F-1 and F-2
+*overstate* a safeguard (claim a protection the code lacks). F-4 *understates* the
+code — it claims the dispatcher merely logs when in fact it delivers to an external
+address. That is the more dangerous shape of the pattern here: a reader trusting
+"only logs an artifact" could wrongly conclude no DPDP notice ever leaves the platform
+and skip the tenant-contact wiring or the honesty-contract review — exactly the class
+of stale-comment-hiding-a-real-behaviour that the escalated DPDP blocker turned on.
+This is the sixth false safeguard comment found across the register (the four excluded
+known ones in the note above, plus F-1…F-3), and the one whose predecessor hid a real
+defect.
+
+**Resolution:** the header comment now states that the active binding is
+`EmailDispatcher`, that it records an artifact and delivers to the tenant's
+`dpdp_contact_email` (or refuses when unset), and cross-references the honesty
+contract at `notification-dispatcher.ts:8-18`. No behaviour change — comment-only.
 
 ---
 
