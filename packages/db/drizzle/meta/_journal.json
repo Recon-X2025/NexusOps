@@ -421,6 +421,27 @@
       "when": 1785219664462,
       "tag": "0059_volatile_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1785584120261,
+      "tag": "0060_pretty_junta",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1785584120262,
+      "tag": "0061_walled_challans",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1785653804197,
+      "tag": "0062_warm_blacklash",
+      "breakpoints": true
     }
   ]
 }

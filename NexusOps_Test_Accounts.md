@@ -1,5 +1,15 @@
 # CoheronConnect — Test Accounts Reference
 
+> **⚠️ Partially stale — verified against source 2026-08-02.** The 7 core accounts
+> below are **still seeded** by the base `db:seed` (`packages/db/src/seed.ts:50-58`,
+> org slug `coheron-demo`), plus `legal@coheron.com` and `secretary@coheron.com` which
+> this table omits. **BUT** the note about "40+ additional unique users … dynamically
+> using Faker.js" is **no longer true**: the 100-employee/24-month demo generator
+> (`seed-demo.ts`) and its `db:seed:company` / `db:seed:demo` scripts were **removed**
+> and must not be reintroduced (see `CLAUDE.md`). The surviving seeds are `db:seed`,
+> `db:seed:modules`, `db:seed:smb`. Treat this file as accurate only for the core
+> accounts; ignore the Faker note.
+
 **Organization:** Coheron Demo (`coheron-demo`)
 **Universal Password:** `demo1234!`
 

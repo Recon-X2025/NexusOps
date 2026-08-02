@@ -26,14 +26,20 @@ describe("GST on invoice entry", () => {
   let orgId: string;
   let adminId: string;
 
-  /** Register the org's own GSTIN so its place-of-supply state is known. */
-  async function seedOrgGstin(stateName: string): Promise<void> {
+  /**
+   * Register the org's own GSTIN so its place-of-supply state is known.
+   * Seeds the shape the live onboarding wizard actually produces: a 2-digit
+   * `stateCode` with `stateName` NULL. Vendors, by contrast, store a free-text
+   * state NAME — so the GST split must normalise both to a code before comparing
+   * (a raw code-vs-name compare wrongly reads a local sale as inter-state IGST).
+   */
+  async function seedOrgGstin(): Promise<void> {
     await testDb().insert(gstinRegistry).values({
       orgId,
       gstin: `27${nanoid(6).toUpperCase()}0A1Z5`,
       legalName: "Test Org Pvt Ltd",
       stateCode: "27",
-      stateName,
+      stateName: null,
       isPrimary: true,
       isActive: true,
     });
@@ -56,7 +62,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("computes CGST+SGST for an intra-state AP invoice at 18%", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const vendorId = await seedVendor("Maharashtra");
 
     const inv = await caller.createInvoice({
@@ -77,7 +83,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("computes IGST for an inter-state AP invoice", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const vendorId = await seedVendor("Karnataka");
 
     const inv = await caller.createInvoice({
@@ -96,7 +102,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("defaults to 18% GST when no rate is supplied", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const vendorId = await seedVendor("Maharashtra");
 
     const inv = await caller.createInvoice({
@@ -110,7 +116,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("adds no tax at a 0% rate", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const vendorId = await seedVendor("Maharashtra");
 
     const inv = await caller.createInvoice({
@@ -125,7 +131,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("computes GST for an AR (receivable) invoice", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const customerId = await seedVendor("Karnataka");
 
     const inv = await caller.createReceivableInvoice({
@@ -143,7 +149,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("backfills GST for a legacy zero-tax invoice", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const vendorId = await seedVendor("Maharashtra");
 
     // Simulate a pre-fix row: taxable = amount, no tax.
@@ -175,7 +181,7 @@ describe("GST on invoice entry", () => {
   });
 
   it("does not re-tax an invoice that already has GST", async () => {
-    await seedOrgGstin("Maharashtra");
+    await seedOrgGstin();
     const vendorId = await seedVendor("Maharashtra");
 
     const inv = await caller.createInvoice({

@@ -1,18 +1,28 @@
 /**
- * NotificationDispatcher (Phase 1 — DPDP automation loop).
+ * NotificationDispatcher (DPDP automation loop).
  *
  * The automation sweeps (DSR overdue, breach notification, consent expiry) do
  * not send email/SMS directly. Instead they call a NotificationDispatcher, which
- * is the single seam for outbound delivery. This keeps the *engine* free of any
- * external integration: today the only implementation is `LogOnlyDispatcher`,
- * which persists a defensible audit artifact (`dpdp_notification_artifacts`) and
- * performs NO external send.
+ * is the single seam for outbound delivery.
  *
- * When the external pass wires real delivery, an EmailDispatcher / SmsDispatcher
- * can implement the same interface (still writing the artifact, then flipping its
- * status to "sent"/"failed") without changing any caller.
+ * HONESTY CONTRACT (A3). Under India's DPDP Act, notifying the Data Protection
+ * Board or affected principals is the TENANT's legal act — never the platform's.
+ * So this dispatcher:
+ *   • delivers a notice ONLY to the tenant's own configured DPDP contact
+ *     (`organizations.dpdp_contact_email`) — never to a platform inbox, never to
+ *     a regulator address;
+ *   • REFUSES cleanly when that contact is unset — it records NOTHING and delivers
+ *     NOTHING, rather than silently falling back to a default;
+ *   • records only whether delivery to that tenant contact left the building
+ *     (`logged`/`failed`). There is deliberately NO `sent` state: the software
+ *     cannot know a statutory duty was discharged, so it never claims one was.
  */
-import { dpdpNotificationArtifacts, type DbOrTx } from "@coheronconnect/db";
+import {
+  dpdpNotificationArtifacts,
+  organizations,
+  eq,
+  type DbOrTx,
+} from "@coheronconnect/db";
 
 export type NotificationChannel = "email" | "board" | "principal" | "internal";
 export type NotificationRelatedType = "dsr" | "breach" | "consent";
@@ -29,9 +39,17 @@ export interface NotificationInput {
 }
 
 export interface NotificationResult {
-  artifactId: string;
-  /** Delivery state of the artifact. LogOnly always returns "logged". */
-  status: "logged" | "sent" | "failed";
+  /** Null when the dispatcher refused (no tenant DPDP contact configured). */
+  artifactId: string | null;
+  /**
+   * Delivery state of the artifact. There is NO `sent` state by design — see the
+   * honesty contract above.
+   *  - "logged":   artifact recorded (LogOnly), or mail to the tenant contact left
+   *                the building. Carries no statutory-fulfilment meaning.
+   *  - "failed":   delivery to the tenant contact was attempted and errored.
+   *  - "refused":  no tenant DPDP contact configured; nothing recorded, nothing sent.
+   */
+  status: "logged" | "failed" | "refused";
 }
 
 export interface NotificationDispatcher {
@@ -39,16 +57,35 @@ export interface NotificationDispatcher {
 }
 
 import { sendTransactionalEmail } from "../services/notifications";
-import { eq } from "drizzle-orm";
+
+/**
+ * Resolve the tenant's own DPDP notice destination. Returns null when the org has
+ * no `dpdp_contact_email` configured — the caller MUST then refuse (record and
+ * deliver nothing), never fall back to a default. This is the single point that
+ * decides where a DPDP notice may go; there is deliberately no platform fallback.
+ */
+async function resolveTenantContact(db: DbOrTx, orgId: string): Promise<string | null> {
+  const [org] = await db
+    .select({ contact: organizations.dpdpContactEmail })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  const contact = org?.contact?.trim();
+  return contact && contact.includes("@") ? contact : null;
+}
 
 /**
  * LogOnlyDispatcher — records the notification as an audit artifact and does not
- * deliver it externally. This is the only dispatcher available while external
- * integrations are out of scope; the artifact row is the auditable proof that the
- * obligation was recognised on schedule.
+ * deliver it externally. The artifact row is the auditable proof that the
+ * obligation was recognised on schedule. It still honours the tenant-contact
+ * contract: if the org has no DPDP contact configured, it refuses and records
+ * nothing (a logged artifact would misleadingly imply a destination existed).
  */
 export class LogOnlyDispatcher implements NotificationDispatcher {
   async dispatch(db: DbOrTx, input: NotificationInput): Promise<NotificationResult> {
+    const contact = await resolveTenantContact(db, input.orgId);
+    if (!contact) return { artifactId: null, status: "refused" };
+
     const [row] = await db
       .insert(dpdpNotificationArtifacts)
       .values({
@@ -56,7 +93,7 @@ export class LogOnlyDispatcher implements NotificationDispatcher {
         relatedType: input.relatedType,
         relatedId: input.relatedId,
         channel: input.channel,
-        audience: input.audience,
+        audience: contact,
         subject: input.subject,
         body: input.body,
         status: "logged",
@@ -68,11 +105,18 @@ export class LogOnlyDispatcher implements NotificationDispatcher {
 }
 
 /**
- * EmailDispatcher — records the notification as an audit artifact and attempts
- * to deliver it externally via email. Updates the artifact status to "sent" or "failed".
+ * EmailDispatcher — records the notification as an audit artifact and delivers it
+ * to the TENANT's own DPDP contact. It never resolves a platform or regulator
+ * address, and it never claims a statutory duty was discharged: a successful send
+ * leaves the artifact `logged` (mail to the tenant contact left the building);
+ * a failure marks it `failed`. When no tenant contact is configured it refuses —
+ * recording and delivering nothing.
  */
 export class EmailDispatcher implements NotificationDispatcher {
   async dispatch(db: DbOrTx, input: NotificationInput): Promise<NotificationResult> {
+    const contact = await resolveTenantContact(db, input.orgId);
+    if (!contact) return { artifactId: null, status: "refused" };
+
     const [row] = await db
       .insert(dpdpNotificationArtifacts)
       .values({
@@ -80,7 +124,7 @@ export class EmailDispatcher implements NotificationDispatcher {
         relatedType: input.relatedType,
         relatedId: input.relatedId,
         channel: input.channel,
-        audience: input.audience,
+        audience: contact,
         subject: input.subject,
         body: input.body,
         status: "logged",
@@ -88,38 +132,20 @@ export class EmailDispatcher implements NotificationDispatcher {
       .returning({ id: dpdpNotificationArtifacts.id });
 
     const artifactId = row!.id;
-    
-    // Resolve symbolic audiences to email addresses for delivery
-    let emailAddress = input.audience;
-    if (input.audience === "privacy_officer") {
-      emailAddress = "privacy@coheronconnect.coheron.com";
-    } else if (input.audience === "data_protection_board") {
-      emailAddress = "dpb-india@coheronconnect.coheron.com";
-    } else if (input.audience === "affected_principals") {
-      emailAddress = "privacy@coheronconnect.coheron.com";
+
+    try {
+      await sendTransactionalEmail(contact, input.subject, input.body);
+      // Stays "logged": delivery to the tenant contact left the building. We do
+      // NOT stamp "sent" — that would imply a statutory duty was discharged, which
+      // the software cannot know.
+      return { artifactId, status: "logged" };
+    } catch {
+      await db
+        .update(dpdpNotificationArtifacts)
+        .set({ status: "failed" })
+        .where(eq(dpdpNotificationArtifacts.id, artifactId));
+      return { artifactId, status: "failed" };
     }
-
-    const isEmail = emailAddress.includes("@");
-
-    if (isEmail && (input.channel === "email" || input.channel === "principal" || input.channel === "internal" || input.channel === "board")) {
-      try {
-        await sendTransactionalEmail(emailAddress, input.subject, input.body);
-        
-        await db.update(dpdpNotificationArtifacts)
-          .set({ status: "sent" })
-          .where(eq(dpdpNotificationArtifacts.id, artifactId));
-          
-        return { artifactId, status: "sent" };
-      } catch (err) {
-        await db.update(dpdpNotificationArtifacts)
-          .set({ status: "failed" })
-          .where(eq(dpdpNotificationArtifacts.id, artifactId));
-          
-        return { artifactId, status: "failed" };
-      }
-    }
-
-    return { artifactId, status: "logged" };
   }
 }
 

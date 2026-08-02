@@ -30,6 +30,7 @@ import {
 import { putObject, buildDocumentKey, enqueueVirusScan } from "../services/storage";
 import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";
+import { decryptPan } from "../lib/pan";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
@@ -786,9 +787,12 @@ export const payrollRouter = router({
       if (slips.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: `No payslips on file for FY ${input.fy}` });
 
       const orgRow = org as typeof organizations.$inferSelect & { settings?: unknown };
+      // Decrypt the stored (envelope) PAN back to plaintext for the certificate; legacy
+      // pre-encryption plaintext rows pass through unchanged.
+      const employeePan = await decryptPan(empRow.emp.pan);
       const pdfInput = buildForm16Input({
         org: orgRow,
-        employee: { ...empRow.emp, name: empRow.userRow.name as string },
+        employee: { ...empRow.emp, pan: employeePan ?? null, name: empRow.userRow.name as string },
         fySlips: slips,
         financialYear: input.fy,
       });

@@ -1,10 +1,19 @@
 # CoheronConnect — API Specification
 
-**Version:** 2.0  
-**Date:** April 4, 2026  
-**Organisation:** Coheron  
-**Base URL:** `https://<host>/trpc`  
-**Protocol:** tRPC 11 over HTTP (JSON batch)  
+> **⚠️ STALE SNAPSHOT — do not treat as the current API contract (flagged 2026-08-02).**
+> This document was last revised **2026-04-26** (v2.1) and describes a ~299-procedure
+> surface from that date. Many routers, procedures, and input schemas have shipped since
+> (the whole Phase-2 correctness run, India gap-closure G1–G17, super-admin, DPDP, etc.),
+> so procedure counts, shapes, and router lists here are **out of date**. The **source of
+> truth for the live API is the tRPC routers themselves** — `apps/api/src/routers/*.ts`
+> (and `apps/api/src/http/*` for the REST/webhook surface). Use this file for historical
+> context only; verify any endpoint against source before relying on it.
+
+**Version:** 2.0
+**Date:** April 4, 2026
+**Organisation:** Coheron
+**Base URL:** `https://<host>/trpc`
+**Protocol:** tRPC 11 over HTTP (JSON batch)
 **Authentication:** Bearer token in `Authorization` header
 
 ---

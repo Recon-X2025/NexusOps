@@ -113,6 +113,12 @@ import {
   startPtChallanWorker,
   type PtChallanJobData,
 } from "../workflows/ptChallanWorkflow";
+import {
+  createAuditVerifyQueue,
+  scheduleAuditVerifySweep,
+  startAuditVerifyWorker,
+  type AuditVerifyJobData,
+} from "../workflows/auditVerifyWorkflow";
 import type { Queue } from "bullmq";
 interface WorkflowServiceInstance {
   approvalQueue: Queue<ApprovalJobData>;
@@ -134,6 +140,7 @@ interface WorkflowServiceInstance {
   esiReturnQueue: Queue<EsiReturnJobData>;
   ptChallanQueue: Queue<PtChallanJobData>;
   hrPeriodicQueue: Queue<HrPeriodicJobData>;
+  auditVerifyQueue: Queue<AuditVerifyJobData>;
   shutdown: () => Promise<void>;
 }
 
@@ -162,6 +169,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const esiReturnQueue = createEsiReturnQueue();
   const ptChallanQueue = createPtChallanQueue();
   const hrPeriodicQueue = createHrPeriodicQueue();
+  const auditVerifyQueue = createAuditVerifyQueue();
 
   const approvalWorker = startApprovalWorker(db);
   const slaWorker = startSlaWorker(db);
@@ -182,6 +190,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   const esiReturnWorker = startEsiReturnWorker(db);
   const ptChallanWorker = startPtChallanWorker(db);
   const hrPeriodicWorker = startHrPeriodicWorker();
+  const auditVerifyWorker = startAuditVerifyWorker(db);
 
   scheduleRetentionSweep(retentionQueue).catch((err) => {
     console.warn("[workflow:retention] Failed to register sweeper:", err);
@@ -214,6 +223,10 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   // Asset-warranty + contract-renewal expiry alert sweepers (G9).
   scheduleExpiryAlertSweep(expiryAlertQueue).catch((err) => {
     console.warn("[workflow:expiry-alert] Failed to register expiry alert sweepers:", err);
+  });
+  // Audit-chain integrity verifier (B5 / H-2) — hourly re-derive + notify-once on break.
+  scheduleAuditVerifySweep(auditVerifyQueue).catch((err) => {
+    console.warn("[workflow:audit-verify] Failed to register audit-chain verifier:", err);
   });
 
   approvalWorker.on("failed", (job, err) => {
@@ -270,6 +283,9 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
   ptChallanWorker.on("failed", (job, err) => {
     console.error(`[workflow:pt-challan] Job ${job?.id} failed:`, err.message);
   });
+  auditVerifyWorker.on("failed", (job, err) => {
+    console.error(`[workflow:audit-verify] Job ${job?.id} failed:`, err.message);
+  });
 
   _instance = {
     approvalQueue,
@@ -291,6 +307,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
     esiReturnQueue,
     ptChallanQueue,
     hrPeriodicQueue,
+    auditVerifyQueue,
     async shutdown() {
       await Promise.all([
         approvalWorker.close(),
@@ -312,6 +329,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         esiReturnWorker.close(),
         ptChallanWorker.close(),
         hrPeriodicWorker.close(),
+        auditVerifyWorker.close(),
         approvalQueue.close(),
         slaQueue.close(),
         virusScanQueue.close(),
@@ -330,6 +348,7 @@ export function initWorkflowService(db: Db): WorkflowServiceInstance {
         mca21FilingQueue.close(),
         esiReturnQueue.close(),
         ptChallanQueue.close(),
+        auditVerifyQueue.close(),
       ]);
       _instance = undefined;
     },

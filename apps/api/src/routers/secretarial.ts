@@ -1,7 +1,7 @@
 import { router, permissionProcedure } from "../lib/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { panColumns } from "../lib/pan";
+import { panColumns, decryptPan } from "../lib/pan";
 import {
   boardMeetings,
   boardResolutions,
@@ -581,11 +581,15 @@ export const secretarialRouter = router({
         const conds = [eq(shareCapital.orgId, org!.id)];
         if (input.shareClass)
           conds.push(eq(shareCapital.shareClass, input.shareClass));
-        return db
+        const rows = await db
           .select()
           .from(shareCapital)
           .where(and(...conds))
           .orderBy(shareCapital.folio);
+        // Decrypt the stored (envelope) PAN per row; legacy plaintext rows read through.
+        return Promise.all(
+          rows.map(async (r) => ({ ...r, pan: (await decryptPan(r.pan)) ?? null })),
+        );
       }),
 
     summary: permissionProcedure("secretarial", "read").query(
@@ -626,16 +630,18 @@ export const secretarialRouter = router({
           .where(eq(shareCapital.orgId, org!.id));
         const folio = `SH-${String((last?.n ?? 0) + 1).padStart(4, "0")}`;
         const { pan: _pan, ...shareInput } = input;
+        const panCols = await panColumns(input.pan);
         const [row] = await db
           .insert(shareCapital)
           .values({
             ...shareInput,
-            ...panColumns(input.pan),
+            ...panCols,
             orgId: org!.id,
             folio,
           })
           .returning();
-        return row;
+        // Return the plaintext PAN to the caller (stored value is envelope ciphertext).
+        return { ...row!, pan: (await decryptPan(row!.pan)) ?? null };
       }),
 
     update: permissionProcedure("secretarial", "write")
@@ -656,12 +662,14 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, pan: _pan, ...rest } = input;
+        const panCols = await panColumns(input.pan);
         const [row] = await db
           .update(shareCapital)
-          .set({ ...rest, ...panColumns(input.pan), updatedAt: new Date() })
+          .set({ ...rest, ...panCols, updatedAt: new Date() })
           .where(and(eq(shareCapital.id, id), eq(shareCapital.orgId, org!.id)))
           .returning();
-        return row;
+        // Return the plaintext PAN to the caller (stored value is envelope ciphertext).
+        return { ...row!, pan: (await decryptPan(row!.pan)) ?? null };
       }),
 
     delete: permissionProcedure("secretarial", "write")
@@ -854,11 +862,15 @@ export const secretarialRouter = router({
         const { db, org } = ctx;
         const conds = [eq(companyDirectors.orgId, org!.id)];
         if (input.activeOnly) conds.push(eq(companyDirectors.isActive, true));
-        return db
+        const rows = await db
           .select()
           .from(companyDirectors)
           .where(and(...conds))
           .orderBy(companyDirectors.name);
+        // Decrypt the stored (envelope) PAN per row; legacy plaintext rows read through.
+        return Promise.all(
+          rows.map(async (r) => ({ ...r, pan: (await decryptPan(r.pan)) ?? null })),
+        );
       }),
 
     create: permissionProcedure("secretarial", "write")
@@ -878,11 +890,12 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { pan: _pan, ...directorInput } = input;
+        const panCols = await panColumns(input.pan);
         const [row] = await db
           .insert(companyDirectors)
           .values({
             ...directorInput,
-            ...panColumns(input.pan),
+            ...panCols,
             orgId: org!.id,
             isActive: true,
             kyc: "pending",
@@ -906,7 +919,8 @@ export const secretarialRouter = router({
           notes: `Automated filing created for newly added director: ${input.name} (DIN: ${input.din})`,
         });
 
-        return row;
+        // Return the plaintext PAN to the caller (stored value is envelope ciphertext).
+        return { ...row!, pan: (await decryptPan(row!.pan)) ?? null };
       }),
 
     updateKyc: permissionProcedure("secretarial", "write")
@@ -957,9 +971,10 @@ export const secretarialRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { id, appointedAt, pan: _pan, ...rest } = input;
+        const panCols = await panColumns(input.pan);
         const updates: Partial<typeof companyDirectors.$inferInsert> = {
           ...rest,
-          ...panColumns(input.pan),
+          ...panCols,
           updatedAt: new Date(),
         };
         if (appointedAt !== undefined) {
@@ -975,7 +990,8 @@ export const secretarialRouter = router({
             ),
           )
           .returning();
-        return row;
+        // Return the plaintext PAN to the caller (stored value is envelope ciphertext).
+        return { ...row!, pan: (await decryptPan(row!.pan)) ?? null };
       }),
 
     delete: permissionProcedure("secretarial", "write")

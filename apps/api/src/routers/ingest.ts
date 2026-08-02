@@ -8,6 +8,7 @@ import {
     crmDeals,
     vendors,
     invoices,
+    invoiceLineItems,
     gstinRegistry,
     eq,
     and,
@@ -15,10 +16,12 @@ import {
     type DbOrTx,
 } from "@coheronconnect/db";
 import { getNextNumber, syncOrgCounters } from "../lib/auto-number";
-import { computeGST, type GSTRate } from "../lib/india/gst-engine";
+import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/gst-engine";
+import { computeInvoiceFromLines } from "../lib/invoice-lines";
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
 import { panColumns, type PanColumns } from "../lib/pan";
+import { encryptSecretEnvelope } from "../services/encryption";
 import { currentFY } from "./accounting";
 
 const MatterIngestSchema = z.object({
@@ -93,12 +96,30 @@ const VendorIngestSchema = z.object({
     status: z.string().default("active"),
 });
 
+const GstRateInput = z.union([z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28)]).default(18);
+
+/** One authoritative bulk-import line (A7); mirrors financial.ts INVOICE_LINE_INPUT. */
+const InvoiceLineIngestSchema = z.object({
+    description: z.string().min(1),
+    taxableValue: z.number(),
+    gstRate: GstRateInput,
+    hsnSacCode: z.string().optional(),
+    quantity: z.number().optional(),
+    unit: z.string().optional(),
+    unitPrice: z.number().optional(),
+    discountPercent: z.number().optional(),
+    discountAmount: z.number().optional(),
+});
+
 const InvoiceIngestSchema = z.object({
     invoiceNumber: z.string().min(1),
     vendorId: z.string().uuid(),
     // `amount` is the taxable value; GST is derived on top (mirrors createInvoice).
     amount: z.string().min(1),
-    gstRate: z.union([z.literal(0), z.literal(5), z.literal(12), z.literal(18), z.literal(28)]).default(18),
+    gstRate: GstRateInput,
+    // A7: optional authoritative line items. When present, tax is per-line
+    // (half-up 2dp) and the header is the rounded sum; `amount`/`gstRate` ignored.
+    lines: z.array(InvoiceLineIngestSchema).min(1).optional(),
     invoiceDate: z.string().optional(),
     dueDate: z.string().optional(),
 });
@@ -117,7 +138,9 @@ async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string | null
         .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
         .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
         .limit(1);
-    return row?.stateName ?? row?.stateCode ?? null;
+    // Prefer the canonical 2-digit code (always present, NOT NULL) over the
+    // display name; GST comparison normalises to a code anyway.
+    return row?.stateCode ?? row?.stateName ?? null;
 }
 
 export const ingestRouter = router({
@@ -266,13 +289,16 @@ export const ingestRouter = router({
 
             for (const item of input) {
                 const { pan: rawPan, ...vendorItem } = item;
-                // DPDP: keep raw PAN + stamp match hash/display. On a malformed PAN in a bulk
-                // row, fall back to storing raw only rather than aborting the whole import.
+                // DPDP: keep raw PAN (encrypted) + stamp match hash/display. On a malformed PAN
+                // in a bulk row, fall back to storing the encrypted raw only (no hash/mask)
+                // rather than aborting the whole import — never as plaintext.
                 let panCols: Partial<PanColumns> = {};
                 try {
-                    panCols = panColumns(rawPan);
+                    panCols = await panColumns(rawPan);
                 } catch {
-                    panCols = rawPan ? { pan: rawPan.trim().toUpperCase() } : {};
+                    panCols = rawPan
+                        ? { pan: await encryptSecretEnvelope(rawPan.trim().toUpperCase()) }
+                        : {};
                 }
                 const [row] = await db.insert(vendors).values({
                     orgId: org!.id,
@@ -329,13 +355,36 @@ export const ingestRouter = router({
                 // Treat the imported `amount` as the taxable value and derive GST
                 // on top — the bulk path previously stored zero tax and posted no
                 // journal entry, so GL-balance dashboards drifted from AP/AR.
-                const supplierState = orgState ?? "";
-                const gst = computeGST({
-                    taxableValue: Number(item.amount),
-                    gstRate: item.gstRate as GSTRate,
-                    supplierState,
-                    buyerState: vendor.state ?? supplierState,
-                });
+                // Normalise both sides to a canonical GST state code first: the
+                // org side is a code, `vendor.state` is a free-text name — a raw
+                // code-vs-name compare would tax a local sale as inter-state IGST.
+                const supplierState = normaliseGstStateOrWarn(orgState, "org") ?? "";
+                const buyerState = normaliseGstStateOrWarn(vendor.state, "vendor") ?? supplierState;
+                // A7: derive the header from authoritative lines when supplied;
+                // otherwise treat `amount` as a single taxable value (legacy path).
+                const computedLines = item.lines
+                    ? computeInvoiceFromLines({
+                        lines: item.lines.map((l) => ({ ...l, gstRate: l.gstRate as GSTRate })),
+                        orgState: supplierState,
+                        counterpartyState: buyerState,
+                    })
+                    : null;
+                const gst = computedLines
+                    ? {
+                        taxableValue: computedLines.header.taxableValue,
+                        cgstAmount: computedLines.header.cgstAmount,
+                        sgstAmount: computedLines.header.sgstAmount,
+                        igstAmount: computedLines.header.igstAmount,
+                        totalTaxAmount: computedLines.header.totalTaxAmount,
+                        isInterstate: computedLines.header.isInterstate,
+                        invoiceTotal: computedLines.header.invoiceTotal,
+                    }
+                    : computeGST({
+                        taxableValue: Number(item.amount),
+                        gstRate: item.gstRate as GSTRate,
+                        supplierState,
+                        buyerState,
+                    });
                 const invoiceDate = item.invoiceDate ? new Date(item.invoiceDate) : new Date();
 
                 // Insert the invoice and post its balanced GL journal entry
@@ -361,6 +410,11 @@ export const ingestRouter = router({
                         retainUntilDate: computeRetainUntil(invoiceDate),
                         dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
                     }).returning();
+                    if (computedLines && inserted) {
+                        await tx.insert(invoiceLineItems).values(
+                            computedLines.lines.map((l) => ({ ...l, invoiceId: inserted.id })),
+                        );
+                    }
                     await postInvoiceJournalEntry(tx, {
                         orgId: org!.id,
                         createdById: user!.id,

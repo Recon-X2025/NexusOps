@@ -10,6 +10,19 @@
 > **HIGH** (feature broken end-to-end) · **MEDIUM** (edge/negative path broken) ·
 > **LOW** (cosmetic / stale doc) · **INFO** (design note, not a defect).
 
+> **2026-07-30 update (post-baseline, at head `0059_volatile_midnight`):** since this log's
+> baseline (`2657431` / `0055`), a deterministic MFA-enrolment failure was found and fixed in
+> `f365314` + `2baaa25`. The `appendAuditEntry` hash-chain head-read (`ORDER BY seq DESC`) returned
+> NULL-seq rows (Postgres sorts NULLs first), so `prevSeq=0 → seq=1` collided permanently with the
+> real chain head; the 23505 bubbled through `retryMutation`, re-ran the non-idempotent
+> `confirmEnroll`, and its 2nd attempt returned 400 "No pending MFA enrollment". Fix: filter the
+> head-read with `isNotNull(seq)` (+ per-org advisory lock + regression test). `e2e/mfa.spec.ts` is
+> now green and the full API suite (130 files / 1290 tests) passes. **Note:** this fixed the
+> *collision*; it does **not** close **F-S1** below — MFA audit rows are still written *unchained*
+> (`seq IS NULL`) via plain `db.insert`, so they remain outside the tamper-evident chain. If
+> anything the fix formalises that NULL-seq rows are excluded from the chain head. F-S1 and F-S2
+> remain **OPEN**.
+
 ---
 
 ## Cross-cutting findings (from source trace, pre-module)
@@ -874,6 +887,10 @@ catches. All seeded probe data was cleaned up afterward.
   `services/workflow.ts:150-198` (60 s cadence).
 
 #### F-S1 — Audit hash chain has partial coverage: security-sensitive events are written unchained
+- **Status (2026-07-30):** **STILL OPEN.** The `f365314` MFA fix addressed a *different* symptom
+  (the NULL-seq rows were making `appendAuditEntry` collide on `seq=1`); it did not move
+  `mfa_enrolled`/`mfa_disabled`/`escalation.level_up` onto the chain. Closing this requires routing
+  those writers through `appendAuditEntry()` (see Route below) — not yet done.
 - **Severity:** HIGH (undermines the tamper-evidence guarantee for exactly the events that matter)
 - **Evidence (DB, eval instance):** of all `audit_logs`, **337 rows have `seq IS NULL`** (never
   entered the hash chain) vs 5 977 chained. The unchained actions include **`mfa_enrolled` (146)**,

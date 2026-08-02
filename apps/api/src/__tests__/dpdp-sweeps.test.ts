@@ -18,6 +18,7 @@ import {
   dpdpDataSubjectRequests,
   dpdpConsentRecords,
   dpdpNotificationArtifacts,
+  organizations,
   and,
   eq,
 } from "@coheronconnect/db";
@@ -38,7 +39,23 @@ describe("DPDP automation loop (Phase 1)", () => {
     const seeded = await seedFullOrg();
     orgId = seeded.orgId;
     caller = complianceRouter.createCaller(createMockContext(seeded.adminId, orgId));
+    // A3: DPDP notices are delivered only to the tenant's own configured contact;
+    // with none set the dispatcher refuses and records nothing. These loop tests
+    // assert delivery happens, so give the org a contact. (The refuse-when-unset
+    // behaviour is pinned separately by R-3, dpdp-notice-honesty.test.ts.)
+    await testDb()
+      .update(organizations)
+      .set({ dpdpContactEmail: "dpo@tenant.example" })
+      .where(eq(organizations.id, orgId));
   });
+
+  /** Configure a tenant DPDP contact for an org so its notice path delivers. */
+  async function setDpdpContact(id: string): Promise<void> {
+    await testDb()
+      .update(organizations)
+      .set({ dpdpContactEmail: "dpo@tenant.example" })
+      .where(eq(organizations.id, id));
+  }
 
   // ── NotificationDispatcher (B2) ───────────────────────────────────────────
   describe("LogOnlyDispatcher", () => {
@@ -291,6 +308,30 @@ describe("DPDP automation loop (Phase 1)", () => {
       expect(row!.erasureSummary).toBeTruthy();
       expect(row!.principalName).toBe("[erased]");
       expect(row!.principalEmail).toBe("[erased]");
+    });
+
+    it("names known-but-uncovered PII stores as NOT erased, in both dry-run and forced runs", async () => {
+      const db = testDb();
+      const d = await mkErasure();
+
+      // Dry-run: the summary must enumerate the out-of-scope stores and the
+      // structured `unreached` list must be non-empty — never an implied full wipe.
+      const dry = await executeErasureForDsr(db, orgId, d.id);
+      expect(dry.unreached.length).toBeGreaterThan(0);
+      expect(dry.summary).toMatch(/NOT erased/i);
+      expect(dry.summary).toMatch(/pending legal sign-off/i);
+
+      // Forced run: same honest reporting is stamped onto the DSR record, so the
+      // tenant is told plainly what remained even when destruction ran.
+      const forced = await executeErasureForDsr(db, orgId, d.id, { force: true });
+      expect(forced.unreached).toEqual(dry.unreached);
+      expect(forced.summary).toMatch(/NOT erased/i);
+
+      const [row] = await db
+        .select()
+        .from(dpdpDataSubjectRequests)
+        .where(eq(dpdpDataSubjectRequests.id, d.id));
+      expect(row!.erasureSummary).toMatch(/NOT erased/i);
     });
 
     it("refuses to run on a non-erasure DSR", async () => {

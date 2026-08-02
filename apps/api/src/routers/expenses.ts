@@ -191,36 +191,40 @@ export const expensesRouter = router({
     .input(expenseItemInput)
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      const [item] = await db
-        .insert(expenseItems)
-        .values({
-          orgId: org!.id,
-          reportId: input.reportId,
-          category: input.category,
-          description: input.description,
-          amount: input.amount,
-          currency: input.currency,
-          merchant: input.merchant,
-          expenseDate: input.expenseDate ? new Date(input.expenseDate) : new Date(),
-          receiptUrl: input.receiptUrl,
-          receiptFileName: input.receiptFileName,
-          isBillable: input.isBillable,
-          notes: input.notes,
-        })
-        .returning();
+      // Insert + total recompute + report update must be atomic: a failure
+      // between them would leave the report total out of sync with its items.
+      return db.transaction(async (tx) => {
+        const [item] = await tx
+          .insert(expenseItems)
+          .values({
+            orgId: org!.id,
+            reportId: input.reportId,
+            category: input.category,
+            description: input.description,
+            amount: input.amount,
+            currency: input.currency,
+            merchant: input.merchant,
+            expenseDate: input.expenseDate ? new Date(input.expenseDate) : new Date(),
+            receiptUrl: input.receiptUrl,
+            receiptFileName: input.receiptFileName,
+            isBillable: input.isBillable,
+            notes: input.notes,
+          })
+          .returning();
 
-      // Update report total
-      const totals = await db
-        .select({ total: sum(expenseItems.amount) })
-        .from(expenseItems)
-        .where(and(eq(expenseItems.reportId, input.reportId), eq(expenseItems.orgId, org!.id)));
-      const newTotal = totals[0]?.total ?? "0";
-      await db
-        .update(expenseReports)
-        .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() })
-        .where(and(eq(expenseReports.id, input.reportId), eq(expenseReports.orgId, org!.id)));
+        // Update report total
+        const totals = await tx
+          .select({ total: sum(expenseItems.amount) })
+          .from(expenseItems)
+          .where(and(eq(expenseItems.reportId, input.reportId), eq(expenseItems.orgId, org!.id)));
+        const newTotal = totals[0]?.total ?? "0";
+        await tx
+          .update(expenseReports)
+          .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() })
+          .where(and(eq(expenseReports.id, input.reportId), eq(expenseReports.orgId, org!.id)));
 
-      return item;
+        return item;
+      });
     }),
 
   // ── Delete line item ──────────────────────────────────────────────────────
@@ -228,26 +232,30 @@ export const expensesRouter = router({
     .input(z.object({ id: z.string().uuid(), reportId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
-      await db
-        .delete(expenseItems)
-        .where(and(
-          eq(expenseItems.id, input.id),
-          eq(expenseItems.orgId, org!.id),
-          eq(expenseItems.reportId, input.reportId),
-        ));
+      // Delete + total recompute + report update must be atomic: a failure
+      // between them would leave the report total out of sync with its items.
+      return db.transaction(async (tx) => {
+        await tx
+          .delete(expenseItems)
+          .where(and(
+            eq(expenseItems.id, input.id),
+            eq(expenseItems.orgId, org!.id),
+            eq(expenseItems.reportId, input.reportId),
+          ));
 
-      // Update report total
-      const totals = await db
-        .select({ total: sum(expenseItems.amount) })
-        .from(expenseItems)
-        .where(and(eq(expenseItems.reportId, input.reportId), eq(expenseItems.orgId, org!.id)));
-      const newTotal = totals[0]?.total ?? "0";
-      await db
-        .update(expenseReports)
-        .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() })
-        .where(and(eq(expenseReports.id, input.reportId), eq(expenseReports.orgId, org!.id)));
+        // Update report total
+        const totals = await tx
+          .select({ total: sum(expenseItems.amount) })
+          .from(expenseItems)
+          .where(and(eq(expenseItems.reportId, input.reportId), eq(expenseItems.orgId, org!.id)));
+        const newTotal = totals[0]?.total ?? "0";
+        await tx
+          .update(expenseReports)
+          .set({ totalAmount: newTotal, reimbursableAmount: newTotal, updatedAt: new Date() })
+          .where(and(eq(expenseReports.id, input.reportId), eq(expenseReports.orgId, org!.id)));
 
-      return { success: true };
+        return { success: true };
+      });
     }),
 
   // ── Summary stats ─────────────────────────────────────────────────────────

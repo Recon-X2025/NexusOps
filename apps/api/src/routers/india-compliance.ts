@@ -26,7 +26,7 @@ import {
   sql,
 } from "@coheronconnect/db";
 import { deriveAadhaar } from "../lib/aadhaar";
-import { panColumns } from "../lib/pan";
+import { panColumns, decryptPan } from "../lib/pan";
 
 /**
  * Director columns returned from read paths. Raw Aadhaar is no longer stored (dropped in
@@ -304,7 +304,11 @@ export const indiaComplianceRouter = router({
         const conditions = [eq(directors.orgId, org!.id)];
         if (input.isActive !== undefined) conditions.push(eq(directors.isActive, input.isActive));
         if (input.dinKycStatus) conditions.push(eq(directors.dinKycStatus, input.dinKycStatus));
-        return db.select(directorPublicColumns).from(directors).where(and(...conditions));
+        const rows = await db.select(directorPublicColumns).from(directors).where(and(...conditions));
+        // Decrypt the stored (envelope) PAN per row; legacy plaintext rows read through.
+        return Promise.all(
+          rows.map(async (r) => ({ ...r, pan: (await decryptPan(r.pan)) ?? null })),
+        );
       }),
 
     create: permissionProcedure("secretarial", "write")
@@ -342,9 +346,9 @@ export const indiaComplianceRouter = router({
 
         // DPDP PAN minimisation: keep raw PAN (statutory filing) + stamp the match hash/display.
         // panColumns validates and throws on an invalid PAN; surface it as BAD_REQUEST.
-        let panCols: ReturnType<typeof panColumns>;
+        let panCols: Awaited<ReturnType<typeof panColumns>>;
         try {
-          panCols = panColumns(rawPan);
+          panCols = await panColumns(rawPan);
         } catch (e) {
           throw new TRPCError({ code: "BAD_REQUEST", message: (e as Error).message });
         }
@@ -361,7 +365,8 @@ export const indiaComplianceRouter = router({
             isActive: true,
           })
           .returning();
-        return director;
+        // Return the plaintext PAN to the caller (stored value is envelope ciphertext).
+        return { ...director!, pan: (await decryptPan(director!.pan)) ?? null };
       }),
 
     triggerKYCReminders: permissionProcedure("secretarial", "write")
@@ -417,7 +422,8 @@ export const indiaComplianceRouter = router({
           .where(and(eq(directors.id, input.directorId), eq(directors.orgId, org!.id)))
           .returning();
         if (!director) throw new TRPCError({ code: "NOT_FOUND" });
-        return director;
+        // Return the plaintext PAN to the caller (stored value is envelope ciphertext).
+        return { ...director, pan: (await decryptPan(director.pan)) ?? null };
       }),
   }),
 

@@ -14,7 +14,15 @@
  * (latest `seq`) so concurrent writers cannot fork the chain.
  */
 import { createHash } from "node:crypto";
-import { auditLogs, eq, and, desc, sql, isNotNull } from "@coheronconnect/db";
+import {
+  auditLogs,
+  auditChainAnchors,
+  eq,
+  and,
+  desc,
+  sql,
+  isNotNull,
+} from "@coheronconnect/db";
 
 export interface AuditEntryInput {
   orgId: string;
@@ -153,6 +161,23 @@ export async function appendAuditEntry(db: any, entry: AuditEntryInput) {
             entryHash: auditLogs.entryHash,
           });
 
+        // Advance the org's head anchor in the SAME advisory-locked transaction.
+        // This is the independent record of "how long the chain should be": a later
+        // tail-truncation leaves a shorter-but-internally-consistent chain that the
+        // re-derivation walk cannot catch, but `verifyAuditChain` compares the live
+        // head against this anchor and flags the shortfall. Because we hold the
+        // per-org lock and seq advances monotonically, maxSeq only ever grows.
+        // A fresh insert leaves status at its 'ok' default; an append never blesses
+        // a broken chain (a break is only ever recorded by the backfill or the
+        // scheduled verifier flipping status to 'broken').
+        await tx
+          .insert(auditChainAnchors)
+          .values({ orgId: entry.orgId, maxSeq: seq, headHash: entryHash })
+          .onConflictDoUpdate({
+            target: auditChainAnchors.orgId,
+            set: { maxSeq: seq, headHash: entryHash, updatedAt: new Date() },
+          });
+
         return row;
       });
     } catch (err) {
@@ -185,6 +210,16 @@ export interface ChainVerificationResult {
  * tampering (edited fields), deletions (seq gaps / broken prevHash link), and
  * reordering. Only considers chained rows (seq IS NOT NULL); legacy pre-chain
  * rows are ignored.
+ *
+ * Tail truncation (deleting entries off the END of the chain) leaves a shorter
+ * but internally-consistent chain — contiguous seqs, valid prevHash links,
+ * matching hashes — so the re-derivation walk alone returns ok. To catch it we
+ * compare the live head against the independent per-org anchor
+ * (`audit_chain_anchors`): if the anchor's `maxSeq`/`headHash` are ahead of the
+ * live head, entries were removed from the tail. An anchor already flagged
+ * `status = 'broken'` (by the backfill's structural check, or a prior verifier
+ * run that caught hash-tamper) also fails. Orgs with no anchor row (legacy
+ * pre-anchor chains) skip the anchor check and are judged on re-derivation alone.
  */
 export async function verifyAuditChain(
   db: any,
@@ -237,6 +272,53 @@ export async function verifyAuditChain(
     }
     prevHash = r.entryHash;
     expectedSeq += 1;
+  }
+
+  // The re-derivation walk above passed: what remains is internally consistent.
+  // Now check the independent anchor to catch tail truncation and honour a
+  // previously-recorded break. `liveMaxSeq`/`liveHeadHash` describe the current
+  // head; the anchor records where the head SHOULD be.
+  const liveMaxSeq = expectedSeq - 1; // 0 when there are no chained rows
+  const liveHeadHash = prevHash; // null when there are no chained rows
+
+  const [anchor] = await db
+    .select({
+      maxSeq: auditChainAnchors.maxSeq,
+      headHash: auditChainAnchors.headHash,
+      status: auditChainAnchors.status,
+    })
+    .from(auditChainAnchors)
+    .where(eq(auditChainAnchors.orgId, orgId))
+    .limit(1);
+
+  if (anchor) {
+    if (anchor.status === "broken") {
+      return {
+        ok: false,
+        entries: chained.length,
+        brokenAtSeq: liveMaxSeq || null,
+        reason: "anchor marked broken (structural break or prior tamper)",
+      };
+    }
+    if (liveMaxSeq < anchor.maxSeq) {
+      return {
+        ok: false,
+        entries: chained.length,
+        brokenAtSeq: liveMaxSeq || null,
+        reason: `tail truncated: anchor head seq ${anchor.maxSeq}, live head seq ${liveMaxSeq}`,
+      };
+    }
+    // Same length but a different head hash means the head row was rewritten in
+    // place (the per-row walk would normally catch this, but the anchor is a
+    // second, independent witness).
+    if (liveMaxSeq === anchor.maxSeq && liveHeadHash !== anchor.headHash) {
+      return {
+        ok: false,
+        entries: chained.length,
+        brokenAtSeq: liveMaxSeq || null,
+        reason: "head hash does not match anchor",
+      };
+    }
   }
 
   return { ok: true, entries: chained.length, brokenAtSeq: null };

@@ -1,8 +1,12 @@
 # CoheronConnect — AI Roadmap (Maturity Stages)
 
-**Date:** 2026-07-15
+**Date:** 2026-07-15 (verification-basis line added 2026-07-30)
 **Owner:** Product
 **Status:** Direction-setting — the sequencing model for how intelligence enters CoheronConnect.
+**Verification basis:** this is a market-agnostic *maturity/sequencing model*, not a
+`file:line` status audit — so it does not anchor to a specific migration head the way
+`INDIA_ROADMAP.md` / `US_ROADMAP.md` do. Current tree head is **`0059_volatile_midnight`**
+(60 files). Concrete "what is shipped" claims live in `BUILD.md` and `docs/GAP_ANALYSIS.md`.
 
 > **This is the common (market-agnostic) roadmap of three:** `docs/INDIA_ROADMAP.md`
 > (India go-live / security), `docs/US_ROADMAP.md` (US market), and this file (AI). AI

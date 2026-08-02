@@ -91,6 +91,97 @@ export async function getNextNumber(
 }
 
 /**
+ * Atomically allocates the next sequence for a YEAR-SCOPED counter, seeding the
+ * counter from any pre-existing rows for that org+year on the very first use.
+ *
+ * Why this exists (vs plain getNextSeq): the numbering it backs — journal entries
+ * (`JE-YYYY-NNNNN`), DPDP DSR (`DSR-YYYY-NNNN`), breach (`BR-YYYY-NNNN`) — restarts
+ * at 1 each calendar year, so the counter key is year-qualified (e.g. "JE-2026").
+ * That key is DYNAMIC, so the static COUNTER_SPECS startup sync cannot cover it. To
+ * keep "the counter and the table agree at cutover", the FIRST allocation for a
+ * given (org, "<PREFIX>-<year>") counter seeds the counter from the max sequence
+ * already stored for that org in that year, then increments — all in one atomic
+ * INSERT … ON CONFLICT DO UPDATE. Every subsequent call is a pure atomic +1.
+ *
+ * Seeding is correct because:
+ *   • The seed sub-select scans ONLY rows for this org whose number begins
+ *     `<PREFIX>-<year>-`, so a different year's rows never bias this counter.
+ *   • The sequence digits are extracted from the group IMMEDIATELY AFTER the
+ *     `<PREFIX>-<year>-` boundary — SUBSTRING(col FROM '^<PREFIX>-<year>-0*([0-9]+)')
+ *     — so it reads the same 5-/4-pad number the writer formatted and is UNAFFECTED
+ *     by any trailing suffix (`JE-2026-00042` → 42 and `JE-2026-00042-REV` → 42 both
+ *     yield 42, because the match stops at the first non-digit after the sequence).
+ *   • The seed only runs when the counter row is ABSENT (WHERE NOT EXISTS), so the
+ *     scan happens once per (org, year) — never on the hot path — and a live counter
+ *     is never rolled back by a late scan. The subsequent increment is the same
+ *     single-statement atomic +1 as getNextSeq.
+ *
+ * Concurrency: two callers hitting a brand-new (org, year) counter simultaneously
+ * both attempt the seed INSERT; the unique (org_id, entity) constraint lets exactly
+ * one win and the other's ON CONFLICT DO NOTHING no-ops, so the row is created once.
+ * Both then run the atomic UPDATE … +1, which Postgres serialises on the row, so they
+ * receive distinct consecutive values with no lost update.
+ *
+ * NOTE: because a fresh org has no rows, the seed max is 0 and the first number is 1
+ * — identical to today's count()+1. The seed matters only for a cutover org that
+ * already holds numbered rows (no such production org exists yet).
+ *
+ * @param db      - Drizzle db instance (or tx handle)
+ * @param orgId   - Organisation UUID
+ * @param prefix  - The number prefix (e.g. "JE", "DSR", "BR")
+ * @param year    - The calendar year the number is scoped to
+ * @param table   - Source table holding the formatted number (for the cutover seed)
+ * @param column  - Column that stores the formatted number string
+ * @returns         The next integer sequence value (1-based, restarts each year)
+ */
+export async function getNextYearScopedSeq(
+  db: DbOrTx,
+  orgId: string,
+  prefix: string,
+  year: number,
+  table: string,
+  column: string,
+): Promise<number> {
+  const entity = `${prefix}-${year}`;
+  const numPrefix = `${prefix}-${year}-`;
+
+  // Step 1 (one-time per org+year): seed the counter to the max sequence already
+  // stored for this org in this year, but ONLY if the counter row does not yet
+  // exist. WHERE NOT EXISTS keeps the table scan off the hot path — once the row
+  // exists this INSERT selects no rows and does nothing. ON CONFLICT DO NOTHING
+  // makes it safe if two first-callers race. The regex anchors to the exact
+  // "<PREFIX>-<year>-" boundary, strips leading pad zeros, and captures the digit
+  // run (stopping at the first non-digit) so a "-REV" suffix does not corrupt it.
+  await db.execute(sql`
+    INSERT INTO org_counters (org_id, entity, current_value)
+    SELECT
+      ${orgId},
+      ${entity},
+      COALESCE(
+        (
+          SELECT MAX(
+            CAST(
+              SUBSTRING("${sql.raw(column)}" FROM ${`^${numPrefix}0*([0-9]+)`}) AS BIGINT
+            )
+          )
+          FROM "${sql.raw(table)}"
+          WHERE org_id = ${orgId}
+            AND "${sql.raw(column)}" LIKE ${numPrefix + "%"}
+        ),
+        0
+      )
+    WHERE NOT EXISTS (
+      SELECT 1 FROM org_counters
+      WHERE org_id = ${orgId} AND entity = ${entity}
+    )
+    ON CONFLICT (org_id, entity) DO NOTHING
+  `);
+
+  // Step 2 (every call): atomic +1 on the now-guaranteed-present counter row.
+  return getNextSeq(db, orgId, entity);
+}
+
+/**
  * Startup sync — ensures every org_counters row is at least as large as the
  * highest number already stored in the source table.
  *

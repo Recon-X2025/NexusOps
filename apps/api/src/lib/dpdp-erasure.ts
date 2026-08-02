@@ -32,7 +32,16 @@ import {
   type DbOrTx,
 } from "@coheronconnect/db";
 
-/** How a Principal is matched within a target table. */
+/**
+ * How a Principal is matched within a target table.
+ *
+ * CONSTRAINT for future PAN-keyed entries: PAN is stored as a non-deterministic
+ * AES-GCM envelope (lib/pan.ts), so a direct column comparison can NEVER match.
+ * When an HR/PAN store is brought into scope, match on the deterministic peppered
+ * `pan_masked_hash` (lib/pii-hash.ts) — computed pre-encryption and stored
+ * alongside — NOT the encrypted `pan` column. Add a `{ kind: "panMaskedHash" }`
+ * variant that compares against that column; do not reach for the ciphertext.
+ */
 type MatchKey =
   | { kind: "dsrId" } // rows keyed by the DSR's own id
   | { kind: "principalEmail" }; // rows matched by the Principal's email
@@ -63,6 +72,12 @@ export interface ErasureMapEntry {
 /**
  * The conservative starting map. NOTE: this is intentionally minimal and MUST be
  * reviewed/extended by privacy counsel before enabling live erasure.
+ *
+ * Scope is a LEGAL decision, not a technical one. We ship only the stores we are
+ * confident about; every other store that holds Principal PII is declared in
+ * `KNOWN_UNREACHED_STORES` below and reported to the tenant as "not erased" —
+ * never silently claimed as fulfilled. Widening coverage is a config edit (move a
+ * store from the unreached list into this map) once counsel signs off.
  */
 export const ERASURE_MAP: ErasureMapEntry[] = [
   {
@@ -79,6 +94,23 @@ export const ERASURE_MAP: ErasureMapEntry[] = [
     columns: ["audience", "subject", "body"],
     description: "Redact any logged notices addressed to this Principal's email.",
   },
+];
+
+/**
+ * Stores KNOWN to hold Principal PII that are deliberately NOT yet in scope for
+ * automated erasure, pending privacy-counsel sign-off on the delete-vs-anonymise
+ * rule and the statutory-retention floor for each. Their presence here is what
+ * makes the erasure report HONEST: an erasure never claims fulfilment for these —
+ * it names them explicitly as "not erased".
+ *
+ * This is deliberately a config list, not a decision: counsel decides whether and
+ * how each is erased. When a store is cleared for erasure it moves into
+ * `ERASURE_MAP` above and drops off this list.
+ */
+export const KNOWN_UNREACHED_STORES: Array<{ store: string; reason: string }> = [
+  { store: "employees (HR record, incl. PAN)", reason: "awaiting counsel: statutory payroll/tax retention floor" },
+  { store: "payslips / payroll_runs", reason: "awaiting counsel: Income-Tax retention floor" },
+  { store: "crm_contacts", reason: "awaiting counsel: delete-vs-anonymise + lawful-basis review" },
 ];
 
 /** Redaction tombstone written into anonymised text columns. */
@@ -100,6 +132,12 @@ export interface ErasureResult {
   /** Human-readable summary stamped onto the DSR. */
   summary: string;
   steps: ErasurePlanStep[];
+  /**
+   * Stores known to hold this Principal's PII that this run did NOT erase (out of
+   * scope pending legal sign-off). Surfaced so the erasure never overstates what it
+   * achieved — the tenant is told plainly what remains.
+   */
+  unreached: Array<{ store: string; reason: string }>;
 }
 
 /** True only when the destructive path is explicitly enabled via env flag. */
@@ -231,13 +269,24 @@ export async function executeErasureForDsr(
   const deferralNote =
     totalDeferred > 0 ? ` ${totalDeferred} row(s) deferred by retention floor.` : "";
 
+  // Honest reporting: name every known PII store this run does NOT erase, so the
+  // record can never be read as a full fulfilment. Scope is a legal decision; until
+  // a store is moved into ERASURE_MAP it is reported here as not erased.
+  const unreached = [...KNOWN_UNREACHED_STORES];
+  const unreachedNote = unreached.length
+    ? ` NOT erased (out of scope, pending legal sign-off): ${unreached
+        .map((u) => `${u.store} [${u.reason}]`)
+        .join("; ")}.`
+    : "";
+
   if (!enabled) {
     return {
       executed: false,
       summary: `DRY-RUN (DPDP_ERASURE_ENABLED not set): would erase across ${steps.length} table(s): ${steps
         .map((s) => `${s.table}(${s.matched})`)
-        .join(", ")}.${deferralNote}`,
+        .join(", ")}.${deferralNote}${unreachedNote}`,
       steps,
+      unreached,
     };
   }
 
@@ -263,7 +312,7 @@ export async function executeErasureForDsr(
 
     const summary = `Erased Principal data across ${steps.length} table(s): ${steps
       .map((s) => `${s.table}(${s.matched} ${s.action})`)
-      .join(", ")}.${deferralNote}`;
+      .join(", ")}.${deferralNote}${unreachedNote}`;
 
     await tx
       .update(dpdpDataSubjectRequests)
@@ -273,6 +322,6 @@ export async function executeErasureForDsr(
 
   const summary = `Erased Principal data across ${steps.length} table(s): ${steps
     .map((s) => `${s.table}(${s.matched} ${s.action})`)
-    .join(", ")}.${deferralNote}`;
-  return { executed: true, summary, steps };
+    .join(", ")}.${deferralNote}${unreachedNote}`;
+  return { executed: true, summary, steps, unreached };
 }

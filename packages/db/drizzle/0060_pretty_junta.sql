@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "dpdp_contact_email" text;

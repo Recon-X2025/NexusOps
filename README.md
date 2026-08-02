@@ -9,7 +9,7 @@
 ```
 coheronconnect/
 ├── apps/
-│   ├── web/              # Next.js 15 App Router (React 19, TypeScript, Tailwind) — primary product UI
+│   ├── web/              # Next.js 16 App Router (React 19, TypeScript, Tailwind) — primary product UI
 │   ├── api/              # Fastify + tRPC API (TypeScript, Drizzle ORM)
 │   ├── mobile/           # Expo / React Native client (tRPC consumer)
 │   ├── worker/           # Background jobs (BullMQ / workers)

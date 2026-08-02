@@ -7,6 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { and, eq, payslips, employees, users } from "@coheronconnect/db";
 import { createContext } from "../middleware/auth";
 import { generatePayslipPDF, amountInWords, type PayslipPDFInput } from "../services/payslip-pdf";
+import { decryptPan } from "../lib/pan";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -114,10 +115,13 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
       const orgName = (org as { name?: string }).name ?? "Organization";
       const userName = (row.userRow.name as string) || "Employee";
 
+      // Decrypt the stored (envelope) PAN for the payslip; legacy plaintext rows read through.
+      const employeePan = await decryptPan(row.emp.pan);
+
       const pdfInput = buildPdfInput({
         orgName,
         slip: row.slip,
-        emp: row.emp,
+        emp: { ...row.emp, pan: employeePan ?? null },
         userName,
       });
 

@@ -94,3 +94,6 @@ tests/chaos-vertical/results/
 # Playwright MCP runtime artifacts
 .playwright-mcp/
 qa-run/
+
+# "Snapshots for AI" VS Code extension artifact (local tooling output)
+.snapshots/

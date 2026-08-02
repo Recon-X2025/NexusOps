@@ -454,22 +454,35 @@ const auditMutation = t.middleware(async (opts) => {
 //
 // Middleware execution order (outermost → innermost):
 //
-//   loggingMiddleware → enforceAuth → auditMutation → retryMutation → handler
+//   loggingMiddleware → enforceAuth → auditMutation → retryMutation → rlsTenant
+//     → handler
 //
-// Placing retryMutation as the INNERMOST layer means:
-//   • Only the handler is re-executed on each retry attempt.
+// retryMutation sits just OUTSIDE rlsTenant, so each retry re-runs rlsTenant's
+// tenant transaction AND the handler together (rlsTenant opens the per-request
+// transaction; the handler runs inside it). This is deliberate: a retry must
+// re-establish the SET LOCAL org GUC + app_runtime role on a fresh transaction,
+// which is exactly what rlsTenant does. Consequences:
 //   • loggingMiddleware records the full round-trip (including all retries) as
 //     one request — latency is measured end-to-end.
 //   • auditMutation writes its log entry ONCE, after all retries settle, using
 //     the final successful result.
 //
 // Safety:
-//   Retrying the full handler is safe only for transient DB conflicts where the
-//   same inputs will succeed on the next attempt (serialization failures,
-//   deadlocks).  For 23505 (unique_violation), the org_counters atomic counter
-//   prevents duplicate auto-numbers; handlers with idempotency keys catch
-//   accidental second inserts; other genuine unique conflicts will fail again on
-//   retry and surface normally to the caller after MAX_ATTEMPTS.
+//   Retrying re-runs the whole rlsTenant-tx + handler, so it is safe only for
+//   transient DB conflicts where the same inputs succeed on the next attempt
+//   (serialization failures, deadlocks). A retry re-executes any non-idempotent
+//   side effect in the handler, so 23505 (unique_violation) must NOT be relied
+//   on being "harmless to retry" in general.
+//
+//   For the auto-numbered paths that previously spun on 23505 — journal entries
+//   (JE-YYYY), DSR (DSR-YYYY) and breach (BR-YYYY) references — the fix is NOT
+//   the retry: it is that these now allocate their sequence through the
+//   org_counters atomic counter (getNextYearScopedSeq → getNextSeq, a single
+//   INSERT … ON CONFLICT DO UPDATE … RETURNING). Two concurrent creates get
+//   distinct numbers WITHOUT colliding, so the retry never has to fire for them.
+//   Handlers with idempotency keys catch accidental second inserts; any other
+//   genuine unique conflict fails again on retry and surfaces to the caller
+//   after MAX_ATTEMPTS.
 //
 // Never retried: any named TRPCError (UNAUTHORIZED, FORBIDDEN, BAD_REQUEST,
 //   NOT_FOUND …) — those are application-level decisions, not infrastructure.

@@ -12,6 +12,7 @@ import { and, eq, gte, lte, or, payslips, employees, users } from "@coheronconne
 import { createContext } from "../middleware/auth";
 import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";
+import { decryptPan } from "../lib/pan";
 
 export function registerPayrollForm16PdfRoute(fastify: FastifyInstance): void {
   fastify.get<{ Querystring: { fy?: string; employeeId?: string } }>(
@@ -83,11 +84,14 @@ export function registerPayrollForm16PdfRoute(fastify: FastifyInstance): void {
       }
 
       const orgRow = org as { name?: string; settings?: unknown } & Record<string, unknown>;
+      // Decrypt the stored (envelope) PAN back to plaintext for the certificate; legacy
+      // pre-encryption plaintext rows pass through unchanged.
+      const employeePan = await decryptPan(row.emp.pan);
       const pdfInput = buildForm16Input({
         // The aggregator only reads `name` and `settings`; widen to satisfy types.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         org: orgRow as any,
-        employee: { ...row.emp, name: row.userRow.name as string },
+        employee: { ...row.emp, pan: employeePan ?? null, name: row.userRow.name as string },
         fySlips: slips,
         financialYear: fy,
       });

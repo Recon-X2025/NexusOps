@@ -7,8 +7,14 @@
  * logic here (rather than inside a Temporal activity) means it is testable with
  * the normal API test harness (real Postgres) without a running Temporal server.
  *
- * None of these functions perform external delivery — they route every outbound
- * notice through the NotificationDispatcher, which today only logs an artifact.
+ * None of these functions deliver directly — they route every outbound notice
+ * through the NotificationDispatcher. The active binding is `EmailDispatcher`
+ * (notification-dispatcher.ts:157), which records an audit artifact AND delivers
+ * the notice to the tenant's own configured DPDP contact
+ * (`organizations.dpdp_contact_email`), or refuses cleanly (recording nothing,
+ * delivering nothing) when that contact is unset — never a platform inbox, never
+ * a regulator address, and never a `sent` state. See the honesty contract in
+ * notification-dispatcher.ts:8-18 (fix A3/A4).
  *
  * All three are idempotent per run window:
  *  - consentExpirySweep mutates state that no longer matches after it runs.
@@ -106,7 +112,7 @@ export async function dsrOverdueSweep(
     if (due >= now) continue; // not overdue
     eligible++;
     if (await recentlyNotified(db, orgId, "dsr", r.id, "internal", dedupeMs)) continue;
-    await dispatcher.dispatch(db, {
+    const res = await dispatcher.dispatch(db, {
       orgId,
       channel: "internal",
       audience: "privacy_officer",
@@ -117,7 +123,9 @@ export async function dsrOverdueSweep(
       relatedType: "dsr",
       relatedId: r.id,
     });
-    dispatched++;
+    // A refusal (no tenant DPDP contact configured) is not a dispatch: nothing
+    // was recorded or delivered, so it must not be counted.
+    if (res.status !== "refused") dispatched++;
   }
   return { eligible, dispatched };
 }
@@ -159,9 +167,10 @@ export async function breachNotifySweep(
     if (due >= now) continue; // clock not yet elapsed
     eligible++;
 
-    // Board notice
+    // Board notice — prepared for, and delivered to, the tenant's own DPDP
+    // contact (never the Board itself: that filing is the tenant's legal act).
     if (!(await recentlyNotified(db, orgId, "breach", r.id, "board", dedupeMs))) {
-      await dispatcher.dispatch(db, {
+      const res = await dispatcher.dispatch(db, {
         orgId,
         channel: "board",
         audience: "data_protection_board",
@@ -172,11 +181,11 @@ export async function breachNotifySweep(
         relatedType: "breach",
         relatedId: r.id,
       });
-      dispatched++;
+      if (res.status !== "refused") dispatched++;
     }
     // Principal notice
     if (!(await recentlyNotified(db, orgId, "breach", r.id, "principal", dedupeMs))) {
-      await dispatcher.dispatch(db, {
+      const res = await dispatcher.dispatch(db, {
         orgId,
         channel: "principal",
         audience: "affected_principals",
@@ -185,7 +194,7 @@ export async function breachNotifySweep(
         relatedType: "breach",
         relatedId: r.id,
       });
-      dispatched++;
+      if (res.status !== "refused") dispatched++;
     }
   }
   return { eligible, dispatched };

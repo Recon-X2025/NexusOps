@@ -6,6 +6,7 @@ import {
   budgetLines,
   chargebacks,
   invoices,
+  invoiceLineItems,
   invoiceStatusEnum,
   journalEntries,
   vendors,
@@ -25,7 +26,8 @@ import {
   notInArray,
   type DbOrTx,
 } from "@coheronconnect/db";
-import { computeGST, type GSTRate } from "../lib/india/gst-engine";
+import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/gst-engine";
+import { computeInvoiceFromLines } from "../lib/invoice-lines";
 import {
   getDuplicatePayablePolicy,
   isInvoicePeriodClosed,
@@ -54,6 +56,23 @@ const GST_RATE_INPUT = z
   .default(18);
 
 /**
+ * One authoritative invoice line (A7). `taxableValue` is accepted as-is (CA ruling:
+ * lines are authoritative, header is derived). When an invoice supplies `lines[]`,
+ * the header `amount`/`gstRate` are ignored — see `computeInvoiceFromLines`.
+ */
+const INVOICE_LINE_INPUT = z.object({
+  description: z.string().min(1),
+  taxableValue: z.number(),
+  gstRate: GST_RATE_INPUT,
+  hsnSacCode: z.string().optional(),
+  quantity: z.number().optional(),
+  unit: z.string().optional(),
+  unitPrice: z.number().optional(),
+  discountPercent: z.number().optional(),
+  discountAmount: z.number().optional(),
+});
+
+/**
  * The org's own place-of-supply state, read from its primary (or first active)
  * GSTIN registration. Returns `null` when the org has no GSTIN on file, in
  * which case GST falls back to the intra-state split (CGST+SGST) — the total
@@ -66,7 +85,9 @@ async function resolveOrgState(db: DbOrTx, orgId: string): Promise<string | null
     .where(and(eq(gstinRegistry.orgId, orgId), eq(gstinRegistry.isActive, true)))
     .orderBy(desc(gstinRegistry.isPrimary), gstinRegistry.createdAt)
     .limit(1);
-  return row?.stateName ?? row?.stateCode ?? null;
+  // Prefer the canonical 2-digit code (always present, NOT NULL) over the
+  // display name; GST comparison normalises to a code anyway.
+  return row?.stateCode ?? row?.stateName ?? null;
 }
 
 /**
@@ -90,13 +111,19 @@ function gstInvoiceColumns(params: {
   isInterstate: boolean;
   amount: string;
 } {
-  const orgState = params.orgState ?? "";
-  const counterpartyState = params.counterpartyState ?? orgState;
+  // Normalise both sides to the canonical 2-digit GST state code before the
+  // intra-vs-inter-state compare. The org side arrives as a code ("27") from
+  // gstinRegistry; the counterparty (vendor/customer) arrives as a free-text
+  // NAME ("Maharashtra"). Comparing code-vs-name would read a local sale as
+  // inter-state IGST. A non-empty state that fails to normalise is logged
+  // rather than silently defaulted — a typo'd vendor state must leave a signal.
+  const orgState = normaliseGstStateOrWarn(params.orgState, "org");
+  const counterpartyState = normaliseGstStateOrWarn(params.counterpartyState, "counterparty") ?? orgState;
   const gst = computeGST({
     taxableValue: params.taxableValue,
     gstRate: params.gstRate,
-    supplierState: orgState,
-    buyerState: counterpartyState,
+    supplierState: orgState ?? "",
+    buyerState: counterpartyState ?? "",
   });
   return {
     taxableValue: String(gst.taxableValue),
@@ -188,6 +215,11 @@ export const financialRouter = router({
       invoiceNumber: z.string().min(1),
       amount: z.string(),
       gstRate: GST_RATE_INPUT,
+      // A7: optional authoritative line items. When present, tax is computed
+      // per-line (half-up 2dp) and the header is the rounded sum of the lines;
+      // `amount`/`gstRate` above are then ignored. Omit `lines` for the legacy
+      // single-line behaviour (back-compat) — nothing changes for existing callers.
+      lines: z.array(INVOICE_LINE_INPUT).min(1).optional(),
       dueDate: z.string().optional(),
       invoiceDate: z.string().optional(),
       notes: z.string().optional(),
@@ -239,12 +271,32 @@ export const financialRouter = router({
       const orgGstinId = orgGstin?.id ?? null;
       const orgGstinNum = orgGstin?.gstin ?? null;
 
-      const gst = gstInvoiceColumns({
-        taxableValue: Number(input.amount),
-        gstRate: input.gstRate as GSTRate,
-        orgState,
-        counterpartyState: vendorRow?.state ?? null,
-      });
+      // A7: if the caller supplied authoritative lines, derive the header by
+      // summing per-line half-up tax; otherwise keep the legacy single-line
+      // header computation. Either way `gst` is the same string-column shape.
+      const computedLines = input.lines
+        ? computeInvoiceFromLines({
+            lines: input.lines.map((l) => ({ ...l, gstRate: l.gstRate as GSTRate })),
+            orgState: normaliseGstStateOrWarn(orgState, "org"),
+            counterpartyState: normaliseGstStateOrWarn(vendorRow?.state ?? null, "counterparty"),
+          })
+        : null;
+      const gst = computedLines
+        ? {
+            taxableValue: String(computedLines.header.taxableValue),
+            cgstAmount: String(computedLines.header.cgstAmount),
+            sgstAmount: String(computedLines.header.sgstAmount),
+            igstAmount: String(computedLines.header.igstAmount),
+            totalTaxAmount: String(computedLines.header.totalTaxAmount),
+            isInterstate: computedLines.header.isInterstate,
+            amount: String(computedLines.header.invoiceTotal),
+          }
+        : gstInvoiceColumns({
+            taxableValue: Number(input.amount),
+            gstRate: input.gstRate as GSTRate,
+            orgState,
+            counterpartyState: vendorRow?.state ?? null,
+          });
       const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
       // Insert the invoice and post its balanced GL journal entry atomically —
       // so balance-based dashboards (burn rate, cash runway, AP aging) see the
@@ -273,6 +325,13 @@ export const financialRouter = router({
           retainUntilDate: computeRetainUntil(invoiceDate),
           dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
         }).returning();
+        // Persist the authoritative lines in the same TX so the header and its
+        // lines can never diverge on disk.
+        if (computedLines && row) {
+          await tx.insert(invoiceLineItems).values(
+            computedLines.lines.map((l) => ({ ...l, invoiceId: row.id })),
+          );
+        }
         await postInvoiceJournalEntry(tx, {
           orgId: org!.id,
           createdById: ctx.user!.id,
@@ -309,6 +368,8 @@ export const financialRouter = router({
         invoiceNumber: z.string().min(1),
         amount: z.string(),
         gstRate: GST_RATE_INPUT,
+        // A7: optional authoritative line items (see createInvoice).
+        lines: z.array(INVOICE_LINE_INPUT).min(1).optional(),
         dueDate: z.string().optional(),
         invoiceDate: z.string().optional(),
         legalEntityId: z.string().uuid().optional(),
@@ -349,12 +410,30 @@ export const financialRouter = router({
       const orgGstinId = orgGstin?.id ?? null;
       const orgGstinNum = orgGstin?.gstin ?? null;
 
-      const gst = gstInvoiceColumns({
-        taxableValue: Number(input.amount),
-        gstRate: input.gstRate as GSTRate,
-        orgState,
-        counterpartyState: customerRow?.state ?? null,
-      });
+      // A7: derive header from authoritative lines when supplied (see createInvoice).
+      const computedLines = input.lines
+        ? computeInvoiceFromLines({
+            lines: input.lines.map((l) => ({ ...l, gstRate: l.gstRate as GSTRate })),
+            orgState: normaliseGstStateOrWarn(orgState, "org"),
+            counterpartyState: normaliseGstStateOrWarn(customerRow?.state ?? null, "counterparty"),
+          })
+        : null;
+      const gst = computedLines
+        ? {
+            taxableValue: String(computedLines.header.taxableValue),
+            cgstAmount: String(computedLines.header.cgstAmount),
+            sgstAmount: String(computedLines.header.sgstAmount),
+            igstAmount: String(computedLines.header.igstAmount),
+            totalTaxAmount: String(computedLines.header.totalTaxAmount),
+            isInterstate: computedLines.header.isInterstate,
+            amount: String(computedLines.header.invoiceTotal),
+          }
+        : gstInvoiceColumns({
+            taxableValue: Number(input.amount),
+            gstRate: input.gstRate as GSTRate,
+            orgState,
+            counterpartyState: customerRow?.state ?? null,
+          });
       const invoiceDate = input.invoiceDate ? new Date(input.invoiceDate) : new Date();
       // Insert + post the balanced AR journal entry atomically (see createInvoice).
       const inv = await db.transaction(async (tx) => {
@@ -384,6 +463,11 @@ export const financialRouter = router({
             dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
           })
           .returning();
+        if (computedLines && row) {
+          await tx.insert(invoiceLineItems).values(
+            computedLines.lines.map((l) => ({ ...l, invoiceId: row.id })),
+          );
+        }
         await postInvoiceJournalEntry(tx, {
           orgId: org!.id,
           createdById: ctx.user!.id,
