@@ -108,6 +108,20 @@ answer. Plain-English note after each says what it would mean if the rule is wro
     *If wrong:* every audit re-surfaces known gaps as noise — or we wave off a real
     GSTR-1 rate bug as "known debt" when it was never confirmed.
 
+11. **Any fix that makes a code comment or a document untrue must correct it in the
+    same pass.** Six false comments have been found so far, and one concealed a live
+    defect for weeks inside its own accepted-debt exemption. **Both directions are
+    dangerous.** A comment that *overstates* a safeguard lets a reviewer trust a
+    protection that isn't there. A comment that *understates* the code — "this only
+    logs" above something that delivers externally — makes a reviewer look away from
+    live behaviour. F-4 was the second kind, and so was the comment that hid the DPDP
+    misrouting. **Update cadence:** `reports/fix-plan.md` and `docs/quality-bar.md` are
+    updated after every item — they are read at the start of every session.
+    `CLAUDE.md` and `docs/GAP_ANALYSIS.md` are updated when the thing they describe
+    changes. The audit and sweep reports are dated snapshots and are **never** updated.
+    *If wrong:* a stale comment or doc silently misdirects the next reviewer — the exact
+    mechanism that let the DPDP misrouting survive for weeks.
+
 ---
 
 ## Severity definitions
