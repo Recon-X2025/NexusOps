@@ -476,7 +476,7 @@ export default function AdminConsolePage() {
                 <thead className="bg-muted sticky top-0 z-10">
                   <tr>
                     <th className="p-2 font-semibold border-b border-r">Module</th>
-                    {["read", "write", "delete", "admin", "approve", "assign", "close"].map(act => (
+                    {["create", "read", "update", "delete", "manage"].map(act =>(
                       <th key={act} className="p-2 font-semibold border-b text-center capitalize">{act}</th>
                     ))}
                   </tr>
@@ -485,7 +485,7 @@ export default function AdminConsolePage() {
                   {ALL_MODULES.map((mod) => (
                     <tr key={mod} className="border-b hover:bg-muted/30">
                       <td className="p-2 border-r font-medium text-foreground">{MODULE_LABELS[mod] || mod}</td>
-                      {["read", "write", "delete", "admin", "approve", "assign", "close"].map(act => {
+                      {["create", "read", "update", "delete", "manage"].map(act =>{
                         const isChecked = customRoleForm.permissions.some(p => p.resource === mod && p.action === act);
                         return (
                           <td key={act} className="p-2 text-center">

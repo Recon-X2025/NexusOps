@@ -39,6 +39,22 @@ function getCategoryForKey(key: string) {
   return "Platform";
 }
 
+/**
+ * A custom-role permission is stored as (resource, action) where `action` is the
+ * Postgres `permission_action` enum. Constrain the create/update input to exactly
+ * those five values so the save path can never send a string the enum column would
+ * reject (this is what the two `as any` casts used to paper over). Custom roles can
+ * therefore only express CRUD-shaped permissions; workflow verbs like approve/
+ * assign/close are not part of this vocabulary. See fix-plan A6.
+ */
+export const ROLE_PERMISSION_ACTIONS = ["create", "read", "update", "delete", "manage"] as const;
+const rolePermissionInput = z.array(
+  z.object({
+    resource: z.string(),
+    action: z.enum(ROLE_PERMISSION_ACTIONS),
+  }),
+);
+
 export const adminRouter = router({
   auditLog: router({
     list: adminProcedure
@@ -1048,7 +1064,7 @@ export const adminRouter = router({
         z.object({
           name: z.string().min(1),
           description: z.string().optional(),
-          permissions: z.array(z.object({ resource: z.string(), action: z.string() })),
+          permissions: rolePermissionInput,
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -1058,19 +1074,19 @@ export const adminRouter = router({
             .insert(roles)
             .values({ orgId: org!.id, name: input.name, description: input.description, isSystem: false })
             .returning();
-            
+
           if (!newRole) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-            
+
           for (const perm of input.permissions) {
             let [dbPerm] = await tx
               .select()
               .from(permissions)
-              .where(and(eq(permissions.resource, perm.resource), eq(permissions.action, perm.action as any))) // any-ratchet-allow: dynamic input from admin payload
+              .where(and(eq(permissions.resource, perm.resource), eq(permissions.action, perm.action)))
               .limit(1);
             if (!dbPerm) {
               [dbPerm] = await tx
                 .insert(permissions)
-                .values({ resource: perm.resource, action: perm.action as any }) // any-ratchet-allow: dynamic input from admin payload
+                .values({ resource: perm.resource, action: perm.action })
                 .returning();
             }
             if (!dbPerm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1090,7 +1106,7 @@ export const adminRouter = router({
           id: z.string().uuid(),
           name: z.string().min(1),
           description: z.string().optional(),
-          permissions: z.array(z.object({ resource: z.string(), action: z.string() })),
+          permissions: rolePermissionInput,
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -1110,12 +1126,12 @@ export const adminRouter = router({
             let [dbPerm] = await tx
               .select()
               .from(permissions)
-              .where(and(eq(permissions.resource, perm.resource), eq(permissions.action, perm.action as any))) // any-ratchet-allow: dynamic input from admin payload
+              .where(and(eq(permissions.resource, perm.resource), eq(permissions.action, perm.action)))
               .limit(1);
             if (!dbPerm) {
               [dbPerm] = await tx
                 .insert(permissions)
-                .values({ resource: perm.resource, action: perm.action as any }) // any-ratchet-allow: dynamic input from admin payload
+                .values({ resource: perm.resource, action: perm.action })
                 .returning();
             }
             if (!dbPerm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

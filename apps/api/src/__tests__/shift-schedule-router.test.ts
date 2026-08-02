@@ -11,7 +11,7 @@
  *       · unassigned but an org default exists → default drives the status,
  *   - cross-tenant assignment / promotion is refused.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createMockContext, seedFullOrg, cleanupOrg, testDb } from "./helpers";
 import { hrRouter } from "../routers/hr";
 import { employees, salaryStructures, eq } from "@coheronconnect/db";
@@ -54,25 +54,38 @@ describe("G8: shift-schedule admin CRUD + shift-aware punch", () => {
       })
       .returning();
     empId = e!.id;
+
+    // Pin the wall clock to local noon *after* all seeding I/O is done, so the
+    // shift-start offsets below and the punch's own `new Date()` share one fixed
+    // "now" that never sits near a midnight boundary. Fake only `Date` (not the
+    // timer functions) so DB I/O and connection keep-alives run on the real clock.
+    const noon = new Date();
+    noon.setHours(12, 0, 0, 0);
+    vi.useFakeTimers({ toFake: ["Date"], now: noon });
   });
 
   afterEach(async () => {
+    // Restore the real clock before any cleanup I/O.
+    vi.useRealTimers();
     await cleanupOrg(orgId);
   });
 
-  /** Minutes-from-midnight for a wall-clock time offset from *now*. */
-  // A shift start `deltaMinutes` before/after the current wall-clock minute-of-day,
-  // CLAMPED to the same day [0, 1439]. The shift model is minutes-past-midnight
-  // (see lib/india/shift-schedule.ts), so we must NOT let `now + delta` wrap across
-  // 00:00 — a naive wrap makes a future start land earlier in the day than "now"
-  // (and vice-versa), which used to flip the "starting later" case to `late` whenever
-  // the suite ran within ~2h of local midnight. Clamping (not modulo) keeps the
-  // before/after relationship the tests rely on: a future offset stays ≥ now (capped
-  // at end-of-day), a past offset stays ≤ now (capped at start-of-day).
+  /**
+   * A shift start `deltaMinutes` before/after "now", as a minutes-past-midnight
+   * offset (the shift model's unit — see lib/india/shift-schedule.ts).
+   *
+   * The clock is pinned to local noon for this suite (see beforeEach), so "now"
+   * is a fixed 12:00 = 720 min. That is the ONLY robust way to express offsets
+   * like −60 / +120 min: `derivePunch` compares raw minute-of-day with no notion
+   * of *which* day, so any offset taken from the live wall clock breaks the moment
+   * `now ± delta` crosses 00:00 or 23:59 (a past offset near midnight clamps/wraps
+   * to the wrong side and a "started 60 min ago" shift reads as on-time). Pinning
+   * `now` to mid-day keeps 12:00 ± a couple of hours safely inside [0, 1439] and
+   * makes the punch's own `new Date()` agree with the offset we compute here.
+   */
+  const NOON_MINUTE = 12 * 60;
   function minutesFromNow(deltaMinutes: number): number {
-    const now = new Date();
-    const nowMinuteOfDay = now.getHours() * 60 + now.getMinutes();
-    return Math.max(0, Math.min(1439, nowMinuteOfDay + deltaMinutes));
+    return NOON_MINUTE + deltaMinutes;
   }
 
   it("create → list returns the shift; create is org-scoped", async () => {

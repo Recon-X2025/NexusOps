@@ -1,52 +1,47 @@
 /**
- * R-2 — One permission vocabulary, or none (Phase 1 ratchet, root cause #3).
+ * R-2 — One permission vocabulary on the custom-role save path (Phase 1 ratchet,
+ * root cause #3).
  *
- * A permission is stored as (resource, action). The set of legal *actions* is
- * declared in three independent places, and today they disagree:
+ * A custom-role permission is stored as (resource, action). The set of legal
+ * *actions* is declared in three independent places that all meet on the single
+ * path where an admin creates or edits a custom role — and they must agree:
  *
- *   1. The database enum `permission_action` — the column type the DB will
- *      actually accept — has FIVE values:
+ *   1. The database enum `permission_action` — the column type
+ *      `permissions.action` will actually accept — has FIVE values:
  *          create · read · update · delete · manage
- *      (packages/db/src/schema/auth.ts:248-254)
+ *      (packages/db/src/schema/auth.ts / migration 0000).
  *
- *   2. The TypeScript type `RbacAction` — what the shared types package says an
- *      action is — has SEVEN values:
- *          read · write · delete · admin · approve · assign · close
- *      (packages/types/src/rbac-matrix.ts:102-109)
+ *   2. The admin.ts create/update input schema — the tRPC boundary the save path
+ *      validates against — is `z.enum(ROLE_PERMISSION_ACTIONS)`. That constant is
+ *      imported here directly (not copied), so this test tracks the real schema
+ *      source (apps/api/src/routers/admin.ts).
  *
- *   3. The admin UI's role-builder grid hard-codes the SAME seven strings as
- *      column headers and as the value written into each checkbox
+ *   3. The admin UI's role-builder grid hard-codes the action strings as column
+ *      headers and as the value written into each checkbox
  *      (apps/web/src/app/app/admin/page.tsx:479, 488). Whatever the admin ticks
- *      is the `action` string sent to the server to create a custom role.
+ *      is the `action` string sent to the server. Replicated here verbatim.
  *
- * So the screen offers `write / admin / approve / assign / close` — none of which
- * the database column can hold — and hides `create / update / manage`, which it
- * can. The two camps overlap on only `read` and `delete`. The mismatch was
- * papered over by `as any` casts on the write path (admin.ts), so nothing ever
- * complained: this is root cause #3 — deciding "same or different" by comparing
- * two vocabularies that were never the same word list.
+ * These three are the only surfaces that genuinely touch on the save path: the
+ * UI produces the value, the admin.ts schema validates it, and the DB enum stores
+ * it. If any two diverge, a custom role either fails to save (UI offers a value
+ * the enum rejects) or silently under-offers (enum accepts a value the UI hides).
  *
- * This ratchet pins all three to ONE list and fails the moment any two diverge:
- *
- *   • RUNTIME pin — reads the live enum straight from Postgres's `pg_enum`
- *     catalog (not a copy of it) and compares that set to the UI's seven strings,
- *     replicated here verbatim from admin/page.tsx. Two independent sources,
- *     cross-checked, so it cannot pass vacuously.
- *
- *   • COMPILE-TIME pin — imports the real `RbacAction` type from
- *     `@coheronconnect/types` and asserts every one of its members is a member of
- *     the DB-enum set. Today it is not (write/admin/approve/assign/close have no
- *     home in the enum), so this assertion is red too.
- *
- * NOTE (expected RED until Phase 2): both assertions are written to fail against
- * the current schema, listing the divergence in both directions. That red is the
- * proof the ratchet works; Phase 2 collapses the three surfaces onto one
- * vocabulary and turns it green.
+ * NOTE ON SCOPE: the runtime authorization vocabulary — the `RbacAction` type and
+ * the `ROLE_PERMISSIONS` matrix in @coheronconnect/types (read/write/delete/admin/
+ * approve/assign/close) — is deliberately NOT pinned here. That vocabulary is used
+ * by ~754 `permissionProcedure` checks and never reaches the `permission_action`
+ * enum; the two are separate systems that never meet. An earlier version of this
+ * ratchet asserted `RbacAction ⊆ permission_action`, which pinned a relationship
+ * that does not exist and would only have been satisfiable by widening the runtime
+ * vocabulary to match a DB column it never consults. That assertion has been
+ * removed. The real consequence — custom roles can only express CRUD, so they
+ * cannot grant approve/assign/close even though built-in roles can — is a product
+ * limitation tracked separately (fix-plan A6), not a code invariant.
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import { testDb } from "./helpers";
 import { sql } from "@coheronconnect/db";
-import type { RbacAction } from "@coheronconnect/types";
+import { ROLE_PERMISSION_ACTIONS } from "../routers/admin";
 
 beforeAll(async () => {
   if (!process.env.DATABASE_URL) {
@@ -57,40 +52,21 @@ beforeAll(async () => {
 });
 
 /**
- * The seven strings the admin role-builder grid offers, copied verbatim from
+ * The action strings the admin role-builder grid offers, copied verbatim from
  * apps/web/src/app/app/admin/page.tsx:479 & :488. These are the exact `action`
  * values the UI sends to the server when an admin creates a custom role. If that
  * screen's list changes, this constant must change with it — and this test is
- * what forces the two to stay in step with the DB enum.
+ * what forces the two to stay in step with the admin.ts schema and the DB enum.
  */
 const UI_ROLE_BUILDER_ACTIONS = [
+  "create",
   "read",
-  "write",
+  "update",
   "delete",
-  "admin",
-  "approve",
-  "assign",
-  "close",
+  "manage",
 ] as const;
 
-/**
- * Every member of the `RbacAction` type, listed as runtime values so the
- * compile-time type and the runtime check share one source. The
- * `satisfies readonly RbacAction[]` below makes TypeScript reject this array if
- * it ever drifts from the `RbacAction` union — so this is the type surface, not
- * a hand-maintained guess.
- */
-const RBAC_ACTION_VALUES = [
-  "read",
-  "write",
-  "delete",
-  "admin",
-  "approve",
-  "assign",
-  "close",
-] as const satisfies readonly RbacAction[];
-
-describe("R-2: one permission vocabulary across DB enum, RbacAction type, and UI", () => {
+describe("R-2: one permission vocabulary on the custom-role save path", () => {
   let db: ReturnType<typeof testDb>;
 
   beforeAll(() => {
@@ -120,7 +96,7 @@ describe("R-2: one permission vocabulary across DB enum, RbacAction type, and UI
     expect(enumActions.length).toBeGreaterThan(0);
   });
 
-  it("RUNTIME: the UI role-builder actions are exactly the DB enum actions", async () => {
+  it("the UI role-builder actions are exactly the DB enum actions", async () => {
     const enumActions = new Set(await getDbEnumActions());
     const uiActions = new Set<string>(UI_ROLE_BUILDER_ACTIONS);
 
@@ -141,18 +117,24 @@ describe("R-2: one permission vocabulary across DB enum, RbacAction type, and UI
     ).toEqual({ offeredByUiButDbRejects: [], acceptedByDbButUiHides: [] });
   });
 
-  it("COMPILE-TIME: every RbacAction value is a value the DB enum accepts", async () => {
+  it("the admin.ts create/update input schema is exactly the DB enum actions", async () => {
     const enumActions = new Set(await getDbEnumActions());
+    const schemaActions = new Set<string>(ROLE_PERMISSION_ACTIONS);
 
-    const rbacActionsDbRejects = RBAC_ACTION_VALUES.filter(
+    const acceptedBySchemaButDbRejects = [...schemaActions].filter(
       (a) => !enumActions.has(a),
+    );
+    const acceptedByDbButSchemaRejects = [...enumActions].filter(
+      (a) => !schemaActions.has(a),
     );
 
     expect(
-      rbacActionsDbRejects,
-      `Every member of the RbacAction type (@coheronconnect/types) must be a ` +
-        `value the permission_action DB enum can store. These RbacAction values ` +
-        `have no home in the enum:\n  [${rbacActionsDbRejects.join(", ")}]`,
-    ).toEqual([]);
+      { acceptedBySchemaButDbRejects, acceptedByDbButSchemaRejects },
+      `The admin.roles create/update input schema (ROLE_PERMISSION_ACTIONS in ` +
+        `apps/api/src/routers/admin.ts) and the permission_action DB enum must ` +
+        `accept the exact same set of actions.\n` +
+        `  Accepted by the schema but the DB column will reject: [${acceptedBySchemaButDbRejects.join(", ")}]\n` +
+        `  Accepted by the DB but the schema rejects:            [${acceptedByDbButSchemaRejects.join(", ")}]`,
+    ).toEqual({ acceptedBySchemaButDbRejects: [], acceptedByDbButSchemaRejects: [] });
   });
 });

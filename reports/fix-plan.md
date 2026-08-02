@@ -51,7 +51,7 @@ it is the summary; the item is the source of truth.
 | Item | Bucket / phase | Status |
 |------|----------------|--------|
 | R-1 — all-tables RLS wall test | Phase 1 ratchet | **Done** (green; turned by A11) |
-| R-2 — permission-vocabulary test | Phase 1 ratchet | Pending (red; A6 turns it green) |
+| R-2 — permission-vocabulary test | Phase 1 ratchet | **Done** (re-scoped + green; turned by A6) |
 | R-3 — DPDP notice-honesty test | Phase 1 ratchet | **Done** (green; turned by A3/A4) |
 | R-4 — money read-then-write concurrency test | Phase 1 ratchet | **Done** (green; turned by A2) |
 | R-5 — audit-log tail-truncation test | Phase 1 ratchet | Pending (red; B5 head-anchor turns it green) |
@@ -82,15 +82,16 @@ it is the summary; the item is the source of truth.
 | Identity/session theme (B8–B11) | Bucket B | Pending |
 | Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 folded into R-5) |
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
-| Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (helper clamps to same day; no wrap) |
+| Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
 
 > **Phase 2 (Correctness) is complete** — every item in the Phase 2 (A) and
 > Phase 2 (B) buckets is **Done** except **A13**, which is **Blocked-on-CA** (held
 > pending the chartered accountant's ruling on whether our Part B is a deliverable
 > or a preview; A18 may supersede it). The three DPDP ratchets it touched are
 > settled: **R-3 is green** (turned by A3/A4), R-4 was turned by A2. **R-1 is now
-> green too** (turned by A11, migration 0061). The remaining red ratchets (R-2, R-5)
-> are turned by Phase 3 items (A6, B5).
+> green too** (turned by A11, migration 0061). **R-2 is now green too** (turned by
+> A6 — and re-scoped in the process; see the R-2 section). The only remaining red
+> ratchet is **R-5** (turned by Phase 3 item B5).
 
 ---
 
@@ -137,6 +138,27 @@ CI tolerates it; otherwise land R-1 and the A11 migration in the same change.
 
 ### R-2 — A test that pins the permission vocabulary (#4)
 
+> **Ratchet re-scoped during A6 (2026-08-01) — now green.** The original ratchet
+> (described below) pinned **three surfaces**: the UI, the **DB enum**, and the
+> **`RbacAction` runtime type/checker**. Implementing A6 showed the third pin was
+> **wrong**: `RbacAction`/`ROLE_PERMISSIONS` is the runtime authorization matrix
+> (~754 `permissionProcedure` checks, `checkDbUserPermission`) and it **never
+> reaches the `permission_action` enum** — the enum is touched only by the custom-
+> role save path. Asserting `RbacAction ⊆ permission_action` pinned a relationship
+> that does not exist, and could only have been satisfied by widening the runtime
+> vocabulary to match a DB column it never consults — i.e. changing production
+> behaviour to satisfy a test.
+>
+> **The test now pins the three surfaces that genuinely meet on the save path:**
+> (1) the DB enum `permission_action` (read live from `pg_enum`), (2) the admin.ts
+> create/update **input schema** (`ROLE_PERMISSION_ACTIONS`, imported — not copied),
+> and (3) the custom-role builder **UI grid** (copied verbatim). The `RbacAction`
+> compile-time assertion was removed. See
+> `apps/api/src/__tests__/permission-vocabulary.test.ts` (rewritten header explains
+> the scope decision). RED before (2 failing assertions), GREEN after (3/3).
+
+<details><summary>Original R-2 framing (superseded by the re-scope above — kept for decision-history)</summary>
+
 **What changes.** Add a test that asserts **all three** surfaces that speak the
 permission vocabulary use the **same five values** — and fails if any one of them
 diverges: (1) the RBAC-matrix **UI**, (2) the **permission checker** that reads
@@ -145,22 +167,11 @@ enum `permission_action` has five values — `create, read, update, delete, mana
 (`packages/db/src/schema/auth.ts:248-254`) — while the roles UI offers seven
 (`read, write, delete, admin, approve, assign, close`), and even the overlap is
 loose (`write` vs `update`, `admin` vs `manage`). The test locks all three lists to
-the five enum values so they can never drift again.
+the five enum values so they can never drift again. — The "(2) permission checker"
+pin was the mistake: the checker speaks `RbacAction`, a separate vocabulary from the
+enum. The rewrite replaces it with the admin.ts input schema.
 
-**Reference implementation.** The pattern to copy is the existing contract-guard
-tests that keep the web and API in sync (the `trpc-web-parity` /
-`mutations-require-input` style guards referenced in `quality-bar.md`). This is the
-same idea applied to the permission vocabulary across UI, checker, and enum.
-
-**What could break.** The test goes red now, because the three lists genuinely
-disagree. That red is what A6 (Phase 3) resolves — by collapsing the UI and checker
-down to the five enum values (not by widening the enum).
-
-**What test proves it.** Itself — add a UI action with no DB value and it fails.
-
-**Re-run afterwards.** `auth-rbac` audit.
-
-**Dependency.** Write before A6; A6's fix is "make this test green."
+</details>
 
 ---
 
@@ -838,7 +849,55 @@ approved.
 
 **Re-run afterwards.** `sweep-unreachable-features`; governance audits.
 
-#### A6 — Let custom roles save (collapse the UI to the five database values)
+#### A6 — Let custom roles save (align the save path to the five database values)
+
+> **Status: DONE.** The defect was that the custom-role builder UI offered seven
+> action strings (`read/write/delete/admin/approve/assign/close`) but the
+> `permissions.action` column is the `permission_action` enum, which accepts only
+> five (`create/read/update/delete/manage`). Five of the seven were un-storable;
+> two `as any` casts in `admin.ts` silenced the *type* error but not the *runtime*
+> enum rejection, so any custom role ticking anything but `read`/`delete` failed to
+> save.
+>
+> **Scope correction (during implementation).** The original plan below assumed the
+> seven-word vocabulary lived on one shared axis with the enum, and proposed
+> "collapsing" it — normalising `write→Update`, `admin→Manage`, and rerouting
+> `approve`/`assign`/`close`. Investigation showed that is **wrong**: the seven-word
+> vocabulary is `RbacAction` / `ROLE_PERMISSIONS` (`packages/types/src/rbac-matrix.ts`),
+> the runtime authorization matrix, consulted by ~754 `permissionProcedure` checks
+> and by `checkDbUserPermission` (`apps/api/src/lib/rbac-db.ts`). **It never reaches
+> the `permission_action` enum.** The enum is touched only by the custom-role save
+> path (`admin.roles.create`/`update` → `permissions` table). They are two separate
+> systems that never meet. Rewriting the 754 runtime checks (or folding
+> `approve`/`assign`/`close` into `manage`) would *widen platform permissions to
+> satisfy a test* — the wrong trade. So the runtime matrix was **left untouched**.
+>
+> **What was actually done:**
+> - **UI grid** (`apps/web/src/app/app/admin/page.tsx:479,488`) — the role-builder's
+>   seven action columns are now the five enum values `create/read/update/delete/
+>   manage`. (The *separate* built-in system-role matrix display at :943-946 still
+>   shows the seven-word runtime vocabulary — correctly; it renders `RbacAction`, not
+>   the custom-role save path.)
+> - **admin.ts input schema** (`apps/api/src/routers/admin.ts`) — `create` and
+>   `update` now validate `permissions[].action` against
+>   `z.enum(ROLE_PERMISSION_ACTIONS)` (the five values, exported for R-2). Invalid
+>   actions are rejected at the tRPC boundary with a clean validation error.
+> - **Removed all four `as any` casts** (`:1068,:1073` in create, and the two mirror
+>   casts in `update`). `perm.action` is now a genuine enum value; the compiler
+>   enforces the alignment from here on.
+>
+> **R-2 was rewritten to pin the correct invariant** — see the R-2 row in the status
+> table and the "Ratchet re-scoped" note below. Verified RED before (2 failing
+> assertions on `[write, admin, approve, assign, close]`) and GREEN after (3/3).
+> `pnpm --filter api tsc` and `pnpm --filter web tsc` both clean.
+>
+> **Real product limitation this surfaces** (tracked as a separate design item in
+> Bucket B, below): a custom role can only express CRUD-shaped permissions, so it
+> **cannot grant `approve`/`assign`/`close`** even though built-in roles can. That is
+> a genuine gap in what custom roles can do — it needs a design decision (a
+> workflow-verb mechanism), not a refactor of the runtime matrix.
+
+<details><summary>Original plan (superseded by the scope correction above — kept for decision-history)</summary>
 
 **What changes.** The roles UI offers seven actions; the DB enum allows five
 (`auth.ts:248-254`), so realistic roles fail to save. **Decision made: collapse the
@@ -847,46 +906,19 @@ RBAC-matrix screen maps to exactly **Read, Create, Update, Delete, Manage** (the
 five `permission_action` values). **Approve, Assign and Close are removed from the
 matrix**: they are *workflow* actions, not access levels, and belong in the role
 definitions in the **Role Library** (which already work) rather than in the
-`permissions` table. So the fix is UI + wiring, **not** a schema change — the enum
-stays as-is.
+`permissions` table.
 
-Concretely:
-- Change the RBAC matrix to offer only the five enum actions (and normalise the two
-  loose labels the UI used — `write` becomes `Update`, `admin` becomes `Manage`).
-- Drop `approve`/`assign`/`close` from the matrix; anything that genuinely needs
-  those semantics is expressed through the Role Library's role definitions instead.
-- **Remove the `as any` casts at `apps/api/src/routers/admin.ts:1068` and `:1073`.**
-  Those casts launder the caller-supplied `perm.action` string past the enum type
-  in the role-create path — they are precisely what *hid* the mismatch and let a
-  role carrying `approve`/`assign`/`close` compile and then fail (or silently
-  no-op) at the Postgres enum. With the vocabularies aligned to five, `perm.action`
-  is a genuine enum value and the cast is unnecessary; removing it makes the
-  compiler enforce the alignment from now on.
+- Change the RBAC matrix to offer only the five enum actions (`write`→`Update`,
+  `admin`→`Manage`); drop `approve`/`assign`/`close`; reroute them to the Role
+  Library; remove the `as any` casts.
 
-**Reference implementation.** R-2's vocabulary test defines "correct" once all three
-surfaces agree; make R-2 green. The Role Library is the existing, working home for
-workflow-style role definitions — route the three removed actions there. No
-migration is needed (the enum is unchanged).
+**What could break.** Any existing role or code path that references
+`approve`/`assign`/`close` as a *permission action* must be rerouted. — This framing
+was rejected: those three are runtime `RbacAction` verbs used by ~754 call sites and
+never stored in the enum, so "rerouting" them would mean rewriting the runtime
+authorization matrix to satisfy a test. Not done.
 
-**What could break.** **Any existing role or code path that references `approve`,
-`assign` or `close` as a *permission action* must be rerouted to the role
-definitions in the Role Library.** In the pilot's fresh instance there is little or
-no such data, which is why this is cheap now — but the permission-checker call sites
-must be swept for those three strings and repointed, or a check that used to look
-for an `approve` permission will silently find nothing. Removing the `as any` will
-turn any remaining mis-typed use into a compile error (that is the point — it
-surfaces exactly the paths that need rerouting).
-
-**What test proves it.** R-2 (Read/Create/Update/Delete/Manage on the UI, the
-permission checker, and the enum all match) plus a role-create test that saves a
-role using each of the five actions and reads it back — and, ideally, a negative
-test that a role carrying `approve`/`assign`/`close` as a *permission* is rejected
-rather than silently dropped.
-
-**Re-run afterwards.** `auth-rbac` audit.
-
-**Dependency.** R-2 written first. No schema migration, so — unlike the earlier
-option — A6 does **not** need to batch with the RLS-wall migration.
+</details>
 
 ---
 
@@ -1322,6 +1354,25 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
     A11, which only needed the three walls in place and R-1 green. _(Infra/tooling
     hardening — no user-visible behaviour change; the walls already work at runtime.
     Do this before relying on `db:generate` to police tenant isolation.)_
+- **RBAC theme (surfaced by A6) — custom roles can only express CRUD, not workflow
+  verbs.** A6 aligned the custom-role save path to the `permission_action` enum's
+  five values (`create/read/update/delete/manage`). That is the correct, minimal fix
+  for the save defect, but it makes explicit a real product limitation: **a custom
+  role cannot grant `approve`, `assign` or `close`, even though several built-in
+  system roles can** (those verbs live in the runtime `RbacAction`/`ROLE_PERMISSIONS`
+  matrix, `packages/types/src/rbac-matrix.ts`, which the custom-role table cannot
+  reach). So an admin can build a role that reads/creates/updates/deletes/manages a
+  module but cannot build one that, say, may *approve* a purchase order or *close* a
+  ticket without also being handed a whole built-in role.
+  - **This is a design decision, not a refactor.** The two options are: (a) give the
+    custom-role builder a *separate* workflow-verb axis that maps onto the runtime
+    matrix (so approve/assign/close can be granted per-module without the enum), or
+    (b) accept CRUD-only custom roles and document that workflow-verb grants require a
+    built-in role. Do **not** "fix" this by widening the `permission_action` enum or
+    by collapsing the runtime vocabulary into it — those are two separate systems on
+    purpose (one is stored custom-role permissions, the other is the compiled
+    authorization matrix consulted by ~754 `permissionProcedure` checks). _(Bucket B —
+    a watched single customer may want a bespoke approver role; not blocking.)_
 - **Document-header theme (B16, B17) — captured identity the generators don't
   print.** Two defects that leave a self-generated document missing tenant detail
   it already holds. Group with A13 (they share the document-header code area) but
@@ -1358,14 +1409,28 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
   and the punch was wrongly flagged `late` (expected `present`). This was a
   **time-dependent test bug, not a code defect**: the shift-aware punch logic
   (`lib/india/shift-schedule.ts` `derivePunch`) is correct; the helper just couldn't
-  represent a start time that crossed the day boundary. **Fix:** the helper now
-  clamps `nowMinuteOfDay + delta` into the same day `[0, 1439]` (clamp, not modulo),
-  so a future offset stays ≥ now (capped at end-of-day → still `present`) and a past
-  offset stays ≤ now (capped at start-of-day → still `late`) — the before/after
-  relationship the tests rely on is preserved and the wrap is gone. Test-only; no
-  product code changed. Verified by running the suite at 23:10 (inside the old
-  failure window): 11/11 green. _(Originally surfaced during B2's full-suite run at
-  22:15; re-tripped during A11's 22:59 full-suite run, then fixed.)_
+  represent a start time that crossed the day boundary.
+  - **First attempt (A11) — clamp — was incomplete and is superseded.** Clamping
+    `nowMinuteOfDay + delta` into `[0, 1439]` fixed the *before*-midnight direction
+    (the `+120` "present" case) but **introduced a symmetric failure just after
+    midnight**: at 00:10, `minutesFromNow(-60)` clamps `-50 → 0`, so a shift meant to
+    have "started 60 min ago" starts at 00:00, and `lateMinutes = 10` is not `> 10`
+    grace → the "late" cases (lines 159, 188) wrongly read `present`. The A6 full
+    suite tripped exactly this at 00:10. The root cause is deeper than any offset
+    transform: `derivePunch` compares a raw minute-of-day with **no notion of which
+    day**, so *no* pure `[0,1439]` transform of the live wall clock can express an
+    offset that crosses a boundary.
+  - **Real fix (A6 pass) — pin the clock.** The suite now freezes the wall clock to
+    **local noon** for each test (`vi.useFakeTimers({ toFake: ["Date"], now: noon })`
+    set at the end of `beforeEach`, after all seeding I/O; `vi.useRealTimers()` at the
+    start of `afterEach`, before cleanup). Only `Date` is faked, so DB I/O and pool
+    keep-alives still run on the real clock. `minutesFromNow` is now `NOON_MINUTE +
+    delta` (12:00 ± a couple of hours stays safely in-band), and the punch's own
+    `new Date()` reads the same frozen noon — so the before/after relationship holds
+    regardless of when the suite runs. Test-only; no product code changed. Verified at
+    **00:16** (inside the window that broke both the wrap and the clamp): 11/11 green.
+    _(Surfaced at B2's 22:15 run; re-tripped at A11's 22:59; A11's clamp then
+    re-tripped after midnight during A6's run; pinned-clock fix is boundary-proof.)_
 
 ---
 
@@ -1375,8 +1440,11 @@ The ordering that actually matters (everything else is grouping for efficiency):
 
 1. **R-1 → A11.** The all-tables wall test is written (red) before, or with, the
    migration that turns it green.
-2. **R-2 → A6.** The permission-vocabulary test (UI = checker = enum, five values)
-   is written before the roles fix that collapses the UI/checker down to those five.
+2. **R-2 → A6.** *(Done, and re-scoped.)* The permission-vocabulary test now pins the
+   three surfaces that meet on the custom-role **save path** — UI grid = admin.ts
+   input schema = DB enum, five values — not the runtime `RbacAction` checker, which
+   is a separate vocabulary the enum never reaches. A6 aligned the save path; the
+   runtime matrix was left untouched.
 3. **R-3 → A3, A4.** The tenant-contact / honest-recording test precedes the DPDP
    delivery and erasure fixes.
 4. **R-4 → A2.** The concurrency test (post double-count) precedes the row-lock fix.
