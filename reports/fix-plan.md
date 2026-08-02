@@ -1694,6 +1694,201 @@ critical path.
 
 ---
 
+## Build item — Filing architecture (three-layer decoupled design)
+
+Recorded 2026-08-02 (design; no code changes). This is the **build** the Legal &
+Governance DECISION above defers to, generalised across **all** statutory filings.
+
+**Problem.** Statutory form schemas change with little notice (the CA flagged this as a
+common failure mode). Today each filing is built separately and close to its transport —
+GSTR-1 payload assembly lives in `accounting.ts`, MCA e-Form in
+`legal.mca21.prepare`/`mca21.ts`, with EPFO ECR / Form 24Q / e-invoicing as their own
+adapters. Hardcoding form fields into columns or code means **a schema change forces a
+deployment**.
+
+**Design — three layers, decoupled.**
+- **Layer 1 — core storage (domain objects).** Companies, directors, share transactions,
+  resolutions, charges. Changes only when *corporate law* changes, not when a form layout
+  does.
+- **Layer 2 — translation (adapter).** Maps core objects to the target external schema via
+  **declarative mapping configs**. Handles field splitting, nesting, and renaming **without
+  touching the database**.
+- **Layer 3 — compilation.** Produces the final payload; isolates compression, checksums,
+  and encoding.
+- **Form schemas as versioned config** (JSON Schema or Zod), with **multiple versions live
+  simultaneously** so in-progress filings don't break when a new version lands. The UI
+  renders from the schema.
+- **Graceful degradation.** A **pre-submission review matrix** showing the compiled
+  payload, with **in-line key overrides** for authorised users, plus **state freezing** and
+  an **audit log** recording what was changed and why.
+
+**Scope — build once for ALL filings, not MCA alone.** GSTR-1, Form 24Q, EPFO ECR and
+e-invoicing are the same shape: core data compiled into a volatile external format.
+Currently each is built separately.
+
+**Additional requirement — divergence flag.** When a manual override is used, flag that
+the **core data and the filed payload have diverged**, so the next filing does **not**
+silently inherit the same correction. (Override is a one-time patch, not a new default;
+the underlying core data must still be fixed.)
+
+**Sequencing — pilot-critical.** 7 customers go live end of August; pilot runs to end of
+November; **every major filing deadline falls inside that window**:
+- GSTR-1 — monthly from mid-September
+- DIR-3 KYC — 30 September
+- Form 24Q Q2 + AOC-4 — October
+- MGT-7 — 29 November
+
+The **first consumer of the architecture is GST, not MCA** (earliest, monthly, recurring).
+
+**Prerequisite work (Phase 1 of the recovery path).** These land before / alongside the
+architecture, and turn the Legal & Governance shells into real source data:
+1. **Repurpose `statutory_register_entries` as an event-driven ledger** recording equity
+   shifts, director appointments, and charge creation (today an unused shell at
+   `packages/db/src/schema/issuer-programme.ts:74`).
+2. **Build the Register of Charges** — the source data for CHG-1 and CHG-4 (absent today).
+3. **Replace the empty payload in `legal.mca21.prepare`** (free-form blob defaulting to
+   empty, `apps/api/src/routers/legal.ts:782`) with an **explicit mapping function** pulling
+   from the live directors, share-capital and charges tables.
+4. **Remove the fabricated gateway domains** (`gateway.mca21-suvidha.in` /
+   `gateway-sandbox.mca21-suvidha.in`, `apps/api/src/services/integrations/mca21.ts:47-48`;
+   `reports/sweep-fabricated-constants.md:70`) and replace with **mock integration tests**
+   covering success and failure states.
+5. **Freeze board minute drafts on finalisation** (today `minutesDraft` is an editable
+   plain-text field, `apps/api/src/routers/secretarial.ts:141`).
+
+---
+
+## Dated capability plan — pilot go-live (end Aug) → end November (2026-08-02)
+
+Recorded 2026-08-02 (planning; no code changes). Every date is a **"correct-by"
+deadline set by the regulatory event it serves**, not by our preferred build order.
+**Constraint:** 7 pilot customers go live **end of August** (non-negotiable); pilot
+runs three months to **end of November**. Confirmed cohort facts are folded in below
+(see "Confirmed cohort adjustments").
+
+### The fixed calendar
+
+| Deadline | Date | Serves |
+|---|---|---|
+| Pilot onboarding | **~25 Aug** | Customer can set up at all |
+| First payroll run | **~end Aug / early Sep** | Every payroll blocker |
+| GSTR-1 (September) | **mid-Sep** — **dummy/validation run, not a live filing** | GST-blocker validation |
+| **GSTR-1 (first LIVE filing)** | **mid-Oct** | GST blockers (real) |
+| DIR-3 KYC | **30 Sep** | Director KYC filing |
+| AOC-4 | **30 Oct** | Annual accounts filing |
+| Form 24Q Q2 | **31 Oct** | Quarterly TDS-on-salary return |
+| MGT-7 | **29 Nov** | Annual return |
+
+Two facts drive everything: **payroll runs first (end Aug)**, and **GST is the first
+filing** — so GST, not MCA, is the first consumer of any filing work.
+
+### Day one — must work before a customer can onboard and operate at all
+
+Existence-driven, not deadline-driven. Without these there is no usable product on 25 Aug.
+
+| Capability | Correct by | Status today |
+|---|---|---|
+| Payroll engine base (PF ₹1,800 cap, ESI, net pay) | **25 Aug** | **Working** — cap correct, ESI per-month correct |
+| Tenant onboarding / RLS isolation | **25 Aug** | **Done** (A11, migration 0061) |
+| **C6 — payslip mandatory statutory fields** | first payslip | **Absent** — blocking |
+| **B16/B17 — org identity on documents** | first payslip | Pending (payslip header hardcoded blank) |
+
+### Payroll cluster — correct by first run (~end Aug / early Sep)
+
+The first payroll happens at go-live, so every payroll-blocker shares one hard date.
+
+| Item | Correct by | Status | Note |
+|---|---|---|---|
+| **A12-D** — LOP split-logic | first run | Defect vs shipped A12 | Contained fix |
+| **C1** — Old vs New regime (115BAC) | first run | Absent | **Largest payroll build** — engine must branch on election. **Full scope, does NOT narrow** (see cohort adjustments) |
+| **C2** — PT multi-state matrix | first run | Absent | Build full-scale structure; **populate 3 states for go-live** (see cohort adjustments) |
+| **C3** — ESI six-month period | first run | **Absent (verified** `statutory-deductions.ts:145`**)** | Real build |
+| **C4/C4a** — PF cap + VPF | first run | **Cap correct; VPF partial** | Extend, not build |
+| **C6** — payslip fields | first run | Absent | Also day-one |
+
+**Verify-first already done:** C3 is fully absent (real build); C4's ₹1,800 cap is
+correct, only VPF/JD need work — so C4 shrinks from "build" to "extend."
+
+### GST cluster — correct by first LIVE GSTR-1
+
+| Item | Correct by | Status |
+|---|---|---|
+| **A7** — persist invoice line items | **mid-Oct** (was mid-Sep) | Unblocked; feeds C7 (₹0.01 mismatch = hard error) |
+| **C7** — GSTR-1 structure (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | **mid-Oct** (was mid-Sep) | Absent |
+| **C7a** — HSN turnover rule | **rule: mid-Oct**; **1-Apr refresh job: next April** | Absent |
+
+**September dummy run:** output must be **correct enough to validate**, but a failed
+dummy run is recoverable where a failed filing is not. See the dummy-run caveat in the
+cohort adjustments.
+
+### MCA / secretarial — DIR-3 KYC (30 Sep), AOC-4 (30 Oct), MGT-7 (29 Nov)
+
+Per the Legal & Governance assessment above: **~60% data capture works, ~25–30%
+statutory output, and MCA filing does not actually file** (empty payload, fabricated
+gateway, `markFiled` is a manual status flip).
+
+| Filing | Correct by | Can we file it by then? |
+|---|---|---|
+| **DIR-3 KYC** | 30 Sep | **NO** — earliest deadline, no filing path. **Handle manually / via CS for the first cycle.** |
+| **AOC-4** | 30 Oct | **NO** — needs filing architecture + real payload mapping + charges register, none of which exist. **Handle manually for the first cycle.** |
+| **MGT-7** | 29 Nov | **Maybe** — latest deadline, the only MCA filing with runway if the filing architecture lands |
+
+### 24Q → Form 16 chain
+
+| Item | Correct by | Status |
+|---|---|---|
+| **C9** — Form 24Q Q2 | **31 Oct** (hard, inside window) | Absent |
+| **A18** — Form 16 import | after 24Q processes (**Nov+**) | Absent; depends on C9 |
+
+Note: the CA classification calls C9 "deferrable vs first go-live" — true for *payroll*,
+but against **this** calendar C9 has a **hard 31 Oct date**.
+
+### At-risk flags — descope or handle manually
+
+**Cannot realistically be built in time — handle manually for the first cycle:**
+1. **DIR-3 KYC (30 Sep)** — no filing path; earliest MCA deadline, ~one month after
+   go-live while payroll+GST consume all capacity. **Go manual / CS.**
+2. **AOC-4 (30 Oct)** — needs the filing architecture + MCA payload mapping + Register
+   of Charges, none of which exist. **Go manual.**
+3. **Three-layer filing architecture** — right design, but a large build competing with
+   the payroll cluster that must land first. **Won't be ready for the first GSTR-1.**
+   Recommendation: build **C7 as a point solution** for the first GST cycle; target the
+   generalised architecture at the later MCA/24Q deadlines.
+
+**Tight — decide early:**
+4. **C1 (regime branching)** — largest build, hardest date; **full scope confirmed**
+   (does not narrow — see cohort adjustments).
+5. **C2 (PT states)** — **narrowed** to 3 day-one states (see cohort adjustments).
+6. **C9 (31 Oct)** and **A18** — C9 is a genuine window deadline; A18/Form 16 only
+   matters after 24Q processes (Nov/Dec), so A18 is safely last.
+
+**Safe to defer within the window:** C5 (rates config — do early anyway), C8 (tolerant
+parsing), C7a's April refresh job, C4b (JD PDF).
+
+### Confirmed cohort adjustments (2026-08-02)
+
+The 7-customer cohort facts are now confirmed; they change three lines of the plan above.
+
+- **States: Karnataka, Kerala, Tamil Nadu, Delhi NCR → C2 narrows sharply.** Delhi does
+  **not** levy professional tax, so **day-one PT is three states: Karnataka, Kerala,
+  Tamil Nadu.** Build the multi-state PT structure **at full scale** as agreed, but
+  **populate three states for go-live**; the remaining states become **data entry, not
+  engineering.**
+- **Tax regime: old-regime election is likely and material** (mid-tier salaries where the
+  difference matters) **→ C1 does NOT narrow.** Full scope, day one: **both slab sets,
+  both deduction-eligibility sets, the annual employee election captured and honoured,
+  and TDS projected per election.** Remains the **largest payroll build on the hardest
+  date.**
+- **GSTR-1: September is a dummy/validation run, not a live filing → first real GSTR-1
+  moves from mid-September to mid-October.** The GST cluster (A7, C7, C7a) gains **~four
+  weeks.** September output must be **correct enough to validate**, but a **failed dummy
+  run is recoverable where a failed filing is not.**
+  - **Caveat (record):** a dummy run proves **our output looks right**; it does **not**
+    prove **GSTN accepts it.** **Plan a real portal validation before the October
+    filing** — do not treat a clean dummy run as acceptance.
+
+---
+
 ## Bucket B remainder (fix during pilot, grouped by theme)
 
 These are the bucket-B items not already folded into the phases above. They are
