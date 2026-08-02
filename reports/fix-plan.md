@@ -63,19 +63,19 @@ it is the summary; the item is the source of truth.
 | A10 — three-way match tax basis | Phase 2 (A) | **Done** |
 | A3 — DPDP notice delivery / honest recording | Phase 2 (A) | **Done** |
 | A4 — DPDP erasure honesty | Phase 2 (A) | **Done** |
-| A12 — LOP TDS + net-pay shortfall | Phase 2 (A) | **Done** |
-| A13 — Form 16 employer PAN/TAN/address header | Phase 2 (A) | Blocked-on-CA (A18 may supersede) |
+| A12 — LOP TDS + net-pay shortfall | Phase 2 (A) | **Done** — but **defect logged** (CA: split-logic, see A12-D) |
+| A13 — Form 16 employer PAN/TAN/address header | Phase 2 (A) | **CLOSED — will not fix** (CA: no legal standing; reclassified HR-only preview, superseded by A18) |
 | A5 — approvals producer | Phase 3 (A) | Pending |
-| A6 — custom-role save (collapse to five actions) | Phase 3 (A) | Pending |
+| A6 — custom-role save (collapse to five actions) | Phase 3 (A) | **Done** (commit `e5d74ea`; R-2 re-scoped + green) |
 | A9 — goods-receipt create path | Phase 3 (A) | API path **Done**; screen deferred (not closed) |
-| A7 — persist invoice line items | Phase 3 (A) | Pending |
+| A7 — persist invoice line items | Phase 3 (A) | **Unblocked** (CA ruled: lines authoritative, header derived; ₹0.01 sum mismatch = hard error) |
 | A8 — statutory challan create path | Phase 3 (A) | Pending |
 | B1 — first-response clock | Phase 3 pass (B) | Pending |
 | A11 — RLS wall migration (three tables) | Phase 3 (A) | **Done** (migration 0061; R-1 green) |
 | A16 — logo upload | Phase 3 build | Pending |
 | A15 — one document-header source | Phase 3 build | Pending |
 | A17 — branded invoice / PO PDFs | Phase 3 build | Pending |
-| A18 — Form 16 TRACES import | Phase 3 build | Pending |
+| A18 — Form 16 TRACES import | Phase 3 build | Pending — **scope expanded** (CA: parse + map + self-service publish + bulk DSC signing; upstream Form 24Q dep — see A18) |
 | B16 — payslip hardcoded header | Bucket B (doc-header theme) | Pending |
 | B17 — no org address field | Bucket B (doc-header theme) | Pending |
 | Ownership cluster (#5) — one shared guard | Bucket B | Pending |
@@ -83,6 +83,16 @@ it is the summary; the item is the source of truth.
 | Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 **Done** — folded into R-5) |
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
+| A12-D — LOP split-logic defect (CA correction) | New — Payroll | Pending (against shipped A12) |
+| C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking** |
+| C2 — Professional tax 21+ state matrix | New — Payroll | Pending — **payroll-blocking** |
+| C3 — ESI six-month contribution-period rule | New — Payroll | Pending (verify first) — **payroll-blocking** |
+| C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
+| C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | Pending — deferrable (enabler) |
+| C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
+| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | Pending — **GST-blocking** |
+| C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
+| C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -90,9 +100,14 @@ it is the summary; the item is the source of truth.
 > scheduled verifier; see the R-5 section). There is no longer a red ratchet.
 >
 > **Phase 2 (Correctness) is complete** — every item in the Phase 2 (A) and
-> Phase 2 (B) buckets is **Done** except **A13**, which is **Blocked-on-CA** (held
-> pending the chartered accountant's ruling on whether our Part B is a deliverable
-> or a preview; A18 may supersede it).
+> Phase 2 (B) buckets is **Done**. **A13 is now CLOSED (will-not-fix):** the CA
+> ruled that a self-generated Form 16 Part B has no legal standing, so it is
+> reclassified as an internal HR-only payroll-tax preview and removed from the fix
+> list (A18 — importing the real TRACES certificate — supersedes it). **There are
+> no longer any Blocked-on-CA items.** The CA's full ruling, the A12 split-logic
+> defect it surfaced, and nine new items it raised are recorded in the
+> **"CA ruling (2026-08-02) — decisions, one defect, nine new items"** section
+> below (after Phase 3).
 
 ---
 
@@ -810,6 +825,36 @@ forward as still-owed). Tracked as a Phase-3/completeness follow-up.
 
 **Re-run afterwards.** `payroll-tax` audit; `money-invariants` gate.
 
+**A12-D — DEFECT logged against the shipped A12 fix (CA correction, 2026-08-02).**
+The A12 fix above is **correct that money must not vanish at the floor**, but the CA
+ruled its **TDS projection method is wrong**. What A12 shipped: it annualises the
+**LOP-reduced earned** components (`basicEarned*12 + …`) — i.e. it **projects this
+month's reduced earnings across the whole year**, taxing the employee as if every
+remaining month will also be a heavy-LOP month.
+
+**The CA's correct rule — split-logic, do not project reduced earnings forward:**
+- **Current month:** compute TDS on the **actual earned** (LOP-reduced) salary for
+  that month.
+- **Remaining months of the year:** project on the **original contracted** salary,
+  **not** the reduced figure. A month of unpaid leave is a one-off; the annual
+  income estimate that drives TDS must assume the employee returns to full
+  contracted pay for the rest of the year.
+
+So the annual estimate the TDS engine uses is *(this month's actual earned) +
+(contracted monthly × remaining months)* — a **blend**, not a flat annualisation of
+either the reduced or the contracted figure. A12's uniform `earned*12` under-projects
+annual income in a LOP month (it assumes the LOP repeats all year), which distorts
+TDS the other way from the original over-deduction bug.
+
+**Scope of the defect.** This is a **correction to the already-shipped A12**, not a
+new feature — the split-logic projection replaces the `earned*12` annualisation in
+`computeEmployeePayslip()` (`packages/payroll-math/src/payroll-cycle.ts`). The floor
+/ `unrecoveredShortfall` half of A12 stays as shipped. The byte-identical non-LOP
+invariance still holds (with `lopDays == 0`, earned == contracted == the blend, so
+no non-LOP payslip changes). A new test must assert the blended annual estimate in a
+LOP month (current-month earned + contracted × remaining), not `earned*12`.
+_(Payroll — correctness of statutory TDS; tracked in the index as **A12-D**.)_
+
 ---
 
 ### Group 2E — Statutory document headers (tenant identity on filings) (#1)
@@ -820,7 +865,22 @@ hardcoded blank), so the finished certificate reaches the employee/regulator wit
 the statutory fields missing. The money is right; the *destination* the header
 reads from is wrong.
 
-#### A13 — Form 16 reads employer PAN / TAN / address from the wrong place
+#### A13 — Form 16 reads employer PAN / TAN / address from the wrong place — CLOSED (WILL NOT FIX)
+
+> **CA ruling (2026-08-02) — CLOSED, not fixed. Removed from the fix list.**
+> The open question below ("is our Part B a deliverable or only a preview?") is now
+> answered: **a self-generated Form 16 Part B has no legal standing.** The only
+> Form 16 an employee is entitled to is the TRACES-generated certificate (A18). So:
+> - **Do not fix the PAN/TAN/address header defect.** It is not worth engineering
+>   effort — the document it fixes is not a legal deliverable.
+> - **Reclassify the internal generator as an "internal payroll-tax preview,
+>   for HR only."** Label it as such in the UI so no one mistakes it for an issuable
+>   certificate; it must not be handed to employees or regulators.
+> - **A18 supersedes it entirely** (import the real TRACES PDFs). All Form 16
+>   deliverable work moves to A18.
+>
+> The rest of this section is retained for decision-history — it documents the defect
+> and the reasoning that led to closing it. **No code change is planned for A13.**
 
 **How Form 16 actually reaches an employee in India (the constraint that reframes
 this item).** TRACES has **no live API** — CAPTCHA and KYC deliberately prevent
@@ -846,14 +906,12 @@ Address is the open sub-question — see B17; until a real company address exist
 the employer address should draw from the primary GSTIN's registered address
 rather than a blank.
 
-**Open question (gates whether to do A13 at all) — is our Part B a deliverable or
-only a preview?** If TRACES issues both Part A and Part B and the tenant is
-required to hand employees the TRACES-generated certificate, then our generator is
-a preview and the header-field defect is **not worth fixing** — the import (A18)
-supersedes it. If our Part B is an acceptable interim deliverable (e.g. before the
-TRACES files are ready), the defect is real and A13 stands. **Needs the CA's
-view.** Do not spend effort on A13 until this is answered; the import (A18) is the
-build that matters either way.
+**Open question (gates whether to do A13 at all) — RESOLVED 2026-08-02: preview
+only.** This was: "is our Part B a deliverable or only a preview?" **The CA
+answered: preview only — a self-generated Part B has no legal standing.** The
+header-field defect is therefore **not worth fixing**; the import (A18) supersedes
+it and the generator is reclassified as an HR-only internal preview (see the CA
+ruling box at the top of this section). A13 is CLOSED.
 
 **Reference implementation.** The PAN read boundary already exists —
 `decryptPan(org.pan)` is the same call the payslip and Form 16 routes use for the
@@ -1043,10 +1101,28 @@ new match test can't assert a clean pass.
 
 #### A7 — Persist invoice line items from the real user path
 
+> **CA ruling (2026-08-02) — UNBLOCKED, with a precise rounding contract.**
+> The CA confirmed the model: **the line items are authoritative and the header is
+> derived from them** (not the reverse). The rounding rule is fixed, not a matter of
+> taste:
+> - **Round per line**, using **half-up** rounding to **2 decimal places**, then
+>   **sum the rounded lines to produce the header** total. (Do not sum unrounded
+>   lines and round once at the header — round each line first, then add.)
+> - A resulting **sum mismatch of ₹0.01 between the summed lines and the header is a
+>   HARD ERROR, not a tolerance.** The reason is downstream: a ₹0.01 discrepancy
+>   causes the **e-invoice / GSTR-1 payload to be rejected** by the portal. So the
+>   invariant here is exact equality (`sum(rounded lines) == header`), enforced as a
+>   validation failure that blocks the write — **not** the 0.001-style tolerance used
+>   on the journal-entry balance check. This overrides the "line totals must
+>   reconcile to the invoice header (the money invariant)" note below: reconcile
+>   means *exact*, and a mismatch must refuse the invoice.
+
 **What changes.** Invoice line items (`procurement.ts:288-320`, with per-line
 taxable value / GST rate / CGST/SGST/IGST) are only ever written in tests, so real
 invoices carry no line detail and GST rate-grouping runs on absent data. Fix: write
-line items from the real invoice-create path, not just the test fixture.
+line items from the real invoice-create path, not just the test fixture. Per the CA
+ruling above, **compute each line first (half-up, 2dp), then derive the header by
+summing the rounded lines, and reject the invoice on any ₹0.01 sum mismatch.**
 
 **Reference implementation.** `journal.create` (`accounting.ts:296-322`) is the
 model for "insert a header, then insert its line rows in the same transaction" —
@@ -1057,12 +1133,16 @@ correct rate; the line totals must reconcile to the invoice header (the money
 invariant). Do it after A1 so the per-line GST is computed on a correct basis.
 
 **What test proves it.** A test that creates an invoice through the real path and
-asserts its line items persist and their GST sums to the header — and that
-GSTR-1 rate-grouping sees them.
+asserts its line items persist and their **rounded** (half-up, 2dp) GST **sums
+exactly** to the header — and that GSTR-1 rate-grouping sees them. A companion test
+that a line set whose rounded sum differs from the header by ₹0.01 is **rejected**
+(hard error), not silently accepted under a tolerance.
 
 **Re-run afterwards.** `gst-invoicing` audit; `sweep-unreachable-features`.
 
 **Dependency.** After A1 (canonical state key) so per-line GST is correct.
+Related: **C7** (GSTR-1 structural gaps) reads these persisted lines — A7 gives it
+real per-line data to segregate into B2B/B2CL/B2CS and to build the HSN summary.
 
 #### A8 — Build the create path for India statutory challans (TDS/ESI/PF/PT)
 
@@ -1270,6 +1350,26 @@ for the line/tax body.
 
 #### A18 — Form 16 import (ingest the TRACES-generated PDFs, don't try to sync them)
 
+> **CA ruling (2026-08-02) — SCOPE EXPANDED. A18 is now the entire Form 16
+> deliverable path** (A13 is CLOSED and folds into it). The CA confirmed **TRACES
+> supplies both Part A and Part B**, and the platform's job is the full import +
+> distribution loop, not just storage. Required scope:
+> 1. **Parse** the TRACES-generated files (both parts).
+> 2. **Map** each certificate to its employee (match on **`panMaskedHash`**, never
+>    the encrypted `pan` column — see the matching-key note below).
+> 3. **Publish to employee self-service** so each employee can download their own
+>    certificate.
+> 4. **Provide bulk DSC signing** — sign the certificates in bulk with a Digital
+>    Signature Certificate as part of the issuance flow. (This is new scope beyond
+>    the original "store + surface" build.)
+>
+> **Upstream dependency the CA flagged — Form 24Q quarterly filing (NOT currently in
+> the plan).** TRACES only issues Form 16 once the employer's **Form 24Q** (the
+> quarterly TDS-on-salary return) has been filed and processed. The platform has no
+> Form 24Q filing path today, so A18's inputs don't exist until that upstream is
+> built. Tracked as new item **C9 — Form 24Q quarterly filing** (see the CA-ruling
+> section). A18 depends on C9.
+
 **What changes.** Form 16 is not something we can pull from TRACES: **TRACES has no
 live API — CAPTCHA and KYC exist specifically to block automated sync.** The real
 flow is manual and lands *outside* the ERP: the tenant logs into TRACES, clears
@@ -1312,14 +1412,221 @@ an assertion the encrypted `pan` column is *not* used for matching); an
 unmatched-PAN PDF lands in an unresolved bucket rather than being attached to the
 wrong person; and the matched certificate is downloadable by that employee.
 
-**Open question (shared with A13).** Whether our internally-generated Part B (A13)
-remains a deliverable once A18 exists, or is purely a preview superseded by the
-imported TRACES certificate. **Needs the CA's view** — it decides whether A13 is
-worth doing at all. A18 is the build that matters either way.
+**Open question (shared with A13) — RESOLVED 2026-08-02.** The CA ruled our
+internally-generated Part B is **preview only** (no legal standing). A13 is
+**CLOSED**; A18 is the sole Form 16 deliverable path. No open question remains.
 
 **Dependency.** Independent of A15/A17 (it imports finished PDFs rather than
-generating them); shares the document code area. If A13's open question resolves to
-"preview only", A13 can be dropped in favour of A18.
+generating them); shares the document code area. **Upstream: depends on C9 (Form 24Q
+quarterly filing)** — TRACES won't issue Form 16 until 24Q is filed and processed,
+and no 24Q path exists yet. A13 is dropped in favour of A18 (CA-resolved). The
+expanded scope (parse + map + self-service publish + **bulk DSC signing**) is the
+full build; see the CA-ruling box at the top of this section.
+
+---
+
+## CA ruling (2026-08-02) — decisions, one defect, nine new items
+
+The chartered accountant reviewed the payroll/tax and GST work and returned: three
+rulings on existing items, one correction against a shipped fix, and a set of new
+requirements that were **not in the plan before**. This section records them verbatim
+in intent; the existing items were updated in place (A7, A13, A18) and the defect is
+logged inline under A12 as **A12-D**. **No code was changed by this update — it is a
+plan/record edit only.**
+
+### Rulings on existing items (recorded in place)
+
+- **A7 — UNBLOCKED.** Lines are authoritative; the header is derived from them. Round
+  **per line, half-up, 2dp, then sum the rounded lines to the header.** A **₹0.01**
+  sum mismatch is a **hard error, not a tolerance** (it gets the e-invoice / GSTR-1
+  payload rejected). See the A7 section.
+- **A13 — CLOSED (will not fix).** A self-generated Form 16 Part B has **no legal
+  standing.** Reclassify the internal generator as an **HR-only internal payroll-tax
+  preview** and remove it from the fix list; A18 supersedes it. See the A13 section.
+- **A18 — SCOPE EXPANDED.** TRACES supplies both parts. The platform must **parse,
+  map to employees, publish to self-service, AND provide bulk DSC signing.** Upstream
+  dependency: **Form 24Q quarterly filing (C9), not previously in the plan.** See the
+  A18 section.
+
+### Defect against a shipped fix
+
+- **A12-D — LOP split-logic correction.** The shipped A12 projects LOP-reduced
+  earnings across the full year (`earned*12`). Correct treatment is **split-logic:
+  current month on actual earned salary, remaining months on the original contracted
+  salary — do not project reduced earnings forward.** Logged inline in the A12
+  section.
+
+### New items (C1–C9) — not previously in the plan
+
+- **C1 — Old vs New tax regime (s.115BAC).** The employee **elects annually** between
+  the old and new regime, and **TDS must be projected per that election.** The two
+  regimes differ in **both** the slab rates **and** which deductions/exemptions are
+  eligible, so the tax engine must **branch on the election** — it cannot compute one
+  regime and adjust. Requires storing the per-employee, per-year election and feeding
+  it into `computeTax`. **Payroll-blocking** — TDS is wrong for any employee on the
+  regime the engine doesn't implement.
+- **C2 — Professional tax across 21+ states.** PT is a **per-state** levy with
+  different slabs/amounts/frequencies. Build it as a **multi-state configuration
+  matrix**, not a single-state table. The CA was explicit: **build at full scale**
+  (all 21+ states), not one state now and the rest later. **Payroll-blocking** for
+  any multi-state employer (PT is deducted every payroll).
+- **C3 — ESI six-month contribution-period rule.** Once an employee is an ESI member,
+  they **remain a member until the end of the current contribution period** (the two
+  fixed windows **Apr–Sep** and **Oct–Mar**) **even if their gross crosses the
+  ₹21,000 wage ceiling mid-period.** The CA named this **the most common mistake new
+  platforms make** (they drop the member the moment gross exceeds the ceiling).
+  **Action: verify current behaviour first** — the engine may already be wrong here.
+  **Payroll-blocking** if the rule isn't implemented (wrong ESI deduction + wrong
+  challan).
+- **C4 — PF ₹1,800 ceiling, with VPF and Joint-Declaration overrides.** PF
+  contribution is capped at **₹1,800 (12% of the ₹15,000 wage ceiling)** unless one of
+  two per-employee overrides is active. **Action: verify current behaviour first.**
+  **Payroll-blocking** if the cap/overrides aren't handled (over- or
+  under-contribution, wrong challan). The CA gave precise rules for each override:
+  - **C4a — VPF (Voluntary PF).** A per-employee voluntary contribution **on top of**
+    the statutory 12% employee share. Requirements:
+    - Support **both** a **fixed rupee amount** and a **percentage of the PF wage
+      basis (Basic + DA)**.
+    - VPF is **added to** the 12% employee contribution — it does not replace it.
+    - **Hard validation:** statutory 12% **+ VPF must not exceed 100% of monthly
+      basic salary.** Reject configurations above that.
+    - **The employer does NOT match VPF.** Employer contribution stays capped at 12%
+      of ₹15,000 — or 12% of **actual basic** if a Joint Declaration (C4b) is active
+      for that employee. So VPF moves only the employee side, never the employer side.
+  - **C4b — PF above-ceiling contribution via Joint Declaration (EPFO Para 26(6)).**
+    A **per-employee opt-in that requires explicit employer consent** — **not** a
+    company-level all-or-nothing policy. When active, both employee and employer
+    contribute 12% of **actual basic** (above the ₹15,000 ceiling). Beyond the
+    calculation change, the CA requires a **document-generation build**, not a config
+    flag: the platform must **GENERATE the EPFO Joint Declaration document** — a
+    **pre-filled PDF in the prescribed format** pulling **employee details, employer
+    registration data, and salary breakdown**, ready for **digital signature and
+    upload to the EPFO Unified Employer Portal.** (This is the third member of the
+    document-generation cluster — see the note after C9.)
+- **C5 — Statutory rates → effective-dated config table.** All statutory rates (PF,
+  ESI, PT slabs, tax slabs, wage ceilings, etc.) must live in a **configuration table
+  with effective dates**, **not in code**, so a rate change **does not require a
+  release.** This is an **enabler/infra** item — it underpins C1–C4 and C7 doing the
+  right thing over time. **Deferrable** as a standalone (the current in-code rates can
+  be corrected in place short-term), but doing C1–C4 without it means every future
+  rate change is a code deploy.
+- **C6 — Payslip mandatory statutory fields.** The payslip must carry: **CIN,
+  PF/ESI/TAN numbers, UAN, ESI IP number, employee bank account, paid vs unpaid
+  days,** and **separate line items** for **Basic, DA, HRA, Special Allowance, and
+  each deduction** (not a lumped total). **Conditional line rule (CA):** the **DA line
+  appears only when DA is enabled on the employee's salary structure** — it is
+  **absent otherwise, with no zero-value line.** (This is the general principle for
+  the breakdown: show a line only when the component is present, don't print ₹0 rows.)
+  Overlaps the existing B16 (payslip header is hardcoded blank) but is broader — B16
+  is the header identity; C6 is the full statutory field set + line-item breakdown.
+  **Payroll-blocking** (a compliant payslip is a statutory obligation).
+- **C7 — GSTR-1 structural gaps.** The return must: **segregate B2B / B2C-Large /
+  B2C-Small** into their respective tables; produce an **HSN summary** with
+  **dynamic 4-or-6-digit HSN validation keyed to the taxpayer's turnover**; use the
+  **numeric state code** for place of supply; and include **Tables 9 and 11** (credit/
+  debit notes, and advance adjustments). Reads the per-line data A7 persists.
+  **GST-blocking** (the current return is structurally incomplete and would be
+  rejected / mis-filed).
+  - **C7a — HSN turnover-threshold mechanics (CA detail).** The dynamic HSN digit
+    minimum is driven by **Annual Aggregate Turnover (AATO)**, with precise rules:
+    - AATO is a **per-tenant field**, sourced from the **taxpayer profile** or a
+      **GSP's GSTIN-verification API**.
+    - It is **refreshed once a year, on 1 April**, from the **preceding financial
+      year's declared or audited turnover.**
+    - The engine enforces a **4-digit HSN minimum up to ₹5 crore**, and **switches
+      automatically to a 6-digit minimum above ₹5 crore.**
+    - This needs a **scheduled annual job** (the 1-April refresh), **not just a stored
+      value** — otherwise the threshold goes stale and validation is wrong for a year.
+- **C8 — Tolerant filing-schema parsing.** Government filing schemas (GSTR, TRACES,
+  challans) **change with little notice**, so all parsing of / mapping to these
+  schemas must be **tolerant, not rigid** — an added/renamed field should not break
+  ingestion. **Deferrable** (robustness hardening; applies to C7 and A18's parsers as
+  they are built).
+- **C9 — Form 24Q quarterly filing (upstream of A18).** The quarterly TDS-on-salary
+  return. **Not currently in the plan.** TRACES will not issue Form 16 until 24Q is
+  filed and processed, so **A18 depends on C9.** **Deferrable relative to first
+  go-live** (it gates the Form 16 *import*, not day-one payroll), but it is on the
+  critical path for delivering Form 16s and must precede A18.
+
+### Cross-cutting observation (CA) — a document-generation cluster
+
+Three items now each need to **generate a signed, prescribed-format PDF from
+tenant/employee/salary data**:
+
+1. **A18 — Form 16 bulk DSC signing** (sign the imported TRACES certificates in bulk).
+2. **C4b — EPFO Joint Declaration PDF** (pre-filled Para 26(6) form, ready for digital
+   signature + EPFO portal upload).
+3. **A17 — branded invoice / PO PDFs** (the existing document-build item).
+
+The CA's recommendation: **consider whether these share a single document-generation
+service** (template + data-merge + digital-signature pipeline) **rather than building
+the same machinery three times.** This is an **architecture decision to make before
+building the three**, not a work item on its own — but it should shape how A17, C4b
+and A18's signing are scoped. (A15, "one shared document-header source," is the
+adjacent identity half; a shared doc-gen service would consume it.) _(Design decision;
+records the CA's steer — no code implied.)_
+
+---
+
+## Revised count and classification (post-CA)
+
+**Revised open-item count.** The plan's status table now holds:
+
+- **Phase 1 ratchets:** 5 — **all Done** (R-1…R-5).
+- **Closed / will-not-fix:** **1** — **A13** (CA: no legal standing; reclassified
+  HR-only preview, folded into A18). Removed from the open fix list.
+- **Previously-tracked items still open (unchanged by the CA):** A5, A6-followups
+  handled, A8, B1, A15, A16, A17, B16, B17, the ownership cluster (#5),
+  identity/session theme (B8–B11), automation/reliability theme (B6/B7/B12/B13), KMS
+  legacy theme (B14/B15 — H-2 done, backfill owed), schema-tooling theme (#32), RBAC
+  theme. (A9 API path Done, screen deferred.)
+- **Unblocked by the CA:** **A7** (was Blocked-on-CA → now actionable).
+- **Expanded by the CA:** **A18** (now parse + map + self-service + bulk DSC signing).
+- **New this ruling:** **A12-D** (defect against shipped A12) + **C1–C9** (nine new
+  items) = **10 new work items.** Three of these carry named **sub-items** the CA
+  detailed: **C4a** (VPF: fixed-₹/%-of-Basic+DA, added on top of 12%, ≤100%-of-basic
+  cap, employer does not match), **C4b** (PF above-ceiling via EPFO Para 26(6) Joint
+  Declaration — per-employee opt-in + a **generated pre-filled JD PDF**), and **C7a**
+  (HSN turnover mechanics: per-tenant AATO, 1-April annual refresh job, 4→6-digit
+  switch at ₹5 crore). They are scoped under their parents, not counted separately.
+- **Architecture decision surfaced (not a work item):** a **shared document-generation
+  service** spanning A18 (Form 16 bulk DSC signing), C4b (JD PDF) and A17 (branded
+  invoice/PO PDFs) — decide before building the three.
+
+So the CA ruling **net-added 10 items** (A12-D + C1–C9, with sub-items C4a/C4b/C7a
+folded under C4/C7), **closed 1** (A13), and **unblocked 1** (A7). There are **no
+remaining Blocked-on-CA items.**
+
+**Classification of the CA's items** (what gates what):
+
+| Item | Class | Why |
+|------|-------|-----|
+| A12-D — LOP split-logic | **Payroll-blocking** | Statutory TDS is mis-projected in any LOP month. |
+| C1 — Old vs New regime (115BAC) | **Payroll-blocking** | TDS wrong for anyone on the un-implemented regime. |
+| C2 — PT 21+ state matrix | **Payroll-blocking** | PT deducted every payroll for multi-state employers. |
+| C3 — ESI six-month period | **Payroll-blocking** (verify first) | Wrong ESI deduction + challan if member is dropped mid-period. |
+| C4 — PF ₹1,800 ceiling (incl. C4a VPF) | **Payroll-blocking** (verify first) | Wrong PF contribution + challan if cap / VPF override mishandled. |
+| C4b — PF above-ceiling JD (Para 26(6)) + JD PDF | **Deferrable** (per-employee opt-in) | Only affects opted-in employees; the JD-PDF is a doc-gen build. Land the calc with C4; the PDF with the doc-gen cluster. |
+| C6 — Payslip mandatory fields | **Payroll-blocking** | A compliant payslip is a statutory obligation. |
+| C7 — GSTR-1 structure (incl. C7a HSN mechanics) | **GST-blocking** | Return is structurally incomplete → rejected / mis-filed; HSN digit-count must track AATO. |
+| A7 — invoice line items | **GST-blocking** (enables C7) | Per-line data + exact ₹ reconciliation feed the return. |
+| C5 — rates → config table | **Deferrable** (enabler) | Correctness can ship with in-code rates short-term; this removes the redeploy-per-rate-change cost and underpins C1–C4/C7 long-term. |
+| C8 — tolerant parsing | **Deferrable** (robustness) | Hardens C7 / A18 parsers against schema drift; not a day-one blocker. |
+| C9 — Form 24Q filing | **Deferrable vs first go-live** | Gates the Form 16 **import** (A18), not day-one payroll — but is on the critical path to delivering Form 16s. |
+| A18 — Form 16 import (expanded) | **Deferrable vs first go-live** | Depends on C9; delivers Form 16 after 24Q filings exist. |
+| A13 — Form 16 Part B header | **Closed** | Will not fix (no legal standing). |
+
+**Summary for go-live sequencing.**
+- **Must be right before running payroll:** A12-D, C1, C2, C3, C4 (incl. **C4a VPF**),
+  C6 (6 payroll blockers). C3 and C4 start with a **verify-current-behaviour** step —
+  the engine may already be partly correct.
+- **Must be right before filing GST:** C7 (incl. **C7a HSN mechanics**) and its data
+  dependency A7 (2 GST blockers).
+- **Deferrable (do after first go-live, in dependency order):** C5 (rate config —
+  do early to stop future redeploys), **C4b** (PF Para-26(6) JD calc + JD PDF), C8
+  (tolerant parsing), then C9 → A18 (Form 16 delivery loop). A13 is closed.
+- **Decide before building the PDFs:** whether A17, C4b's JD PDF and A18's bulk DSC
+  signing share **one document-generation service** (CA steer).
 
 ---
 
@@ -1540,14 +1847,16 @@ The ordering that actually matters (everything else is grouping for efficiency):
    address source of truth) gates only the *address* half of A13/B16/A15 — the
    PAN/TAN halves do not wait on it. A16 (logo upload) is independent but supplies
    the logo A15 exposes and the payslip already has a slot for.
-10. **A18 supersedes A13 (pending the CA's view).** A18 (import the TRACES-generated
-    Form 16 PDFs) is the build that matters for Form 16, because TRACES has no live
-    API and the tenant produces the real certificates manually. Whether A13 (fixing
-    our internally-generated Part B header) is worth doing at all depends on whether
-    that Part B is a deliverable or only a preview — **an open question for the CA.**
-    A18 is independent of A15/A17 (it ingests finished PDFs). Its employee match key
-    must be **`panMaskedHash`** (deterministic, pre-encryption), **never** the
-    non-deterministic AES-GCM `pan` column, which cannot equality-compare.
+10. **A18 supersedes A13 (CA-resolved 2026-08-02).** A18 (import the TRACES-generated
+    Form 16 PDFs) is the **sole** Form 16 deliverable path: TRACES has no live API,
+    it issues both Part A and Part B, and a self-generated Part B has **no legal
+    standing** — so **A13 is CLOSED (will-not-fix)** and its generator is reclassified
+    as an HR-only preview. A18's scope is expanded to **parse + map + self-service
+    publish + bulk DSC signing**. A18 is independent of A15/A17 (it ingests finished
+    PDFs) but **depends on C9 (Form 24Q quarterly filing)** upstream — TRACES won't
+    issue Form 16 until 24Q is filed. Its employee match key must be **`panMaskedHash`**
+    (deterministic, pre-encryption), **never** the non-deterministic AES-GCM `pan`
+    column, which cannot equality-compare.
 
 Everywhere a fix changes a test that blessed the bug, the test change is part of
 the fix (standing rule) — this is called out per item and is not a separate step.
