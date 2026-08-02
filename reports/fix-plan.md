@@ -1889,6 +1889,62 @@ The 7-customer cohort facts are now confirmed; they change three lines of the pl
 
 ---
 
+## Bulk data import — corrected classification (2026-08-02)
+
+Recorded 2026-08-02 (planning; no code changes). Bulk import was **wrongly scoped as a
+far-future build.** Verified in code, most of it **already exists and is reachable
+today**; only two importers are genuinely missing, and both are copies of a **proven,
+reusable pattern**, not green-field work.
+
+**What already exists (verified).**
+- **`ingest.importVendors`** (`apps/api/src/routers/ingest.ts:264`) — array input,
+  **handles PAN encryption** (via `panColumns()`, falling back to encrypted-raw on a
+  malformed PAN row rather than aborting the batch), tolerant of bad rows, and **wired to
+  the vendors page UI** (`apps/web/src/app/app/vendors/page.tsx:79`).
+- **`accounting.coa.seed`** (`apps/api/src/routers/accounting.ts:199`) — auto-seeds **95
+  India-standard accounts at signup**, idempotent (skips codes already present).
+- **`ingest.importLeads / importContacts / importDeals / importMatters / importContracts /
+  importInvoices`** (`ingest.ts:126-395`) all exist. `importInvoices` adds
+  dedup + `skipped[]` reporting.
+- **The pattern is proven and reusable:** array in → per-row insert → `{ imported, ids,
+  skipped }`. A new importer is a **copy of this shape**, not new machinery.
+
+**The only two missing importers.**
+- **EMPLOYEES — no bulk path anywhere (verified). PILOT-BLOCKING.** Only single-record
+  `hr.people.create` (`apps/api/src/routers/hr.ts:253`) exists. With **30–80 people per
+  customer across 7 customers**, its absence turns onboarding into seven manual
+  migrations. Build `ingest.importEmployees` **modelled on `importVendors`**; it must
+  **mint sequential `EMP-NNNN`** as the single-create path already does
+  (`hr.ts:312`), **handle PAN via `panColumns()`**, and **optionally create user records
+  inline** (as `hr.people.create` does at `hr.ts:275-288`).
+- **OPENING BALANCES — no importer.** Needed **before the first financial close, not day
+  one.** Build a **thin wrapper** accepting an array of **account-code + debit/credit
+  rows**, posting **one balanced `opening`-type journal entry**, and **reusing the
+  existing debits-equal-credits validation** (`accounting.journal.create`,
+  `accounting.ts:263`, balance check at `:280-285`).
+
+**Deferred (do later in / after pilot):** custom (non-standard) COA additions, historical
+transactions, prior-period invoices and payments.
+
+**Why the employee importer is worth building (not just a convenience).** Manual entry
+costs roughly **5–12 hours per customer**, but the hours are not the real cost — **the
+failure mode is.** A mistyped **basic salary or PF-eligibility flag** flows straight into
+the **first payroll run and the statutory challans**; a **wrong PAN** corrupts the
+encrypted PAN hash; a **wrong state** mis-splits GST — **the A1 defect reintroduced by
+hand.** Manual entry **converts data-entry slips into compliance errors, seven times in
+parallel**, and doesn't scale past the pilot (customer 8 onwards makes it untenable).
+
+**Why it doesn't threaten the payroll critical path.** Neither importer competes with the
+payroll cluster (C1–C6) **for skills or code** — it is **router/CRUD work against a proven
+template**, not statutory-engine work, so it can proceed alongside the payroll build.
+
+**Reclassification.**
+- **Employee importer → pre-go-live** (pilot-blocking; land before end-August onboarding).
+- **Opening-balance importer → early-pilot** (before the first close, not day one).
+- **Everything else (custom COA, historicals) → deferred.**
+
+---
+
 ## Bucket B remainder (fix during pilot, grouped by theme)
 
 These are the bucket-B items not already folded into the phases above. They are
