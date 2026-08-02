@@ -1630,6 +1630,70 @@ remaining Blocked-on-CA items.**
 
 ---
 
+## Legal & Governance module — scope assessment (2026-08-02)
+
+Recorded from a direct read of the secretarial + legal routers and the MCA21 adapter
+(no code changes). Verdict: **~60% reachable for data capture, ~25–30% for statutory
+output.** The data models are largely right; the last-mile *statutory output* (filing,
+minutes, prescribed-format registers) is missing or hollow — the same "correct schema,
+missing computation / open loop" pattern as the rest of the platform.
+
+**Works end to end (data capture a user can reach).**
+Board meetings, resolutions, directors, share capital / shareholders, ESOP grants,
+legal matters, related-party transactions, and a compliance due-date calendar all have
+real create paths and persist.
+
+**Missing or hollow (statutory output).**
+- **MCA filing does not actually file.** `legal.mca21.prepare` accepts a free-form JSON
+  blob that **defaults to empty** — `formData: z.record(z.unknown()).default({})`
+  (`apps/api/src/routers/legal.ts:782`); there is **no per-form field mapping** for
+  MGT-7 / AOC-4 / DIR-3-KYC / MSME-1 / DPT-3, so nothing guarantees a valid e-Form body.
+  `legal.mca21.submit` (`legal.ts:807-838`) enqueues a BullMQ job that POSTs the blob to
+  `${base}/v1/eform/file` (`apps/api/src/services/integrations/mca21.ts:68-94`), where
+  `base` is `gateway.mca21-suvidha.in` / `gateway-sandbox.mca21-suvidha.in`
+  (`mca21.ts:47-48`) — **one of the five fabricated government-portal domains** from
+  sweep 3 (see below and `reports/sweep-fabricated-constants.md:70`). `test()` never
+  pings the gateway — it only checks the credentials are present and returns
+  `"Credentials present; ping deferred"` (`mca21.ts:58-66`). So the pipeline *transports*
+  an unvalidated payload to a non-existent host; it does not file.
+- **`secretarial.filings.markFiled` is a manual status flip, not a filing.** It sets
+  `status: "filed"` and stores a **user-pasted SRN** (`apps/api/src/routers/secretarial.ts:336-381`,
+  SRN at `:351`); the compliance calendar it flips is seeded with due-dates + notes only,
+  no form data (`secretarial.ts:458-569`). This is a to-do list with a "done" checkbox,
+  not a submission.
+- **Board minutes: no generation.** `minutesDraft` is a plain-text field
+  (`secretarial.ts:141`); there is no minutes template, no assembly from the meeting /
+  resolution records, and no PDF anywhere.
+- **Register of Charges: absent entirely.** No table, no create path, no CHG-1/CHG-4
+  form — the statutory charge register simply does not exist.
+- **`statutory_register_entries` is an unused shell (phantom field).** The table is
+  defined at `packages/db/src/schema/issuer-programme.ts:74` (`statutoryRegisterEntries`,
+  a generic jsonb-keyed register) and even carries an RLS policy + unique index, but
+  **nothing under `apps/` reads or writes it** — zero references in any router or service.
+  It is schema with no behaviour: it cannot back a members / directors / charges register
+  today. _(Add to the phantom-fields / dead-columns findings; re-verify under
+  `sweep-phantom-fields`.)_
+
+**Sweep-3 correction (reachability).** The fabricated-constants sweep
+(`reports/sweep-fabricated-constants.md:70`) originally framed `gateway.mca21-suvidha.in`
+as a merely-*overridable default constant* (`config.baseUrl ?? …`, `mca21.ts:69`). That
+undersells the exposure: the domain is **reachable from application code** — the live
+call chain `legal.mca21.submit` → BullMQ `mca21` job → `mca21Adapter.send()`
+(`legal.ts:807-838` → `mca21.ts:68-94`) POSTs a real filing payload to that host whenever
+no override is configured, which is the default. Treat it as a reachable fabricated
+endpoint, not an inert default. _(Correct the row in `sweep-fabricated-constants.md:70`
+when that sweep is next revised.)_
+
+**DECISION — do not engage a company secretary yet.** The module has too little
+statutory output to review: there is nothing a CS could sign off on today (no real
+filing, no minutes, no prescribed-format registers). The CS conversation belongs at
+**build time**, and the question then is **what a valid MGT-7 / AOC-4 (etc.) payload
+requires** — the field mapping, attachments, and DSC flow — **not** an audit of what is
+currently missing. Until that build starts, this whole module stays out of the go-live
+critical path.
+
+---
+
 ## Bucket B remainder (fix during pilot, grouped by theme)
 
 These are the bucket-B items not already folded into the phases above. They are
