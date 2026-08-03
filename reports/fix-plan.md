@@ -2321,3 +2321,34 @@ product finds. Fixed one at a time, full API suite green between each.
     so it is filed as a separate finding rather than folded into PR2.
   - **Flag:** payroll-blocking — must be closed before any customer runs a second monthly
     cycle, otherwise every YTD column and the TDS true-up drift for the rest of the year.
+
+- **PR6 — A push to `main` auto-deploys to the Vultr box; there is no pre-deploy backup.
+  OPEN — must be gated before any production target exists.** Confirmed empirically today:
+  pushing commit `67a9a64` to `main` deployed to the test box with **no manual workflow
+  dispatch**. (An earlier reading that called the Vultr deploy "manual" was wrong — it only
+  looked at the standalone `.github/workflows/deploy-vultr.yml`, which *is* `workflow_dispatch`,
+  and missed the second deploy job.)
+  - **Where the automatic trigger lives:** `.github/workflows/ci.yml` runs on
+    `push: branches: [main, develop]` (lines 4-5). Its `deploy` job (lines 253-311) has
+    `needs: [build]` + `if: github.ref == 'refs/heads/main'`, and the **only** thing gating
+    it is a secrets check — `if VULTR_HOST && VULTR_SSH_PRIVATE_KEY` (lines 264-275). Those
+    secrets are set, so every green push to `main` SSHes to the box and runs
+    `scripts/push-to-vultr.sh` with the pinned short SHA (lines 295-310). There are therefore
+    **two** deploy paths: this automatic one in `ci.yml`, plus the separate manual
+    `deploy-vultr.yml`.
+  - **No pre-deploy snapshot exists in the flow.** `scripts/push-to-vultr.sh` rsyncs the
+    tree and calls `scripts/vultr-remote-deploy.sh`, which does `docker compose down` → `pull`
+    → `up`; migrations apply on API start; then a best-effort seed. **Nothing runs `pg_dump`,
+    a DB snapshot, or any backup** at any point. The "take a backup/snapshot before deploying"
+    rule (CLAUDE.md) is **not enforced by the pipeline** — it depends entirely on a human
+    remembering to snapshot the VPS (which needs the cloud credentials, outside this repo)
+    *before* pushing. Once the push lands, the deploy — including the `migrator` running new
+    migrations against the live DB — proceeds with no recoverable pre-state.
+  - **Fix required (not done here):** (1) remove or gate the `ci.yml` auto-deploy so a push to
+    `main` cannot silently reach a real/production target — e.g. require an explicit
+    `workflow_dispatch`, an environment protection rule with a required reviewer, or restrict
+    auto-deploy to a dedicated non-prod ref; and (2) add an automated pre-deploy DB backup
+    (`pg_dump` or a provider snapshot) as a required, gating step in `vultr-remote-deploy.sh`
+    before `compose down`/migrate, so recovery does not depend on someone remembering.
+  - **Flag:** deploy-safety — currently a green push to `main` is a live deploy **and** a live
+    migration with no backup. Must be gated before there is any production environment to hit.
