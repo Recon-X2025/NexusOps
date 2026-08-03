@@ -277,3 +277,156 @@ describe("downloadCSV", () => {
     ).not.toThrow();
   });
 });
+
+// ── downloadBankFile ───────────────────────────────────────────────────────
+// Bank-file download: must (1) decode base64, (2) refuse a zero-record file,
+// (3) surface "N paid / M skipped" with per-employee reasons. Tested via mocks.
+
+describe("downloadBankFile", () => {
+  let toastErrorSpy: ReturnType<typeof vi.fn>;
+  let toastSuccessSpy: ReturnType<typeof vi.fn>;
+  let toastWarningSpy: ReturnType<typeof vi.fn>;
+  let createObjectURLSpy: ReturnType<typeof vi.fn>;
+  let revokeObjectURLSpy: ReturnType<typeof vi.fn>;
+  let clickSpy: ReturnType<typeof vi.fn>;
+  let appendChildSpy: ReturnType<typeof vi.fn>;
+  let removeChildSpy: ReturnType<typeof vi.fn>;
+  let blobArgs: unknown[];
+
+  beforeEach(async () => {
+    vi.resetModules();
+    toastErrorSpy = vi.fn();
+    toastSuccessSpy = vi.fn();
+    toastWarningSpy = vi.fn();
+    vi.doMock("sonner", () => ({
+      toast: {
+        error: toastErrorSpy,
+        success: toastSuccessSpy,
+        warning: toastWarningSpy,
+      },
+    }));
+
+    createObjectURLSpy = vi.fn().mockReturnValue("blob:mock-url");
+    revokeObjectURLSpy = vi.fn();
+    clickSpy = vi.fn();
+    appendChildSpy = vi.fn();
+    removeChildSpy = vi.fn();
+    blobArgs = [];
+
+    globalThis.URL = {
+      createObjectURL: createObjectURLSpy,
+      revokeObjectURL: revokeObjectURLSpy,
+    } as unknown as typeof URL;
+
+    globalThis.document = {
+      createElement: () => ({ href: "", download: "", click: clickSpy }),
+      body: { appendChild: appendChildSpy, removeChild: removeChildSpy },
+    } as unknown as Document;
+
+    globalThis.Blob = class {
+      constructor(public content: unknown[], public options?: unknown) {
+        blobArgs = content;
+      }
+    } as unknown as typeof Blob;
+
+    // atob is present in Node ≥16, but define a deterministic one for the mock env.
+    globalThis.atob = (b64: string) =>
+      Buffer.from(b64, "base64").toString("binary");
+  });
+
+  function makeExport(overrides: Record<string, unknown> = {}) {
+    // "ACME-NEFT\nline1\nline2\n" base64-encoded.
+    const body = "ACME-NEFT\nRow1\nRow2\n";
+    return {
+      filename: "payroll-2026-05.csv",
+      contentBase64: Buffer.from(body, "utf8").toString("base64"),
+      byteLength: body.length,
+      recordCount: 2,
+      totalAmount: 150000,
+      skipped: [] as Array<{ employeeId: string; reason: string }>,
+      ...overrides,
+    };
+  }
+
+  // (1) DECODE — the saved bytes must be the decoded body, NOT the base64 text.
+  it("decodes the base64 body before building the Blob", async () => {
+    const { downloadBankFile } = await import("../utils");
+    const exp = makeExport();
+    const ok = downloadBankFile(exp);
+    expect(ok).toBe(true);
+
+    // The Blob content is a Uint8Array whose bytes decode to the real body —
+    // and crucially it is NOT the raw base64 string.
+    const content = blobArgs[0] as Uint8Array;
+    expect(content).toBeInstanceOf(Uint8Array);
+    const decoded = Buffer.from(content).toString("utf8");
+    expect(decoded).toBe("ACME-NEFT\nRow1\nRow2\n");
+    expect(decoded).not.toBe(exp.contentBase64);
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-url");
+  });
+
+  it("base64ToBytes round-trips arbitrary bytes", async () => {
+    const { base64ToBytes } = await import("../utils");
+    const b64 = Buffer.from("héllo, ₹1,234", "utf8").toString("base64");
+    const bytes = base64ToBytes(b64);
+    expect(Buffer.from(bytes).toString("utf8")).toBe("héllo, ₹1,234");
+  });
+
+  // (3) REFUSE — a zero-record file must NOT download and must error.
+  it("refuses to download when recordCount is zero and downloads nothing", async () => {
+    const { downloadBankFile } = await import("../utils");
+    const ok = downloadBankFile(
+      makeExport({
+        recordCount: 0,
+        totalAmount: 0,
+        skipped: [{ employeeId: "E1", reason: "Missing bank account number" }],
+      }),
+    );
+    expect(ok).toBe(false);
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(createObjectURLSpy).not.toHaveBeenCalled();
+    expect(toastErrorSpy).toHaveBeenCalledTimes(1);
+    // The error names the skipped employee and reason.
+    const msg = toastErrorSpy.mock.calls[0]?.[0] as string;
+    expect(msg).toContain("E1");
+    expect(msg).toContain("Missing bank account number");
+  });
+
+  // (2) SURFACE — all-paid case reports the count + total via success toast.
+  it("surfaces 'N paid' with the total when nobody is skipped", async () => {
+    const { downloadBankFile } = await import("../utils");
+    downloadBankFile(makeExport({ recordCount: 3, totalAmount: 225000, skipped: [] }));
+    expect(toastSuccessSpy).toHaveBeenCalledTimes(1);
+    const msg = toastSuccessSpy.mock.calls[0]?.[0] as string;
+    expect(msg).toContain("3 paid");
+    // INR uses lakh grouping: ₹2,25,000.00
+    expect(msg).toMatch(/2,25,000/);
+    expect(toastWarningSpy).not.toHaveBeenCalled();
+  });
+
+  // (2) SURFACE — mixed case still downloads but warns with per-employee reasons.
+  it("downloads but warns with per-employee reasons when some are skipped", async () => {
+    const { downloadBankFile } = await import("../utils");
+    const ok = downloadBankFile(
+      makeExport({
+        recordCount: 2,
+        totalAmount: 150000,
+        skipped: [
+          { employeeId: "E7", reason: "Invalid IFSC: '<empty>'" },
+          { employeeId: "E9", reason: "Non-positive net pay" },
+        ],
+      }),
+    );
+    expect(ok).toBe(true);
+    expect(clickSpy).toHaveBeenCalled();
+    expect(toastWarningSpy).toHaveBeenCalledTimes(1);
+    const msg = toastWarningSpy.mock.calls[0]?.[0] as string;
+    expect(msg).toContain("2 paid");
+    expect(msg).toContain("2 skipped");
+    expect(msg).toContain("E7");
+    expect(msg).toContain("Invalid IFSC");
+    expect(msg).toContain("E9");
+    expect(msg).toContain("Non-positive net pay");
+  });
+});

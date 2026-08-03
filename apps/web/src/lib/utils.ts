@@ -35,6 +35,93 @@ export function downloadCSV(rows: Record<string, unknown>[], filename: string, c
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Result shape returned by the `payroll.exportBankFile` tRPC mutation.
+ * `contentBase64` is the bank file body base64-encoded on the server; the other
+ * fields report what actually went into (and got left out of) the file.
+ */
+export interface BankFileExport {
+  filename: string;
+  contentBase64: string;
+  byteLength: number;
+  recordCount: number;
+  totalAmount: number;
+  skipped: Array<{ employeeId: string; reason: string }>;
+}
+
+/**
+ * Decode a base64 string to a Uint8Array of raw bytes (browser `atob`).
+ * Kept separate so it is unit-testable without the DOM download machinery.
+ */
+export function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(b64);
+  // Allocate over an explicit ArrayBuffer so the element type is Uint8Array<ArrayBuffer>
+  // (a valid BlobPart) rather than the wider Uint8Array<ArrayBufferLike>.
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Download a bank-disbursement file returned by `payroll.exportBankFile`.
+ *
+ * This deliberately does three things the naive `new Blob([contentBase64])`
+ * handler did NOT:
+ *  1. **Decodes the base64** so the saved file is the real bank file, not the
+ *     base64 text of it.
+ *  2. **Refuses a zero-record file** — a header-only file that looks like a
+ *     successful export is worse than an error, so we surface an error and
+ *     download nothing.
+ *  3. **Surfaces the outcome**: "N paid" (with total), and every skipped
+ *     employee with the reason, so the user sees who was left out and why
+ *     before/alongside the download.
+ *
+ * @returns `true` if a file was downloaded, `false` if the download was refused.
+ */
+export function downloadBankFile(data: BankFileExport): boolean {
+  const skippedCount = data.skipped.length;
+
+  // (3) Refuse a header-only file. Report the skipped reasons so the user knows
+  // why nothing was payable.
+  if (data.recordCount === 0) {
+    const detail = skippedCount
+      ? ` ${skippedCount} employee${skippedCount === 1 ? "" : "s"} skipped: ` +
+        data.skipped.map((s) => `${s.employeeId} — ${s.reason}`).join("; ")
+      : "";
+    toast.error(`No payable records — bank file not generated.${detail}`);
+    return false;
+  }
+
+  // (2) Surface the outcome. Always show what was paid; if anyone was skipped,
+  // list them with reasons as a warning so it is not silently dropped.
+  const paidMsg =
+    `${data.recordCount} paid (${formatCurrency(data.totalAmount, "INR")})` +
+    (skippedCount ? `, ${skippedCount} skipped` : "");
+  if (skippedCount) {
+    toast.warning(
+      `${paidMsg}. Skipped: ` +
+        data.skipped.map((s) => `${s.employeeId} — ${s.reason}`).join("; "),
+    );
+  } else {
+    toast.success(paidMsg);
+  }
+
+  // (1) Decode the base64 body before building the Blob.
+  const bytes = base64ToBytes(data.contentBase64);
+  const blob = new Blob([bytes], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = data.filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return true;
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   return new Intl.DateTimeFormat("en-IN", {

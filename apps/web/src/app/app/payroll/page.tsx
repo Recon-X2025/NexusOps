@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { downloadBankFile } from "@/lib/utils";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -228,16 +229,13 @@ export default function PayrollPage() {
   });
 
   const exportBankFile = trpc.payroll.exportBankFile.useMutation({
+    // downloadBankFile decodes the base64 body, refuses a zero-record (header-only)
+    // file, and surfaces "N paid / M skipped" with per-employee reasons.
     onSuccess: (data) => {
-      const blob = new Blob([data.contentBase64], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadBankFile(data);
+    },
+    onError: (err) => {
+      toast.error(err.message);
     },
   });
 

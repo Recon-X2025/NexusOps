@@ -88,7 +88,7 @@ it is the summary; the item is the source of truth.
 | C2 — Professional tax 21+ state matrix | New — Payroll | Pending — **payroll-blocking** |
 | C3 — ESI six-month contribution-period rule | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
-| C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | Pending — deferrable (enabler) |
+| C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
 | C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | Pending — **GST-blocking** |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
@@ -1549,6 +1549,41 @@ plan/record edit only.**
   right thing over time. **Deferrable** as a standalone (the current in-code rates can
   be corrected in place short-term), but doing C1–C4 without it means every future
   rate change is a code deploy.
+  - **Status: DONE for income-tax rates (2026-08-03).** The FA-2025 income-tax rate
+    set — OLD/NEW slabs, standard deduction, s.87A rebate, surcharge bands, and the 4%
+    cess — is now injectable via the **existing** effective-dated `statutory_ceilings`
+    table (no new table). Mechanism:
+    - `statutoryMetricKeyEnum` gained five keys: `income_tax_slabs`, `standard_deduction`,
+      `rebate_87a`, `surcharge_bands`, `cess_rate`
+      (`packages/db/src/schema/india-compliance.ts`).
+    - `computeTax(profile, taxConfig?)` (`packages/payroll-math/src/tax-engine.ts`)
+      resolves every rate as `taxConfig?.X ?? <in-code constant>`, so an org/period with
+      **no** rows is **byte-identical** to today (constants remain the fallback).
+    - The resolver (`apps/api/src/lib/india/statutory-ceilings.ts`) maps the five keys
+      into `overrides.taxConfig`; `computeEmployeePayslip` threads it through
+      (`payroll-cycle.ts`). Slab top-band `to` is stored as JSON `null` (JSON can't hold
+      `Infinity`) and normalised back to `Infinity` on read.
+    - **Regime overload documented at the column:** for the regime-specific keys
+      (`income_tax_slabs`, `standard_deduction`, `rebate_87a`) `state_code` carries
+      `"OLD"`/`"NEW"` instead of a state (mirroring how PT already reuses `state_code`);
+      `surcharge_bands`/`cess_rate` leave it NULL. Called out in the column comment and
+      in `reports/c5-plan.md`.
+    - **Migration `0064_taxing_matters`** (enum-rebuild dance, mirroring `0054`) seeds
+      the current constants as **platform defaults**: OLD/agnostic eff 2020-04-01, NEW
+      eff 2025-04-01 — so the seeded config equals the constants for any modern period.
+    - **Tests** (`apps/api/src/__tests__/income-tax-config.test.ts`, 7 tests, all green):
+      a FALLBACK/byte-identical check that reconstructs the ₹16L NEW figure from the
+      constants and asserts equality (A12-style, not "no throw"); a PROSPECTIVE-ONLY
+      scenario (a mid-year org rate change leaves an earlier period unchanged and only
+      later periods move — a past run is a legal record); plus round-trip and two-regime
+      coverage. Full API suite green (1351/1351) after adjusting the one pre-existing
+      `statutory-ceilings.test.ts` "no rows → {}" case to a pre-2020 period (the new
+      income-tax platform defaults are eff 2020-04-01).
+  - **Explicit follow-up (NOT done):** **PF/ESI contribution percentages and gratuity**
+    are still in-code constants. Moving PF's 12% employee/employer split + ₹1,800 ceiling,
+    the ESI 0.75%/3.25% rates + wage ceiling, and the gratuity formula/rate into the same
+    effective-dated table is the next C5 increment (ties into C3/C4). Left as a deliberate
+    follow-up per the go-live decision to ship income-tax config first.
 - **C6 — Payslip mandatory statutory fields.** The payslip must carry: **CIN,
   PF/ESI/TAN numbers, UAN, ESI IP number, employee bank account, paid vs unpaid
   days,** and **separate line items** for **Basic, DA, HRA, Special Allowance, and
@@ -2352,3 +2387,63 @@ product finds. Fixed one at a time, full API suite green between each.
     before `compose down`/migrate, so recovery does not depend on someone remembering.
   - **Flag:** deploy-safety — currently a green push to `main` is a live deploy **and** a live
     migration with no backup. Must be gated before there is any production environment to hit.
+
+---
+
+## Bank-file export + approval workflow — findings from the payroll page (2026-08-03)
+
+**Another manual-testing batch, this time driving the payroll *run* page to the disbursement
+step.** Findings 6 and 7 are download-layer defects (fixed here). Findings 1–5 are a single
+**workflow gap**, not a defect: every handler does exactly what it claims, but the pipeline
+doesn't advance itself.
+
+- **F6 — Bank file downloaded as base64 text, not the decoded file. DONE.** The
+  `exportBankFile` success handler (`apps/web/src/app/app/payroll/page.tsx:232`) did
+  `new Blob([data.contentBase64], …)` — it wrapped the **base64 string** in the Blob and
+  never decoded it, so the saved file was the base64 of the NEFT/CSV body, not the body.
+  The API already base64-encodes on the wire (`payroll.ts:918`,
+  `Buffer.from(result.body).toString("base64")`), so the client must decode.
+  - **Fix:** new `downloadBankFile()` + `base64ToBytes()` in `apps/web/src/lib/utils.ts`
+    (mirroring the existing `downloadCSV` helper): `atob` → `Uint8Array` → `Blob`, so the
+    saved file is the real body. Handler now just calls `downloadBankFile(data)`.
+- **F7 — The download hid what the API already told it, and would "succeed" with an empty
+  file. DONE.** `generateBankFile` returns `recordCount`, `totalAmount`, and a `skipped`
+  list of `{employeeId, reason}` (missing account, invalid IFSC, non-positive net pay —
+  `bank-file-generator.ts:96-118`), and the router forwards all three (`payroll.ts:920-922`).
+  The old handler ignored them: a run where every employee was skipped still "downloaded"
+  a header-only file that looked like a successful export.
+  - **Fix (two parts, same helper):** (2) **surface the outcome** — "N paid (₹total)" on
+    success, and when anyone is skipped, a warning listing each skipped employee with the
+    reason, so the user sees *X paid, Y skipped and why* alongside the download; (3)
+    **refuse a zero-record file** — when `recordCount === 0` the helper shows an error
+    naming the skipped reasons and downloads nothing (a header-only file that looks
+    successful is worse than an error).
+  - **Fairness:** red-before/green-after. Four behaviour tests in
+    `apps/web/src/lib/__tests__/utils.test.ts` (decode-not-base64, refuse-zero,
+    surface-paid, warn-with-reasons) were confirmed to **fail** against the original
+    `new Blob([contentBase64])` handler and **pass** against the fix (49/49 in that file;
+    `apps/web` `tsc --noEmit` clean).
+
+- **F1–F5 — Approvals order the pipeline but trigger nothing (WORKFLOW GAP, not a defect).**
+  The 14-step payroll pipeline is a chain of **individually correct** mutations, each of
+  which advances `pipelineStatus` by exactly one step and returns — none of them *fires the
+  next step*. Evidence:
+  - `runs.approve` (`payroll.ts:566-591`) maps HR→FINANCE→CFO via a static `transitions`
+    table, sets the new status, records the approver, and returns. It enforces order and
+    segregation-of-duties correctly, but on the **final (CFO) approval it does not kick off
+    statutory generation** — it just leaves the run at `CFO_APPROVED`.
+  - After CFO approval, **two manual steps remain with no prompt**: `generateStatutory`
+    (`payroll.ts:594`, requires `CFO_APPROVED`) and `complete` (`payroll.ts:615`, requires
+    `STATUTORY_GENERATED`). The UI (`PAYROLL_STEPS`, `page.tsx`) exposes them only as the
+    next button in the tracker; nothing tells the user those two steps are still owed, and
+    nothing runs them automatically. A run can sit "CFO approved" looking finished while
+    statutory outputs and completion were never done.
+  - **This is design-shaped, not broken code** — hence recorded as a gap, not a defect. The
+    option is either of:
+    1. **Trigger the next step on final approval** — have the CFO-approval path enqueue/run
+       `generateStatutory` (and optionally `complete`) so approval *drives* the pipeline; or
+    2. **Show the user what remains** — after CFO approval, surface an explicit "2 steps
+       remaining: generate statutory outputs, then complete" prompt/checklist so the manual
+       steps are never silently skipped.
+  - **Not fixed here** (no code change): needs a product decision between (1) auto-advance
+    and (2) explicit remaining-steps prompt before implementing. Filed for that decision.
