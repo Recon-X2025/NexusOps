@@ -2221,3 +2221,103 @@ _No source files were modified in producing this plan. It sequences the bucket-A
 and bucket-B work from `reports/triage.md` against the root causes and reference
 implementations in the codebase; the "genuinely sound" list in `audit-summary.md`
 marks what to leave alone._
+
+---
+
+## First real payroll run — findings from the test environment (2026-08-03)
+
+**These four came from running an actual payroll on the deployed test box, not from
+the audits.** That is the point worth recording: the automated audits (triage,
+money-invariants, RBAC, cascade suites) never surfaced any of them. Manual end-to-end
+testing — approve a real unpaid leave, run the cycle, open the payslip PDF — produced
+all four in one sitting. This is exactly the class of defect (a live back-door approval
+path, a display-layer fabrication, a font gap, a UI join) that only a human driving the
+product finds. Fixed one at a time, full API suite green between each.
+
+- **PR1 — LOP not applied (back door approval). DONE.** EMP-0002 had an *approved*
+  unpaid leave (3–11 Aug 2026, 9 days) yet the August payslip showed 31/31 days and a
+  full month's gross. Root cause: **two approval paths, only one does the reflex** —
+  the *same defect shape as the two leave paths found in sweep 5*. `hr.leave.approve`
+  (`hr.ts:659`) correctly locks the row, moves the balance, and writes the G8 attendance
+  reflex (unpaid → `absent` so payroll LOP sees it). But `hr.leave.update` (`hr.ts:777`)
+  accepted `status:"approved"` and flipped the flag directly — **no balance move, no
+  attendance rows** — so the leave never became Loss-of-Pay and the month was paid in
+  full. The Edit-Leave dialog's Status dropdown offered "Approved", routing approvals
+  through this back door.
+  **Fix:** `leave.update`'s status input now permits only `pending`/`rejected`; approval
+  goes through `hr.leave.approve` or nowhere (`hr.ts:788-790`). UI: the "Approved" option
+  is removed from the Edit-Leave Status dropdown (`apps/web/.../hr/page.tsx`); the
+  dedicated Approve button already calls `hr.leave.approve`.
+  **Files:** `apps/api/src/routers/hr.ts`, `apps/web/src/app/app/hr/page.tsx`,
+  `apps/api/src/__tests__/leave-attendance-reflex.test.ts` (two new tests:
+  update-cannot-approve + no-reflex-from-update).
+  **Fairness check:** RED — with the old `["pending","approved","rejected"]` enum, the
+  new test's `leave.update({status:"approved"})` returned a request with `status:"approved"`
+  and zero attendance rows (test's `rejects.toThrow()` failed → the back door). GREEN —
+  with the narrowed enum, the input rejects `"approved"` and no attendance is written.
+  Full API suite **141 files / 1339 tests pass**.
+
+- **PR2 — YTD Net exceeds YTD Gross (×12 fabrication). DONE.** Payslip showed YTD
+  Gross ₹29,84,785 but YTD Net ₹1,69,74,456. There was no `ytd_net`/`ytd_pf` column; the
+  display fabricated both as *this month × 12* (`payroll.ts:177,179`;
+  `payroll-payslip-pdf.ts:76,78`), which on any partial year makes YTD Net > YTD Gross.
+  **Fix:** added real `ytd_net numeric(14,2)` + `ytd_pf numeric(12,2)` columns to
+  `payslips` (**migration `0063_slippery_mariko_yashida.sql`**), persisted per run from
+  `computeEmployeePayslip`'s `ytdNetPay`/`ytdPF` alongside `ytd_gross`
+  (`payroll.ts` insert), and switched both display sites to read the stored columns
+  (deleted the ×12).
+  **Files:** `packages/db/src/schema/hr.ts`, `packages/db/drizzle/0063_*.sql` (+ journal +
+  snapshot), `apps/api/src/routers/payroll.ts`, `apps/api/src/http/payroll-payslip-pdf.ts`,
+  `apps/api/src/__tests__/payslip-ytd-net-pf.test.ts` (new).
+  **Fairness check:** RED — with the ×12 code, `payslips.myPayslips` returned
+  `ytdNetPay = 1,200,000` for a payslip whose stored `ytd_net` was `100,000` (12× wrong).
+  GREEN — with the persisted columns it returns `100,000` and `ytdNetPay ≤ ytdGross` holds.
+
+- **PR3 — Rupee glyph renders as superscript 1. DONE (Rs.); Noto Sans embedding is a
+  recorded follow-up.** Both PDF generators (`payslip-pdf.ts`, `form16-pdf.ts`) use PDFKit's
+  base-14 Helvetica (WinAnsi), which has no ₹ (U+20B9), so ₹ was substituted with a
+  superscript-1 glyph. **Fix:** replaced every ₹ with the ASCII prefix "Rs." in both
+  generators (11 sites in `payslip-pdf.ts`, the shared `row()` helper in `form16-pdf.ts`).
+  **Files:** `apps/api/src/services/payslip-pdf.ts`, `apps/api/src/services/form16-pdf.ts`,
+  `apps/api/src/__tests__/pdf-rupee-glyph.test.ts` (new).
+  **Fairness check:** RED — re-introducing a single ₹ in `payslip-pdf.ts` fails the
+  source-level `not.toContain("₹")` assertion. GREEN — both generator sources contain no ₹,
+  contain "Rs.", and the payslip PDF still builds a valid `%PDF-` buffer.
+  **FOLLOW-UP (open):** embed **Noto Sans** (which has ₹) in both generators so
+  customer-facing documents can show the real rupee sign — Form 16 in particular goes to
+  employees. Until then "Rs." is the correct, legible interim.
+
+- **PR4 — Leave list shows a truncated UUID as the employee. DONE.** The list rendered
+  `req.employeeId?.slice(0,8)` because `hr.leave.list` returned raw `leaveRequests` rows
+  with no join. **Fix:** `leave.list` now left-joins `employees → users` and returns
+  `employeeName` (users.name) + `employeeCode` (EMP-xxxx); the UI cell renders
+  `employeeName ?? employeeCode ?? id.slice(0,8)`.
+  **Files:** `apps/api/src/routers/hr.ts`, `apps/web/src/app/app/hr/page.tsx`,
+  `apps/api/src/__tests__/leave-attendance-reflex.test.ts` (new list-name test).
+  **Fairness check:** RED — with the old no-join query, `leave.list`'s rows had no
+  `employeeName` (undefined). GREEN — the joined query returns `employeeName = "QA User"`
+  and `employeeCode = EMP-xxxx` (not the raw UUID).
+
+- **PR5 — YTD carried into a payroll run is hardcoded to zero. OPEN — payroll-blocking
+  from the second cycle.** `buildEmployeePayrollInput` in
+  `apps/api/src/services/payroll-run-aggregates.ts:87-90` passes the prior-period opening
+  balances as `ytdGross: 0, ytdPF: 0, ytdTDS: 0, ytdNetPay: 0` for every run. Because
+  `computeEmployeePayslip` derives each YTD figure as `openingYTD + thisMonth`, the values
+  persisted into `payslips.ytd_gross` / `ytd_net` / `ytd_pf` / `ytd_tds` therefore hold
+  **this month only**, not a running financial-year total.
+  - **Correct for FY month 1** (opening YTD genuinely is zero), so PR2's fix is valid on a
+    first run — this is why the first real payroll run looked right.
+  - **Wrong from month 2 onward:** April's totals reappear in May unchanged instead of
+    accumulating, so every payslip after the first understates the YTD columns.
+  - **Second-order impact:** the monthly-TDS true-up reads `ytdGross`/`ytdTDS`
+    (`payroll-engine.ts:353-354`); with both stuck at this-month, the annualised
+    projection and the tax already-deducted figure are both wrong from month 2, so TDS is
+    mis-spread across the year.
+  - **Fix required (not done here):** before building each employee's input, read that
+    employee's most recent prior payslip in the same FY and seed
+    `ytdGross/ytdPF/ytdTDS/ytdNetPay` from its stored `ytd_*` columns (fall back to zero
+    only when no prior payslip exists). This is a behaviour change to the run and needs its
+    own fairness test (two consecutive months, assert month-2 YTD == month-1 + month-2),
+    so it is filed as a separate finding rather than folded into PR2.
+  - **Flag:** payroll-blocking — must be closed before any customer runs a second monthly
+    cycle, otherwise every YTD column and the TDS true-up drift for the rest of the year.

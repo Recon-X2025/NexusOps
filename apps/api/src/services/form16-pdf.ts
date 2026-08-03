@@ -93,7 +93,7 @@ function row(
   const valueText =
     typeof value === "number"
       ? opts.rupee !== false
-        ? `₹ ${fmt(value)}`
+        ? `Rs. ${fmt(value)}`
         : fmt(value)
       : value;
   doc

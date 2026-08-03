@@ -174,9 +174,9 @@ function mapPayslipRow(p: typeof payslips.$inferSelect) {
     totalDeductions: Number(p.totalDeductions || 0),
     netPay: Number(p.netPay || 0),
     ytdGross: Number(p.ytdGross || 0),
-    ytdPF: Number(p.pfEmployee || 0) * 12,
+    ytdPF: Number(p.ytdPf || 0),
     ytdTDS: Number(p.ytdTds || 0),
-    ytdNetPay: Number(p.netPay || 0) * 12,
+    ytdNetPay: Number(p.ytdNet || 0),
     taxComputation: taxComputationFromPayslip(p),
     pdfUrl: p.pdfUrl,
   };
@@ -460,6 +460,11 @@ const runsRouter = router({
             netPay: String(slip.netPay),
             ytdGross: String(slip.ytdGross),
             ytdTds: String(slip.ytdTDS),
+            // Persist real YTD net + employee PF on the same basis as ytdGross
+            // (computed in computeEmployeePayslip). Replaces the old display-time
+            // (thisMonth × 12) fabrication that made YTD Net exceed YTD Gross.
+            ytdNet: String(slip.ytdNetPay),
+            ytdPf: String(slip.ytdPF),
             taxRegimeUsed: emp.taxRegime,
             retainUntilDate,
           });

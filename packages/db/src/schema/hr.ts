@@ -413,6 +413,13 @@ export const payslips = pgTable(
     netPay: decimal("net_pay", { precision: 12, scale: 2 }).notNull().default("0"),
     ytdGross: decimal("ytd_gross", { precision: 14, scale: 2 }).notNull().default("0"),
     ytdTds: decimal("ytd_tds", { precision: 12, scale: 2 }).notNull().default("0"),
+    // Real year-to-date net pay and employee PF, persisted per run alongside
+    // ytd_gross. Previously the display layer fabricated these as (this month × 12),
+    // which produced YTD Net > YTD Gross on any partial year (first-real-payroll-run
+    // finding). Precision matches ytd_gross (net can be large; PF is capped but keep
+    // headroom).
+    ytdNet: decimal("ytd_net", { precision: 14, scale: 2 }).notNull().default("0"),
+    ytdPf: decimal("ytd_pf", { precision: 12, scale: 2 }).notNull().default("0"),
     taxRegimeUsed: taxRegimeEnum("tax_regime_used").notNull().default("new"),
     pdfUrl: text("pdf_url"),
     /**

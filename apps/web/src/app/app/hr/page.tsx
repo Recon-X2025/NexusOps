@@ -787,12 +787,15 @@ export default function HRPage() {
               <div>
                 <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Status</label>
                 <select
-                  value={editingLeave.status}
+                  value={editingLeave.status === "approved" ? "pending" : editingLeave.status}
                   onChange={(e) => setEditingLeave((prev: any) => prev ? { ...prev, status: e.target.value } : null)}
                   className="w-full border border-border rounded px-3 py-2 text-[13px] bg-card text-foreground"
                 >
+                  {/* Approval is intentionally NOT offered here: it must go through
+                      the Approve button (hr.leave.approve), which also moves the
+                      leave balance and writes the attendance reflex for payroll LOP.
+                      Editing can only set pending/rejected. */}
                   <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </select>
               </div>
@@ -976,7 +979,7 @@ export default function HRPage() {
                   <option value="">None</option>
                   {((structuresData as any[]) ?? []).map((s: any) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.structureName ?? s.name}
                     </option>
                   ))}
                 </select>
@@ -1103,7 +1106,7 @@ export default function HRPage() {
                   <option value="">None</option>
                   {((structuresData as any[]) ?? []).map((s: any) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.structureName ?? s.name}
                     </option>
                   ))}
                 </select>
@@ -1448,7 +1451,7 @@ export default function HRPage() {
                     </tr>
                   ) : (leaveData as any[]).map((req: any) => (
                     <tr key={req.id}>
-                      <td className="text-foreground text-[11px]">{req.employeeId?.slice(0,8) ?? "—"}</td>
+                      <td className="text-foreground text-[11px]">{req.employeeName ?? req.employeeCode ?? req.employeeId?.slice(0,8) ?? "—"}</td>
                       <td>
                         <span className="status-badge capitalize bg-blue-100 text-blue-700">{req.type?.replace(/_/g," ")}</span>
                       </td>

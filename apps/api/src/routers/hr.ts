@@ -602,7 +602,20 @@ export const hrRouter = router({
         if (input.employeeId) conditions.push(eq(leaveRequests.employeeId, input.employeeId));
         if (input.status) conditions.push(eq(leaveRequests.status, input.status));
 
-        return db.select().from(leaveRequests).where(and(...conditions)).orderBy(desc(leaveRequests.createdAt));
+        // Join through employees → users so the list can show the person's name
+        // (and EMP code) instead of a raw employeeId UUID. Left joins keep a row
+        // even if the employee/user link is somehow missing.
+        return db
+          .select({
+            ...getTableColumns(leaveRequests),
+            employeeName: users.name,
+            employeeCode: employees.employeeId,
+          })
+          .from(leaveRequests)
+          .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
+          .leftJoin(users, eq(employees.userId, users.id))
+          .where(and(...conditions))
+          .orderBy(desc(leaveRequests.createdAt));
       }),
 
     create: permissionProcedure("hr", "write")
@@ -775,16 +788,26 @@ export const hrRouter = router({
       }),
 
       update: permissionProcedure("hr", "write")
+        // NOTE: `update` deliberately CANNOT approve. Approval is the only
+        // transition that must also move the leave balance (pending → used) and
+        // write the G8 attendance reflex (unpaid → `absent` so payroll LOP sees
+        // it). That whole read-lock-flip-reflect sequence lives in `approve`.
+        // If `update` were allowed to set status="approved" it would flip the
+        // flag WITHOUT the balance move or attendance rows — an approved unpaid
+        // leave would then never become Loss-of-Pay and the employee would be
+        // over-paid a full month (the first-real-payroll-run EMP-0002 finding).
+        // So the input only permits `pending`/`rejected`; approval goes through
+        // `hr.leave.approve` or nowhere.
         .input(z.object({
           id: z.string().uuid(),
-          status: z.enum(["pending", "approved", "rejected"]).optional(),
+          status: z.enum(["pending", "rejected"]).optional(),
           type: LeaveTypeEnum.optional(),
           startDate: z.string().optional(),
           endDate: z.string().optional(),
           reason: z.string().optional(),
         }))
         .mutation(async ({ ctx, input }) => {
-          const { db, org, user } = ctx;
+          const { db, org } = ctx;
           const [request] = await db
             .select()
             .from(leaveRequests)
@@ -792,14 +815,13 @@ export const hrRouter = router({
           if (!request) throw new TRPCError({ code: "NOT_FOUND" });
 
           const [updated] = await db.update(leaveRequests)
-            .set({ 
-              ...(input.status && { status: input.status }), 
-              ...(input.type && { type: input.type }), 
-              ...(input.startDate && { startDate: new Date(input.startDate) }), 
-              ...(input.endDate && { endDate: new Date(input.endDate) }), 
-              ...(input.reason && { reason: input.reason }), 
+            .set({
+              ...(input.status && { status: input.status }),
+              ...(input.type && { type: input.type }),
+              ...(input.startDate && { startDate: new Date(input.startDate) }),
+              ...(input.endDate && { endDate: new Date(input.endDate) }),
+              ...(input.reason && { reason: input.reason }),
               updatedAt: new Date(),
-              ...(input.status === "approved" && request.status !== "approved" ? { approvedById: user!.id, approvedAt: new Date() } : {})
             })
             .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.orgId, org!.id)))
             .returning();

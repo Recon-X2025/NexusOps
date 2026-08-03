@@ -204,4 +204,49 @@ describe("G8: leave → attendance reflex (end-to-end)", () => {
     const res = await caller.attendance.bulkMark({ records: [] });
     expect(res.count).toBe(0);
   });
+
+  // ── LOP back door (first-real-payroll-run finding, EMP-0002) ────────────────
+  // `leave.update` used to accept status="approved" and flip the flag directly,
+  // skipping the balance move AND the attendance reflex — so an "approved" unpaid
+  // leave never became LOP and the month was paid in full. Approval must go
+  // through `leave.approve` (the only path that writes attendance) or nowhere.
+  describe("leave.update cannot approve (back door closed)", () => {
+    it("rejects a status='approved' edit at the input boundary", async () => {
+      const req = await insertLeave("unpaid", 3, 11); // the EMP-0002 shape
+      await expect(
+        caller.leave.update({ id: req.id, status: "approved" as any }),
+      ).rejects.toThrow();
+
+      // Still pending, and NO attendance rows were fabricated.
+      const rows = await attendanceForMonth();
+      expect(rows).toHaveLength(0);
+    });
+
+    it("still allows editing to rejected/pending and other fields", async () => {
+      const req = await insertLeave("unpaid", 3, 5);
+      const rejected = await caller.leave.update({ id: req.id, status: "rejected" });
+      expect(rejected.status).toBe("rejected");
+
+      // A plain field edit (reason) still works.
+      const edited = await caller.leave.update({ id: req.id, reason: "updated note" });
+      expect(edited.reason).toBe("updated note");
+
+      // No attendance reflex from update, regardless.
+      const rows = await attendanceForMonth();
+      expect(rows).toHaveLength(0);
+    });
+  });
+
+  // ── PR4: leave list shows the employee's name, not a raw UUID ────────────────
+  // The list rendered `employeeId.slice(0,8)` because `leave.list` returned raw
+  // leaveRequests rows with no join. It now joins employees → users.
+  it("leave.list includes employeeName and employeeCode (not just the UUID)", async () => {
+    await insertLeave("unpaid", 3, 5);
+    const rows = await caller.leave.list({});
+    expect(rows.length).toBeGreaterThan(0);
+    const r = rows[0]!;
+    expect(r.employeeName).toBe("QA User"); // seedFullOrg admin user name
+    expect(r.employeeCode).toBe(emp.employeeId); // EMP-xxxx
+    expect(r.employeeCode).not.toBe(empId); // not the raw UUID
+  });
 });

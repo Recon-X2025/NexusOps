@@ -241,9 +241,9 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
 
     doc.fontSize(8).font("Helvetica-Bold").fillColor("#333333");
     doc.text("EARNINGS", leftCol + 8, y + 6, { width: colWidth - 70 });
-    doc.text("AMOUNT (₹)", leftCol + colWidth - 70, y + 6, { width: 60, align: "right" });
+    doc.text("AMOUNT (Rs.)", leftCol + colWidth - 70, y + 6, { width: 60, align: "right" });
     doc.text("DEDUCTIONS", rightCol - 2, y + 6, { width: colWidth - 70 });
-    doc.text("AMOUNT (₹)", rightCol + colWidth - 80, y + 6, { width: 60, align: "right" });
+    doc.text("AMOUNT (Rs.)", rightCol + colWidth - 80, y + 6, { width: 60, align: "right" });
 
     y += 22;
 
@@ -322,7 +322,7 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
 
     doc
       .fontSize(16)
-      .text(`₹ ${fmt(input.netPay)}`, leftCol + 10, y + 18);
+      .text(`Rs. ${fmt(input.netPay)}`, leftCol + 10, y + 18);
 
     doc
       .fontSize(7)
@@ -342,9 +342,9 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
     y += 14;
 
     doc.font("Helvetica").fillColor("#666666");
-    doc.text(`Employer PF: ₹${fmt(input.employerPF)}`, leftCol, y);
-    doc.text(`Employer ESI: ₹${fmt(input.employerESI)}`, leftCol + 160, y);
-    doc.text(`Total CTC: ₹${fmt(input.grossEarnings + input.employerPF + input.employerESI)}`, leftCol + 320, y);
+    doc.text(`Employer PF: Rs.${fmt(input.employerPF)}`, leftCol, y);
+    doc.text(`Employer ESI: Rs.${fmt(input.employerESI)}`, leftCol + 160, y);
+    doc.text(`Total CTC: Rs.${fmt(input.grossEarnings + input.employerPF + input.employerESI)}`, leftCol + 320, y);
 
     y += 20;
 
@@ -360,10 +360,10 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
 
     doc.font("Helvetica").fillColor("#555555");
     const ytdItems = [
-      ["YTD Gross", `₹${fmt(input.ytdGross)}`],
-      ["YTD PF", `₹${fmt(input.ytdPF)}`],
-      ["YTD TDS", `₹${fmt(input.ytdTDS)}`],
-      ["YTD Net", `₹${fmt(input.ytdNetPay)}`],
+      ["YTD Gross", `Rs.${fmt(input.ytdGross)}`],
+      ["YTD PF", `Rs.${fmt(input.ytdPF)}`],
+      ["YTD TDS", `Rs.${fmt(input.ytdTDS)}`],
+      ["YTD Net", `Rs.${fmt(input.ytdNetPay)}`],
     ];
 
     const ytdColWidth = pageWidth / 4;
@@ -384,7 +384,7 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
 
     doc.fontSize(7).font("Helvetica").fillColor("#aaaaaa");
     doc.text(
-      `Tax Regime: ${input.taxRegime} | Taxable Income: ₹${fmt(input.taxableIncome)} | Annual Tax Liability: ₹${fmt(input.totalTaxLiability)}`,
+      `Tax Regime: ${input.taxRegime} | Taxable Income: Rs.${fmt(input.taxableIncome)} | Annual Tax Liability: Rs.${fmt(input.totalTaxLiability)}`,
       leftCol, y
     );
 
