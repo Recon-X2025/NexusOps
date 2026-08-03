@@ -25,11 +25,12 @@ describe("G1: statutory-ceiling resolver", () => {
     await testDb().delete(statutoryCeilings).where(eq(statutoryCeilings.orgId, orgId));
   });
 
-  it("returns {} when no config rows apply (pre-Labour-Code period)", async () => {
-    // Migration 0054 seeds platform-default ceilings effective 2025-11-21, so a
-    // period BEFORE that date resolves to {} and payroll-math falls back to its
-    // built-in constants.
-    const out = await resolveStatutoryCeilings(testDb(), orgId, new Date("2025-01-01"));
+  it("returns {} when no config rows apply (before any platform default)", async () => {
+    // Platform defaults are seeded by migrations: Labour-Code ceilings eff 2025-11-21
+    // (0054) and the C5 income-tax set eff 2020-04-01 (0064). A period BEFORE the
+    // EARLIEST of those (2020-04-01) resolves to {} and payroll-math falls back to
+    // its built-in constants.
+    const out = await resolveStatutoryCeilings(testDb(), orgId, new Date("2019-01-01"));
     expect(out).toEqual({});
   });
 

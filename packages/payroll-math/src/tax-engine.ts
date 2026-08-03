@@ -14,6 +14,8 @@
  *  - Standard deduction: ₹75,000 (New), ₹50,000 (Old)
  */
 
+import type { TaxConfigOverride, SurchargeBand } from "./statutory-deductions";
+
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
 export type TaxRegime = "OLD" | "NEW";
@@ -119,9 +121,12 @@ const SURCHARGE_BANDS = [
 ] as const;
 
 /** Surcharge rate that applies at exactly `income` (the band whose threshold it last crossed). */
-function surchargeRateFor(income: number): number {
+function surchargeRateFor(
+  income: number,
+  bands: readonly SurchargeBand[]
+): number {
   let rate = 0;
-  for (const band of SURCHARGE_BANDS) {
+  for (const band of bands) {
     if (income > band.threshold) rate = band.rate;
   }
   return rate;
@@ -149,12 +154,13 @@ function computeSurcharge(
   taxableIncome: number,
   basicTax: number,
   baseTaxAt: (income: number) => number,
+  bands: readonly SurchargeBand[],
 ): number {
-  const rate = surchargeRateFor(taxableIncome);
+  const rate = surchargeRateFor(taxableIncome, bands);
   if (rate === 0) return 0;
 
   // The threshold this income last crossed, and the surcharge rate in force at it.
-  const band = [...SURCHARGE_BANDS].reverse().find((b) => taxableIncome > b.threshold)!;
+  const band = [...bands].reverse().find((b) => taxableIncome > b.threshold)!;
   const threshold = band.threshold;
 
   const naiveSurcharge = basicTax * rate;
@@ -162,7 +168,7 @@ function computeSurcharge(
   // Liability (tax + surcharge) at exactly the threshold uses the *previous*
   // band's rate (the rate in force at income = threshold).
   const taxAtThreshold = baseTaxAt(threshold);
-  const rateAtThreshold = surchargeRateFor(threshold); // previous band (strict >)
+  const rateAtThreshold = surchargeRateFor(threshold, bands); // previous band (strict >)
   const liabilityAtThreshold = taxAtThreshold + taxAtThreshold * rateAtThreshold;
 
   // Cap: total (tax + surcharge) may not exceed liability-at-threshold plus the
@@ -178,7 +184,7 @@ function computeSurcharge(
 
 function computeSlabTax(
   taxableIncome: number,
-  slabs: typeof OLD_REGIME_SLABS
+  slabs: readonly { from: number; to: number; rate: number }[]
 ): { totalTax: number; breakdown: SlabEntry[] } {
   let remaining = Math.max(0, taxableIncome);
   let totalTax = 0;
@@ -224,8 +230,25 @@ export function computeHRAExemption(
 
 // ─── MAIN TAX COMPUTATION ──────────────────────────────────────────────────────
 
-export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
+export function computeTax(
+  profile: EmployeeTaxProfile,
+  taxConfig?: TaxConfigOverride
+): TaxComputation {
   const { regime, monthsInFY } = profile;
+
+  // C5: resolve each rate from the effective-dated config when present, else fall
+  // back to the in-code constant. An absent/empty `taxConfig` (every org today)
+  // leaves every value at its default, so output is byte-identical to before.
+  const oldSlabs = taxConfig?.oldSlabs ?? OLD_REGIME_SLABS;
+  const newSlabs = taxConfig?.newSlabs ?? NEW_REGIME_SLABS;
+  const stdDeductionNew = taxConfig?.stdDeductionNew ?? 75_000;
+  const stdDeductionOld = taxConfig?.stdDeductionOld ?? 50_000;
+  const rebate87aOld =
+    taxConfig?.rebate87aOld ?? { threshold: 500_000, maxRebate: 12_500 };
+  const rebate87aNew =
+    taxConfig?.rebate87aNew ?? { threshold: 1_200_000, maxRebate: 60_000 };
+  const surchargeBands = taxConfig?.surchargeBands ?? SURCHARGE_BANDS;
+  const cessRate = taxConfig?.cessRate ?? 0.04;
 
   // Step 1: Gross salary (annualised — handle mid-year joins)
   const grossSalary =
@@ -252,10 +275,10 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
   let section24bDeduction = 0;
 
   if (regime === "NEW") {
-    standardDeduction = Math.min(75_000, grossSalary);
+    standardDeduction = Math.min(stdDeductionNew, grossSalary);
   } else {
     // Old regime
-    standardDeduction = Math.min(50_000, grossSalary);
+    standardDeduction = Math.min(stdDeductionOld, grossSalary);
     hraExemption = profile.hraExemption;
     chapter6ABreakdown = {
       section80C: Math.min(profile.section80C, 150_000),
@@ -288,7 +311,7 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
   const taxableIncome = Math.max(0, Math.round(grossSalary - totalDeductions));
 
   // Step 4: Compute tax on slabs
-  const slabs = regime === "NEW" ? NEW_REGIME_SLABS : OLD_REGIME_SLABS;
+  const slabs = regime === "NEW" ? newSlabs : oldSlabs;
   const { totalTax: taxOnIncome, breakdown } = computeSlabTax(
     taxableIncome,
     slabs
@@ -296,26 +319,33 @@ export function computeTax(profile: EmployeeTaxProfile): TaxComputation {
 
   // Step 5: Section 87A rebate
   let rebate87A = 0;
-  if (regime === "OLD" && taxableIncome <= 500_000) {
-    rebate87A = Math.min(taxOnIncome, 12_500);
-  } else if (regime === "NEW" && taxableIncome <= 1_200_000) {
+  if (regime === "OLD" && taxableIncome <= rebate87aOld.threshold) {
+    rebate87A = Math.min(taxOnIncome, rebate87aOld.maxRebate);
+  } else if (regime === "NEW" && taxableIncome <= rebate87aNew.threshold) {
     // Finance Act 2025: rebate up to ₹60,000 for taxable income ≤ ₹12L,
     // making income up to ₹12L (₹12.75L incl. standard deduction) tax-free.
-    rebate87A = Math.min(taxOnIncome, 60_000);
+    rebate87A = Math.min(taxOnIncome, rebate87aNew.maxRebate);
   }
 
   const taxAfterRebate = Math.max(0, taxOnIncome - rebate87A);
 
   // Step 6: Surcharge (with marginal relief).
   // `baseTaxAt` values the tax-after-rebate for an arbitrary taxable income under
-  // this regime, so marginal relief can compare liability at the threshold. The
-  // 87A rebate never applies at surcharge-relevant incomes (>₹50L), so it is 0 here.
+  // this regime, so marginal relief can compare liability at the threshold. It must
+  // close over the SAME config-resolved `slabs`, or relief is computed against the
+  // wrong curve. The 87A rebate never applies at surcharge-relevant incomes (>₹50L),
+  // so it is 0 here.
   const baseTaxAt = (income: number): number =>
     computeSlabTax(Math.max(0, income), slabs).totalTax;
-  const surcharge = computeSurcharge(taxableIncome, taxAfterRebate, baseTaxAt);
+  const surcharge = computeSurcharge(
+    taxableIncome,
+    taxAfterRebate,
+    baseTaxAt,
+    surchargeBands
+  );
 
   // Step 7: Health & Education Cess (4%)
-  const cess = Math.round((taxAfterRebate + surcharge) * 0.04);
+  const cess = Math.round((taxAfterRebate + surcharge) * cessRate);
 
   // Step 8: Total tax liability
   const totalTaxLiability = Math.round(taxAfterRebate + surcharge + cess);
@@ -358,10 +388,11 @@ export function recomputeTDSOnRevision(
   originalComputation: TaxComputation,
   newProfile: EmployeeTaxProfile,
   monthsElapsed: number,
-  tdsDeductedSoFar: number
+  tdsDeductedSoFar: number,
+  taxConfig?: TaxConfigOverride
 ): TaxComputation {
   // Recompute with revised salary projected for remaining months
-  const revisedComputation = computeTax(newProfile);
+  const revisedComputation = computeTax(newProfile, taxConfig);
 
   // Adjust: TDS already deducted in previous months stays, redistribute remaining
   const remainingTax = Math.max(

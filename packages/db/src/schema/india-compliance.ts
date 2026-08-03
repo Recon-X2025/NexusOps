@@ -73,6 +73,17 @@ export const statutoryMetricKeyEnum = pgEnum("statutory_metric_key", [
   "lwf_rate",
   // Payment of Bonus Act eligibility wage ceiling (Labour Codes, eff. 2025-11-21).
   "bonus_eligibility_ceiling",
+  // ── Income-tax rate set (C5) ────────────────────────────────────────────────
+  // Externalises the income-tax constants from `@coheronconnect/payroll-math`
+  // (`tax-engine.ts`) into this effective-dated table so a rate change is a data
+  // change, not a redeploy. For the regime-specific keys the `state_code` column
+  // carries the TAX REGIME ("OLD" / "NEW") — see the column comment below — while
+  // regime-agnostic keys leave it NULL.
+  "income_tax_slabs", // slabsJson: { slabs: [{from,to,rate}] } for the regime in state_code
+  "standard_deduction", // value: rupee amount for the regime in state_code
+  "rebate_87a", // slabsJson: { threshold, maxRebate } for the regime in state_code
+  "surcharge_bands", // slabsJson: { bands: [{threshold,rate}] } — regime-agnostic (state_code NULL)
+  "cess_rate", // value: fractional rate (0.04) — regime-agnostic (state_code NULL)
 ]);
 
 // E-Way Bill lifecycle (G3): `pending` = created, awaiting NIC push;
@@ -316,17 +327,28 @@ export const epfoEcrSubmissions = pgTable(
 );
 
 // ── Statutory Ceilings (versioned, effective-dated config) ─────────────────
-// Drives PF/ESI wage ceilings, PT slabs and LWF rates without code changes so
-// effective-dated Labour-Code revisions land as data, not a redeploy.
+// Drives PF/ESI wage ceilings, PT slabs, LWF rates AND the income-tax rate set
+// (C5) without code changes so effective-dated revisions land as data, not a
+// redeploy.
 // orgId NULL = platform default; a non-null row overrides the default for that org.
-// `value` holds scalar metrics (pf/esi ceilings); `slabsJson` holds the PT slab
-// table or the LWF {employee,employer,frequency} shape.
+// `value` holds scalar metrics (pf/esi ceilings, standard_deduction, cess_rate);
+// `slabsJson` holds the PT slab table, the LWF {employee,employer,frequency}
+// shape, or the income-tax shapes (income_tax_slabs, rebate_87a, surcharge_bands).
 export const statutoryCeilings = pgTable(
   "statutory_ceilings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
     metricKey: statutoryMetricKeyEnum("metric_key").notNull(),
+    // Normally the Indian STATE the row applies to (e.g. PT/LWF are per-state).
+    // OVERLOAD (C5): for the regime-specific income-tax keys — income_tax_slabs,
+    // standard_deduction, rebate_87a — this column instead carries the TAX REGIME
+    // ("OLD" / "NEW"), because a tax rate is regime-scoped, not state-scoped. This
+    // reuse mirrors how PT already keys on state_code and avoids a schema change,
+    // but it is a deliberate semantic overload: readers of an income_tax_* row must
+    // interpret state_code as the regime, not a state. Regime-agnostic tax keys
+    // (surcharge_bands, cess_rate) leave it NULL. The resolver
+    // (apps/api/src/lib/india/statutory-ceilings.ts) documents the same convention.
     stateCode: text("state_code"),
     value: decimal("value", { precision: 14, scale: 2 }),
     // Open blob: holds a PT slab table (per-state, variable shape) or the LWF

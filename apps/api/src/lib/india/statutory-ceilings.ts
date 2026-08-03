@@ -11,6 +11,14 @@
  *
  * When no rows exist the resolver returns `{}`, so payroll-math falls back to
  * its built-in constants and behaviour is unchanged.
+ *
+ * C5 (income-tax rate set): the same table also carries the income-tax config
+ * (slabs per regime, standard deduction, s.87A rebate, surcharge bands, cess).
+ * For the REGIME-SPECIFIC keys (income_tax_slabs, standard_deduction, rebate_87a)
+ * the `stateCode` column is OVERLOADED to hold the tax regime ("OLD" / "NEW")
+ * instead of an Indian state — see the schema column comment. Regime-agnostic keys
+ * (surcharge_bands, cess_rate) leave it NULL. If no tax row matches, `taxConfig` is
+ * omitted and `computeTax` uses its constants (byte-identical fallback).
  */
 import {
   statutoryCeilings,
@@ -22,7 +30,12 @@ import {
   isNull,
   type DbOrTx,
 } from "@coheronconnect/db";
-import type { StatutoryCeilingOverrides } from "@coheronconnect/payroll-math";
+import type {
+  StatutoryCeilingOverrides,
+  TaxConfigOverride,
+  TaxSlab,
+  SurchargeBand,
+} from "@coheronconnect/payroll-math";
 
 interface PTSlab {
   from: number;
@@ -35,6 +48,28 @@ type LwfRateTable = Record<
   string,
   { employee: number; employer: number; frequency: "HALF_YEARLY" | "ANNUAL" }
 >;
+
+// C5 income-tax `slabsJson` shapes. `slabsJson` is an untyped blob, cast here.
+// A malformed seed (wrong keys) resolves to undefined fields → `computeTax`'s
+// `?? constant` fallback silently applies, so the round-trip test must assert the
+// SEEDED value actually takes effect, not merely "no error".
+//
+// The open-ended top slab's `to` is stored as `null` in JSON (JSON cannot encode
+// Infinity — `JSON.stringify(Infinity)` is `null`), and normalised back to
+// `Infinity` here so `computeSlabTax` treats it as the unbounded top band exactly
+// as the in-code constants do.
+type SlabBlobEntry = { from: number; to: number | null; rate: number };
+type SlabsBlob = { slabs: SlabBlobEntry[] };
+type SurchargeBlob = { bands: SurchargeBand[] };
+type Rebate87aBlob = { threshold: number; maxRebate: number };
+
+function normaliseSlabs(slabs: SlabBlobEntry[]): TaxSlab[] {
+  return slabs.map((s) => ({
+    from: s.from,
+    to: s.to === null ? Infinity : s.to,
+    rate: s.rate,
+  }));
+}
 
 export async function resolveStatutoryCeilings(
   db: DbOrTx,
@@ -80,6 +115,20 @@ export async function resolveStatutoryCeilings(
   let hasPt = false;
   let hasLwf = false;
 
+  // C5: assemble the income-tax config from the matching rows. `hasTax` gates
+  // whether we attach `overrides.taxConfig` at all — if no tax row matched, the
+  // field stays undefined and `computeTax` uses its module constants (the
+  // byte-identical fallback every org relies on today).
+  const taxConfig: TaxConfigOverride = {};
+  let hasTax = false;
+  // For the regime-specific tax keys, `row.stateCode` carries the REGIME
+  // ("OLD"/"NEW"), not a state — see the schema column comment (deliberate
+  // overload, mirroring how PT reuses stateCode).
+  const regimeOf = (row: (typeof rows)[number]): "OLD" | "NEW" | null => {
+    const code = row.stateCode?.toUpperCase();
+    return code === "OLD" || code === "NEW" ? code : null;
+  };
+
   for (const row of best.values()) {
     switch (row.metricKey) {
       case "pf_wage_ceiling":
@@ -104,10 +153,61 @@ export async function resolveStatutoryCeilings(
           hasLwf = true;
         }
         break;
+      case "income_tax_slabs": {
+        const regime = regimeOf(row);
+        const blob = row.slabsJson as SlabsBlob | null;
+        if (regime && blob?.slabs) {
+          const slabs = normaliseSlabs(blob.slabs);
+          if (regime === "OLD") taxConfig.oldSlabs = slabs;
+          else taxConfig.newSlabs = slabs;
+          hasTax = true;
+        }
+        break;
+      }
+      case "standard_deduction": {
+        const regime = regimeOf(row);
+        if (regime && row.value !== null) {
+          if (regime === "OLD") taxConfig.stdDeductionOld = Number(row.value);
+          else taxConfig.stdDeductionNew = Number(row.value);
+          hasTax = true;
+        }
+        break;
+      }
+      case "rebate_87a": {
+        const regime = regimeOf(row);
+        const blob = row.slabsJson as Rebate87aBlob | null;
+        if (
+          regime &&
+          blob &&
+          typeof blob.threshold === "number" &&
+          typeof blob.maxRebate === "number"
+        ) {
+          const rebate = { threshold: blob.threshold, maxRebate: blob.maxRebate };
+          if (regime === "OLD") taxConfig.rebate87aOld = rebate;
+          else taxConfig.rebate87aNew = rebate;
+          hasTax = true;
+        }
+        break;
+      }
+      case "surcharge_bands": {
+        const blob = row.slabsJson as SurchargeBlob | null;
+        if (blob?.bands) {
+          taxConfig.surchargeBands = blob.bands;
+          hasTax = true;
+        }
+        break;
+      }
+      case "cess_rate":
+        if (row.value !== null) {
+          taxConfig.cessRate = Number(row.value);
+          hasTax = true;
+        }
+        break;
     }
   }
 
   if (hasPt) overrides.ptSlabs = ptSlabs;
   if (hasLwf) overrides.lwfRates = lwfRates;
+  if (hasTax) overrides.taxConfig = taxConfig;
   return overrides;
 }

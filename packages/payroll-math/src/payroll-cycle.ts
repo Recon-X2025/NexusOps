@@ -318,7 +318,11 @@ export function computeEmployeePayslip(
     previousEmployerTDS: emp.previousEmployerTDS,
   };
 
-  const taxComputation = computeTax(taxProfile);
+  // C5: pass the effective-dated income-tax config resolved for this period (from
+  // `statutory_ceilings`). When `ceilings.taxConfig` is absent — every org with no
+  // seeded tax rows — `computeTax` falls back to its module constants, so TDS is
+  // byte-identical to before.
+  const taxComputation = computeTax(taxProfile, ceilings.taxConfig);
 
   // Build payslip
   const totalDeductions =

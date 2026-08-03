@@ -68,6 +68,39 @@ export interface MonthlyStatutoryDeductions {
   totalEmployerContributions: number;
 }
 
+/** One income-tax slab band: tax `rate` applies to income in [from, to). */
+export interface TaxSlab {
+  from: number;
+  to: number;
+  rate: number;
+}
+
+/** One surcharge band: `rate` applied above `threshold` (on taxable income). */
+export interface SurchargeBand {
+  threshold: number;
+  rate: number;
+}
+
+/**
+ * Effective-dated income-tax rate set (C5), resolved from `statutory_ceilings`.
+ * EVERY field is optional: `computeTax` reads each as `taxConfig?.X ?? <built-in
+ * constant>`, so an absent config (or any absent field) leaves that value at the
+ * in-code default and behaviour is byte-identical to today. Regime branching stays
+ * the caller's job — this only supplies both regimes' data so it can be selected.
+ */
+export interface TaxConfigOverride {
+  oldSlabs?: TaxSlab[];
+  newSlabs?: TaxSlab[];
+  stdDeductionOld?: number;
+  stdDeductionNew?: number;
+  /** Old regime: taxable-income threshold and max rebate under s.87A. */
+  rebate87aOld?: { threshold: number; maxRebate: number };
+  /** New regime: taxable-income threshold and max rebate under s.87A. */
+  rebate87aNew?: { threshold: number; maxRebate: number };
+  surchargeBands?: SurchargeBand[];
+  cessRate?: number;
+}
+
 /**
  * Effective-dated statutory ceilings/tables resolved by the caller (from the
  * `statutory_ceilings` DB config). When omitted, the built-in defaults below
@@ -89,6 +122,11 @@ export interface StatutoryCeilingOverrides {
    * unchanged, so orgs without the seeded row are unaffected.
    */
   bonusEligibilityCeiling?: number;
+  /**
+   * Income-tax rate set (C5). Threaded into `computeTax`; when absent the tax
+   * engine falls back to its module constants (byte-identical to today).
+   */
+  taxConfig?: TaxConfigOverride;
 }
 
 // ─── PF COMPUTATION ────────────────────────────────────────────────────────────
