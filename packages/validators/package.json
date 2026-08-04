@@ -8,15 +8,18 @@
     ".": "./src/index.ts",
     "./crm": "./src/crm.ts",
     "./accounting": "./src/accounting.ts",
-    "./hr": "./src/hr.ts"
+    "./hr": "./src/hr.ts",
+    "./inventory": "./src/inventory.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.9"
   }
 }

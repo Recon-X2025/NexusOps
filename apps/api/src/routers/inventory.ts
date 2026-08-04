@@ -20,6 +20,7 @@ import {
 } from "@coheronconnect/payroll-math";
 import { postInventoryCogsJournalEntry } from "../lib/inventory-journal";
 import { currentFY } from "./accounting";
+import { PartNumberSchema } from "@coheronconnect/types";
 
 export const inventoryRouter = router({
   list: permissionProcedure("inventory", "read")
@@ -56,7 +57,7 @@ export const inventoryRouter = router({
   create: permissionProcedure("inventory", "write")
     .input(
       z.object({
-        partNumber: z.string().min(1),
+        partNumber: PartNumberSchema,
         name: z.string().min(1),
         description: z.string().optional(),
         category: z.string().default("spare"),
@@ -103,7 +104,7 @@ export const inventoryRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
-        partNumber: z.string().min(1).optional(),
+        partNumber: PartNumberSchema.optional(),
         name: z.string().min(1).optional(),
         description: z.string().optional(),
         category: z.string().optional(),

@@ -17,5 +17,8 @@ export * from "./accounting";
 // Human Resources
 export * from "./hr";
 
+// Inventory & Parts
+export * from "./inventory";
+
 // Re-export zod for convenience (avoids duplicate zod versions in consumers)
 export { z } from "zod";

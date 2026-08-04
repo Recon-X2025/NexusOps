@@ -1,0 +1,136 @@
+================================================================================
+COHERONCONNECT PLATFORM — SPRINT RETROSPECTIVE & MODULE RESOLUTION REPORT
+================================================================================
+
+--------------------------------------------------------------------------------
+SECTION 1: SPRINT RETROSPECTIVE (SLIDE DATA)
+--------------------------------------------------------------------------------
+
+1. WHAT WENT WELL:
+   - Rapid development and deployment issues getting resolved efficiently.
+   - Product successfully brought to MVP (Minimum Viable Product) stage readiness.
+   - Module Development Completed:
+     * Total Number of Modules: 10 Core Enterprise Modules
+     * Modules List:
+       1. ITSM & Service Delivery
+       2. Finance, Accounting & Tax Compliance
+       3. Payroll & Statutory Deductions
+       4. HR & People Workplace Operations
+       5. DPDP Compliance & Data Privacy
+       6. Procurement & Vendor Management
+       7. CRM & Sales Operations
+       8. Asset Management & CMDB (HAM/SAM)
+       9. Security & GRC Compliance
+       10. Platform Administration & Governance Module
+   - Rapid QA Bug Resolution: 29 Critical Bugs Fixed & Verified (COR, BUG, F, F-P, G, P1 Series).
+
+2. WHAT DID NOT GO WELL:
+   - Initial coordination and skipping timeline delivery deadlines.
+   - Communication handoffs and friction in manual tracking.
+   - Bug tracking and bug fixing delays prior to standardized bug indexing.
+
+3. WHAT IS THE FIX?
+   - Effective communication with structured bug tracking by ID (COR, BUG, F-P).
+   - Faster resolution of bugs backed by automated unit and E2E test verification.
+   - Regular status updates, automated CI/CD pipeline runs, and staging deployments.
+
+--------------------------------------------------------------------------------
+SECTION 2: PLATFORM MODULES BREAKDOWN
+--------------------------------------------------------------------------------
+
+1. CORE BUSINESS & OPERATIONAL MODULES (BEFORE / OUTSIDE PLATFORM ADMIN):
+   - ITSM & Service Delivery (Incidents, Service Requests, Service Catalog, Problems, Changes, Work Orders, Knowledge Base)
+   - Finance, Accounting & Tax Compliance (General Ledger, Invoicing, AP/AR, GSTR-1, GSTR-3B Tax Engines)
+   - Payroll & Statutory Deductions (Salary Structures, EPF, ESI, Professional Tax, Gratuity, Payslips)
+   - HR & People Operations (Employee Directory, Attendance, Leave Accruals, Performance, Recruitment, Onboarding)
+   - DPDP Compliance & Data Privacy (Consent Sweeps, PII Erasure, Data Subject Rights, Retention Sweeps)
+   - Procurement & Vendor Operations (Vendor Directory, Purchase Orders, Procurement Policies)
+   - CRM & Sales Operations (Leads, Deal Pipeline, Customer Accounts, Deal Threshold Rules)
+   - Asset Management & Security (HAM, SAM, CMDB, Vulnerabilities, Risk Register, GRC)
+
+2. PLATFORM ADMINISTRATION & GOVERNANCE MODULE (PLATFORM ADMIN):
+   - User Management & Identity Operations (User Provisioning, Invitations, Account Lockout, User Soft-Delete Archiving)
+   - Custom Role Library & Access Control (System Roles, Custom Role Creator, Fine-Grained Permissions)
+   - RBAC Matrix Control (Global Access Matrix across 35+ Modules, Read/Write/Admin Permission Gates)
+   - System Governance & Business Policies (SLA Engine, Business Rules, Security Policies, Procurement Thresholds, Accounting Periods, Legal Entities)
+   - System Operations & Integrations (System Properties, Secret Masking, Immutable Audit Chain, Scheduled Jobs, External Integration Hub)
+
+--------------------------------------------------------------------------------
+SECTION 3: QA BUG RESOLUTION REPORT (BUG NUMBER-WISE)
+--------------------------------------------------------------------------------
+
+1. PLATFORM CORE & WORK ORDERS (COR- SERIES):
+   - [COR-001] ITSM Work Orders: Fixed Work Order detail view crash when updating priority or assigning technician state.
+   - [COR-002] Database Schema: Resolved DB schema enum mismatch for Work Order priorities preventing SQL violations.
+
+2. FUNCTIONAL & OPERATIONAL BUGS (BUG- SERIES):
+   - [BUG-001] HR & Expenses: Fixed HR expense claim submission failure due to currency validation in tRPC router.
+   - [BUG-002] Finance Accounting: Resolved multi-line debit/credit journal posting UI failure.
+   - [BUG-003] Expense Approvals: Fixed expense approval status rendering and filter state update reactive issues.
+   - [BUG-004] Recruitment: Fixed candidate stage progression and interview creation modal submission handlers.
+
+3. PLATFORM ADMIN & CORE INVARIANTS (F-001 TO F-005):
+   - [F-001] Platform Admin / RBAC: Added Payroll module to Admin visible module catalog in RBAC matrix.
+   - [F-002] Finance GST Accounting: Fixed GSTR-3B GST calculations, backfilling, invoice line item numbers, and GSTR-1 rate grouping.
+   - [F-003] DMS / Document Worker: Resolved document retention sweep workflow hard deletion and object-store fallback cleanup.
+   - [F-004] Accounts Payable: Enforced strict Debit == Credit balanced journal entry posting invariant.
+   - [F-005] Admin Navigation: Fixed admin sub-route login helper and E2E route authorization handlers.
+
+4. PLATFORM ADMIN CRITICAL POLICIES & FEATURES (F-P1 TO F-P14):
+   - [F-P1] User Management: Added duplicate email checks and friendly error notifications in user invite workflow.
+   - [F-P2] Role Library: Fixed granular action permission array binding for custom role creation.
+   - [F-P3] Account Security: Exposed MFA enrollment status indicator in user table.
+   - [F-P4] User Lifecycle: Enforced soft-delete archiving invariant (preserving user records for audit compliance).
+   - [F-P5] System Properties: Added default fallbacks for null property strings to prevent UI crashes.
+   - [F-P6] Assignment Rules: Corrected team assignment rule evaluator logic for wildcard matchers.
+   - [F-P7] Vendor Directory: Added optional chaining and empty states for vendors with zero purchase orders.
+   - [F-P8] Procurement Policy: Enforced spend threshold approval rules in procurement workflows.
+   - [F-P9] HR Gratuity & Accruals: Aligned statutory gratuity rounding formulas and leave policy balances.
+   - [F-P10] HR Periodic Workflow: Configured Temporal periodic workflow triggers for monthly leave processing.
+   - [F-P11] Accounting Control: Blocked backdated journal entry postings on locked fiscal accounting periods.
+   - [F-P12] Legal Entities: Added unique GSTIN/PAN validation checks for child legal entities.
+   - [F-P13] DPDP Data Privacy: Built automated DSR PII erasure executor and test verification suite.
+   - [F-P14] Audit Ledger: Re-anchored audit log hash chain sequence to ensure immutable audit compliance.
+
+5. INDIA STATUTORY MARKET GAPS (G1 - G17 SERIES):
+   - [G1 - G17] India Statutory Compliance: Implemented attendance LOP, shift schedules, statutory ceilings, EPFO ECR, ESIC Return, MCA21 filing, NIC e-Waybill, PT Challan, and KMS secrets integration.
+
+6. SERVICE DELIVERY LOOPS (P1 SERIES):
+   - [P1-10] ITSM CSAT Loop: Implemented automated Customer Satisfaction (CSAT) survey dispatch on ticket resolution.
+
+--------------------------------------------------------------------------------
+SECTION 4: PLATFORM ADMIN MODULE UX & UI FIXES
+--------------------------------------------------------------------------------
+
+1. Groups & Teams Membership Safeguards:
+   - Replaced native alert popups with toast alerts informing admins to reassign active members before archiving/deleting groups.
+   - Dynamically disabled Archive/Delete action buttons with dimmed styling and tooltips when groups have active members.
+   - Added live member count indicators ("X members assigned").
+
+2. Notification Rules Recipient Selection:
+   - Upgraded flat recipient dropdowns to categorized <optgroup> selections separating Active Users and System Roles.
+
+3. SLA Pause Reasons & Catalog Invalidation:
+   - Added automatic cache invalidation and toast feedback on saving SLA pause reasons.
+
+4. Business Rules Auto-Priority Engine:
+   - Implemented automatic priority calculation (Math.max(priorities) + 10) to prevent rule ordering conflicts.
+
+5. CRM Deal Thresholds & Multi-Currency UX:
+   - Expanded currency selection to 14 ISO currencies with native symbols (INR ₹, USD $, EUR €, GBP £, AED, SGD, AUD, CAD, JPY ¥, CNY ¥, CHF, NZD, HKD, SEK).
+
+6. User Invite Modal & Retention:
+   - Extended invite link toast display time to 15 seconds with copy support and instant table refetching.
+
+7. RBAC Permission Matrix Layout:
+   - Added sticky headers, row hover highlights, and clear visual indicators for Read, Write, and Admin permission gates.
+
+8. System Properties & Secret Masking:
+   - Implemented Eye / EyeOff secret toggles for sensitive property keys and search debouncing.
+
+9. Soft-Delete Archiving Guidance:
+   - Clarified User Archive action to assure admins that user history is preserved for audit safety.
+
+================================================================================
+END OF REPORT
+================================================================================

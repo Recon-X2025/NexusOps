@@ -28,6 +28,7 @@
     "@coheronconnect/metrics": "workspace:*",
     "@coheronconnect/payroll-math": "workspace:*",
     "@coheronconnect/types": "workspace:*",
+    "@coheronconnect/validators": "workspace:*",
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^13.0.0",
     "@fastify/multipart": "^9.0.0",

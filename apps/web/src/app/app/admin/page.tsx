@@ -562,7 +562,7 @@ export default function AdminConsolePage() {
               return (
                 <button key={t.key} onClick={() => setTab(t.key)}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] text-left transition-colors
-                  ${tab === t.key ? "bg-primary text-white font-medium" : "text-muted-foreground hover:bg-muted"}`}>
+                  ${tab === t.key ? "bg-primary text-white font-bold" : "text-muted-foreground hover:bg-muted font-normal"}`}>
                   <Icon className="w-3.5 h-3.5 flex-shrink-0" />
                   {t.label}
                 </button>
@@ -2484,74 +2484,74 @@ function BusinessRulesTab() {
   }>;
 
   return (
-    <div className="p-4">
+    <div className="p-4 font-normal">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[12px] font-semibold text-foreground/80">Business Rules</span>
+        <span className="text-[14px] font-bold text-foreground">Business Rules</span>
         <button
           type="button"
           onClick={openCreate}
-          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90"
+          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-[11px] font-bold rounded hover:bg-primary/90"
         >
           <Plus className="w-3 h-3" /> New Business Rule
         </button>
       </div>
 
       <p className="text-[11px] text-muted-foreground mb-3 max-w-3xl">
-        Rules run in <span className="font-medium">priority</span> order (lower first) when tickets are{" "}
-        <span className="font-medium">created</span> or <span className="font-medium">updated</span>. Conditions use a
+        Rules run in <span className="font-bold text-foreground">priority</span> order (lower first) when tickets are{" "}
+        <span className="font-bold text-foreground">created</span> or <span className="font-bold text-foreground">updated</span>. Conditions use a
         small JSON DSL; actions can send in-app notifications using{" "}
-        <code className="text-[10px] bg-muted px-1 rounded">{"{{ticket.number}}"}</code> templates.
+        <code className="text-[10px] bg-muted px-1 rounded font-bold">{"{{ticket.number}}"}</code> templates.
       </p>
 
       {showForm && (
         <div className="mb-4 rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-          <div className="text-[11px] font-semibold text-foreground">{editId ? "Edit rule" : "New rule"}</div>
+          <div className="text-[12px] font-bold text-foreground">{editId ? "Edit rule" : "New rule"}</div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="text-[10px] text-muted-foreground">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
               Name
-              <input value={name} onChange={(e) => setName(e.target.value)} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]" placeholder="e.g. Notify assignee on resolve" />
+              <input value={name} onChange={(e) => setName(e.target.value)} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px] font-bold text-foreground" placeholder="e.g. Notify assignee on resolve" />
             </label>
-            <label className="text-[10px] text-muted-foreground">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
               Priority (lower runs first)
-              <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]" />
+              <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px] font-bold text-foreground" />
             </label>
           </div>
-          <label className="text-[10px] text-muted-foreground block">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
             Description
-            <input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px]" />
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 text-[12px] font-bold text-foreground" />
           </label>
           <div className="flex flex-wrap gap-4 text-[11px]">
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-foreground">
               <input type="checkbox" checked={evCreated} onChange={(e) => setEvCreated(e.target.checked)} />
               On ticket created
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-foreground">
               <input type="checkbox" checked={evUpdated} onChange={(e) => setEvUpdated(e.target.checked)} />
               On ticket updated
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-foreground">
               <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
               Enabled
             </label>
           </div>
-          <label className="text-[10px] text-muted-foreground block">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
             Conditions (JSON array)
-            <textarea value={conditionsJson} onChange={(e) => setConditionsJson(e.target.value)} rows={5} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px]" spellCheck={false} />
+            <textarea value={conditionsJson} onChange={(e) => setConditionsJson(e.target.value)} rows={5} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px] font-bold text-foreground" spellCheck={false} />
           </label>
-          <label className="text-[10px] text-muted-foreground block">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
             Actions (JSON array)
-            <textarea value={actionsJson} onChange={(e) => setActionsJson(e.target.value)} rows={6} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px]" spellCheck={false} />
+            <textarea value={actionsJson} onChange={(e) => setActionsJson(e.target.value)} rows={6} className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px] font-bold text-foreground" spellCheck={false} />
           </label>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={submitForm}
               disabled={createMutation.isPending || updateMutation.isPending}
-              className="px-3 py-1.5 bg-primary text-white text-[11px] rounded hover:bg-primary/90 disabled:opacity-50"
+              className="px-3 py-1.5 bg-primary text-white text-[11px] font-bold rounded hover:bg-primary/90 disabled:opacity-50"
             >
               {editId ? "Save changes" : "Create rule"}
             </button>
-            <button type="button" onClick={closeForm} className="px-3 py-1.5 border border-border text-[11px] rounded hover:bg-muted/40">
+            <button type="button" onClick={closeForm} className="px-3 py-1.5 border border-border text-[11px] font-bold rounded hover:bg-muted/40">
               Cancel
             </button>
           </div>
@@ -2567,12 +2567,12 @@ function BusinessRulesTab() {
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2 border border-dashed border-border rounded-lg">
           <Workflow className="w-8 h-8 opacity-30" />
-          <p className="text-[13px]">No business rules yet</p>
+          <p className="text-[13px] font-bold">No business rules yet</p>
           <p className="text-[11px] text-muted-foreground/70 text-center max-w-md">
-            Add a rule to notify assignees when tickets reach a status, or combine <code className="text-[10px]">field_changed</code> with{" "}
-            <code className="text-[10px]">status_category_is</code> for precise control.
+            Add a rule to notify assignees when tickets reach a status, or combine <code className="text-[10px] font-bold">field_changed</code> with{" "}
+            <code className="text-[10px] font-bold">status_category_is</code> for precise control.
           </p>
-          <button type="button" onClick={openCreate} className="mt-2 text-[11px] text-primary hover:underline">
+          <button type="button" onClick={openCreate} className="mt-2 text-[11px] font-bold text-primary hover:underline">
             Create your first rule
           </button>
         </div>
@@ -2581,30 +2581,30 @@ function BusinessRulesTab() {
           <table className="ent-table w-full">
             <thead>
               <tr>
-                <th>Priority</th>
-                <th>Name</th>
-                <th>Events</th>
-                <th>Status</th>
-                <th className="text-right">Actions</th>
+                <th className="font-bold">Priority</th>
+                <th className="font-bold">Name</th>
+                <th className="font-bold">Events</th>
+                <th className="font-bold">Status</th>
+                <th className="text-right font-bold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="font-mono text-[11px]">{r.priority}</td>
-                  <td className="font-medium text-[12px]">{r.name}</td>
-                  <td className="text-[11px] text-muted-foreground">{Array.isArray(r.events) ? r.events.join(", ") : "—"}</td>
+                  <td className="font-mono font-bold text-[11px]">{r.priority}</td>
+                  <td className="font-bold text-[12px]">{r.name}</td>
+                  <td className="text-[11px] font-bold text-muted-foreground">{Array.isArray(r.events) ? r.events.join(", ") : "—"}</td>
                   <td>
                     <button
                       type="button"
                       onClick={() => toggleMutation.mutate({ id: r.id, enabled: !r.enabled })}
-                      className={`text-[10px] px-2 py-0.5 rounded ${r.enabled ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}`}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${r.enabled ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}`}
                     >
                       {r.enabled ? "On" : "Off"}
                     </button>
                   </td>
                   <td className="text-left space-x-2">
-                    <button type="button" onClick={() => openEdit(r)} className="text-[11px] text-primary hover:underline">
+                    <button type="button" onClick={() => openEdit(r)} className="text-[11px] font-bold text-primary hover:underline">
                       Edit
                     </button>
                     <button
@@ -2612,7 +2612,7 @@ function BusinessRulesTab() {
                       onClick={() => {
                         if (confirm(`Delete rule “${r.name}”?`)) deleteMutation.mutate({ id: r.id });
                       }}
-                      className="text-[11px] text-red-600 hover:underline"
+                      className="text-[11px] font-bold text-red-600 hover:underline"
                     >
                       Delete
                     </button>

@@ -9,6 +9,7 @@ import {
   MapPin, Loader2, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isValidPartNumber } from "@coheronconnect/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   mechanical:   "text-orange-700 bg-orange-100",
@@ -81,6 +82,10 @@ export default function PartsInventoryPage() {
       intake.mutate({ itemId: modal.itemId!, qty: parsedQty, reference: reference || undefined, notes: notes || undefined });
     } else if (modal.type === "create") {
       if (!newItem.partNumber || !newItem.name) { toast.error("Part number and name are required"); return; }
+      if (!isValidPartNumber(newItem.partNumber)) {
+        toast.error("Part numbers must be an alphanumeric code containing numbers (e.g. PN-101) or hyphenated numbers (e.g. 123-456). Plain text is not allowed.");
+        return;
+      }
       createItem.mutate(newItem);
     }
   }

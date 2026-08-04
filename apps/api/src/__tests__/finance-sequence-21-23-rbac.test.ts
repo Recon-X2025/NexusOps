@@ -39,7 +39,7 @@ describe("Finance sequence 21–23 RBAC (Seq sprint C6)", () => {
     const viewerCaller = await authedCaller(viewerToken);
     await expect(
       viewerCaller.inventory.create({
-        partNumber: "DENIED-PN",
+        partNumber: "DENIED-PN-101",
         name: "Denied item",
         qty: 0,
         minQty: 0,

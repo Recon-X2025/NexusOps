@@ -11,6 +11,7 @@ import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { downloadCSV, cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { isValidPartNumber } from "@coheronconnect/types";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { DetailGrid } from "@/components/ui/detail-grid";
@@ -1032,12 +1033,18 @@ export default function ProcurementPage() {
                   <button onClick={() => setEditingItem(null)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
                   <button
                     disabled={!editItemForm.partNumber || !editItemForm.name || updateInventoryItem.isPending}
-                    onClick={() => updateInventoryItem.mutate({
-                      id: editingItem.id,
-                      ...editItemForm,
-                      minQty: parseInt(editItemForm.minQty) || 0,
-                      unitCost: editItemForm.unitCost?.trim() || undefined,
-                    })}
+                    onClick={() => {
+                      if (!isValidPartNumber(editItemForm.partNumber)) {
+                        toast.error("Part numbers must be an alphanumeric code containing numbers (e.g. PN-101) or hyphenated numbers (e.g. 123-456). Plain text is not allowed.");
+                        return;
+                      }
+                      updateInventoryItem.mutate({
+                        id: editingItem.id,
+                        ...editItemForm,
+                        minQty: parseInt(editItemForm.minQty) || 0,
+                        unitCost: editItemForm.unitCost?.trim() || undefined,
+                      });
+                    }}
                     className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                   >
                     {updateInventoryItem.isPending ? "Saving…" : "Save Changes"}
@@ -1116,13 +1123,19 @@ export default function ProcurementPage() {
                   <button onClick={() => setShowNewItem(false)} className="px-4 py-2 text-body-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors">Cancel</button>
                   <button 
                     disabled={!invForm.partNumber || !invForm.name || createInventoryItem.isPending}
-                    onClick={() => createInventoryItem.mutate({
-                      ...invForm,
-                      qty: parseInt(invForm.qty) || 0,
-                      minQty: parseInt(invForm.minQty) || 5,
-                      unitCost: invForm.unitCost?.trim() || undefined,
-                      poReference: invForm.poReference?.trim() || undefined,
-                    })}
+                    onClick={() => {
+                      if (!isValidPartNumber(invForm.partNumber)) {
+                        toast.error("Part numbers must be an alphanumeric code containing numbers (e.g. PN-101) or hyphenated numbers (e.g. 123-456). Plain text is not allowed.");
+                        return;
+                      }
+                      createInventoryItem.mutate({
+                        ...invForm,
+                        qty: parseInt(invForm.qty) || 0,
+                        minQty: parseInt(invForm.minQty) || 5,
+                        unitCost: invForm.unitCost?.trim() || undefined,
+                        poReference: invForm.poReference?.trim() || undefined,
+                      });
+                    }}
                     className="px-6 py-2 bg-primary text-white text-body-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg disabled:opacity-50"
                   >
                     {createInventoryItem.isPending ? "Saving…" : "Save Item"}
