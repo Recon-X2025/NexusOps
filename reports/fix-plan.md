@@ -1579,8 +1579,11 @@ plan/record edit only.**
     - **Karnataka** — removed the incorrect ₹15,001–25,000 ₹200 band (now **nil to ₹25,000**,
       then ₹200); **added the February ₹300** top-band true-up.
     - **Gujarat** — removed the incorrect ₹80 (₹6,000–8,999) and ₹150 (₹9,000–11,999) bands
-      (now **nil to ₹12,000**, then **₹200 flat**); corrected `annualCap` ₹2,500 → **₹2,400**
-      (₹200 × 12).
+      (now **nil to ₹12,000**, then **₹200 flat**). `annualCap` stays at the statutory
+      **₹2,500** (constitutional ceiling). *(An interim revision briefly set it to ₹2,400 by
+      deriving ₹200 × 12 — that was wrong and has been reverted; ₹2,400 is **Punjab's**
+      state-law ceiling, not Gujarat's. Caps are per-state statutory values, not derivable
+      from the monthly rate — see the note below.)*
     - **Maharashtra** — added the **female bracket set** (`MAHARASHTRA_FEMALE`: nil to ₹25,000,
       then ₹200, ₹300 in Feb) **behind the lookup**. **KNOWN LIMITATION (documented, not
       silent):** gender is not yet a field on the employee record, so `computePT` cannot select
@@ -1595,6 +1598,13 @@ plan/record edit only.**
       `apps/api/src/__tests__/india-payroll-engine.test.ts` (Professional Tax block). **Red
       against the old slabs** (6 targeted failures: Karnataka nil-band + Feb, Gujarat nil-band,
       Maharashtra-female ×2), **green after** (56/56). `pnpm lint` green (9/9 workspaces).
+    - **`annualCap` is a per-state STATUTORY CEILING, not a value derivable from the monthly
+      rate.** Do **not** compute a cap as `monthly × 12`. **Worked example: Punjab ₹2,400**
+      (state law fixes that ceiling by charging a flat ₹200 with no variation) **vs Gujarat
+      ₹2,500** (the constitutional cap — Gujarat does *not* lower its ceiling to match its
+      ₹200 monthly rate). A regression test now pins Gujarat's cap at ₹2,500 so it cannot be
+      re-derived. **TODO: confirm every other state's `annualCap` against the CA** rather than
+      trusting any derived value — the seeded caps predate this table.
 
   - **C2-STRUCT — remaining structural work (still Pending, payroll-blocking for the
     half-yearly pilot states).** The data-model + ingestion changes below. Everything after
@@ -1624,6 +1634,22 @@ plan/record edit only.**
      only special-case in code is a hardcoded Maharashtra-February branch
      (`statutory-deductions.ts:283-285`); Karnataka-February and the four March-₹212 states
      are unhandled.
+
+  4. **Interstate mid-year transfer — the annual cap is unenforceable today.** PT paid in a
+     prior state within the **same financial year** must count toward the cap in the new
+     state. **Confirmed: the engine tracks NO year-to-date PT per employee — it computes each
+     month in complete isolation.** `computePT(grossMonthly, state, monthInFY, overrides?)`
+     takes no prior-months / YTD parameter, and the `annualPT` it returns is just the static
+     `config.annualCap` constant (`statutory-deductions.ts`), not an accumulated running
+     total; `payroll-cycle.ts:314` flows that same static constant through. **So the cap is
+     unenforceable regardless of its value** — right or wrong, ₹2,400 or ₹2,500, it is never
+     actually applied against months-to-date. Worked example: an employee pays Maharashtra PT
+     ₹200/mo Apr–Dec (₹1,800 paid), then transfers to a Gujarat office in January on the same
+     band. Gujarat should only collect the remaining ₹700 (₹2,500 − ₹1,800), but because the
+     engine has no memory of the Maharashtra ₹1,800 it will restart at ₹200/mo and over-remit.
+     **Fix requires a YTD-PT ledger per employee per FY** (accumulate PT deducted across
+     states) so the running total, not a per-month constant, gates against the destination
+     state's cap.
 
   **Non-levying states must resolve to EXPLICIT nil, not fall through unknown-state.**
   PT is **not levied at all** in: **Arunachal Pradesh, Chhattisgarh, Goa, Haryana, Himachal
@@ -1658,7 +1684,13 @@ plan/record edit only.**
      that bypasses PT entirely** when any is true.
   4. **Populate all applicable states** from the matrix below; mark **non-levying states as
      explicit nil**.
-  5. **Re-estimate** — this is engineering (data-model + employee-record + engine changes),
+  5. **Add a per-employee, per-FY YTD-PT ledger** so PT paid in a prior state counts toward the
+     destination state's cap on an interstate mid-year transfer (structural break 4 above). The
+     cap is inert until this exists — the engine currently computes each month in isolation.
+  6. **Confirm every state's `annualCap` against the CA** — it is a per-state statutory ceiling,
+     **not** derivable from the monthly rate (Punjab ₹2,400 vs Gujarat ₹2,500 is the worked
+     example; deriving ₹200×12 = ₹2,400 gives Punjab's cap, not Gujarat's).
+  7. **Re-estimate** — this is engineering (data-model + employee-record + engine changes),
      not a data-entry pass.
 
   **THE FULL CA-PROVIDED MATRIX (authoritative; recorded verbatim):**

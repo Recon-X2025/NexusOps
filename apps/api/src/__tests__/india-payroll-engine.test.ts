@@ -338,6 +338,11 @@ describe("Professional Tax", () => {
     it("no February bump (Gujarat has no month-specific rate)", () => {
       expect(computePT(50_000, "Gujarat", FEB).ptAmount).toBe(200);
     });
+    it("annual cap is the statutory ₹2,500, NOT ₹200×12 (that is Punjab's ceiling)", () => {
+      // Guard against re-deriving the cap from the monthly rate. Gujarat's ceiling is
+      // the constitutional ₹2,500/yr; ₹2,400 belongs to Punjab. See reports/fix-plan.md.
+      expect(computePT(50_000, "Gujarat", APR).annualPT).toBe(2_500);
+    });
   });
 
   // ── Unchanged states (audit found correct) — must pass before AND after ────────

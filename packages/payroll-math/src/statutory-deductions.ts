@@ -263,7 +263,10 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
     slabs: [],
   },
   GUJARAT: {
-    annualCap: 2_400,
+    // Statutory ceiling is the constitutional ₹2,500/yr cap — NOT derived from the
+    // ₹200 monthly rate. (₹2,400 is Punjab's state-law ceiling, not Gujarat's.) Caps
+    // are per-state statutory values; never compute them from the monthly amount.
+    annualCap: 2_500,
     slabs: [
       // CA matrix: nil to ₹12,000, then ₹200 flat above.
       { from: 0, to: 12_000, monthly: 0 },
