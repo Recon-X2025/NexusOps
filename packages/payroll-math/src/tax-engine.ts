@@ -120,6 +120,28 @@ const SURCHARGE_BANDS = [
   { threshold: 50_000_000, rate: 0.37 },
 ] as const;
 
+/**
+ * Under s.115BAC the NEW-regime surcharge is capped at 25% — it does NOT step up
+ * to 37% above ₹5 crore (that 37% band is OLD-regime only). This is a GUARD, not a
+ * band edit: it clamps whatever band list is in force (in-code default OR a seeded
+ * config) so a future seed/config change can never reintroduce a >25% surcharge for
+ * the new regime. It also fixes the surcharge marginal-relief threshold — by
+ * dropping the ₹5cr@37% band for NEW, the highest band a new-regime taxpayer can
+ * cross is ₹2cr@25%, so no ₹5cr marginal-relief calculation is ever applied to
+ * new-regime income. The old regime keeps the full band set (37% above ₹5cr).
+ */
+const NEW_REGIME_MAX_SURCHARGE_RATE = 0.25;
+
+function effectiveSurchargeBands(
+  regime: TaxRegime,
+  bands: readonly SurchargeBand[]
+): SurchargeBand[] {
+  if (regime !== "NEW") return [...bands];
+  // Keep only bands at/under the new-regime cap; any band above it (e.g. 37%) is
+  // dropped so it can neither raise the rate nor become a marginal-relief threshold.
+  return bands.filter((b) => b.rate <= NEW_REGIME_MAX_SURCHARGE_RATE);
+}
+
 /** Surcharge rate that applies at exactly `income` (the band whose threshold it last crossed). */
 function surchargeRateFor(
   income: number,
@@ -327,7 +349,26 @@ export function computeTax(
     rebate87A = Math.min(taxOnIncome, rebate87aNew.maxRebate);
   }
 
-  const taxAfterRebate = Math.max(0, taxOnIncome - rebate87A);
+  let taxAfterRebate = Math.max(0, taxOnIncome - rebate87A);
+
+  // Step 5b: s.87A rebate MARGINAL RELIEF (PT5).
+  // Just above the rebate threshold the full rebate is lost on a sliver of extra
+  // income, producing a cliff (e.g. NEW regime: ₹12,00,000 taxable → nil tax, but
+  // ₹12,00,001 → the whole ₹60,000 slab tax). Relief caps the tax so it can never
+  // exceed the income earned ABOVE the threshold. At ₹12,00,001 the excess is ₹1,
+  // so tax is capped at ₹1; the relief tapers to nothing where the slab tax first
+  // falls to (or below) the excess. Applied AFTER the rebate test and BEFORE
+  // surcharge and cess. Only bites in the narrow band just past the threshold; for
+  // incomes at/below the threshold the rebate already zeroed the tax, and far above
+  // it the cap exceeds the actual tax so it is inert.
+  const rebateThreshold =
+    regime === "NEW" ? rebate87aNew.threshold : rebate87aOld.threshold;
+  if (rebate87A === 0 && taxableIncome > rebateThreshold) {
+    const excessOverThreshold = taxableIncome - rebateThreshold;
+    if (taxAfterRebate > excessOverThreshold) {
+      taxAfterRebate = excessOverThreshold;
+    }
+  }
 
   // Step 6: Surcharge (with marginal relief).
   // `baseTaxAt` values the tax-after-rebate for an arbitrary taxable income under
@@ -337,11 +378,12 @@ export function computeTax(
   // so it is 0 here.
   const baseTaxAt = (income: number): number =>
     computeSlabTax(Math.max(0, income), slabs).totalTax;
-  const surcharge = computeSurcharge(
-    taxableIncome,
-    taxAfterRebate,
-    baseTaxAt,
-    surchargeBands
+  // PT3: clamp the bands to the regime before both the rate lookup and the
+  // marginal-relief threshold. NEW is capped at 25% (₹5cr@37% band dropped); OLD
+  // keeps the full set. This guards the cap AND stops any ₹5cr relief for NEW.
+  const regimeSurchargeBands = effectiveSurchargeBands(regime, surchargeBands);
+  const surcharge = Math.round(
+    computeSurcharge(taxableIncome, taxAfterRebate, baseTaxAt, regimeSurchargeBands)
   );
 
   // Step 7: Health & Education Cess (4%)

@@ -137,6 +137,146 @@ describe("Finance Act 2025 — New-Regime slab & rebate refresh", () => {
   });
 });
 
+// ─── PT5: s.87A REBATE MARGINAL RELIEF (NEW regime) ────────────────────────────
+// Just above the ₹12L rebate threshold the full ₹60,000 rebate is lost on a sliver
+// of extra income — a cliff. Marginal relief caps the tax so it can never exceed the
+// income earned ABOVE the threshold, and tapers to nothing where slab tax first falls
+// to the excess (around ₹12.72L). Confirmed against the ITD page. taxable = annualCTC
+// − ₹75,000 (standard deduction) with professionalTax:0.
+describe("PT5 — Section 87A rebate marginal relief (New Regime)", () => {
+  const taxableTo = (t: number) =>
+    makeProfile({ regime: "NEW", annualCTC: t + 75_000, professionalTax: 0 });
+
+  it("charges nil tax at exactly ₹12L taxable (full rebate)", () => {
+    const r = computeTax(taxableTo(1_200_000));
+    expect(r.taxableIncome).toBe(1_200_000);
+    expect(r.rebate87A).toBe(60_000);
+    expect(r.taxAfterRebate).toBe(0);
+    expect(r.totalTaxLiability).toBe(0);
+  });
+
+  it("charges only ₹1 at ₹12,00,001 taxable (relief caps tax at the excess)", () => {
+    // Without relief the whole ₹60,000 slab tax would land on ₹1 of extra income.
+    const r = computeTax(taxableTo(1_200_001));
+    expect(r.taxableIncome).toBe(1_200_001);
+    expect(r.rebate87A).toBe(0);
+    expect(r.taxAfterRebate).toBe(1);
+  });
+
+  it("charges ₹50,000 at ₹12,50,000 taxable (excess-capped, below slab tax)", () => {
+    // Slab tax here is ₹67,500 but the excess over ₹12L is only ₹50,000, so relief
+    // caps the tax at ₹50,000.
+    const r = computeTax(taxableTo(1_250_000));
+    expect(r.taxableIncome).toBe(1_250_000);
+    expect(r.rebate87A).toBe(0);
+    expect(r.taxAfterRebate).toBe(50_000);
+  });
+
+  it("stops relieving once slab tax falls below the excess (~₹12.72L)", () => {
+    // At ₹12,80,000 the excess (₹80,000) exceeds the slab tax (₹72,000), so relief is
+    // inert and the full slab tax stands.
+    const r = computeTax(taxableTo(1_280_000));
+    expect(r.taxableIncome).toBe(1_280_000);
+    expect(r.rebate87A).toBe(0);
+    expect(r.taxAfterRebate).toBe(72_000);
+  });
+
+  it("never lets liability fall when crossing the ₹12L rebate cliff", () => {
+    // The defect PT5 fixes: a naive rebate withdrawal made ₹12,00,001 owe ₹60,000
+    // while ₹12,00,000 owed nil — an inversion. Relief must keep it monotonic.
+    const at = computeTax(taxableTo(1_200_000));
+    const above = computeTax(taxableTo(1_200_001));
+    expect(above.taxAfterRebate).toBeGreaterThanOrEqual(at.taxAfterRebate);
+    // And the extra tax may not exceed the extra ₹1 of income.
+    expect(above.taxAfterRebate - at.taxAfterRebate).toBeLessThanOrEqual(1);
+  });
+});
+
+// ─── PT3: NEW-REGIME SURCHARGE CAP (25%, no ₹5cr step-up) ───────────────────────
+// Under s.115BAC the New-Regime surcharge is capped at 25% above ₹2cr; it does NOT
+// step up to 37% above ₹5cr (that 37% band is Old-regime only). The engine clamps
+// the band list for NEW, which also removes ₹5cr as a marginal-relief threshold.
+// Confirmed against the ITD page. Uses the exact COH fairness-check figures.
+describe("PT3 — New-Regime surcharge capped at 25% (no ₹5cr step-up)", () => {
+  const taxableTo = (t: number) =>
+    makeProfile({
+      regime: "NEW",
+      annualCTC: t + 75_000,
+      basicMonthly: 500_000,
+      hraMonthly: 200_000,
+      specialAllowance: 200_000,
+      lta: 0,
+      professionalTax: 0,
+    });
+
+  it("COH-08 (₹5,98,92,500 taxable) uses the 25% figure, not 37%", () => {
+    const r = computeTax(taxableTo(59_892_500));
+    expect(r.taxableIncome).toBe(59_892_500);
+    // 25% of the ₹1,75,47,750 slab tax; the old 37% figure (₹64,92,668) is the bug.
+    expect(r.surcharge).toBe(Math.round(r.taxAfterRebate * 0.25));
+    expect(r.surcharge).toBe(4_386_938);
+  });
+
+  it("COH-07 (₹2,48,92,496 taxable) stays at 25% (unchanged)", () => {
+    const r = computeTax(taxableTo(24_892_496));
+    expect(r.taxableIncome).toBe(24_892_496);
+    expect(r.surcharge).toBe(Math.round(r.taxAfterRebate * 0.25));
+  });
+
+  it("applies no ₹5cr marginal-relief step under the New Regime", () => {
+    // At ₹5cr the New-Regime surcharge stays 25% with no step to 37%, so crossing
+    // ₹5cr adds no surcharge jump and there is nothing for a ₹5cr relief calc to cap.
+    const at = computeTax(taxableTo(50_000_000));
+    const above = computeTax(taxableTo(50_001_000));
+    expect(at.surcharge).toBe(Math.round(at.taxAfterRebate * 0.25));
+    expect(above.surcharge).toBe(Math.round(above.taxAfterRebate * 0.25));
+  });
+
+  it("never exceeds 25% of base tax anywhere above ₹2cr (New Regime)", () => {
+    for (const taxable of [25_000_000, 40_000_000, 60_000_000, 100_000_000]) {
+      const r = computeTax(taxableTo(taxable));
+      expect(r.surcharge).toBeLessThanOrEqual(Math.round(r.taxAfterRebate * 0.25) + 1);
+    }
+  });
+});
+
+// ─── PT3: OLD REGIME STILL REACHES 37% ABOVE ₹5cr ──────────────────────────────
+// The guard must not over-apply: the Old regime keeps the full band set, so above
+// ₹5cr its surcharge is 37% (with marginal relief just past the threshold).
+describe("PT3 — Old Regime retains the 37% band above ₹5cr", () => {
+  const oldTaxableTo = (t: number) =>
+    makeProfile({
+      regime: "OLD",
+      annualCTC: t + 50_000, // Old-regime standard deduction is ₹50,000
+      basicMonthly: 500_000,
+      hraMonthly: 200_000,
+      specialAllowance: 200_000,
+      lta: 0,
+      professionalTax: 0,
+      // No Chapter VI-A / HRA so taxable = gross − ₹50,000 exactly.
+    });
+
+  it("levies the full 37% well above ₹5cr (relief no longer binds)", () => {
+    const r = computeTax(oldTaxableTo(60_000_000));
+    expect(r.taxableIncome).toBe(60_000_000);
+    expect(r.surcharge).toBe(Math.round(r.taxAfterRebate * 0.37));
+  });
+
+  it("steps up at ₹5cr under the Old Regime (marginal relief binds just above)", () => {
+    // Crossing ₹5cr moves the rate 25%→37%, so surcharge jumps — the opposite of the
+    // New Regime. Just above the threshold relief caps the extra liability.
+    const at = computeTax(oldTaxableTo(50_000_000));
+    const above = computeTax(oldTaxableTo(50_001_000));
+    const extra =
+      above.taxAfterRebate + above.surcharge -
+      (at.taxAfterRebate + at.surcharge);
+    expect(extra).toBeLessThanOrEqual(1_000 + 1); // relief: extra ≤ extra income
+    // Far above ₹5cr the 37% rate is fully in force.
+    const high = computeTax(oldTaxableTo(60_000_000));
+    expect(high.surcharge).toBe(Math.round(high.taxAfterRebate * 0.37));
+  });
+});
+
 // ─── OLD REGIME TESTS ──────────────────────────────────────────────────────────
 
 describe("Old Regime — FY 2025-26", () => {

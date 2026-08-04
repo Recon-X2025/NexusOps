@@ -20,6 +20,16 @@
 -- ("OLD" / "NEW"), not an Indian state — see the schema column comment and the
 -- resolver. Regime-agnostic keys (surcharge_bands, cess_rate) leave it NULL.
 --
+-- SURCHARGE 37% BAND IS OLD-REGIME-ONLY (PT3): the surcharge_bands row below is
+-- stored regime-agnostic (state_code NULL) because the resolver reads it without
+-- branching on regime. Its ₹5cr@37% top band is the OLD-regime figure. Under
+-- s.115BAC the NEW regime caps surcharge at 25% and does NOT step up at ₹5cr, so
+-- the tax engine CLAMPS this band list for the new regime (drops any band >25% —
+-- see `effectiveSurchargeBands` in tax-engine.ts). That guard is the enforcement
+-- point: it also prevents a ₹5cr marginal-relief calc from ever applying to
+-- new-regime income. Do NOT split this into OLD/NEW rows — the resolver would honour
+-- only one and mis-apply it to both regimes; the regime split lives in the engine.
+--
 -- EFFECTIVE DATES (prospective-only, plan requirement #1 — these must be exact so
 -- a re-run of a historical period is never silently changed):
 --   NEW-regime values are the Finance-Act-2025 figures, effective FY 2025-26 →
