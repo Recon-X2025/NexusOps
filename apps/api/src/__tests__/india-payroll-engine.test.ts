@@ -262,24 +262,112 @@ describe("ESI Computation", () => {
 });
 
 describe("Professional Tax", () => {
-  it("should compute Maharashtra PT correctly", () => {
-    const result = computePT(50_000, "Maharashtra", 1);
-    expect(result.ptAmount).toBe(200);
+  // A non-February FY month used wherever the February true-up must NOT apply.
+  const APR = 1; // FY month 1
+  const FEB = 11; // FY month 11
+
+  // ── Maharashtra (MALE set — the default until gender ingestion lands) ──────────
+  describe("Maharashtra (male / default)", () => {
+    it("nil at/below ₹7,500", () => {
+      expect(computePT(7_500, "Maharashtra", APR).ptAmount).toBe(0);
+    });
+    it("₹175 in ₹7,501–10,000", () => {
+      expect(computePT(7_501, "Maharashtra", APR).ptAmount).toBe(175);
+      expect(computePT(10_000, "Maharashtra", APR).ptAmount).toBe(175);
+    });
+    it("₹200 above ₹10,000", () => {
+      expect(computePT(10_001, "Maharashtra", APR).ptAmount).toBe(200);
+      expect(computePT(50_000, "Maharashtra", APR).ptAmount).toBe(200);
+    });
+    it("₹300 in February for the top band", () => {
+      expect(computePT(50_000, "Maharashtra", FEB).ptAmount).toBe(300);
+    });
+    it("February does NOT bump the ₹175 band", () => {
+      expect(computePT(9_000, "Maharashtra", FEB).ptAmount).toBe(175);
+    });
   });
 
-  it("should compute Maharashtra February PT as ₹300", () => {
-    const result = computePT(50_000, "Maharashtra", 11); // Feb = FY month 11
-    expect(result.ptAmount).toBe(300);
+  // ── Maharashtra (FEMALE set — UNREACHABLE via state name until gender ingestion;
+  //    reached here through the "Maharashtra Female" → MAHARASHTRA_FEMALE key so the
+  //    populated-but-dormant config is proven correct ahead of C2-STRUCT). ─────────
+  describe("Maharashtra (female — dormant until gender ingestion)", () => {
+    it("nil at/below ₹25,000", () => {
+      expect(computePT(25_000, "Maharashtra Female", APR).ptAmount).toBe(0);
+      expect(computePT(10_000, "Maharashtra Female", APR).ptAmount).toBe(0);
+    });
+    it("₹200 above ₹25,000", () => {
+      expect(computePT(25_001, "Maharashtra Female", APR).ptAmount).toBe(200);
+    });
+    it("₹300 in February for the top band", () => {
+      expect(computePT(50_000, "Maharashtra Female", FEB).ptAmount).toBe(300);
+    });
   });
 
-  it("should return 0 PT for Delhi", () => {
-    const result = computePT(100_000, "Delhi", 1);
-    expect(result.ptAmount).toBe(0);
+  // ── Karnataka (CORRECTED: nil to ₹25,000, then ₹200; ₹300 in Feb) ──────────────
+  describe("Karnataka", () => {
+    it("nil at/below ₹25,000 (the removed ₹15,001–25,000 band)", () => {
+      expect(computePT(15_001, "Karnataka", APR).ptAmount).toBe(0);
+      expect(computePT(20_000, "Karnataka", APR).ptAmount).toBe(0);
+      expect(computePT(25_000, "Karnataka", APR).ptAmount).toBe(0);
+    });
+    it("₹200 above ₹25,000", () => {
+      expect(computePT(25_001, "Karnataka", APR).ptAmount).toBe(200);
+      expect(computePT(30_000, "Karnataka", APR).ptAmount).toBe(200);
+    });
+    it("₹300 in February for the top band", () => {
+      expect(computePT(30_000, "Karnataka", FEB).ptAmount).toBe(300);
+    });
+    it("February does NOT bump a nil-band employee", () => {
+      expect(computePT(20_000, "Karnataka", FEB).ptAmount).toBe(0);
+    });
   });
 
-  it("should compute Karnataka PT correctly", () => {
-    const result = computePT(30_000, "Karnataka", 1);
-    expect(result.ptAmount).toBe(200);
+  // ── Gujarat (CORRECTED: nil to ₹12,000, then ₹200 flat; no Feb rate) ───────────
+  describe("Gujarat", () => {
+    it("nil at/below ₹12,000 (removed ₹80 and ₹150 bands)", () => {
+      expect(computePT(6_000, "Gujarat", APR).ptAmount).toBe(0);
+      expect(computePT(8_999, "Gujarat", APR).ptAmount).toBe(0);
+      expect(computePT(9_000, "Gujarat", APR).ptAmount).toBe(0);
+      expect(computePT(11_999, "Gujarat", APR).ptAmount).toBe(0);
+      expect(computePT(12_000, "Gujarat", APR).ptAmount).toBe(0);
+    });
+    it("₹200 flat above ₹12,000", () => {
+      expect(computePT(12_001, "Gujarat", APR).ptAmount).toBe(200);
+      expect(computePT(50_000, "Gujarat", APR).ptAmount).toBe(200);
+    });
+    it("no February bump (Gujarat has no month-specific rate)", () => {
+      expect(computePT(50_000, "Gujarat", FEB).ptAmount).toBe(200);
+    });
+  });
+
+  // ── Unchanged states (audit found correct) — must pass before AND after ────────
+  describe("Telangana (unchanged)", () => {
+    it("nil to ₹15,000; ₹150 to ₹20,000; ₹200 above", () => {
+      expect(computePT(15_000, "Telangana", APR).ptAmount).toBe(0);
+      expect(computePT(15_001, "Telangana", APR).ptAmount).toBe(150);
+      expect(computePT(20_000, "Telangana", APR).ptAmount).toBe(150);
+      expect(computePT(20_001, "Telangana", APR).ptAmount).toBe(200);
+    });
+    it("no February bump", () => {
+      expect(computePT(50_000, "Telangana", FEB).ptAmount).toBe(200);
+    });
+  });
+
+  describe("West Bengal (unchanged)", () => {
+    it("nil to ₹10,000; ₹110; ₹130; ₹150; ₹200 by band", () => {
+      expect(computePT(10_000, "West Bengal", APR).ptAmount).toBe(0);
+      expect(computePT(10_001, "West Bengal", APR).ptAmount).toBe(110);
+      expect(computePT(15_001, "West Bengal", APR).ptAmount).toBe(130);
+      expect(computePT(25_001, "West Bengal", APR).ptAmount).toBe(150);
+      expect(computePT(40_001, "West Bengal", APR).ptAmount).toBe(200);
+    });
+  });
+
+  describe("Delhi (unchanged — no PT)", () => {
+    it("returns ₹0 regardless of income or month", () => {
+      expect(computePT(100_000, "Delhi", APR).ptAmount).toBe(0);
+      expect(computePT(100_000, "Delhi", FEB).ptAmount).toBe(0);
+    });
   });
 });
 

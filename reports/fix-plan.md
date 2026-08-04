@@ -68,7 +68,8 @@ it is the summary; the item is the source of truth.
 | A5 — approvals producer | Phase 3 (A) | Pending |
 | A6 — custom-role save (collapse to five actions) | Phase 3 (A) | **Done** (commit `e5d74ea`; R-2 re-scoped + green) |
 | A9 — goods-receipt create path | Phase 3 (A) | API path **Done**; screen deferred (not closed) |
-| A7 — persist invoice line items | Phase 3 (A) | **Unblocked** (CA ruled: lines authoritative, header derived; ₹0.01 sum mismatch = hard error) |
+| A7 — persist invoice line items | Phase 3 (A) | API path **Done**; **screen gap — not user-reachable** (see A7-SCREEN, prerequisite for C7) |
+| A7-SCREEN — invoice line-item entry screen | New — GST build | Pending — **prerequisite for C7** (Create Invoice form has no line-item entry) |
 | A8 — statutory challan create path | Phase 3 (A) | Pending |
 | B1 — first-response clock | Phase 3 pass (B) | Pending |
 | A11 — RLS wall migration (three tables) | Phase 3 (A) | **Done** (migration 0061; R-1 green) |
@@ -85,7 +86,7 @@ it is the summary; the item is the source of truth.
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
 | A12-D — LOP split-logic defect (CA correction) | New — Payroll | Pending (against shipped A12) |
 | C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking** |
-| C2 — Professional tax 21+ state matrix | New — Payroll | Pending — **payroll-blocking** |
+| C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates, red/green tested); **C2-STRUCT pending** — **payroll-blocking**: half-yearly levy period (Kerala/TN/Puducherry), gender ingestion, month-specific rates, full-population + explicit-nil, TIER-1 exemptions (none ingested). See C2 scope |
 | C3 — ESI six-month contribution-period rule | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
@@ -1183,6 +1184,65 @@ the GSTR-1 rate-grouping already reads (`accounting.ts:777-813`).
 > the exact-sum reconciliation. This caveat is written inline in `invoice-lines.ts` at
 > the `computeGST` call so it can't be missed when C7 credit notes are built.
 
+#### A7-SCREEN — Invoice line-item entry screen (the A7 API is not user-reachable)
+
+> **Screen gap confirmed by testing today (2026-08-04).** A7 built the `lines[]`
+> path in the API, but **no user can reach it through the product.** This is the same
+> shape of gap as A9 (goods-receipt create path Done in the API, screen deferred → A9
+> not closed): the code is right, but nothing in the shipping UI feeds it, so the
+> feature is unreachable end-to-end and everything downstream keeps taking the old
+> single-line fallback.
+
+**What the screen does today.** The Create Invoice form (Finance & Procurement →
+Financial Management → New Invoice) accepts **a single taxable amount and one GST
+rate**. There is **no way to enter line items** — no add-a-line control, no per-line
+taxable value / HSN / rate grid. So the form can only ever produce a one-line invoice
+with a header rate.
+
+**Consequence — the whole A7 API build is dark in production.**
+- The `lines[]` argument the three create paths accept (`financial.createInvoice`,
+  `financial.createReceivableInvoice`, `ingest.importInvoices`) is never populated
+  from a real user action, so every UI-created invoice takes the **omitted-`lines`
+  back-compat branch** and writes **no `invoice_line_items` rows**.
+- Because nothing writes `invoice_line_items`, the CA's **lines-authoritative** ruling
+  (round each line half-up 2dp, sum rounded lines → header) is **never exercised** on a
+  real invoice.
+- The **₹0.01 exact-sum hard error** in `computeInvoiceFromLines` can't fire from the
+  product path — there are no summed lines to disagree with the header.
+- **GSTR-1 still falls back to the header-derived rate.** The per-line rate-grouping
+  (`accounting.ts:777-813`) reads `invoiceLineItems`; with none written, C7's return
+  keeps grouping on the single header rate — the exact defect A7 was meant to remove.
+
+**What this means for C7.** C7 (GSTR-1 structural gaps — B2B/B2CL/B2CS split, HSN
+summary, per-rate grouping) **cannot be demonstrated on real data** until this screen
+lands, because it reads the per-line rows only this screen would produce. **A7-SCREEN
+is a prerequisite for C7**, not an optional polish. (A7's API dependency on A1 still
+holds — per-line GST needs the canonical state key.)
+
+**What changes.** Add a line-item entry grid to the Create Invoice form: add/remove
+lines, each with taxable value, GST rate, and (for C7) HSN/SAC; show the summed
+header derived from the rounded lines; surface the ₹0.01 mismatch as a blocking
+validation error (the API already enforces it — the screen just needs to send `lines[]`
+and display the rejection). Keep the single-amount entry as a shorthand that maps to a
+one-line `lines[]` payload, so the header path stops being a separate code branch.
+
+**Reference implementation.** The API contract is already fixed
+(`invoice-lines.ts` → `computeInvoiceFromLines`, and the three create mutations that
+take `lines[]`); this is a **UI-only** build that wires a line grid to that existing
+argument. Mirror any existing multi-line entry grid in the web app (e.g. journal-entry
+line rows) for the add/remove/rounding-display pattern.
+
+**What test proves it.** An E2E that creates an invoice through the screen with two
+lines at different GST rates, asserts the `invoice_line_items` rows persist, and that
+GSTR-1 rate-grouping now sees **two** rate buckets (not one header rate). A companion
+E2E that a line set whose rounded sum is ₹0.01 off the shown header is **rejected** in
+the UI (the API hard error is surfaced, not swallowed).
+
+**Re-run afterwards.** `gst-invoicing` audit; `sweep-unreachable-features`;
+`sweep-missing-surfaces` (this file's sweep) to confirm the partial-surface finding clears.
+
+**Dependency.** After A7 (API — Done) and A1 (canonical state key). Blocks C7.
+
 #### A8 — Build the create path for India statutory challans (TDS/ESI/PF/PT)
 
 **What changes.** The challan tables exist
@@ -1504,11 +1564,155 @@ plan/record edit only.**
   regime and adjust. Requires storing the per-employee, per-year election and feeding
   it into `computeTax`. **Payroll-blocking** — TDS is wrong for any employee on the
   regime the engine doesn't implement.
-- **C2 — Professional tax across 21+ states.** PT is a **per-state** levy with
-  different slabs/amounts/frequencies. Build it as a **multi-state configuration
-  matrix**, not a single-state table. The CA was explicit: **build at full scale**
-  (all 21+ states), not one state now and the rest later. **Payroll-blocking** for
-  any multi-state employer (PT is deducted every payroll).
+- **C2 — Professional tax: full state matrix (REVISED SCOPE, supersedes the earlier
+  "add Kerala + populate states" framing).** The CA has supplied the complete
+  state-by-state PT slab table (recorded in full below). It **breaks the current
+  `PT_SLABS` data model in three structural ways**, so C2 is **a substantial
+  engineering item, not data entry.** **Payroll-blocking** for any multi-state
+  employer (PT is deducted every payroll).
+
+  **STATUS — split into C2-FIX (done) and C2-STRUCT (remaining):**
+
+  - **C2-FIX — corrected the three wrong seeded slab sets. ✅ DONE (2026-08-04).** These were
+    **over-deductions being filed today**, not future build. In
+    `packages/payroll-math/src/statutory-deductions.ts`:
+    - **Karnataka** — removed the incorrect ₹15,001–25,000 ₹200 band (now **nil to ₹25,000**,
+      then ₹200); **added the February ₹300** top-band true-up.
+    - **Gujarat** — removed the incorrect ₹80 (₹6,000–8,999) and ₹150 (₹9,000–11,999) bands
+      (now **nil to ₹12,000**, then **₹200 flat**); corrected `annualCap` ₹2,500 → **₹2,400**
+      (₹200 × 12).
+    - **Maharashtra** — added the **female bracket set** (`MAHARASHTRA_FEMALE`: nil to ₹25,000,
+      then ₹200, ₹300 in Feb) **behind the lookup**. **KNOWN LIMITATION (documented, not
+      silent):** gender is not yet a field on the employee record, so `computePT` cannot select
+      it today — every Maharashtra employee still resolves to the **male** set. No gender default
+      is guessed; absent gender = male set applies. The female config lands atomically with
+      gender ingestion under C2-STRUCT.
+    - **February generalised** — the hardcoded Maharashtra-only Feb-₹300 branch now covers
+      Maharashtra (male + female) **and Karnataka**, firing only for the top (₹200) band.
+    - **Verified states unchanged:** Telangana, West Bengal, Delhi confirmed correct — their
+      tests pass **both before and after**.
+    - **Fairness proof:** per-state boundary tests in
+      `apps/api/src/__tests__/india-payroll-engine.test.ts` (Professional Tax block). **Red
+      against the old slabs** (6 targeted failures: Karnataka nil-band + Feb, Gujarat nil-band,
+      Maharashtra-female ×2), **green after** (56/56). `pnpm lint` green (9/9 workspaces).
+
+  - **C2-STRUCT — remaining structural work (still Pending, payroll-blocking for the
+    half-yearly pilot states).** The data-model + ingestion changes below. Everything after
+    this status block describes C2-STRUCT.
+
+  **Where the model breaks today** (`packages/payroll-math/src/statutory-deductions.ts:199-293`):
+
+  1. **Half-yearly levies.** **Kerala, Tamil Nadu, Puducherry** levy PT **half-yearly**,
+     with brackets expressed as **half-yearly income** — not monthly. `PT_SLABS` has **no
+     concept of a levy period**; every slab is treated as a monthly amount against monthly
+     gross. This affects **how** the amount is computed (bracket lookup uses the wrong
+     income base), **when** it is deducted, and **what shows on a monthly payslip**. **Two of
+     the three (Kerala, Tamil Nadu) are pilot states**, so this blocks the pilot.
+
+  2. **Gender-differentiated slabs.** **Maharashtra** has separate male/female brackets —
+     **male pays from ₹7,501; female pays nil up to ₹25,000.** **Gender is not a field on
+     the employee record** (verified — `employees` table `packages/db/src/schema/hr.ts:105-168`
+     has no gender column). Maharashtra is also the **silent default for every employee with
+     no state set** (`payroll-run-aggregates.ts:58`), so this is **wrong for female employees
+     today**, not just a future concern — every female employee is currently charged the male
+     Maharashtra slab.
+
+  3. **Month-specific rates.** Several states levy a **different amount in one month of the
+     year** to true-up to the annual cap: **Karnataka & Maharashtra ₹300 in February**;
+     **Assam, Mizoram, Nagaland, Tripura ₹212 in March**; **Madhya Pradesh ₹186 or ₹212 in
+     March depending on bracket.** The engine has **no notion of a month-specific rate** — the
+     only special-case in code is a hardcoded Maharashtra-February branch
+     (`statutory-deductions.ts:283-285`); Karnataka-February and the four March-₹212 states
+     are unhandled.
+
+  **Non-levying states must resolve to EXPLICIT nil, not fall through unknown-state.**
+  PT is **not levied at all** in: **Arunachal Pradesh, Chhattisgarh, Goa, Haryana, Himachal
+  Pradesh, Rajasthan, Uttar Pradesh, Uttarakhand, Odisha (formally abolished), Delhi, and all
+  Union Territories except Puducherry.** These must map to an **explicit nil** entry. Today the
+  unknown-state branch returns ₹0 (`statutory-deductions.ts:269-270`) — that gives the **right
+  answer for the wrong reason** and would **hide a genuinely missing state** (a real
+  levying state that was never populated looks identical to a correctly-nil state).
+
+  **PT EXEMPTIONS (bypass the routine entirely, all states) — TIER 1.** The CA requires PT to be
+  **skipped completely, regardless of state**, if **any** of these is true:
+  - Employee **age over 65**.
+  - **Verified active member of the Armed Forces.**
+  - Holds a **valid permanent physical or mental disability certificate** (including complete
+    blindness).
+  - Is a **registered parent/guardian of a child with a permanent mental or physical
+    disability**.
+
+  **None is implemented; none has an ingestion path.** **Date of birth is NOT on the employee
+  record** — it exists only on the **directors/DIN** table (`india-compliance.ts:175`), a
+  separate entity — so **age is not derivable for employees today**; DOB must be added too.
+  The other three need **new boolean/certificate fields**. **This is TIER 1** because the
+  current default is **"not exempt"**, so **PT is deducted and filed for employees who are
+  statutorily exempt** (a wrong amount paid/filed silently — the worst default kind).
+
+  **REVISED C2 SCOPE (the actual work):**
+  1. **Extend the PT data model** for **levy period** (monthly vs half-yearly) and
+     **month-specific rates** (per-state, per-month override).
+  2. **Add gender** to the employee record, **with an ingestion path** (form field + mutation).
+  3. **Add the four exemption inputs** (DOB for age-over-65, armed-forces flag, disability
+     certificate, guardian-of-disabled-child), **each with an ingestion path**, plus a **guard
+     that bypasses PT entirely** when any is true.
+  4. **Populate all applicable states** from the matrix below; mark **non-levying states as
+     explicit nil**.
+  5. **Re-estimate** — this is engineering (data-model + employee-record + engine changes),
+     not a data-entry pass.
+
+  **THE FULL CA-PROVIDED MATRIX (authoritative; recorded verbatim):**
+
+  | State | Levy period | Slabs / notes |
+  |---|---|---|
+  | Andhra Pradesh | monthly | ≤₹15,000 nil; ₹15,001–20,000 ₹150; >₹20,000 ₹200 |
+  | Arunachal Pradesh | — | not applicable |
+  | Assam | monthly | ≤₹10,000 nil; ₹10,001–15,000 ₹150; ₹15,001–20,000 ₹180; ₹20,001–25,000 ₹200; >₹25,000 ₹208 (**₹212 in March**) |
+  | Bihar | annual bands | ≤₹25,000 nil; ₹25,001–41,666 ₹1,000/yr; ₹41,667–83,333 ₹2,000/yr; >₹83,333 ₹2,500/yr |
+  | Chhattisgarh | — | not applicable |
+  | Goa | — | not applicable |
+  | Gujarat | monthly | ≤₹12,000 nil; >₹12,000 **₹200 flat** |
+  | Haryana | — | not applicable |
+  | Himachal Pradesh | — | not applicable |
+  | Jharkhand | annual bands | ≤₹25,000 nil; ₹25,001–41,666 ₹1,000/yr; ₹41,667–83,333 ₹2,000/yr; >₹83,333 ₹2,500/yr |
+  | Karnataka | monthly | ≤₹25,000 nil; >₹25,000 ₹200 (**₹300 in February**) |
+  | Kerala | **HALF-YEARLY** (half-yearly income) | ≤₹11,999 nil; ₹12,000–17,999 ₹120; ₹18,000–29,999 ₹180; ₹30,000–44,999 ₹300; ₹45,000–59,999 ₹450; >₹60,000 ₹600 |
+  | Madhya Pradesh | annual bands | ≤₹18,000 nil; ₹18,001–25,000 ₹2,000/yr; ₹25,001–33,333 ₹2,012/yr (₹166×11, **₹186 in March**); >₹33,334 ₹2,500/yr (₹208×11, **₹212 in March**) |
+  | Maharashtra | monthly, **GENDER-SPLIT** | **Male:** ≤₹7,500 nil; ₹7,501–10,000 ₹175; >₹10,000 ₹200 (**₹300 in Feb**). **Female:** ≤₹25,000 nil; >₹25,000 ₹200 (**₹300 in Feb**) |
+  | Manipur | annual bands | ≤₹4,166 nil; ₹4,167–5,833 ₹1,000/yr; ₹5,834–8,333 ₹1,200/yr; ₹8,334–10,416 ₹2,000/yr; >₹10,417 ₹2,500/yr |
+  | Meghalaya | annual bands | ≤₹4,166 nil; ₹4,167–5,833 ₹500/yr; ₹5,834–8,333 ₹1,000/yr; ₹8,334–12,500 ₹1,200/yr; ₹12,501–16,666 ₹1,800/yr; >₹16,667 ₹2,500/yr |
+  | Mizoram | monthly | ≤₹5,000 nil; ₹5,001–8,333 ₹100; ₹8,334–12,500 ₹150; ₹12,501–16,666 ₹200; >₹16,667 ₹208 (**₹212 in March**) |
+  | Nagaland | monthly | ≤₹4,000 nil; ₹4,001–7,000 ₹35; ₹7,001–10,000 ₹75; ₹10,001–15,000 ₹110; >₹15,000 ₹208 (**₹212 in March**) |
+  | Odisha | — | not applicable (formally abolished) |
+  | Punjab | monthly | **₹200 flat** on any income above nil, capped at ₹2,400/yr |
+  | Rajasthan | — | not applicable |
+  | Sikkim | monthly | ≤₹20,000 nil; ₹20,001–30,000 ₹125; ₹30,001–40,000 ₹150; >₹40,000 ₹200 |
+  | Tamil Nadu | **HALF-YEARLY** (half-yearly income) | ≤₹21,000 nil; ₹21,001–30,000 ₹135; ₹30,001–45,000 ₹315; ₹45,001–60,000 ₹690; ₹60,001–75,000 ₹1,025; >₹75,000 ₹1,250 |
+  | Telangana | monthly | ≤₹15,000 nil; ₹15,001–20,000 ₹150; >₹20,000 ₹200 |
+  | Tripura | monthly | ≤₹5,000 nil; ₹5,001–7,500 ₹100; ₹7,501–10,000 ₹150; >₹10,000 ₹208 (**₹212 in March**) |
+  | Uttar Pradesh | — | not applicable |
+  | Uttarakhand | — | not applicable |
+  | West Bengal | monthly | ≤₹10,000 nil; ₹10,001–15,000 ₹110; ₹15,001–25,000 ₹130; ₹25,001–40,000 ₹150; >₹40,000 ₹200 |
+  | Puducherry | **HALF-YEARLY** (half-yearly income) | ≤₹24,000 nil; ₹24,001–48,000 ₹250; ₹48,001–72,000 ₹500; ₹72,001–1,08,000 ₹750; >₹1,08,000 ₹1,250 |
+  | All other Union Territories | — | not applicable |
+
+  **DISCREPANCY AUDIT — the 7 states currently in `PT_SLABS` vs the matrix**
+  (`statutory-deductions.ts:199-258`, seeded before this table existed):
+
+  | Seeded state | Verdict | Discrepancy |
+  |---|---|---|
+  | **Maharashtra** | **Wrong (incomplete)** | Seeded has **male brackets only** (0→7,500 nil; 7,501–10,000 ₹175; >10,000 ₹200). **Female brackets entirely missing** → every female employee overcharged. Feb-₹300 only fires for >₹10,000 gross (`:283-285`), which happens to be correct for the male band but there's no female handling. |
+  | **Karnataka** | **Wrong** | Seeded: 0–15,000 nil; **15,001–25,000 ₹200**; >25,000 ₹200. Matrix: **0–25,000 nil**; >25,000 ₹200. Seeded **over-deducts ₹200/mo for the ₹15,001–25,000 band** (should be nil). Also **no February-₹300** true-up. |
+  | **Gujarat** | **Wrong** | Seeded: 0–5,999 nil; **6,000–8,999 ₹80**; **9,000–11,999 ₹150**; 12,000+ ₹200. Matrix: **0–12,000 nil**; >12,000 **₹200 flat**. Seeded **over-deducts ₹80 and ₹150** on bands the matrix says are nil. |
+  | **Tamil Nadu** | **Structurally wrong** | Slab **amounts match** the matrix, but stored as **monthly** with monthly-gross lookup. TN is **half-yearly on half-yearly income** — wrong income base and wrong deduction timing. |
+  | **Telangana** | **Correct** | Matches matrix (0–15,000 nil; 15,001–20,000 ₹150; >20,000 ₹200). |
+  | **West Bengal** | **Correct** | Matches matrix exactly. |
+  | **Delhi** | **Right answer, wrong mechanism** | Seeded as empty slabs (annualCap 0) → PT 0. Correct outcome, but reached via the **empty-slab path**, not an **explicit non-levying** marker; should become an explicit nil per the requirement above. |
+
+  **Net:** of the 7 seeded states, **3 are wrong** (Maharashtra female missing, Karnataka
+  band, Gujarat bands), **1 is structurally wrong** (Tamil Nadu half-yearly), **2 are
+  correct** (Telangana, West Bengal), **1 is right-for-wrong-reason** (Delhi). None of the
+  seeded states carries the February/March month-specific rates.
 - **C3 — ESI six-month contribution-period rule.** Once an employee is an ESI member,
   they **remain a member until the end of the current contribution period** (the two
   fixed windows **Apr–Sep** and **Oct–Mar**) **even if their gross crosses the
@@ -2447,3 +2651,309 @@ doesn't advance itself.
        steps are never silently skipped.
   - **Not fixed here** (no code change): needs a product decision between (1) auto-advance
     and (2) explicit remaining-steps prompt before implementing. Filed for that decision.
+
+---
+
+## Monthly TDS reconciliation — findings from instrumenting the tax engine (2026-08-04)
+
+**A real payroll run for EMP-0002 (August 2026) deducted monthly TDS of ₹15,68,247, a
+figure that reconciled to nothing on the screen.** These findings come from *running* the
+real compiled engine — `computeTax`, `computeEmployeePayslip`, and the real
+`buildEmployeePayrollInput` path — under temporary instrumentation (since removed), not from
+reading the code. An earlier read-only diagnosis had guessed "annual ÷ months remaining" as a
+complete explanation; running it disproved that as stated — the divisor (÷8 for August) is
+right, but it divides a **different annual liability** than the screen shows, and *that* gap is
+the real defect. **No code changed by this section — it is the diagnosis, filed for the fix.**
+
+The reconciliation that holds to the rupee: the run's internal annual liability is
+**₹1,25,45,976** (not the ₹1,33,92,608 on screen), and ₹1,25,45,976 ÷ 8 months-remaining =
+**₹15,68,247**. The rolling Section 192 spread is correct; the annual figure it spreads is
+computed off a different, lower gross than the screen displays.
+
+- **PT1 — Two gross computations that disagree (ROOT DEFECT, payroll-blocking). NOT FIXED.**
+  The screen and the payslip compute the employee's gross — and therefore taxable income and
+  annual tax — by two different functions that do not agree:
+  - **Screen (taxPreview):** `buildTaxProfileFromEmployee` (`apps/api/src/routers/payroll.ts:185`)
+    feeds `structure.ctcAnnual` **directly** as gross, with `joiningMonth: 1`
+    (`payroll.ts:218`), so `computeTax` uses the CTC as-is (`tax-engine.ts:255-256`). Taxable
+    ₹3,57,40,020 → annual ₹1,33,92,608 (verified correct against the new-regime slabs).
+  - **Payslip run:** `buildEmployeePayrollInput` (`apps/api/src/services/payroll-run-aggregates.ts:30`)
+    **rebuilds** the salary from `ctcAnnual` — basic = ctc·0.40/12, HRA = basic·0.50, and
+    special = ctc/12 − basic − HRA − **₹2,500** (`payroll-run-aggregates.ts:42`, a flat ₹2,500/mo
+    shave) — then the payslip **re-annualises** those rebuilt parts ×12
+    (`packages/payroll-math/src/payroll-cycle.ts:300`). The rebuilt annual gross is *lower*
+    than the CTC the screen reads, so the run taxes a smaller income and computes a smaller
+    annual liability.
+  - **Consequence:** the screen and the payslip will essentially never agree, and the payslip
+    (the number that actually deducts money) is the one taxing the wrong base. This is the root
+    defect behind the ₹15,68,247 confusion — not a display bug. **Payroll-blocking:** fix the
+    two paths to a single gross derivation before the first live run.
+  - **Not fixed here** (no code change): the two functions must be collapsed to one gross basis.
+    Filed.
+
+- **PT2 — PDF recomputes annual tax and taxable income instead of reading them. NOT FIXED.**
+  `apps/api/src/http/payroll-payslip-pdf.ts` re-derives, rather than prints, what the engine
+  produced:
+  - "Annual Tax Liability" = **monthly TDS × 12** (`payroll-payslip-pdf.ts:81`). For a mid-year
+    month this multiplies the rolling catch-up figure by 12: for EMP-0002, ₹15,68,247 × 12 =
+    ₹1,88,18,964 — the figure on the PDF, and pure fabrication.
+  - Taxable income = **gross × 12 − hardcoded ₹75,000** (`payroll-payslip-pdf.ts:80`), which
+    omits professional tax; this is the exact ₹2,400 by which the PDF's taxable income exceeds
+    the screen's.
+  - **Fix direction:** the PDF should print the engine's `totalTaxLiability` and `taxableIncome`
+    off the stored computation, never recompute. **Not fixed here** (no code change). Filed.
+  - **Note:** this is a *separate, third* discrepancy layered on top of PT1 — fixing PT1 does not
+    fix PT2.
+
+- **PT3 — New-regime surcharge cap applies 37% above ₹5 crore (statutory cap is 25%). NOT FIXED.**
+  Verified by running the engine at new-regime taxable incomes above ₹5 crore: it applies a
+  **37%** surcharge where the new regime caps at **25%** (only the old regime reaches 37% above
+  ₹5 crore). Present both in code — `SURCHARGE_BANDS` (`packages/payroll-math/src/tax-engine.ts:120`)
+  — and carried into the C5 seed (`packages/db/drizzle/0064_taxing_matters.sql:82`), which seeds
+  a single regime-agnostic band set including the 37% top band. **Over-taxes anyone in the new
+  regime above ₹5 crore.** EMP-0002 sits in the ₹2cr–₹5cr band (25%), so *this* payslip is
+  unaffected, but the bug is real for higher earners. **Not fixed here** (no code change). Filed.
+
+- **PT4 — previousEmployerTDS is hardcoded to zero; the rolling calc has no "already deducted"
+  input. NOT FIXED.** The Section 192 rolling logic is implemented
+  (`remainingTax = totalTaxLiability − previousEmployerTDS`, then `÷ remainingMonths` —
+  `tax-engine.ts:354-359`), but the value it nets against is **hardcoded 0**
+  (`apps/api/src/services/payroll-run-aggregates.ts:86`), with no intake for Form-12B prior-employer
+  TDS and no prior FY-2026-27 payslip feeding it. So a mid-year joiner's prior-employer TDS is
+  ignored entirely, and the whole annual liability is spread over the remaining months with no
+  credit for tax already deducted. **Not fixed here** (no code change). Filed.
+
+**VERIFIED CORRECT (no action needed):** the C5 seed (`0064_taxing_matters.sql`) matches the
+statute band-for-band — new-regime slabs nil→₹4L, 5%→₹8L, 10%→₹12L, 15%→₹16L, 20%→₹20L,
+25%→₹24L, 30% above (`0064:68`); standard deduction ₹75,000 (`0064:73`); s.87A rebate ₹60,000
+to ₹12L taxable (`0064:78`). No mismatch against the current statute. C5 seeded the rate *values*
+correctly; the only seed-level defect is the surcharge band set (PT3), which is a pre-existing
+constant faithfully carried across, not a C5 rate error.
+
+**STILL OPEN — close before fixing any of the above:** the reconciliation of ₹15,68,247 to
+₹1,25,45,976 ÷ 8 was solved **backwards** (searching for the gross/annual that reproduce the
+deducted figure), **not read from EMP-0002's actual record**. Before writing any fix, query the
+real `employees` + `salaryStructures` rows for EMP-0002, run the real payroll path against them,
+and confirm the annual liability the run computes is **₹1,25,45,976** (and the deducted monthly
+is ₹15,68,247). Only then is the root cause proven rather than inferred. This requires DB access
+to the deployed test environment.
+
+## CA validation of the 9-employee cohort (2026-08-04) — PT3 escalated, PT1 reframed
+
+A practising chartered accountant reviewed a purpose-built 9-employee cohort (COH-01…COH-09),
+each exercising a distinct tax/statutory path, run through the **real** compiled payroll path
+on the local dev DB (`resolveStatutoryCeilings` → `computeAttendanceLopForPeriod` →
+`buildEmployeePayrollInput` → `computeEmployeePayslip` — the exact chain the `computePayslips`
+mutation runs). Instrumentation has been removed; the seeded `COH-%` rows remain in the local
+dev DB only.
+
+**Eight of nine passed CA review.** Confirmed correct by the CA: the new-regime slabs, the
+s.87A rebate, the PF ₹1,800 employee cap (basic > ₹15,000), the ESI trigger at 0.75% for gross
+< ₹21,000 (COH-05 = ₹137), Maharashtra professional tax (₹200/mo, ₹2,500/yr cap), the surcharge
+tiers **up to 25%** (COH-06 at ~₹60L → 10%; COH-07 at ~₹2.5cr → 25%, correct), and the
+mid-month-join + LOP pro-rata for COH-09. These need no further action.
+
+Two defects were confirmed by the CA, with prescribed fixes.
+
+- **PT3 — surcharge cap. ESCALATED to payroll-blocking (was "filed").** Under s.115BAC the
+  maximum surcharge above ₹2 crore in the **new** regime is **25%**; the engine applies **37%**
+  above ₹5 crore. COH-08 (~₹6cr) was over-taxed by roughly **₹20 lakh/year** (engine annual tax
+  ₹2,50,02,035; implied surcharge rate ≈37.0% on the base tax). COH-07 at ₹2.49cr correctly sits
+  at 25%, so the break only manifests above ₹5cr — which is why EMP-0002 (₹2cr–₹5cr band) did not
+  expose it. **CA's prescribed fix:** an explicit guardrail so that when `regime === "NEW"` and
+  taxable income exceeds ₹2 crore, the applied surcharge can **never exceed 25%** — i.e. cap the
+  new-regime surcharge rate at the 25% band regardless of the ₹5cr band in `SURCHARGE_BANDS`
+  (`packages/payroll-math/src/tax-engine.ts:120`) and the mirrored C5 seed
+  (`packages/db/drizzle/0064_taxing_matters.sql:82`). **Not fixed here** (no code change).
+
+- **PT1 — rebuilt-gross gap. REFRAMED (was "two functions disagree"), and NOT to be aligned yet.**
+  The CA's assessment reframes the severity: the rebuilt gross creates a mismatch between the
+  **employment contract (CTC)** on one side and the **Form 16 and EPF filings** on the other —
+  an **underpayment-of-wages exposure** and a **short-payment of statutory contributions**, not
+  merely two internal figures disagreeing. The CA explicitly instructed: **do not simply align
+  the two functions** until we establish what the ₹2,500 monthly reduction at
+  `apps/api/src/services/payroll-run-aggregates.ts:42` actually represents.
+
+  **What the ₹2,500/mo reduction is — established (read-only, no code change):**
+  `specialAllowance = max(0, ctc/12 − basic − hra − 2500)` shaves a flat **₹2,500/month
+  (₹30,000/year)** off the special-allowance residual, so it disappears from gross entirely and
+  is **never added back** to any earnings or deduction line. Findings on what it is *not*:
+  - **Not the standard deduction.** The standard deduction (₹75,000/yr new = ₹6,250/mo) is applied
+    separately and correctly *inside* `computeTax` (`tax-engine.ts:244,278`). The ₹2,500 is
+    neither that amount nor applied at the tax step.
+  - **Not professional tax.** PT is a separate downstream deduction (₹200/mo). ₹2,500 is the
+    *annual* Maharashtra PT **ceiling** (`packages/payroll-math/src/statutory-deductions.ts:201`),
+    here applied **monthly** — i.e. 12× too large and in the wrong place. Treating it as reserved
+    PT would double-count, since PT is already deducted.
+  - **It is an unexplained, undocumented carve-out.** No comment, constant name, or config
+    explains it; it is a bare literal `- 2500` in the residual.
+
+  **Where the two paths actually diverge (the true PT1 mechanism):** the **same** `- 2500` shave
+  exists in *both* gross builders — the run path (`payroll-run-aggregates.ts:42`) **and** the
+  screen/preview path `buildTaxProfileFromEmployee` (`apps/api/src/routers/payroll.ts:197`). So
+  the two functions are **not** distinguished by the shave. They diverge on the **annual
+  re-projection**: the screen path passes `joiningMonth: 1` (`payroll.ts:218`), so `computeTax`
+  takes the branch `joiningMonth === 1 ? annualCTC` (`tax-engine.ts:255-256`) and taxes the
+  **full, un-shaved CTC**; the run path re-annualises the **shaved** monthly components ×12
+  (`packages/payroll-math/src/payroll-cycle.ts:300`), so it taxes **CTC − ₹30,000**. That ₹30,000
+  is the exact gap the cohort shows on every full-year employee (e.g. COH-06: CTC 60,00,000 →
+  rebuilt annual gross 59,70,000).
+
+  **Consequence for the fix (per CA):** the resolution is **not** "make the run match the screen"
+  or vice-versa — it is to first name the ₹2,500. If it is meant to be the standard deduction, it
+  must be **removed from the monthly gross calculation** and applied as an **annual deduction at
+  tax computation** (which the engine already does, so the monthly shave would just be deleted).
+  If it represents something else, that something must be named and justified. Only after that is
+  the contract ↔ gross ↔ Form 16 ↔ EPF chain made consistent. **Not fixed here** (no code change).
+
+- **PT-TEST (CA's third recommendation) — lock the old-vs-new break-even. NEW ITEM.** The CA
+  recommends an **automated test** that pins the old-regime-vs-new-regime break-even using the
+  **COH-02 parameters** (~₹18L CTC), so future rate/slab/deduction changes cannot silently shift
+  which regime wins. The verified reference values to lock (from the real engine, full-year,
+  no old-regime deductions declared): **NEW** → taxable ₹16,92,500, annual tax **₹1,44,040**;
+  **OLD** → taxable ₹17,17,500, annual tax **₹3,40,860** (new regime wins by ~₹1,96,820/yr at
+  these inputs). The test should assert both figures (and that NEW < OLD here) against
+  `computeTax`, mirroring the money-invariant tests in `apps/api/src/__tests__/`. **Not built
+  here** (no code change).
+
+**Revised statuses:** PT3 → **payroll-blocking** (was filed). PT1 → **payroll-blocking, blocked
+on naming the ₹2,500** before any code change (do not align the two functions first). PT-TEST →
+new **build item** (regression lock). PT2 and PT4 unchanged from the 2026-08-04 section above.
+
+## Ingestion-gap scoping pass (2026-08-04) — statutory inputs with no way in
+
+**Why this section exists.** The rest of this plan was written from **code audits**, which
+show what *exists and behaves wrongly*. They do **not** show that a required input has **no way
+in**. That class of gap is only found by testing: `taxRegime`, `state`, and `isMetroCity` are all
+statutory determinants that are **database columns with silent defaults** and **no UI field, no
+API mutation, and no config screen** to set them. This pass answers, for every pending payroll/GST
+item (C1, C2, C3, C4, C6, C7, plus A12-D and PR5): what inputs does it need, is there a path to
+supply each today, what happens now when there is none, and whether the silent default becomes a
+**filed or paid** statutory value. **No code was changed by this section — it is scoping, filed so
+the ingestion work is costed rather than discovered mid-build.**
+
+**The structural cause.** `hr.employees.create`/`update` (`apps/api/src/routers/hr.ts:253-379`)
+accept **only org-chart fields** (name, dept, title, manager, grade, employment type, location,
+start date, salary-structure id). **Every statutory field on the employee record** — regime,
+state, metro, PAN, UAN, bank, ESI IP — is a column the mutation never writes, so it rides its
+schema default. Only the **salary structure** (`payroll.salaryStructures.upsert`) and the org tax
+IDs have any real input path, and the org path is itself partial.
+
+### The table
+
+**Settable today?** = can a user/admin supply it via any form, mutation, or config screen right
+now. **Statutory consequence?** = the default becomes a number that is filed or paid.
+
+| Item | Input needed | Settable today? | Current default | Statutory consequence? |
+|---|---|---|---|---|
+| **C1** regime | Per-employee, per-year old/new election | **No** — not in `hr.employees.create/update`; no form field | `taxRegime = "new"` (schema default; run maps NULL→NEW, `payroll-run-aggregates.ts:65`) | **Yes** — everyone taxed NEW; a genuine OLD electee is mis-deducted, Form-16 filed on unchosen regime |
+| **C1** | Old-regime deductions (80C, 80D, 80CCD1B, 24b, HRA-exempt, rent paid) | **No** — hardcoded `0` in **both** build paths (`payroll-run-aggregates.ts:68-75`; `payroll.ts:208-214`) | all `0` | **Yes** — even if OLD is elected, TDS over-deducts (no declared investment reduces it) |
+| **C2** | Employee work **state** (PT determinant) | **No** — not in employee mutation or form | `state = NULL` → run falls back to **"Maharashtra"** (`payroll-run-aggregates.ts:58`) | **Yes** — Maharashtra PT (₹200–300/mo, ₹2,500/yr) deducted & filed for *every* employee regardless of real state |
+| **C2** | PT for the other states | **Partial** — only **7** state keys exist in `PT_SLABS` (`statutory-deductions.ts:199-258`); no config screen | Unknown state → **PT = 0** (`statutory-deductions.ts:269-270`) | **Yes** — employees in unsupported states get ₹0 PT filed (under-deduction) |
+| **C3** | ESI six-month contribution-period lock | **No** — no field; rule not implemented | Bare per-month test `gross ≤ 21,000` (`statutory-deductions.ts:183`); member **dropped the month gross crosses ₹21k** | **Yes** — ESI stops mid-period against the rule; ESIC challan understated |
+| **C3** | ESI rates / ceiling as config | **No** — in-code constants (0.75% / 3.25% / ₹21,000, `statutory-deductions.ts:175-177`) | those constants | Only on a rate change (then needs a deploy) |
+| **C4** | VPF election (fixed ₹ or % of basic+DA) | **No** — `isVoluntaryHigherPF` hardcoded `false` (`payroll-run-aggregates.ts:84`); no VPF column exists | `false` → PF capped at **₹1,800** | **Yes** — a VPF electee contributes only the statutory ₹1,800; ECR/challan understates their PF |
+| **C4b** | Para 26(6) joint-declaration opt-in (PF on actual basic) | **No** — no column, no flag, no mutation | not implemented → always ₹15k-capped base | **Yes** — opted-in employees' PF filed on capped base, not actual basic |
+| **C4** | ₹1,800 cap itself | n/a (correct) | ₹1,800 = 12% × ₹15,000 (`statutory-deductions.ts:134-149`) | Correct as-is |
+| **C6** | ESI IP number | **No** — **column does not exist** on employee/payslip | absent | **Yes** — mandatory payslip field cannot be printed |
+| **C6** | Employee bank account (no., IFSC, name) | **No** — columns exist (`hr.ts:143-145`) but **not in any mutation/form** | `NULL` | Payslip field blank; disbursement target absent |
+| **C6** | PAN, UAN | **No** — columns exist; not in mutation/form | `NULL` | **Yes** — Form-16 / EPFO-ECR filed with blank PAN/UAN |
+| **C6** | DA line (conditional) | **No** — no DA component on the salary structure at all | not implemented | **Yes** — DA cannot be represented; structures needing DA are mis-stated |
+| **C6** | CIN, TAN, PF/ESI establishment nos. (tenant identity on payslip) | **Partial** — `tan`, `epfCode` columns exist on org (`auth.ts:63-64`) but **no org-update mutation sets them**; **CIN & ESI no. have no column** | `NULL` / absent | **Yes** — statutory header fields blank on payslip/filings |
+| **C7** | Invoice **place-of-supply** state code | **Partial** — invoice `placeOfSupply` settable per invoice, else falls back to GSTIN registry state (`accounting.ts:835`) | GSTIN registry `stateCode` | **Yes** — drives CGST+SGST vs IGST; wrong POS = wrong GSTR-1 split |
+| **C7** | Supplier GSTIN / state | **Partial** — lives in separate `gstinRegistry`, not on the org record | per-registry | **Yes** — determines the supply split |
+| **C7** | B2CL category | **No** — builder emits only B2B + B2CS (`accounting.ts:840-849`); no B2CL | B2CL supplies mis-bucketed | **Yes** — large B2C inter-state invoices filed in the wrong table |
+| **C7a** | AATO (annual aggregate turnover) for HSN 4-vs-6 digit | **No** — **no AATO field**, no turnover-threshold logic anywhere | absent → no HSN digit enforcement | **Yes** — HSN summary filed at wrong digit depth for the tenant's turnover |
+| **A12-D** | (no user input) — split-logic projection in the engine | n/a | current-month LOP earnings projected ×12 (`payroll-cycle.ts`) | **Engine-only** — computation fix, no ingestion gap |
+| **PR5** | (no user input) — prior-month YTD read from last payslip | n/a | `ytdGross/PF/TDS/Net = 0` every run (`payroll-run-aggregates.ts:87-90`) | **Engine-only** — computation/data-read fix, no ingestion gap |
+
+### 1. Input-path sub-items (so ingestion is costed, not discovered mid-build)
+
+Each of C1, C2, C3, C4, C6, C7 gains an explicit **input-path sub-item**. The engine work is not
+"done" until the input that drives it can be entered by a user/admin. **A12-D and PR5 are
+engine-only** — they need no new input and get no sub-item.
+
+- **C1-IN — regime + investment-declaration intake.** Add (a) a per-employee, per-FY **regime
+  election** field to the employee create/update mutation + form, threaded into
+  `buildEmployeePayrollInput`/`buildTaxProfileFromEmployee` (both currently map NULL→NEW); and
+  (b) an **investment-declaration intake** (80C, 80D, 80CCD1B, 24b, HRA-exemption inputs, rent
+  paid) so the OLD-regime branch has real deductions to apply. **C1 is not complete when the
+  branch works — it is complete when an employee can declare investments** (see §3 below).
+- **C2-IN — employee work-state capture.** Add **state** (and, where the metro rule matters,
+  `isMetroCity`) to the employee mutation + form, so PT is computed on a chosen state instead of
+  the silent Maharashtra fallback. Pair with the engine work to populate the missing pilot state(s)
+  (see §3 — Kerala).
+- **C3-IN — ESI membership/period state.** The six-month lock needs a place to record that an
+  employee **is** an ESI member and the period they were enrolled in, so the engine can keep them
+  in until period-end. Today there is no membership field at all — only a per-month gross test.
+- **C4-IN — VPF / JD election intake.** Add per-employee **VPF** (fixed ₹ or % of basic+DA) and
+  **Para 26(6) joint-declaration opt-in** fields to the employee mutation + form, wired to
+  `isVoluntaryHigherPF`/actual-basic (both absent today). Without this the PF engine can only ever
+  apply the ₹1,800 cap.
+- **C6-IN — statutory-identity intake (employee + tenant).** Add employee **PAN, UAN, ESI IP
+  number, bank account** to the employee mutation + form (columns mostly exist but are unreachable;
+  ESI IP has **no column** — schema add required), and a **tenant-identity config screen** for
+  **CIN, TAN, PF/ESI establishment numbers** (TAN/EPF columns exist but no mutation sets them; CIN
+  and ESI number need columns). Also add the **DA** salary-structure component (no column today).
+- **C7-IN — GST identity + turnover intake.** Add a settable **place-of-supply** on the invoice
+  path (partial today), surface **supplier GSTIN/state** as tenant config rather than only the
+  separate registry, and add a **tenant AATO** field feeding the C7a HSN-digit rule (no field
+  today). The **B2CL** bucket is an engine gap, not an input gap.
+
+### 2. Ranking — blank default vs plausible-wrong default
+
+The ranking that matters is **not** severity of the field but **whether the default is caught**.
+A **blank** default fails loudly at the portal/filing and gets fixed. A **plausible wrong value**
+is silently deducted, paid, and filed with **nobody noticing** — that is the dangerous class.
+
+- **TIER 1 — plausible wrong value, filed/paid silently (highest risk).** The default is a real,
+  valid-looking number that no one chose:
+  1. **C1 regime → NEW.** A NEW-regime computation is produced and filed for an employee who may
+     have elected OLD. Nothing errors; the TDS is simply wrong and binds the return.
+  2. **C2 state → Maharashtra PT.** A Kerala (or any-state) employee has **Maharashtra** PT
+     (₹200–300/mo) deducted and filed. Valid PT, wrong state, invisible.
+  3. **C7 POS → GSTIN-registry state.** An invoice with no place-of-supply silently takes the
+     registry state, deciding CGST+SGST vs IGST. A wrong split is a valid-looking return.
+  These three are the ones that matter most, and are exactly the ones found only by testing.
+
+- **TIER 2 — plausible wrong value, but only affects an opted-in minority or a sub-population.**
+  4. **C4 VPF/JD → off (₹1,800 cap).** Correct for most; silently under-contributes only for
+     employees who elected VPF or JD — but for them it is filed wrong.
+  5. **C2 unknown state → PT = 0.** Under-deducts silently, but only for states outside the 7 in
+     `PT_SLABS` (a no-PT ₹0 also *looks* plausible, e.g. it's correct for Delhi).
+  6. **C3 ESI drop-at-ceiling.** Produces a plausible ESI figure that is wrong only across a
+     contribution-period boundary.
+
+- **TIER 3 — blank/absent, caught downstream (lowest risk of silent mis-filing).** Fails visibly:
+  7. **C6 PAN / UAN / ESI IP / bank → NULL/absent.** A blank PAN is rejected at the TRACES/EPFO
+     portal; the error surfaces before it becomes a wrong filing.
+  8. **C6 tenant CIN/TAN → NULL.** Blank header identity is visibly missing on the payslip/filing.
+  9. **C7a AATO → absent / C7 B2CL → absent.** No value is emitted, so it's a visible structural
+     gap rather than a silently-wrong number.
+
+**Rule of thumb for the build order:** close the **Tier-1** three (regime, state, POS) with real
+ingestion **before** first live payroll/GST, because their defaults are the ones that get paid and
+filed without tripping any alarm.
+
+### 3. Two additions
+
+- **C1 scope now explicitly includes investment declaration.** The old-regime deductions —
+  **80C, 80D, 80CCD1B, 24b, HRA exemption, rent paid** — are **hardcoded to `0` in both build
+  paths** (`payroll-run-aggregates.ts:68-75` and `buildTaxProfileFromEmployee`, `payroll.ts:208-214`).
+  So even once the regime branch works, an OLD-regime employee is over-deducted because the engine
+  sees zero declared investments. **C1 is complete only when an employee can declare investments**
+  and those figures flow into `computeTax` — not when the branch merely selects OLD. Recorded as
+  part of C1's scope (and as C1-IN above).
+
+- **C2 pilot-state check — Kerala is MISSING; C2 is engineering, not just data entry.** `PT_SLABS`
+  (`statutory-deductions.ts:199-258`) contains **7** keys, not six: **MAHARASHTRA, KARNATAKA,
+  TAMIL_NADU, TELANGANA, WEST_BENGAL, DELHI** (empty slabs — Delhi levies no PT, correct), and
+  **GUJARAT**. For the pilot's three states:
+  - **Karnataka — present** (`statutory-deductions.ts:208`). ✅ data entry only.
+  - **Tamil Nadu — present** (`statutory-deductions.ts:216`). ✅ data entry only.
+  - **Kerala — ABSENT.** ❌ A Kerala employee falls through to the unknown-state branch and gets
+    **PT = 0** filed (`statutory-deductions.ts:269-270`), which is wrong — Kerala levies PT
+    half-yearly. (Kerala appears only in `LWF_RATES`, `statutory-deductions.ts:303`, which is a
+    different levy.) **Therefore C2 for the pilot is an engineering task** — add the Kerala PT slab
+    set — **not merely populating a config with an existing schema.** Flagged as blocking for any
+    Kerala employee in the pilot.

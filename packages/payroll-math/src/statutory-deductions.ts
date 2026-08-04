@@ -197,6 +197,14 @@ export function computeESI(
 // ─── PROFESSIONAL TAX ──────────────────────────────────────────────────────────
 
 const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
+  // Maharashtra is GENDER-SPLIT (CA matrix). MAHARASHTRA below is the MALE set and
+  // remains the default. MAHARASHTRA_FEMALE is the female set — nil to ₹25,000, then
+  // ₹200 (₹300 in Feb). KNOWN LIMITATION: gender is not yet a field on the employee
+  // record, so computePT cannot select the female set today. The female config is
+  // populated here so it lands atomically with gender ingestion (C2-STRUCT); until
+  // then every Maharashtra employee resolves to the MALE brackets. We do NOT guess a
+  // gender default — absent gender means the existing male set applies (documented,
+  // not silent). See reports/fix-plan.md → C2.
   MAHARASHTRA: {
     annualCap: 2_500,
     slabs: [
@@ -205,11 +213,19 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
       { from: 10_001, to: Infinity, monthly: 200 }, // Feb = 300 to hit 2500/yr
     ],
   },
+  MAHARASHTRA_FEMALE: {
+    annualCap: 2_500,
+    slabs: [
+      // UNREACHABLE until gender ingestion lands (see comment above / C2-STRUCT).
+      { from: 0, to: 25_000, monthly: 0 },
+      { from: 25_001, to: Infinity, monthly: 200 }, // Feb = 300 to hit 2500/yr
+    ],
+  },
   KARNATAKA: {
     annualCap: 2_400,
     slabs: [
-      { from: 0, to: 15_000, monthly: 0 },
-      { from: 15_001, to: 25_000, monthly: 200 },
+      // CA matrix: nil to ₹25,000, then ₹200 (₹300 in February to hit the cap).
+      { from: 0, to: 25_000, monthly: 0 },
       { from: 25_001, to: Infinity, monthly: 200 },
     ],
   },
@@ -247,12 +263,11 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
     slabs: [],
   },
   GUJARAT: {
-    annualCap: 2_500,
+    annualCap: 2_400,
     slabs: [
-      { from: 0, to: 5_999, monthly: 0 },
-      { from: 6_000, to: 8_999, monthly: 80 },
-      { from: 9_000, to: 11_999, monthly: 150 },
-      { from: 12_000, to: Infinity, monthly: 200 },
+      // CA matrix: nil to ₹12,000, then ₹200 flat above.
+      { from: 0, to: 12_000, monthly: 0 },
+      { from: 12_001, to: Infinity, monthly: 200 },
     ],
   },
 };
@@ -279,8 +294,12 @@ export function computePT(
     }
   }
 
-  // Maharashtra special: February (month 11 in FY) deducts extra to hit ₹2500 cap
-  if (stateKey === "MAHARASHTRA" && monthInFY === 11 && roundedGross > 10_000) {
+  // February (FY month 11) top-band true-up to hit the annual cap: Maharashtra and
+  // Karnataka both levy ₹300 in Feb (CA matrix). Only applies when the employee is in
+  // the top (₹200) band this month — i.e. current ptAmount is already 200 — so lower
+  // bands are unaffected. Covers the Maharashtra male + female sets and Karnataka.
+  const FEB_300_STATES = new Set(["MAHARASHTRA", "MAHARASHTRA_FEMALE", "KARNATAKA"]);
+  if (FEB_300_STATES.has(stateKey) && monthInFY === 11 && ptAmount === 200) {
     ptAmount = 300;
   }
 
