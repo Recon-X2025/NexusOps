@@ -17,6 +17,7 @@ import {
   eq,
   and,
   or,
+  asc,
   desc,
   sum,
   sql,
@@ -752,7 +753,16 @@ export const financialRouter = router({
         .where(and(eq(invoices.id, input.id), eq(invoices.orgId, org!.id)));
 
       if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-      return row;
+
+      // Line items are optional: legacy single-amount invoices have none, so this
+      // returns [] and the detail page falls back to the header breakdown untouched.
+      const lineItems = await db
+        .select()
+        .from(invoiceLineItems)
+        .where(eq(invoiceLineItems.invoiceId, input.id))
+        .orderBy(asc(invoiceLineItems.lineItemNumber));
+
+      return { ...row, lineItems };
     }),
 
   approveInvoice: permissionProcedure("financial", "write")

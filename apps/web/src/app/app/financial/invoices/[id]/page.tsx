@@ -150,25 +150,72 @@ export default function InvoiceDetailPage() {
                   </div>
 
                   {activeTab === "details" && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
-                      <DetailGrid
-                        title="Invoice Header"
-                        items={[
-                          { label: "Vendor", value: inv.vendorName || "—", icon: User },
-                          { label: "Invoice Date", value: formatDt(inv.createdAt), icon: CalendarDays },
-                          { label: "Reference", value: inv.invoiceNumber || "—", icon: FileText },
-                          { label: "Legal Entity", value: inv.legalEntityCode || "—", icon: Landmark },
-                        ]}
-                      />
-                      <DetailGrid
-                        title="Line Items"
-                        items={[
-                          { label: "Taxable Value", value: `₹${Number(inv.taxableValue || inv.amount || 0).toLocaleString("en-IN")}`, icon: Coins },
-                          { label: "Tax Amount", value: `₹${Number(inv.totalTaxAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
-                          { label: "Total Amount", value: `₹${Number(inv.amount || inv.totalAmount).toLocaleString("en-IN")}`, icon: Wallet },
-                          { label: "PO Reference", value: inv.poId || "Direct Invoice", icon: ShoppingCart },
-                        ]}
-                      />
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <DetailGrid
+                          title="Invoice Header"
+                          items={[
+                            { label: "Vendor", value: inv.vendorName || "—", icon: User },
+                            { label: "Invoice Date", value: formatDt(inv.createdAt), icon: CalendarDays },
+                            { label: "Reference", value: inv.invoiceNumber || "—", icon: FileText },
+                            { label: "Legal Entity", value: inv.legalEntityCode || "—", icon: Landmark },
+                          ]}
+                        />
+                        <DetailGrid
+                          title="Totals"
+                          items={[
+                            { label: "Taxable Value", value: `₹${Number(inv.taxableValue || inv.amount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                            { label: "Tax Amount", value: `₹${Number(inv.totalTaxAmount || 0).toLocaleString("en-IN")}`, icon: Coins },
+                            { label: "Total Amount", value: `₹${Number(inv.amount || inv.totalAmount).toLocaleString("en-IN")}`, icon: Wallet },
+                            { label: "PO Reference", value: inv.poId || "Direct Invoice", icon: ShoppingCart },
+                          ]}
+                        />
+                      </div>
+
+                      {/* Line items only render when the invoice was created with them.
+                          Legacy single-amount invoices carry none, so this block is skipped
+                          and the header Totals above remain the sole breakdown. */}
+                      {Array.isArray(inv.lineItems) && inv.lineItems.length > 0 && (
+                        <div className="bg-card border border-border rounded-xl overflow-hidden">
+                          <div className="px-4 py-3 border-b border-border">
+                            <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Line Items ({inv.lineItems.length})</h4>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-caption">
+                              <thead>
+                                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  <th className="text-left font-medium px-4 py-2">#</th>
+                                  <th className="text-left font-medium px-4 py-2">Description</th>
+                                  <th className="text-left font-medium px-4 py-2">HSN/SAC</th>
+                                  <th className="text-right font-medium px-4 py-2">Qty</th>
+                                  <th className="text-right font-medium px-4 py-2">Taxable ₹</th>
+                                  <th className="text-right font-medium px-4 py-2">GST %</th>
+                                  <th className="text-right font-medium px-4 py-2">CGST</th>
+                                  <th className="text-right font-medium px-4 py-2">SGST</th>
+                                  <th className="text-right font-medium px-4 py-2">IGST</th>
+                                  <th className="text-right font-medium px-4 py-2">Line total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {inv.lineItems.map((ln: any) => (
+                                  <tr key={ln.id} className="border-b border-border/60 last:border-0">
+                                    <td className="px-4 py-2 text-muted-foreground">{ln.lineItemNumber}</td>
+                                    <td className="px-4 py-2 font-medium">{ln.description}</td>
+                                    <td className="px-4 py-2 font-mono text-muted-foreground">{ln.hsnSacCode || "—"}</td>
+                                    <td className="px-4 py-2 text-right font-mono">{Number(ln.quantity).toLocaleString("en-IN")}</td>
+                                    <td className="px-4 py-2 text-right font-mono">₹{Number(ln.taxableValue).toLocaleString("en-IN")}</td>
+                                    <td className="px-4 py-2 text-right font-mono">{Number(ln.gstRate)}%</td>
+                                    <td className="px-4 py-2 text-right font-mono">₹{Number(ln.cgstAmount).toLocaleString("en-IN")}</td>
+                                    <td className="px-4 py-2 text-right font-mono">₹{Number(ln.sgstAmount).toLocaleString("en-IN")}</td>
+                                    <td className="px-4 py-2 text-right font-mono">₹{Number(ln.igstAmount).toLocaleString("en-IN")}</td>
+                                    <td className="px-4 py-2 text-right font-mono font-bold">₹{Number(ln.lineTotal).toLocaleString("en-IN")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

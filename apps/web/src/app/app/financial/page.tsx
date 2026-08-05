@@ -12,6 +12,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ResourceView } from "@/components/ui/resource-view";
 import { DetailGrid } from "@/components/ui/detail-grid";
 import { Timeline } from "@/components/ui/timeline";
+import {
+  InvoiceLineItemsEditor,
+  emptyLine,
+  toLinePayload,
+  deriveHeader,
+  type InvoiceLineRow,
+} from "@/components/financial/InvoiceLineItemsEditor";
 
 const FIN_TABS = [
   { key: "budget",      label: "IT Budget",              module: "budget"      as const, action: "read"  as const },
@@ -120,6 +127,12 @@ function FinancialPageInner() {
   const [showNewARInvoice, setShowNewARInvoice] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "", gstinId: "" });
   const [arInvoiceForm, setArInvoiceForm] = useState({ customerVendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
+  // M-07: line-item entry. When on, the form sends `lines[]` (authoritative) and the
+  // header is derived; when off, the legacy single-amount path is unchanged.
+  const [apLineMode, setApLineMode] = useState(false);
+  const [apLines, setApLines] = useState<InvoiceLineRow[]>([emptyLine()]);
+  const [arLineMode, setArLineMode] = useState(false);
+  const [arLines, setArLines] = useState<InvoiceLineRow[]>([emptyLine()]);
   const { data: legalEntitiesList } = trpc.financial.listLegalEntities.useQuery(
     undefined,
     mergeTrpcQueryOpts("financial.listLegalEntities", { refetchOnWindowFocus: false }),
@@ -133,6 +146,8 @@ function FinancialPageInner() {
       }
       setShowNewInvoice(false);
       setInvoiceForm({ vendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "", gstinId: "" });
+      setApLineMode(false);
+      setApLines([emptyLine()]);
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create invoice"),
@@ -142,6 +157,8 @@ function FinancialPageInner() {
       toast.success("Receivable invoice created");
       setShowNewARInvoice(false);
       setArInvoiceForm({ customerVendorId: "", invoiceNumber: "", amount: "", gstRate: "18", dueDate: "", legalEntityId: "" });
+      setArLineMode(false);
+      setArLines([emptyLine()]);
       void utils.financial.listInvoices.invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create receivable"),
@@ -157,6 +174,28 @@ function FinancialPageInner() {
   const tdsChallansQuery = trpc.indiaCompliance.tdsChallans.list.useQuery({}, mergeTrpcQueryOpts("indiaCompliance.tdsChallans.list", { refetchOnWindowFocus: false },));
 
   const gstinsQuery = trpc.accounting.gstin.list.useQuery(undefined, mergeTrpcQueryOpts("accounting.gstin.list", { refetchOnWindowFocus: false }));
+
+  // M-07: best-effort interstate flag for the on-screen per-line GST PREVIEW only.
+  // The server re-derives the split authoritatively (org GSTIN state vs counterparty
+  // state) at create time, so an unknown state here never affects what is persisted —
+  // it only chooses whether the preview shows CGST/SGST or IGST.
+  const vendorItems: any[] = (vendorListData as any)?.items ?? [];
+  const gstinItems: any[] = (gstinsQuery.data as any) ?? [];
+  function orgGstinState(gstinId: string): string | null {
+    const g = gstinId
+      ? gstinItems.find((x) => x.id === gstinId)
+      : (gstinItems.find((x) => x.isPrimary) ?? gstinItems[0]);
+    return g?.stateName ?? g?.stateCode ?? null;
+  }
+  function isInterstateFor(counterpartyId: string, gstinId: string): boolean {
+    const cp = vendorItems.find((v) => v.id === counterpartyId);
+    const cpState = (cp?.state ?? "").toString().trim().toLowerCase();
+    const orgState = (orgGstinState(gstinId) ?? "").toString().trim().toLowerCase();
+    if (!cpState || !orgState) return false; // unknown → assume intra-state for preview
+    return cpState !== orgState;
+  }
+  const apInterstate = isInterstateFor(invoiceForm.vendorId, invoiceForm.gstinId);
+  const arInterstate = isInterstateFor(arInvoiceForm.customerVendorId, "");
 
   const [periodCloseMonth, setPeriodCloseMonth] = useState(() => {
     const d = new Date();
@@ -1066,7 +1105,7 @@ function FinancialPageInner() {
 
     {showNewARInvoice && (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+        <div className={cn("bg-card border border-border rounded-lg shadow-xl w-full p-5 max-h-[90vh] overflow-y-auto", arLineMode ? "max-w-3xl" : "max-w-sm")}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-body-sm font-bold">Create receivable (AR)</h2>
             <button type="button" onClick={() => setShowNewARInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -1089,6 +1128,13 @@ function FinancialPageInner() {
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Invoice Number *</label>
               <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. AR-2026-001" value={arInvoiceForm.invoiceNumber} onChange={(e) => setArInvoiceForm((f) => ({ ...f, invoiceNumber: e.target.value }))} />
             </div>
+            {/* M-07: single-amount vs line-item entry. Line mode sends authoritative lines[]. */}
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="text-muted-foreground">Entry:</span>
+              <button type="button" onClick={() => setArLineMode(false)} className={cn("px-2 py-0.5 rounded border", !arLineMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent")}>Single amount</button>
+              <button type="button" onClick={() => setArLineMode(true)} className={cn("px-2 py-0.5 rounded border", arLineMode ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent")}>Line items</button>
+            </div>
+            {!arLineMode && (<>
             <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Taxable amount (₹) *</label>
               <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 250000" value={arInvoiceForm.amount} onChange={(e) => setArInvoiceForm((f) => ({ ...f, amount: e.target.value }))} />
@@ -1111,6 +1157,10 @@ function FinancialPageInner() {
                 </p>
               )}
             </div>
+            </>)}
+            {arLineMode && (
+              <InvoiceLineItemsEditor rows={arLines} onChange={setArLines} isInterstate={arInterstate} />
+            )}
             <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
               <input type="date" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={arInvoiceForm.dueDate} onChange={(e) => setArInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))} />
@@ -1135,15 +1185,27 @@ function FinancialPageInner() {
             <button
               type="button"
               onClick={() => {
-                if (!arInvoiceForm.customerVendorId || !arInvoiceForm.invoiceNumber.trim() || !arInvoiceForm.amount) {
-                  toast.error("Customer, invoice number, and amount are required");
+                if (!arInvoiceForm.customerVendorId || !arInvoiceForm.invoiceNumber.trim()) {
+                  toast.error("Customer and invoice number are required");
+                  return;
+                }
+                const arLinePayload = arLineMode ? toLinePayload(arLines) : [];
+                if (arLineMode && arLinePayload.length === 0) {
+                  toast.error("Add at least one line with a description and taxable value");
+                  return;
+                }
+                if (!arLineMode && !arInvoiceForm.amount) {
+                  toast.error("Taxable amount is required");
                   return;
                 }
                 createReceivableInvoiceMutation.mutate({
                   customerVendorId: arInvoiceForm.customerVendorId,
                   invoiceNumber: arInvoiceForm.invoiceNumber.trim(),
-                  amount: arInvoiceForm.amount,
+                  // Server ignores `amount`/`gstRate` when `lines` is present; the header
+                  // is derived from the lines. Send a placeholder amount to satisfy the input.
+                  amount: arLineMode ? String(deriveHeader(arLines, arInterstate).taxableValue) : arInvoiceForm.amount,
                   gstRate: Number(arInvoiceForm.gstRate) as 0 | 5 | 12 | 18 | 28,
+                  lines: arLineMode ? arLinePayload : undefined,
                   dueDate: arInvoiceForm.dueDate || undefined,
                   legalEntityId: arInvoiceForm.legalEntityId || undefined,
                 });
@@ -1160,7 +1222,7 @@ function FinancialPageInner() {
 
     {showNewInvoice && (
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-        <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-sm p-5">
+        <div className={cn("bg-card border border-border rounded-lg shadow-xl w-full p-5 max-h-[90vh] overflow-y-auto", apLineMode ? "max-w-3xl" : "max-w-sm")}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-body-sm font-bold">Create Invoice</h2>
             <button type="button" onClick={() => setShowNewInvoice(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -1184,6 +1246,14 @@ function FinancialPageInner() {
               <input className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. INV-2026-001" value={invoiceForm.invoiceNumber} onChange={(e) => setInvoiceForm((f) => ({ ...f, invoiceNumber: e.target.value }))} />
             </div>
             <div>
+              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Entry mode</label>
+              <div className="mt-1 flex gap-1 rounded border border-border p-0.5 bg-background w-fit">
+                <button type="button" onClick={() => setApLineMode(false)} className={cn("px-2 py-1 text-[11px] rounded", !apLineMode ? "bg-accent font-medium" : "text-muted-foreground")}>Single amount</button>
+                <button type="button" onClick={() => setApLineMode(true)} className={cn("px-2 py-1 text-[11px] rounded", apLineMode ? "bg-accent font-medium" : "text-muted-foreground")}>Line items</button>
+              </div>
+            </div>
+            {!apLineMode && (<>
+            <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Taxable amount (₹) *</label>
               <input type="number" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" placeholder="e.g. 150000" value={invoiceForm.amount} onChange={(e) => setInvoiceForm((f) => ({ ...f, amount: e.target.value }))} />
             </div>
@@ -1205,6 +1275,10 @@ function FinancialPageInner() {
                 </p>
               )}
             </div>
+            </>)}
+            {apLineMode && (
+              <InvoiceLineItemsEditor rows={apLines} onChange={setApLines} isInterstate={apInterstate} />
+            )}
             <div>
               <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Due Date</label>
               <input type="date" className="mt-1 w-full border border-border rounded px-2 py-1.5 text-[12px] bg-background" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))} />
@@ -1242,12 +1316,16 @@ function FinancialPageInner() {
             <button onClick={() => setShowNewInvoice(false)} className="flex-1 px-3 py-1.5 text-caption border border-border rounded hover:bg-accent">Cancel</button>
             <button
               onClick={() => {
-                if (!invoiceForm.vendorId || !invoiceForm.invoiceNumber.trim() || !invoiceForm.amount) { toast.error("Vendor, invoice number, and amount are required"); return; }
+                if (!invoiceForm.vendorId || !invoiceForm.invoiceNumber.trim()) { toast.error("Vendor and invoice number are required"); return; }
+                const apLinePayload = apLineMode ? toLinePayload(apLines) : [];
+                if (apLineMode && apLinePayload.length === 0) { toast.error("Add at least one line with a description and taxable value"); return; }
+                if (!apLineMode && !invoiceForm.amount) { toast.error("Taxable amount is required"); return; }
                 createInvoiceMutation.mutate({
                   vendorId: invoiceForm.vendorId,
                   invoiceNumber: invoiceForm.invoiceNumber.trim(),
-                  amount: invoiceForm.amount,
+                  amount: apLineMode ? String(deriveHeader(apLines, apInterstate).taxableValue) : invoiceForm.amount,
                   gstRate: Number(invoiceForm.gstRate) as 0 | 5 | 12 | 18 | 28,
+                  lines: apLineMode ? apLinePayload : undefined,
                   dueDate: invoiceForm.dueDate || undefined,
                   legalEntityId: invoiceForm.legalEntityId || undefined,
                   gstinId: invoiceForm.gstinId || undefined,
