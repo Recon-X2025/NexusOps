@@ -688,7 +688,7 @@ export const indiaComplianceRouter = router({
         const { payrollRuns, payslips: payslipsTable, employees: employeesTable } = await import(
           "@coheronconnect/db"
         );
-        const { formatECRFile } = await import("../lib/india/payroll-engine.js");
+        const { formatECRFile } = await import("../lib/india/ecr-format.js");
 
         const [run] = await db
           .select()

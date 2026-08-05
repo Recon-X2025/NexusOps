@@ -1414,40 +1414,50 @@ export const hrRouter = router({
         );
         if (!structure) return null;
 
-        const { computeMonthlySalarySlip, computeTaxOld, computeTaxNew } = await import("../lib/india/payroll-engine.js");
-        const slip = computeMonthlySalarySlip({
-          ctcAnnual: Number(structure.ctcAnnual),
-          basicPercent: Number(structure.basicPercent),
-          hraPercentOfBasic: Number(structure.hraPercentOfBasic),
-          ltaAnnual: Number(structure.ltaAnnual),
-          medicalAllowanceAnnual: Number(structure.medicalAllowanceAnnual),
-          conveyanceAllowanceAnnual: Number(structure.conveyanceAllowanceAnnual),
-          bonusAnnual: Number(structure.bonusAnnual),
-          state: emp.state ?? "Maharashtra",
-          isMetroCity: emp.isMetroCity ?? false,
-          regime: (emp.taxRegime ?? "new") as "old" | "new",
-          currentFYMonth: fyMonth,
-          ytdGross: 0,
-          ytdTds: 0,
-        });
+        // Rerouted onto the live engine (`computeEmployeePayslip` from payroll-math,
+        // via the same `buildEmployeePayrollInput` bridge `payroll.runs.computePayslips`
+        // uses). The retired second engine produced stale figures; this preview now
+        // matches what a real run writes. `slip` is remapped to the previous response
+        // shape so the endpoint contract is unchanged.
+        const { computeEmployeePayslip } = await import("../lib/payroll-cycle.js");
+        const { buildEmployeePayrollInput } = await import("../services/payroll-run-aggregates.js");
+        const { resolveStatutoryCeilings } = await import("../lib/india/statutory-ceilings.js");
+        const ceilings = await resolveStatutoryCeilings(db, org!.id, new Date(year, month - 1, 1));
+        const empInput = buildEmployeePayrollInput(emp, structure, month, year);
+        const ps = computeEmployeePayslip(empInput, fyMonth, ceilings);
+        const tc = ps.taxComputation;
 
-        const taxResult = (emp.taxRegime ?? "new") === "old"
-          ? computeTaxOld(slip.grossEarnings * 12, { section80C: slip.pfEmployee * 12, section80D: 0, section24b: 0, section80CCD1B: 0, hraExemption: 0, ltaExemption: 0 })
-          : computeTaxNew(slip.grossEarnings * 12, 0);
+        const slip = {
+          basic: ps.basicEarned,
+          hra: ps.hraEarned,
+          specialAllowance: ps.specialAllowance,
+          lta: ps.lta,
+          medicalAllowance: 0,
+          conveyanceAllowance: 0,
+          bonus: ps.bonus,
+          grossEarnings: ps.grossEarnings,
+          pfEmployee: ps.employeePF,
+          pfEmployer: ps.employerPF,
+          professionalTax: ps.professionalTax,
+          lwf: ps.lwf,
+          tds: ps.tds,
+          totalDeductions: ps.totalDeductions,
+          netPay: ps.netPay,
+        };
 
         return {
           month, year,
           slip,
           taxSummary: {
             regime: emp.taxRegime ?? "new",
-            projectedAnnualGross: slip.grossEarnings * 12,
-            taxableIncome: taxResult.taxableIncome,
-            totalTaxLiability: taxResult.totalTaxLiability,
-            rebate87A: taxResult.rebate87A,
-            surcharge: taxResult.surcharge,
-            cess: taxResult.cess,
-            effectiveRate: taxResult.effectiveRate,
-            monthlyTds: slip.tds,
+            projectedAnnualGross: tc.grossSalary,
+            taxableIncome: tc.taxableIncome,
+            totalTaxLiability: tc.totalTaxLiability,
+            rebate87A: tc.rebate87A,
+            surcharge: tc.surcharge,
+            cess: tc.cess,
+            effectiveRate: tc.grossSalary > 0 ? tc.totalTaxLiability / tc.grossSalary : 0,
+            monthlyTds: ps.tds,
           },
           employeeInfo: {
             // Decrypt the stored (envelope) PAN; legacy plaintext rows pass through unchanged.
@@ -1479,14 +1489,41 @@ export const hrRouter = router({
         }),
       )
       .query(async ({ input }) => {
-        const { computeTaxOld, computeTaxNew } = await import("../lib/india/payroll-engine.js");
-        if (input.regime === "old") {
-          return computeTaxOld(input.grossAnnualIncome, input.deductions ?? {
-            section80C: 0, section80D: 0, section24b: 0, section80CCD1B: 0,
-            hraExemption: 0, ltaExemption: 0,
-          });
-        }
-        return computeTaxNew(input.grossAnnualIncome, input.npsEmployer);
+        // Rerouted onto the canonical engine (`@coheronconnect/payroll-math`) — the
+        // same one `payroll.runs.computePayslips` uses — so this preview reflects the
+        // current-FY slabs, capped new-regime surcharge, and s.87A marginal relief.
+        // The retired second engine carried the stale FY2024-25 versions of all three.
+        const { computeTax } = await import("@coheronconnect/payroll-math");
+        const d = input.deductions ?? {
+          section80C: 0, section80D: 0, section24b: 0, section80CCD1B: 0,
+          hraExemption: 0, ltaExemption: 0,
+        };
+        // Full-year, single-employer profile: `computeTax` derives gross from
+        // `annualCTC` when `joiningMonth === 1`, so the component fields stay 0 and
+        // only the declared reliefs feed the deduction stack. New-regime NPS employer
+        // (80CCD(2)) maps to `otherExemptions` (a pre-computed exempt amount).
+        return computeTax({
+          regime: input.regime === "old" ? "OLD" : "NEW",
+          annualCTC: input.grossAnnualIncome,
+          basicMonthly: 0,
+          hraMonthly: 0,
+          specialAllowance: 0,
+          lta: 0,
+          section80C: d.section80C,
+          section80D: d.section80D,
+          section80CCD1B: d.section80CCD1B,
+          section80TTA: 0,
+          section24b: d.section24b,
+          hraExemption: d.hraExemption,
+          otherExemptions: input.regime === "new" ? input.npsEmployer : d.ltaExemption,
+          employeePFMonthly: 0,
+          employerPFMonthly: 0,
+          professionalTax: 0,
+          joiningMonth: 1,
+          monthsInFY: 12,
+          previousEmployerIncome: 0,
+          previousEmployerTDS: 0,
+        });
       }),
 
     computeMonthlySlip: permissionProcedure("hr", "read")
@@ -1519,158 +1556,50 @@ export const hrRouter = router({
         // Determine FY month (April = 1, March = 12)
         const fyMonth = input.month >= 4 ? input.month - 3 : input.month + 9;
 
-        const { computeMonthlySalarySlip } = await import("../lib/india/payroll-engine.js");
-        return computeMonthlySalarySlip({
-          ctcAnnual: Number(structure.ctcAnnual),
-          basicPercent: Number(structure.basicPercent),
-          hraPercentOfBasic: Number(structure.hraPercentOfBasic),
-          ltaAnnual: Number(structure.ltaAnnual),
-          medicalAllowanceAnnual: Number(structure.medicalAllowanceAnnual),
-          conveyanceAllowanceAnnual: Number(structure.conveyanceAllowanceAnnual),
-          bonusAnnual: Number(structure.bonusAnnual),
-          state: emp.state ?? "Maharashtra",
-          isMetroCity: emp.isMetroCity ?? false,
-          regime: (emp.taxRegime ?? "new") as "old" | "new",
-          currentFYMonth: fyMonth,
-          ytdGross: 0,
-          ytdTds: 0,
-        });
+        // Rerouted onto the live engine (same bridge as `computeCurrentSlip` and
+        // `payroll.runs.computePayslips`). Remapped to the previous `SalarySlipOutput`
+        // shape so the endpoint contract is unchanged.
+        const { computeEmployeePayslip } = await import("../lib/payroll-cycle.js");
+        const { buildEmployeePayrollInput } = await import("../services/payroll-run-aggregates.js");
+        const { resolveStatutoryCeilings } = await import("../lib/india/statutory-ceilings.js");
+        const ceilings = await resolveStatutoryCeilings(db, org!.id, new Date(input.year, input.month - 1, 1));
+        const empInput = buildEmployeePayrollInput(emp, structure, input.month, input.year);
+        const ps = computeEmployeePayslip(empInput, fyMonth, ceilings);
+
+        return {
+          basic: ps.basicEarned,
+          hra: ps.hraEarned,
+          specialAllowance: ps.specialAllowance,
+          lta: ps.lta,
+          medicalAllowance: 0,
+          conveyanceAllowance: 0,
+          bonus: ps.bonus,
+          grossEarnings: ps.grossEarnings,
+          pfEmployee: ps.employeePF,
+          pfEmployer: ps.employerPF,
+          professionalTax: ps.professionalTax,
+          lwf: ps.lwf,
+          tds: ps.tds,
+          totalDeductions: ps.totalDeductions,
+          netPay: ps.netPay,
+        };
       }),
 
-    runMonthlyPayroll: permissionProcedure("hr", "write")
-      .input(
-        z.object({
-          month: z.number().int().min(1).max(12),
-          year: z.number().int().min(2020),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        const { db, org } = ctx;
-        const { payrollRuns, payslips: payslipsTable } = await import("@coheronconnect/db");
-        const { computeMonthlySalarySlip } = await import("../lib/india/payroll-engine.js");
-
-        // Check for duplicate run
-        const [existing] = await db
-          .select()
-          .from(payrollRuns)
-          .where(
-            and(
-              eq(payrollRuns.orgId, org!.id),
-              eq(payrollRuns.month, input.month),
-              eq(payrollRuns.year, input.year),
-            ),
-          );
-        if (existing) throw new TRPCError({ code: "CONFLICT", message: "Payroll run already exists for this period" });
-
-        const allEmployees = await db
-          .select()
-          .from(employees)
-          .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
-
-        const [run] = await db
-          .insert(payrollRuns)
-          .values({
-            orgId: org!.id,
-            month: input.month,
-            year: input.year,
-            status: "draft",
-          })
-          .returning();
-
-        const fyMonth = input.month >= 4 ? input.month - 3 : input.month + 9;
-        const slipInserts = [];
-        let totalGross = 0, totalDeductions = 0, totalNet = 0;
-        let totalPfEmp = 0, totalPfEr = 0, totalPt = 0, totalTds = 0;
-
-        for (const emp of allEmployees) {
-          if (!emp.salaryStructureId) continue;
-          // M-05: resolve the version in force for this run's month/year (familyId).
-          const structure = await resolveSalaryStructureForPeriod(
-            db,
-            org!.id,
-            emp.salaryStructureId,
-            new Date(input.year, input.month - 1, 1),
-          );
-          if (!structure) continue;
-
-          const slip = computeMonthlySalarySlip({
-            ctcAnnual: Number(structure.ctcAnnual),
-            basicPercent: Number(structure.basicPercent),
-            hraPercentOfBasic: Number(structure.hraPercentOfBasic),
-            ltaAnnual: Number(structure.ltaAnnual),
-            medicalAllowanceAnnual: Number(structure.medicalAllowanceAnnual),
-            conveyanceAllowanceAnnual: Number(structure.conveyanceAllowanceAnnual),
-            bonusAnnual: Number(structure.bonusAnnual),
-            state: emp.state ?? "Maharashtra",
-            isMetroCity: emp.isMetroCity ?? false,
-            regime: (emp.taxRegime ?? "new") as "old" | "new",
-            currentFYMonth: fyMonth,
-            ytdGross: 0,
-            ytdTds: 0,
-          });
-
-          totalGross += slip.grossEarnings;
-          totalDeductions += slip.totalDeductions;
-          totalNet += slip.netPay;
-          totalPfEmp += slip.pfEmployee;
-          totalPfEr += slip.pfEmployer;
-          totalPt += slip.professionalTax;
-          totalTds += slip.tds;
-
-          slipInserts.push({
-            orgId: org!.id,
-            employeeId: emp.id,
-            payrollRunId: run!.id,
-            month: input.month,
-            year: input.year,
-            basic: String(slip.basic),
-            hra: String(slip.hra),
-            specialAllowance: String(slip.specialAllowance),
-            lta: String(slip.lta),
-            medicalAllowance: String(slip.medicalAllowance),
-            conveyanceAllowance: String(slip.conveyanceAllowance),
-            bonus: String(slip.bonus),
-            grossEarnings: String(slip.grossEarnings),
-            pfEmployee: String(slip.pfEmployee),
-            pfEmployer: String(slip.pfEmployer),
-            professionalTax: String(slip.professionalTax),
-            lwf: String(slip.lwf),
-            tds: String(slip.tds),
-            totalDeductions: String(slip.totalDeductions),
-            netPay: String(slip.netPay),
-            ytdGross: "0",
-            ytdTds: "0",
-            taxRegimeUsed: (emp.taxRegime ?? "new") as "old" | "new",
-          });
-        }
-
-        if (slipInserts.length > 0) {
-          await db.insert(payslipsTable).values(slipInserts);
-        }
-
-        const [updated] = await db
-          .update(payrollRuns)
-          .set({
-            totalGross: String(totalGross),
-            totalDeductions: String(totalDeductions),
-            totalNet: String(totalNet),
-            totalPfEmployee: String(totalPfEmp),
-            totalPfEmployer: String(totalPfEr),
-            totalPt: String(totalPt),
-            totalTds: String(totalTds),
-          })
-          .where(eq(payrollRuns.id, run!.id))
-          .returning();
-
-        return { run: updated, slipsGenerated: slipInserts.length };
-      }),
+    // `runMonthlyPayroll` (retired 2026-08-05): this endpoint ran a second, stale
+    // India payroll engine (`india/payroll-engine.ts`) to insert payslips + run
+    // totals — a duplicate money-writing path with pre-fix slabs/surcharge/rebate,
+    // no ESI, no LOP, no effective-dated ceilings, and YTD hardcoded to 0. No UI
+    // control invoked it (the app runs payroll through the `payroll.runs` pipeline
+    // → `computePayslips`, the live engine). Removed so there is exactly one path
+    // that writes payslips. Callers must use `payroll.runs` (createRun → advance
+    // steps → computePayslips).
 
     generateECR: permissionProcedure("hr", "read")
       .input(z.object({ month: z.number().int().min(1).max(12), year: z.number().int() }))
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
         const { payrollRuns, payslips: payslipsTable } = await import("@coheronconnect/db");
-        const { formatECRFile } = await import("../lib/india/payroll-engine.js");
+        const { formatECRFile } = await import("../lib/india/ecr-format.js");
 
         const [run] = await db
           .select()
