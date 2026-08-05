@@ -47,6 +47,20 @@ export function buildEmployeePayrollInput(
   const lopDays = attendance ? attendance.lopDays : 0;
   const join = emp.startDate ? new Date(emp.startDate) : new Date(year, month - 1, 1);
 
+  // Statutory state drives PT slab selection. There is no safe default — a silent
+  // fallback (previously "Maharashtra") files the wrong PT with a state regulator, and
+  // ~half of states levy no PT, so "unknown" must be distinguishable from "known non-
+  // levying". Employees with no state are excluded from the run with a per-employee error
+  // (owner-approved: "Error that employee row"). The API create boundary makes state
+  // required going forward; this guard catches legacy rows.
+  const state = emp.state?.trim();
+  if (!state) {
+    throw new Error(
+      "Employee has no state on record; professional-tax state cannot be resolved. " +
+        "Set the employee's state before locking payroll.",
+    );
+  }
+
   return {
     id: emp.id,
     name: emp.employeeId,
@@ -55,9 +69,14 @@ export function buildEmployeePayrollInput(
     uan: emp.uan ?? "",
     designation: emp.title ?? "",
     department: emp.department ?? "",
-    state: emp.state ?? "Maharashtra",
+    state,
     isMetro: emp.isMetroCity ?? false,
     joiningDate: join,
+    gender: emp.gender ?? null,
+    dateOfBirth: emp.dateOfBirth ?? null,
+    ptExemptArmedForces: emp.ptExemptArmedForces ?? false,
+    ptExemptDisability: emp.ptExemptDisability ?? false,
+    ptExemptDependentDisability: emp.ptExemptDependentDisability ?? false,
     basicMonthly,
     hraMonthly,
     specialAllowance,

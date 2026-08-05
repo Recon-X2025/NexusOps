@@ -45,6 +45,23 @@ export interface PTComputation {
   grossMonthly: number;
   ptAmount: number; // Monthly PT deduction
   annualPT: number;
+  /** True when PT was bypassed under a CA Tier-1 exemption (armed forces / disability /
+   *  dependent-disability / age > 65). ptAmount and annualPT are 0 in that case. */
+  exempt?: boolean;
+}
+
+/**
+ * Per-employee inputs that steer PT bracket selection and exemption, resolved by the
+ * caller from the employee record. Optional so existing callers are unaffected.
+ *  - `gender`: selects the Maharashtra male/female bracket set. Unstated (or "other")
+ *    resolves to the MALE (lower-threshold) set per the CA — never under-deduct.
+ *  - `exempt`: when true, PT is bypassed entirely regardless of state/gross. The caller
+ *    resolves this from the four Tier-1 paths (the age-over-65 one derives from DOB;
+ *    the other three are declared flags) so computePT stays date-free and pure.
+ */
+export interface PTContext {
+  gender?: "male" | "female" | "other" | null;
+  exempt?: boolean;
 }
 
 export interface LWFComputation {
@@ -279,9 +296,26 @@ export function computePT(
   grossMonthly: number,
   state: string,
   monthInFY: number, // 1=April, 12=March
-  overrides?: Record<string, { slabs: PTSlab[]; annualCap: number }>
+  overrides?: Record<string, { slabs: PTSlab[]; annualCap: number }>,
+  ctx?: PTContext
 ): PTComputation {
-  const stateKey = state.toUpperCase().replace(/\s+/g, "_");
+  // CA Tier-1 exemption: if the employee qualifies under ANY of the four paths
+  // (armed forces / own disability / dependent-with-disability / age > 65), PT is
+  // bypassed entirely across ALL states — before any slab lookup. The caller resolves
+  // the composite `exempt` flag (age derives from DOB there; the rest are declared).
+  if (ctx?.exempt) {
+    return { state, grossMonthly, ptAmount: 0, annualPT: 0, exempt: true };
+  }
+
+  let stateKey = state.toUpperCase().replace(/\s+/g, "_");
+
+  // Maharashtra is gender-split. Select the female bracket set only for a stated
+  // `female`; unstated or `other` falls through to the male set (MAHARASHTRA), the
+  // lower-threshold slabs — never under-deduct on an absent gender (CA rule).
+  if (stateKey === "MAHARASHTRA" && ctx?.gender === "female") {
+    stateKey = "MAHARASHTRA_FEMALE";
+  }
+
   const config = overrides?.[stateKey] || PT_SLABS[stateKey];
 
   if (!config || config.slabs.length === 0) {
@@ -354,11 +388,12 @@ export function computeMonthlyStatutory(
   state: string,
   monthInFY: number,
   isVoluntaryHigherPF: boolean = false,
-  overrides: StatutoryCeilingOverrides = {}
+  overrides: StatutoryCeilingOverrides = {},
+  ptContext?: PTContext
 ): MonthlyStatutoryDeductions {
   const pf = computePF(basicPlusDA, isVoluntaryHigherPF, overrides.pfWageCeiling);
   const esi = computeESI(grossMonthly, overrides.esiWageCeiling);
-  const pt = computePT(grossMonthly, state, monthInFY, overrides.ptSlabs);
+  const pt = computePT(grossMonthly, state, monthInFY, overrides.ptSlabs, ptContext);
   const lwf = computeLWF(state, overrides.lwfRates);
 
   // LWF is half-yearly (June/Dec = months 3 and 9 in FY)

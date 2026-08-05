@@ -36,6 +36,13 @@ export const employeeStatusEnum = pgEnum("employee_status", [
 
 export const taxRegimeEnum = pgEnum("tax_regime", ["old", "new"]);
 
+// Gender — statutory determinant, not HR demographics. Maharashtra Professional Tax
+// has separate male/female brackets (women pay nil to ₹25,000 where men pay from
+// ₹7,501), so this drives PT slab selection. `other` is a valid legal option; per the
+// CA it resolves to the male (lower-threshold) slab like an unstated gender, to prevent
+// structural under-deduction. See computePT / reports/fix-plan.md → C2.
+export const genderEnum = pgEnum("gender", ["male", "female", "other"]);
+
 export const payrollRunStatusEnum = pgEnum("payroll_run_status", [
   "draft",
   "under_review",
@@ -157,10 +164,42 @@ export const employees = pgTable(
     aadhaarMaskedHash: text("aadhaar_masked_hash"),
     aadhaarMaskedDisplay: text("aadhaar_masked_display"),
     uan: text("uan"),
+    esiIpNumber: text("esi_ip_number"),
     bankAccountNumber: text("bank_account_number"),
     bankIfsc: text("bank_ifsc"),
     bankName: text("bank_name"),
+    bankAccountName: text("bank_account_name"),
     taxRegime: taxRegimeEnum("tax_regime").notNull().default("new"),
+    /**
+     * Statutory gender — drives Maharashtra Professional-Tax bracket selection
+     * (male/female differ). Nullable: unstated resolves to the male (lower-threshold)
+     * slab per the CA, so absence never causes structural under-deduction. Not an HR
+     * demographic field; it exists for PT correctness. See computePT (C2-STRUCT).
+     */
+    gender: genderEnum("gender"),
+    /**
+     * Date of birth — the ONLY source for the over-65 Professional-Tax exemption
+     * (age is not otherwise derivable for employees; DOB was previously on the
+     * directors/DIN table only). Nullable; when unset, the age exemption cannot apply
+     * and PT is computed normally. See computePT PT-exemption guard (C2-STRUCT).
+     */
+    dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
+    /**
+     * Professional-Tax exemption flags (CA Tier-1). If ANY is true, PT is bypassed
+     * entirely for that employee across ALL states. These are DECLARED flags backed
+     * by required evidence (recorded as a policy, documents stored in a later item):
+     *  - armed forces: military ID or discharge order
+     *  - own disability certificate: Form 10-IA signed by a Government Civil Surgeon
+     *  - dependent-with-disability guardian: same certificate for the dependant
+     * The age-over-65 exemption is derived from `dateOfBirth`, not a flag.
+     * Default false = "not exempt" — the safe direction (PT is charged unless a
+     * verified exemption is declared). See computePT PT-exemption guard.
+     */
+    ptExemptArmedForces: boolean("pt_exempt_armed_forces").notNull().default(false),
+    ptExemptDisability: boolean("pt_exempt_disability").notNull().default(false),
+    ptExemptDependentDisability: boolean("pt_exempt_dependent_disability")
+      .notNull()
+      .default(false),
     /**
      * M-05: holds a salary-structure FAMILY id, not a version id. The FK targets
      * `salaryStructures.id` because a family's id equals its origin (first) version's

@@ -266,6 +266,30 @@ export const hrRouter = router({
           location: z.string().optional(),
           startDate: z.coerce.date().optional(),
           salaryStructureId: z.string().uuid().nullable().optional(),
+          // ── Statutory ingestion (C2-STRUCT / C1 / C3) ──
+          // Location: state is required at this boundary — it drives PT slab selection
+          // and there is no safe silent default (the old Maharashtra fallback filed the
+          // wrong PT). city/isMetroCity feed HRA metro (50% vs 40%).
+          state: z.string().trim().min(1, "State is required (drives professional-tax slab)."),
+          city: z.string().optional(),
+          isMetroCity: z.boolean().optional(),
+          // Tax election: locked 12 months, defaults to new (CA ruling).
+          taxRegime: z.enum(["old", "new"]).optional(),
+          // Statutory identity.
+          pan: z.string().optional(),
+          uan: z.string().optional(),
+          esiIpNumber: z.string().optional(),
+          bankAccountNumber: z.string().optional(),
+          bankIfsc: z.string().optional(),
+          bankName: z.string().optional(),
+          bankAccountName: z.string().optional(),
+          // Maharashtra PT is gender-split; DOB is the sole source for the over-65 PT exemption.
+          gender: z.enum(["male", "female", "other"]).optional(),
+          dateOfBirth: z.coerce.date().optional(),
+          // CA Tier-1 PT exemptions (evidence required at declaration; storage is a later item).
+          ptExemptArmedForces: z.boolean().optional(),
+          ptExemptDisability: z.boolean().optional(),
+          ptExemptDependentDisability: z.boolean().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -333,6 +357,22 @@ export const hrRouter = router({
             location: input.location,
             startDate: input.startDate,
             salaryStructureId: input.salaryStructureId,
+            state: input.state,
+            city: input.city,
+            isMetroCity: input.isMetroCity,
+            taxRegime: input.taxRegime,
+            pan: input.pan,
+            uan: input.uan,
+            esiIpNumber: input.esiIpNumber,
+            bankAccountNumber: input.bankAccountNumber,
+            bankIfsc: input.bankIfsc,
+            bankName: input.bankName,
+            bankAccountName: input.bankAccountName,
+            gender: input.gender,
+            dateOfBirth: input.dateOfBirth,
+            ptExemptArmedForces: input.ptExemptArmedForces,
+            ptExemptDisability: input.ptExemptDisability,
+            ptExemptDependentDisability: input.ptExemptDependentDisability,
             status: "active",
           })
           .returning();
@@ -358,6 +398,25 @@ export const hrRouter = router({
         location: z.string().optional(),
         employmentType: z.enum(["full_time", "part_time", "contractor", "intern"]).optional(),
         salaryStructureId: z.string().uuid().nullable().optional(),
+        // ── Statutory ingestion (C2-STRUCT / C1 / C3) ──
+        // Partial update: state stays optional here, but must be non-empty when supplied
+        // (clearing it would re-open the null-state hole the create boundary closes).
+        state: z.string().trim().min(1, "State cannot be blank (drives professional-tax slab).").optional(),
+        city: z.string().optional(),
+        isMetroCity: z.boolean().optional(),
+        taxRegime: z.enum(["old", "new"]).optional(),
+        pan: z.string().optional(),
+        uan: z.string().optional(),
+        esiIpNumber: z.string().optional(),
+        bankAccountNumber: z.string().optional(),
+        bankIfsc: z.string().optional(),
+        bankName: z.string().optional(),
+        bankAccountName: z.string().optional(),
+        gender: z.enum(["male", "female", "other"]).optional(),
+        dateOfBirth: z.coerce.date().optional(),
+        ptExemptArmedForces: z.boolean().optional(),
+        ptExemptDisability: z.boolean().optional(),
+        ptExemptDependentDisability: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;

@@ -1345,6 +1345,7 @@ describe("Layer 8: Module Smoke Tests", () => {
         department: "Engineering",
         title: "Engineer",
         employmentType: "full_time",
+        state: "Karnataka", // required at the create boundary (drives PT slab)
       })) as { id: string };
       expect(emp.id).toBeDefined();
 
@@ -1389,6 +1390,7 @@ describe("Layer 8: Module Smoke Tests", () => {
         department: "QA",
         title: "List smoke",
         employmentType: "full_time",
+        state: "Karnataka", // required at the create boundary (drives PT slab)
       })) as { id: string };
       const got = (await adminCaller.hr.employees.get({ id: emp.id })) as {
         employee: { id: string };

@@ -67,6 +67,23 @@ export default function HRPage() {
     managerId: "",
     salaryStructureId: "",
     startDate: "",
+    // Statutory ingestion (drives PT / HRA / TDS — see hr router create).
+    state: "",
+    city: "",
+    isMetroCity: false,
+    taxRegime: "new" as "old" | "new",
+    pan: "",
+    uan: "",
+    esiIpNumber: "",
+    bankAccountNumber: "",
+    bankIfsc: "",
+    bankName: "",
+    bankAccountName: "",
+    gender: "" as "" | "male" | "female" | "other",
+    dateOfBirth: "",
+    ptExemptArmedForces: false,
+    ptExemptDisability: false,
+    ptExemptDependentDisability: false,
   });
   const [editEmpForm, setEditEmpForm] = useState({
     department: "",
@@ -75,6 +92,22 @@ export default function HRPage() {
     employmentType: "full_time" as "full_time" | "part_time" | "contractor" | "intern",
     managerId: "",
     salaryStructureId: "",
+    state: "",
+    city: "",
+    isMetroCity: false,
+    taxRegime: "new" as "old" | "new",
+    pan: "",
+    uan: "",
+    esiIpNumber: "",
+    bankAccountNumber: "",
+    bankIfsc: "",
+    bankName: "",
+    bankAccountName: "",
+    gender: "" as "" | "male" | "female" | "other",
+    dateOfBirth: "",
+    ptExemptArmedForces: false,
+    ptExemptDisability: false,
+    ptExemptDependentDisability: false,
   });
 
   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
@@ -101,6 +134,22 @@ export default function HRPage() {
         managerId: "",
         salaryStructureId: "",
         startDate: "",
+        state: "",
+        city: "",
+        isMetroCity: false,
+        taxRegime: "new",
+        pan: "",
+        uan: "",
+        esiIpNumber: "",
+        bankAccountNumber: "",
+        bankIfsc: "",
+        bankName: "",
+        bankAccountName: "",
+        gender: "",
+        dateOfBirth: "",
+        ptExemptArmedForces: false,
+        ptExemptDisability: false,
+        ptExemptDependentDisability: false,
       });
     },
     onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not create employee"),
@@ -993,12 +1042,182 @@ export default function HRPage() {
                   onChange={(e) => setAddEmpForm((f) => ({ ...f, startDate: e.target.value }))}
                 />
               </div>
+
+              {/* ── Location & Professional Tax ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Location &amp; professional tax</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">State *</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.state}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, state: e.target.value }))}
+                    placeholder="e.g. Kerala"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">City</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.city}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, city: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={addEmpForm.isMetroCity}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, isMetroCity: e.target.checked }))}
+                />
+                Metro city (Delhi/Mumbai/Kolkata/Chennai — 50% HRA by residence)
+              </label>
+
+              {/* ── Tax election ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Tax election</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Tax regime (locked 12 months)</label>
+                <select
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.taxRegime}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, taxRegime: e.target.value as "old" | "new" }))}
+                >
+                  <option value="new">New regime</option>
+                  <option value="old">Old regime</option>
+                </select>
+              </div>
+
+              {/* ── Statutory identity ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Statutory identity</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">PAN</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.pan}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, pan: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">UAN</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.uan}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, uan: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">ESI IP number</label>
+                <input
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.esiIpNumber}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, esiIpNumber: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Gender (PT bracket)</label>
+                  <select
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.gender}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, gender: e.target.value as typeof f.gender }))}
+                  >
+                    <option value="">Not specified</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Date of birth</label>
+                  <input
+                    type="date"
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.dateOfBirth}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Bank account no.</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.bankAccountNumber}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">IFSC</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.bankIfsc}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, bankIfsc: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Bank name</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.bankName}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, bankName: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Account holder name</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.bankAccountName}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, bankAccountName: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* ── PT exemptions (evidence required at declaration) ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Professional-tax exemptions</p>
+                <p className="text-[10px] text-muted-foreground">Any one exempts PT in every state. Evidence required (military ID / Form 10-IA / birth proof).</p>
+              </div>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={addEmpForm.ptExemptArmedForces}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, ptExemptArmedForces: e.target.checked }))}
+                />
+                Armed forces
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={addEmpForm.ptExemptDisability}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, ptExemptDisability: e.target.checked }))}
+                />
+                Own disability (Form 10-IA)
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={addEmpForm.ptExemptDependentDisability}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, ptExemptDependentDisability: e.target.checked }))}
+                />
+                Parent/guardian of a dependent with disability
+              </label>
             </div>
             <div className="flex gap-2 mt-4">
               <button
                 type="button"
                 disabled={
                   (!addEmpForm.userId && (!addEmpForm.userName || !addEmpForm.userEmail)) ||
+                  !addEmpForm.state.trim() ||
                   createEmployee.isPending
                 }
                 onClick={() =>
@@ -1013,6 +1232,22 @@ export default function HRPage() {
                     managerId: addEmpForm.managerId || undefined,
                     salaryStructureId: addEmpForm.salaryStructureId || undefined,
                     startDate: addEmpForm.startDate ? new Date(`${addEmpForm.startDate}T12:00:00`) : undefined,
+                    state: addEmpForm.state.trim(),
+                    city: addEmpForm.city || undefined,
+                    isMetroCity: addEmpForm.isMetroCity,
+                    taxRegime: addEmpForm.taxRegime,
+                    pan: addEmpForm.pan || undefined,
+                    uan: addEmpForm.uan || undefined,
+                    esiIpNumber: addEmpForm.esiIpNumber || undefined,
+                    bankAccountNumber: addEmpForm.bankAccountNumber || undefined,
+                    bankIfsc: addEmpForm.bankIfsc || undefined,
+                    bankName: addEmpForm.bankName || undefined,
+                    bankAccountName: addEmpForm.bankAccountName || undefined,
+                    gender: addEmpForm.gender || undefined,
+                    dateOfBirth: addEmpForm.dateOfBirth ? new Date(`${addEmpForm.dateOfBirth}T12:00:00`) : undefined,
+                    ptExemptArmedForces: addEmpForm.ptExemptArmedForces,
+                    ptExemptDisability: addEmpForm.ptExemptDisability,
+                    ptExemptDependentDisability: addEmpForm.ptExemptDependentDisability,
                   })
                 }
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
@@ -1111,6 +1346,175 @@ export default function HRPage() {
                   ))}
                 </select>
               </div>
+
+              {/* ── Location & Professional Tax ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Location &amp; professional tax</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">State</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.state}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, state: e.target.value }))}
+                    placeholder="e.g. Kerala"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">City</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.city}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, city: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={editEmpForm.isMetroCity}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, isMetroCity: e.target.checked }))}
+                />
+                Metro city (Delhi/Mumbai/Kolkata/Chennai — 50% HRA by residence)
+              </label>
+
+              {/* ── Tax election ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Tax election</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Tax regime (locked 12 months)</label>
+                <select
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.taxRegime}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, taxRegime: e.target.value as "old" | "new" }))}
+                >
+                  <option value="new">New regime</option>
+                  <option value="old">Old regime</option>
+                </select>
+              </div>
+
+              {/* ── Statutory identity ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Statutory identity</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">PAN</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.pan}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, pan: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">UAN</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.uan}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, uan: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">ESI IP number</label>
+                <input
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.esiIpNumber}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, esiIpNumber: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Gender (PT bracket)</label>
+                  <select
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.gender}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, gender: e.target.value as typeof f.gender }))}
+                  >
+                    <option value="">Not specified</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Date of birth</label>
+                  <input
+                    type="date"
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.dateOfBirth}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Bank account no.</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.bankAccountNumber}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">IFSC</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.bankIfsc}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, bankIfsc: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Bank name</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.bankName}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, bankName: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Account holder name</label>
+                  <input
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.bankAccountName}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, bankAccountName: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* ── PT exemptions (evidence required at declaration) ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Professional-tax exemptions</p>
+                <p className="text-[10px] text-muted-foreground">Any one exempts PT in every state. Evidence required (military ID / Form 10-IA / birth proof).</p>
+              </div>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={editEmpForm.ptExemptArmedForces}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, ptExemptArmedForces: e.target.checked }))}
+                />
+                Armed forces
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={editEmpForm.ptExemptDisability}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, ptExemptDisability: e.target.checked }))}
+                />
+                Own disability (Form 10-IA)
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={editEmpForm.ptExemptDependentDisability}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, ptExemptDependentDisability: e.target.checked }))}
+                />
+                Parent/guardian of a dependent with disability
+              </label>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -1125,6 +1529,22 @@ export default function HRPage() {
                     employmentType: editEmpForm.employmentType,
                     managerId: editEmpForm.managerId === "" ? null : editEmpForm.managerId,
                     salaryStructureId: editEmpForm.salaryStructureId === "" ? null : editEmpForm.salaryStructureId,
+                    state: editEmpForm.state.trim() || undefined,
+                    city: editEmpForm.city || undefined,
+                    isMetroCity: editEmpForm.isMetroCity,
+                    taxRegime: editEmpForm.taxRegime,
+                    pan: editEmpForm.pan || undefined,
+                    uan: editEmpForm.uan || undefined,
+                    esiIpNumber: editEmpForm.esiIpNumber || undefined,
+                    bankAccountNumber: editEmpForm.bankAccountNumber || undefined,
+                    bankIfsc: editEmpForm.bankIfsc || undefined,
+                    bankName: editEmpForm.bankName || undefined,
+                    bankAccountName: editEmpForm.bankAccountName || undefined,
+                    gender: editEmpForm.gender || undefined,
+                    dateOfBirth: editEmpForm.dateOfBirth ? new Date(`${editEmpForm.dateOfBirth}T12:00:00`) : undefined,
+                    ptExemptArmedForces: editEmpForm.ptExemptArmedForces,
+                    ptExemptDisability: editEmpForm.ptExemptDisability,
+                    ptExemptDependentDisability: editEmpForm.ptExemptDependentDisability,
                   })
                 }
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
@@ -1284,6 +1704,22 @@ export default function HRPage() {
                                   employmentType: (emp.employmentType ?? "full_time") as typeof editEmpForm.employmentType,
                                   managerId: emp.managerId ? String(emp.managerId) : "",
                                   salaryStructureId: emp.salaryStructureId ? String(emp.salaryStructureId) : "",
+                                  state: String(emp.state ?? ""),
+                                  city: String(emp.city ?? ""),
+                                  isMetroCity: Boolean(emp.isMetroCity),
+                                  taxRegime: (emp.taxRegime === "old" ? "old" : "new") as "old" | "new",
+                                  pan: String(emp.pan ?? ""),
+                                  uan: String(emp.uan ?? ""),
+                                  esiIpNumber: String(emp.esiIpNumber ?? ""),
+                                  bankAccountNumber: String(emp.bankAccountNumber ?? ""),
+                                  bankIfsc: String(emp.bankIfsc ?? ""),
+                                  bankName: String(emp.bankName ?? ""),
+                                  bankAccountName: String(emp.bankAccountName ?? ""),
+                                  gender: (emp.gender ?? "") as "" | "male" | "female" | "other",
+                                  dateOfBirth: emp.dateOfBirth ? String(emp.dateOfBirth).slice(0, 10) : "",
+                                  ptExemptArmedForces: Boolean(emp.ptExemptArmedForces),
+                                  ptExemptDisability: Boolean(emp.ptExemptDisability),
+                                  ptExemptDependentDisability: Boolean(emp.ptExemptDependentDisability),
                                 });
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"

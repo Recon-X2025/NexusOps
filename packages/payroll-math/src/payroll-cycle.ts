@@ -26,7 +26,21 @@ import {
   computeStatutoryBonusEligibility,
   type MonthlyStatutoryDeductions,
   type StatutoryCeilingOverrides,
+  type PTContext,
 } from "./statutory-deductions";
+
+/**
+ * Age in completed years at a given as-of date, or null if DOB is absent. Used only for
+ * the over-65 Professional-Tax exemption. Counts a birthday as reached on the day
+ * (month/day compare), so "65 today" is 65.
+ */
+export function ageInYearsAt(dob: Date | null | undefined, asOf: Date): number | null {
+  if (!dob) return null;
+  let age = asOf.getFullYear() - dob.getFullYear();
+  const m = asOf.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && asOf.getDate() < dob.getDate())) age -= 1;
+  return age;
+}
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 
@@ -155,6 +169,25 @@ export interface EmployeePayrollInput {
   state: string;
   isMetro: boolean;
   joiningDate: Date;
+  /**
+   * Statutory gender for Professional-Tax bracket selection (Maharashtra is gender-split).
+   * Unstated/`other` resolves to the male (lower-threshold) slab per the CA. Optional so
+   * existing callers/fixtures compile unchanged; absence = male set.
+   */
+  gender?: "male" | "female" | "other" | null;
+  /**
+   * Date of birth — the only source for the over-65 PT exemption. Optional; when absent,
+   * the age exemption cannot apply.
+   */
+  dateOfBirth?: Date | null;
+  /**
+   * Declared PT Tier-1 exemption flags (armed forces / own disability / dependent with
+   * disability). ANY true — or age > 65 derived from `dateOfBirth` — bypasses PT entirely,
+   * all states. Optional; default false.
+   */
+  ptExemptArmedForces?: boolean;
+  ptExemptDisability?: boolean;
+  ptExemptDependentDisability?: boolean;
   // Salary structure
   basicMonthly: number;
   hraMonthly: number;
@@ -270,6 +303,20 @@ export function computeEmployeePayslip(
     ? calculateLabourCodeWageBase(basicEarned, excludedAllowances).statutoryWageBase
     : basicEarned;
 
+  // Resolve the PT context: gender (Maharashtra bracket selection) and the composite
+  // Tier-1 exemption. Age > 65 is derived from DOB as of the pay period; the other three
+  // exemptions are declared flags. ANY true ⇒ PT bypassed entirely (all states).
+  const asOfPeriod = new Date(emp.year, emp.month - 1, 1);
+  const age = ageInYearsAt(emp.dateOfBirth, asOfPeriod);
+  const ptContext: PTContext = {
+    gender: emp.gender ?? null,
+    exempt:
+      (age !== null && age > 65) ||
+      emp.ptExemptArmedForces === true ||
+      emp.ptExemptDisability === true ||
+      emp.ptExemptDependentDisability === true,
+  };
+
   // Steps 3-6: Statutory deductions
   const statutory = computeMonthlyStatutory(
     wageBase, // basic + DA lifted by the s.2(y) 50% proviso (Labour Codes)
@@ -277,7 +324,8 @@ export function computeEmployeePayslip(
     emp.state,
     fyMonth,
     emp.isVoluntaryHigherPF,
-    ceilings
+    ceilings,
+    ptContext
   );
 
   // Step 7: TDS
