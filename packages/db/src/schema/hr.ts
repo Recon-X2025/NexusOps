@@ -83,6 +83,17 @@ export const salaryStructures = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    /**
+     * Family identity (M-05 versioning). Every effective-dated version of the same
+     * logical structure shares one `familyId`; a new financial-year version is a NEW
+     * ROW with the SAME familyId and a later `effectiveFrom`. Employees link to the
+     * FAMILY (`employees.salaryStructureId` holds a familyId), never to a version's
+     * `id`, so a superseded version stays immutable/readable (Form-16, re-runs) while
+     * payroll resolves the version whose [effectiveFrom, effectiveTo) window contains
+     * the pay period — exactly like `resolveStatutoryCeilings`. The first version of a
+     * family sets familyId = its own id (backfilled that way in migration 0065).
+     */
+    familyId: uuid("family_id").notNull(),
     structureName: text("structure_name").notNull(),
     ctcAnnual: decimal("ctc_annual", { precision: 14, scale: 2 }).notNull(),
     basicPercent: decimal("basic_percent", { precision: 5, scale: 2 }).notNull().default("40"),
@@ -98,6 +109,12 @@ export const salaryStructures = pgTable(
   },
   (t) => ({
     orgIdx: index("salary_structures_org_idx").on(t.orgId),
+    // Resolver index: family window lookup by pay period.
+    familyEffectiveIdx: index("salary_structures_family_effective_idx").on(
+      t.orgId,
+      t.familyId,
+      t.effectiveFrom,
+    ),
   }),
 );
 
@@ -144,6 +161,14 @@ export const employees = pgTable(
     bankIfsc: text("bank_ifsc"),
     bankName: text("bank_name"),
     taxRegime: taxRegimeEnum("tax_regime").notNull().default("new"),
+    /**
+     * M-05: holds a salary-structure FAMILY id, not a version id. The FK targets
+     * `salaryStructures.id` because a family's id equals its origin (first) version's
+     * id, and versions are immutable and never deleted — so this always references a
+     * live row. Payroll never uses this row directly; it calls
+     * `resolveSalaryStructureForPeriod(familyId, period)` to pick the version whose
+     * effective window contains the pay period.
+     */
     salaryStructureId: uuid("salary_structure_id").references(() => salaryStructures.id, { onDelete: "set null" }),
     /**
      * Assigned working shift (G8). Drives late / half-day derivation on

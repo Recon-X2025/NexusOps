@@ -38,6 +38,7 @@ import {
   type LeavePolicyConfig,
 } from "@coheronconnect/payroll-math";
 import { router, permissionProcedure } from "../lib/trpc";
+import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
 
 const leaveTypeSchema = z.enum([
   "vacation",
@@ -554,14 +555,11 @@ export const leaveAccrualRouter = router({
 
         let wages = input.lastDrawnBasicPlusDA;
         if (wages == null) {
-          const [struct] = emp.salaryStructureId
-            ? await db
-                .select()
-                .from(salaryStructures)
-                .where(eq(salaryStructures.id, emp.salaryStructureId))
-                .limit(1)
-            : [undefined];
-          wages = monthlyBasicPlusDA(struct);
+          // M-05: resolve the structure version in force now (familyId), not by bare id.
+          const struct = emp.salaryStructureId
+            ? await resolveSalaryStructureForPeriod(db, org!.id, emp.salaryStructureId, new Date())
+            : null;
+          wages = monthlyBasicPlusDA(struct ?? undefined);
         }
         return computeLeaveEncashment(input.days, wages, {
           encashable: policy?.encashable ?? false,
@@ -603,14 +601,17 @@ export const leaveAccrualRouter = router({
 
           let wages = input.lastDrawnBasicPlusDA;
           if (wages == null) {
-            const [struct] = emp.salaryStructureId
-              ? await tx
-                  .select()
-                  .from(salaryStructures)
-                  .where(eq(salaryStructures.id, emp.salaryStructureId))
-                  .limit(1)
-              : [undefined];
-            wages = monthlyBasicPlusDA(struct);
+            // M-05: resolve the structure version in force for the encashment's leave
+            // year (familyId), anchored to that FY start (1 April), not by bare id.
+            const struct = emp.salaryStructureId
+              ? await resolveSalaryStructureForPeriod(
+                  tx,
+                  org!.id,
+                  emp.salaryStructureId,
+                  new Date(input.year, 3, 1),
+                )
+              : null;
+            wages = monthlyBasicPlusDA(struct ?? undefined);
           }
 
           const enc = computeLeaveEncashment(input.days, wages, { encashable: true });

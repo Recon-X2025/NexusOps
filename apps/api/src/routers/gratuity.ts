@@ -29,6 +29,7 @@ import {
   computeMonthlyGratuityAccrual,
 } from "@coheronconnect/payroll-math";
 import { router, permissionProcedure } from "../lib/trpc";
+import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
 
 /** Monthly Basic+DA for an employee from their salary structure (Basic %). */
 function monthlyBasicPlusDA(struct: typeof salaryStructures.$inferSelect | undefined): number {
@@ -92,14 +93,17 @@ export const gratuityRouter = router({
 
           let basicPlusDA = input.basicPlusDA;
           if (basicPlusDA == null) {
-            const [struct] = emp.salaryStructureId
-              ? await tx
-                  .select()
-                  .from(salaryStructures)
-                  .where(eq(salaryStructures.id, emp.salaryStructureId))
-                  .limit(1)
-              : [undefined];
-            basicPlusDA = monthlyBasicPlusDA(struct);
+            // M-05: resolve the structure version in force for this provisioning
+            // period (salaryStructureId is a familyId), not by bare id.
+            const struct = emp.salaryStructureId
+              ? await resolveSalaryStructureForPeriod(
+                  tx,
+                  org!.id,
+                  emp.salaryStructureId,
+                  new Date(input.year, input.month - 1, 1),
+                )
+              : null;
+            basicPlusDA = monthlyBasicPlusDA(struct ?? undefined);
           }
           const accrualAmount = computeMonthlyGratuityAccrual(basicPlusDA);
 
@@ -173,15 +177,20 @@ export const gratuityRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
+        // M-05: resolve each employee's structure version in force for this period
+        // (salaryStructureId is a familyId) instead of joining by bare id.
+        const periodDate = new Date(input.year, input.month - 1, 1);
         const roster = await db
-          .select({ emp: employees, struct: salaryStructures })
+          .select()
           .from(employees)
-          .leftJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
           .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
 
         let provisioned = 0;
         let totalAccrued = 0;
-        for (const { emp, struct } of roster) {
+        for (const emp of roster) {
+          const struct = emp.salaryStructureId
+            ? await resolveSalaryStructureForPeriod(db, org!.id, emp.salaryStructureId, periodDate)
+            : null;
           const basicPlusDA = monthlyBasicPlusDA(struct ?? undefined);
           const accrualAmount = computeMonthlyGratuityAccrual(basicPlusDA);
           await db.transaction(async (tx) => {
@@ -270,14 +279,12 @@ export const gratuityRouter = router({
 
         let wages = input.lastDrawnBasicPlusDA;
         if (wages == null) {
-          const [struct] = emp.salaryStructureId
-            ? await db
-                .select()
-                .from(salaryStructures)
-                .where(eq(salaryStructures.id, emp.salaryStructureId))
-                .limit(1)
-            : [undefined];
-          wages = monthlyBasicPlusDA(struct);
+          // M-05: last-drawn wages come from the structure version in force as of the
+          // valuation date (familyId), not the current version.
+          const struct = emp.salaryStructureId
+            ? await resolveSalaryStructureForPeriod(db, org!.id, emp.salaryStructureId, asOf)
+            : null;
+          wages = monthlyBasicPlusDA(struct ?? undefined);
         }
 
         return computeGratuity({
@@ -350,14 +357,12 @@ export const gratuityRouter = router({
 
           let wages = input.lastDrawnBasicPlusDA;
           if (wages == null) {
-            const [struct] = emp.salaryStructureId
-              ? await tx
-                  .select()
-                  .from(salaryStructures)
-                  .where(eq(salaryStructures.id, emp.salaryStructureId))
-                  .limit(1)
-              : [undefined];
-            wages = monthlyBasicPlusDA(struct);
+            // M-05: last-drawn wages from the structure version in force as of the
+            // settlement date (familyId), not the current version.
+            const struct = emp.salaryStructureId
+              ? await resolveSalaryStructureForPeriod(tx, org!.id, emp.salaryStructureId, asOf)
+              : null;
+            wages = monthlyBasicPlusDA(struct ?? undefined);
           }
 
           // Death / disablement waive the 5-year minimum (§4(1) proviso).

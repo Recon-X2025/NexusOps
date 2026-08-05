@@ -45,6 +45,7 @@ import { collectReportSubtreeEmployeeIds } from "../lib/employee-subtree";
 import { expandLeaveToAttendance } from "../lib/india/leave-attendance";
 import { normaliseFeed, type RawAttendanceFeedRow } from "../lib/india/attendance-ingest";
 import { resolveShift, derivePunch, type ShiftDefinition } from "../lib/india/shift-schedule";
+import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
 import { CreateLeaveRequestSchema, LeaveTypeEnum } from "@coheronconnect/types";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
@@ -1286,7 +1287,7 @@ export const hrRouter = router({
       )
       .query(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { payslips: payslipsTable, desc: descOp, salaryStructures } = await import("@coheronconnect/db");
+        const { payslips: payslipsTable, desc: descOp } = await import("@coheronconnect/db");
         const conditions = [eq(payslipsTable.orgId, org!.id)];
         if (input.employeeId) conditions.push(eq(payslipsTable.employeeId, input.employeeId));
         if (input.year) conditions.push(eq(payslipsTable.year, input.year));
@@ -1314,11 +1315,14 @@ export const hrRouter = router({
         if (!emp) throw new TRPCError({ code: "NOT_FOUND" });
         if (!emp.salaryStructureId) return null;
 
-        const { salaryStructures } = await import("@coheronconnect/db");
-        const [structure] = await db
-          .select()
-          .from(salaryStructures)
-          .where(eq(salaryStructures.id, emp.salaryStructureId!));
+        // M-05: resolve the structure version in force for the current pay period
+        // (salaryStructureId is a familyId), not by bare id.
+        const structure = await resolveSalaryStructureForPeriod(
+          db,
+          org!.id,
+          emp.salaryStructureId,
+          new Date(year, month - 1, 1),
+        );
         if (!structure) return null;
 
         const { computeMonthlySalarySlip, computeTaxOld, computeTaxNew } = await import("../lib/india/payroll-engine.js");
@@ -1413,11 +1417,14 @@ export const hrRouter = router({
         if (!emp) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
         if (!emp.salaryStructureId) throw new TRPCError({ code: "BAD_REQUEST", message: "No salary structure assigned" });
 
-        const { salaryStructures } = await import("@coheronconnect/db");
-        const [structure] = await db
-          .select()
-          .from(salaryStructures)
-          .where(eq(salaryStructures.id, emp.salaryStructureId));
+        // M-05: resolve the version in force for the requested month/year (familyId),
+        // not by bare id — a past-month slip uses the structure that applied then.
+        const structure = await resolveSalaryStructureForPeriod(
+          db,
+          org!.id,
+          emp.salaryStructureId,
+          new Date(input.year, input.month - 1, 1),
+        );
         if (!structure) throw new TRPCError({ code: "NOT_FOUND", message: "Salary structure not found" });
 
         // Determine FY month (April = 1, March = 12)
@@ -1450,7 +1457,7 @@ export const hrRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { payrollRuns, salaryStructures, payslips: payslipsTable } = await import("@coheronconnect/db");
+        const { payrollRuns, payslips: payslipsTable } = await import("@coheronconnect/db");
         const { computeMonthlySalarySlip } = await import("../lib/india/payroll-engine.js");
 
         // Check for duplicate run
@@ -1488,10 +1495,13 @@ export const hrRouter = router({
 
         for (const emp of allEmployees) {
           if (!emp.salaryStructureId) continue;
-          const [structure] = await db
-            .select()
-            .from(salaryStructures)
-            .where(eq(salaryStructures.id, emp.salaryStructureId));
+          // M-05: resolve the version in force for this run's month/year (familyId).
+          const structure = await resolveSalaryStructureForPeriod(
+            db,
+            org!.id,
+            emp.salaryStructureId,
+            new Date(input.year, input.month - 1, 1),
+          );
           if (!structure) continue;
 
           const slip = computeMonthlySalarySlip({

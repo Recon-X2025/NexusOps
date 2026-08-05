@@ -2989,3 +2989,148 @@ filed without tripping any alarm.
     different levy.) **Therefore C2 for the pilot is an engineering task** — add the Kerala PT slab
     set — **not merely populating a config with an existing schema.** Flagged as blocking for any
     Kerala employee in the pilot.
+
+## Second CA message (2026-08-04) — statutory-source confirmations, one new defect, and fifteen rulings
+
+The CA sent a second written response: it **verifies the tax slabs against the Income Tax
+Department's own published page**, confirms several statutory figures, raises **one new defect**
+(s.87A marginal relief), flags **three failure points new to the plan**, and issues **fifteen
+rulings** that resolve open questions across PT, ESI, PF, regime, declarations and retention.
+**No code was changed by this section — it is a record/plan edit only.** Where a ruling confirms
+an item already tracked above, this section cross-references it rather than duplicating the fix.
+
+### A. Slab set VERIFIED against the ITD — do NOT change the slabs
+
+The CA's two messages gave **different** new-regime slab sets. The **first** is the one the
+engine implements and C5 seeded; the **official ITD page for salaried individuals confirms the
+first set**:
+
+> nil to ₹4,00,000; 5% to ₹8,00,000; 10% to ₹12,00,000; 15% to ₹16,00,000; 20% to ₹20,00,000;
+> 25% to ₹24,00,000; 30% above.
+
+This matches the seeded values verified above (`0064_taxing_matters.sql:68`; "VERIFIED CORRECT"
+at line 2758). **The CA's *second* message described the earlier Finance Act 2024 structure — do
+not adopt it.** No slab change.
+
+### B. Other figures CONFIRMED against the ITD page (statutory source)
+
+- **Surcharge caps — confirmed.** New regime **25%** (above ₹2cr; does **not** step to 37%), old
+  regime **37%**. This is the statutory basis for **PT3** (already escalated to payroll-blocking):
+  the engine applies **37%** above ₹5cr in the new regime and must cap the new-regime surcharge at
+  **25%**. **PT3 is now confirmed against the statutory source**, not just the cohort run.
+- **s.87A rebate — confirmed ₹60,000, taxable income not exceeding ₹12,00,000** (NOT ₹7,00,000).
+  Matches the seed (`0064:78`, "s.87A rebate ₹60,000 to ₹12L taxable") and the cohort confirmation.
+  No change; recorded as statutory-source-confirmed.
+- **Marginal relief on surcharge — thresholds differ by regime.** Applies at **₹50L, ₹1cr, ₹2cr,
+  and ₹5cr under the OLD regime**, but only at **₹50L, ₹1cr and ₹2cr under the NEW regime** (because
+  the new-regime surcharge does not step up above ₹2cr). **Action: verify the engine does NOT apply
+  a ₹5cr marginal-relief calculation to new-regime income.** Record as a defect if it does. _(Open
+  verification item — no code change here.)_
+
+### C. FY / assessment-year CAVEAT — open question for the CA
+
+The ITD page the CA cited covers **AY 2026-27, i.e. FY 2025-26**. **Our payroll run is FY 2026-27.**
+**Open question for the CA:** whether any slab, surcharge, rebate or relief figure changed for the
+**current** financial year (FY 2026-27 / AY 2027-28). Until answered, treat every confirmed figure
+above as verified for FY 2025-26 and **provisionally** carried into FY 2026-27.
+
+### D. NEW DEFECT — s.87A MARGINAL RELIEF at the rebate threshold (separate from surcharge relief)
+
+The CA raised this at the wrong threshold, but **the concept is real and independent of surcharge
+marginal relief.** Just above the rebate limit (₹12,00,000 taxable, new regime), **the tax must not
+exceed the amount of income earned above the limit.** Without it, an employee at **₹12,05,000**
+taxable faces a **cliff**: losing the full ₹60,000 rebate on ₹5,000 of extra income.
+
+- **Action:** confirm whether the engine implements marginal relief **on the rebate at ₹12,00,000**,
+  **separately** from marginal relief on surcharge (section B above). The two are different
+  mechanisms at different thresholds.
+- **If absent → record as a defect (cliff at the rebate boundary).** This is a **new item**,
+  distinct from PT3 (surcharge) and from the surcharge marginal-relief check in section B.
+- _(Open verification item — no code change here. If confirmed absent, it is payroll-blocking for
+  any employee with taxable income just above ₹12L.)_
+
+### E. CA RULINGS — recorded verbatim in intent (resolve open questions above)
+
+Each ruling below is the CA's authoritative answer. Cross-references point to the item it settles.
+
+- **PT1 — the legally correct TDS basis is ACTUAL PAID components, not contracted CTC.** This
+  **directly settles the open PT1 question** (the ₹2,500/mo rebuilt-gross shave, lines 2801-2839):
+  the actual paid salary is the correct basis. Correcting already-filed periods requires a **revised
+  Form 24Q**; the **1.5%/month interest is borne by the company** and **cannot be recovered from the
+  employee**; the **principal shortfall** is recovered from the next cycle **or grossed up**. _(Feeds
+  the PT1 resolution and the C9/24Q item.)_
+- **REGIME — declared at onboarding or start of year, LOCKED for twelve months.** No mid-year switch
+  in payroll. **Defaulting to NEW is statutory and correct.** Employees may switch only when filing
+  **personally**. _(Confirms C1's election model + the C1 "default NEW" behaviour is correct.)_
+- **INVESTMENT DECLARATIONS — provisional in April, physical proofs by January.** If proofs are not
+  submitted, **zero the declared values and spread the resulting extra tax over February and March.**
+  _(Feeds C1's investment-declaration scope, line 2972 / C1-IN; adds a proof-deadline + Feb/Mar
+  spread rule the current build does not have.)_
+- **METRO — Delhi, Mumbai, Kolkata, Chennai ONLY**, determined by the **employee's residential
+  address**, not company location. **Bengaluru and Hyderabad are non-metro (40%).** _(Settles the
+  `isMetroCity` determinant — it must key off employee residence, not org/company location; feeds
+  the C6/ingestion metro item.)_
+- **PT CAP — the ₹2,500 constitutional cap must be respected ACROSS THE YEAR.** Individual state
+  limits apply independently, **but the engine must maintain a running total per employee and stop
+  extraction at ₹2,500.** _(Confirms the **C2-STRUCT structural break #4 (interstate mid-year
+  transfer)** added above — the engine tracks NO YTD PT today, so the cap is unenforceable. This
+  ruling makes the per-employee YTD-PT ledger a firm requirement, not an open question.)_
+- **PT HALF-YEARLY — lump sum in one month, NOT spread.** Kerala & Tamil Nadu: **Apr–Sep deducted
+  in Aug or Sep; Oct–Mar deducted in Jan or Feb.** Puducherry: **Apr–Sep deducted in Sep; Oct–Mar
+  deducted in Mar.** _(Confirms C2-STRUCT structural break #1, the half-yearly levy period, with the
+  exact deduction months.)_
+- **PT EXEMPTIONS — the EMPLOYER is legally liable for missed collections.** Evidence required:
+  **PAN or birth certificate** for age-over-65; **Form 10-IA signed by a Government Civil Surgeon**
+  for disability; **military ID or discharge order** for armed forces. _(Confirms the C2 TIER-1
+  exemption scope and specifies the exact evidence each ingestion field must capture.)_
+- **PT GENDER — if gender is not stated, DEFAULT TO THE MALE SLAB.** It taxes from a lower threshold,
+  so defaulting male **prevents structural under-deduction.** _(Confirms the C2-FIX decision already
+  shipped — absent gender resolves to the male Maharashtra set; the CA endorses that default.)_
+- **ESI — on crossing ₹21,000 MID-PERIOD, contributions continue on the ACTUAL UNCAPPED gross**
+  at **0.75% (employee) and 3.25% (employer)** — **not** capped at ₹21,000. **At the period boundary
+  (1 April / 1 October), evaluate the gross snapshot and toggle membership OFF if above the limit.
+  No exit paperwork.** _(Settles **C3** — the six-month contribution-period rule: continue-uncapped
+  mid-period, re-evaluate only at the boundary.)_
+- **VPF — cannot be changed mid-year.** Declared or changed **in April only, locked for twelve
+  months.** _(Confirms the C4a VPF sub-item's lock semantics.)_
+- **PARA 26(6) JOINT DECLARATION — IRREVOCABLE for that employment.** The engine must **block any
+  attempt to revert to the ₹15,000 ceiling**, and the **employer's contribution must also be on the
+  actual uncapped basic.** _(Confirms **C4b** — Para 26(6) opt-in is one-way; adds the "block revert"
+  + "employer also uncapped" requirements.)_
+- **FORM 12B — optional for the employee to submit, MANDATORY for the employer to account for once
+  submitted.** If not submitted, **set the prior-YTD baseline to zero and tax only on this
+  employment.** _(Directly settles **PT4** — the hardcoded-zero `previousEmployerTDS`: zero is only
+  correct when no 12B was submitted; when one is, the prior-employer TDS must flow into the rolling
+  s.192 calc.)_
+- **RETROSPECTIVE EDITS — PROHIBITED on a locked, approved run.** Backdated appraisals must be
+  processed as **salary arrears in the current open month.** **Confirms M-05.** _(Cross-reference the
+  M-05 retrospective-edit item; the CA endorses arrears-in-current-month, not back-editing.)_
+- **RETENTION — payroll registers and tax forms for a MINIMUM of eight financial years.** Immutable
+  logs or secure PDFs acceptable. _(New retention requirement; feeds the audit-log/doc-retention
+  posture — 8 FY minimum for payroll + tax forms.)_
+- **REGIME PRIORITY — 75–80% of employees between ₹18–25 lakh are better off on the NEW regime**
+  under a standard-deduction footprint. Old regime is viable **only with heavy claims** (₹2L home-loan
+  interest u/24(b), ₹1.5L u/80C, high metro rent). _(This is the CA's stated **justification for
+  keeping C1 (old-vs-new election) below the correctness fixes** in priority — the new-regime default
+  is right for most; the old-regime branch matters for a minority.)_
+
+### F. THREE FAILURE POINTS the CA flagged — all NEW to the plan
+
+1. **s.87A marginal relief above the rebate threshold** — see section D above. Cliff at ₹12,00,001
+   taxable if absent. **New defect (verify → defect if absent).**
+2. **LWF collection cycles are ASYNCHRONOUS.** Some states monthly; **Maharashtra strictly twice
+   yearly (June and December).** **Action: check what the engine assumes** for Labour Welfare Fund
+   timing (`LWF_RATES`, `statutory-deductions.ts:303`) — if it treats LWF as uniformly monthly it
+   mis-times Maharashtra's half-yearly June/December collection. **New item.**
+3. **PF arrears in the ECR file cannot be lumped into a single basic-wage field — the EPFO portal
+   REJECTS the upload.** Arrears must be **mapped back to their originating months** in the generated
+   ECR file. **Action: confirm the ECR generator distributes arrears per originating month rather
+   than as one lump.** This intersects the M-05/arrears ruling (backdated appraisals → current-month
+   arrears) and the PT1 revised-24Q path. **New item — ECR arrears month-mapping.**
+
+**Net of the second CA message:** slabs **confirmed unchanged**; **PT3 confirmed against the
+statutory source** (25% new-regime surcharge cap); **s.87A ₹60k/₹12L confirmed**; **PT1, C3, C4a,
+C4b, PT4, M-05 open questions all settled** by ruling; **three new items** raised (s.87A rebate
+marginal relief, LWF Maharashtra half-yearly timing, PF-arrears ECR month-mapping); and **one FY
+caveat** (verify FY 2026-27 figures with the CA) plus **one new-regime surcharge relief check**
+(no ₹5cr relief in the new regime) left open for verification.

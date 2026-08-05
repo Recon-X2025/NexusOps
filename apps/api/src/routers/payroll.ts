@@ -24,7 +24,9 @@ import {
   desc,
   gte,
   lte,
+  isNull,
   max,
+  type DbOrTx,
   type PayrollWorkflowMeta,
 } from "@coheronconnect/db";
 import { putObject, buildDocumentKey, enqueueVirusScan } from "../services/storage";
@@ -35,6 +37,7 @@ import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
+import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
 import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 import { computeRetainUntil } from "../lib/retention";
 import {
@@ -391,17 +394,28 @@ const runsRouter = router({
       // DPDP retention floor anchor: prefer the run's paidAt; payslips are generated
       // pre-payment (TDS_COMPUTED), so fall back to now when the run is not yet paid.
       const retainUntilDate = computeRetainUntil(row.paidAt ?? new Date());
-      const empRows = await db
-        .select({ emp: employees, st: salaryStructures })
+      // M-05: resolve each employee's salary-structure VERSION in force for THIS pay
+      // period (not the current version). `salaryStructureId` holds a familyId; the
+      // resolver returns the version whose window contains the period. Employees whose
+      // family has no version covering the period are skipped — preserving the old
+      // inner-join semantics (only employees with an applicable structure are paid).
+      const periodDate = new Date(row.year, row.month - 1, 1);
+      const activeEmps = await db
+        .select()
         .from(employees)
-        .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
         .where(and(eq(employees.orgId, org!.id), eq(employees.status, "active")));
+      const empRows: Array<{ emp: typeof employees.$inferSelect; st: typeof salaryStructures.$inferSelect }> = [];
+      for (const emp of activeEmps) {
+        if (!emp.salaryStructureId) continue;
+        const st = await resolveSalaryStructureForPeriod(db, org!.id, emp.salaryStructureId, periodDate);
+        if (st) empRows.push({ emp, st });
+      }
 
       // G1: resolve effective-dated statutory ceilings for this pay period.
       const ceilings = await resolveStatutoryCeilings(
         db,
         org!.id,
-        new Date(row.year, row.month - 1, 1),
+        periodDate,
       );
       // G8: derive LOP from attendance so unpaid absence reduces gross pay.
       const lopMap = await computeAttendanceLopForPeriod(db, org!.id, row.month, row.year);
@@ -662,15 +676,69 @@ const payslipsRouter = router({
     }),
 });
 
+/**
+ * M-05: refuse editing a structure VERSION once any payslip was computed from it. The
+ * correct route for a change after payslips exist is arrears in the current month (per
+ * the CA's ruling) or a NEW financial-year version — never mutating a version that has
+ * already fed a filed return. A version "has payslips" when an employee linked to its
+ * family has a payslip whose (year, month) falls inside the version's effective window.
+ */
+async function versionHasPayslips(
+  db: DbOrTx,
+  orgId: string,
+  version: typeof salaryStructures.$inferSelect,
+): Promise<boolean> {
+  const from = version.effectiveFrom;
+  const to = version.effectiveTo; // null = open-ended
+  const rows = await db
+    .select({ month: payslips.month, year: payslips.year })
+    .from(payslips)
+    .innerJoin(employees, eq(payslips.employeeId, employees.id))
+    .where(
+      and(
+        eq(payslips.orgId, orgId),
+        eq(employees.salaryStructureId, version.familyId),
+      ),
+    );
+  return rows.some((r) => {
+    const period = new Date(r.year, r.month - 1, 1);
+    return period >= from && (to === null || period < to);
+  });
+}
+
 const salaryStructuresRouter = router({
+  // Assign-time list: one row per FAMILY (the latest live version), so a superseded
+  // version is readable elsewhere but never appears as a selectable option here.
   list: permissionProcedure("payroll", "read").query(async ({ ctx }) => {
     const { db, org } = ctx;
-    return db
+    const rows = await db
       .select()
       .from(salaryStructures)
       .where(and(eq(salaryStructures.orgId, org!.id), eq(salaryStructures.isArchived, false)))
-      .orderBy(desc(salaryStructures.createdAt));
+      .orderBy(desc(salaryStructures.effectiveFrom));
+    // Collapse to the latest-effective version per family (rows are effectiveFrom-desc).
+    const byFamily = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) if (!byFamily.has(r.familyId)) byFamily.set(r.familyId, r);
+    return [...byFamily.values()];
   }),
+
+  // Every version of a family, newest window first — for history / audit views. A
+  // superseded version stays fully readable here (Form-16, re-runs depend on it).
+  listVersions: permissionProcedure("payroll", "read")
+    .input(z.object({ familyId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db
+        .select()
+        .from(salaryStructures)
+        .where(
+          and(
+            eq(salaryStructures.orgId, org!.id),
+            eq(salaryStructures.familyId, input.familyId),
+          ),
+        )
+        .orderBy(desc(salaryStructures.effectiveFrom));
+    }),
 
   upsert: permissionProcedure("payroll", "write")
     .input(
@@ -703,6 +771,21 @@ const salaryStructuresRouter = router({
         effectiveTo: input.effectiveTo ?? null,
       };
       if (input.id) {
+        // Edit an existing VERSION — refused once payslips have been computed from it.
+        const [existing] = await db
+          .select()
+          .from(salaryStructures)
+          .where(and(eq(salaryStructures.id, input.id), eq(salaryStructures.orgId, org!.id)));
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+        if (await versionHasPayslips(db, org!.id, existing)) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "This salary-structure version already has payslips and cannot be edited. " +
+              "Post the change as arrears in the current month, or create a new " +
+              "financial-year version.",
+          });
+        }
         const [updated] = await db
           .update(salaryStructures)
           .set(values)
@@ -711,21 +794,102 @@ const salaryStructuresRouter = router({
         if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
         return updated;
       }
+      // Create a brand-new family: the first version's familyId is its own id, so an
+      // employee link (a familyId) always references a live row (the origin version).
+      // Generate the id up front so id === familyId in a single insert.
+      const newId = crypto.randomUUID();
       const [created] = await db
         .insert(salaryStructures)
-        .values({ orgId: org!.id, ...values })
+        .values({ id: newId, orgId: org!.id, familyId: newId, ...values })
         .returning();
       return created;
+    }),
+
+  // Add a new financial-year version to an existing family. Auto-closes the prior open
+  // version (effectiveTo = the instant the new one starts) in one transaction, so two
+  // versions of a family can never be live at once.
+  newVersion: permissionProcedure("payroll", "write")
+    .input(
+      z.object({
+        familyId: z.string().uuid(),
+        structureName: z.string().min(1).max(200),
+        ctcAnnual: z.coerce.number().nonnegative(),
+        basicPercent: z.coerce.number().min(0).max(100).default(40),
+        hraPercentOfBasic: z.coerce.number().min(0).max(100).default(50),
+        ltaAnnual: z.coerce.number().nonnegative().default(0),
+        medicalAllowanceAnnual: z.coerce.number().nonnegative().default(15000),
+        conveyanceAllowanceAnnual: z.coerce.number().nonnegative().default(19200),
+        bonusAnnual: z.coerce.number().nonnegative().default(0),
+        effectiveFrom: z.coerce.date(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      return db.transaction(async (tx) => {
+        const family = await tx
+          .select()
+          .from(salaryStructures)
+          .where(
+            and(
+              eq(salaryStructures.familyId, input.familyId),
+              eq(salaryStructures.orgId, org!.id),
+            ),
+          );
+        if (family.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Structure family not found" });
+        if (family.some((v) => v.effectiveFrom >= input.effectiveFrom)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "New version must start after every existing version in the family.",
+          });
+        }
+        // Auto-close the current open version at the instant the new one begins.
+        await tx
+          .update(salaryStructures)
+          .set({ effectiveTo: input.effectiveFrom })
+          .where(
+            and(
+              eq(salaryStructures.familyId, input.familyId),
+              eq(salaryStructures.orgId, org!.id),
+              isNull(salaryStructures.effectiveTo),
+            ),
+          );
+        const [created] = await tx
+          .insert(salaryStructures)
+          .values({
+            orgId: org!.id,
+            familyId: input.familyId,
+            structureName: input.structureName,
+            ctcAnnual: input.ctcAnnual.toFixed(2),
+            basicPercent: input.basicPercent.toFixed(2),
+            hraPercentOfBasic: input.hraPercentOfBasic.toFixed(2),
+            ltaAnnual: input.ltaAnnual.toFixed(2),
+            medicalAllowanceAnnual: input.medicalAllowanceAnnual.toFixed(2),
+            conveyanceAllowanceAnnual: input.conveyanceAllowanceAnnual.toFixed(2),
+            bonusAnnual: input.bonusAnnual.toFixed(2),
+            effectiveFrom: input.effectiveFrom,
+            effectiveTo: null,
+          })
+          .returning();
+        return created;
+      });
     }),
 
   delete: permissionProcedure("payroll", "write")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { db, org } = ctx;
+      // Resolve the version's family: employees link to the FAMILY, so a version cannot
+      // be deleted while any employee is assigned to its family (deleting the origin
+      // version — id === familyId — would also null those links via the FK).
+      const [version] = await db
+        .select({ familyId: salaryStructures.familyId })
+        .from(salaryStructures)
+        .where(and(eq(salaryStructures.id, input.id), eq(salaryStructures.orgId, org!.id)));
+      if (!version) throw new TRPCError({ code: "NOT_FOUND" });
       const inUse = await db
         .select({ id: employees.id })
         .from(employees)
-        .where(and(eq(employees.salaryStructureId, input.id), eq(employees.orgId, org!.id)))
+        .where(and(eq(employees.salaryStructureId, version.familyId), eq(employees.orgId, org!.id)))
         .limit(1);
       if (inUse.length > 0) {
         throw new TRPCError({
@@ -953,13 +1117,16 @@ export const payrollRouter = router({
         .where(and(eq(employees.id, targetEmployeeId), eq(employees.orgId, org.id)));
       if (!employee) return null;
 
+      // M-05: resolve the structure version in force for this financial year (India FY
+      // starts 1 April of fyStart), not the current version — so a prior-year tax
+      // preview reflects the structure that actually applied then.
       const structure = employee.salaryStructureId
-        ? (
-            await db
-              .select()
-              .from(salaryStructures)
-              .where(eq(salaryStructures.id, employee.salaryStructureId))
-          )[0] ?? null
+        ? await resolveSalaryStructureForPeriod(
+            db,
+            org.id,
+            employee.salaryStructureId,
+            new Date(fyStart, 3, 1),
+          )
         : null;
 
       const slipRows = await db
