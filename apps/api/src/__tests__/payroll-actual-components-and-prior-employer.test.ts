@@ -248,4 +248,25 @@ describe("PT4: prior-employer income + TDS thread from the employee record into 
     expect(input.previousEmployerIncome).toBe(0);
     expect(input.previousEmployerTDS).toBe(0);
   });
+
+  // ── HRA ingestion ─────────────────────────────────────────────────────────────
+  // The declared annual rent (rentPaidAnnual) and the metro flag (isMetroCity) must
+  // reach the built payroll input as `rentPaid` / `isMetro`, so the engine can compute
+  // the s.10(13A) HRA exemption. Before this fix `rentPaid` was hardcoded to 0, so the
+  // exemption was always 0 for every old-regime renter (over-deducted TDS).
+  it("declared rent + metro flag thread from the employee record into the engine input", async () => {
+    const { emp, struct } = await seedEmp({
+      rentPaidAnnual: "300000",
+      isMetroCity: true,
+    });
+    const input = buildEmployeePayrollInput(emp, struct, MONTH, YEAR);
+    expect(input.rentPaid).toBe(300_000);
+    expect(input.isMetro).toBe(true);
+  });
+
+  it("no rent declared ⇒ rentPaid defaults to 0 (non-renters unaffected)", async () => {
+    const { emp, struct } = await seedEmp(); // rent_paid_annual defaults to '0'
+    const input = buildEmployeePayrollInput(emp, struct, MONTH, YEAR);
+    expect(input.rentPaid).toBe(0);
+  });
 });

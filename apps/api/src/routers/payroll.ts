@@ -34,7 +34,7 @@ import { generateForm16PDF } from "../services/form16-pdf";
 import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { decryptPan } from "../lib/pan";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
-import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
+import { computeTax, computeHRAExemption, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
@@ -178,21 +178,36 @@ function buildTaxProfileFromEmployee(args: {
   const hraMonthly = basicMonthly * hraPctOfBasic;
   const specialMonthly = Math.max(0, annualCTC / 12 - basicMonthly - hraMonthly);
   const ltaAnnual = structure ? Number(structure.ltaAnnual || 0) : 30_000;
+  const regime = employee.taxRegime === "old" ? "OLD" : "NEW";
+  // HRA exemption (s.10(13A)) so the on-screen projection matches the run. Old regime
+  // only (the engine ignores it for NEW); 0 when no rent is declared. Uses the same
+  // annualised basic/HRA basis as the run's `computeEmployeePayslip`.
+  const hraExemption =
+    regime === "OLD"
+      ? computeHRAExemption(
+          basicMonthly * 12,
+          hraMonthly * 12,
+          Number(employee.rentPaidAnnual || 0),
+          employee.isMetroCity ?? false,
+        )
+      : 0;
   return {
-    regime: employee.taxRegime === "old" ? "OLD" : "NEW",
+    regime,
     annualCTC,
     basicMonthly,
     hraMonthly,
     specialAllowance: specialMonthly,
     lta: ltaAnnual,
     // TODO(compliance): Wire up actual employee tax declarations intake table.
-    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
+    // section80C/D/CCD1B/TTA/24b still hardcoded to 0 (no declaration intake table yet);
+    // old-regime Chapter VI-A is over-deducted until that ships. HRA exemption IS now
+    // computed above from the employee's declared rent + metro flag.
     section80C: 0,
     section80D: 0,
     section80CCD1B: 0,
     section80TTA: 0,
     section24b: 0,
-    hraExemption: 0,
+    hraExemption,
     otherExemptions: 0,
     employeePFMonthly: basicMonthly * 0.12 > 1800 ? 1800 : Math.round(basicMonthly * 0.12),
     employerPFMonthly: basicMonthly * 0.12 > 1800 ? 1800 : Math.round(basicMonthly * 0.12),

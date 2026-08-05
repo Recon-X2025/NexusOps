@@ -29,8 +29,8 @@ payroll-blocking items are listed under "Next in queue" below.
 - **Deployed commit:** `a7d31ee` — _"feat(payroll): salary-structure family
   versioning + gratuity/leave accrual (M-05)."_ Local `main` and `origin/main` are
   in sync at this SHA. (Pushing to `main` auto-deploys to Vultr.)
-- **Migration head:** `0065_strange_captain_stacy` (the M-05 `family_id` migration).
-  Always re-confirm the live head from the last entry in
+- **Migration head:** `0068_easy_mongu` (the HRA `rent_paid_annual` column; `0067_flaky_sinister_six`
+  was the PT4 prior-employer columns). Always re-confirm the live head from the last entry in
   `packages/db/drizzle/meta/_journal.json` — do not trust a number in prose.
 
 ## The audit & sweep system (`.claude/skills/`)
@@ -99,12 +99,49 @@ becomes impossible to reintroduce. **All five are Done and green** (Phase 1 comp
     was just never fed. **CA note:** Form 12B is **optional for the employee, mandatory for the
     employer once submitted**; the zero baseline (no 12B on file) stays correct — now by design,
     not by accident.
-  - Fairness tests in `payroll-actual-components-and-prior-employer.test.ts` (6/6 green);
-    red-before proven for PT1 (re-added shave → fail) and PT4 (restored hardcoded 0 → fail).
-  - **Follow-up (not yet done):** `isMetroCity` is captured on the employee but does **not** reach
-    the payslip's HRA relief — `computeEmployeePayslip` uses the caller-supplied `hraExemption`
-    (currently 0) and never calls `computeHRAExemption`, so the 50%/40%-of-basic metro split is
-    unused. Old-regime HRA exemption is under-applied until this is wired.
+  - Fairness tests in `payroll-actual-components-and-prior-employer.test.ts` (now 8/8 green — 2 new
+    HRA-ingestion cases added, see HRA below); red-before proven for PT1 (re-added shave → fail) and
+    PT4 (restored hardcoded 0 → fail).
+- **HRA (uncommitted, Aug 5) — s.10(13A) exemption wired into the payslip engine (Tier-1 over-deduction):**
+  - **The defect (live money):** `computeEmployeePayslip` (the ACTIVE engine, `packages/payroll-math/
+    src/payroll-cycle.ts`) read `hraExemption` off the caller-supplied `EmployeePayrollInput`, and
+    **nothing populated it — always 0.** The metro-aware `computeHRAExemption` existed and was tested,
+    but the payslip path never called it, and `isMetroCity` (ingested earlier) reached nothing. So every
+    OLD-regime renter had their taxable income and TDS **overstated** — a real over-deduction, not a
+    missing feature.
+  - **The fix:** `computeEmployeePayslip` now COMPUTES the exemption (least-of-three: HRA received,
+    rent − 10% of basic, 50%/40% of basic for metro/non-metro) on the same LOP-earned annualised basic/
+    HRA basis as `annualCTC`, and feeds it into the tax profile. A non-zero caller-supplied
+    `emp.hraExemption` still wins as an explicit override. `computeTax` applies HRA exemption **only
+    under the OLD regime**, so a value here never touches new-regime tax — regime gating was already in
+    the engine, not re-added.
+  - **New input:** `rentPaidAnnual` on `employees` (migration **0068_easy_mongu**, one nullable-safe
+    `ADD COLUMN … DEFAULT '0' NOT NULL`). Wired the API create/update boundary (`hr.ts`), the web add/
+    edit forms (`hr/page.tsx`, "House rent (HRA declaration)" group), and threaded into the engine input
+    as `rentPaid` (`payroll-run-aggregates.ts`, alongside the already-present `isMetro`). The on-screen
+    projection (`buildTaxProfileFromEmployee` in `payroll.ts`) computes the same exemption so screen and
+    run agree. **CA note:** HRA exemption is claimed through the investment-declaration process
+    (provisional in April, proofs by January); metro = Delhi/Mumbai/Kolkata/Chennai **by the employee's
+    residential address**, captured via `isMetroCity`.
+  - Fairness tests: `packages/payroll-math/src/hra-exemption.test.ts` (4/4) drive the REAL engine end-to-
+    end — OLD renter gets exemption; metro (50%) vs non-metro (40%) differ; NEW renter unaffected; no-rent
+    unaffected. Red-before proven (reverted `hraExemption` to the bare `emp.hraExemption` → the two OLD
+    scenarios fail `X == X`). Plus 2 DB-backed ingestion cases in the PT4 file proving `rentPaidAnnual`/
+    `isMetroCity` reach the built input.
+  - **Audit answer the owner asked for — the caller-supplied-but-never-populated shape:** `hraExemption`
+    **and** `rentPaid` were both dead in the run path (now fixed). Still dead at **both** construction
+    sites (`payroll-run-aggregates.ts` + `payroll.ts:buildTaxProfileFromEmployee`), hardcoded to 0:
+    **section80C, 80D, 80CCD1B, 80TTA, 24b, otherExemptions** — there is **no employee tax-declaration
+    intake table**. So the **old regime is effectively unusable in practice**: only the standard deduction
+    + professional tax + (now) HRA reduce taxable income; all Chapter VI-A investment relief is silently 0,
+    over-deducting every old-regime employee. Closing this is larger than the C1 election item — it needs a
+    declarations intake table + UI + effective-dating (provisional vs proofs). **Recommend a new Tier-1/2
+    item.**
+  - **Smaller follow-up (display only):** the on-SCREEN/PDF payslip figures come from
+    `computePayslipTaxFigures` (`lib/payslip-tax.ts`), which hardcodes `hraExemption: 0` because the
+    `payslips` table stores no rent/exemption columns. The MONEY (stored `tds`) is now correct via the run;
+    only the payslip's *displayed* taxable-income/HRA line is not yet exemption-aware. Wiring it needs the
+    payslip table to persist the exemption.
 - **`a7d31ee` (Aug 5) — M-05:** salary-structure **family versioning**. Effective-dated
   versions share a `family_id`; employees link to the family; payroll resolves the
   version whose `[effective_from, effective_to)` window contains the pay period.

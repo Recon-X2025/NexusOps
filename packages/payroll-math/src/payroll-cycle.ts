@@ -19,7 +19,12 @@
  * Each step is idempotent and auditable. BullMQ job wraps the orchestrator.
  */
 
-import { computeTax, type EmployeeTaxProfile, type TaxComputation } from "./tax-engine";
+import {
+  computeTax,
+  computeHRAExemption,
+  type EmployeeTaxProfile,
+  type TaxComputation,
+} from "./tax-engine";
 import {
   computeMonthlyStatutory,
   calculateLabourCodeWageBase,
@@ -336,6 +341,24 @@ export function computeEmployeePayslip(
       ? emp.joiningDate.getMonth() + 1 - 3 // Rough FY month
       : 1;
 
+  // HRA exemption (s.10(13A)). Least of: HRA received, rent − 10% of basic, and
+  // 50%/40% of basic (metro/non-metro). Computed on the SAME LOP-earned, annualised
+  // basis as `annualCTC` above so the exemption tracks what is actually paid.
+  // `computeTax` applies this only under the OLD regime, so a value here never reduces
+  // new-regime tax. `computeHRAExemption` returns 0 when rent or HRA is 0, so an
+  // employee with no rent declared is unaffected. A caller-supplied `emp.hraExemption`
+  // (legacy/explicit override) still wins when it is non-zero.
+  const computedHraExemption =
+    emp.regime === "OLD"
+      ? computeHRAExemption(
+          basicEarned * 12,
+          hraEarned * 12,
+          emp.rentPaid,
+          emp.isMetro,
+        )
+      : 0;
+  const hraExemption = emp.hraExemption > 0 ? emp.hraExemption : computedHraExemption;
+
   const taxProfile: EmployeeTaxProfile = {
     regime: emp.regime,
     // Annualise on the LOP-EARNED components (A12 root cause), not the contractual
@@ -355,7 +378,7 @@ export function computeEmployeePayslip(
     section80CCD1B: emp.section80CCD1B,
     section80TTA: emp.section80TTA,
     section24b: emp.section24b,
-    hraExemption: emp.hraExemption,
+    hraExemption,
     otherExemptions: emp.otherExemptions,
     employeePFMonthly: statutory.pf.totalEmployee,
     employerPFMonthly: statutory.pf.totalEmployer,

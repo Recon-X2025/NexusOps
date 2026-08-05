@@ -86,6 +86,7 @@ export default function HRPage() {
     ptExemptDependentDisability: false,
     previousEmployerIncome: "",
     previousEmployerTds: "",
+    rentPaidAnnual: "",
   });
   const [editEmpForm, setEditEmpForm] = useState({
     department: "",
@@ -112,6 +113,7 @@ export default function HRPage() {
     ptExemptDependentDisability: false,
     previousEmployerIncome: "",
     previousEmployerTds: "",
+    rentPaidAnnual: "",
   });
 
   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
@@ -156,6 +158,7 @@ export default function HRPage() {
         ptExemptDependentDisability: false,
         previousEmployerIncome: "",
         previousEmployerTds: "",
+        rentPaidAnnual: "",
       });
     },
     onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not create employee"),
@@ -1245,6 +1248,22 @@ export default function HRPage() {
                   />
                 </div>
               </div>
+
+              {/* ── HRA declaration (old regime only) — declared annual rent for s.10(13A) ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">House rent (HRA declaration)</p>
+                <p className="text-[10px] text-muted-foreground">Annual rent paid, for the old-regime HRA exemption. Ignored under the new regime; leave blank if not renting.</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Rent paid (₹/yr)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={addEmpForm.rentPaidAnnual}
+                  onChange={(e) => setAddEmpForm((f) => ({ ...f, rentPaidAnnual: e.target.value }))}
+                />
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -1287,6 +1306,9 @@ export default function HRPage() {
                       : undefined,
                     previousEmployerTds: addEmpForm.previousEmployerTds
                       ? Number(addEmpForm.previousEmployerTds)
+                      : undefined,
+                    rentPaidAnnual: addEmpForm.rentPaidAnnual
+                      ? Number(addEmpForm.rentPaidAnnual)
                       : undefined,
                   })
                 }
@@ -1583,6 +1605,22 @@ export default function HRPage() {
                   />
                 </div>
               </div>
+
+              {/* ── HRA declaration (old regime only) — declared annual rent for s.10(13A) ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">House rent (HRA declaration)</p>
+                <p className="text-[10px] text-muted-foreground">Annual rent paid, for the old-regime HRA exemption. Ignored under the new regime; leave blank if not renting.</p>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Rent paid (₹/yr)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                  value={editEmpForm.rentPaidAnnual}
+                  onChange={(e) => setEditEmpForm((f) => ({ ...f, rentPaidAnnual: e.target.value }))}
+                />
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -1618,6 +1656,9 @@ export default function HRPage() {
                       : undefined,
                     previousEmployerTds: editEmpForm.previousEmployerTds
                       ? Number(editEmpForm.previousEmployerTds)
+                      : undefined,
+                    rentPaidAnnual: editEmpForm.rentPaidAnnual
+                      ? Number(editEmpForm.rentPaidAnnual)
                       : undefined,
                   })
                 }
@@ -1798,6 +1839,8 @@ export default function HRPage() {
                                     emp.previousEmployerIncome != null ? String(emp.previousEmployerIncome) : "",
                                   previousEmployerTds:
                                     emp.previousEmployerTds != null ? String(emp.previousEmployerTds) : "",
+                                  rentPaidAnnual:
+                                    emp.rentPaidAnnual != null ? String(emp.rentPaidAnnual) : "",
                                 });
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"

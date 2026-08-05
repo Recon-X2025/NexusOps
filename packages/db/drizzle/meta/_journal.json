@@ -477,6 +477,13 @@
       "when": 1785924540512,
       "tag": "0067_flaky_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1785931262456,
+      "tag": "0068_easy_mongu",
+      "breakpoints": true
     }
   ]
 }

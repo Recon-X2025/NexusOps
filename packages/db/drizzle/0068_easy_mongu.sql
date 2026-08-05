@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "rent_paid_annual" numeric(14, 2) DEFAULT '0' NOT NULL;

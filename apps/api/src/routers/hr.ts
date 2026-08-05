@@ -293,6 +293,8 @@ export const hrRouter = router({
           // PT4 — Form 12B prior-employer FY income + TDS (annual ₹). Absent = no 12B on file.
           previousEmployerIncome: z.number().min(0).optional(),
           previousEmployerTds: z.number().min(0).optional(),
+          // HRA — declared annual rent for the s.10(13A) exemption (old regime). 0 = none.
+          rentPaidAnnual: z.number().min(0).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -380,6 +382,8 @@ export const hrRouter = router({
               input.previousEmployerIncome !== undefined ? String(input.previousEmployerIncome) : undefined,
             previousEmployerTds:
               input.previousEmployerTds !== undefined ? String(input.previousEmployerTds) : undefined,
+            rentPaidAnnual:
+              input.rentPaidAnnual !== undefined ? String(input.rentPaidAnnual) : undefined,
             status: "active",
           })
           .returning();
@@ -427,10 +431,12 @@ export const hrRouter = router({
         // PT4 — Form 12B prior-employer FY income + TDS (annual ₹).
         previousEmployerIncome: z.number().min(0).optional(),
         previousEmployerTds: z.number().min(0).optional(),
+        // HRA — declared annual rent for the s.10(13A) exemption (old regime). 0 = none.
+        rentPaidAnnual: z.number().min(0).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, previousEmployerIncome, previousEmployerTds, ...rest } = input;
+        const { id, previousEmployerIncome, previousEmployerTds, rentPaidAnnual, ...rest } = input;
         // Decimal columns take string values in Drizzle; convert only when supplied so an
         // omitted field is left untouched (spread would otherwise pass a number).
         const data = {
@@ -440,6 +446,9 @@ export const hrRouter = router({
             : {}),
           ...(previousEmployerTds !== undefined
             ? { previousEmployerTds: String(previousEmployerTds) }
+            : {}),
+          ...(rentPaidAnnual !== undefined
+            ? { rentPaidAnnual: String(rentPaidAnnual) }
             : {}),
         };
         const [emp] = await db.update(employees)

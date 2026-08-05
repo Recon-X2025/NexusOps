@@ -95,9 +95,13 @@ export function buildEmployeePayrollInput(
     section80CCD1B: 0,
     section80TTA: 0,
     section24b: 0,
+    // hraExemption stays 0: the engine now COMPUTES it from rentPaid + isMetro + the
+    // earned basic/HRA (s.10(13A) least-of-three), so this caller-supplied field is only
+    // an explicit override. `rentPaid` is the declared annual rent (Form-12BB style); when
+    // 0 (no declaration) the exemption is 0, unchanged for non-renters. Old-regime only.
     hraExemption: 0,
     otherExemptions: 0,
-    rentPaid: 0,
+    rentPaid: Number(emp.rentPaidAnnual || 0),
     daysInMonth,
     daysWorked,
     lopDays,

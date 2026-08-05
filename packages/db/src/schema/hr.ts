@@ -222,6 +222,23 @@ export const employees = pgTable(
       .notNull()
       .default("0"),
     /**
+     * HRA — annual rent paid by the employee, declared for the House Rent Allowance
+     * exemption (s.10(13A)). HRA exemption is the least of: HRA received, rent paid − 10%
+     * of basic, and 50%/40% of basic (metro/non-metro, `isMetroCity`). Without rent there
+     * is no exemption, so this is the missing input: the payroll engine computed HRA
+     * exemption from a caller-supplied figure that nothing populated (always 0), so every
+     * old-regime renter had their taxable income and TDS overstated.
+     *
+     * Declared through the investment-declaration process (provisional in April, proofs by
+     * January) — captured here as a single annual figure per employee per FY. Nullable/
+     * default 0: no rent declared ⇒ no exemption, which is the correct behaviour. Exemption
+     * applies only under the OLD regime; the tax engine already ignores it for NEW, so a
+     * value here never reduces new-regime tax.
+     */
+    rentPaidAnnual: decimal("rent_paid_annual", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    /**
      * M-05: holds a salary-structure FAMILY id, not a version id. The FK targets
      * `salaryStructures.id` because a family's id equals its origin (first) version's
      * id, and versions are immutable and never deleted — so this always references a
