@@ -35,6 +35,7 @@ import { buildForm16Input } from "../lib/india/form16-aggregator";
 import { decryptPan } from "../lib/pan";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
+import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
 import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
@@ -115,43 +116,10 @@ function fyCondition(startYear: number) {
 }
 
 /** Rough monthly tax snapshot for the employee portal (full FY projection lives in `taxPreview`). */
+// PT2: annual tax figures for a stored payslip come from one shared helper so the screen
+// (here) and the downloadable PDF cannot drift. See `../lib/payslip-tax`.
 function taxComputationFromPayslip(p: typeof payslips.$inferSelect) {
-  const grossM = Number(p.grossEarnings || 0);
-  const basicM = Number(p.basic || 0) || Math.round(grossM * 0.4);
-  const hraM = Number(p.hra || 0) || Math.round(basicM * 0.5);
-  const specM = Number(p.specialAllowance || 0) || Math.max(0, grossM - basicM - hraM);
-  const regime: "OLD" | "NEW" = p.taxRegimeUsed === "old" ? "OLD" : "NEW";
-  const profile: EmployeeTaxProfile = {
-    regime,
-    annualCTC: Math.max(grossM * 12, 1),
-    basicMonthly: basicM,
-    hraMonthly: hraM,
-    specialAllowance: specM,
-    lta: Number(p.lta || 0) || 30_000,
-    // TODO(compliance): Wire up actual employee tax declarations intake table.
-    // Currently hardcoded to 0. Old regime TDS will be over-deducted until this is built.
-    section80C: 0,
-    section80D: 0,
-    section80CCD1B: 0,
-    section80TTA: 0,
-    section24b: 0,
-    hraExemption: 0,
-    otherExemptions: 0,
-    employeePFMonthly: Number(p.pfEmployee || 0),
-    employerPFMonthly: Number(p.pfEmployer || 0),
-    professionalTax: Number(p.professionalTax || 0) * 12,
-    joiningMonth: 1,
-    monthsInFY: 12,
-    previousEmployerIncome: 0,
-    previousEmployerTDS: 0,
-  };
-  const t = computeTax(profile);
-  return {
-    regime,
-    taxableIncome: t.taxableIncome,
-    totalTaxLiability: t.totalTaxLiability,
-    monthlyTDS: t.monthlyTDS,
-  };
+  return computePayslipTaxFigures(p);
 }
 
 function mapPayslipRow(p: typeof payslips.$inferSelect) {
@@ -192,12 +160,23 @@ function buildTaxProfileFromEmployee(args: {
   monthsWithData: number;
 }): EmployeeTaxProfile {
   const { employee, structure, fyGross, monthsWithData } = args;
-  const annualCTC = structure ? Number(structure.ctcAnnual || 0) : fyGross > 0 ? fyGross : 1_200_000;
+  // PT1: reconcile the screen's tax basis to the run path. The run
+  // (`payroll-run-aggregates` → `computeEmployeePayslip`) taxes the SUM OF ACTUAL PAID
+  // COMPONENTS, never the contracted CTC — that is the only legally correct TDS basis
+  // (CA ruling): it auto-handles mid-month joiners, unpaid leave, and mid-year revisions,
+  // whereas contracted CTC does not. This screen previously taxed `structure.ctcAnnual`
+  // (contracted) with a `joiningMonth: 1` shortcut, so the two paths taxed different
+  // incomes and never agreed. When real payslips exist for the FY, `fyGross` (their summed
+  // gross) is the actual-paid basis; fall back to CTC only when there is no run history to
+  // read. The `- 2500` special-allowance shave (the annual MH PT cap applied monthly, 12×
+  // too large — the same PT1 bug as the run path) is removed here too.
+  const contractedCtc = structure ? Number(structure.ctcAnnual || 0) : 0;
+  const annualCTC = fyGross > 0 ? fyGross : contractedCtc > 0 ? contractedCtc : 1_200_000;
   const basicPct = structure ? Number(structure.basicPercent || 40) / 100 : 0.4;
   const hraPctOfBasic = structure ? Number(structure.hraPercentOfBasic || 50) / 100 : 0.5;
   const basicMonthly = (annualCTC * basicPct) / 12;
   const hraMonthly = basicMonthly * hraPctOfBasic;
-  const specialMonthly = Math.max(0, annualCTC / 12 - basicMonthly - hraMonthly - 2500);
+  const specialMonthly = Math.max(0, annualCTC / 12 - basicMonthly - hraMonthly);
   const ltaAnnual = structure ? Number(structure.ltaAnnual || 0) : 30_000;
   return {
     regime: employee.taxRegime === "old" ? "OLD" : "NEW",

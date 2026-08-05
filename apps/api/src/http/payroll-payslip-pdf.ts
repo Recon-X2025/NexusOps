@@ -7,6 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { and, eq, payslips, employees, users } from "@coheronconnect/db";
 import { createContext } from "../middleware/auth";
 import { generatePayslipPDF, amountInWords, type PayslipPDFInput } from "../services/payslip-pdf";
+import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { decryptPan } from "../lib/pan";
 
 const MONTHS = [
@@ -33,6 +34,12 @@ function buildPdfInput(args: {
   const net = Number(slip.netPay || 0);
   const regime =
     slip.taxRegimeUsed === "old" ? "Old regime" : slip.taxRegimeUsed === "new" ? "New regime" : String(slip.taxRegimeUsed ?? "new");
+
+  // PT2: read the annual tax figures from the same engine-backed helper the on-screen
+  // payslip uses, so the PDF and the screen agree. The old inline math re-derived annual
+  // tax as `monthlyTDS × 12` and taxable income as `gross × 12 − ₹75,000` — the latter
+  // hardcoded the standard deduction and omitted professional tax entirely.
+  const taxFigures = computePayslipTaxFigures(slip);
 
   return {
     companyName: orgName,
@@ -77,8 +84,8 @@ function buildPdfInput(args: {
     ytdTDS: Number(slip.ytdTds || 0),
     ytdNetPay: Number(slip.ytdNet || 0),
     taxRegime: regime,
-    taxableIncome: Math.max(0, Math.round(gross * 12 - 75_000)),
-    totalTaxLiability: Number(slip.tds || 0) * 12,
+    taxableIncome: taxFigures.taxableIncome,
+    totalTaxLiability: taxFigures.totalTaxLiability,
   };
 }
 

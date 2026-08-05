@@ -201,6 +201,27 @@ export const employees = pgTable(
       .notNull()
       .default(false),
     /**
+     * PT4 — Form 12B prior-employer figures for the CURRENT financial year. When a new
+     * joiner submits Form 12B, the employer is legally bound (s.192(2)) to account for the
+     * salary already paid and the TDS already deducted by the previous employer, so the
+     * rolling annual tax and the monthly TDS are computed on the combined income and the
+     * already-deducted tax is netted off. The payroll engine already consumes
+     * `previousEmployerIncome` / `previousEmployerTDS`; these columns are the intake that
+     * was missing, so the inputs were hardcoded to 0.
+     *
+     * Both are nullable/default 0. A NULL/0 baseline is the CORRECT behaviour when no
+     * Form 12B was submitted (Form 12B is optional for the employee) — the prior fix
+     * produced that same zero, but by accident rather than by design. Stored as annual
+     * rupee amounts for the FY. Not effective-dated: a single declaration per joiner per
+     * FY; a mid-year employer change is a fresh 12B captured by updating these.
+     */
+    previousEmployerIncome: decimal("previous_employer_income", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    previousEmployerTds: decimal("previous_employer_tds", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
+    /**
      * M-05: holds a salary-structure FAMILY id, not a version id. The FK targets
      * `salaryStructures.id` because a family's id equals its origin (first) version's
      * id, and versions are immutable and never deleted — so this always references a

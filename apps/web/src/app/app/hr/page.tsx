@@ -84,6 +84,8 @@ export default function HRPage() {
     ptExemptArmedForces: false,
     ptExemptDisability: false,
     ptExemptDependentDisability: false,
+    previousEmployerIncome: "",
+    previousEmployerTds: "",
   });
   const [editEmpForm, setEditEmpForm] = useState({
     department: "",
@@ -108,6 +110,8 @@ export default function HRPage() {
     ptExemptArmedForces: false,
     ptExemptDisability: false,
     ptExemptDependentDisability: false,
+    previousEmployerIncome: "",
+    previousEmployerTds: "",
   });
 
   const unlinkedUsersQuery = trpc.hr.employees.listUsersWithoutEmployee.useQuery(undefined, mergeTrpcQueryOpts("hr.employees.listUsersWithoutEmployee", {
@@ -150,6 +154,8 @@ export default function HRPage() {
         ptExemptArmedForces: false,
         ptExemptDisability: false,
         ptExemptDependentDisability: false,
+        previousEmployerIncome: "",
+        previousEmployerTds: "",
       });
     },
     onError: (e: { message?: string }) => toast.error(e?.message ?? "Could not create employee"),
@@ -1211,6 +1217,34 @@ export default function HRPage() {
                 />
                 Parent/guardian of a dependent with disability
               </label>
+
+              {/* ── Prior employer (Form 12B) — only if the joiner submitted one ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Prior employer (Form 12B)</p>
+                <p className="text-[10px] text-muted-foreground">This financial year, from a previous employer. Leave blank if no Form 12B was submitted.</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Income already paid (₹/yr)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.previousEmployerIncome}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, previousEmployerIncome: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">TDS already deducted (₹/yr)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={addEmpForm.previousEmployerTds}
+                    onChange={(e) => setAddEmpForm((f) => ({ ...f, previousEmployerTds: e.target.value }))}
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -1248,6 +1282,12 @@ export default function HRPage() {
                     ptExemptArmedForces: addEmpForm.ptExemptArmedForces,
                     ptExemptDisability: addEmpForm.ptExemptDisability,
                     ptExemptDependentDisability: addEmpForm.ptExemptDependentDisability,
+                    previousEmployerIncome: addEmpForm.previousEmployerIncome
+                      ? Number(addEmpForm.previousEmployerIncome)
+                      : undefined,
+                    previousEmployerTds: addEmpForm.previousEmployerTds
+                      ? Number(addEmpForm.previousEmployerTds)
+                      : undefined,
                   })
                 }
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
@@ -1515,6 +1555,34 @@ export default function HRPage() {
                 />
                 Parent/guardian of a dependent with disability
               </label>
+
+              {/* ── Prior employer (Form 12B) — only if the joiner submitted one ── */}
+              <div className="pt-2 mt-1 border-t border-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Prior employer (Form 12B)</p>
+                <p className="text-[10px] text-muted-foreground">This financial year, from a previous employer. Leave blank if no Form 12B was submitted.</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">Income already paid (₹/yr)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.previousEmployerIncome}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, previousEmployerIncome: e.target.value }))}
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[11px] text-muted-foreground">TDS already deducted (₹/yr)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                    value={editEmpForm.previousEmployerTds}
+                    onChange={(e) => setEditEmpForm((f) => ({ ...f, previousEmployerTds: e.target.value }))}
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button
@@ -1545,6 +1613,12 @@ export default function HRPage() {
                     ptExemptArmedForces: editEmpForm.ptExemptArmedForces,
                     ptExemptDisability: editEmpForm.ptExemptDisability,
                     ptExemptDependentDisability: editEmpForm.ptExemptDependentDisability,
+                    previousEmployerIncome: editEmpForm.previousEmployerIncome
+                      ? Number(editEmpForm.previousEmployerIncome)
+                      : undefined,
+                    previousEmployerTds: editEmpForm.previousEmployerTds
+                      ? Number(editEmpForm.previousEmployerTds)
+                      : undefined,
                   })
                 }
                 className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
@@ -1720,6 +1794,10 @@ export default function HRPage() {
                                   ptExemptArmedForces: Boolean(emp.ptExemptArmedForces),
                                   ptExemptDisability: Boolean(emp.ptExemptDisability),
                                   ptExemptDependentDisability: Boolean(emp.ptExemptDependentDisability),
+                                  previousEmployerIncome:
+                                    emp.previousEmployerIncome != null ? String(emp.previousEmployerIncome) : "",
+                                  previousEmployerTds:
+                                    emp.previousEmployerTds != null ? String(emp.previousEmployerTds) : "",
                                 });
                               }}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-[10px] hover:bg-accent"

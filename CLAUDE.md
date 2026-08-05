@@ -125,6 +125,7 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 
 - Make only the changes requested; avoid over-engineering, premature abstraction, and unrequested refactors.
 - Read files before editing; never propose changes to unread code.
+- NEVER state that a file is committed, that a commit exists, or that a change is deployed without verifying it first. Run `git log`, `git status` or `git show` and quote the actual output. A commit hash you have not read is a fabrication. This applies to every claim about repository state. If you have not checked it in this session, say so rather than asserting it. This extends the "read before you claim" rule from comments and documents to the repository itself.
 - Don't commit unless explicitly asked. Prefer staging specific files over `git add -A`.
 - Never commit secrets (`.env*`, credentials). Coverage artifacts are gitignored.
 - zsh quirks observed here: multi-line SQL piped through commands breaks; `cd` with unquoted paths can error "too many arguments"; `!` triggers history expansion in `node -e`. Workaround: write a temp `.cjs` file and quote paths.

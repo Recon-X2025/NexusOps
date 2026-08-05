@@ -290,6 +290,9 @@ export const hrRouter = router({
           ptExemptArmedForces: z.boolean().optional(),
           ptExemptDisability: z.boolean().optional(),
           ptExemptDependentDisability: z.boolean().optional(),
+          // PT4 — Form 12B prior-employer FY income + TDS (annual ₹). Absent = no 12B on file.
+          previousEmployerIncome: z.number().min(0).optional(),
+          previousEmployerTds: z.number().min(0).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -373,6 +376,10 @@ export const hrRouter = router({
             ptExemptArmedForces: input.ptExemptArmedForces,
             ptExemptDisability: input.ptExemptDisability,
             ptExemptDependentDisability: input.ptExemptDependentDisability,
+            previousEmployerIncome:
+              input.previousEmployerIncome !== undefined ? String(input.previousEmployerIncome) : undefined,
+            previousEmployerTds:
+              input.previousEmployerTds !== undefined ? String(input.previousEmployerTds) : undefined,
             status: "active",
           })
           .returning();
@@ -417,10 +424,24 @@ export const hrRouter = router({
         ptExemptArmedForces: z.boolean().optional(),
         ptExemptDisability: z.boolean().optional(),
         ptExemptDependentDisability: z.boolean().optional(),
+        // PT4 — Form 12B prior-employer FY income + TDS (annual ₹).
+        previousEmployerIncome: z.number().min(0).optional(),
+        previousEmployerTds: z.number().min(0).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, ...data } = input;
+        const { id, previousEmployerIncome, previousEmployerTds, ...rest } = input;
+        // Decimal columns take string values in Drizzle; convert only when supplied so an
+        // omitted field is left untouched (spread would otherwise pass a number).
+        const data = {
+          ...rest,
+          ...(previousEmployerIncome !== undefined
+            ? { previousEmployerIncome: String(previousEmployerIncome) }
+            : {}),
+          ...(previousEmployerTds !== undefined
+            ? { previousEmployerTds: String(previousEmployerTds) }
+            : {}),
+        };
         const [emp] = await db.update(employees)
           .set({ ...data, updatedAt: new Date() })
           .where(and(eq(employees.id, id), eq(employees.orgId, org!.id)))

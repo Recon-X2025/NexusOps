@@ -73,6 +73,38 @@ becomes impossible to reintroduce. **All five are Done and green** (Phase 1 comp
 
 ## What landed in the last few days
 
+- **PT1 / PT2 / PT4 (uncommitted, Aug 5) — TDS on actual paid components + prior-employer 12B:**
+  - **PT1 — tax the actual paid components, not a shaved contracted CTC.** Deleted the bare
+    `- 2500` in `buildEmployeePayrollInput`'s special-allowance residual
+    (`payroll-run-aggregates.ts`). It was the ₹2,500 **annual** Maharashtra PT cap subtracted
+    **monthly** (12× too large, wrong place, never added back), silently shaving ₹30,000/yr off
+    every employee's gross — and therefore off the TDS base. PT is a separate statutory
+    deduction; it does not belong in the earnings residual. Also reconciled the on-screen path
+    (`buildTaxProfileFromEmployee` in `payroll.ts`) to the run path: it now uses the sum of
+    actual paid components (`fyGross`) as the TDS basis instead of shortcutting to raw contracted
+    `ctcAnnual`, so screen, PDF, and the locked run all agree. **CA note:** already-filed periods
+    must be corrected via a **revised Form 24Q with 1.5%/month interest borne by the company**
+    (N/A on test env; applies before any live customer run).
+  - **PT2 — payslip PDF reads engine figures, not re-derived shortcuts.** Extracted
+    `computePayslipTaxFigures` (`lib/payslip-tax.ts`) as the single source of truth; both the
+    on-screen payslip and the PDF (`http/payroll-payslip-pdf.ts`) now call it. The PDF previously
+    re-derived annual tax as `monthlyTDS × 12` and taxable income as `gross × 12 − ₹75,000`
+    (hardcoded standard deduction, professional tax omitted). Now taxable income and total tax
+    liability come straight from the engine, matching the screen.
+  - **PT4 — prior-employer (Form 12B) income + TDS.** Confirmed no field existed (only two
+    hardcoded `0`s). Added `previous_employer_income` and `previous_employer_tds` columns on
+    `employees` (migration **0067**), wired the API create/update boundary (`hr.ts`), the web add/
+    edit forms (`hr/page.tsx`, "Prior employer (Form 12B)" group), and the engine input
+    (`payroll-run-aggregates.ts`). The rolling s.192 calc already netted prior-employer TDS; it
+    was just never fed. **CA note:** Form 12B is **optional for the employee, mandatory for the
+    employer once submitted**; the zero baseline (no 12B on file) stays correct — now by design,
+    not by accident.
+  - Fairness tests in `payroll-actual-components-and-prior-employer.test.ts` (6/6 green);
+    red-before proven for PT1 (re-added shave → fail) and PT4 (restored hardcoded 0 → fail).
+  - **Follow-up (not yet done):** `isMetroCity` is captured on the employee but does **not** reach
+    the payslip's HRA relief — `computeEmployeePayslip` uses the caller-supplied `hraExemption`
+    (currently 0) and never calls `computeHRAExemption`, so the 50%/40%-of-basic metro split is
+    unused. Old-regime HRA exemption is under-applied until this is wired.
 - **`a7d31ee` (Aug 5) — M-05:** salary-structure **family versioning**. Effective-dated
   versions share a `family_id`; employees link to the family; payroll resolves the
   version whose `[effective_from, effective_to)` window contains the pay period.

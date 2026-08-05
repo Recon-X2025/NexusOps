@@ -39,7 +39,13 @@ export function buildEmployeePayrollInput(
   const hraPctOfBasic = Number(struct.hraPercentOfBasic ?? 50) / 100;
   const basicMonthly = (ctc * basicPct) / 12;
   const hraMonthly = basicMonthly * hraPctOfBasic;
-  const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - hraMonthly - 2500);
+  // PT1: special allowance is the residual of monthly CTC after basic + HRA. The bare
+  // `- 2500` previously subtracted here was the ANNUAL Maharashtra PT cap (₹2,500/year)
+  // applied MONTHLY — 12× too large, in the wrong place, and never added back — so it
+  // silently shaved ₹30,000/year off every employee's gross (and therefore off the TDS
+  // base). PT is deducted separately as a statutory deduction; it does not belong in the
+  // earnings residual. Removed so the run taxes the actual paid components in full.
+  const specialAllowance = Math.max(0, ctc / 12 - basicMonthly - hraMonthly);
   const ltaAnnual = Number(struct.ltaAnnual || 0);
   const daysInMonth = new Date(year, month, 0).getDate();
   // G8: LOP derived from attendance. Absent a record, treat as a full paid month.
@@ -101,8 +107,12 @@ export function buildEmployeePayrollInput(
     otherEarnings: 0,
     otherDeductions: 0,
     isVoluntaryHigherPF: false,
-    previousEmployerIncome: 0,
-    previousEmployerTDS: 0,
+    // PT4: feed the engine the Form 12B prior-employer figures declared on the employee
+    // record. The rolling s.192 calc already nets `previousEmployerTDS` against the annual
+    // liability; these were hardcoded to 0, so any prior-employer income/TDS was ignored.
+    // A 0 default (no 12B on file) is correct and unchanged for existing employees.
+    previousEmployerIncome: Number(emp.previousEmployerIncome || 0),
+    previousEmployerTDS: Number(emp.previousEmployerTds || 0),
     ytdGross: 0,
     ytdPF: 0,
     ytdTDS: 0,
