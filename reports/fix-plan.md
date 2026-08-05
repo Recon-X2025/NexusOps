@@ -85,7 +85,7 @@ it is the summary; the item is the source of truth.
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
 | A12-D — LOP split-logic defect (CA correction) | New — Payroll | Pending (against shipped A12) |
-| C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking** |
+| C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking**. **Scope corrected (2026-08-05):** the **investment-declaration intake** (table + UI + effective-dated read path + Feb/March lapse spread) is a **prerequisite** and the **larger half** — shipping the election without it is actively harmful (OLD with zero declarations is taxed worse than NEW). See "Two records (2026-08-05)". |
 | C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates, red/green tested); **C2-STRUCT pending** — **payroll-blocking**: half-yearly levy period (Kerala/TN/Puducherry), gender ingestion, month-specific rates, full-population + explicit-nil, TIER-1 exemptions (none ingested). See C2 scope |
 | C3 — ESI six-month contribution-period rule | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
@@ -94,6 +94,7 @@ it is the summary; the item is the source of truth.
 | C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | Pending — **GST-blocking** |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
+| DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -3134,3 +3135,131 @@ C4b, PT4, M-05 open questions all settled** by ruling; **three new items** raise
 marginal relief, LWF Maharashtra half-yearly timing, PF-arrears ECR month-mapping); and **one FY
 caveat** (verify FY 2026-27 figures with the CA) plus **one new-regime surcharge relief check**
 (no ₹5cr relief in the new regime) left open for verification.
+
+## Two records (2026-08-05) — C1 scope correction + the second payroll engine
+
+_Documentation only. No code was changed by this section. Both records are the result of a
+code audit at migration head `0068_easy_mongu` (the HRA-exemption fix, shipped `d7dff03`)._
+
+### 1. C1 SCOPE CORRECTION — the declaration intake is a PREREQUISITE to C1, and the larger half
+
+**What C1 says today.** In the "Status at a glance" table (line 88) and the C1 detail (line 1560),
+C1 reads as **"regime branching + investment declaration"** — the two treated as one item, with the
+branch as the headline and the declaration folded in as scope (§3, line 2972 / C1-IN, line 2908).
+**That framing understates the work and gets the order backwards.** The correction below reclassifies
+the declaration intake as a **prerequisite** to C1, and names it as the **bigger of the two pieces**.
+
+**Why it is a prerequisite, not a sub-item.** Every old-regime relief the tax engine can apply is
+**hardcoded to zero at both construction sites**, and there is **no table anywhere that an employee's
+declared investments could be read from**:
+
+- `apps/api/src/services/payroll-run-aggregates.ts:104` — the batch (payroll-run) path. `section80C`,
+  `section80D`, `section80CCD1B`, `section80TTA`, `section24b`, `otherExemptions` are all set to `0`.
+  (HRA is now computed — the 0068 fix — but every other Chapter VI-A relief is still a literal `0`.)
+- `apps/api/src/routers/payroll.ts` `buildTaxProfileFromEmployee` — the single-employee (screen) path.
+  Same six reliefs, same literal `0`.
+- **There is no employee tax-declaration intake table.** The `employees` table carries no 80C/80D/
+  80CCD1B/80TTA/24b columns; the create/update mutation has no field for them; the HR form has no
+  input. `rentPaidAnnual` (added at 0068) is the **only** declaration input that exists. So even if a
+  column existed, nothing populates it, and nothing reads it into `computeTax`.
+
+**The consequence, in plain English.** Under the old regime an employee's taxable income today is
+reduced by **only three things**: the **standard deduction**, **professional tax**, and (since 0068)
+the **HRA exemption**. It gets **none** of 80C (up to ₹1.5 L), 80D (medical insurance), 80CCD(1B)
+(₹50 k NPS), 80TTA (savings interest), or 24(b) (up to ₹2 L home-loan interest). The whole reason a
+person chooses the old regime is to claim those reliefs. With them all forced to zero, **an employee
+who elects OLD is taxed *worse* than if they had stayed on NEW — in every case** (NEW gives the larger
+₹75 k standard deduction and the ₹60 k/₹12 L rebate; OLD gives ₹50 k and nothing else). So shipping the
+**regime election on its own — the branch working, the employee able to pick OLD — is not neutral, it
+is actively harmful**: it hands people a switch that can only ever raise their tax, and files that
+higher TDS against their PAN. The election is worthless, and worse than worthless, until the intake
+that feeds it exists.
+
+**Therefore the corrected ordering is:**
+
+1. **PREREQUISITE (the larger build): investment-declaration intake.** A per-employee, per-financial-
+   year declaration **table**; a **UI** to enter it (80C, 80D, 80CCD1B, 80TTA, 24b, and the HRA/rent
+   inputs already half-built); and the **read path** that flows those figures into `computeTax` at
+   **both** construction sites above (replacing the six literal `0`s). This is the bulk of C1 — a new
+   table, a new form, and two wiring points — and it is **more work than the branch itself.**
+2. **Then C1 proper: the regime election** — store the per-employee/per-FY election and branch
+   `computeTax` on it. Small by comparison, and **only safe to ship once (1) exists.**
+
+**The effective-dating rule the intake must implement (CA ruling, line 3065).** Declarations are
+**provisional in April** and become final only when **physical proofs are submitted by January**. If
+an employee does **not** submit proofs by the January deadline, the engine must **zero out the declared
+values and spread the resulting extra tax over February and March** (the last two payroll months of the
+FY). The current build has **no notion of a proof deadline, no provisional-vs-final state, and no
+Feb/March catch-up spread** — so the intake table needs a per-declaration **status** (provisional /
+proven / lapsed) and an **effective-date/deadline**, not just a bag of numbers. This is a real part of
+the prerequisite, not a later refinement: a declaration store that cannot lapse-and-recover the tax is
+incomplete.
+
+**Bottom line for the tracker.** C1 is **not** "add a regime toggle." C1 is **"build the declaration
+intake (table + UI + effective-dated read path + Feb/March lapse spread), *then* add the election."**
+The intake is the prerequisite and the larger half. Until it lands, **the old-regime branch must not be
+exposed to users** — an OLD election with zero declarations is a tax increase, not a feature.
+
+### 2. THE SECOND PAYROLL ENGINE — `apps/api/src/lib/india/payroll-engine.ts` is LIVE, reachable, and writes money
+
+**Question asked:** is `apps/api/src/lib/india/payroll-engine.ts` (which has its own
+`computeHRAExemption` and `computeTaxOld`) dead code, an earlier version, or still reachable from a
+route? If reachable, from where, and does it agree with the live engine on any shared calculation?
+
+**Finding: it is LIVE.** An earlier note called it "dead code (zero production imports)." That was
+**wrong** — it was searched for as a *static* import. Every import of it is a **dynamic** `await
+import("../lib/india/payroll-engine.js")`, which a static-import grep misses. The real import sites:
+
+- `apps/api/src/routers/hr.ts:1417` — `computeTaxProjection` endpoint (`computeMonthlySalarySlip`, `computeTaxOld`, `computeTaxNew`)
+- `apps/api/src/routers/hr.ts:1482` — `computeTax` endpoint (`computeTaxOld`, `computeTaxNew`)
+- `apps/api/src/routers/hr.ts:1522` — `computeMonthlySlip` endpoint (`computeMonthlySalarySlip`)
+- `apps/api/src/routers/hr.ts:1550` — **`runMonthlyPayroll` mutation** (`computeMonthlySalarySlip`)
+- `apps/api/src/routers/hr.ts:1673` — `generateECR` (`formatECRFile`)
+- `apps/api/src/routers/india-compliance.ts:691` — `formatECRFile`
+
+These are all under the **`hr.payroll.*` tRPC sub-router** and are **RBAC-registered** and exposed
+(`apps/web/src/lib/trpc-procedure-rbac.generated.ts:429-433` lists `hr.payroll.runMonthlyPayroll`,
+`computeMonthlySlip`, `computeTax`). So the second engine is reachable over the API by any client with
+the `hr:write`/`hr:read` grant — it is not orphaned.
+
+**It is a full second money-WRITE path, not just a read/projection.** `runMonthlyPayroll`
+(`hr.ts:1540-1666`) is a complete parallel payroll run: for every active employee it calls
+`computeMonthlySalarySlip` (the second engine, `hr.ts:1596`), then **inserts payslip rows**
+(`db.insert(payslipsTable)`, `hr.ts:1648`) and **updates the `payroll_runs` totals** (gross,
+deductions, net, PF, PT, TDS — `hr.ts:1651-1663`). It writes the same two tables the live path writes,
+using a **different, staler engine**, and it hardcodes `ytdGross: 0, ytdTds: 0` (`hr.ts:1608-1609`,
+`1641-1642`) so its TDS never sees prior-month YTD.
+
+**The live path** is the fixed one: `packages/payroll-math` via `computeEmployeePayslip`
+(`payroll-cycle.ts`), reached from the web payroll page through `payroll.runs.computePayslips`
+(`apps/web/src/app/app/payroll/page.tsx`). That is the engine that received PT1/PT2/PT4, C2-FIX,
+PT3, PT5, and the 0068 HRA fix.
+
+**Does it agree with the live engine? No — it disagrees on essentially every statutory calc,** and it
+reproduces the exact bugs the live engine was fixed for:
+
+| Calculation | Second engine (`india/payroll-engine.ts`) | Live engine (`payroll-math`) — the fixed one |
+|---|---|---|
+| **Professional tax** | Stale hardcoded `PT_SLABS` (line 19): Maharashtra flat ₹175/₹200, **no Feb ₹300, no ₹2,500 cap**; Gujarat has the wrong ₹80/₹150 bands; TN flat ₹135 | The **C2-FIX** corrected slabs (Karnataka nil-band+Feb, Gujarat nil-to-₹12k/₹200, Maharashtra female set) with the ₹2,500 statutory cap |
+| **Tax slabs** | Hardcoded (line 114/121): **FY 2024-25** new-regime slabs (₹3/6/9/12/15 L) — **not effective-dated** from `statutory_ceilings` | Effective-dated from the statutory-ceilings source (the C5 requirement) |
+| **New-regime surcharge** | `applySurcharge` (line 141) caps at **37% for both regimes** — the exact **PT3 bug** | New regime capped at **25%** (PT3 fix) |
+| **s.87A rebate** | Flat: ₹12,500/₹5 L old (line 195), ₹25,000/₹7 L new (line 226) — **stale FY 2024-25 figures, no marginal relief** | ₹60 k/₹12 L with **marginal relief** (PT5) |
+| **HRA exemption** | Computes from `input.rentPaidMonthly ?? 0` (line 336) — but `runMonthlyPayroll` **never passes it**, so it is **always 0**; also reads `rentPaidMonthly`, **not** the new `rentPaidAnnual` column | Computes from the declared `rentPaidAnnual` + `isMetro` inside `computeEmployeePayslip` (0068 fix) |
+| **Other reliefs** | Default `deductions` (line 342) hardcodes 80D/24b/80CCD1B to 0; special-allowance formula subtracts employer PF | (Same declaration gap — see record #1 — but a single code path to fix) |
+| **YTD / prior-employer** | `ytdGross:0, ytdTds:0` hardcoded; no LOP; no Form 12B prior-employer income | Rolling s.192 YTD; LOP-earned components; PT4 prior-employer wiring |
+
+**Assessment.** This is exactly the failure shape the plan already worries about: **two
+implementations of the same statutory logic**, the pattern that produced the `nxk_`/`nxo_` mismatch and
+the two disagreeing gross computations. Whichever endpoint a client happens to call decides whether an
+employee gets the fixed math or the stale, wrong math — and `runMonthlyPayroll` will **file** the stale
+result. It is the last place a known-class defect can sit unexamined.
+
+**Recommendation (to record — no code change made here):** **remove the duplication.** Either delete
+`apps/api/src/lib/india/payroll-engine.ts` and re-point its six call sites at the live
+`payroll-math` engine (`computeEmployeePayslip` for the slip/run paths; the shared tax/HRA functions
+for the projection/`computeTax` paths; keep only `formatECRFile` if the ECR formatter has no equivalent
+yet), **or**, if any `hr.payroll.*` endpoint must stay, make it a thin adapter over `payroll-math` so
+there is **one** source of statutory truth. **`runMonthlyPayroll` is the priority** — it is a live
+write path that files stale PT, stale slabs, a 37% new-regime surcharge, a stale rebate, and zero HRA.
+Until reconciled, it should be treated as **payroll-blocking** alongside C1/C2, because it can commit a
+wrong, filed payroll run without touching any of the engine that was fixed.
