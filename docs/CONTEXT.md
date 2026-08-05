@@ -26,12 +26,14 @@ payroll-blocking items are listed under "Next in queue" below.
 
 ## Deployed commit & migration head
 
-- **Deployed commit:** `a7d31ee` — _"feat(payroll): salary-structure family
-  versioning + gratuity/leave accrual (M-05)."_ Local `main` and `origin/main` are
-  in sync at this SHA. (Pushing to `main` auto-deploys to Vultr.)
+- **Deployed commit:** `be88a02` — _"fix(payroll): delete second India payroll engine,
+  unify on one path (DUP-1)."_ Local `main` and `origin/main` are in sync at this SHA
+  (verified `git rev-parse HEAD origin/main` identical). Pushing to `main` auto-deploys
+  to Vultr via the `deploy` job in `ci.yml` (runs after build on `main`, gated only on
+  the Vultr secrets); CI run 31013084550 confirmed `live=be88a02…` healthy on the box.
 - **Migration head:** `0068_easy_mongu` (the HRA `rent_paid_annual` column; `0067_flaky_sinister_six`
-  was the PT4 prior-employer columns). Always re-confirm the live head from the last entry in
-  `packages/db/drizzle/meta/_journal.json` — do not trust a number in prose.
+  was the PT4 prior-employer columns). DUP-1 added no migration. Always re-confirm the live head
+  from the last entry in `packages/db/drizzle/meta/_journal.json` — do not trust a number in prose.
 
 ## The audit & sweep system (`.claude/skills/`)
 
@@ -73,7 +75,73 @@ becomes impossible to reintroduce. **All five are Done and green** (Phase 1 comp
 
 ## What landed in the last few days
 
-- **PT1 / PT2 / PT4 (uncommitted, Aug 5) — TDS on actual paid components + prior-employer 12B:**
+- **P-15 (uncommitted, Aug 5) — screen tax-preview now includes a mid-year joiner's prior-employer 12B:**
+  - **The defect (live money, shipped feature):** the on-screen regime-comparison projection
+    (`taxPreview` → `buildTaxProfileFromEmployee`, `apps/api/src/routers/payroll.ts`) hardcoded
+    `previousEmployerIncome: 0`, `previousEmployerTDS: 0`, **and** `joiningMonth: 1`. So a mid-year
+    joiner with declared Form 12B figures was projected as a full-year employee and their prior salary
+    was **silently dropped** from the annual base — while the **run path** (`payroll-run-aggregates.ts:118-119`)
+    already threaded both and derived a real join month. Screen and run disagreed for exactly the joiner
+    population where s.192(2) matters.
+  - **Root cause of the inertness:** the engine folds `previousEmployerIncome` into gross **only** on the
+    mid-year branch (`joiningMonth !== 1`, `tax-engine.ts:275-285`). Threading the field alone did nothing
+    while `joiningMonth` stayed 1 — the fix had to derive a real FY `joiningMonth` too.
+  - **The fix:** `buildTaxProfileFromEmployee` takes a `fyStart` arg; derives `joiningMonth` from the
+    employee's `startDate` (start after 1 April ⇒ `calendarToFyMonth`, else 1 — byte-identical for
+    existing full-year employees), sets `monthsInFY` accordingly, and reads `previousEmployerIncome`/`Tds`
+    from the same row the run reads. Both `taxPreview` call sites pass `fyStart`.
+  - **Fairness test** (`PT4-SCREEN` block in `payroll-actual-components-and-prior-employer.test.ts`, now
+    **10/10 green**): two mid-year joiners, one with 800000/40000 12B and one without — the WITH case
+    projects a higher old-regime taxable income (delta > ₹500k). Red-before proven (reverting the join-month
+    derivation collapsed both to an identical 1147600); `pnpm lint` green across all 9 workspaces.
+  - **Premise corrections recorded (no code):** **P-14** was already fixed (screen HRA computes from
+    `rentPaidAnnual`, `payroll.ts:185-193`) — closed. **P-13** re-scoped: there is **no** Chapter VI-A
+    column/form/declarations table anywhere (only `previousEmployerIncome` + `rentPaidAnnual` exist), so
+    it is folded into **C1's investment-declaration intake**, not a one-line thread. See
+    `reports/fix-plan.md` → "Roadmap + correction records (2026-08-05)".
+- **`be88a02` — DUP-1 (Aug 5) — the second India payroll engine retired, six call sites rerouted:**
+  - **The defect (live money):** `apps/api/src/lib/india/payroll-engine.ts` was a 416-line **second**
+    India payroll engine, reached through six **dynamic `await import(`** call sites, and
+    `hr.payroll.runMonthlyPayroll` used it to **write payslips + run totals** — a duplicate
+    money-writing path. It carried the pre-fix version of every correction made this week: stale PT
+    slabs (pre-C2-FIX), 37% new-regime surcharge (pre-PT3), flat s.87A with no marginal relief (pre-PT5),
+    tax slabs hardcoded not effective-dated (pre-C5), HRA against a rent field that was always 0, and
+    YTD written as 0. Four of the five files in that folder were already re-export shims to
+    `packages/payroll-math`; only this one was a live duplicate.
+  - **Why it survived every prior sweep:** the call sites are **dynamic imports**, invisible to a
+    static-import scan — so every sweep that walked the static graph never saw the engine. This is the
+    root lesson: a sweep claiming money/statutory coverage must enumerate `await import(` / `.then(import(`
+    sites and follow them (recorded in `reports/sweep-dynamic-imports.md`).
+  - **The confirmed earlier miss:** the phantom-fields sweep missed **`rentPaidMonthly`** — the field the
+    second engine read for HRA, which nothing populated (always 0), so its HRA exemption was always nil.
+  - **A second, distinct failure (filename ≠ coverage):** the payroll-tax audit treated
+    `apps/api/src/__tests__/india-payroll-engine.test.ts` as coverage of the second engine on the strength
+    of the name. That test never imports `../lib/india/payroll-engine`; it exercises the LIVE engine through
+    the shims. The 416-line second engine had **zero** test coverage.
+  - **The fix (owner decisions applied):** deleted the second engine; **retired
+    `hr.payroll.runMonthlyPayroll`** (owner: "use the pipeline" — `payroll.runs` is now the only
+    payslip-writing path); rerouted the 4 surviving previews onto the live engine
+    (`computeCurrentSlip`/`computeMonthlySlip` via `buildEmployeePayrollInput → computeEmployeePayslip`,
+    the same bridge `computePayslips` uses; `computeTax` via payroll-math `computeTax`). Extracted
+    `formatECRFile`/`ECRLine` into `india/ecr-format.ts` **preserving the `#~#` EPFO byte-format**
+    (owner: "keep it for now") and rerouted `hr.generateECR` + `india-compliance filing.submit` to it.
+    Regenerated the tRPC RBAC map (drops `runMonthlyPayroll`, keeps the 4 previews).
+  - **Fairness test:** `apps/api/src/__tests__/payroll-engine-equivalence.test.ts` (2/2 green) — the
+    preview path and the run path produce identical core figures for the same employee/period, and the
+    second-engine module is gone (guards reintroduction). `pnpm lint` green across all 9 workspaces.
+  - **Sweeps to re-run** now the file is in scope: **phantom-fields**, **payroll-tax**, and
+    **unreachable-features** — the three that were blind to a dynamically-imported, money-writing engine.
+- **`0000897` — employee statutory ingestion pass (Aug 5, C2-STRUCT/C1/C3 enabler):** the statutory
+  determinants that previously had no path onto the employee record — state, gender, DOB, metro flag,
+  PT-exemption flags — now reach the payroll engine, and the silent `state ?? "Maharashtra"` fallback
+  in `buildEmployeePayrollInput` is gone (a missing state now throws; the row is excluded with a
+  per-employee error and the run continues). Fairness checks in
+  `employee-statutory-ingestion.test.ts` (Kerala resolves as Kerala not Maharashtra; MH PT gender-split;
+  tier-1/age exemptions zero PT; metro 50% vs 40% HRA threshold).
+- **`a7d31ee` — M-05 (Aug 5) — salary-structure family versioning** (also listed below): effective-dated
+  versions share a `family_id`; employees link to the family; payroll resolves the version whose
+  `[effective_from, effective_to)` window contains the pay period.
+- **`7a4a408` — PT1 / PT2 / PT4 (Aug 5) — TDS on actual paid components + prior-employer 12B:**
   - **PT1 — tax the actual paid components, not a shaved contracted CTC.** Deleted the bare
     `- 2500` in `buildEmployeePayrollInput`'s special-allowance residual
     (`payroll-run-aggregates.ts`). It was the ₹2,500 **annual** Maharashtra PT cap subtracted
@@ -102,7 +170,7 @@ becomes impossible to reintroduce. **All five are Done and green** (Phase 1 comp
   - Fairness tests in `payroll-actual-components-and-prior-employer.test.ts` (now 8/8 green — 2 new
     HRA-ingestion cases added, see HRA below); red-before proven for PT1 (re-added shave → fail) and
     PT4 (restored hardcoded 0 → fail).
-- **HRA (uncommitted, Aug 5) — s.10(13A) exemption wired into the payslip engine (Tier-1 over-deduction):**
+- **`d7dff03` — HRA (Aug 5) — s.10(13A) exemption wired into the payslip engine (Tier-1 over-deduction):**
   - **The defect (live money):** `computeEmployeePayslip` (the ACTIVE engine, `packages/payroll-math/
     src/payroll-cycle.ts`) read `hraExemption` off the caller-supplied `EmployeePayrollInput`, and
     **nothing populated it — always 0.** The metro-aware `computeHRAExemption` existed and was tested,
@@ -172,6 +240,20 @@ detail and scope):
   line-item entry) first.
 
 Deferrable: C8 (tolerant filing-schema parsing), C9/A18 (Form 24Q → TRACES import).
+
+## Open CA (chartered-accountant) questions — resolve before any live cycle
+
+Two rulings are still outstanding and both block a real customer run:
+
+1. **ECR delimiter format.** DUP-1 preserved the second engine's `#~#`-delimited ECR
+   body (`india/ecr-format.ts`) verbatim, per owner decision, because the live
+   engine's `generateECR` uses `|`. The two are not interchangeable, and one of them
+   is wrong against the EPFO spec. Confirm the correct ECR field delimiter/format with
+   the CA and reconcile the two producers onto it before filing.
+2. **Revised Form 24Q with 1.5%/month interest.** Any period already filed on the
+   pre-PT1 (shaved-CTC) or pre-HRA (no-exemption) TDS basis must be corrected via a
+   **revised Form 24Q, with 1.5%/month interest borne by the company**. N/A on the
+   test environment; it applies before the first live customer cycle.
 
 ## Standing rules (do not break)
 

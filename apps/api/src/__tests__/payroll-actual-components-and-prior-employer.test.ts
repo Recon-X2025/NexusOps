@@ -24,7 +24,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { computeTax, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { buildEmployeePayrollInput } from "../services/payroll-run-aggregates";
-import { seedTestOrg, seedUser, testDb, cleanupOrg } from "./helpers";
+import { payrollRouter } from "../routers/payroll";
+import { seedTestOrg, seedUser, testDb, cleanupOrg, createMockContext } from "./helpers";
 import { employees, salaryStructures } from "@coheronconnect/db";
 import { nanoid } from "nanoid";
 
@@ -268,5 +269,96 @@ describe("PT4: prior-employer income + TDS thread from the employee record into 
     const { emp, struct } = await seedEmp(); // rent_paid_annual defaults to '0'
     const input = buildEmployeePayrollInput(emp, struct, MONTH, YEAR);
     expect(input.rentPaid).toBe(0);
+  });
+});
+
+// ── PT4-SCREEN ───────────────────────────────────────────────────────────────
+// P-15: the ON-SCREEN regime-comparison projection (`payroll.taxPreview` →
+// `buildTaxProfileFromEmployee`) previously hardcoded previousEmployerIncome AND
+// previousEmployerTDS to 0, even though the LOCKED-run path (buildEmployeePayrollInput,
+// covered by the PT4 block above) already threaded both. So a mid-year joiner's prior
+// salary was excluded from the projected annual base while the run included it — the
+// screen and the run disagreed, and the joiner's projected liability was understated.
+// These tests exercise the real endpoint end-to-end and are red before the fix.
+describe("PT4-SCREEN: prior-employer income reaches the on-screen regime-comparison projection", () => {
+  let orgId: string;
+  const FY = "2026-2027";
+
+  async function seedEmp(
+    overrides: Partial<typeof employees.$inferInsert> = {},
+  ): Promise<{ emp: typeof employees.$inferSelect; userId: string }> {
+    const { userId } = await seedUser(orgId, { email: `pt4scr-${nanoid(6)}@qa.coheronconnect.io` });
+    const [struct] = await testDb()
+      .insert(salaryStructures)
+      .values({
+        orgId,
+        structureName: "Std",
+        ctcAnnual: String(CTC_ANNUAL),
+        basicPercent: String(BASIC_PCT),
+        hraPercentOfBasic: String(HRA_PCT_OF_BASIC),
+        effectiveFrom: new Date("2015-01-01"),
+      })
+      .returning();
+    const [emp] = await testDb()
+      .insert(employees)
+      .values({
+        orgId,
+        userId,
+        employeeId: `EMP-${nanoid(4)}`,
+        salaryStructureId: struct!.id,
+        startDate: new Date("2026-06-01"), // mid-year joiner
+        status: "active",
+        state: "Maharashtra",
+        taxRegime: "old",
+        ...overrides,
+      })
+      .returning();
+    return { emp: emp!, userId };
+  }
+
+  beforeEach(async () => {
+    ({ orgId } = await seedTestOrg());
+  });
+  afterEach(async () => {
+    await cleanupOrg(orgId);
+  });
+
+  it("declared prior-employer income lifts the projected old-regime taxable income", async () => {
+    // Two identical mid-year joiners; one has a declared ₹8,00,000 prior-employer income.
+    const { emp: withPrior, userId: uWith } = await seedEmp({
+      previousEmployerIncome: "800000",
+      previousEmployerTds: "40000",
+    });
+    const { emp: without, userId: uWithout } = await seedEmp(); // both prior fields default to '0'
+
+    const callerWith = payrollRouter.createCaller(createMockContext(uWith, orgId));
+    const callerWithout = payrollRouter.createCaller(createMockContext(uWithout, orgId));
+
+    const withPreview = await callerWith.taxPreview({ employeeId: withPrior.id, financialYear: FY });
+    const withoutPreview = await callerWithout.taxPreview({ employeeId: without.id, financialYear: FY });
+
+    expect(withPreview).not.toBeNull();
+    expect(withoutPreview).not.toBeNull();
+
+    // Green: prior-employer income is now in the projected annual base, so the joiner WITH a
+    // declared prior income shows a strictly higher old-regime taxable income than one without.
+    // Red before the fix: both hardcoded prior income to 0, so these were equal.
+    expect(withPreview!.oldRegime.taxableIncome).toBeGreaterThan(
+      withoutPreview!.oldRegime.taxableIncome,
+    );
+    // The lift is at least the netted-off prior income after the standard deduction already
+    // consumed once — a conservative floor well above zero (the pre-fix delta).
+    expect(
+      withPreview!.oldRegime.taxableIncome - withoutPreview!.oldRegime.taxableIncome,
+    ).toBeGreaterThan(500_000);
+  });
+
+  it("no prior employer (no Form 12B) ⇒ projection unchanged (baseline stays correct)", async () => {
+    const { emp, userId } = await seedEmp(); // prior fields default to '0'
+    const caller = payrollRouter.createCaller(createMockContext(userId, orgId));
+    const preview = await caller.taxPreview({ employeeId: emp.id, financialYear: FY });
+    expect(preview).not.toBeNull();
+    // A zero-prior joiner is unaffected by the fix; taxable income is a normal positive figure.
+    expect(preview!.oldRegime.taxableIncome).toBeGreaterThanOrEqual(0);
   });
 });

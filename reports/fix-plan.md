@@ -95,6 +95,12 @@ it is the summary; the item is the source of truth.
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 | DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
+| P-15 — screen tax-preview ignores mid-year joiner's prior-employer income | New — Payroll | **Done (2026-08-05)** — `buildTaxProfileFromEmployee` now threads `previousEmployerIncome`/`Tds` **and** derives a real FY `joiningMonth` so the engine's mid-year branch fires (it was hardcoded `joiningMonth: 1`, so prior income was silently dropped from the on-screen projection while the run path included it). Red/green test `PT4-SCREEN`. See "Roadmap + correction records (2026-08-05)". |
+| P-14 — screen HRA relief vs payslip | New — Payroll | **CLOSED — already fixed** (premise stale). `buildTaxProfileFromEmployee` already computes HRA exemption from `rentPaidAnnual` (payroll.ts:185-193); screen and payslip agree. No code change. |
+| P-13 — declared 80C never reduces tax | New — Payroll | **Re-scoped → roadmap (not a thread).** Premise ("80C is form-captured and stored") is false: no `section80C…24b` column, **no form input**, no declarations table exist. Same build as **C1's investment-declaration intake** — folded there, not a one-line fix. |
+| Bank reconciliation — capability audit | Roadmap record | **Complete & working** (CSV + scored auto-match, E2E-tested). Limitations deliberate: CSV-only, no live feed. See "Roadmap + correction records (2026-08-05)". |
+| Credit-card / corporate-card import | Roadmap record | **Does not exist** — no tables/schema/import/feed. Post-pilot build item (SMB sales expectation). See "Roadmap + correction records (2026-08-05)". |
+| Account Aggregator (RBI framework) feed | Roadmap record | **Roadmap** — would replace CSV upload with a consent-based read-only transaction feed; needs a regulated AA intermediary + has DPDP implications. Post-pilot; lawyer + CA question. |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -3263,3 +3269,93 @@ there is **one** source of statutory truth. **`runMonthlyPayroll` is the priorit
 write path that files stale PT, stale slabs, a 37% new-regime surcharge, a stale rebate, and zero HRA.
 Until reconciled, it should be treated as **payroll-blocking** alongside C1/C2, because it can commit a
 wrong, filed payroll run without touching any of the engine that was fixed.
+
+---
+
+## Roadmap + correction records (2026-08-05)
+
+Three phantom-field items (P-13/P-14/P-15) reached the top of the queue after the
+sweep. On investigation, **two of the three task premises were stale against the
+shipped code** — recorded here so the corrections do not get re-litigated. Then three
+finance-capability audits (bank reconciliation, credit-card import, Account Aggregator)
+are recorded as roadmap entries with no code change.
+
+### P-15 — screen tax-preview ignored a mid-year joiner's prior-employer income — **FIXED**
+
+**The defect (live money, on a shipped feature).** The on-screen regime-comparison
+projection (`taxPreview` → `buildTaxProfileFromEmployee`, `apps/api/src/routers/payroll.ts`)
+hardcoded three fields: `previousEmployerIncome: 0`, `previousEmployerTDS: 0`, and
+`joiningMonth: 1`. So for a mid-year joiner who had declared Form 12B prior-employer
+figures on their record, the screen projected them as a **full-year** employee and
+**silently dropped the prior salary** from the annual base — while the **run path**
+(`buildEmployeePayrollInput`, `payroll-run-aggregates.ts:118-119`) already threaded both
+`previousEmployerIncome` and `previousEmployerTds` and derived a real joining month. The
+screen and the run therefore disagreed for exactly the population where it matters most:
+a joiner whose true s.192(2) liability spans two employers.
+
+**Root cause of why threading alone was inert.** The tax engine
+(`packages/payroll-math/src/tax-engine.ts:275-285`) folds `previousEmployerIncome` into
+the annual gross **only on the mid-year branch** (`joiningMonth !== 1`). With
+`joiningMonth` pinned to 1 on the screen, the field was read but never added. The fix had
+to do **both**: thread the two 12B fields **and** derive a real FY `joiningMonth` from the
+employee's `startDate` so the mid-year branch fires.
+
+**The fix.** `buildTaxProfileFromEmployee` now takes a `fyStart` arg (the calendar year the
+FY starts, e.g. 2026 for FY 2026-2027). It computes `joiningMonth` via
+`calendarToFyMonth(start.getMonth()+1)` when the start date is after 1 April of the FY
+(else 1, byte-identical to today for existing full-year employees), sets
+`monthsInFY = monthsWithData > 0 ? min(12, monthsWithData) : (12 − joiningMonth + 1)`, and
+reads `previousEmployerIncome`/`previousEmployerTDS` from the same employee row the run
+path reads. Both `taxPreview` call sites (old + new profile) pass `fyStart`.
+
+**Fairness test (red-before / green-after) —**
+`apps/api/src/__tests__/payroll-actual-components-and-prior-employer.test.ts`, new
+`PT4-SCREEN` describe block: two mid-year-joiner employees (start 2026-06-01, old regime,
+Maharashtra), one WITH `previousEmployerIncome: 800000 / previousEmployerTds: 40000` and
+one WITHOUT; asserts `withPreview.oldRegime.taxableIncome > withoutPreview…` by a delta
+> ₹500,000, and that a no-12B employee projects `taxableIncome >= 0`. **Red-before proven**
+by reverting the `joiningMonth`/`monthsInFY` derivation (both projections collapsed to an
+identical 1147600 → assertion failed); restored → green. Full file **10/10 green**. No
+regression across the payroll/tax suites; `pnpm lint` green across all 9 workspaces.
+
+### P-14 — screen HRA relief vs payslip — **CLOSED, premise stale (no code change)**
+
+The task premise was that `buildTaxProfileFromEmployee` hardcodes `rentPaid` to 0. It does
+**not** — the builder already computes the s.10(13A) HRA exemption from `rentPaidAnnual`
+(the metro-aware `computeHRAExemption`, `payroll.ts:185-193`). The on-screen projection and
+the payslip therefore already agree on HRA. This was fixed by the earlier **HRA (d7dff03)**
+increment; the phantom-fields note that fed P-14 predates it. **No change made.**
+
+### P-13 — declared 80C never reduces tax — **RE-SCOPED → roadmap (not a one-line thread)**
+
+The task premise was that `section80C` is "form-captured and stored" and merely hardcoded
+to 0 at the construction sites. That premise is **false end-to-end**: there is **no**
+`section80C` (or `80D`/`80CCD(1B)`/`80TTA`/`24(b)`) column on the employee schema, **no**
+form input on the HR page, and **no** declarations table anywhere. The scoping gate the
+owner asked for — "is 80C the only Chapter VI-A field with a form input, or do the others
+have one too?" — resolves to: **none of them do.** The only Chapter VI-A intake that exists
+is `previousEmployerIncome` and `rentPaidAnnual`. So P-13 is **not** a thread; it is the
+same build as **C1's investment-declaration intake** (a declarations surface + columns +
+form + wiring into both tax profiles). **Folded into C1**; removed from the phantom-fields
+queue as a standalone item.
+
+### Finance-capability audit records (no code change)
+
+**BANK RECONCILIATION — complete and working.** The Bank Reconciliation screen supports
+**CSV statement upload with column mapping** (parsed client-side, `reconciliation/page.tsx`),
+a 5,000-row cap, and **scored auto-matching** of statement lines against ledger entries on
+amount / date / description, with manual override for the residue. It is E2E-tested. The
+limitations are **deliberate for the pilot**: CSV only (no OFX / MT940 / CAMT.053 / Excel),
+and no live bank connection. Acceptable because every Indian bank exports CSV. **No action.**
+
+**CREDIT-CARD / CORPORATE-CARD IMPORT — does not exist.** There is no card table, schema,
+statement import, or feed. Expenses are entered **one at a time** with optional single-receipt
+OCR. The only "credit card" reference in the system is a chart-of-accounts **account type**,
+not a transaction source. Record as a **post-pilot build item** — it is a standard SMB sales
+expectation and will be asked for. **No action now.**
+
+**ACCOUNT AGGREGATOR (RBI framework) — roadmap.** Integrating the RBI Account Aggregator
+framework would replace CSV upload with an **automatic, consent-based, read-only** transaction
+feed. It requires a **regulated AA intermediary**, carries **DPDP implications** (consent
+artefacts, purpose limitation, retention), and is a **post-pilot** effort. This is a
+**lawyer + CA question** before any build. Record as roadmap; **no action now.**

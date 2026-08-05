@@ -158,8 +158,10 @@ function buildTaxProfileFromEmployee(args: {
   structure: typeof salaryStructures.$inferSelect | null;
   fyGross: number;
   monthsWithData: number;
+  /** Calendar year the India FY starts in (e.g. 2026 for FY 2026-2027). */
+  fyStart: number;
 }): EmployeeTaxProfile {
-  const { employee, structure, fyGross, monthsWithData } = args;
+  const { employee, structure, fyGross, monthsWithData, fyStart } = args;
   // PT1: reconcile the screen's tax basis to the run path. The run
   // (`payroll-run-aggregates` → `computeEmployeePayslip`) taxes the SUM OF ACTUAL PAID
   // COMPONENTS, never the contracted CTC — that is the only legally correct TDS basis
@@ -191,6 +193,24 @@ function buildTaxProfileFromEmployee(args: {
           employee.isMetroCity ?? false,
         )
       : 0;
+  // PT4 (screen parity): derive the FY joining month from the employee's start date so a
+  // MID-YEAR joiner takes the engine's mid-year branch — the ONLY branch that folds
+  // `previousEmployerIncome` into the annual base (tax-engine.ts:275-285). The screen
+  // previously hardcoded `joiningMonth: 1`, so every employee was projected as a full-year
+  // employee and a joiner's declared prior salary was silently ignored (while the run path,
+  // which derives a real joining month, included it). FY month: April = 1 … March = 12; a
+  // start date on/before 1 April of the FY (or none) ⇒ joiningMonth 1, byte-identical to
+  // today for existing full-year employees. When actual payslips exist, `monthsWithData`
+  // remains the truth for the actual-paid basis; absent history we scale from the join.
+  const fyStartDate = new Date(fyStart, 3, 1); // 1 April fyStart
+  const start = employee.startDate ? new Date(employee.startDate) : null;
+  const joiningMonth =
+    start && start > fyStartDate
+      ? Math.min(12, Math.max(1, calendarToFyMonth(start.getMonth() + 1)))
+      : 1;
+  const monthsFromJoin = 12 - joiningMonth + 1;
+  const monthsInFY =
+    monthsWithData > 0 ? Math.min(12, monthsWithData) : monthsFromJoin;
   return {
     regime,
     annualCTC,
@@ -212,10 +232,16 @@ function buildTaxProfileFromEmployee(args: {
     employeePFMonthly: basicMonthly * 0.12 > 1800 ? 1800 : Math.round(basicMonthly * 0.12),
     employerPFMonthly: basicMonthly * 0.12 > 1800 ? 1800 : Math.round(basicMonthly * 0.12),
     professionalTax: 2400,
-    joiningMonth: 1,
-    monthsInFY: monthsWithData > 0 ? Math.min(12, monthsWithData) : 12,
-    previousEmployerIncome: 0,
-    previousEmployerTDS: 0,
+    joiningMonth,
+    monthsInFY,
+    // PT4 (screen parity): a mid-year joiner's Form 12B prior-employer figures must feed
+    // the on-screen regime-comparison projection exactly as they already feed the run path
+    // (`buildEmployeePayrollInput`). Hardcoding these to 0 — combined with the fixed
+    // `joiningMonth: 1` above — excluded prior salary from the annual base while the run
+    // included it, so the projected tax understated the joiner's true s.192(2) liability.
+    // Read from the same employee row; 0 (no 12B) stays correct.
+    previousEmployerIncome: Number(employee.previousEmployerIncome || 0),
+    previousEmployerTDS: Number(employee.previousEmployerTds || 0),
   };
 }
 
@@ -1139,12 +1165,14 @@ export const payrollRouter = router({
         structure,
         fyGross,
         monthsWithData,
+        fyStart,
       });
       const newProfile = buildTaxProfileFromEmployee({
         employee: { ...employee, taxRegime: "new" },
         structure,
         fyGross,
         monthsWithData,
+        fyStart,
       });
 
       const oldRegime = regimeSlice(computeTax({ ...oldProfile, regime: "OLD" }));
