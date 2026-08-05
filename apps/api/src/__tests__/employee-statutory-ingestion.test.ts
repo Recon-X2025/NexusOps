@@ -260,3 +260,40 @@ describe("payroll-run-aggregates: state ingestion", () => {
     expect(input.dateOfBirth).toEqual(new Date("1990-01-01"));
   });
 });
+
+// ── Unknown/misspelled state ⇒ visible ₹0 PT, not a silent nil ─────────────────
+// A state typed as "Karnatak" (not "Karnataka") normalises to KARNATAK, matches no
+// slab config, and yields ₹0 PT — the SAME number a genuinely non-levying state
+// (Delhi) returns. That silent-nil is a plausible-wrong outcome nobody sees. computePT
+// now flags the UNRESOLVED case with `unknownState: true`, while a KNOWN non-levying
+// state stays silent. This is the same shape as the removed Maharashtra fallback: a
+// wrong ₹0 that used to be indistinguishable from a right ₹0.
+describe("unknown PT state is flagged, not silently nil", () => {
+  it("a misspelled state (Karnatak) computes ₹0 PT AND sets unknownState", () => {
+    const pt = computePT(50_000, "Karnatak", APR);
+    expect(pt.ptAmount).toBe(0);
+    expect(pt.unknownState).toBe(true);
+  });
+
+  it("the correctly-spelled state (Karnataka) resolves — PT levied, no flag", () => {
+    const pt = computePT(50_000, "Karnataka", APR);
+    expect(pt.ptAmount).toBeGreaterThan(0);
+    expect(pt.unknownState).toBeUndefined();
+  });
+
+  it("a KNOWN non-levying state (Delhi) is ₹0 but NOT flagged unknown (stays silent)", () => {
+    const pt = computePT(50_000, "Delhi", APR);
+    expect(pt.ptAmount).toBe(0);
+    // Delhi has a config with empty slabs — the ₹0 is correct, not unresolved.
+    expect(pt.unknownState).toBeUndefined();
+  });
+
+  it("the unknownState flag rides through to the payslip's statutoryDeductions.pt", () => {
+    const slip = computeEmployeePayslip(makeEmp({ state: "Karnatak" }), APR);
+    expect(slip.professionalTax).toBe(0);
+    expect(slip.statutoryDeductions.pt.unknownState).toBe(true);
+    // A resolved state does not carry the flag.
+    const ok = computeEmployeePayslip(makeEmp({ state: "Karnataka" }), APR);
+    expect(ok.statutoryDeductions.pt.unknownState).toBeUndefined();
+  });
+});

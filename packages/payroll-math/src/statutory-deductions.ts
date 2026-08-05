@@ -48,6 +48,13 @@ export interface PTComputation {
   /** True when PT was bypassed under a CA Tier-1 exemption (armed forces / disability /
    *  dependent-disability / age > 65). ptAmount and annualPT are 0 in that case. */
   exempt?: boolean;
+  /** True when the state string did not match ANY known PT jurisdiction after
+   *  normalisation — i.e. no slab config exists for it (a likely misspelling such as
+   *  "Karnatak"). PT is 0 in that case, but this 0 is UNRESOLVED, not a levied-nil.
+   *  It is deliberately NOT set for a KNOWN non-levying state (e.g. Delhi, whose config
+   *  exists with empty slabs): that 0 is correct and stays silent. Callers use this to
+   *  surface the row rather than file a plausible-wrong ₹0 nobody sees. */
+  unknownState?: boolean;
 }
 
 /**
@@ -318,7 +325,16 @@ export function computePT(
 
   const config = overrides?.[stateKey] || PT_SLABS[stateKey];
 
-  if (!config || config.slabs.length === 0) {
+  // No config at all → the state is UNKNOWN (likely a misspelling like "Karnatak").
+  // PT is 0, but flag it so the caller can surface the row: an unresolved 0 must be
+  // distinguishable from a levied 0. This is a plausible-wrong outcome nobody sees.
+  if (!config) {
+    return { state, grossMonthly, ptAmount: 0, annualPT: 0, unknownState: true };
+  }
+
+  // Config exists but levies nothing (e.g. Delhi, slabs: []). This 0 is CORRECT and
+  // deliberately silent — do NOT flag it as unknown.
+  if (config.slabs.length === 0) {
     return { state, grossMonthly, ptAmount: 0, annualPT: 0 };
   }
 

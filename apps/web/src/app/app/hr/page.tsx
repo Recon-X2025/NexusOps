@@ -918,13 +918,14 @@ export default function HRPage() {
 
       {showAddEmployee && can("hr", "write") && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 pb-3 border-b border-border shrink-0">
               <h3 className="text-[13px] font-semibold">Add employee</h3>
               <button type="button" onClick={() => setShowAddEmployee(false)} className="text-muted-foreground hover:text-foreground text-caption">
                 Close
               </button>
             </div>
+            <div className="flex-1 overflow-y-auto p-5">
             <p className="text-[11px] text-muted-foreground mb-3">
               Links a platform user in your org to an HR employee record (required for directory, leave, and workforce analytics).
             </p>
@@ -1265,7 +1266,8 @@ export default function HRPage() {
                 />
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+            </div>
+            <div className="flex gap-2 p-5 pt-3 border-t border-border shrink-0">
               <button
                 type="button"
                 disabled={
@@ -1326,13 +1328,14 @@ export default function HRPage() {
 
       {editingEmployee && can("hr", "write") && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md p-5">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 pb-3 border-b border-border shrink-0">
               <h3 className="text-[13px] font-semibold">Edit employee</h3>
               <button type="button" onClick={() => setEditingEmployee(null)} className="text-muted-foreground hover:text-foreground text-caption">
                 Close
               </button>
             </div>
+            <div className="flex-1 overflow-y-auto p-5">
             <div className="space-y-2.5">
               <div>
                 <label className="text-[11px] text-muted-foreground">Department</label>
@@ -1622,7 +1625,8 @@ export default function HRPage() {
                 />
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+            </div>
+            <div className="flex gap-2 p-5 pt-3 border-t border-border shrink-0">
               <button
                 type="button"
                 disabled={updateEmployee.isPending}

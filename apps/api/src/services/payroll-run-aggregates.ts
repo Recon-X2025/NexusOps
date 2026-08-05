@@ -162,6 +162,22 @@ export async function computePayrollRunTotals(
     try {
       const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id));
       const slip = computeEmployeePayslip(input, fyMonth, ceilings);
+
+      // An unknown/misspelled state (e.g. "Karnatak") resolves to ₹0 PT — the same
+      // number a genuinely non-levying state (Delhi) returns. computePT flags the
+      // unresolved case so we surface it here rather than file a plausible-wrong ₹0
+      // nobody sees. This is a WARNING, not a hard error: the row still computes and is
+      // counted in the totals; the flag rides the same errors[] channel a missing state
+      // uses, so a payroll admin sees every state problem before locking.
+      if (slip.statutoryDeductions.pt.unknownState) {
+        errors.push({
+          employeeId: emp.id,
+          message:
+            `Employee state "${emp.state ?? ""}" did not match any known professional-tax ` +
+            `state, so PT was computed as ₹0. Verify the spelling before locking payroll.`,
+        });
+      }
+
       totalGross += slip.grossEarnings;
       totalDeductions += slip.totalDeductions;
       totalNet += slip.netPay;

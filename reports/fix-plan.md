@@ -101,6 +101,8 @@ it is the summary; the item is the source of truth.
 | Bank reconciliation — capability audit | Roadmap record | **Complete & working** (CSV + scored auto-match, E2E-tested). Limitations deliberate: CSV-only, no live feed. See "Roadmap + correction records (2026-08-05)". |
 | Credit-card / corporate-card import | Roadmap record | **Does not exist** — no tables/schema/import/feed. Post-pilot build item (SMB sales expectation). See "Roadmap + correction records (2026-08-05)". |
 | Account Aggregator (RBI framework) feed | Roadmap record | **Roadmap** — would replace CSV upload with a consent-based read-only transaction feed; needs a regulated AA intermediary + has DPDP implications. Post-pilot; lawyer + CA question. |
+| F-DLG — Add/Edit employee dialog Save unreachable @800px | New — Web (ingestion pass) | **Done (2026-08-05)** — both cards → fixed header/footer + scrolling body (`max-h-[90vh] flex flex-col`); Save always on screen. E2E `employee-dialog-scroll.spec.ts` @800px. See "Employee-form testing findings (2026-08-05)". |
+| F-PT-NIL — unknown/misspelled PT state → silent ₹0 | New — Payroll | **Done (2026-08-05)** — `computePT` sets `unknownState` for no-config states (Delhi's empty-slabs ₹0 stays silent); run pushes a per-employee warning to `errors[]` (owner: flag-in-run, not reject-at-form). Same shape as the removed Maharashtra fallback. Red/green in `employee-statutory-ingestion.test.ts`. See "Employee-form testing findings (2026-08-05)". |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -3359,3 +3361,85 @@ framework would replace CSV upload with an **automatic, consent-based, read-only
 feed. It requires a **regulated AA intermediary**, carries **DPDP implications** (consent
 artefacts, purpose limitation, retention), and is a **post-pilot** effort. This is a
 **lawyer + CA question** before any build. Record as roadmap; **no action now.**
+
+---
+
+## Employee-form testing findings (2026-08-05) — unreachable Save + silent-nil PT
+
+Two findings from testing the new employee form (the C2-STRUCT ingestion pass forms).
+Both are recorded here so neither regresses.
+
+### F-DLG — Add/Edit employee dialog Save unreachable (viewport overflow) — **FIXED**
+
+**The defect (a form that cannot be submitted).** The statutory ingestion pass
+(`0000897`) grew the Add and Edit employee dialogs on `apps/web/src/app/app/hr/page.tsx`
+with new grouped sections — location/PT, tax election, identity, bank, prior-employer,
+and the three PT Tier-1 **exemption** checkboxes. The cards did not handle the extra
+height: the **Add** card scrolled the *whole* card (`max-h-[90vh] overflow-y-auto` on the
+outer div, so header/body/footer scrolled together) and the **Edit** card had **no**
+height constraint at all (`w-full max-w-md p-5`, nothing else). On a standard ~800px
+laptop viewport the exemptions section was cut off mid-list and the Save control
+("Create record" / "Save") rendered below the fold — **the form literally could not be
+submitted**.
+
+**The fix (fixed header/footer, scrolling body).** Both cards are now a three-part
+flex column: `max-h-[90vh] flex flex-col` on the card, a `shrink-0` header
+(`p-5 pb-3 border-b`), a `flex-1 overflow-y-auto p-5` body wrapping every field
+(including the exemptions), and a `shrink-0` footer (`p-5 pt-3 border-t`) holding
+Save/Cancel. Only the body scrolls; Save is always on screen regardless of viewport
+height. This is the same pattern the taller HR dialogs (New Onboarding, Start
+Lifecycle) already use.
+
+**Scope.** Only the Add and Edit employee dialogs were changed — those are the only two
+dialogs the ingestion pass grew (verified: `git show 0000897` touches "the add + edit
+employee forms" and nothing else on the web side). The other HR dialogs
+(Onboarding, Leave, HR Case, Offboarding, Lifecycle) were not touched by the ingestion
+pass and were left as-is (no unrequested refactor).
+
+**Fairness test (green-after).** `e2e/employee-dialog-scroll.spec.ts` — at a 1280×**800**
+viewport, opens the Add employee dialog and asserts the Save control's bottom edge is
+`<= 800` (inside the viewport) **and** `toBeInViewport()`. Before the fix the Edit card
+had no `max-h` so a tall body pushed Save below y=800; after, the footer is pinned.
+
+### F-PT-NIL — unknown/misspelled PT state resolves to a silent ₹0 — **FIXED**
+
+**The defect (a plausible-wrong outcome nobody sees — same shape as the removed
+Maharashtra fallback).** Professional-tax state is deliberately **free text** (the state
+master stays in C2-STRUCT, not duplicated in the app). But a state typed as **"Karnatak"**
+(not "Karnataka") normalises to `KARNATAK`, matches no slab config in `PT_SLABS`, and
+`computePT` (`packages/payroll-math/src/statutory-deductions.ts`) returned `ptAmount: 0`
+— **the exact same number a genuinely non-levying state (Delhi) returns**. The old
+no-config branch (`if (!config || config.slabs.length === 0) return … 0`) collapsed two
+distinct cases into one silent nil: an *unresolved* ₹0 (misspelling — WRONG) and a
+*levied* ₹0 (Delhi has a config with empty slabs — CORRECT). ~Half of India levies no
+PT, so a blanket "throw on ₹0" is wrong; the two cases had to be **distinguished**.
+
+**Decision — flag in the payroll run, not reject at the form (owner-approved).**
+Reject-at-form was rejected because the form has no authoritative state list to validate
+or suggest against (the master is in C2-STRUCT; `payroll-math` is the single source of
+truth), and a misspelling should not block *creating* an employee — it should block a
+silent *wrong filing*. Flagging in the run is the **same channel a missing state already
+uses** (`workflowMetadata.errors[]`), so a payroll admin sees every state problem in one
+place before locking.
+
+**The fix (two parts).**
+1. `computePT` now splits the branch: `if (!config)` returns
+   `{ …, ptAmount: 0, unknownState: true }` (unresolved — flagged), while
+   `if (config.slabs.length === 0)` returns `{ …, ptAmount: 0 }` (Delhi — correct,
+   deliberately **not** flagged). A new optional `unknownState?: boolean` on
+   `PTComputation` carries the signal; it rides through `computeMonthlyStatutory` →
+   `EmployeePayslip.statutoryDeductions.pt`, so **no new payslip field and no schema
+   change** were needed.
+2. `computePayrollRunTotals` (`apps/api/src/services/payroll-run-aggregates.ts`) pushes a
+   per-employee **warning** into the existing `errors[]` when
+   `slip.statutoryDeductions.pt.unknownState` is set — *not* a throw: the row still
+   computes and is counted; the admin is told the state string matched no PT jurisdiction
+   and to verify the spelling before locking.
+
+**Fairness test (red-before / green-after).**
+`apps/api/src/__tests__/employee-statutory-ingestion.test.ts`, new
+`"unknown PT state is flagged, not silently nil"` block: `computePT(…, "Karnatak")` →
+`ptAmount 0` **and** `unknownState true`; `"Karnataka"` → PT levied, no flag; `"Delhi"` →
+`0` but **no** flag (known non-levying stays silent); and the flag rides through to
+`slip.statutoryDeductions.pt.unknownState`. Red-before: without the `!config` split,
+Karnatak returned a bare `0` with `unknownState` undefined → the assertion failed.
