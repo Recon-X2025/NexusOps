@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { RBACProvider } from "@/lib/rbac-context";
 import { AuthGuard } from "@/components/layout/auth-guard";
+import { RouteGuard } from "@/components/layout/route-guard";
 
 import { CommandPaletteProvider } from "@/components/layout/command-palette-provider";
 import { ErrorBoundary } from "@coheronconnect/ui/error-boundary";
@@ -24,7 +25,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
 
               <main className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin bg-background">
-                <div className="flex min-h-full min-w-0 flex-col p-4"><ErrorBoundary>{children}</ErrorBoundary></div>
+                <div className="flex min-h-full min-w-0 flex-col p-4"><ErrorBoundary><RouteGuard>{children}</RouteGuard></ErrorBoundary></div>
               </main>
             </div>
             </div>

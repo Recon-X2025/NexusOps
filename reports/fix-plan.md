@@ -103,6 +103,8 @@ it is the summary; the item is the source of truth.
 | Account Aggregator (RBI framework) feed | Roadmap record | **Roadmap** — would replace CSV upload with a consent-based read-only transaction feed; needs a regulated AA intermediary + has DPDP implications. Post-pilot; lawyer + CA question. |
 | F-DLG — Add/Edit employee dialog Save unreachable @800px | New — Web (ingestion pass) | **Done (2026-08-05)** — both cards → fixed header/footer + scrolling body (`max-h-[90vh] flex flex-col`); Save always on screen. E2E `employee-dialog-scroll.spec.ts` @800px. See "Employee-form testing findings (2026-08-05)". |
 | F-PT-NIL — unknown/misspelled PT state → silent ₹0 | New — Payroll | **Done (2026-08-05)** — `computePT` sets `unknownState` for no-config states (Delhi's empty-slabs ₹0 stays silent); run pushes a per-employee warning to `errors[]` (owner: flag-in-run, not reject-at-form). Same shape as the removed Maharashtra fallback. Red/green in `employee-statutory-ingestion.test.ts`. See "Employee-form testing findings (2026-08-05)". |
+| RBAC-UI — no consistent page-level permission gate (read exposure) | New — Web (security) | **Done (2026-08-06)** — layout-level route guard (`route-permissions.ts` + `route-guard.tsx`) gates every `/app/*` page on module read, mirroring the sidebar map; employee directory hides Add/Edit/Policy behind `hr:assign` and filters to own record for non-managers. **Read exposure, not write** — API already blocked writes. Red/green in `route-permissions.test.ts`, `employee-directory-access.test.ts`, `e2e/rbac.spec.ts`. See "Testing findings (2026-08-06)". |
+| SELF-SERVICE — no employee self-entry of statutory fields | New — Web (build item) | **Build item (2026-08-06)** — both portals read-only; PAN/UAN/bank/ESI/rent/80C all HR-keyed via the admin dialog; no joiner intake exists. Onboarding blocker for the 7 pilots (30–80 emp each) — outranks the bulk importer. See "Testing findings (2026-08-06)". |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -3443,3 +3445,111 @@ place before locking.
 `0` but **no** flag (known non-levying stays silent); and the flag rides through to
 `slip.statutoryDeductions.pt.unknownState`. Red-before: without the `!config` split,
 Karnatak returned a bare `0` with `unknownState` undefined → the assertion failed.
+
+---
+
+## Testing findings (2026-08-06) — UI authorization gap + self-service is read-only
+
+Two findings from testing the platform as a low-privilege user. The first is a
+**defect** (fixed in this pass); the second is a **build item** (recorded, not built).
+
+### RBAC-UI — no consistent page-level permission gate; the whole app renders for any authenticated user — **FIXED (read exposure)**
+
+**Severity framing (this is the important distinction).** This is a **read
+exposure, not a write vulnerability.** The API is correctly locked down: employee
+mutations run through `permissionProcedure("hr","assign")`
+(`apps/api/src/routers/hr.ts:254,401`), so a `requester` clicking Edit → Save gets a
+403 and **nothing is written**. Server-side authorization is enforced almost
+everywhere (`permissionProcedure` is used ~740× across the routers). What leaks is
+**what a low-privilege user can SEE**: logged in as a `requester`, the full Employee
+Directory renders — every employee, department, manager, joining date, and (via the
+row Edit dialog) salary structure, PAN and bank details — and the Finance,
+Procurement and Admin module pages render too, because nothing gates the *page* on
+the client.
+
+**Root cause (accurate, corrected against the code).** It is **not** literally true
+that "no page checks permission" — **69 of 118 page files reference `AccessDenied`**.
+The real problems are two: (1) coverage is **partial and per-page** (≈49 pages have no
+gate at all), and (2) where a gate exists it is almost always gated on **`read`**, and
+the mandatory base role `requester` **holds `read` on the exposed modules** — the HR
+page's own gate is `!can("hr","read") && !can("onboarding","read")`
+(`apps/web/src/app/app/hr/page.tsx`), which a requester passes. So the pattern is
+"each page decides for itself, usually permissively," which is exactly how the gap
+spread. `hasPermission` exists and is unit-tested; the UI just doesn't gate on it
+consistently. (Note the additional mismatch: the directory's Add/Edit/Policy controls
+were gated on `can("hr","write")` — which `requester` **has** — while the API enforces
+`"assign"` — which it does **not**. Buttons said yes, the save said no.)
+
+**The fix — a single layout-level route guard (fix the pattern, not the page).**
+Chosen over the two alternatives:
+- *Per-page guard component* — rejected: reintroduces the failure mode (works only if
+  every one of 118 pages remembers to add it; the next new page ships ungated).
+- *Route-level Next middleware* — rejected: permissions here resolve **client-side**
+  from `auth.me` in `RBACProvider`; middleware would have to re-derive identity/roles
+  at the edge, a duplicate auth path, for a UI gate whose authoritative enforcement is
+  already the API.
+- *Layout guard* — chosen: `apps/web/src/app/app/layout.tsx` is the single choke point
+  every `/app/*` page already flows through (inside `RBACProvider`/`AuthGuard`). One
+  component there covers every current and future page and reuses the **same route→module
+  map the sidebar already uses**, so a page is reachable by URL exactly when its nav
+  entry is visible.
+
+Implemented as:
+- `apps/web/src/lib/route-permissions.ts` — pure `resolveRouteModule(pathname)` + a
+  `PUBLIC_APP_ROUTES` allowlist (command/profile/self-service surfaces). Mirrors
+  `sidebar-config.ts` module assignments; unmapped routes fall through to allow
+  (defense-in-depth; the API is authoritative), with a comment that new modules must be
+  registered here.
+- `apps/web/src/components/layout/route-guard.tsx` — client guard; `usePathname()` +
+  `canAccess(module)`; renders `<AccessDenied>` when the module read is absent. Wired
+  into the layout inside `AuthGuard`.
+- Employee directory (`hr/page.tsx`): Add/Edit/Policy + the Actions column now gate on
+  `can("hr","assign")` (parity with the API), and the visible employee list is filtered
+  to the caller's **own** record when they lack `assign` — via the pure
+  `filterEmployeeDirectory()` helper (`apps/web/src/lib/employee-directory-access.ts`).
+
+**Residual (honest scope).** The client filter scopes what the directory *displays*;
+`hr.employees.list` (`hr.ts:179`, `permissionProcedure("hr","read")`) still *returns*
+the org roster to any `hr:read` holder, so the rows remain on the wire. Server-side
+scoping of that list (self-only unless `hr:assign`) is the complete read-exposure fix
+but touches other consumers (`hr/expenses`, `payroll`) and is left as a follow-up;
+the layout guard + display filter close the *visible* exposure and the fairness check.
+
+**Fairness test (red before / green after).** Pure unit tests
+(`route-permissions.test.ts`, `employee-directory-access.test.ts`) plus E2E in
+`e2e/rbac.spec.ts`: a `requester` on `/app/hr` sees only their own record and no
+Edit/Policy controls and is blocked from `/app/financial` with "Access Restricted";
+an admin sees the full directory with controls. The pre-existing E2E that **blessed
+the bug** ("employee: /app/admin shell loads without fatal error") is corrected to
+assert the shell is now access-restricted.
+
+### SELF-SERVICE — employees cannot enter their own statutory data; everything is HR-keyed — **BUILD ITEM (not a defect)**
+
+Recorded as a build item, per the read of the code — nothing here is broken, the
+capability simply does not exist yet.
+
+**What exists today (both portals are read-only).** The **Employee Portal**
+(`/app/employee-portal`) is a read-only payslip/Form-16/tax viewer
+(`payroll.payslips.myPayslips`, `payroll.taxPreview` — both queries). The **Employee
+Center** (`/app/employee-center`) is a read-only IT service desk (catalog/tickets/KB
+queries). The only self-service *write* is `auth.updateProfile`
+(`apps/api/src/routers/auth.ts:610-619`), which accepts **only** name/phone/location/
+department/jobTitle/bio.
+
+**The gap.** No employee can self-enter any ingestion-pass statutory field — PAN, UAN,
+bank account/IFSC/name, ESI IP number, rent-paid (rent declaration), previous-employer
+income/TDS, the PT-exemption flags, or gender/DOB. Those fields live in exactly one
+screen — the HR-admin Add/Edit dialog (`hr/page.tsx` → `hr.employees.create/update`,
+both `permissionProcedure("hr","assign")`). There is **no joiner self-service intake at
+all**: the only "onboarding" flow is the org-setup wizard (company GSTIN/PAN/TAN, not
+the employee's). Also flagged: the payslip page shows a "Submit your TDS declaration…"
+label with no form behind it (`employee-portal/page.tsx:457`) — aspirational, remove or
+build.
+
+**Onboarding consequence (why this outranks the employee importer).** Seven pilot
+customers at 30–80 employees each means HR hand-keying every bank account and PAN, and
+chasing rent and 80C declarations by email, one employee at a time. In practice this is
+a **larger obstacle to onboarding than the bulk employee importer** — the importer moves
+the identity columns, but the statutory/bank/declaration data still has no capture path
+except HR typing it. A joiner self-service intake (employee enters their own PAN/UAN/
+bank/ESI + uploads rent/80C proofs, HR reviews/approves) is the missing build.

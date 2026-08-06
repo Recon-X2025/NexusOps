@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X, CheckCircle } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { filterEmployeeDirectory } from "@/lib/employee-directory-access";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { EsignPanel } from "@/components/esign/EsignPanel";
@@ -33,7 +34,13 @@ const CASE_STATE_COLOR: Record<string, string> = {
 };
 
 export default function HRPage() {
-  const { can, mergeTrpcQueryOpts } = useRBAC();
+  const { can, currentUser, mergeTrpcQueryOpts } = useRBAC();
+
+  // Directory management capability. The API requires hr:assign to create/update
+  // an employee (permissionProcedure("hr","assign")), so the UI gates the
+  // Add/Edit/Policy controls on the SAME action — not on hr:write, which the base
+  // requester role holds (that mismatch showed the buttons then 403'd the save).
+  const canManageEmployees = can("hr", "assign");
 
   const visibleTabs = HR_TABS.filter((t) => can(t.module, t.action));
 
@@ -51,6 +58,12 @@ export default function HRPage() {
   const { data: casesData, isLoading: casesLoading } = trpc.hr.cases.list.useQuery({}, mergeTrpcQueryOpts("hr.cases.list", { refetchOnWindowFocus: false },));
   // employees list — drives Employee Directory tab
   const { data: employeesData } = trpc.hr.employees.list.useQuery({ limit: 200 }, mergeTrpcQueryOpts("hr.employees.list", { refetchOnWindowFocus: false },));
+  // A non-manager sees only their own record; a manager (hr:assign) sees all.
+  const visibleEmployees = filterEmployeeDirectory(
+    (employeesData as Array<{ userId?: string | null }> | undefined),
+    currentUser.id,
+    canManageEmployees,
+  );
   const { data: structuresData } = trpc.payroll.salaryStructures.list.useQuery(undefined, mergeTrpcQueryOpts("payroll.salaryStructures.list", { refetchOnWindowFocus: false }));
 
   const [showAddEmployee, setShowAddEmployee] = useState(false);
@@ -1723,9 +1736,9 @@ export default function HRPage() {
           <div>
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                {((employeesData as any[]) ?? []).length} Employees
+                {visibleEmployees.length} {canManageEmployees ? "Employees" : "My record"}
               </span>
-              {can("hr", "write") && (
+              {canManageEmployees && (
                 <button
                   type="button"
                   onClick={() => setShowAddEmployee(true)}
@@ -1735,11 +1748,11 @@ export default function HRPage() {
                 </button>
               )}
             </div>
-            {!employeesData || (employeesData as any[]).length === 0 ? (
+            {visibleEmployees.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 gap-1 text-muted-foreground">
                 <UserCheck className="w-5 h-5 opacity-30" />
-                <span className="text-caption">No employees found.</span>
-                {can("hr", "write") && (
+                <span className="text-caption">{canManageEmployees ? "No employees found." : "No employee record found for your account."}</span>
+                {canManageEmployees && (
                   <button
                     type="button"
                     onClick={() => setShowAddEmployee(true)}
@@ -1761,11 +1774,11 @@ export default function HRPage() {
                     <th>Manager</th>
                     <th>Status</th>
                     <th>Joined</th>
-                    {can("hr", "write") && <th className="text-right w-24">Actions</th>}
+                    {canManageEmployees && <th className="text-right w-24">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {(employeesData as any[]).map((emp: any) => {
+                  {(visibleEmployees as any[]).map((emp: any) => {
                     const mgr = ((employeesData as any[]) ?? []).find((e: any) => e.id === emp.managerId);
                     const mgrLabel = mgr ? (mgr.name ?? mgr.email ?? "—") : emp.managerId ? `…${String(emp.managerId).slice(-8)}` : "—";
                     return (
@@ -1802,7 +1815,7 @@ export default function HRPage() {
                       <td className="text-[11px] text-muted-foreground/70">
                         {emp.startDate ? new Date(emp.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                       </td>
-                      {can("hr", "write") && (
+                      {canManageEmployees && (
                         <td className="text-right">
                           <div className="inline-flex items-center gap-1">
                             <button

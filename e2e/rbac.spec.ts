@@ -75,6 +75,16 @@ test.describe("RBAC — Admin (full access)", () => {
     expect(body).not.toContain("Access Denied");
     expect(body).not.toContain("Unhandled Runtime Error");
   });
+
+  test("admin sees the full HR directory with Edit/Policy controls", async ({ page }) => {
+    await page.goto("/app/hr", { waitUntil: "load" });
+    await page.waitForLoadState("networkidle");
+    const body = await page.textContent("body");
+    expect(body).not.toContain("Access Restricted");
+    // Manage controls are present for a manager/admin.
+    await expect(page.getByRole("button", { name: /Add employee/i }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Edit$/ }).first()).toBeVisible();
+  });
 });
 
 // ── Employee (requester-only — no admin matrix) tests ─────────────────────────
@@ -84,11 +94,33 @@ test.describe("RBAC — Restricted user", () => {
     await loginAs(page, "employee@coheron.com");
   });
 
-  test("employee: /app/admin shell loads without fatal error", async ({ page }) => {
-    // Current product: shell may load for members; write actions remain API-gated (see Vitest RBAC).
+  test("employee: /app/admin is blocked by the route guard (Access Restricted)", async ({ page }) => {
+    // Since the layout RouteGuard (2026-08-06), a requester who lacks admin:read
+    // gets the Access-Restricted panel instead of the admin shell. (Was: "shell
+    // loads for members" — that test blessed the RBAC-UI read exposure.)
     await page.goto("/app/admin", { waitUntil: "load" });
     const body = await page.textContent("body");
     expect(body).not.toContain("Unhandled Runtime Error");
+    expect(body).toContain("Access Restricted");
+  });
+
+  test("employee: /app/financial is blocked by the route guard", async ({ page }) => {
+    await page.goto("/app/financial", { waitUntil: "load" });
+    const body = await page.textContent("body");
+    expect(body).toContain("Access Restricted");
+  });
+
+  test("employee: HR directory shows only their own record and no Edit/Policy controls", async ({ page }) => {
+    await page.goto("/app/hr", { waitUntil: "load" });
+    await page.waitForLoadState("networkidle");
+    const body = await page.textContent("body");
+    // A requester reaches /app/hr (self-service) but the directory is scoped to
+    // their own record and the manage controls are hidden.
+    expect(body).not.toContain("Unhandled Runtime Error");
+    // No row-level management actions for a non-manager.
+    await expect(page.getByRole("button", { name: /^Edit$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Policy$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Add employee/i })).toHaveCount(0);
   });
 
   test("employee cannot see admin console link in UI", async ({ page }) => {
