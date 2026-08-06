@@ -105,6 +105,8 @@ it is the summary; the item is the source of truth.
 | F-PT-NIL — unknown/misspelled PT state → silent ₹0 | New — Payroll | **Done (2026-08-05)** — `computePT` sets `unknownState` for no-config states (Delhi's empty-slabs ₹0 stays silent); run pushes a per-employee warning to `errors[]` (owner: flag-in-run, not reject-at-form). Same shape as the removed Maharashtra fallback. Red/green in `employee-statutory-ingestion.test.ts`. See "Employee-form testing findings (2026-08-05)". |
 | RBAC-UI — no consistent page-level permission gate (read exposure) | New — Web (security) | **Done (2026-08-06)** — layout-level route guard (`route-permissions.ts` + `route-guard.tsx`) gates every `/app/*` page on module read, mirroring the sidebar map; employee directory hides Add/Edit/Policy behind `hr:assign` and filters to own record for non-managers. **Read exposure, not write** — API already blocked writes. Red/green in `route-permissions.test.ts`, `employee-directory-access.test.ts`, `e2e/rbac.spec.ts`. See "Testing findings (2026-08-06)". |
 | SELF-SERVICE — no employee self-entry of statutory fields | New — Web (build item) | **Build item (2026-08-06)** — both portals read-only; PAN/UAN/bank/ESI/rent/80C all HR-keyed via the admin dialog; no joiner intake exists. Onboarding blocker for the 7 pilots (30–80 emp each) — outranks the bulk importer. See "Testing findings (2026-08-06)". |
+| RBAC-UI-SRV — server-side scoping of `hr.employees.list` | New — API (security) | **Open (2026-08-06)** — RBAC-UI **reduced, did not close** the read exposure: the list still returns the full org roster to any `hr:read` holder; the client only filters what it renders, so the roster crosses the wire and is visible in the network response. Consumers to check when scoping: `hr/expenses` + `payroll` (both read this list). See "RBAC-UI follow-ups (2026-08-06)". |
+| MOBILE-LINT — `apps/mobile` broken + near-abandoned lint target | New — Tooling | **Done — parked (2026-08-06)** — `apps/mobile` parked: removed its broken `eslint` lint script and dropped `--filter=!@coheronconnect/mobile` from the root lint, so the gate covers every workspace minus none. `pnpm lint` **and** raw `turbo run lint` both green (9/9). Revive → add `tsc --noEmit` lint. See "RBAC-UI follow-ups (2026-08-06)" + "Mobile parked (2026-08-06)". |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -3553,3 +3555,117 @@ a **larger obstacle to onboarding than the bulk employee importer** — the impo
 the identity columns, but the statutory/bank/declaration data still has no capture path
 except HR typing it. A joiner self-service intake (employee enters their own PAN/UAN/
 bank/ESI + uploads rent/80C proofs, HR reviews/approves) is the missing build.
+
+---
+
+## RBAC-UI follow-ups (2026-08-06) — recorded, not built
+
+Two follow-ups from the RBAC-UI fix (`508b8ff`). Neither is built; both are here so
+the record is accurate.
+
+### RBAC-UI-SRV — the directory read exposure is reduced, not closed
+
+**State it plainly: RBAC-UI did NOT close the read exposure.** The layout guard stops a
+`requester` reaching modules they cannot read, and the employee-directory display is
+scoped to the caller's own record for non-managers — but the scoping is **client-side
+only**. `hr.employees.list` (`apps/api/src/routers/hr.ts:179`,
+`permissionProcedure("hr","read")`) still returns the **entire org roster** to any
+`hr:read` holder — which the mandatory base `requester` role is. `filterEmployeeDirectory`
+(`apps/web/src/lib/employee-directory-access.ts`) only decides what the page *renders*;
+the full list — names, departments, managers, and every employee's statutory columns on
+the row objects (PAN, bank, salary structure id, etc.) — **crosses the wire and is
+visible in the raw network response**. A user who opens DevTools, or replays the tRPC
+call, sees everyone. So the fix **reduced** the exposure (nothing sensitive is shown in
+the UI to a non-manager) but did **not** close it (the data still leaves the server).
+
+**The real fix (when built).** Scope the list **server-side**: if the caller lacks
+`hr:assign`, return only their own employee row (or a minimal directory projection),
+never the full roster with statutory columns. That is the authoritative boundary; the
+client filter then becomes belt-and-suspenders.
+
+**Consumers to check before changing the contract** — both read the same procedure and
+must not silently lose the full list they legitimately need:
+- `apps/web/src/app/app/hr/expenses/page.tsx:68` — "My Expense Claims" employee picker.
+- `apps/web/src/app/app/payroll/page.tsx:167` — Form 16 tab (needs the full roster; but
+  the payroll page is `payroll`-gated, which a requester lacks, so a manager-only path is
+  fine there).
+A `scope`-aware handler (auto-scope by the caller's `hr:assign`, or an explicit param)
+is likely cleaner than a blanket change, precisely because of these two callers.
+
+### MOBILE-LINT — establish active vs abandoned; the exclusion is a band-aid
+
+**Correction to the premise first (report faithfully).** The concern was that the
+CLAUDE.md pre-merge gate — `pnpm lint` from the root — "cannot pass" because
+`apps/mobile` fails with `eslint: command not found`. In fact the root gate **already
+excludes mobile**: `package.json` → `"lint": "turbo run lint --filter=!@coheronconnect/mobile"`,
+and it runs **green (9/9 tasks)**. CI's "Lint & Type Check" job doesn't run mobile either
+— it does only `pnpm --filter @coheronconnect/api lint` (api tsc) + `cd apps/web && npx
+tsc --noEmit`. The red only appears when someone runs **raw** `turbo run lint` (no
+filter) — which is how it surfaced during the RBAC-UI pass. So the gate is **not**
+always-red; the "always-red teaches everyone to ignore it" risk is real but currently
+mitigated by the filter — which is itself the smell worth fixing.
+
+**Active vs abandoned — the evidence says dormant / near-abandoned:**
+- **3 of 221 commits** ever touch `apps/mobile`; last change **2026-07-28** (`1ae28af`,
+  a broad multi-area commit that touched it only incidentally). No standalone mobile
+  feature work in the recent history.
+- Not built, tested, or linted in CI (`.github/workflows/ci.yml` never references it).
+- Excluded from the root lint gate on purpose (`--filter=!@coheronconnect/mobile`).
+- It is the **only** workspace whose `lint` is `eslint src --ext .ts,.tsx`; every other
+  workspace lints with `tsc --noEmit`. It declares `eslint: 8.57.0` but **has no eslint
+  config file** and the binary isn't installed — so the script is broken two ways, and
+  would fail (differently) even with eslint present.
+
+Not conclusively dead (it still has a real Expo/React-Native app, tRPC client, and an
+approvals modal), but there is **no active development**. It reads as **parked**.
+
+**Recommendation (decision needed, not built):**
+- **If parked/abandoned** (most likely): drop it from the workspace's active surface —
+  at minimum delete its broken `lint` script (so raw `turbo run lint` is green and the
+  `--filter=!mobile` band-aid can be removed), or move the whole app out of the pnpm
+  workspaces until it's revived. Prefer removing the band-aid over keeping a hidden
+  red target.
+- **If active**: align it with the repo convention — change its `lint` to `tsc --noEmit`
+  (consistent, needs no eslint dep or config), **or** add an eslint config and ensure
+  `eslint` installs — then **remove the `--filter=!mobile` exclusion** so it is actually
+  gated. A workspace that ships should be in the gate; one that doesn't shouldn't be in
+  the tree pretending to be.
+
+Either way the end state is the same principle: **no workspace should be permanently
+excluded from the gate to hide that its lint is broken.**
+
+---
+
+## Mobile parked (2026-08-06) — decision + change record
+
+Acting on the MOBILE-LINT follow-up: **`apps/mobile` is parked.**
+
+**Why (the evidence, restated as the decision basis):**
+- **Dormant** — 3 of 221 commits ever touch it; last change 2026-07-28 (`1ae28af`), and
+  only incidentally as part of a broad multi-area commit. No standalone mobile work.
+- **Not in CI** — `.github/workflows/ci.yml` never builds, tests, or lints it.
+- **No mobile work planned before the pilot** — the pilot surface is web + API; mobile is
+  not on the path to go-live.
+
+Because it is parked, its lint was **broken with no owner and no plan to fix** (the only
+workspace using `eslint`, with no eslint config and eslint not installed). Keeping it in
+the gate meant carrying a permanent `--filter=!@coheronconnect/mobile` exclusion — a
+band-aid that makes the gate read "everything **minus one**," which is exactly the shape
+that teaches people to stop trusting a green gate.
+
+**Change made (no app code touched — tooling only):**
+- Removed the broken `"lint": "eslint src --ext .ts,.tsx"` script from
+  `apps/mobile/package.json`. With no `lint` script, Turborepo simply skips the workspace
+  for the `lint` task (it does not fail).
+- Dropped the exclusion from the root `package.json`:
+  `"lint": "turbo run lint --filter=!@coheronconnect/mobile"` → `"lint": "turbo run lint"`.
+  The gate now covers **every** workspace that participates in linting, minus none.
+
+**Verified:** both `pnpm lint` (the documented gate) and raw `turbo run lint` are green —
+**9/9 tasks** (api, db, mac, metrics, payroll-math, types, ui, web, worker). `apps/mobile`
+is skipped, not excluded and not failing.
+
+**Reviving it later:** if mobile becomes active, it gets a `lint` script matching the repo
+convention — **`tsc --noEmit`** — at that point (consistent with every other workspace; no
+eslint dependency or config required). It then rejoins the gate automatically, with no
+exclusion to remove.

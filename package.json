@@ -39,7 +39,7 @@
     "audit:web-routes:json": "node scripts/audit-web-routes-trpc.mjs --json",
     "scorecard": "node scripts/product-scorecard-compute.mjs",
     "test:local-ready": "bash scripts/local-test-ready.sh",
-    "lint": "turbo run lint --filter=!@coheronconnect/mobile",
+    "lint": "turbo run lint",
     "lint:all": "turbo run lint",
     "check:migrations": "node scripts/verify-migration-journal.mjs",
     "coverage": "pnpm --filter @coheronconnect/api exec vitest run --coverage",
