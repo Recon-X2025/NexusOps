@@ -46,6 +46,7 @@ import {
   postInvoiceSettlementEntry,
   reverseInvoiceJournalEntry,
   postCreditNoteJournalEntry,
+  postDebitNoteJournalEntry,
 } from "../lib/invoice-journal";
 import { currentFY } from "./accounting";
 
@@ -603,10 +604,18 @@ export const financialRouter = router({
       });
       const noteDate = input.noteDate ? new Date(input.noteDate) : new Date();
 
-      // ── Validation 1: TIME LIMIT (credit notes) ──────────────────────────
+      // ── Validation 1: TIME LIMIT — CREDIT NOTES ONLY (do NOT add for debit) ──
       // A credit note past the s.34 deadline can't reverse tax; it becomes a
       // FINANCIAL credit note (commercial value only, no tax, out of Table 9).
       // Automatic switch with a clear notice — not a silent refusal.
+      //
+      // DELIBERATELY NOT APPLIED TO DEBIT NOTES. s.34(3) sets NO deadline for debit
+      // notes: the credit-note limit exists because a credit note REDUCES the
+      // supplier's tax liability (a revenue risk to constrain); a debit note
+      // INCREASES it, so there is nothing to constrain, and applying the deadline
+      // would block legitimate upward price revisions. Since ITC delinking the
+      // recipient's credit timeline runs from the debit note's own FY anyway.
+      // Do not add a deadline here for symmetry — it would be wrong.
       let isFinancialNote = false;
       let financialNoteNotice: string | undefined;
       if (input.noteType === "credit_note") {
@@ -633,9 +642,16 @@ export const financialRouter = router({
         ? computed.lines
         : computed.lines.map((l) => ({ ...l, cgstAmount: "0", sgstAmount: "0", igstAmount: "0", lineTotal: l.taxableValue }));
 
-      // ── Validation 2: VALUE CAP (credit notes) ───────────────────────────
+      // ── Validation 2: VALUE CAP — CREDIT NOTES ONLY (do NOT add for debit) ──
       // Cumulative credit notes against one invoice may not exceed its taxable or
       // tax value. Reject the excess (never clamp).
+      //
+      // DELIBERATELY NOT APPLIED TO DEBIT NOTES. A credit note cannot exceed the
+      // original because you cannot return more than existed. A debit note CAN:
+      // contract revisions, escalation clauses and discovered under-billing have no
+      // ceiling, so cumulative debit notes may legitimately exceed the parent
+      // invoice's value. Do not add a cap here for symmetry — it would block valid
+      // upward revisions.
       if (input.noteType === "credit_note") {
         const priorNotes = await db
           .select({ taxableValue: invoices.taxableValue, totalTaxAmount: invoices.totalTaxAmount })
@@ -696,10 +712,11 @@ export const financialRouter = router({
           await tx.insert(invoiceLineItems).values(
             persistLines.map((l) => ({ ...l, invoiceId: row.id })),
           );
-          // Ledger posting (Part 5, CA-ruled). CREDIT notes post the contra-revenue
-          // reversal dated to the note's own period; a financial credit note skips
-          // the tax legs. DEBIT-note ledger treatment is a separate CA question and
-          // is deliberately not posted here yet.
+          // Ledger posting (CA-ruled), dated to the note's own period. CREDIT notes
+          // post the contra-revenue reversal (Dr Sales Returns / Cr AR; a financial
+          // credit note skips the tax legs). DEBIT notes post the mirror (Dr AR /
+          // Cr Supplementary Sales + Cr Output tax), always with full tax — no
+          // financial-note variant (see the time-limit note above).
           if (input.noteType === "credit_note") {
             await postCreditNoteJournalEntry(tx, {
               orgId: org!.id,
@@ -714,6 +731,20 @@ export const financialRouter = router({
               grossTotal: hGross,
               financialYear: currentFY(noteDate),
               taxReversalEnabled: reverseTax,
+            });
+          } else {
+            await postDebitNoteJournalEntry(tx, {
+              orgId: org!.id,
+              createdById: ctx.user!.id,
+              noteNumber: input.noteNumber,
+              date: noteDate,
+              taxableValue: hTaxable,
+              cgstAmount: hCgst,
+              sgstAmount: hSgst,
+              igstAmount: hIgst,
+              isInterstate: computed.header.isInterstate,
+              grossTotal: hGross,
+              financialYear: currentFY(noteDate),
             });
           }
         }

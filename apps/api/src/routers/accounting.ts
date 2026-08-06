@@ -90,6 +90,9 @@ const INDIA_COA_SEED = [
   // Contra-revenue: credit notes debit this, NOT gross sales (4110/4120), so
   // gross-to-net revenue stays auditable. Net revenue = 4100 children − 4130.
   { code: "4130", name: "Sales Returns & Allowances",  type: "income",    subType: "income",              isSystem: true, parentCode: "4100" },
+  // Debit notes CREDIT this (the mirror of 4130), NOT gross sales — same audit-trail
+  // reason: upward revisions (escalation, under-billing) stay separable from gross sales.
+  { code: "4140", name: "Supplementary Sales & Revenue Adjustments", type: "income", subType: "income", isSystem: true, parentCode: "4100" },
   { code: "4200", name: "Other Income",                type: "income",    subType: "other_income",        isSystem: false, parentCode: "4000" },
   { code: "4210", name: "Interest Income",             type: "income",    subType: "other_income",        isSystem: false, parentCode: "4200" },
   // ── Expenses

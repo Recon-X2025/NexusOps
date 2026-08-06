@@ -163,4 +163,65 @@ describe("credit-note ledger posting + validations (Part 5)", () => {
       }),
     ).rejects.toThrow(/not in force/i);
   });
+
+  // ── DEBIT NOTES — the mirror, with the two credit-note validations ABSENT ──
+  it("posts the mirror: Dr AR(1130) + Cr Supplementary Sales(4140) + Cr Output tax", async () => {
+    const { original } = await seedOriginal({ buyerGstin: "29BBBBB1111B1Z3", buyerState: "Karnataka", pos: "29", interstate: true });
+    const noteNumber = `DN-${nanoid(5)}`;
+    await fin.createCreditDebitNote({
+      originalInvoiceId: original.id, noteType: "debit_note", noteNumber, noteDate: "2026-02-15",
+      lines: [{ description: "Escalation", hsnSacCode: "998314", taxableValue: 2000, gstRate: 18 }],
+    });
+    const res = (await jeLinesByCode(noteNumber))!;
+    expect(res).not.toBeNull();
+    expect(res.byCode["1130"]).toEqual({ debit: 2360, credit: 0 });   // AR up (asset)
+    expect(res.byCode["4140"]).toEqual({ debit: 0, credit: 2000 });   // supplementary sales, NOT gross
+    expect(res.byCode["2121"]).toEqual({ debit: 0, credit: 360 });    // output IGST up (liability)
+    expect(res.byCode["4100"]).toBeUndefined();                       // gross sales untouched
+    expect(res.byCode["4130"]).toBeUndefined();                       // not the credit-note account
+    expect(Number(res.je.totalDebit)).toBe(Number(res.je.totalCredit));
+  });
+
+  it("NO time limit: a debit note after 30 Nov is accepted with FULL tax legs and appears in Table 9", async () => {
+    const { gstin, original } = await seedOriginal({ buyerGstin: "29BBBBB1111B1Z3", buyerState: "Karnataka", pos: "29", interstate: true });
+    const noteNumber = `DN-${nanoid(5)}`;
+    const note = await fin.createCreditDebitNote({
+      originalInvoiceId: original.id, noteType: "debit_note", noteNumber, noteDate: "2026-12-15", // past 30 Nov 2026
+      lines: [{ description: "Escalation", hsnSacCode: "998314", taxableValue: 2000, gstRate: 18 }],
+    });
+    // The s.34 financial-note switch must NOT fire for a debit note.
+    expect(note.isFinancialNote).toBe(false);
+    expect(note.financialNoteNotice).toBeUndefined();
+    expect(Number(note.totalTaxAmount)).toBe(360);
+    // Journal keeps the output-tax leg; and it appears in Table 9 (9B).
+    const res = (await jeLinesByCode(noteNumber))!;
+    expect(res.byCode["2121"]).toEqual({ debit: 0, credit: 360 });
+    const gstr = await acct.gstr.generateGSTR1({ gstinId: gstin.id, month: 12, year: 2026 });
+    const nt = gstr.payload.cdnr.flatMap((g: any) => g.nt).find((n: any) => n.nt_num === noteNumber);
+    expect(nt?.ntty).toBe("D");
+  });
+
+  it("NO value cap: cumulative debit notes MAY exceed the parent invoice", async () => {
+    const { original } = await seedOriginal({ buyerGstin: "29BBBBB1111B1Z3", buyerState: "Karnataka", pos: "29", interstate: true });
+    // Parent taxable is ₹10,000; two debit notes summing to ₹13,000 must both be accepted.
+    await fin.createCreditDebitNote({
+      originalInvoiceId: original.id, noteType: "debit_note", noteNumber: `DN-${nanoid(5)}`, noteDate: "2026-02-15",
+      lines: [{ description: "Revision 1", hsnSacCode: "998314", taxableValue: 8000, gstRate: 18 }],
+    });
+    const second = await fin.createCreditDebitNote({
+      originalInvoiceId: original.id, noteType: "debit_note", noteNumber: `DN-${nanoid(5)}`, noteDate: "2026-02-16",
+      lines: [{ description: "Revision 2", hsnSacCode: "998314", taxableValue: 5000, gstRate: 18 }],
+    });
+    expect(second.invoiceType).toBe("debit_note"); // accepted, no cap error
+  });
+
+  it("RATE IN FORCE still applies to debit notes", async () => {
+    const { original } = await seedOriginal({ buyerGstin: "29BBBBB1111B1Z3", buyerState: "Karnataka", pos: "29", interstate: true });
+    await expect(
+      fin.createCreditDebitNote({
+        originalInvoiceId: original.id, noteType: "debit_note", noteNumber: `DN-${nanoid(5)}`, noteDate: "2026-02-15",
+        lines: [{ description: "Escalation", hsnSacCode: "998314", taxableValue: 2000, gstRate: 12 }],
+      }),
+    ).rejects.toThrow(/not in force/i);
+  });
 });
