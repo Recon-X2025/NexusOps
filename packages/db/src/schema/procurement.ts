@@ -344,6 +344,13 @@ export const invoices = pgTable(
     originalInvoiceId: uuid("original_invoice_id").references((): AnyPgColumn => invoices.id, { onDelete: "set null" }),
     originalInvoiceDate: timestamp("original_invoice_date", { withTimezone: true }),
     noteReason: text("note_reason"),
+    /**
+     * A credit note issued AFTER the GST s.34 time limit (30 Nov following the
+     * original invoice's FY) becomes a FINANCIAL credit note: the commercial value
+     * is adjusted but output tax is NOT reversed and it is excluded from GSTR-1
+     * Table 9. This flag marks that state (set automatically at creation).
+     */
+    isFinancialNote: boolean("is_financial_note").notNull().default(false),
     invoiceDate: timestamp("invoice_date", { withTimezone: true }).notNull().defaultNow(),
     dueDate: timestamp("due_date", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),

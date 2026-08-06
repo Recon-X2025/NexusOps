@@ -45,8 +45,22 @@ import {
   postInvoiceJournalEntry,
   postInvoiceSettlementEntry,
   reverseInvoiceJournalEntry,
+  postCreditNoteJournalEntry,
 } from "../lib/invoice-journal";
 import { currentFY } from "./accounting";
+
+/**
+ * GST s.34 time limit for a credit note: 30 November following the end of the
+ * financial year (Apr–Mar) of the ORIGINAL invoice. A credit note issued after
+ * this cannot reverse output tax (it becomes a financial credit note).
+ */
+function creditNoteDeadline(invoiceDate: Date): Date {
+  const m = invoiceDate.getMonth(); // 0 = Jan
+  const y = invoiceDate.getFullYear();
+  // FY runs Apr(3)–Mar(2). Apr–Dec → FY ends next calendar year; Jan–Mar → this year.
+  const fyEndYear = m >= 3 ? y + 1 : y;
+  return new Date(fyEndYear, 10, 30, 23, 59, 59, 999); // 30 Nov of the FY-end year
+}
 import { computeRetainUntil } from "../lib/retention";
 import { runEntityBusinessRules } from "../services/business-rules-engine";
 import { emitDomainEvent } from "../services/workflow-events";
@@ -551,6 +565,35 @@ export const financialRouter = router({
         .from(vendors)
         .where(and(eq(vendors.id, orig.vendorId), eq(vendors.orgId, org!.id)));
 
+      // ── Validation 3: RATE IN FORCE ──────────────────────────────────────
+      // The note must reverse at the rate that applied in the original invoice's
+      // period, not the current one. Collect the original's rates (from its lines,
+      // or header-derived when it had none) and reject any note-line rate not among
+      // them, so a rate change between invoice and note can't alter the reversal.
+      const origLines = await db
+        .select({ gstRate: invoiceLineItems.gstRate })
+        .from(invoiceLineItems)
+        .where(eq(invoiceLineItems.invoiceId, orig.id));
+      const allowedRates = new Set<number>();
+      if (origLines.length > 0) {
+        for (const l of origLines) allowedRates.add(Number(l.gstRate));
+      } else {
+        const oTax = Number(orig.totalTaxAmount ?? 0);
+        const oTaxable = Number(orig.taxableValue ?? 0);
+        allowedRates.add(oTaxable > 0 ? Math.round((oTax / oTaxable) * 100) : 0);
+      }
+      for (const l of input.lines) {
+        if (!allowedRates.has(Number(l.gstRate))) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              `GST rate ${l.gstRate}% was not in force for invoice ${orig.invoiceNumber} ` +
+              `(rates in that period: ${[...allowedRates].join(", ")}%). A note must reverse at ` +
+              `the original invoice's rate.`,
+          });
+        }
+      }
+
       // Lines are POSITIVE — computeInvoiceFromLines' positive half-up rounding holds.
       const computed = computeInvoiceFromLines({
         lines: input.lines.map((l) => ({ ...l, gstRate: l.gstRate as GSTRate })),
@@ -560,7 +603,63 @@ export const financialRouter = router({
       });
       const noteDate = input.noteDate ? new Date(input.noteDate) : new Date();
 
-      // NO journal entry — see the doc comment (deferred pending the CA reversal ruling).
+      // ── Validation 1: TIME LIMIT (credit notes) ──────────────────────────
+      // A credit note past the s.34 deadline can't reverse tax; it becomes a
+      // FINANCIAL credit note (commercial value only, no tax, out of Table 9).
+      // Automatic switch with a clear notice — not a silent refusal.
+      let isFinancialNote = false;
+      let financialNoteNotice: string | undefined;
+      if (input.noteType === "credit_note") {
+        const deadline = creditNoteDeadline(orig.invoiceDate!);
+        if (noteDate > deadline) {
+          isFinancialNote = true;
+          financialNoteNotice =
+            `Dated after ${deadline.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} — ` +
+            `the GST s.34 time limit for invoice ${orig.invoiceNumber}'s financial year. Recorded as a ` +
+            `FINANCIAL credit note: the commercial value is adjusted but the output tax is NOT reversed ` +
+            `and it will not appear in GSTR-1 Table 9.`;
+        }
+      }
+
+      // Tax is zeroed on a financial note (commercial adjustment only).
+      const reverseTax = !isFinancialNote;
+      const hCgst = reverseTax ? computed.header.cgstAmount : 0;
+      const hSgst = reverseTax ? computed.header.sgstAmount : 0;
+      const hIgst = reverseTax ? computed.header.igstAmount : 0;
+      const hTotalTax = hCgst + hSgst + hIgst;
+      const hTaxable = computed.header.taxableValue;
+      const hGross = reverseTax ? computed.header.invoiceTotal : hTaxable;
+      const persistLines = reverseTax
+        ? computed.lines
+        : computed.lines.map((l) => ({ ...l, cgstAmount: "0", sgstAmount: "0", igstAmount: "0", lineTotal: l.taxableValue }));
+
+      // ── Validation 2: VALUE CAP (credit notes) ───────────────────────────
+      // Cumulative credit notes against one invoice may not exceed its taxable or
+      // tax value. Reject the excess (never clamp).
+      if (input.noteType === "credit_note") {
+        const priorNotes = await db
+          .select({ taxableValue: invoices.taxableValue, totalTaxAmount: invoices.totalTaxAmount })
+          .from(invoices)
+          .where(and(
+            eq(invoices.orgId, org!.id),
+            eq(invoices.originalInvoiceId, orig.id),
+            eq(invoices.invoiceType, "credit_note"),
+          ));
+        const priorTaxable = priorNotes.reduce((s, n) => s + Number(n.taxableValue ?? 0), 0);
+        const priorTax = priorNotes.reduce((s, n) => s + Number(n.totalTaxAmount ?? 0), 0);
+        const origTaxable = Number(orig.taxableValue ?? 0);
+        const origTax = Number(orig.totalTaxAmount ?? 0);
+        if (priorTaxable + hTaxable > origTaxable + 0.001 || priorTax + hTotalTax > origTax + 0.001) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              `Credit notes against ${orig.invoiceNumber} would exceed the invoice: taxable ` +
+              `${(priorTaxable + hTaxable).toFixed(2)} vs ${origTaxable.toFixed(2)}, tax ` +
+              `${(priorTax + hTotalTax).toFixed(2)} vs ${origTax.toFixed(2)}. Reduce the note.`,
+          });
+        }
+      }
+
       const note = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(invoices)
@@ -579,12 +678,13 @@ export const financialRouter = router({
             originalInvoiceNumber: orig.invoiceNumber,
             originalInvoiceDate: orig.invoiceDate,
             noteReason: input.reason ?? null,
-            amount: String(computed.header.invoiceTotal),
-            taxableValue: String(computed.header.taxableValue),
-            cgstAmount: String(computed.header.cgstAmount),
-            sgstAmount: String(computed.header.sgstAmount),
-            igstAmount: String(computed.header.igstAmount),
-            totalTaxAmount: String(computed.header.totalTaxAmount),
+            isFinancialNote,
+            amount: String(hGross),
+            taxableValue: String(hTaxable),
+            cgstAmount: String(hCgst),
+            sgstAmount: String(hSgst),
+            igstAmount: String(hIgst),
+            totalTaxAmount: String(hTotalTax),
             isInterstate: computed.header.isInterstate,
             status: "pending",
             matchingStatus: "pending",
@@ -594,12 +694,32 @@ export const financialRouter = router({
           .returning();
         if (row) {
           await tx.insert(invoiceLineItems).values(
-            computed.lines.map((l) => ({ ...l, invoiceId: row.id })),
+            persistLines.map((l) => ({ ...l, invoiceId: row.id })),
           );
+          // Ledger posting (Part 5, CA-ruled). CREDIT notes post the contra-revenue
+          // reversal dated to the note's own period; a financial credit note skips
+          // the tax legs. DEBIT-note ledger treatment is a separate CA question and
+          // is deliberately not posted here yet.
+          if (input.noteType === "credit_note") {
+            await postCreditNoteJournalEntry(tx, {
+              orgId: org!.id,
+              createdById: ctx.user!.id,
+              noteNumber: input.noteNumber,
+              date: noteDate,
+              taxableValue: hTaxable,
+              cgstAmount: hCgst,
+              sgstAmount: hSgst,
+              igstAmount: hIgst,
+              isInterstate: computed.header.isInterstate,
+              grossTotal: hGross,
+              financialYear: currentFY(noteDate),
+              taxReversalEnabled: reverseTax,
+            });
+          }
         }
         return row;
       });
-      return note;
+      return { ...note, financialNoteNotice };
     }),
 
   /**

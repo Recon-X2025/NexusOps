@@ -505,6 +505,13 @@
       "when": 1786012536412,
       "tag": "0071_lucky_speedball",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1786018773009,
+      "tag": "0072_clever_blue_shield",
+      "breakpoints": true
     }
   ]
 }

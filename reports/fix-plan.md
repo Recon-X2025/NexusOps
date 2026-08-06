@@ -91,7 +91,7 @@ it is the summary; the item is the source of truth.
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
-| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **Largely DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (mig `0069`), C7-2 B2CL Table 5 ₹1L (mig `0070`), **C7-3 credit/debit notes Table 9 parts 1–4** (mig `0071`; part 5 GL journal HELD for CA reversal ruling). POS = no structural work (one validation caveat); Table 11 advances out-of-scope for pilot. See "C7 build log (2026-08-06)". |
+| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (`0069`), C7-2 B2CL Table 5 ₹1L (`0070`), C7-3 credit/debit notes Table 9 parts 1–4 (`0071`) + **part 5 credit-note ledger (contra-revenue reversal) + s.34 time-limit/value-cap/rate-in-force** (`0072`). POS no work (validation caveat); Table 11 advances + debit-note ledger + multi-invoice/inventory out-of-scope. See "C7 build log (2026-08-06)". |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 | DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
@@ -3825,3 +3825,48 @@ reversal**, not in note creation or the return.
   part 5 (ClearTax already types `DBN`).
 
 Full API suite green after each part; `pnpm lint` 9/9; web tsc clean.
+
+### C7-3 Part 5 — credit-note ledger posting + s.34 validations — **DONE (CA-ruled 2026-08-06)**
+
+The held ledger reversal, now built to the CA's ruling, plus the three validations
+that did not exist.
+
+**Ledger (CA accounts/direction).** New `postCreditNoteJournalEntry` posts, dated to
+the note's OWN issuance period (never the original's — closed periods don't reopen):
+- **Dr Sales Returns & Allowances (4130)** = taxable — a **contra-revenue** account,
+  NOT a debit to gross sales (4110/4120), so gross-to-net stays auditable. Added
+  `4130` to both COA seeds (`INDIA_COA_SEED` + `packages/db/src/seed.ts`).
+- **Dr Output CGST/SGST/IGST Payable** = tax.
+- **Cr Accounts Receivable (1130)** = gross.
+Balanced double-entry; no-ops (returns null) if the COA isn't seeded, so note
+creation never fails on a missing ledger.
+
+**Three validations (in `createCreditDebitNote`):**
+1. **Time limit (s.34).** A credit note dated after **30 Nov following the original
+   invoice's FY** auto-switches to a **financial credit note**: output tax NOT
+   reversed (journal posts contra-revenue + AR only), `isFinancialNote=true`
+   (new column, mig `0072_clever_blue_shield`), excluded from Table 9, and a clear
+   **notice** is returned to the UI (a toast, not a silent refusal).
+2. **Value cap.** Cumulative credit notes against one invoice may not exceed its
+   taxable or tax value — the excess is **rejected**, never clamped.
+3. **Rate in force.** A note line's GST rate must be one the original invoice used
+   (its line rates, or header-derived); a later rate change cannot alter the reversal.
+
+**Fairness (red/green):** `credit-note-ledger.test.ts` (6) — CA reversal (inter +
+intra), note-period dating, time-limit→financial (no tax legs + notice + out of
+Table 9), value-cap breach, rate-in-force. `credit-note-create.test.ts` updated (the
+old "no journal, deferred" assertion reframed to graceful-degradation when the COA is
+unseeded). Full API suite green; `pnpm lint` 9/9; web tsc clean.
+
+**Scope notes:**
+- **Debit-note ledger posting is intentionally NOT posted** — the CA ruled on credit
+  notes only; a debit note's account/direction (additional gross revenue vs a separate
+  account) is a separate ruling. Recorded as a follow-up. (Rate-in-force does apply to
+  debit notes; time-limit and value-cap are credit-note-specific.)
+
+**Deferred (recorded, not built — per instruction):**
+- **Multi-invoice linkage** — one note apportioned proportionally across several
+  invoices. Real but rare; not needed for the pilot.
+- **Inventory integration for a physical sales return** — out of scope: goods receipt
+  is API-only and stock movement isn't wired, so a sales return does not move stock.
+- **Net-of-notes Table 12** and **IRN debit-note→DBN mapping** (from Part 4) remain open.

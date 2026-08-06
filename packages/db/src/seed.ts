@@ -181,6 +181,7 @@ export async function seed() {
     { code: "3200", name: "Retained Earnings", type: "equity", subType: "retained_earnings", isSystem: true, parentCode: "3000" },
     { code: "4000", name: "Income", type: "income", subType: "income", isSystem: true, parentCode: null },
     { code: "4100", name: "Revenue from Operations", type: "income", subType: "income", isSystem: true, parentCode: "4000" },
+    { code: "4130", name: "Sales Returns & Allowances", type: "income", subType: "income", isSystem: true, parentCode: "4100" },
     { code: "5000", name: "Expenses", type: "expense", subType: "expense", isSystem: true, parentCode: null },
     { code: "5100", name: "Cost of Revenue", type: "expense", subType: "cost_of_goods_sold", isSystem: false, parentCode: "5000" },
     { code: "5300", name: "Office & Admin Expenses", type: "expense", subType: "expense", isSystem: false, parentCode: "5000" },

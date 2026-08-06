@@ -172,6 +172,113 @@ export async function postInvoiceJournalEntry(
 }
 
 /**
+ * Posts the GL journal entry for a CREDIT note (CA-ruled reversal, 2026-08-06).
+ *
+ * The CA's directions: a credit note reverses revenue through a CONTRA-REVENUE
+ * account (Sales Returns 4130), NOT a debit to gross sales — so gross-to-net
+ * stays auditable — and reverses the output tax:
+ *
+ *   Dr  Sales Returns & Allowances (4130)   = taxable value        (contra-revenue)
+ *   Dr  Output GST Payable (2121/2122/2123) = tax   (ONLY when tax reversal applies)
+ *   Cr  Accounts Receivable (1130)          = gross total
+ *
+ * A FINANCIAL credit note (issued past the s.34 time limit) passes
+ * `taxReversalEnabled=false`: no output-tax debit, and gross == taxable. The
+ * entry dates to the note's OWN issuance date (never the original invoice's
+ * period) so a closed period never reopens. Returns null if the COA is unseeded.
+ */
+export async function postCreditNoteJournalEntry(
+  tx: DbOrTx,
+  params: {
+    orgId: string;
+    createdById: string;
+    noteNumber: string;
+    date: Date;
+    taxableValue: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    isInterstate: boolean;
+    grossTotal: number;
+    financialYear: string;
+    taxReversalEnabled: boolean;
+  },
+): Promise<string | null> {
+  const {
+    orgId, createdById, noteNumber, date, taxableValue,
+    cgstAmount, sgstAmount, igstAmount, isInterstate, grossTotal,
+    financialYear, taxReversalEnabled,
+  } = params;
+
+  const codes = { salesReturns: "4130", control: "1130", igst: "2121", cgst: "2122", sgst: "2123" };
+  const wanted = [codes.salesReturns, codes.control, codes.igst, codes.cgst, codes.sgst];
+  const accts = await tx
+    .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
+    .from(chartOfAccounts)
+    .where(and(eq(chartOfAccounts.orgId, orgId), inArray(chartOfAccounts.code, wanted)));
+  const codeToId = new Map<string, string>(accts.map((a) => [a.code, a.id]));
+  for (const c of wanted) {
+    if (!codeToId.has(c)) return null;
+  }
+
+  type Line = { accountId: string; debit: number; credit: number; description: string };
+  const lines: Line[] = [];
+  lines.push({ accountId: codeToId.get(codes.salesReturns)!, debit: taxableValue, credit: 0, description: "Sales Returns (contra-revenue)" });
+  if (taxReversalEnabled) {
+    if (isInterstate) {
+      if (igstAmount > 0) lines.push({ accountId: codeToId.get(codes.igst)!, debit: igstAmount, credit: 0, description: "IGST Payable reversal" });
+    } else {
+      if (cgstAmount > 0) lines.push({ accountId: codeToId.get(codes.cgst)!, debit: cgstAmount, credit: 0, description: "CGST Payable reversal" });
+      if (sgstAmount > 0) lines.push({ accountId: codeToId.get(codes.sgst)!, debit: sgstAmount, credit: 0, description: "SGST Payable reversal" });
+    }
+  }
+  lines.push({ accountId: codeToId.get(codes.control)!, debit: 0, credit: grossTotal, description: "Accounts Receivable" });
+
+  const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+  const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+  if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    throw new Error(
+      `Credit-note journal entry is not balanced: debit ${totalDebit} ≠ credit ${totalCredit} (note ${noteNumber})`,
+    );
+  }
+
+  const [c] = await tx.select({ n: dbCount() }).from(journalEntries).where(eq(journalEntries.orgId, orgId));
+  const seq = (c?.n ?? 0) + 1;
+  const number = `JE-${date.getFullYear()}-${String(seq).padStart(5, "0")}`;
+
+  const [je] = await tx
+    .insert(journalEntries)
+    .values({
+      orgId, number, date, type: "invoice", status: "posted",
+      description: `Credit note ${noteNumber}`,
+      reference: noteNumber, currency: "INR",
+      totalDebit: String(totalDebit), totalCredit: String(totalCredit),
+      createdById, postedById: createdById, postedAt: date,
+      financialYear, period: date.getMonth() + 1,
+      retainUntilDate: computeRetainUntil(date),
+    })
+    .returning();
+
+  await tx.insert(journalEntryLines).values(
+    lines.map((l, i) => ({
+      journalEntryId: je!.id, orgId, accountId: l.accountId,
+      debitAmount: String(l.debit), creditAmount: String(l.credit),
+      description: l.description, sortOrder: i,
+    })),
+  );
+
+  for (const l of lines) {
+    const net = l.debit - l.credit;
+    await tx
+      .update(chartOfAccounts)
+      .set({ currentBalance: sql`current_balance + ${String(net)}`, updatedAt: new Date() })
+      .where(eq(chartOfAccounts.id, l.accountId));
+  }
+
+  return je!.id;
+}
+
+/**
  * Posts the settlement (payment) journal entry for an invoice, relieving the
  * AP/AR control account against the org's cash/bank account. Without this the
  * control account stays inflated after `markPaid` and cash never moves in the

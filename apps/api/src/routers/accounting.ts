@@ -87,6 +87,9 @@ const INDIA_COA_SEED = [
   { code: "4100", name: "Revenue from Operations",     type: "income",    subType: "income",              isSystem: true, parentCode: "4000" },
   { code: "4110", name: "Service Revenue",             type: "income",    subType: "income",              isSystem: false, parentCode: "4100" },
   { code: "4120", name: "Product Sales",               type: "income",    subType: "income",              isSystem: false, parentCode: "4100" },
+  // Contra-revenue: credit notes debit this, NOT gross sales (4110/4120), so
+  // gross-to-net revenue stays auditable. Net revenue = 4100 children − 4130.
+  { code: "4130", name: "Sales Returns & Allowances",  type: "income",    subType: "income",              isSystem: true, parentCode: "4100" },
   { code: "4200", name: "Other Income",                type: "income",    subType: "other_income",        isSystem: false, parentCode: "4000" },
   { code: "4210", name: "Interest Income",             type: "income",    subType: "other_income",        isSystem: false, parentCode: "4200" },
   // ── Expenses
@@ -879,6 +882,9 @@ export const accountingRouter = router({
         // excluded from Table 12 below to avoid overstating turnover.
         if (inv.invoiceType === "credit_note" || inv.invoiceType === "debit_note") {
           noteInvoiceIds.add(inv.id);
+          // A financial credit note (past the s.34 time limit) carries no GST and
+          // is excluded from Table 9 entirely — it's a commercial adjustment only.
+          if (inv.isFinancialNote) continue;
           const note: NoteEntry = {
             ntty: inv.invoiceType === "credit_note" ? "C" : "D",
             nt_num: inv.invoiceNumber,

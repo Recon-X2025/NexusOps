@@ -72,13 +72,18 @@ describe("financial.createCreditDebitNote (create path, no journal)", () => {
     expect(lines).toHaveLength(1);
   });
 
-  it("posts NO journal entry for the note (ledger reversal deferred)", async () => {
+  it("still persists the note when the COA is unseeded (ledger poster no-ops, invoice not lost)", async () => {
+    // This org has no chart of accounts seeded, so postCreditNoteJournalEntry
+    // returns null and no journal is written — but the note itself must succeed.
+    // (The posted-journal behaviour with a seeded COA is covered in
+    // credit-note-ledger.test.ts.)
     const { original } = await seedOriginal({ buyerState: "Karnataka", buyerGstin: "29BBBBB1111B1Z3", pos: "29" });
     const noteNumber = `CN-${nanoid(5)}`;
-    await caller.createCreditDebitNote({
+    const note = await caller.createCreditDebitNote({
       originalInvoiceId: original.id, noteType: "credit_note", noteNumber,
       lines: [{ description: "Discount", taxableValue: 2000, gstRate: 18 }],
     });
+    expect(note.invoiceType).toBe("credit_note");
     const jes = await testDb()
       .select()
       .from(journalEntries)

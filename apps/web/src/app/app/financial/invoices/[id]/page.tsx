@@ -72,6 +72,8 @@ export default function InvoiceDetailPage() {
   const createNote = trpc.financial.createCreditDebitNote.useMutation({
     onSuccess: (n: any) => {
       toast.success(`${noteType === "credit_note" ? "Credit" : "Debit"} note created`);
+      // Time-barred credit note auto-switched to financial-only — explain what changed.
+      if (n?.financialNoteNotice) toast.warning(n.financialNoteNotice, { duration: 12000 });
       setShowNoteForm(false);
       setNoteNumber(""); setNoteReason(""); setNoteRows([emptyLine()]);
       if (n?.id) router.push(`/app/financial/invoices/${n.id}`);

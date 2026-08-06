@@ -1,0 +1,1 @@
+ALTER TABLE "invoices" ADD COLUMN "is_financial_note" boolean DEFAULT false NOT NULL;
