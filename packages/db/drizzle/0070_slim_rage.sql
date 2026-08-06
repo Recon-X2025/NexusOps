@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "b2cl_threshold" numeric(14, 2) DEFAULT '100000' NOT NULL;

@@ -91,7 +91,7 @@ it is the summary; the item is the source of truth.
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
-| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **In progress** — **C7-1 (AATO + HSN Table 12) DONE (2026-08-06)**, mig `0069`; POS = no structural work (one validation caveat); Table 11 advances out-of-scope for pilot; **C7-2 B2CL** + **C7-3 credit/debit notes** next. See "C7 build log (2026-08-06)". |
+| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **In progress** — **C7-1 (AATO + HSN Table 12) DONE** (mig `0069`) + **C7-2 (B2CL Table 5, ₹1L threshold) DONE** (mig `0070`), 2026-08-06; POS = no structural work (one validation caveat); Table 11 advances out-of-scope for pilot; **C7-3 credit/debit notes (Table 9)** next. See "C7 build log (2026-08-06)". |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 | DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
@@ -3742,3 +3742,40 @@ Scoped as a feature build in four parts: (1) **schema completion** — a create 
 credit/debit note against an invoice; (4) **Table 9 (CDNR/CDNUR)** in `generateGSTR1`,
 routing by `invoiceType`. Rough size: ~2–3× either of the first two items, because it
 spans schema + API + UI + return, versus item 1's engine-plus-ingestion shape.
+
+### C7-2 — B2CL segregation (Table 5) — **DONE**
+
+Built the Table 5 (B2C-Large) bucket the return never had. Rule: an **inter-state**
+supply to an **unregistered** person (no buyer GSTIN) whose invoice value **exceeds**
+the threshold is reported **invoice-wise in Table 5**, grouped by place of supply; at or
+below the threshold, or any intra-state B2C, stays in the **Table 7 (B2CS)** consolidated
+summary.
+
+- **Threshold field** — `organizations.b2clThreshold` (`decimal(14,2)`, NOT NULL,
+  **default ₹1,00,000**), migration `0070_slim_rage` (the `DEFAULT '100000'` also seeds
+  existing rows). **Per-tenant configurable.**
+- **Builder** — `generateGSTR1` now emits `payload.b2cl` (grouped by normalised 2-digit
+  place-of-supply code); inter-state is decided by comparing the normalised POS code to
+  the supplier's GSTIN state code.
+- **Fairness (red/green)** — `gstr1-b2cl-segregation.test.ts` (7): ₹1,50,000 inter-state
+  → B2CL (the case that previously fell to B2CS); ₹80,000 and exactly ₹1,00,000 → B2CS;
+  intra-state ₹2,00,000 → B2CS; default ₹1L applies unset; a raised ₹2.5L override sends
+  ₹1.5L back to B2CS; multi-invoice grouping by POS.
+
+**Correction recorded (the regulatory + code-state truth).** The GST Council reduced the
+B2CL invoice-wise reporting threshold from **₹2,50,000 to ₹1,00,000**, formalised by
+**Notification No. 12/2024 – Central Tax** amending **Rule 59(4)** of the CGST Rules 2017,
+**effective 1 August 2024** (recommended at the 53rd GST Council meeting). So **₹2.5 lakh
+has been the wrong figure since 1 Aug 2024.**
+
+Two things to be precise about, so the record is accurate:
+1. **This codebase never held a ₹2.5 lakh default** — my C7-2 scoping found **no B2CL
+   threshold at all**; every unregistered-buyer invoice was stamped B2CS unconditionally.
+   So there was no ₹2.5 lakh constant to "change" — the field is **introduced** at the
+   correct ₹1 lakh. The practical exposure was therefore **broader** than the ₹1L–₹2.5L
+   band: **all** inter-state B2C, at any value, was consolidated into B2CS rather than
+   reported invoice-wise.
+2. **Why it matters:** the GST portal validates the B2CL/B2CS split (Rule 59(4)), so an
+   inter-state B2C invoice above ₹1,00,000 sitting in B2CS rather than Table 5 is exactly
+   the kind of mis-classification the portal flags — a rejected or corrected filing. Fixed
+   as of the first live filing.

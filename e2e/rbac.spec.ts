@@ -81,9 +81,17 @@ test.describe("RBAC — Admin (full access)", () => {
     await page.waitForLoadState("networkidle");
     const body = await page.textContent("body");
     expect(body).not.toContain("Access Restricted");
-    // Manage controls are present for a manager/admin.
+    // "Add employee" is a manage control rendered in the directory header
+    // regardless of row count — the data-independent proof that admin holds
+    // hr:assign (the requester test asserts the inverse: 0 of these).
     await expect(page.getByRole("button", { name: /Add employee/i }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Edit$/ }).first()).toBeVisible();
+    // Row-level Edit/Policy exist per employee row; a freshly-seeded CI org may
+    // have none, so assert them only when the directory actually has rows.
+    const editButtons = page.getByRole("button", { name: /^Edit$/ });
+    if ((await editButtons.count()) > 0) {
+      await expect(editButtons.first()).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Policy$/ }).first()).toBeVisible();
+    }
   });
 });
 

@@ -25,6 +25,7 @@ import {
   buildHsnSummary,
   hsnMinDigits,
   findHsnDigitViolations,
+  normaliseStateToCode,
   type HsnSummaryLine,
 } from "../lib/india/gst-engine";
 
@@ -751,13 +752,18 @@ export const accountingRouter = router({
         .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
       if (!gstin) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Annual Aggregate Turnover drives the Table 12 HSN digit minimum.
+      // Annual Aggregate Turnover drives the Table 12 HSN digit minimum; the
+      // B2CL threshold drives the Table 5 vs Table 7 split (per-tenant, default ₹1L).
       const [orgRow] = await db
-        .select({ aato: organizations.annualAggregateTurnover })
+        .select({
+          aato: organizations.annualAggregateTurnover,
+          b2clThreshold: organizations.b2clThreshold,
+        })
         .from(organizations)
         .where(dbEq(organizations.id, org!.id))
         .limit(1);
       const aato = orgRow?.aato != null ? Number(orgRow.aato) : null;
+      const b2clThreshold = orgRow?.b2clThreshold != null ? Number(orgRow.b2clThreshold) : 100000;
 
       const start = new Date(input.year, input.month - 1, 1);
       const end   = new Date(input.year, input.month, 0, 23, 59, 59);
@@ -839,14 +845,19 @@ export const accountingRouter = router({
         itms: GstrItem[];
       };
       const b2b: Array<{ ctin: string; inv: GstrEntry[] }> = [];
+      const b2cl: Array<{ pos: string; inv: GstrEntry[] }> = [];
       const b2c: Array<GstrEntry & { ty: string }> = [];
 
+      const supplierStateCode = gstin.stateCode;
+
       for (const inv of invs) {
+        const posRaw = inv.placeOfSupply ?? gstin.stateCode;
+        const posCode = normaliseStateToCode(posRaw) ?? posRaw;
         const entry: GstrEntry = {
           inum: inv.invoiceNumber,
           idt: new Date(inv.invoiceDate!).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
           val: Number(inv.amount ?? 0),
-          pos: inv.placeOfSupply ?? gstin.stateCode,
+          pos: posCode,
           rchrg: (inv.isReverseCharge ?? false) ? "Y" : "N",
           itms: buildItms(inv),
         };
@@ -859,7 +870,18 @@ export const accountingRouter = router({
             b2b.push({ ctin: inv.buyerGstin, inv: [entry] });
           }
         } else {
-          b2c.push({ ...entry, ty: "B2CS" });
+          // Unregistered buyer → B2C. Split Table 5 (B2CL) vs Table 7 (B2CS):
+          // an INTER-STATE supply whose invoice value EXCEEDS the (per-tenant)
+          // threshold is reported invoice-wise in B2CL, grouped by place of
+          // supply; everything else stays in the B2CS consolidated summary.
+          const isInterstate = posCode !== supplierStateCode;
+          if (isInterstate && Number(inv.amount ?? 0) > b2clThreshold) {
+            const grp = b2cl.find((g) => g.pos === posCode);
+            if (grp) grp.inv.push(entry);
+            else b2cl.push({ pos: posCode, inv: [entry] });
+          } else {
+            b2c.push({ ...entry, ty: "B2CS" });
+          }
         }
       }
 
@@ -909,6 +931,7 @@ export const accountingRouter = router({
         gstin: gstin.gstin,
         fp: gstp_cd,
         b2b,
+        b2cl,
         b2cs: b2c,
         hsn: { data: hsnData },
         nil: { inv: [] },

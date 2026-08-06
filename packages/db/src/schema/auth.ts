@@ -73,6 +73,15 @@ export const organizations = pgTable(
      */
     annualAggregateTurnover: decimal("annual_aggregate_turnover", { precision: 18, scale: 2 }),
     /**
+     * B2CL invoice-wise reporting threshold in rupees (GSTR-1 Table 5). An
+     * inter-state supply to an unregistered person whose invoice value EXCEEDS
+     * this goes to Table 5 invoice-wise; at or below it stays in the Table 7
+     * B2CS consolidated summary. Default ₹1,00,000 — the GST Council reduced it
+     * from ₹2,50,000 effective 1 Aug 2024 (Notif. 12/2024-CT, Rule 59(4)).
+     * Per-tenant configurable.
+     */
+    b2clThreshold: decimal("b2cl_threshold", { precision: 14, scale: 2 }).notNull().default("100000"),
+    /**
      * Per-tenant DPDP notice destination (a named DPO or in-house compliance
      * mailbox). DPDP breach/DSR notices are delivered ONLY here; when unset the
      * notice path refuses cleanly rather than falling back to a platform address.
