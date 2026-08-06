@@ -10,10 +10,16 @@ import {
   CalendarDays, Tag, AlertTriangle, Coins,
   Activity, XCircle, ArrowRight, Printer,
   Receipt, Wallet, Landmark, ArrowUpCircle,
-  TrendingDown, TrendingUp, ShoppingCart
+  TrendingDown, TrendingUp, ShoppingCart, FileMinus, X
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  InvoiceLineItemsEditor,
+  emptyLine,
+  toLinePayload,
+  type InvoiceLineRow,
+} from "@/components/financial/InvoiceLineItemsEditor";
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceView } from "@/components/ui/resource-view";
 import { DetailGrid } from "@/components/ui/detail-grid";
@@ -52,6 +58,25 @@ export default function InvoiceDetailPage() {
   const markPaid = trpc.financial.markPaid.useMutation({
     onSuccess: () => { void invoiceQuery.refetch(); toast.success("Invoice marked as paid"); },
     onError: (e) => toast.error(e?.message ?? "Failed to mark as paid"),
+  });
+
+  // Credit / debit note form state. Reuses the M-07 InvoiceLineItemsEditor so the
+  // note's line arithmetic (per-line rounding, derived header, ₹0.01 guard) is
+  // identical to invoices — one editor, no drift.
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [noteType, setNoteType] = useState<"credit_note" | "debit_note">("credit_note");
+  const [noteNumber, setNoteNumber] = useState("");
+  const [noteReason, setNoteReason] = useState("");
+  const [noteRows, setNoteRows] = useState<InvoiceLineRow[]>([emptyLine()]);
+
+  const createNote = trpc.financial.createCreditDebitNote.useMutation({
+    onSuccess: (n: any) => {
+      toast.success(`${noteType === "credit_note" ? "Credit" : "Debit"} note created`);
+      setShowNoteForm(false);
+      setNoteNumber(""); setNoteReason(""); setNoteRows([emptyLine()]);
+      if (n?.id) router.push(`/app/financial/invoices/${n.id}`);
+    },
+    onError: (e) => toast.error(e?.message ?? "Failed to create note"),
   });
 
   return (
@@ -109,6 +134,16 @@ export default function InvoiceDetailPage() {
                           className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 text-white rounded-lg text-body-sm font-medium hover:bg-green-700 transition-colors shadow-md"
                         >
                           <Wallet className="w-4 h-4" /> {direction === "payable" ? "Mark Paid" : "Mark Collected"}
+                        </button>
+                      </PermissionGate>
+                    )}
+                    {direction === "receivable" && (inv.invoiceType ?? "tax_invoice") === "tax_invoice" && (
+                      <PermissionGate module="financial" action="write">
+                        <button
+                          onClick={() => setShowNoteForm(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-body-sm font-medium hover:bg-muted/50 transition-all"
+                        >
+                          <FileMinus className="w-4 h-4" /> Credit / Debit Note
                         </button>
                       </PermissionGate>
                     )}
@@ -346,6 +381,87 @@ export default function InvoiceDetailPage() {
                   )}
                 </div>
               </div>
+
+              {/* Credit / debit note dialog — reuses the M-07 InvoiceLineItemsEditor. */}
+              {showNoteForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                  <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                    <div className="flex items-center justify-between p-5 pb-3 border-b border-border shrink-0">
+                      <h3 className="text-[13px] font-semibold">Raise a credit / debit note</h3>
+                      <button type="button" onClick={() => setShowNoteForm(false)} className="text-muted-foreground hover:text-foreground">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        Against invoice <span className="font-mono">{inv.invoiceNumber}</span> dated {formatDt(inv.createdAt)}.
+                        The note inherits the buyer, place of supply and tax split; its GST is computed from the lines below.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] text-muted-foreground">Type</label>
+                          <select
+                            value={noteType}
+                            onChange={(e) => setNoteType(e.target.value as "credit_note" | "debit_note")}
+                            className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                          >
+                            <option value="credit_note">Credit note</option>
+                            <option value="debit_note">Debit note</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-muted-foreground">Note number *</label>
+                          <input
+                            value={noteNumber}
+                            onChange={(e) => setNoteNumber(e.target.value)}
+                            placeholder="CN-2026-0001"
+                            className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground">Reason</label>
+                        <input
+                          value={noteReason}
+                          onChange={(e) => setNoteReason(e.target.value)}
+                          placeholder="e.g. post-sale discount, rate correction, sales return"
+                          className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
+                        />
+                      </div>
+                      <InvoiceLineItemsEditor
+                        rows={noteRows}
+                        onChange={setNoteRows}
+                        isInterstate={Boolean(inv.isInterstate)}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end p-5 pt-3 border-t border-border shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowNoteForm(false)}
+                        className="px-3 py-1.5 rounded border border-border text-[11px] hover:bg-accent"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={createNote.isPending || !noteNumber.trim() || toLinePayload(noteRows).length === 0}
+                        onClick={() =>
+                          createNote.mutate({
+                            originalInvoiceId: id,
+                            noteType,
+                            noteNumber: noteNumber.trim(),
+                            reason: noteReason.trim() || undefined,
+                            lines: toLinePayload(noteRows),
+                          })
+                        }
+                        className="px-4 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
+                      >
+                        {createNote.isPending ? "Creating…" : `Create ${noteType === "credit_note" ? "credit" : "debit"} note`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         }}

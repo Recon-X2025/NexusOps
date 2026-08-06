@@ -10,6 +10,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { organizations, users } from "./auth";
@@ -333,6 +334,16 @@ export const invoices = pgTable(
     eInvoiceError: text("e_invoice_error"),
     ewayBillNumber: text("eway_bill_number"),
     originalInvoiceNumber: text("original_invoice_number"),
+    /**
+     * Credit/debit-note linkage (GSTR-1 Table 9 / CDNR). When invoiceType is
+     * `credit_note` or `debit_note`, these tie the note to the tax invoice it
+     * adjusts. `originalInvoiceId` is the integrity FK (self-reference; SET NULL
+     * so a note survives a rare original deletion, retaining the number/date
+     * text); `originalInvoiceDate` is required by CDNR alongside the number.
+     */
+    originalInvoiceId: uuid("original_invoice_id").references((): AnyPgColumn => invoices.id, { onDelete: "set null" }),
+    originalInvoiceDate: timestamp("original_invoice_date", { withTimezone: true }),
+    noteReason: text("note_reason"),
     invoiceDate: timestamp("invoice_date", { withTimezone: true }).notNull().defaultNow(),
     dueDate: timestamp("due_date", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),

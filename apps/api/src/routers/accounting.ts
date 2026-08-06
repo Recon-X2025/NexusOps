@@ -848,14 +848,61 @@ export const accountingRouter = router({
       const b2cl: Array<{ pos: string; inv: GstrEntry[] }> = [];
       const b2c: Array<GstrEntry & { ty: string }> = [];
 
+      // ── Table 9: credit/debit notes (CDNR registered, CDNUR unregistered) ──
+      type NoteEntry = {
+        ntty: "C" | "D";   // C = credit note, D = debit note
+        nt_num: string;    // note number
+        nt_dt: string;     // note date
+        onum: string;      // original invoice number
+        odt: string;       // original invoice date
+        val: number;
+        pos: string;
+        rchrg: string;
+        itms: GstrItem[];
+      };
+      const cdnr: Array<{ ctin: string; nt: NoteEntry[] }> = [];
+      const cdnur: Array<NoteEntry & { typ: string }> = [];
+      const noteInvoiceIds = new Set<string>();
+
       const supplierStateCode = gstin.stateCode;
+      const fmtDate = (d: Date | null | undefined) =>
+        d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
       for (const inv of invs) {
         const posRaw = inv.placeOfSupply ?? gstin.stateCode;
         const posCode = normaliseStateToCode(posRaw) ?? posRaw;
+        const isInterstate = posCode !== supplierStateCode;
+
+        // Credit/debit notes go to Table 9, never the supply tables. Values are
+        // positive with a C/D flag (the portal nets them). CDNR when the buyer is
+        // registered (grouped by GSTIN), CDNUR when unregistered. Their lines are
+        // excluded from Table 12 below to avoid overstating turnover.
+        if (inv.invoiceType === "credit_note" || inv.invoiceType === "debit_note") {
+          noteInvoiceIds.add(inv.id);
+          const note: NoteEntry = {
+            ntty: inv.invoiceType === "credit_note" ? "C" : "D",
+            nt_num: inv.invoiceNumber,
+            nt_dt: fmtDate(inv.invoiceDate),
+            onum: inv.originalInvoiceNumber ?? "",
+            odt: fmtDate(inv.originalInvoiceDate),
+            val: Number(inv.amount ?? 0),
+            pos: posCode,
+            rchrg: (inv.isReverseCharge ?? false) ? "Y" : "N",
+            itms: buildItms(inv),
+          };
+          if (inv.buyerGstin) {
+            const grp = cdnr.find((g) => g.ctin === inv.buyerGstin);
+            if (grp) grp.nt.push(note);
+            else cdnr.push({ ctin: inv.buyerGstin, nt: [note] });
+          } else {
+            cdnur.push({ ...note, typ: isInterstate ? "B2CL" : "B2CS" });
+          }
+          continue;
+        }
+
         const entry: GstrEntry = {
           inum: inv.invoiceNumber,
-          idt: new Date(inv.invoiceDate!).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          idt: fmtDate(inv.invoiceDate),
           val: Number(inv.amount ?? 0),
           pos: posCode,
           rchrg: (inv.isReverseCharge ?? false) ? "Y" : "N",
@@ -874,7 +921,6 @@ export const accountingRouter = router({
           // an INTER-STATE supply whose invoice value EXCEEDS the (per-tenant)
           // threshold is reported invoice-wise in B2CL, grouped by place of
           // supply; everything else stays in the B2CS consolidated summary.
-          const isInterstate = posCode !== supplierStateCode;
           if (isInterstate && Number(inv.amount ?? 0) > b2clThreshold) {
             const grp = b2cl.find((g) => g.pos === posCode);
             if (grp) grp.inv.push(entry);
@@ -889,17 +935,23 @@ export const accountingRouter = router({
       // Aggregate every line in the period by HSN × rate. The digit minimum
       // (4 up to ₹5cr AATO, 6 above) is enforced against the org's AATO; when
       // AATO is unset we default to the 4-digit baseline and flag it.
-      const hsnLines: HsnSummaryLine[] = allLines.map((ln) => ({
-        hsnSacCode: ln.hsnSacCode,
-        description: ln.description,
-        unit: ln.unit,
-        quantity: ln.quantity != null ? Number(ln.quantity) : 0,
-        taxableValue: Number(ln.taxableValue ?? 0),
-        gstRate: Number(ln.gstRate ?? 0),
-        cgstAmount: Number(ln.cgstAmount ?? 0),
-        sgstAmount: Number(ln.sgstAmount ?? 0),
-        igstAmount: Number(ln.igstAmount ?? 0),
-      }));
+      // Exclude credit/debit-note lines: notes are reported in Table 9, and adding
+      // their (positive) values to Table 12 would overstate outward turnover. A
+      // fully net-of-notes HSN summary is a follow-up tied to the negative-line
+      // treatment (deferred with the ledger reversal).
+      const hsnLines: HsnSummaryLine[] = allLines
+        .filter((ln) => !noteInvoiceIds.has(ln.invoiceId))
+        .map((ln) => ({
+          hsnSacCode: ln.hsnSacCode,
+          description: ln.description,
+          unit: ln.unit,
+          quantity: ln.quantity != null ? Number(ln.quantity) : 0,
+          taxableValue: Number(ln.taxableValue ?? 0),
+          gstRate: Number(ln.gstRate ?? 0),
+          cgstAmount: Number(ln.cgstAmount ?? 0),
+          sgstAmount: Number(ln.sgstAmount ?? 0),
+          igstAmount: Number(ln.igstAmount ?? 0),
+        }));
       const hsnData = buildHsnSummary(hsnLines);
       const hsnDigitMin = hsnMinDigits(aato ?? 0);
       const hsnDigitViolations = findHsnDigitViolations(hsnData, hsnDigitMin);
@@ -918,7 +970,9 @@ export const accountingRouter = router({
             : `An invoice line has no HSN/SAC code; Table 12 requires at least ${v.required} digits.`,
         );
       }
-      const invoicesMissingLines = invs.filter((i) => !(linesByInvoice.get(i.id)?.length)).length;
+      const invoicesMissingLines = invs.filter(
+        (i) => !noteInvoiceIds.has(i.id) && !(linesByInvoice.get(i.id)?.length),
+      ).length;
       if (invoicesMissingLines > 0) {
         warnings.push(
           `${invoicesMissingLines} invoice(s) have no line items and are absent from the HSN summary ` +
@@ -933,6 +987,8 @@ export const accountingRouter = router({
         b2b,
         b2cl,
         b2cs: b2c,
+        cdnr,
+        cdnur,
         hsn: { data: hsnData },
         nil: { inv: [] },
         exp: { expwp: [], expwop: [] },

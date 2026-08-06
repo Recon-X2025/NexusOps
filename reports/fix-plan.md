@@ -91,7 +91,7 @@ it is the summary; the item is the source of truth.
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
-| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **In progress** — **C7-1 (AATO + HSN Table 12) DONE** (mig `0069`) + **C7-2 (B2CL Table 5, ₹1L threshold) DONE** (mig `0070`), 2026-08-06; POS = no structural work (one validation caveat); Table 11 advances out-of-scope for pilot; **C7-3 credit/debit notes (Table 9)** next. See "C7 build log (2026-08-06)". |
+| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **Largely DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (mig `0069`), C7-2 B2CL Table 5 ₹1L (mig `0070`), **C7-3 credit/debit notes Table 9 parts 1–4** (mig `0071`; part 5 GL journal HELD for CA reversal ruling). POS = no structural work (one validation caveat); Table 11 advances out-of-scope for pilot. See "C7 build log (2026-08-06)". |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 | DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
@@ -3779,3 +3779,49 @@ Two things to be precise about, so the record is accurate:
    inter-state B2C invoice above ₹1,00,000 sitting in B2CS rather than Table 5 is exactly
    the kind of mis-classification the portal flags — a rejected or corrected filing. Fixed
    as of the first live filing.
+
+### C7-3 — Credit / debit notes (Table 9) — **DONE (parts 1–4); part 5 held**
+
+Built as a feature in the four scoped parts. The ledger posting (part 5) is
+deliberately **held** pending the CA's ruling on the reversal treatment — a wrong
+revenue/output-tax reversal that looks authoritative is worse than none.
+
+- **Part 1 — schema completion** (migration `0071_lucky_speedball`). Added to
+  `invoices`: `originalInvoiceId` (self-FK, SET NULL), `originalInvoiceDate`
+  (CDNR needs the original's date), `noteReason`. Fairness:
+  `credit-note-schema.test.ts` (2) — persistence + SET-NULL behaviour.
+- **Part 2 — API create path, NO journal.** `financial.createCreditDebitNote`:
+  loads the original tax invoice, inherits its parties + CGST/SGST-vs-IGST split,
+  reuses `computeInvoiceFromLines` (positive lines → the ₹0.01 hard error and
+  derived header are identical to invoices), writes the note + its lines, and
+  **posts no GL journal entry**. Refuses a note-on-a-note and an unknown original.
+  Fairness: `credit-note-create.test.ts` (6) — incl. the **no-journal** guard and
+  the **₹0.01** mismatch.
+- **Part 3 — screen.** A "Credit / Debit Note" action on the receivable-invoice
+  detail page opens a dialog that **reuses `InvoiceLineItemsEditor`** (not a new
+  editor — one editor, no drift, per the two-payroll-engines lesson). Verified by
+  web typecheck; the reuse is structural (imports the same component + `toLinePayload`).
+- **Part 4 — Table 9 in the return.** `generateGSTR1` now routes notes by
+  `invoiceType` into `cdnr` (registered, grouped by buyer GSTIN) / `cdnur`
+  (unregistered), with note type (C/D) + original number/date, **out of** the
+  supply tables, and **excludes note lines from the Table 12 HSN summary** (no
+  overstated turnover). Fairness: `gstr1-cdnr-table9.test.ts` (4).
+
+**Design note (why parts 2 & 4 needed no negative-rounding).** A note stores
+POSITIVE line values (the amount credited/debited); GSTR-1 CDNR reports positive
+values with a C/D flag and the portal nets them. So the recorded negative-line
+rounding caution (`invoice-lines.ts`) bites only in the deferred **part 5 ledger
+reversal**, not in note creation or the return.
+
+**Held / follow-ups:**
+- **Part 5 — GL journal entry (ledger reversal).** Held for the CA ruling on
+  reversal treatment; lands as a separate part once confirmed. Until then a note
+  is filed on GSTR-1 but does not move the general ledger.
+- **Net-of-notes Table 12.** The HSN summary currently *excludes* note lines
+  (rather than subtracting them) — a fully net HSN is tied to the same
+  negative-line treatment as part 5.
+- **IRN debit-note mapping.** `irnGenerationWorkflow` maps only
+  `credit_note → CRN` (else `INV`); a `debit_note → DBN` mapping should ride with
+  part 5 (ClearTax already types `DBN`).
+
+Full API suite green after each part; `pnpm lint` 9/9; web tsc clean.

@@ -489,6 +489,120 @@ export const financialRouter = router({
     }),
 
   /**
+   * Create a credit or debit note against an existing tax invoice (GSTR-1 Table 9).
+   *
+   * The note is stored as an `invoices` row with `invoiceType` = credit_note /
+   * debit_note, linked to the original via originalInvoiceId/Number/Date. Its lines
+   * are POSITIVE (the amount credited/debited); GSTR-1 CDNR reports positive values
+   * with a note-type flag, and the netting is the portal's job. The parties (buyer
+   * GSTIN, place of supply, GSTIN registration) and the CGST/SGST-vs-IGST split are
+   * inherited from the original invoice, so the note matches it.
+   *
+   * CREATE PATH ONLY — it deliberately does NOT post a GL journal entry. The ledger
+   * reversal of revenue + output tax is held pending the CA's ruling on the reversal
+   * treatment (a wrong reversal that looks authoritative is worse than none); it
+   * lands as a separate step once confirmed. Reuses computeInvoiceFromLines so the
+   * per-line rounding / derived header / ₹0.01 hard-error are identical to invoices.
+   */
+  createCreditDebitNote: permissionProcedure("financial", "write")
+    .input(
+      z.object({
+        originalInvoiceId: z.string().uuid(),
+        noteType: z.enum(["credit_note", "debit_note"]),
+        noteNumber: z.string().min(1),
+        lines: z.array(INVOICE_LINE_INPUT).min(1),
+        reason: z.string().optional(),
+        noteDate: z.string().optional(),
+        /** Optional caller header total — must equal the summed lines to the paise. */
+        expectedTotal: z.number().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { db, org } = ctx;
+      const [orig] = await db
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.id, input.originalInvoiceId), eq(invoices.orgId, org!.id)));
+      if (!orig) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Original invoice not found" });
+      }
+      // A note may only be raised against an actual tax invoice, not another note.
+      if (orig.invoiceType !== "tax_invoice") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A credit/debit note can only reference a tax invoice, not another note.",
+        });
+      }
+
+      // Resolve the same parties as the original for the CGST/SGST-vs-IGST split.
+      const { gstinRegistry } = await import("@coheronconnect/db");
+      let orgState: string | null = null;
+      let orgGstinNum: string | null = orig.supplierGstin ?? null;
+      if (orig.gstinId) {
+        const [g] = await db
+          .select()
+          .from(gstinRegistry)
+          .where(and(eq(gstinRegistry.id, orig.gstinId), eq(gstinRegistry.orgId, org!.id)));
+        orgState = g?.stateName ?? g?.stateCode ?? null;
+        orgGstinNum = g?.gstin ?? orgGstinNum;
+      }
+      const [customerRow] = await db
+        .select({ state: vendors.state })
+        .from(vendors)
+        .where(and(eq(vendors.id, orig.vendorId), eq(vendors.orgId, org!.id)));
+
+      // Lines are POSITIVE — computeInvoiceFromLines' positive half-up rounding holds.
+      const computed = computeInvoiceFromLines({
+        lines: input.lines.map((l) => ({ ...l, gstRate: l.gstRate as GSTRate })),
+        orgState: normaliseGstStateOrWarn(orgState, "org"),
+        counterpartyState: normaliseGstStateOrWarn(customerRow?.state ?? null, "counterparty"),
+        expectedHeader: input.expectedTotal,
+      });
+      const noteDate = input.noteDate ? new Date(input.noteDate) : new Date();
+
+      // NO journal entry — see the doc comment (deferred pending the CA reversal ruling).
+      const note = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(invoices)
+          .values({
+            orgId: org!.id,
+            vendorId: orig.vendorId,
+            legalEntityId: orig.legalEntityId ?? null,
+            invoiceFlow: "receivable",
+            invoiceNumber: input.noteNumber,
+            invoiceType: input.noteType,
+            gstinId: orig.gstinId,
+            supplierGstin: orgGstinNum,
+            buyerGstin: orig.buyerGstin ?? null,
+            placeOfSupply: orig.placeOfSupply ?? null,
+            originalInvoiceId: orig.id,
+            originalInvoiceNumber: orig.invoiceNumber,
+            originalInvoiceDate: orig.invoiceDate,
+            noteReason: input.reason ?? null,
+            amount: String(computed.header.invoiceTotal),
+            taxableValue: String(computed.header.taxableValue),
+            cgstAmount: String(computed.header.cgstAmount),
+            sgstAmount: String(computed.header.sgstAmount),
+            igstAmount: String(computed.header.igstAmount),
+            totalTaxAmount: String(computed.header.totalTaxAmount),
+            isInterstate: computed.header.isInterstate,
+            status: "pending",
+            matchingStatus: "pending",
+            invoiceDate: noteDate,
+            retainUntilDate: computeRetainUntil(noteDate),
+          })
+          .returning();
+        if (row) {
+          await tx.insert(invoiceLineItems).values(
+            computed.lines.map((l) => ({ ...l, invoiceId: row.id })),
+          );
+        }
+        return row;
+      });
+      return note;
+    }),
+
+  /**
    * Recomputes GST for legacy invoices that were saved before the entry path
    * applied the GST engine (rows with `totalTaxAmount = 0`). The existing
    * `taxableValue` is preserved and tax is added on top; the gross `amount` is

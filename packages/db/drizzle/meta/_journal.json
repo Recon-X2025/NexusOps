@@ -498,6 +498,13 @@
       "when": 1786008500924,
       "tag": "0070_slim_rage",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1786012536412,
+      "tag": "0071_lucky_speedball",
+      "breakpoints": true
     }
   ]
 }
