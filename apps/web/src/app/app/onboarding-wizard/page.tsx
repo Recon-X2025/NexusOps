@@ -161,6 +161,7 @@ interface IndiaData {
   tan: string;
   pf: string;
   stateCode: string;
+  annualAggregateTurnover: string;
   seedHolidays: boolean;
   seedCoa: boolean;
 }
@@ -208,6 +209,19 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
             {f.hint && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{f.hint}</p>}
           </div>
         ))}
+      </div>
+
+      <div>
+        <label className="text-[11px] font-medium text-muted-foreground block mb-1">Annual Aggregate Turnover (₹)</label>
+        <input
+          type="number"
+          min={0}
+          value={data.annualAggregateTurnover}
+          onChange={e => onChange({ annualAggregateTurnover: e.target.value })}
+          placeholder="e.g. 45000000"
+          className="w-full px-3 py-2 text-[13px] border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground/60 mt-0.5">Prior-year PAN-level turnover. Sets the GSTR-1 HSN digit rule: 4 digits up to ₹5 crore, 6 above.</p>
       </div>
 
       <div className="flex flex-col gap-2 bg-muted/30 rounded-lg px-4 py-3">
@@ -381,6 +395,7 @@ export default function OnboardingWizardPage() {
 
   const [indiaData, setIndiaData] = useState<IndiaData>({
     gstin: "", pan: "", cin: "", tan: "", pf: "", stateCode: "KA",
+    annualAggregateTurnover: "",
     seedHolidays: true, seedCoa: true,
   });
 
@@ -420,6 +435,8 @@ export default function OnboardingWizardPage() {
           tan: data.india.tan ?? "",
           pf: data.india.pf ?? "",
           stateCode: data.india.stateCode ?? "KA",
+          annualAggregateTurnover:
+            data.india.annualAggregateTurnover != null ? String(data.india.annualAggregateTurnover) : "",
         }));
       }
       if (data.itsm) {
@@ -600,6 +617,9 @@ export default function OnboardingWizardPage() {
           tan: indiaData.tan,
           pf: indiaData.pf,
           stateCode: indiaData.stateCode,
+          annualAggregateTurnover: indiaData.annualAggregateTurnover.trim()
+            ? Number(indiaData.annualAggregateTurnover)
+            : undefined,
         },
         step: 4,
       });

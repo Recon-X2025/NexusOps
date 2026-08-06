@@ -33,6 +33,8 @@ export const indiaSchema = z.object({
   tan: z.string().length(10).regex(/^[A-Z]{4}[0-9]{5}[A-Z]{1}$/, "Invalid TAN"),
   pf: z.string().min(1),
   stateCode: z.string().length(2),
+  /** AATO in rupees — drives the GSTR-1 HSN digit rule. Optional at onboarding. */
+  annualAggregateTurnover: z.number().nonnegative().optional(),
 });
 
 export const itsmSchema = z.object({
@@ -241,6 +243,8 @@ export const onboardingRouter = router({
         tan: orgRow.tan ?? "",
         pf: orgRow.epfCode ?? "",
         stateCode: orgRow.primaryStateCode ?? "",
+        annualAggregateTurnover:
+          orgRow.annualAggregateTurnover != null ? Number(orgRow.annualAggregateTurnover) : null,
       },
       itsm: {
         p1: orgRow.slaP1Hours ?? 4,

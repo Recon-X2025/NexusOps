@@ -21,6 +21,12 @@ import {
 
 import { computeRetainUntil } from "../lib/retention";
 import { getNextYearScopedSeq } from "../lib/auto-number";
+import {
+  buildHsnSummary,
+  hsnMinDigits,
+  findHsnDigitViolations,
+  type HsnSummaryLine,
+} from "../lib/india/gst-engine";
 
 type CoaRow = InferSelectModel<typeof chartOfAccountsTbl>;
 type JeRow = InferSelectModel<typeof journalEntriesTbl>;
@@ -740,10 +746,18 @@ export const accountingRouter = router({
       year: z.number().int(),
     })).query(async ({ ctx, input }) => {
       const { org, db } = ctx;
-      const { invoices, invoiceLineItems, gstinRegistry, eq: dbEq, and: dbAnd, gte, lte, inArray } = await import("@coheronconnect/db");
+      const { invoices, invoiceLineItems, gstinRegistry, organizations, eq: dbEq, and: dbAnd, gte, lte, inArray } = await import("@coheronconnect/db");
       const [gstin] = await db.select().from(gstinRegistry)
         .where(dbAnd(dbEq(gstinRegistry.id, input.gstinId), dbEq(gstinRegistry.orgId, org!.id))).limit(1);
       if (!gstin) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Annual Aggregate Turnover drives the Table 12 HSN digit minimum.
+      const [orgRow] = await db
+        .select({ aato: organizations.annualAggregateTurnover })
+        .from(organizations)
+        .where(dbEq(organizations.id, org!.id))
+        .limit(1);
+      const aato = orgRow?.aato != null ? Number(orgRow.aato) : null;
 
       const start = new Date(input.year, input.month - 1, 1);
       const end   = new Date(input.year, input.month, 0, 23, 59, 59);
@@ -849,18 +863,68 @@ export const accountingRouter = router({
         }
       }
 
+      // ── HSN Summary (Table 12, mandatory) ────────────────────────────────
+      // Aggregate every line in the period by HSN × rate. The digit minimum
+      // (4 up to ₹5cr AATO, 6 above) is enforced against the org's AATO; when
+      // AATO is unset we default to the 4-digit baseline and flag it.
+      const hsnLines: HsnSummaryLine[] = allLines.map((ln) => ({
+        hsnSacCode: ln.hsnSacCode,
+        description: ln.description,
+        unit: ln.unit,
+        quantity: ln.quantity != null ? Number(ln.quantity) : 0,
+        taxableValue: Number(ln.taxableValue ?? 0),
+        gstRate: Number(ln.gstRate ?? 0),
+        cgstAmount: Number(ln.cgstAmount ?? 0),
+        sgstAmount: Number(ln.sgstAmount ?? 0),
+        igstAmount: Number(ln.igstAmount ?? 0),
+      }));
+      const hsnData = buildHsnSummary(hsnLines);
+      const hsnDigitMin = hsnMinDigits(aato ?? 0);
+      const hsnDigitViolations = findHsnDigitViolations(hsnData, hsnDigitMin);
+
+      const warnings: string[] = [];
+      if (aato == null) {
+        warnings.push(
+          "Annual Aggregate Turnover is not set for this organisation; the HSN digit minimum " +
+          "defaulted to 4. Set AATO to enforce the 6-digit minimum above ₹5 crore.",
+        );
+      }
+      for (const v of hsnDigitViolations) {
+        warnings.push(
+          v.hsn
+            ? `HSN "${v.hsn}" has ${v.digits} digit(s); this filing requires at least ${v.required}.`
+            : `An invoice line has no HSN/SAC code; Table 12 requires at least ${v.required} digits.`,
+        );
+      }
+      const invoicesMissingLines = invs.filter((i) => !(linesByInvoice.get(i.id)?.length)).length;
+      if (invoicesMissingLines > 0) {
+        warnings.push(
+          `${invoicesMissingLines} invoice(s) have no line items and are absent from the HSN summary ` +
+          "(Table 12); add line items with HSN/SAC codes for a complete return.",
+        );
+      }
+
       const gstp_cd = `${input.month.toString().padStart(2, "0")}${input.year}`;
       const payload = {
         gstin: gstin.gstin,
         fp: gstp_cd,
         b2b,
         b2cs: b2c,
+        hsn: { data: hsnData },
         nil: { inv: [] },
         exp: { expwp: [], expwop: [] },
         b2ba: [],
       };
 
-      return { payload, invoiceCount: invs.length, gstin: gstin.gstin, period: `${input.month}/${input.year}` };
+      return {
+        payload,
+        invoiceCount: invs.length,
+        gstin: gstin.gstin,
+        period: `${input.month}/${input.year}`,
+        annualAggregateTurnover: aato,
+        hsnDigitMin,
+        warnings,
+      };
     }),
 
     /** Generate GSTR-3B summary return for a period */

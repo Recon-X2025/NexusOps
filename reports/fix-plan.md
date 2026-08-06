@@ -91,7 +91,7 @@ it is the summary; the item is the source of truth.
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
-| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | Pending — **GST-blocking** |
+| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **In progress** — **C7-1 (AATO + HSN Table 12) DONE (2026-08-06)**, mig `0069`; POS = no structural work (one validation caveat); Table 11 advances out-of-scope for pilot; **C7-2 B2CL** + **C7-3 credit/debit notes** next. See "C7 build log (2026-08-06)". |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 | DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
@@ -3669,3 +3669,76 @@ is skipped, not excluded and not failing.
 convention — **`tsc --noEmit`** — at that point (consistent with every other workspace; no
 eslint dependency or config required). It then rejoins the gate automatically, with no
 exclusion to remove.
+
+---
+
+## C7 build log (2026-08-06) — GSTR-1 structural work, one item at a time
+
+### C7-1 — AATO + HSN summary (Table 12) — **DONE**
+
+Table 12 is mandatory on every GSTR-1; the builder previously emitted no `hsn`
+section at all, so the return would be rejected regardless of anything else. Built:
+
+- **AATO field + ingestion.** `organizations.annualAggregateTurnover`
+  (`decimal(18,2)`, nullable) — migration `0069_melted_the_fury`. Ingested at the
+  org level through the **India setup wizard** (added to `indiaSchema`,
+  `orgWizardWrite`, `getWizardData`, and a numeric field on the wizard's India step).
+- **HSN summary + digit rule** (pure, in `packages/payroll-math/src/gst-engine.ts`):
+  `hsnMinDigits(aato)` (4 up to ₹5cr, 6 above — `HSN_SIX_DIGIT_TURNOVER_THRESHOLD`),
+  `buildHsnSummary()` (aggregates turnover + tax by HSN × rate → GSTN `hsn.data[]`),
+  and `findHsnDigitViolations()`. Wired into `accounting.gstr.generateGSTR1`: the
+  return now carries `payload.hsn.data`, reads the org's AATO to set the digit
+  minimum, and surfaces `warnings[]` for short/missing HSN codes, an unset AATO
+  (defaults to 4), and invoices with no line items (absent from Table 12).
+- **Fairness (red before / green after):** `gst-hsn-summary.test.ts` (6, pure) +
+  `gstr1-hsn-summary.test.ts` (5, integration). Full API suite **1425 green**,
+  payroll-math 59, `pnpm lint` 9/9.
+- **Deferred (C7a):** the standalone AATO edit outside the wizard and the **1-April
+  annual-refresh job** remain follow-ups; existing already-onboarded orgs with a null
+  AATO get the 4-digit default plus a warning until set.
+
+### C7 place of supply — **no structural work; ONE validation caveat (recorded, not "never revisit")**
+
+Directive was to record POS as "already a two-digit code throughout." Verified, and
+that is **mostly** true but not unconditional, so recording it accurately:
+
+- **No Table-5/structural POS work is needed.** The state model *is* 2-digit codes
+  (`GSTIN_STATE_CODES`/`normaliseStateToCode`), the org/primary side is enforced as a
+  code (`gstinRegistry.stateCode` NOT NULL, `length(2)`), and `generateGSTR1` emits
+  `inv.placeOfSupply ?? gstin.stateCode` — a code on the org fallback.
+- **Caveat (a real but minor gap):** the *buyer* side is not enforced to a 2-digit
+  code. `crmAccounts.stateCode` is `z.string().optional()` (unvalidated), the
+  `createIndiaInvoice` `placeOfSupply` input is an unconstrained `z.string()`, and the
+  api gst-engine comment itself notes "vendors/customers store a NAME (Maharashtra)".
+  So a name *could* be stored and would then be emitted verbatim in `pos`. This is a
+  **validation-tightening** item (constrain those inputs / normalise on write), **not**
+  a structural return build. Left as optional hardening; flagged to the owner rather
+  than recorded as settled.
+
+### C7 advances / Table 11 — **OUT OF SCOPE for the pilot (recorded)**
+
+No advance-receipt capability exists anywhere (no schema, no `at`/`txpd` builder — grep
+clean). None of the pilot customers has raised advance receipts. Table 11 stays out of
+scope for the pilot; **revisit before general availability**. If a pilot begins taking
+customer advances before a filing period, it re-enters scope.
+
+### C7-2 threshold finding (pre-build report for the next item)
+
+The B2CL question asked what threshold the code holds. Answer: **none.** There is no
+B2CL threshold anywhere — `generateGSTR1` stamps every non-GSTIN invoice `ty:"B2CS"`
+unconditionally (no invoice-value test, no inter-state test on the B2C branch). So it's
+not "holds ₹2.5 lakh vs ₹1 lakh" — the entire large-vs-small split is absent, and large
+inter-state B2C is currently mis-filed into B2CS. When built, the threshold should be a
+**configurable, effective-dated** value (it changed ₹2.5L→₹1L); the exact current figure
+is to be confirmed with the CA, not guessed.
+
+### C7-3 estimate (credit/debit notes, largest item)
+
+Scoped as a feature build in four parts: (1) **schema completion** — a create path for
+`invoiceType` credit_note/debit_note with the `originalInvoiceNumber` back-reference
+(the enum + column exist; downstream IRN/ClearTax already have CRN/DBN branches waiting);
+(2) **API create mutation** — with the negative-line rounding caution already recorded
+(credit notes must not reuse the per-line rounder as-is); (3) **a screen** to raise a
+credit/debit note against an invoice; (4) **Table 9 (CDNR/CDNUR)** in `generateGSTR1`,
+routing by `invoiceType`. Rough size: ~2–3× either of the first two items, because it
+spans schema + API + UI + return, versus item 1's engine-plus-ingestion shape.

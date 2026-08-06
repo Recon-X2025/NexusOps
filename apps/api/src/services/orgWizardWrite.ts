@@ -34,6 +34,7 @@ export async function writeWizardData(
       tan?: string;
       pf?: string;
       stateCode?: string;
+      annualAggregateTurnover?: number;
     };
     itsm?: {
       p1?: number;
@@ -100,6 +101,9 @@ export async function writeWizardData(
       if (input.india.tan !== undefined) updateFields.tan = input.india.tan;
       if (input.india.pf !== undefined) updateFields.epfCode = input.india.pf;
       if (input.india.stateCode !== undefined) updateFields.primaryStateCode = input.india.stateCode;
+      if (input.india.annualAggregateTurnover !== undefined) {
+        updateFields.annualAggregateTurnover = String(input.india.annualAggregateTurnover);
+      }
     }
 
     // Process Step Progress

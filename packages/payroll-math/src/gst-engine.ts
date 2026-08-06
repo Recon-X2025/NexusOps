@@ -211,6 +211,141 @@ export function isEWayBillRequired(params: {
   return params.consignmentValue > EWAY_BILL_THRESHOLD;
 }
 
+// ── HSN Summary (GSTR-1 Table 12) ─────────────────────────────────────────
+// Table 12 is mandatory on every GSTR-1: turnover and tax aggregated by HSN/SAC
+// code. The required minimum HSN digit length is driven by Annual Aggregate
+// Turnover (AATO): a 4-digit minimum up to ₹5 crore, a 6-digit minimum above it.
+// (The threshold value coincides with the e-invoice one but is a legally distinct
+// rule, so it carries its own named constant.)
+export const HSN_SIX_DIGIT_TURNOVER_THRESHOLD = 50000000; // ₹5 Cr
+
+/** Minimum HSN digit length required for a taxpayer at the given AATO (rupees). */
+export function hsnMinDigits(annualAggregateTurnover: number): 4 | 6 {
+  return annualAggregateTurnover > HSN_SIX_DIGIT_TURNOVER_THRESHOLD ? 6 : 4;
+}
+
+/** One invoice line, reduced to the fields Table 12 aggregates. */
+export interface HsnSummaryLine {
+  hsnSacCode: string | null | undefined;
+  description?: string | null;
+  unit?: string | null;
+  quantity?: number | null;
+  taxableValue: number;
+  gstRate: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  cessAmount?: number | null;
+}
+
+/** One GSTR-1 Table 12 (`hsn.data[]`) row — one per distinct HSN × rate. */
+export interface HsnSummaryRow {
+  num: number;
+  hsn_sc: string;
+  desc: string;
+  uqc: string;
+  qty: number;
+  rt: number;
+  txval: number;
+  iamt: number;
+  camt: number;
+  samt: number;
+  csamt: number;
+}
+
+/** An HSN code that fails the AATO-driven digit-length minimum. */
+export interface HsnDigitViolation {
+  hsn: string;
+  digits: number;
+  required: 4 | 6;
+}
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Aggregate invoice lines into the GSTR-1 Table 12 HSN summary — one row per
+ * distinct HSN/SAC code × GST rate, summing quantity, taxable value and tax.
+ * Lines with a missing HSN aggregate under an empty code so the digit validator
+ * can surface them (rather than silently dropping them from the return).
+ */
+export function buildHsnSummary(lines: HsnSummaryLine[]): HsnSummaryRow[] {
+  const byKey = new Map<
+    string,
+    {
+      hsn: string;
+      rt: number;
+      desc: string;
+      uqc: string;
+      qty: number;
+      txval: number;
+      iamt: number;
+      camt: number;
+      samt: number;
+      csamt: number;
+    }
+  >();
+  for (const ln of lines) {
+    const hsn = (ln.hsnSacCode ?? "").trim();
+    const rt = Number(ln.gstRate ?? 0);
+    const key = `${hsn}|${rt}`;
+    const agg = byKey.get(key) ?? {
+      hsn,
+      rt,
+      desc: "",
+      uqc: "",
+      qty: 0,
+      txval: 0,
+      iamt: 0,
+      camt: 0,
+      samt: 0,
+      csamt: 0,
+    };
+    if (!agg.desc && ln.description) agg.desc = ln.description.trim();
+    if (!agg.uqc && ln.unit) agg.uqc = ln.unit.trim();
+    agg.qty += Number(ln.quantity ?? 0);
+    agg.txval += Number(ln.taxableValue ?? 0);
+    agg.iamt += Number(ln.igstAmount ?? 0);
+    agg.camt += Number(ln.cgstAmount ?? 0);
+    agg.samt += Number(ln.sgstAmount ?? 0);
+    agg.csamt += Number(ln.cessAmount ?? 0);
+    byKey.set(key, agg);
+  }
+  return Array.from(byKey.values())
+    .sort((a, b) => (a.hsn === b.hsn ? a.rt - b.rt : a.hsn.localeCompare(b.hsn)))
+    .map((v, idx) => ({
+      num: idx + 1,
+      hsn_sc: v.hsn,
+      desc: v.desc,
+      uqc: v.uqc || "NA",
+      qty: round2(v.qty),
+      rt: v.rt,
+      txval: round2(v.txval),
+      iamt: round2(v.iamt),
+      camt: round2(v.camt),
+      samt: round2(v.samt),
+      csamt: round2(v.csamt),
+    }));
+}
+
+/**
+ * Flag HSN codes in a summary that are shorter than the AATO-driven minimum
+ * (an empty/missing code counts as 0 digits). Returns one violation per
+ * offending HSN row so the caller can surface them before filing.
+ */
+export function findHsnDigitViolations(
+  rows: HsnSummaryRow[],
+  minDigits: 4 | 6,
+): HsnDigitViolation[] {
+  const violations: HsnDigitViolation[] = [];
+  for (const r of rows) {
+    const digits = r.hsn_sc.replace(/\s+/g, "").length;
+    if (digits < minDigits) {
+      violations.push({ hsn: r.hsn_sc, digits, required: minDigits });
+    }
+  }
+  return violations;
+}
+
 // ── GSTR-2B Reconciliation ────────────────────────────────────────────────
 export type ReconciliationStatus = "matched" | "mismatch" | "missing_in_2b" | "missing_in_books";
 

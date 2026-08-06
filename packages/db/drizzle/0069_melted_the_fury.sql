@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "annual_aggregate_turnover" numeric(18, 2);

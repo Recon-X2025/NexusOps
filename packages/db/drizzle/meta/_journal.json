@@ -484,6 +484,13 @@
       "when": 1785931262456,
       "tag": "0068_easy_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1785983226937,
+      "tag": "0069_melted_the_fury",
+      "breakpoints": true
     }
   ]
 }

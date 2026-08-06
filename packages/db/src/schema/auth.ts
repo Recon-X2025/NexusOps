@@ -1,5 +1,6 @@
 import {
   boolean,
+  decimal,
   index,
   integer,
   jsonb,
@@ -63,6 +64,14 @@ export const organizations = pgTable(
     tan: text("tan"),
     epfCode: text("epf_code"),
     primaryStateCode: text("primary_state_code"),
+    /**
+     * Annual Aggregate Turnover (AATO) in rupees — the PAN-level turnover of the
+     * preceding financial year, refreshed annually on 1 April. Drives the GSTR-1
+     * HSN-summary digit rule (Table 12): a 4-digit HSN minimum up to ₹5 crore, a
+     * 6-digit minimum above it. Nullable = not yet ingested (the HSN rule then
+     * defaults to the 4-digit baseline and the return flags that AATO is unset).
+     */
+    annualAggregateTurnover: decimal("annual_aggregate_turnover", { precision: 18, scale: 2 }),
     /**
      * Per-tenant DPDP notice destination (a named DPO or in-house compliance
      * mailbox). DPDP breach/DSR notices are delivered ONLY here; when unset the
