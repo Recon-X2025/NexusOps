@@ -3870,3 +3870,88 @@ unseeded). Full API suite green; `pnpm lint` 9/9; web tsc clean.
 - **Inventory integration for a physical sales return** — out of scope: goods receipt
   is API-only and stock movement isn't wired, so a sales return does not move stock.
 - **Net-of-notes Table 12** and **IRN debit-note→DBN mapping** (from Part 4) remain open.
+
+---
+
+## Debit-note ledger + state dropdown + payroll-model scoping (2026-08-06)
+
+### DN-LEDGER — Debit-note ledger posting (CA-ruled) — **DONE**
+
+The mirror of the credit-note reversal, dated to the note's own issuance period:
+- **Dr Accounts Receivable (1130)** = gross (asset up)
+- **Cr Supplementary Sales & Revenue Adjustments (4140)** = taxable — a **dedicated**
+  account (NOT gross sales 4100), added to both COA seeds as a sibling under 4100,
+  same audit-trail reason 4130 exists for credit notes.
+- **Cr Output CGST/SGST/IGST Payable** = tax (liability up)
+
+`postDebitNoteJournalEntry` (invoice-journal.ts); the mutation posts it in the `else`
+branch. **Two credit-note validations are DELIBERATELY absent, with the reasons written
+into the code** so nobody re-adds them for symmetry: (1) **no 30-Nov time limit** —
+s.34(3) sets none for debit notes (they increase liability, no revenue risk; a deadline
+would block legitimate upward revisions; ITC delinking runs the recipient's credit from
+the note's own FY); (2) **no cumulative value cap** — contract revisions/escalation/
+under-billing have no ceiling, so debit notes may exceed the parent. **Rate-in-force
+still applies.** Fairness: `credit-note-ledger.test.ts` grew to 10 (4 debit-note cases:
+mirror direction, after-30-Nov accepted with full tax + in Table 9, cumulative-over-parent
+accepted, rate-in-force; the 6 credit-note cases still fire).
+
+### STATE-DROPDOWN — free-text state → select — **DONE (safety, not correctness)**
+
+Both Add and Edit employee dialogs now use a `<select>` backed by a canonical 37-item
+`INDIAN_STATES` list (`apps/web/src/lib/india-states.ts`); the Edit select preserves an
+existing unrecognised value (e.g. a live "Karnatak") as a visible, correctable option.
+**Caveat, recorded plainly: a dropdown stops TYPOS, not valid-but-unpopulated states.**
+The PT engine holds slabs for only seven states, so picking Kerala or Odisha still
+resolves to nil PT (with the `unknownState` warning) until **C2-STRUCT** populates them.
+This is a **safety** fix, not a correctness fix. Fairness: `india-states.test.ts` (3).
+Refinement noted: the list is web-local to keep the change small/severable; consolidating
+onto the shared `GSTIN_STATE_CODES` source is a later cleanup.
+
+### CITY = WORK OR RESIDENCE? — finding (determines whether metro-from-city is buildable)
+
+Investigated per the metro-from-city question. There are **two** fields: `location`
+(work/office — the directory "Location" column, `page.tsx:1820`) and `city` (in the tax
+section beside `state` and the "50% HRA **by residence**" metro checkbox). **In the data,
+`city` is EMPTY for every employee** (dev cohort + the pilot per the directory); only
+`state` is populated, and the populated city value ("Bengaluru") lives in `location` =
+**work**. So `city` today captures neither reliably — it is unused — and the only
+populated city field is the work location.
+
+**Consequence:** metro-from-city IS buildable, but it MUST derive from a **residence**
+field, and no residence data exists today. Deriving from the populated field
+(`location`) would be deriving from **work** — wrong (Bengaluru-work / Chennai-resident
+should get the 50% threshold). Two options:
+- **(a)** Designate `city` as the residential city (relabel "Residential city (for HRA)",
+  require it, derive metro from it). Cheapest — `city` is already grouped with the metro
+  checkbox and is empty, so no data conflict; but HR must now populate residence.
+- **(b)** Add a distinct `residentialCity` column — most explicit, avoids overloading the
+  ambiguous `city`. Small (one nullable column + form field + wire the derivation).
+Either way the real cost is **data collection** (HR entering residence for everyone), not
+the derivation. Recommendation: **(a)** for the pilot — relabel + require `city` as
+residence — unless you want the audit-clean separation of (b).
+
+### Payroll-model scoping (recorded, NOT built)
+
+- **CTC → employee; structures become percentage templates.** Add `employees.ctcAnnual`
+  (single column first), backfill from each linked structure's `ctcAnnual`, re-point the
+  five read sites (`payroll-run-aggregates.ts:37` core, `payroll.ts:175` tax-fallback,
+  `hr.ts:1469` display, `leave-accrual.ts:57`, `gratuity.ts:37`). **Move `ltaAnnual` with
+  it** (it's live in the engine). **`medicalAllowanceAnnual`, `conveyanceAllowanceAnnual`,
+  `bonusAnnual` are captured but read by NO computation** — moving them changes no
+  behaviour. **Effective-dated employee-CTC history is a fast-follow** (the employee-side
+  mirror of M-05, for mid-year-raise precision).
+- **Preview path skips the version resolver.** `payroll-run-aggregates.ts:142` joins
+  `employees.salaryStructureId = salary_structures.id` (origin version), bypassing
+  `resolveSalaryStructureForPeriod` — so preview totals ignore M-05 versioning. Fix in the
+  same pass as the CTC move.
+- **Location cluster (coupled): city dropdown → metro derived from city → HRA % by city.**
+  Metro needs the (residence) city; HRA-by-city needs metro. Build together. See the
+  CITY finding above — metro-from-city requires capturing residence first.
+- **`hraPercentOfBasic` splits into metro + non-metro columns on the template.** The
+  **backfill sets BOTH to the existing value so nobody's pay changes on deploy**; HR then
+  sets non-metro (40%) deliberately. **This is a pay decision, NOT a migration default —**
+  do not auto-cut non-metro HRA on migration. HRA is the ONLY location-varying component
+  (basic %, LTA, medical, conveyance, bonus are national).
+- **Sequencing:** state dropdown now (done) → location cluster → CTC split. **None blocks
+  C7.** Metro-from-city warrants priority only if a pilot payroll run precedes the fixes
+  (a wrongly-ticked metro over-states the HRA exemption).

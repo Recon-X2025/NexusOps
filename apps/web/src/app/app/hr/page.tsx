@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { UserCheck, Plus, CheckCircle2, Clock, FileText, ChevronRight, Loader2, IndianRupee, AlertTriangle, RefreshCw, Pencil, FileSignature, X, CheckCircle } from "lucide-react";
 import { useRBAC, AccessDenied } from "@/lib/rbac-context";
+import { INDIAN_STATES } from "@/lib/india-states";
 import { filterEmployeeDirectory } from "@/lib/employee-directory-access";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -1073,12 +1074,16 @@ export default function HRPage() {
               <div className="flex gap-2">
                 <div className="w-1/2">
                   <label className="text-[11px] text-muted-foreground">State *</label>
-                  <input
+                  <select
                     className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                     value={addEmpForm.state}
                     onChange={(e) => setAddEmpForm((f) => ({ ...f, state: e.target.value }))}
-                    placeholder="e.g. Kerala"
-                  />
+                  >
+                    <option value="">Select state…</option>
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="w-1/2">
                   <label className="text-[11px] text-muted-foreground">City</label>
@@ -1432,12 +1437,21 @@ export default function HRPage() {
               <div className="flex gap-2">
                 <div className="w-1/2">
                   <label className="text-[11px] text-muted-foreground">State</label>
-                  <input
+                  <select
                     className="w-full mt-0.5 text-caption border border-border rounded px-2 py-1.5 bg-background"
                     value={editEmpForm.state}
                     onChange={(e) => setEditEmpForm((f) => ({ ...f, state: e.target.value }))}
-                    placeholder="e.g. Kerala"
-                  />
+                  >
+                    <option value="">Select state…</option>
+                    {/* Preserve an existing free-text value (e.g. a live "Karnatak") so it
+                        stays visible and correctable rather than silently blanking. */}
+                    {editEmpForm.state && !INDIAN_STATES.includes(editEmpForm.state) && (
+                      <option value={editEmpForm.state}>{editEmpForm.state} (unrecognised — please fix)</option>
+                    )}
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="w-1/2">
                   <label className="text-[11px] text-muted-foreground">City</label>
