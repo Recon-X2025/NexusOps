@@ -13,6 +13,34 @@ export function calendarToFyMonth(calendarMonth: number): number {
   return calendarMonth >= 4 ? calendarMonth - 3 : calendarMonth + 9;
 }
 
+/**
+ * Start date (1 Apr / 1 Oct) of the ESI six-month contribution period a given
+ * calendar month falls in. Apr–Sep → 1 Apr of that year; Oct–Dec → 1 Oct of that
+ * year; Jan–Mar → 1 Oct of the PREVIOUS year. Used to decide whether an employee's
+ * stored ESI membership belongs to the current period (carry it) or is stale (unknown).
+ */
+export function esiContributionPeriodStart(month: number, year: number): Date {
+  if (month >= 4 && month <= 9) return new Date(year, 3, 1); // April 1
+  if (month >= 10) return new Date(year, 9, 1); // October 1 (this year)
+  return new Date(year - 1, 9, 1); // Jan–Mar → October 1 of the previous year
+}
+
+/** Resolve the ESI membership to feed the engine: the stored flag when it was
+ *  assessed for the CURRENT period, else null (unknown → engine re-assesses at a
+ *  boundary month, or approximates mid-period and flags it). */
+function esiMemberForCurrentPeriod(
+  emp: typeof employees.$inferSelect,
+  month: number,
+  year: number,
+): boolean | null {
+  if (emp.esiMember == null || emp.esiMemberPeriodStart == null) return null;
+  const stored = new Date(emp.esiMemberPeriodStart);
+  const current = esiContributionPeriodStart(month, year);
+  return stored.getFullYear() === current.getFullYear() && stored.getMonth() === current.getMonth()
+    ? emp.esiMember
+    : null;
+}
+
 export type PayrollAggregateTotals = {
   totalGross: number;
   totalDeductions: number;
@@ -77,6 +105,7 @@ export function buildEmployeePayrollInput(
     department: emp.department ?? "",
     state,
     isMetro: emp.isMetroCity ?? false,
+    esiMemberAtPeriodStart: esiMemberForCurrentPeriod(emp, month, year),
     joiningDate: join,
     gender: emp.gender ?? null,
     dateOfBirth: emp.dateOfBirth ?? null,

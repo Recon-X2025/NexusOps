@@ -512,6 +512,13 @@
       "when": 1786018773009,
       "tag": "0072_clever_blue_shield",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1786034302239,
+      "tag": "0073_red_big_bertha",
+      "breakpoints": true
     }
   ]
 }

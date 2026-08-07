@@ -45,6 +45,7 @@ import {
   buildEmployeePayrollInput,
   calendarToFyMonth,
   computePayrollRunTotals,
+  esiContributionPeriodStart,
 } from "../services/payroll-run-aggregates";
 import { checkDbUserPermission } from "../lib/rbac-db";
 
@@ -456,7 +457,27 @@ const runsRouter = router({
         for (const { emp, st } of empRows) {
           const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id));
           const slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
-          
+
+          // ESI six-month rule: persist the membership the engine assessed so later
+          // months carry it. Write on a NEW period (boundary re-assessment) OR when
+          // membership CHANGED this month — because ENTRY is monthly: a non-member who
+          // drops to/under the ceiling joins mid-period, and that must stick so the
+          // retention lock applies for the rest of the period. (Exit only happens at a
+          // boundary, so membership never flips true→false mid-period.)
+          const currentPeriodStart = esiContributionPeriodStart(row.month, row.year);
+          const storedStart = emp.esiMemberPeriodStart ? new Date(emp.esiMemberPeriodStart) : null;
+          const samePeriod =
+            !!storedStart &&
+            storedStart.getFullYear() === currentPeriodStart.getFullYear() &&
+            storedStart.getMonth() === currentPeriodStart.getMonth();
+          const newMember = slip.statutoryDeductions.esi.memberForPeriod;
+          if (!samePeriod || emp.esiMember !== newMember) {
+            await tx
+              .update(employees)
+              .set({ esiMember: newMember, esiMemberPeriodStart: currentPeriodStart })
+              .where(eq(employees.id, emp.id));
+          }
+
           newTotalGross += slip.grossEarnings;
           newTotalDeductions += slip.totalDeductions;
           newTotalNet += slip.netPay;

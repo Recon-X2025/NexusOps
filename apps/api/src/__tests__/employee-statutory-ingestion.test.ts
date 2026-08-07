@@ -104,6 +104,24 @@ describe("Maharashtra PT gender split via PTContext", () => {
   });
 });
 
+// ── ESI six-month membership carries through the payslip engine (C3) ───────────
+describe("ESI membership carries through computeEmployeePayslip (C3)", () => {
+  const JUN = 3; // mid-period FY month
+  it("a retained member above the ceiling still contributes; a non-member above the ceiling stays out", () => {
+    // makeEmp's pay scale is ~₹90k, well above the ₹21k ESI ceiling.
+    const member = computeEmployeePayslip(makeEmp({ esiMemberAtPeriodStart: true, month: 6 }), JUN);
+    expect(member.employeeESI).toBeGreaterThan(0); // retention → contributes despite high gross
+    const nonMember = computeEmployeePayslip(makeEmp({ esiMemberAtPeriodStart: false, month: 6 }), JUN);
+    expect(nonMember.employeeESI).toBe(0); // entry assessed, but wages > ceiling → no join
+  });
+
+  it("a boundary month re-assesses from gross, overriding a stale membership flag", () => {
+    // April is a period boundary: ₹90k gross > ceiling ⇒ not a member, regardless of the flag.
+    const apr = computeEmployeePayslip(makeEmp({ esiMemberAtPeriodStart: true, month: 4 }), APR);
+    expect(apr.employeeESI).toBe(0);
+  });
+});
+
 // ── (iii) Tier-1 exemption flag ⇒ PT nil in every state ────────────────────────
 describe("Tier-1 PT exemption bypasses PT regardless of state/gross", () => {
   it("computePT returns nil + exempt when ctx.exempt is true (Maharashtra, high gross)", () => {

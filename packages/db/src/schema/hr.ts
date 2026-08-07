@@ -165,6 +165,20 @@ export const employees = pgTable(
     aadhaarMaskedDisplay: text("aadhaar_masked_display"),
     uan: text("uan"),
     esiIpNumber: text("esi_ip_number"),
+    /**
+     * ESI membership for the CURRENT contribution period (Apr–Sep or Oct–Mar).
+     * ESI eligibility is not a month-by-month gross test: membership is assessed at
+     * the period boundary (1 Apr / 1 Oct) from the gross snapshot and HELD for the
+     * whole period — a member stays a member even if gross later crosses ₹21,000
+     * (contributions continue on actual gross), and a non-member does not join
+     * mid-period. `esiMember` = the held flag; `esiMemberPeriodStart` = the 1-Apr/
+     * 1-Oct it was assessed for. NULL = never assessed (the run establishes it at
+     * the next boundary; a first mid-period run approximates from that month's gross
+     * and flags it). The payroll run reads and re-assesses these; the pure engine
+     * decides eligibility from them.
+     */
+    esiMember: boolean("esi_member"),
+    esiMemberPeriodStart: timestamp("esi_member_period_start", { withTimezone: true }),
     bankAccountNumber: text("bank_account_number"),
     bankIfsc: text("bank_ifsc"),
     bankName: text("bank_name"),

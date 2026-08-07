@@ -38,6 +38,27 @@ export interface ESIComputation {
   grossMonthly: number;
   employeeESI: number; // 0.75%
   employerESI: number; // 3.25%
+  /** ESI membership decided for the current contribution period (== isApplicable).
+   *  The payroll run persists this at a period boundary so mid-period months carry it. */
+  memberForPeriod: boolean;
+  /** True when THIS month set/reset membership (a period-start month, 1 Apr / 1 Oct). */
+  assessedAtPeriodStart: boolean;
+  /** True when membership had to be approximated from the current gross because a
+   *  mid-period month had no stored period-start membership (existing employee, no
+   *  history). The run surfaces/backfills this rather than trusting it silently. */
+  memberStateUnknown: boolean;
+}
+
+/** Contribution-period context for the ESI six-month membership rule. */
+export interface ESIPeriodContext {
+  /** 1 = April … 12 = March (financial-year month). */
+  monthInFY: number;
+  /** The employee's STORED membership carried into this month; null/undefined = unknown. */
+  memberAtPeriodStart?: boolean | null;
+  /** Full-month, overtime-excluded pay scale used for the ₹21,000 THRESHOLD test
+   *  (a part-month joiner is grossed up to this before testing). Defaults to the
+   *  actual `grossMonthly`. The contribution is always on the actual gross, not this. */
+  eligibilityGross?: number;
 }
 
 export interface PTComputation {
@@ -200,21 +221,62 @@ const ESI_WAGE_CEILING = 21_000;
 const ESI_EMPLOYEE_RATE = 0.0075;
 const ESI_EMPLOYER_RATE = 0.0325;
 
+/**
+ * ESI contribution for a month, applying the six-month contribution-period rule
+ * (CA-ruled — and it is ASYMMETRIC; do not treat entry as the mirror of exit):
+ *
+ *   ENTRY  — assessed EVERY month. A non-member joins the moment their eligibility
+ *            wages are at/under ₹21,000 (ESI Act 1948: coverage is mandatory below
+ *            the ceiling, triggered immediately on a drop — NOT at a boundary).
+ *   EXIT   — assessed ONLY at a period boundary (1 Apr / 1 Oct). A member stays a
+ *            member for the rest of the period even if wages later cross the ceiling
+ *            (contributions continue on ACTUAL uncapped gross), and drops off only
+ *            if the boundary snapshot is above the ceiling.
+ *
+ * Two gross figures: the ELIGIBILITY gross (ctx.eligibilityGross — the full-month,
+ * overtime-excluded pay scale; the caller grosses up a part-month joiner so they are
+ * tested on their scale, not a prorated fragment) drives the threshold; the
+ * CONTRIBUTION is always on the actual `grossMonthly` (0.75% / 3.25%, uncapped).
+ * Without `eligibilityGross` the threshold falls back to `grossMonthly`.
+ *
+ * Without a `ctx`, falls back to the bare month-by-month ceiling test (legacy callers).
+ */
 export function computeESI(
   grossMonthly: number,
-  wageCeiling: number = ESI_WAGE_CEILING
+  wageCeiling: number = ESI_WAGE_CEILING,
+  ctx?: ESIPeriodContext,
 ): ESIComputation {
-  const isApplicable = grossMonthly <= wageCeiling;
+  const eligibilityGross = ctx?.eligibilityGross ?? grossMonthly;
+  const belowCeiling = eligibilityGross <= wageCeiling;
+  const isPeriodStart = ctx ? ctx.monthInFY === 1 || ctx.monthInFY === 7 : true;
 
-  if (!isApplicable) {
-    return { isApplicable, grossMonthly, employeeESI: 0, employerESI: 0 };
+  let isMember: boolean;
+  let memberStateUnknown = false;
+  if (!ctx || isPeriodStart) {
+    // Boundary (1 Apr / 1 Oct) or a bare call: full re-assessment (ENTRY + EXIT).
+    isMember = belowCeiling;
+  } else if (ctx.memberAtPeriodStart === true) {
+    // RETENTION: a member stays a member mid-period regardless of gross; EXIT only
+    // happens at a boundary. (This is the direction the rule locks to the period.)
+    isMember = true;
+  } else {
+    // Non-member (or unknown) mid-period: ENTRY is assessed EVERY month — join the
+    // month eligibility wages fall to/under the ceiling. NOT symmetric with exit.
+    isMember = belowCeiling;
+    // Above the ceiling with no membership history, we cannot tell a retained member
+    // from a genuine non-member. Default to non-member (entry fails) and flag it so
+    // the next boundary re-assessment can verify against the first full month.
+    if (ctx.memberAtPeriodStart == null && !belowCeiling) memberStateUnknown = true;
   }
 
   return {
-    isApplicable,
+    isApplicable: isMember,
     grossMonthly,
-    employeeESI: Math.round(grossMonthly * ESI_EMPLOYEE_RATE),
-    employerESI: Math.round(grossMonthly * ESI_EMPLOYER_RATE),
+    employeeESI: isMember ? Math.round(grossMonthly * ESI_EMPLOYEE_RATE) : 0,
+    employerESI: isMember ? Math.round(grossMonthly * ESI_EMPLOYER_RATE) : 0,
+    memberForPeriod: isMember,
+    assessedAtPeriodStart: isPeriodStart,
+    memberStateUnknown,
   };
 }
 
@@ -405,10 +467,16 @@ export function computeMonthlyStatutory(
   monthInFY: number,
   isVoluntaryHigherPF: boolean = false,
   overrides: StatutoryCeilingOverrides = {},
-  ptContext?: PTContext
+  ptContext?: PTContext,
+  esiMemberAtPeriodStart?: boolean | null,
+  esiEligibilityGross?: number,
 ): MonthlyStatutoryDeductions {
   const pf = computePF(basicPlusDA, isVoluntaryHigherPF, overrides.pfWageCeiling);
-  const esi = computeESI(grossMonthly, overrides.esiWageCeiling);
+  const esi = computeESI(grossMonthly, overrides.esiWageCeiling, {
+    monthInFY,
+    memberAtPeriodStart: esiMemberAtPeriodStart,
+    eligibilityGross: esiEligibilityGross,
+  });
   const pt = computePT(grossMonthly, state, monthInFY, overrides.ptSlabs, ptContext);
   const lwf = computeLWF(state, overrides.lwfRates);
 

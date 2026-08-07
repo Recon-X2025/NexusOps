@@ -220,6 +220,10 @@ export interface EmployeePayrollInput {
   otherDeductions: number;
   // PF
   isVoluntaryHigherPF: boolean;
+  /** ESI membership held for the current contribution period (from the employee
+   *  record); null/undefined = unknown. Drives the six-month membership rule so a
+   *  member is not dropped mid-period and a non-member does not join mid-period. */
+  esiMemberAtPeriodStart?: boolean | null;
   // Previous employer (for mid-year joins)
   previousEmployerIncome: number;
   previousEmployerTDS: number;
@@ -330,7 +334,12 @@ export function computeEmployeePayslip(
     fyMonth,
     emp.isVoluntaryHigherPF,
     ceilings,
-    ptContext
+    ptContext,
+    emp.esiMemberAtPeriodStart,
+    // ESI eligibility threshold uses the FULL-MONTH pay scale (basic + HRA + special),
+    // excluding overtime and NOT prorated — so a part-month joiner is tested on their
+    // scale, not a fragment. The contribution itself is on actual earned gross.
+    emp.basicMonthly + emp.hraMonthly + emp.specialAllowance,
   );
 
   // Step 7: TDS

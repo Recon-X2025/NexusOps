@@ -87,7 +87,7 @@ it is the summary; the item is the source of truth.
 | A12-D — LOP split-logic defect (CA correction) | New — Payroll | Pending (against shipped A12) |
 | C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking**. **Scope corrected (2026-08-05):** the **investment-declaration intake** (table + UI + effective-dated read path + Feb/March lapse spread) is a **prerequisite** and the **larger half** — shipping the election without it is actively harmful (OLD with zero declarations is taxed worse than NEW). See "Two records (2026-08-05)". |
 | C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates, red/green tested); **C2-STRUCT pending** — **payroll-blocking**: half-yearly levy period (Kerala/TN/Puducherry), gender ingestion, month-specific rates, full-population + explicit-nil, TIER-1 exemptions (none ingested). See C2 scope |
-| C3 — ESI six-month contribution-period rule | New — Payroll | Pending (verify first) — **payroll-blocking** |
+| C3 — ESI six-month contribution-period rule | New — Payroll | **DONE (2026-08-06, local — not pushed)** — ASYMMETRIC: entry assessed EVERY month (non-member joins the month wages drop to/under ₹21k), exit only at the 1-Apr/1-Oct boundary (member retained on actual gross). Grossed-up eligibility for part-month joiners. Membership state on `employees` (mig `0073`). 20 tests. First build wrongly assumed symmetry — see "C3 correction (2026-08-06)" + the looks-symmetric-isn't pattern. |
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
@@ -3955,3 +3955,103 @@ residence — unless you want the audit-clean separation of (b).
 - **Sequencing:** state dropdown now (done) → location cluster → CTC split. **None blocks
   C7.** Metro-from-city warrants priority only if a pilot payroll run precedes the fixes
   (a wrongly-ticked metro over-states the HRA exemption).
+
+---
+
+## C3 — ESI six-month contribution period rule (2026-08-06, CA-ruled) — **DONE (local; not pushed)**
+
+**The defect:** `computeESI` decided eligibility purely on the current month's gross
+(`isApplicable = gross <= ceiling`), with no way to know if an employee was already a
+member mid-period — so anyone crossing ₹21,000 was dropped that month. (The contribution
+*amount* was already on actual uncapped gross; only the eligibility decision was wrong.)
+
+**The rule (CA):** contribution periods Apr–Sep and Oct–Mar. Membership is assessed at the
+boundary (1 Apr / 1 Oct) from the gross snapshot and HELD for the whole period — a member
+stays a member even if gross later crosses ₹21,000 (contributions continue on actual
+gross at 0.75%/3.25%), and a non-member does not join mid-period. No exit paperwork.
+
+**Established first (the three questions):**
+1. **No ESI membership state existed** — only `esiIpNumber` (identity). Eligibility was
+   recomputed from gross every month. This build adds membership state.
+2. **Existing employee, no history:** columns are nullable; the run assesses at the next
+   boundary. A first-ever run landing *mid-period* with no stored state approximates from
+   that month's gross and **flags it** (`memberStateUnknown`) — self-corrects next boundary.
+3. **One decision point.** The ESI return/challan (`esiReturnWorkflow`, `esi_challan_records`),
+   the payslip PDF and run totals all read the **persisted run amounts** — none re-decides
+   eligibility. Fixing the run's ESI decision propagates everywhere.
+
+**Storage (as recommended):** two nullable columns on `employees` (migration
+`0073_red_big_bertha`): **`esiMember`** (the held flag) + **`esiMemberPeriodStart`** (the
+1-Apr/1-Oct it was assessed for). Contribution *history* already lives in the payslips, so
+no separate membership-history table is needed. The pure engine decides eligibility from
+the flag; the run (`computePayslips`) assesses + persists at the first run of each period
+and carries it mid-period (idempotent — never overwrites within a period).
+
+**Implementation:** `computeESI(gross, ceiling, ctx?)` gains an optional period context
+(`monthInFY` + `memberAtPeriodStart`); at a boundary it re-assesses from gross, mid-period
+it carries the stored flag (or approximates + flags if unknown), and without a `ctx` it
+falls back to the old month-by-month test (legacy callers unaffected). Threaded through
+`computeMonthlyStatutory` → `computeEmployeePayslip` (`EmployeePayrollInput.esiMemberAtPeriodStart`)
+→ the run reads `employees.esiMember`/`esiMemberPeriodStart` (`esiMemberForCurrentPeriod`) and
+persists at the boundary. `esiContributionPeriodStart(month, year)` maps a month to its period.
+
+**Fairness (red before / green after), 15 tests:** `esi-contribution-period.test.ts`
+(payroll-math, 6 — the four CA cases + the approximation flag + backward-compat);
+`esi-contribution-period.test.ts` (api, 3 — period boundaries);
+`employee-statutory-ingestion.test.ts` (+2 — membership carries through the payslip engine;
+a boundary re-assesses); `esi-membership-persistence.test.ts` (4 — the run stamps April,
+gives ₹0 above ceiling, doesn't re-stamp June, re-assesses October). Full API suite green.
+
+**OPEN CA QUESTION (record, do not treat as settled):** the **mirror case** — a non-member
+whose gross falls below the ceiling **mid-period does NOT join until the next boundary**.
+The code implements this (symmetric with the member-retention rule, per the stated fairness
+check), but the CA ruling explicitly covered only the member-*retention* direction. **Confirm
+the non-member-stays-out direction with the CA.** Also confirm the handling for an existing
+employee whose **first-ever run lands mid-period with no membership history** (currently
+approximated from that month's gross and flagged, self-correcting at the next boundary).
+
+**Deploy note:** built and to be committed **locally only** — GitHub Actions / Vultr are
+mid-incident (do not push). Migration `0073` (two nullable columns) applies forward cleanly.
+
+### C3 correction (2026-08-06) — the ESI rule is ASYMMETRIC; the first build assumed it was symmetric
+
+The initial C3 build treated entry as the mirror of exit: a non-member had to wait
+for the next 1-Apr/1-Oct boundary to join. **That was wrong.** Per the CA:
+
+- **RETENTION (exit) is bound to the contribution period** — a member whose gross
+  crosses ₹21,000 mid-period stays a member until the boundary, contributing on
+  actual uncapped gross. (Unchanged; correct as first built.)
+- **ENTRY is NOT** — under the ESI Act 1948 coverage is mandatory for anyone at/under
+  ₹21,000 and triggers **immediately on a drop in wages**, not at a boundary. A
+  non-member at ₹25,000 in April whose gross falls to ₹19,000 in June **joins in June**;
+  the retention lock then runs from that point to the period end.
+
+**Reworked:** entry is assessed **every month**, exit **only at a boundary**. In
+`computeESI` the mid-period non-member branch now tests the ceiling (join) rather than
+carrying "not a member"; the run persists membership on a **change** (mid-period entry),
+not only at a boundary.
+
+**First-run edge case, now specified not approximated:** the threshold uses the
+**full-month pay scale** (basic + HRA + special; overtime excluded; a part-month joiner
+grossed up to a 30-day equivalent) via a new `eligibilityGross`, while the contribution
+stays on actual earned gross. So a joiner on the 20th is tested on their scale, not a
+prorated fragment. **The approximation flag was kept but narrowed:** it now fires ONLY
+for a mid-period, above-ceiling employee with no membership history (a retained member we
+can't confirm) — the join case is now a definite entry, not an approximation.
+
+**Tests corrected:** CASE 3 now asserts the non-member **joins in June** (was: stays out);
+added two mid-month-joiner cases (grossed-up scale over ceiling → excluded despite a low
+prorated fragment; genuine low earner joins part-month with the contribution on actual
+earned gross); added a mid-period-entry **persistence** test; narrowed the flag test.
+
+**PATTERN WORTH NOTING — "looks symmetric, isn't" (second occurrence).** This is the
+**second** time a rule that appeared symmetric was not, and the symmetric assumption
+shipped a wrong build: the first was the **debit-note validations** (a debit note has no
+s.34 time limit and no cumulative value cap, unlike a credit note — DN-LEDGER). ESI is the
+second (entry ≠ exit). **Lesson for statutory work: never assume the reverse of a rule
+holds by symmetry — get each direction ruled explicitly.** Both directions must be
+CA-confirmed before coding the mirror.
+
+(The earlier open CA question — "does a non-member stay out mid-period?" — is now RESOLVED:
+they do NOT; entry is monthly. The remaining verification is the boundary re-assessment
+against the first full month for a no-history joiner.)
