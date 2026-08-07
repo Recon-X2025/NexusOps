@@ -30,13 +30,15 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **HEAD is the C2-STRUCT half-yearly-PT commit** (this commit — levy period + Kerala +
-  Tamil Nadu converted + full-period-or-flag guard + seven doc corrections; **no migration**).
-  Its deploy **rides CI on this `main` push**; **advance the exit-point line to it once its
-  `Deploy to Vultr` JOB is green.** Verify HEAD with `git rev-parse HEAD`, not this prose.
-- **`209e537` (seed reconciler) is now confirmed LIVE** — CI run **`31141327969`** finished with
-  all five jobs green **including `Deploy to Vultr: success`** (verified 2026-08-07). It is the
-  **last VALIDATED deploy before this commit** (superseding `9960fc9`).
+- **LIVE / `origin/main` = `e886a9c`** (C2-STRUCT half-yearly PT: levy period + Kerala + Tamil
+  Nadu converted + full-period-or-flag guard + seven doc corrections; **no migration**).
+  **Confirmed LIVE** — CI run **`31147028089`** finished with all five jobs green **including
+  `Deploy to Vultr: success`** (see the exit-point line). Verify with `git rev-parse HEAD`.
+- **NOTE on local vs origin:** this **exit-point refresh is a docs-only commit kept LOCAL and
+  unpushed** (standing rule 6 — never a docs-only deploy); it reaches origin with the next code
+  change. So local `main` may read **one commit ahead** of `origin/main` (that one commit is
+  this bookkeeping-only doc update; the live code is `e886a9c` on both).
+- **`209e537` (seed reconciler)** was live via CI `31141327969`; **superseded by `e886a9c`**.
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
   Integration → E2E → Build Docker Images → **Deploy to Vultr**. It is **not** the standalone
@@ -285,14 +287,18 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31137358633` — commit `9960fc9` (C3, ESI six-month rule) — terminal
-`Deploy to Vultr` job `success` — 2026-08-07 01:14 UTC — migration head
-`0073_red_big_bertha`.** Verified via `gh run view 31137358633 --json jobs` (all five jobs
-green: Lint · Unit & Integration · E2E · Build Docker Images · **Deploy to Vultr**). This is
-what is LIVE on `connect.coheron.tech`. The deploy is the last job of the `main` CI
-pipeline — **not** the standalone `Deploy Vultr` workflow_dispatch (idle since Jul 15 /
-`dd1dad9`; a manual fallback only). Refresh this line with the next `main` CI run + its
-`Deploy to Vultr` job as part of the next code-change commit.
+**CI run `31147028089` — commit `e886a9c` (C2-STRUCT half-yearly PT: levy period,
+Kerala + Tamil Nadu, full-period-or-flag) — terminal `Deploy to Vultr` job `success` —
+2026-08-07 — migration head `0073_red_big_bertha` (no new migration this commit).**
+Verified via `gh run view 31147028089 --json jobs` (all five jobs green: Lint · Unit &
+Integration · E2E · Build Docker Images · **Deploy to Vultr**). This is what is LIVE on
+`connect.coheron.tech`. The deploy is the last job of the `main` CI pipeline — **not** the
+standalone `Deploy Vultr` workflow_dispatch (idle since Jul 15 / `dd1dad9`; a manual fallback
+only). Refresh this line with the next `main` CI run + its `Deploy to Vultr` job as part of
+the next code-change commit.
+
+_Prior validated deploys: `209e537` (seed reconciler) via CI `31141327969`; `9960fc9` (C3
+ESI) via CI `31137358633` — both superseded._
 
 > **KNOWN LIVE GAP (2026-08-07) — being closed by the seed reconciler (this commit).**
 > COA accounts **4130** (Sales Returns) and **4140** (Supplementary Sales), which the
