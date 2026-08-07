@@ -4055,3 +4055,71 @@ CA-confirmed before coding the mirror.
 (The earlier open CA question — "does a non-member stay out mid-period?" — is now RESOLVED:
 they do NOT; entry is monthly. The remaining verification is the boundary re-assessment
 against the first full month for a no-history joiner.)
+
+---
+
+### SEED-DRIFT (2026-08-07) — per-org seed reconciler; COA is the only seed that drifts
+
+**Trigger.** On the live org the credit/debit-note ledger silently posted nothing: COA
+accounts **4130** (Sales Returns & Allowances) and **4140** (Supplementary Sales & Revenue
+Adjustments) were absent, so `postCreditNoteJournalEntry` / `postDebitNoteJournalEntry`
+returned `null` (they bail if any required account is missing) — the notes appeared in
+GSTR-1 Table 9 but posted no GL journal. Root cause: 4130/4140 were added to the
+`INDIA_COA_SEED` **array**, not via a migration. COA is copied into each org **once** (at
+signup / `coa.seed`); an org seeded *before* those codes existed never receives them. This
+is **seed-grows drift**: the definition grows, old orgs don't catch up.
+
+**Audit — is COA the only seed with this shape?** Yes.
+
+| Seed | Mechanism | Drifts when the definition grows? |
+|------|-----------|-----------------------------------|
+| **Chart of accounts** (`INDIA_COA_SEED`) | copied **per org** at signup | **YES** — old orgs miss later additions |
+| Statutory ceilings / income-tax config | **platform-default row** (`orgId = NULL`), read via `resolveStatutoryCeilings` `or(eq(orgId), isNull(orgId))` | No — one shared row; every org falls back to it |
+| PT slabs (`PT_SLABS`) | **in-code constant** in `packages/payroll-math` | No — not copied into orgs at all |
+| India holidays (`seedIndiaHolidays`) | copied per org, **per year, on demand** | Different shape — see follow-up below |
+
+The **platform-default-row pattern is the correct anti-drift design**; COA is the
+exception because it takes per-org copies. Rather than migrate the two specific accounts
+(which would freeze *today's* list and let the **next** COA addition recreate the bug), the
+fix is a **general reconciler**.
+
+**Fix — startup seed reconciler (`apps/api/src/lib/seed-reconciler.ts`).** A registry of
+per-org seeds (`PER_ORG_SEED_RECONCILERS`), with **COA as the first (currently only)
+member**. On every API boot, `reconcileSeedsForAllOrgs` enumerates all orgs and brings each
+up to the **current** seed definition, inserting only what's missing. Future per-org seeds
+with the same shape **register here** instead of getting a bespoke mechanism.
+
+Three guarantees, by explicit design:
+1. **Never blocks or fails startup.** It runs *after* `fastify.listen` (server already
+   accepting traffic), fire-and-forget, and **never throws** — every error (a single org, a
+   single reconciler, even "can't enumerate orgs") is caught and logged; the API keeps
+   serving. A missing seed row degrades gracefully; a platform that won't boot does not.
+2. **Loud when it acts, silent when it doesn't.** Logs per org, with the **account codes**,
+   whenever it inserts anything (`[seed-reconcile] chart_of_accounts: org=… inserted N — 4130, 4140`);
+   emits nothing for an already-aligned org.
+3. **Insert-only / balance-safe.** Built on `seedChartOfAccountsForOrg` (now returns the
+   inserted **codes**, not a count), which skips any account already present by code — it
+   never updates or touches balances of existing rows.
+
+**Fairness (green after), 4 tests** (`seed-reconciler.test.ts`): direct seed inserts
+4130/4140 and is idempotent on a second pass; the reconciler re-adds a dropped account,
+logs it **with the code**, and leaves an existing account's balance untouched; silent for
+an aligned org; never throws when it can't enumerate orgs (logs loudly, returns).
+
+**Live remediation:** pressing **Seed India COA** on the live org (done by the user) inserts
+the missing accounts immediately; the reconciler makes it durable for that org and every
+future one on the next deploy. This **resolves the KNOWN LIVE GAP** recorded in CONTEXT.md.
+
+### FOLLOW-UP (recorded, not built) — India holidays are year-stale, a different shape
+
+`seedIndiaHolidays` (`apps/api/src/routers/hr.ts`) is **per-org and per-year, seeded on
+demand** — not a growing list old orgs miss, but a **new row set each calendar year** that
+nobody seeds automatically. **What happens today if a year is not seeded:** any feature that
+reads holidays for that year (leave-calendar working-day counts, shift/attendance
+calendars) sees an **empty holiday set** for that year and silently treats public holidays
+as ordinary working days — no error, just wrong day counts. This is a **time-based** gap
+(each new year needs seeding), not a **definition-grows** gap (old orgs missing a new
+addition), so it does **not** belong in the seed reconciler as-is. Options to weigh later:
+(a) a scheduled job that seeds the upcoming year for every org before 1 Jan; (b) lazy
+seed-on-first-read for the requested year; (c) fold a *year-parameterised* holiday
+reconciler into the registry. **Not in scope for the reconciler build; tracked here.**

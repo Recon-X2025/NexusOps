@@ -841,6 +841,19 @@ async function bootstrap() {
     await fastify.listen({ port: PORT, host: HOST });
     fastify.log.info(`CoheronConnect API listening on http://${HOST}:${PORT}`);
     printStartupConfig();
+
+    // Reconcile per-org seeds (COA, …) against their current definitions AFTER the
+    // server is already accepting traffic — fire-and-forget, so it can neither block
+    // nor fail startup. reconcileSeedsForAllOrgs itself never throws; the outer catch
+    // is a belt-and-braces guard for the dynamic import.
+    void (async () => {
+      const { getDb } = await import("@coheronconnect/db");
+      const { reconcileSeedsForAllOrgs } = await import("./lib/seed-reconciler.js");
+      await reconcileSeedsForAllOrgs(getDb(), {
+        info: (m: string) => fastify.log.info(m),
+        error: (m: string, e?: unknown) => fastify.log.error({ err: e }, m),
+      });
+    })().catch((e) => fastify.log.error({ err: e }, "[seed-reconcile] unexpected failure (non-fatal)"));
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

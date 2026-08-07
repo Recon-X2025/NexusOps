@@ -30,30 +30,42 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **Local `main` = `origin/main` = `387e5a5`** (verified `git rev-parse HEAD origin/main`
-  identical). State dropdown + payroll-model scoping.
-- **Last successfully DEPLOYED commit = `2cfb0ac`** (C7-3 part 5; its `Deploy to Vultr`
-  job was the last green one, verified via `gh run view`).
-- **The last two commits are pushed but NOT deployed:** `e74bfca` (debit-note ledger)
-  and `387e5a5` (state dropdown). The `387e5a5` deploy failed during a **Vultr platform
-  incident**, and **GitHub Actions was returning 503** — an infra outage on both sides,
-  not our code (lint/tests/e2e/build all green; the images built and pushed to GHCR
-  fine). The live site is **up and healthy** through it (web + API both return 200,
-  checked directly, bypassing Vultr's console). **Redeploy `387e5a5` once Vultr posts
-  "resolved" and after a `df -h /` disk check** (the earlier bring-up failed on the prod
-  Postgres container being unhealthy — most likely host disk).
-- **Both undeployed commits carry NO new migration** — the migration head is `0072` in
-  both prod (at `2cfb0ac`) and the repo. (`e74bfca` adds COA seed account **4140** as
-  seed data, not a migration; it reaches an org on re-seed/new-org, and the note ledger
-  posters degrade gracefully — return null — if 4140 is absent.)
-- **Migration head:** `0072_clever_blue_shield` (`invoices.is_financial_note`). The C7
-  run added `0069` (AATO), `0070` (B2CL threshold), `0071` (credit/debit-note linkage),
-  `0072` (financial-note flag). Always re-confirm the live head from the last entry in
-  `packages/db/drizzle/meta/_journal.json`.
+- **Local `main` = `origin/main` = DEPLOYED = `9960fc9`** (C3 — ESI six-month rule).
+  Verified: `git fetch` then `git rev-list --left-right --count origin/main...HEAD` = `0 0`.
+- **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
+  **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
+  Integration → E2E → Build Docker Images → **Deploy to Vultr**. It is **not** the standalone
+  `Deploy Vultr` *workflow_dispatch* action (that manual rsync path exists too but has been
+  idle since 2026-07-15 / `dd1dad9`; it is a fallback, not the primary route — do **not**
+  read the primary deploy state off it). So the correct check for "what is live" is the
+  **`Deploy to Vultr` JOB inside the latest `main` CI run**, via
+  `gh run view <ci-run-id> --json jobs`.
+- **`9960fc9` is LIVE.** CI run **`31137358633`** (2026-08-07 01:14 UTC) — `gh run view`
+  confirms all five jobs green **including `Deploy to Vultr: success`**. Migrations
+  auto-apply in prod via the `migrator` service before `api` starts. (Earlier this session I
+  briefly mis-read the standalone `Deploy Vultr` action's idle history as "not deployed
+  since Jul 15" — wrong; the deploy rides CI. Corrected here.)
+- **Migration head:** `0073_red_big_bertha` (`employees.esi_member` + `esi_member_period_start`).
+  Recent: `0069` AATO, `0070` B2CL threshold, `0071` credit/debit-note linkage,
+  `0072` financial-note flag, `0073` ESI membership state. (`e74bfca` also adds COA seed
+  account **4140** as seed data, not a migration; it reaches an org on re-seed/new-org and
+  the note ledger posters return null gracefully if 4140 is absent.) Always re-confirm the
+  live head from the last entry in `packages/db/drizzle/meta/_journal.json`.
 
-## Since the HRA fix (`d7dff03`) — this session's work (all pushed; last two not yet deployed)
+## Since the HRA fix (`d7dff03`) — this session's work (all pushed AND deployed through `9960fc9`, via CI's terminal `Deploy to Vultr` job)
 
 Grouped by area; each item has full detail in `reports/fix-plan.md`.
+
+### Payroll statutory
+- **C3 (`9960fc9`, mig `0073`) — ESI six-month contribution-period rule (CA-ruled,
+  ASYMMETRIC).** Was: eligibility decided purely on the current month's gross, so anyone
+  crossing ₹21,000 was dropped. Now: **ENTRY assessed every month** (a non-member joins
+  the month wages fall to/under ₹21,000), **EXIT only at a boundary** (1 Apr / 1 Oct; a
+  member is retained on actual uncapped gross). Membership state on `employees`; the run
+  assesses + persists it; the threshold uses the full-month pay scale (a part-month joiner
+  grossed up), the contribution stays on earned gross. **The first build wrongly assumed
+  symmetry** — corrected. This is the **2nd "looks symmetric, isn't"** (debit-note
+  validations were the 1st): never code the mirror of a statutory rule on assumption.
 
 ### Payroll correctness
 - **DUP-1 (`dd18e56` + `be88a02`) — the second India payroll engine retired.** A 416-line
@@ -102,6 +114,23 @@ Grouped by area; each item has full detail in `reports/fix-plan.md`.
     nobody re-adds them for symmetry. Rate-in-force still applies.
   - POS needs **no** structural work (state is already a 2-digit code); **Table 11
     advances are out of scope for the pilot.**
+
+### Platform — per-org seed reconciler (SEED-DRIFT, this commit)
+- **Startup seed reconciler** (`apps/api/src/lib/seed-reconciler.ts`) — closes the
+  4130/4140 KNOWN LIVE GAP and the class behind it. COA is copied **per org** from a
+  **growing** `INDIA_COA_SEED` array, so orgs seeded before an account was added silently
+  miss it (that is exactly how the live org lost 4130/4140 and posted no note ledger).
+  **Audit: COA is the ONLY seed with this drift** — statutory ceilings / tax config use the
+  platform-default-row pattern (`orgId = NULL` + `isNull` fallback) and PT slabs are an
+  in-code constant, so neither drifts; that pattern is the correct one. The reconciler is a
+  **general registry** (`PER_ORG_SEED_RECONCILERS`) with **COA as the first (only) member**;
+  future per-org seeds register there. Runs **after `fastify.listen`**, fire-and-forget,
+  **never throws** (can't block/fail startup), **logs per org with the account codes** when
+  it inserts and stays silent when aligned; `seedChartOfAccountsForOrg` now returns the
+  inserted **codes** and is insert-only (balance-safe). 4 tests in `seed-reconciler.test.ts`.
+  **Holidays year-staleness** is recorded as a **separate follow-up** (different shape — each
+  new year needs seeding; an un-seeded year silently treats public holidays as working days)
+  — see `reports/fix-plan.md` (SEED-DRIFT).
 
 ### Web / platform
 - **F-DLG / F-PT-NIL (`c27385b`).** Employee dialog Save made reachable (fixed
@@ -220,6 +249,39 @@ The credit/debit-note reversal treatment is now **ruled and applied** (contra-re
 5. **Check the GitHub Actions tab is empty before pushing** (concurrent runs have
    cancelled each other), and **don't commit unless explicitly asked.** Explain in plain
    English; never propose changes to unread code.
+6. **Update this doc WITH a code change, never on its own (from 2026-08-07).** Fold the
+   `CONTEXT.md` update into the same commit as the code change that is shipping — do NOT
+   push a docs-only deploy. The **exit-point line at the very bottom records the last
+   VALIDATED deployment**: the `main` **CI run id + commit** with its terminal
+   **`Deploy to Vultr` JOB** confirmed `success` (verify with
+   `gh run view <ci-run-id> --json jobs` — the deploy is a job *inside* CI, not the idle
+   standalone `Deploy Vultr` workflow_dispatch), refreshed as part of that same code-change
+   commit so a new session can trust what is live without guessing.
 
 _After `packages/db` edits, rebuild its `dist/` before `apps/api` typechecks see them.
 Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
+
+---
+
+## Last validated deployment (exit point)
+
+**CI run `31137358633` — commit `9960fc9` (C3, ESI six-month rule) — terminal
+`Deploy to Vultr` job `success` — 2026-08-07 01:14 UTC — migration head
+`0073_red_big_bertha`.** Verified via `gh run view 31137358633 --json jobs` (all five jobs
+green: Lint · Unit & Integration · E2E · Build Docker Images · **Deploy to Vultr**). This is
+what is LIVE on `connect.coheron.tech`. The deploy is the last job of the `main` CI
+pipeline — **not** the standalone `Deploy Vultr` workflow_dispatch (idle since Jul 15 /
+`dd1dad9`; a manual fallback only). Refresh this line with the next `main` CI run + its
+`Deploy to Vultr` job as part of the next code-change commit.
+
+> **KNOWN LIVE GAP (2026-08-07) — being closed by the seed reconciler (this commit).**
+> COA accounts **4130** (Sales Returns) and **4140** (Supplementary Sales), which the
+> credit/debit-note ledger posters need, were added as SEED data — not a migration — so
+> orgs seeded BEFORE they existed (incl. the live Coheron org) lacked them; the posters
+> return null when absent, so notes filed in GSTR-1 Table 9 but posted **no GL journal**.
+> **Fix shipped:** the user pressed "Seed India COA" on the live org (immediate), and a new
+> **startup seed reconciler** (`apps/api/src/lib/seed-reconciler.ts`) now brings every org
+> up to the current COA on each boot — insert-only, non-blocking, logs the codes it adds.
+> This generalises the fix so the **next** COA addition cannot recreate the gap. Full audit
+> + the separate **holidays year-staleness** follow-up are in `reports/fix-plan.md`
+> (SEED-DRIFT). Takes effect on the next actual deploy.

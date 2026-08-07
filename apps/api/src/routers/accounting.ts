@@ -112,12 +112,13 @@ const INDIA_COA_SEED = [
  * call repeatedly — accounts already present (by code) are skipped. Used both
  * by the `coa.seed` mutation and at self-serve signup so a brand-new org can
  * post journal entries (depreciation, COGS, invoice GST) from day one.
- * Returns the number of accounts inserted.
+ * Returns the CODES inserted (empty when the org is already aligned) so callers —
+ * notably the startup seed reconciler — can log exactly what they added.
  */
 export async function seedChartOfAccountsForOrg(
   db: DbOrTx,
   orgId: string,
-): Promise<number> {
+): Promise<string[]> {
   const { chartOfAccounts, eq: dbEq } = await import("@coheronconnect/db");
   const existing = await db
     .select({ id: chartOfAccounts.id, code: chartOfAccounts.code })
@@ -125,7 +126,7 @@ export async function seedChartOfAccountsForOrg(
     .where(dbEq(chartOfAccounts.orgId, orgId));
   const codeToId = new Map<string, string>(existing.map((r) => [r.code, r.id]));
 
-  let seeded = 0;
+  const insertedCodes: string[] = [];
   for (const acct of INDIA_COA_SEED) {
     if (codeToId.has(acct.code)) continue;
     const parentId = acct.parentCode ? (codeToId.get(acct.parentCode) ?? undefined) : undefined;
@@ -144,9 +145,9 @@ export async function seedChartOfAccountsForOrg(
       })
       .returning();
     if (inserted) codeToId.set(acct.code, inserted.id);
-    seeded++;
+    insertedCodes.push(acct.code);
   }
-  return seeded;
+  return insertedCodes;
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────
@@ -212,8 +213,8 @@ export const accountingRouter = router({
     seed: permissionProcedure("financial", "write").input(z.object({}).optional()).mutation(async ({ ctx }) => {
       const { org, db } = ctx;
       try {
-        const seeded = await seedChartOfAccountsForOrg(db, org!.id);
-        return { seeded, total: INDIA_COA_SEED.length };
+        const insertedCodes = await seedChartOfAccountsForOrg(db, org!.id);
+        return { seeded: insertedCodes.length, total: INDIA_COA_SEED.length };
       } catch (e: unknown) {
         const err = e as { code?: string; cause?: { code?: string }; message?: string };
         const code = err?.cause?.code ?? err?.code;
