@@ -30,14 +30,15 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **HEAD is the PAN-encryption + null-structure commit** (this commit — employee PAN encrypted at
-  rest via a shared `panColumnsTolerant` helper on create/update/importVendors; null-salary-structure
-  employees flagged on the run instead of silently dropped; **no migration**). Its deploy **rides CI
-  on this `main` push**; **advance the exit-point line to it once its `Deploy to Vultr` JOB is green.**
-  Verify HEAD with `git rev-parse HEAD`.
-- **`d979038` (C6 payslip mandatory statutory fields) is LIVE** — CI run **`31162786896`** finished
-  with all five jobs green **including `Deploy to Vultr: success`**; migration head **`0074`**. It is
-  the **last VALIDATED deploy before this commit**.
+- **LIVE / `origin/main` = `5710dc2`** (employee PAN encrypted at rest via a shared
+  `panColumnsTolerant` helper on create/update/importVendors; null-salary-structure employees flagged
+  on the run instead of silently dropped; **no migration**). **Confirmed LIVE** — CI run
+  **`31188691203`** finished with all five jobs green **including `Deploy to Vultr: success`** (see the
+  exit-point line). Verify with `git rev-parse HEAD`.
+- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
+  unpushed** (rule 6 — no docs-only deploy); it rides origin with the next code change, so local
+  `main` may read **one commit ahead** of `origin/main` (live code is `5710dc2` on both).
+- **`d979038` (C6 payslip mandatory statutory fields)** was live via CI `31162786896`; **superseded by `5710dc2`**.
 - **`e886a9c` (C2-STRUCT half-yearly PT)** was live via CI `31147028089`; **superseded by `d979038`**.
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
@@ -320,21 +321,27 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31162786896` — commit `d979038` (C6 payslip mandatory statutory fields: shared
-payslip-view builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number,
-ESI-member missing-identity run warning) — terminal `Deploy to Vultr` job `success` —
-2026-08-08 — migration head `0074_ambiguous_rick_jones`.** Verified via `gh run view
-31162786896 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E · Build Docker
-Images · **Deploy to Vultr**). This is what is LIVE on `connect.coheron.tech`. The deploy is
-the last job of the `main` CI pipeline — **not** the standalone `Deploy Vultr` workflow_dispatch
-(idle since Jul 15 / `dd1dad9`; a manual fallback only). Refresh this line with the next `main`
-CI run + its `Deploy to Vultr` job as part of the next code-change commit.
+**CI run `31188691203` — commit `5710dc2` (encrypt employee PAN at rest via shared
+`panColumnsTolerant` on create/update/importVendors; flag null-salary-structure employees on the
+run instead of silently dropping them) — terminal `Deploy to Vultr` job `success` — 2026-08-08 —
+migration head `0074_ambiguous_rick_jones` (no new migration this commit).** Verified via
+`gh run view 31188691203 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E ·
+Build Docker Images · **Deploy to Vultr**). This is what is LIVE on `connect.coheron.tech`. The
+deploy is the last job of the `main` CI pipeline — **not** the standalone `Deploy Vultr`
+workflow_dispatch (idle since Jul 15 / `dd1dad9`; a manual fallback only). Refresh this line with
+the next `main` CI run + its `Deploy to Vultr` job as part of the next code-change commit.
 
 _This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6 — no docs-only
 deploy); it rides origin with the next code change, so local `main` may read one commit ahead._
 
-_Prior validated deploys: `e886a9c` (C2-STRUCT half-yearly PT) via CI `31147028089`; `209e537`
-(seed reconciler) via CI `31141327969`; `9960fc9` (C3 ESI) via CI `31137358633` — all superseded._
+> **⚠️ OPEN — PAN backfill still owed.** Every existing employee PAN in production is PLAINTEXT
+> (the create/update fix only affects NEW writes). `decryptPan` reads them through, so nothing is
+> broken, but the at-rest exposure remains until an in-process, idempotent backfill re-encrypts
+> them (needs `APP_SECRET` + pepper; a `.sql` can't). Needs its own snapshot + dry-run + verify.
+> See `reports/fix-plan.md` → "PAN-at-rest… (2026-08-08)".
+
+_Prior validated deploys: `d979038` (C6 payslip fields) via CI `31162786896`; `e886a9c` (C2-STRUCT
+half-yearly PT) via CI `31147028089`; `209e537` (seed reconciler) via CI `31141327969` — all superseded._
 
 > **KNOWN LIVE GAP (2026-08-07) — being closed by the seed reconciler (this commit).**
 > COA accounts **4130** (Sales Returns) and **4140** (Supplementary Sales), which the
