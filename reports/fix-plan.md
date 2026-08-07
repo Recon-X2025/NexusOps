@@ -4339,3 +4339,81 @@ which exists at 0060. But a **future migration touching anything added or altere
 honestly validated against a copy this stale** — the copy would be missing the very objects the
 migration edits. **Bring the dev DB to head before the next migration** so real-data validation stays
 meaningful.
+
+---
+
+## PAN-at-rest + null-structure silent drop (2026-08-08) — two defects found scoping the importer
+
+Two live defects, both surfaced by the employee-bulk-importer scoping pass (not by any audit),
+both independent of the importer, fixed here.
+
+### PAN-PLAINTEXT — the most sensitive PAN in the system was the one stored in the clear
+
+**The defect.** `hr.employees.create` wrote `pan: input.pan` **in plaintext**, and never populated
+`panMaskedHash` / `panMaskedDisplay` — though both columns exist on `employees`. `hr.employees.update`
+did the same via its `...rest` spread. Meanwhile **vendors and the org record both encrypt** via
+`panColumns()` (KMS envelope + peppered match-hash + masked display). So an **individual's PAN —
+personal data under DPDP — was the one identifier sitting unencrypted at rest**, in a product whose
+GRC posture is the free foundation. This is a DPDP exposure, and it was never caught by an audit —
+only by scoping the importer, which asked "does create do the encryption vendors do?" and found it did not.
+
+**THE CENSUS (the number that makes the backfill mandatory).** On the real dev DB, **9 of 9 employee
+rows carry a PAN and ALL 9 are plaintext** (bare `AAAAA9999A`, zero `v2:` envelopes). **Production is the
+same, because it is the same code path** — every employee PAN created to date is plaintext, scaled to the
+live org's headcount.
+
+**The fix.** A single shared helper `panColumnsTolerant()` (`apps/api/src/lib/pan.ts`) wraps
+`panColumns()` and degrades a malformed PAN to encrypted-raw (never plaintext, never throws). **All THREE
+PAN write paths now go through it** — `hr.employees.create`, `hr.employees.update`, AND
+`ingest.importVendors` (consolidated onto the helper, byte-identical behaviour). **One implementation, so
+they cannot drift — which is exactly how this defect arose** (create diverged from vendors). Existing rows
+keep reading because `decryptPan` passes legacy plaintext through unchanged.
+
+**BEHAVIOUR CHANGE (recorded, not silent).** On update, passing an **empty-string PAN now leaves the
+columns untouched** rather than blanking them (`panColumns`' empty-is-a-no-op semantics). Consequence: an
+admin cannot *clear* a wrongly-entered PAN through the form. **Judged acceptable** and recorded here so it
+is a known decision, not a future bug report.
+
+**PAN-BACKFILL — OPEN ITEM, NOT BUILT (awaiting a separate decision).** Every existing `employees` row with
+a non-null `pan` not prefixed `v2:` needs encrypting: read the plaintext, run it through
+`panColumnsTolerant()` (encrypt + derive hash/mask), write all three columns back. It **must run
+in-process** — it needs `APP_SECRET` (local KMS KEK) and `PII_HASH_PEPPER`, so a `.sql` migration **cannot**
+do it; it is a one-shot script or a startup reconciler pass. It is **idempotent** (skip rows already `v2:`)
+and **safe to defer** because `decryptPan` reads plaintext through — the only exposure meanwhile is
+plaintext at rest. It rewrites encrypted personal data across every org, so it wants a **snapshot, a dry-run
+count, and a decrypt-equals-original verification pass** before it runs. Deliberately not a rider on this build.
+
+### NULL-STRUCTURE SILENT DROP — an employee with no salary structure was excluded from payroll, silently
+
+**The defect.** `computePayrollRunTotals` **inner-joins** salary structures
+(`payroll-run-aggregates.ts`), and the write path does `if (!emp.salaryStructureId) continue`
+(`payroll.ts`). So an active employee with **no salary structure was excluded from the run entirely —
+not paid, no error, no warning.** They looked correctly created and simply never appeared. This is the
+worst failure mode in the payroll path: silent, and it produces an **unpaid employee** rather than a wrong
+number. Found while scoping the importer; exists independent of it.
+
+**The fix.** A **separate lookup** (before the inner join loses them) finds active employees with
+`salaryStructureId IS NULL` and pushes a **per-employee warning** through the same `errors[]` channel
+F-PT-NIL / ESI-identity / PT-period use — naming the employee and saying plainly they have no structure and
+were excluded. **Flag and continue — not blocking, no invented default structure.** (The drop set is
+exactly `IS NULL`: the FK is set-null-on-delete and, when set, always points at the origin-version row,
+which exists — so the join only ever drops nulls.)
+
+**Tests (red before / green after).** `employee-pan-encryption.test.ts` (4): create/update store `v2:`
+ciphertext + hash + mask, no plaintext, round-trip via `decryptPan`; malformed → encrypted-raw, no throw,
+no hash; legacy plaintext still reads through. `payroll-structureless-warning.test.ts` (3): the
+structure-less employee is named and excluded; a structured employee is unaffected; mixed run flags only
+the structure-less one. Red-before proven for both (force the helper to plaintext → the 3 write tests fail;
+disable the warning loop → the 2 structureless tests fail; the read-through and with-structure tests stay
+green). `pnpm lint` 9/9.
+
+### CORRECTION TO THE RECORD — importVendors is NOT "tolerant of bad rows"
+
+The **"Bulk data import — corrected classification (2026-08-02)"** section describes
+`ingest.importVendors` as tolerant of bad rows. **It is not.** tRPC validates the whole `z.array(...)`
+input **before the mutation body runs**, so **one schema-invalid row rejects the entire batch (400)**. The
+only per-row tolerance is the PAN fallback, and there is **no `skipped[]` return**. The genuinely tolerant
+importer in that file is **`importInvoices`** (per-row skip + `skipped[]`). This matters because the
+employee importer was scoped as "a direct copy of a proven tolerant pattern" partly on the strength of that
+claim — the tolerance must come from the **client** `CsvImportModal` (which splits valid/error rows) or be
+modelled on `importInvoices`, not `importVendors`.

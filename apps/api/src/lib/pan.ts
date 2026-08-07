@@ -73,6 +73,25 @@ export async function panColumns(
 }
 
 /**
+ * Tolerant PAN column builder for BULK / user-entered writes. Same as `panColumns`, but a
+ * MALFORMED PAN degrades to storing the encrypted raw only (no hash/mask) rather than throwing
+ * — so one bad value never aborts a create, an update, or a bulk import. The raw is still
+ * ENCRYPTED (KMS envelope): PAN is NEVER stored in plaintext under any path. An empty/absent
+ * PAN returns `{}` (leave the columns untouched). This is the single implementation shared by
+ * `hr.employees.create` / `update` and `ingest.importVendors`, so they cannot drift.
+ */
+export async function panColumnsTolerant(
+  raw: string | null | undefined,
+): Promise<PanColumns | { pan: string } | Record<string, never>> {
+  if (raw == null || raw.trim() === "") return {};
+  try {
+    return await panColumns(raw);
+  } catch {
+    return { pan: await encryptSecretEnvelope(raw.trim().toUpperCase()) };
+  }
+}
+
+/**
  * Read boundary for a stored raw-PAN column. Decrypts an envelope blob back to the plaintext
  * PAN; passes a legacy pre-encryption plaintext PAN (bare `AAAAA9999A`, not an envelope) through
  * unchanged so existing rows keep reading with no backfill. Returns null/empty inputs as-is.

@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, organizations, eq, and, or } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, organizations, eq, and, or, isNull } from "@coheronconnect/db";
 import {
   computeEmployeePayslip,
   ptPriorPeriodMonths,
@@ -272,6 +272,30 @@ export async function computePayrollRunTotals(
     .from(employees)
     .innerJoin(salaryStructures, eq(employees.salaryStructureId, salaryStructures.id))
     .where(and(eq(employees.orgId, orgId), eq(employees.status, "active")));
+
+  // The inner join above SILENTLY DROPS an active employee with no salary structure — they would
+  // be excluded from the run entirely (unpaid, no error, invisible). A separate lookup finds them
+  // BEFORE the join loses them, so we can flag each by name and continue (loud, not blocking, and
+  // no invented default structure). `salaryStructureId` is FK set-null on delete and, when set, is
+  // always the origin-version id, so IS NULL is exactly the set the join drops.
+  const structurelessEmps = await db
+    .select({ id: employees.id, code: employees.employeeId })
+    .from(employees)
+    .where(
+      and(
+        eq(employees.orgId, orgId),
+        eq(employees.status, "active"),
+        isNull(employees.salaryStructureId),
+      ),
+    );
+  for (const e of structurelessEmps) {
+    errors.push({
+      employeeId: e.id,
+      message:
+        `Employee "${e.code}" has NO salary structure assigned and was excluded from this payroll ` +
+        `run — they will not be paid. Assign a salary structure before locking.`,
+    });
+  }
 
   let totalGross = 0;
   let totalDeductions = 0;

@@ -20,8 +20,7 @@ import { computeGST, normaliseGstStateOrWarn, type GSTRate } from "../lib/india/
 import { computeInvoiceFromLines } from "../lib/invoice-lines";
 import { postInvoiceJournalEntry } from "../lib/invoice-journal";
 import { computeRetainUntil } from "../lib/retention";
-import { panColumns, type PanColumns } from "../lib/pan";
-import { encryptSecretEnvelope } from "../services/encryption";
+import { panColumnsTolerant } from "../lib/pan";
 import { currentFY } from "./accounting";
 
 const MatterIngestSchema = z.object({
@@ -289,17 +288,10 @@ export const ingestRouter = router({
 
             for (const item of input) {
                 const { pan: rawPan, ...vendorItem } = item;
-                // DPDP: keep raw PAN (encrypted) + stamp match hash/display. On a malformed PAN
-                // in a bulk row, fall back to storing the encrypted raw only (no hash/mask)
-                // rather than aborting the whole import — never as plaintext.
-                let panCols: Partial<PanColumns> = {};
-                try {
-                    panCols = await panColumns(rawPan);
-                } catch {
-                    panCols = rawPan
-                        ? { pan: await encryptSecretEnvelope(rawPan.trim().toUpperCase()) }
-                        : {};
-                }
+                // DPDP: keep raw PAN (encrypted) + stamp match hash/display; a malformed PAN in a
+                // bulk row degrades to encrypted-raw rather than aborting the import — never
+                // plaintext. Shared with hr.employees.create/update via `panColumnsTolerant`.
+                const panCols = await panColumnsTolerant(rawPan);
                 const [row] = await db.insert(vendors).values({
                     orgId: org!.id,
                     ...vendorItem,

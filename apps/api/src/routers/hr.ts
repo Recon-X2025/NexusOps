@@ -4,7 +4,7 @@ import { z } from "zod";
 import { resolveAssignment } from "../services/assignment";
 import { evaluateExpenseClaim } from "../lib/expense-policy";
 import { extractReceipt } from "../services/ai-receipt-ocr";
-import { decryptPan } from "../lib/pan";
+import { decryptPan, panColumnsTolerant } from "../lib/pan";
 import {
   employees,
   organizations,
@@ -347,6 +347,12 @@ export const hrRouter = router({
         const seq = (countResult?.count ?? 0) + 1;
         const employeeId = `EMP-${String(seq).padStart(4, "0")}`;
 
+        // DPDP: the employee PAN (an individual's personal data) is stored ENCRYPTED (KMS
+        // envelope) with a peppered match-hash + masked display — never plaintext. A malformed
+        // PAN degrades to encrypted-raw rather than aborting the create (shared helper, same as
+        // importVendors / update).
+        const panCols = await panColumnsTolerant(input.pan);
+
         const [employee] = await db
           .insert(employees)
           .values({
@@ -366,7 +372,7 @@ export const hrRouter = router({
             city: input.city,
             isMetroCity: input.isMetroCity,
             taxRegime: input.taxRegime,
-            pan: input.pan,
+            ...panCols,
             uan: input.uan,
             esiIpNumber: input.esiIpNumber,
             bankAccountNumber: input.bankAccountNumber,
@@ -436,11 +442,16 @@ export const hrRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { db, org } = ctx;
-        const { id, previousEmployerIncome, previousEmployerTds, rentPaidAnnual, ...rest } = input;
+        const { id, pan, previousEmployerIncome, previousEmployerTds, rentPaidAnnual, ...rest } = input;
+        // DPDP: never write the PAN in plaintext. `panColumnsTolerant` returns the encrypted raw
+        // + match-hash + masked display when a PAN is supplied, `{}` when it is omitted (so a
+        // partial update leaves the columns untouched), and encrypted-raw for a malformed value.
+        const panCols = await panColumnsTolerant(pan);
         // Decimal columns take string values in Drizzle; convert only when supplied so an
         // omitted field is left untouched (spread would otherwise pass a number).
         const data = {
           ...rest,
+          ...panCols,
           ...(previousEmployerIncome !== undefined
             ? { previousEmployerIncome: String(previousEmployerIncome) }
             : {}),

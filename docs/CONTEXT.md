@@ -30,14 +30,14 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **LIVE / `origin/main` = `d979038`** (C6 payslip mandatory statutory fields: shared payslip-view
-  builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number, ESI-member
-  missing-identity run warning; **migration `0074`**). **Confirmed LIVE** — CI run **`31162786896`**
-  finished with all five jobs green **including `Deploy to Vultr: success`** (see the exit-point
-  line). Verify with `git rev-parse HEAD`.
-- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
-  unpushed** (rule 6 — no docs-only deploy); it rides origin with the next code change, so local
-  `main` may read **one commit ahead** of `origin/main` (live code is `d979038` on both).
+- **HEAD is the PAN-encryption + null-structure commit** (this commit — employee PAN encrypted at
+  rest via a shared `panColumnsTolerant` helper on create/update/importVendors; null-salary-structure
+  employees flagged on the run instead of silently dropped; **no migration**). Its deploy **rides CI
+  on this `main` push**; **advance the exit-point line to it once its `Deploy to Vultr` JOB is green.**
+  Verify HEAD with `git rev-parse HEAD`.
+- **`d979038` (C6 payslip mandatory statutory fields) is LIVE** — CI run **`31162786896`** finished
+  with all five jobs green **including `Deploy to Vultr: success`**; migration head **`0074`**. It is
+  the **last VALIDATED deploy before this commit**.
 - **`e886a9c` (C2-STRUCT half-yearly PT)** was live via CI `31147028089`; **superseded by `d979038`**.
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
@@ -143,6 +143,21 @@ Grouped by area; each item has full detail in `reports/fix-plan.md`.
     nobody re-adds them for symmetry. Rate-in-force still applies.
   - POS needs **no** structural work (state is already a 2-digit code); **Table 11
     advances are out of scope for the pilot.**
+
+### Security / payroll — PAN-at-rest + null-structure drop (this commit, no migration)
+- **Employee PAN was stored PLAINTEXT** by `hr.employees.create`/`update` (never stamping the
+  match-hash/mask), while vendors + org encrypted theirs — the most sensitive PAN in the system,
+  in the clear (DPDP exposure). **Census: 9/9 employee PANs plaintext on dev; prod is the same
+  code path.** Fixed with a shared `panColumnsTolerant` helper now used by create, update AND
+  importVendors (one impl, can't drift — how the defect arose). **Behaviour change:** an
+  empty-string PAN on update now leaves the column untouched (can't clear a PAN via the form) —
+  judged acceptable. **⚠️ PAN-BACKFILL is an OPEN item, not built** — existing plaintext rows need
+  in-process re-encryption (needs APP_SECRET + pepper; a `.sql` can't do it); idempotent, safe to
+  defer (decryptPan reads plaintext through); needs snapshot + dry-run + verify.
+- **Null salary structure silently dropped the employee from payroll** (inner join + `continue`) —
+  unpaid, no warning. Now a separate lookup flags each structure-less active employee by name
+  through the run `errors[]` channel. Both found scoping the employee importer. Full detail +
+  the importVendors-tolerance correction in `reports/fix-plan.md` → "PAN-at-rest… (2026-08-08)".
 
 ### Platform — per-org seed reconciler (SEED-DRIFT, this commit)
 - **Startup seed reconciler** (`apps/api/src/lib/seed-reconciler.ts`) — closes the
