@@ -32,6 +32,9 @@ export const indiaSchema = z.object({
   cin: z.string().length(21).regex(/^[L|U]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/, "Invalid CIN"),
   tan: z.string().length(10).regex(/^[A-Z]{4}[0-9]{5}[A-Z]{1}$/, "Invalid TAN"),
   pf: z.string().min(1),
+  /** ESIC employer establishment code. Optional — not every org is ESI-registered
+   *  (registration triggers at 10+ employees). Rendered on the payslip when present. */
+  esi: z.string().min(1).optional(),
   stateCode: z.string().length(2),
   /** AATO in rupees — drives the GSTR-1 HSN digit rule. Optional at onboarding. */
   annualAggregateTurnover: z.number().nonnegative().optional(),
@@ -242,6 +245,7 @@ export const onboardingRouter = router({
         cin: leRow?.cin ?? "",
         tan: orgRow.tan ?? "",
         pf: orgRow.epfCode ?? "",
+        esi: orgRow.esiEstablishmentNumber ?? "",
         stateCode: orgRow.primaryStateCode ?? "",
         annualAggregateTurnover:
           orgRow.annualAggregateTurnover != null ? Number(orgRow.annualAggregateTurnover) : null,

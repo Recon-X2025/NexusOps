@@ -160,6 +160,7 @@ interface IndiaData {
   cin: string;
   tan: string;
   pf: string;
+  esi: string;
   stateCode: string;
   annualAggregateTurnover: string;
   seedHolidays: boolean;
@@ -196,6 +197,7 @@ function IndiaSetupStep({ data, onChange, onNext, onBack, loading }: {
           { k: "cin",   l: "CIN *",   ph: "U74999KA2020PTC123456", hint: "21-char Company Identification Number" },
           { k: "tan",   l: "TAN (TDS) *", ph: "BLRE12345A",  hint: "10-character TAN for TDS filing" },
           { k: "pf",    l: "EPF Establishment Code *", ph: "KA/BNG/12345/000/0001", hint: "" },
+          { k: "esi",   l: "ESI Establishment No.", ph: "12000123450000999", hint: "ESIC employer code — leave blank if not ESI-registered" },
           { k: "stateCode", l: "Primary State Code *", ph: "MH", hint: "2-letter ISO 3166-2:IN code" },
         ].map(f => (
           <div key={f.k}>
@@ -394,7 +396,7 @@ export default function OnboardingWizardPage() {
   });
 
   const [indiaData, setIndiaData] = useState<IndiaData>({
-    gstin: "", pan: "", cin: "", tan: "", pf: "", stateCode: "KA",
+    gstin: "", pan: "", cin: "", tan: "", pf: "", esi: "", stateCode: "KA",
     annualAggregateTurnover: "",
     seedHolidays: true, seedCoa: true,
   });
@@ -434,6 +436,7 @@ export default function OnboardingWizardPage() {
           cin: data.india.cin ?? "",
           tan: data.india.tan ?? "",
           pf: data.india.pf ?? "",
+          esi: data.india.esi ?? "",
           stateCode: data.india.stateCode ?? "KA",
           annualAggregateTurnover:
             data.india.annualAggregateTurnover != null ? String(data.india.annualAggregateTurnover) : "",
@@ -616,6 +619,8 @@ export default function OnboardingWizardPage() {
           cin: indiaData.cin,
           tan: indiaData.tan,
           pf: indiaData.pf,
+          // Optional: omit when blank (the schema is `.min(1).optional()`; "" would fail).
+          esi: indiaData.esi.trim() || undefined,
           stateCode: indiaData.stateCode,
           annualAggregateTurnover: indiaData.annualAggregateTurnover.trim()
             ? Number(indiaData.annualAggregateTurnover)

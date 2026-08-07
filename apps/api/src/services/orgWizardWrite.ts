@@ -33,6 +33,7 @@ export async function writeWizardData(
       cin?: string;
       tan?: string;
       pf?: string;
+      esi?: string;
       stateCode?: string;
       annualAggregateTurnover?: number;
     };
@@ -100,6 +101,7 @@ export async function writeWizardData(
       }
       if (input.india.tan !== undefined) updateFields.tan = input.india.tan;
       if (input.india.pf !== undefined) updateFields.epfCode = input.india.pf;
+      if (input.india.esi !== undefined) updateFields.esiEstablishmentNumber = input.india.esi;
       if (input.india.stateCode !== undefined) updateFields.primaryStateCode = input.india.stateCode;
       if (input.india.annualAggregateTurnover !== undefined) {
         updateFields.annualAggregateTurnover = String(input.india.annualAggregateTurnover);

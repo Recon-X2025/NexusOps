@@ -4245,3 +4245,97 @@ computes; H1-flipped-to-August flags on the unelapsed tail (proves the constant 
 H2/Feb flags on the March tail even with complete history; DATA-cause flags naming the missing month;
 Karnataka monthly + Feb ₹300 and Delhi silent nil unchanged. Red-before proven twice (disable the
 levy branch → 11 fail; disable the tail check → the 2 timing tests fail). `pnpm lint` 9/9.
+
+---
+
+## C6 — payslip mandatory statutory fields (2026-08-08) — mostly render-wiring
+
+**What shipped.** The statutory payslip now carries the mandatory field set. C6 turned out to be
+largely **render-wiring, not the data-model build the plan implied**: the employee ingestion (PAN,
+UAN, ESI IP number, bank) and the tenant ingestion (TAN, EPF code, CIN via the India wizard) already
+existed; the data was stored and the PDF's field contract already supported most of it. The renderers
+were filling the hard parts with blanks and zeros. Wired:
+- **ESI** (employee + employer) read from the stored `payslips.esiEmployee`/`esiEmployer`.
+- **Tenant identity** — TAN, EPF code, CIN, and the **new ESI establishment number** — read from
+  `organizations` + `legalEntities` instead of `"—"`.
+- **Paid and LOP days** read from the stored `payslips.paidDays`/`lopDays` (the portal LOP badge now fires).
+- **Employee ESI IP number** added to the PDF contract and rendered next to PAN/UAN.
+- **Migration `0074_ambiguous_rick_jones`** — `organizations.esi_establishment_number` (nullable) —
+  plus the India-wizard schema, write path (`orgWizardWrite`), read path, and UI (optional field).
+
+**THE ESI RECONCILIATION DEFECT (a defect, not a feature — found by the C6 scoping pass, fixed here).**
+Both renderers — the statutory PDF (`buildPdfInput`) and the on-screen breakdown (`mapPayslipRow`) —
+**hardcoded `esiEmployee` and `esiEmployer` to 0**, while the printed **TOTAL deductions figure
+included ESI**. So for **any employee at or under ₹21,000**, the itemised deduction lines **did not
+sum to the total shown on their own payslip** — a document that contradicts itself. Across the seven
+pilots, every ESI-eligible employee would have received a self-contradicting payslip. Fixed: the ESI
+lines now read the stored contribution, so the lines reconcile to the total. A reconciliation test
+asserts the sum of the itemised lines equals the printed total (not merely that ESI is non-zero).
+
+**ROOT CAUSE + the shared builder.** The two renderers **independently hardcoded the same fields to
+the same wrong values** — each assembled a payslip view and each stubbed the hard parts. Fixing them
+separately would guarantee they drift again. So a **single shared payslip-view builder**
+(`apps/api/src/lib/payslip-view.ts`) now resolves the amounts, attendance and identity in one place,
+and both renderers read from it. A **cross-renderer consistency test** (same view → PDF input and
+portal row → assert equal field-for-field) is the guard against re-drift.
+
+**A15 DECISION TAKEN — shared payslip-view builder now, NOT a general document-header service.** A17's
+branded invoice/PO PDFs are **post go-live**; designing a general `resolveTenantDocumentHeader` around a
+consumer that does not exist yet risks the August date. The builder's tenant-identity portion is a
+self-contained sub-object, structured so it can be **lifted out cleanly later** when A17 arrives (a
+comment records this intent). This is the "decide whether they share one service before building three
+times" call the CA flagged — resolved as: build the payslip's now, lift it out when the second consumer is real.
+
+**ESI-member missing-identity warning (a run warning, deliberately NOT wizard validation).** The ESI
+establishment number (org) and ESI IP number (employee) are settable but **not required at intake** —
+not every org is ESI-registered, and hard validation would block onboarding three weeks before go-live
+when we do not yet know which pilots are ESI-registered. Instead, following the F-PT-NIL / PT-period
+pattern, the run flags it: when an employee the engine has made an **ESI member** (memberForPeriod, or a
+non-zero contribution) is missing either number, a per-member warning rides the `errors[]` channel,
+**naming whose number is missing** (org-level = a wizard fix; employee-level = an employee-record fix).
+A non-member with no IP number is correct and is **not** flagged.
+
+**CORRECTION TO THE RECORD.** The plan's claim that TAN and EPF code "have columns but no mutation sets
+them" is **stale**: `orgWizardWrite` sets **TAN, EPF code and CIN** via the India setup wizard.
+
+**Held (per owner instruction).** Org registered address (B17) — renders `city, state` today with a
+`TODO(CA)`, no column added on assumption. Company logo — skipped (needs a URL→Buffer fetch, not statutory).
+The ₹0 PT line already renders as a real ₹0 (unconditional) in both renderers, so a Kerala/TN employee's
+five non-collection months show a real ₹0 PT and the lump appears in the sixth — no change needed.
+
+**Tests (red before / green after).** `payslip-view.test.ts` (9, pure): ESI reconciliation (the
+headline), employer ESI, non-ESI reconciles, tenant identity from stored values (+ "—" fallback), ESI IP
+number, paid/LOP days from stored columns with the portal badge firing, and cross-renderer consistency.
+`esi-identity-warning.test.ts` (4, DB-backed): org-cause fires, employee-cause fires, both-present = no
+warning, non-member = no warning (the scoping proof). Red-before proven for both (revert ESI wiring →
+reconciliation fails; disable the warning → the two "fires" tests fail). `pnpm lint` 9/9.
+
+**MIGRATION VALIDATION (0074) against a real-data copy.** Validated against a **throwaway copy of the
+real dev DB** (port 5434, 1 real org), not the schema-shaped test DB: applied the exact `ADD COLUMN`
+statement, confirmed the column landed (text, nullable, NULL), the existing org row was untouched, and
+the schema diff was **exactly one line** (nothing else moved); dropped the copy.
+
+### C6 open items — needs the CA (unreachable ~48h)
+
+- **B17 address granularity** — full registered address vs. city/state on the payslip.
+- **ESI IP / establishment number format** — stored as free text; whether to validate the format.
+- **Half-yearly PT payslip note** — whether the ₹0 PT months should carry a "levied half-yearly,
+  collected in <month>" note (renders a bare ₹0 today).
+
+### ⚠️ DA — FLAGGED, larger than a payslip line (needs the CA + the customers)
+
+There is **no DA (dearness allowance) column** on the salary structure, so PF's `basicPlusDA` basis is
+reading **basic alone**. If **any pilot employee actually receives DA**, their PF contribution is
+**understated — a wrong statutory amount filed**, not merely a missing payslip line. The customers are
+being asked whether any of them pay DA. **If the answer is yes, this becomes a PF-engine correctness
+fix** (add DA to the structure + feed it into the PF wage base), not a payslip item. Do not treat the
+C6 payslip work as covering DA.
+
+### FOLLOW-UP (recorded, not built) — the dev DB is stale relative to head
+
+The dev DB (port 5434) is at roughly migration **0060** while the head is **0074**. The 0074 validation
+above still holds because 0074 is a **bare `ADD COLUMN` depending only on the `organizations` table**,
+which exists at 0060. But a **future migration touching anything added or altered after 0060 cannot be
+honestly validated against a copy this stale** — the copy would be missing the very objects the
+migration edits. **Bring the dev DB to head before the next migration** so real-data validation stays
+meaningful.

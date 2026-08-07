@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "esi_establishment_number" text;

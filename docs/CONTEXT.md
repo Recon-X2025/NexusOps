@@ -30,14 +30,15 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **LIVE / `origin/main` = `e886a9c`** (C2-STRUCT half-yearly PT: levy period + Kerala + Tamil
-  Nadu converted + full-period-or-flag guard + seven doc corrections; **no migration**).
-  **Confirmed LIVE** — CI run **`31147028089`** finished with all five jobs green **including
-  `Deploy to Vultr: success`** (see the exit-point line). Verify with `git rev-parse HEAD`.
-- **NOTE on local vs origin:** this **exit-point refresh is a docs-only commit kept LOCAL and
-  unpushed** (standing rule 6 — never a docs-only deploy); it reaches origin with the next code
-  change. So local `main` may read **one commit ahead** of `origin/main` (that one commit is
-  this bookkeeping-only doc update; the live code is `e886a9c` on both).
+- **HEAD is the C6 commit** (this commit — payslip mandatory statutory fields: shared
+  payslip-view builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number,
+  ESI-member missing-identity run warning; **migration `0074`**). Its deploy **rides CI on this
+  `main` push**; **advance the exit-point line to it once its `Deploy to Vultr` JOB is green.**
+  This push also carries `5116cce` (the C2-STRUCT exit-point bookkeeping doc commit that was
+  kept local). Verify HEAD with `git rev-parse HEAD`.
+- **`e886a9c` (C2-STRUCT half-yearly PT) is LIVE** — CI run **`31147028089`** finished with all
+  five jobs green **including `Deploy to Vultr: success`**. It is the **last VALIDATED deploy
+  before this commit**.
 - **`209e537` (seed reconciler)** was live via CI `31141327969`; **superseded by `e886a9c`**.
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
@@ -49,9 +50,9 @@ quoted here without checking._
   `gh run view <ci-run-id> --json jobs`.
 - **`9960fc9` (C3 ESI) was LIVE** via CI run `31137358633` — now **superseded by `209e537`**
   (above). Migrations auto-apply in prod via the `migrator` service before `api` starts.
-- **Migration head:** `0073_red_big_bertha` (`employees.esi_member` + `esi_member_period_start`).
-  Recent: `0069` AATO, `0070` B2CL threshold, `0071` credit/debit-note linkage,
-  `0072` financial-note flag, `0073` ESI membership state. (`e74bfca` also adds COA seed
+- **Migration head:** `0074_ambiguous_rick_jones` (`organizations.esi_establishment_number`, C6).
+  Recent: `0070` B2CL threshold, `0071` credit/debit-note linkage, `0072` financial-note flag,
+  `0073` ESI membership state, `0074` ESI establishment number. (`e74bfca` also adds COA seed
   account **4140** as seed data, not a migration; it reaches an org on re-seed/new-org and
   the note ledger posters return null gracefully if 4140 is absent.) Always re-confirm the
   live head from the last entry in `packages/db/drizzle/meta/_journal.json`.
@@ -61,7 +62,21 @@ quoted here without checking._
 Grouped by area; each item has full detail in `reports/fix-plan.md`.
 
 ### Payroll statutory
-- **C2-STRUCT half-yearly PT (this commit, no migration) — levy period + full-period-or-flag.**
+- **C6 payslip mandatory statutory fields (this commit, mig `0074`) — mostly render-wiring.**
+  The data (employee PAN/UAN/ESI-IP/bank; tenant TAN/EPF/CIN) already existed; the renderers filled
+  the hard parts with blanks/zeros. **Headline DEFECT fixed: both renderers hardcoded ESI to ₹0
+  while the printed TOTAL included it, so every ≤₹21,000 employee (all 7 pilots) got a payslip whose
+  itemised deductions didn't sum to its own total.** One **shared payslip-view builder** now feeds
+  both the PDF and the portal (a consistency test guards re-drift); ESI (emp+employer), TAN/EPF/CIN
+  + new **ESI establishment number** (mig `0074`), paid/LOP days, and ESI IP number all render from
+  stored values. Added a **run warning** when an ESI member lacks the org ESI est. number or their
+  own IP number (not wizard validation — onboarding stays unblocked). **A15 decision:** built a
+  payslip-view builder, NOT a general doc-header service (A17 is post-go-live); tenant portion lifts
+  out later. **⚠️ DA flagged:** no DA column → PF basis reads basic alone; if any pilot pays DA their
+  PF is understated (a filed wrong amount, not a display gap) — customers being asked. Full detail +
+  open CA items (B17 address, ESI format, half-yearly PT note) + the dev-DB-stale follow-up in
+  `reports/fix-plan.md` → "C6 … (2026-08-08)".
+- **C2-STRUCT half-yearly PT (`e886a9c`, no migration) — levy period + full-period-or-flag.**
   Kerala added, Tamil Nadu converted to half-yearly, both assessed on the WHOLE six-month
   income from payslip history or **flagged** (never a partial-period amount). Two flag causes —
   DATA (missing migration history) and TIMING (unelapsed period tail). **Key finding: H2's
@@ -196,9 +211,13 @@ C7 (GST) is **done**. The remaining go-live gates:
   reconciles. Open CA: H2 collection month, H1 Aug-vs-Sep, Kerala/Karnataka annualCaps.
 - **C3** — ✅ **DONE & DEPLOYED** (`9960fc9`, ESI six-month rule; superseded framing removed).
 - **C4** — PF ₹1,800 ceiling / VPF / joint-declaration override. **Verified: cap is correct
-  and enforced (both sides, basis Basic+DA); VPF is ABSENT and Para-26(6) has no ingestion —
-  those are a BUILD, not an "extend".**
-- **C6** — payslip mandatory statutory fields.
+  and enforced (both sides, basis Basic+DA — but DA is effectively 0: no DA component exists,
+  see the C6 DA flag); VPF is ABSENT and Para-26(6) has no ingestion — those are a BUILD, not
+  an "extend".**
+- **C6** — payslip mandatory statutory fields. **✅ DONE (this commit, mig `0074`)** — shared
+  payslip-view builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number,
+  ESI-member missing-identity run warning. **Still open (needs CA/customers):** DA (PF-basis
+  correctness if any pilot pays it), B17 address granularity, ESI number format, half-yearly PT note.
 - **A12-D** — LOP split-logic defect (CA correction, against shipped A12).
 
 Deferrable: C8 (tolerant filing-schema parsing), C9/A18 (Form 24Q → TRACES import).

@@ -3,7 +3,7 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, payslips, eq, and, or } from "@coheronconnect/db";
+import { employees, salaryStructures, payslips, organizations, eq, and, or } from "@coheronconnect/db";
 import {
   computeEmployeePayslip,
   ptPriorPeriodMonths,
@@ -291,6 +291,14 @@ export async function computePayrollRunTotals(
   // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — the period income each employee's
   // payslip history supports, only in a state's collection month (empty otherwise).
   const ptHalfYearlyMap = await buildPtHalfYearlyContext(db, orgId, rows, month, year);
+  // C6: the org's ESI employer establishment number — mandatory on the payslip for any ESI
+  // member. Resolved once; a missing value is surfaced per ESI-member employee below.
+  const [orgRow] = await db
+    .select({ esiEstablishmentNumber: organizations.esiEstablishmentNumber })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  const orgEsiEstablishmentNumber = orgRow?.esiEstablishmentNumber?.trim() || null;
 
   for (const { emp, st } of rows) {
     try {
@@ -343,6 +351,35 @@ export async function computePayrollRunTotals(
             `${causes.join("; and ")}. No PT was deducted. ` +
             `Supply the missing months' payroll and/or record this period's PT manually before locking.`,
         });
+      }
+
+      // C6: ESI is a member-only levy, and its two identity numbers are MANDATORY payslip
+      // fields for a member. They are settable but not required at intake (not every org is
+      // ESI-registered), so a member can slip through with a blank number that would print on
+      // a statutory payslip. Flag it per-member — naming WHOSE number is missing, because the
+      // fix differs: the establishment number is a wizard (org) field, the IP number is on the
+      // employee record. A non-member with no IP number is correct, so it is NOT flagged.
+      const esi = slip.statutoryDeductions.esi;
+      const isEsiMember = esi.memberForPeriod === true || Number(esi.employeeESI || 0) > 0;
+      if (isEsiMember) {
+        if (!orgEsiEstablishmentNumber) {
+          errors.push({
+            employeeId: emp.id,
+            message:
+              `Employee is an ESI member this period, but the ORGANISATION has no ESI establishment ` +
+              `number — a mandatory payslip field would print blank. Set it in the India setup wizard ` +
+              `(org-level fix).`,
+          });
+        }
+        if (!emp.esiIpNumber?.trim()) {
+          errors.push({
+            employeeId: emp.id,
+            message:
+              `Employee is an ESI member this period, but has no ESI IP number on their record — a ` +
+              `mandatory payslip field would print blank. Set the employee's ESI IP number ` +
+              `(employee-record fix).`,
+          });
+        }
       }
 
       totalGross += slip.grossEarnings;

@@ -36,6 +36,7 @@ import { decryptPan } from "../lib/pan";
 import { router, permissionProcedure, protectedProcedure } from "../lib/trpc";
 import { computeTax, computeHRAExemption, type EmployeeTaxProfile } from "../lib/india-tax-engine";
 import { computePayslipTaxFigures } from "../lib/payslip-tax";
+import { buildPayslipView, payslipViewToPortalRow } from "../lib/payslip-view";
 import { computeEmployeePayslip } from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
 import { resolveSalaryStructureForPeriod } from "../lib/india/salary-structure-resolver";
@@ -125,34 +126,15 @@ function taxComputationFromPayslip(p: typeof payslips.$inferSelect) {
 }
 
 function mapPayslipRow(p: typeof payslips.$inferSelect) {
-  return {
+  // C6: read from the SHARED payslip view (no tenant identity — the portal shows amounts +
+  // attendance only) so the on-screen breakdown and the statutory PDF cannot drift. This is
+  // where ESI and LOP were previously hardcoded to 0; the builder reads the stored columns.
+  const view = buildPayslipView({ slip: p });
+  return payslipViewToPortalRow(view, {
     id: p.id,
-    month: p.month,
-    year: p.year,
-    basicEarned: Number(p.basic || 0),
-    hraEarned: Number(p.hra || 0),
-    specialAllowance: Number(p.specialAllowance || 0),
-    lta: Number(p.lta || 0),
-    overtime: 0,
-    arrears: 0,
-    bonus: Number(p.bonus || 0),
-    otherEarnings: 0,
-    grossEarnings: Number(p.grossEarnings || 0),
-    employeePF: Number(p.pfEmployee || 0),
-    employeeESI: 0,
-    professionalTax: Number(p.professionalTax || 0),
-    lwf: Number(p.lwf || 0),
-    tds: Number(p.tds || 0),
-    otherDeductions: 0,
-    totalDeductions: Number(p.totalDeductions || 0),
-    netPay: Number(p.netPay || 0),
-    ytdGross: Number(p.ytdGross || 0),
-    ytdPF: Number(p.ytdPf || 0),
-    ytdTDS: Number(p.ytdTds || 0),
-    ytdNetPay: Number(p.ytdNet || 0),
     taxComputation: taxComputationFromPayslip(p),
     pdfUrl: p.pdfUrl,
-  };
+  });
 }
 
 function buildTaxProfileFromEmployee(args: {

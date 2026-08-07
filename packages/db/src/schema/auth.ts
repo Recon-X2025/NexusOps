@@ -63,6 +63,13 @@ export const organizations = pgTable(
     panMaskedDisplay: text("pan_masked_display"),
     tan: text("tan"),
     epfCode: text("epf_code"),
+    /**
+     * ESI (Employees' State Insurance) employer establishment code — the 17-digit code
+     * ESIC issues to a registered employer. Mandatory on the payslip for any ESI-covered
+     * employee. Nullable: not every org is ESI-registered (registration is triggered at
+     * 10+ employees), and it is set via the India setup wizard alongside TAN / EPF code.
+     */
+    esiEstablishmentNumber: text("esi_establishment_number"),
     primaryStateCode: text("primary_state_code"),
     /**
      * Annual Aggregate Turnover (AATO) in rupees — the PAN-level turnover of the

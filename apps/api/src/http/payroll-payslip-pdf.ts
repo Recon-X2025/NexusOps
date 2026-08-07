@@ -1,93 +1,20 @@
 /**
  * Authenticated HTTP download for employee payslip PDF (employee self-service).
  * Proxied from Next.js at `/api/payroll/payslip-pdf/[id]`.
+ *
+ * Assembles the statutory PDF from the SHARED payslip view (`lib/payslip-view.ts`) so it can
+ * never drift from the on-screen breakdown (`payroll.ts` mapPayslipRow), which reads the same
+ * builder. Tenant identity (TAN / PF code / CIN / ESI est. no. / address) comes from the org +
+ * legal-entity rows; amounts and attendance come from the stored payslip row.
  */
 
 import type { FastifyInstance } from "fastify";
-import { and, eq, payslips, employees, users } from "@coheronconnect/db";
+import { and, eq, payslips, employees, users, organizations, legalEntities } from "@coheronconnect/db";
 import { createContext } from "../middleware/auth";
-import { generatePayslipPDF, amountInWords, type PayslipPDFInput } from "../services/payslip-pdf";
+import { generatePayslipPDF } from "../services/payslip-pdf";
+import { buildPayslipView, payslipViewToPdfInput } from "../lib/payslip-view";
 import { computePayslipTaxFigures } from "../lib/payslip-tax";
 import { decryptPan } from "../lib/pan";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function maskBank(acct: string | null | undefined): string {
-  if (!acct || acct.length < 4) return "—";
-  return `XXXX${acct.slice(-4)}`;
-}
-
-function buildPdfInput(args: {
-  orgName: string;
-  slip: typeof payslips.$inferSelect;
-  emp: typeof employees.$inferSelect;
-  userName: string;
-}): PayslipPDFInput {
-  const { orgName, slip, emp, userName } = args;
-  const m = slip.month;
-  const y = slip.year;
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const gross = Number(slip.grossEarnings || 0);
-  const net = Number(slip.netPay || 0);
-  const regime =
-    slip.taxRegimeUsed === "old" ? "Old regime" : slip.taxRegimeUsed === "new" ? "New regime" : String(slip.taxRegimeUsed ?? "new");
-
-  // PT2: read the annual tax figures from the same engine-backed helper the on-screen
-  // payslip uses, so the PDF and the screen agree. The old inline math re-derived annual
-  // tax as `monthlyTDS × 12` and taxable income as `gross × 12 − ₹75,000` — the latter
-  // hardcoded the standard deduction and omitted professional tax entirely.
-  const taxFigures = computePayslipTaxFigures(slip);
-
-  return {
-    companyName: orgName,
-    companyAddress: "",
-    tanNumber: "—",
-    pfEstablishmentCode: "—",
-    employeeName: userName,
-    employeeCode: emp.employeeId ?? String(emp.id).slice(0, 8),
-    designation: emp.title ?? "—",
-    department: emp.department ?? "—",
-    pan: emp.pan ?? "—",
-    uan: emp.uan ?? "—",
-    bankAccount: maskBank(emp.bankAccountNumber ?? undefined),
-    month: `${MONTHS[(m - 1 + 12) % 12]!} ${y}`,
-    daysInMonth,
-    daysWorked: daysInMonth,
-    lopDays: 0,
-    basicEarned: Number(slip.basic || 0),
-    hraEarned: Number(slip.hra || 0),
-    specialAllowance: Number(slip.specialAllowance || 0),
-    lta: Number(slip.lta || 0),
-    conveyance: Number(slip.conveyanceAllowance || 0),
-    medical: Number(slip.medicalAllowance || 0),
-    overtime: 0,
-    arrears: 0,
-    bonus: Number(slip.bonus || 0),
-    otherEarnings: 0,
-    grossEarnings: gross,
-    employeePF: Number(slip.pfEmployee || 0),
-    employeeESI: 0,
-    professionalTax: Number(slip.professionalTax || 0),
-    lwf: Number(slip.lwf || 0),
-    tds: Number(slip.tds || 0),
-    otherDeductions: 0,
-    totalDeductions: Number(slip.totalDeductions || 0),
-    netPay: net,
-    netPayWords: amountInWords(net),
-    employerPF: Number(slip.pfEmployer || 0),
-    employerESI: 0,
-    ytdGross: Number(slip.ytdGross || 0),
-    ytdPF: Number(slip.ytdPf || 0),
-    ytdTDS: Number(slip.ytdTds || 0),
-    ytdNetPay: Number(slip.ytdNet || 0),
-    taxRegime: regime,
-    taxableIncome: taxFigures.taxableIncome,
-    totalTaxLiability: taxFigures.totalTaxLiability,
-  };
-}
 
 export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
   fastify.get<{ Params: { id: string } }>(
@@ -103,7 +30,7 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
         return reply.status(400).send("Invalid payslip id");
       }
 
-      const { db, org, user } = ctx;
+      const { db } = ctx;
       const orgId = ctx.orgId;
       const userId = ctx.user.id as string;
 
@@ -119,18 +46,45 @@ export function registerPayrollPayslipPdfRoute(fastify: FastifyInstance): void {
         return reply.status(404).send("Payslip not found");
       }
 
-      const orgName = (org as { name?: string }).name ?? "Organization";
+      // Tenant identity: org (name/address/TAN/PF/ESI est. no.) + legal entity (CIN).
+      const [orgRow] = await db
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, orgId))
+        .limit(1);
+      const [leRow] = await db
+        .select()
+        .from(legalEntities)
+        .where(eq(legalEntities.orgId, orgId))
+        .limit(1);
+
       const userName = (row.userRow.name as string) || "Employee";
-
       // Decrypt the stored (envelope) PAN for the payslip; legacy plaintext rows read through.
-      const employeePan = await decryptPan(row.emp.pan);
+      const decryptedPan = await decryptPan(row.emp.pan);
 
-      const pdfInput = buildPdfInput({
-        orgName,
+      // PT2: annual tax figures from the same engine-backed helper the on-screen payslip uses,
+      // so the PDF and the screen agree.
+      const taxFigures = computePayslipTaxFigures(row.slip);
+
+      const view = buildPayslipView({
         slip: row.slip,
-        emp: { ...row.emp, pan: employeePan ?? null },
-        userName,
+        identity: {
+          org: {
+            name: orgRow?.name,
+            city: orgRow?.city,
+            state: orgRow?.state,
+            tan: orgRow?.tan,
+            epfCode: orgRow?.epfCode,
+            esiEstablishmentNumber: orgRow?.esiEstablishmentNumber,
+          },
+          legalEntity: leRow ? { cin: leRow.cin } : null,
+          employee: row.emp,
+          userName,
+          decryptedPan: decryptedPan ?? null,
+        },
       });
+
+      const pdfInput = payslipViewToPdfInput(view, taxFigures);
 
       try {
         const buffer = await generatePayslipPDF(pdfInput);

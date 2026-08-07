@@ -27,6 +27,8 @@ export interface PayslipPDFInput {
   companyLogo?: Buffer; // PNG/JPEG buffer
   tanNumber: string;
   pfEstablishmentCode: string;
+  cin: string; // Company Identification Number (from legal entity)
+  esiEstablishmentNumber: string; // ESIC employer establishment code
   // Employee
   employeeName: string;
   employeeCode: string;
@@ -34,6 +36,7 @@ export interface PayslipPDFInput {
   department: string;
   pan: string;
   uan: string;
+  esiIpNumber: string; // Employee ESI Insurance Person (IP) number
   bankAccount: string; // Masked: XXXX1234
   // Period
   month: string; // "April 2026"
@@ -193,13 +196,12 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
       ["Employee Name", input.employeeName, "Employee Code", input.employeeCode],
       ["Designation", input.designation, "Department", input.department],
       ["PAN", input.pan, "UAN", input.uan],
-      ["Bank A/C", input.bankAccount, "Tax Regime", input.taxRegime],
-      ["Days in Month", String(input.daysInMonth), "Days Worked", String(input.daysWorked)],
+      ["ESI IP No.", input.esiIpNumber, "Bank A/C", input.bankAccount],
+      ["Tax Regime", input.taxRegime, "Days in Month", String(input.daysInMonth)],
+      // Paid vs unpaid days is a mandatory statutory field — always shown (real values from
+      // the stored attendance columns), not conditional on LOP being present.
+      ["Paid Days", String(input.daysWorked), "LOP Days", String(input.lopDays)],
     ];
-
-    if (input.lopDays > 0) {
-      detailRows.push(["LOP Days", String(input.lopDays), "", ""]);
-    }
 
     doc.fontSize(8).fillColor("#333333");
 
@@ -402,7 +404,8 @@ export async function generatePayslipPDF(input: PayslipPDFInput): Promise<Buffer
     doc.fontSize(7).font("Helvetica").fillColor("#999999");
     doc.text(
       "This is a computer-generated payslip and does not require a signature. " +
-      `TAN: ${input.tanNumber} | PF Est. Code: ${input.pfEstablishmentCode}`,
+      `TAN: ${input.tanNumber} | PF Est. Code: ${input.pfEstablishmentCode} | ` +
+      `ESI Est. No.: ${input.esiEstablishmentNumber} | CIN: ${input.cin}`,
       leftCol, y, { width: pageWidth }
     );
 
