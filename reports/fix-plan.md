@@ -69,7 +69,7 @@ it is the summary; the item is the source of truth.
 | A6 — custom-role save (collapse to five actions) | Phase 3 (A) | **Done** (commit `e5d74ea`; R-2 re-scoped + green) |
 | A9 — goods-receipt create path | Phase 3 (A) | API path **Done**; screen deferred (not closed) |
 | A7 — persist invoice line items | Phase 3 (A) | API path **Done**; **screen gap — not user-reachable** (see A7-SCREEN, prerequisite for C7) |
-| A7-SCREEN — invoice line-item entry screen | New — GST build | Pending — **prerequisite for C7** (Create Invoice form has no line-item entry) |
+| A7-SCREEN — invoice line-item entry screen | New — GST build | **DONE — shipped as M-07 (`497b24a`): invoice line-item entry form + per-line detail rendering.** Was the C7 prerequisite; GSTR-1 now groups on real per-line data. |
 | A8 — statutory challan create path | Phase 3 (A) | Pending |
 | B1 — first-response clock | Phase 3 pass (B) | Pending |
 | A11 — RLS wall migration (three tables) | Phase 3 (A) | **Done** (migration 0061; R-1 green) |
@@ -86,12 +86,12 @@ it is the summary; the item is the source of truth.
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
 | A12-D — LOP split-logic defect (CA correction) | New — Payroll | Pending (against shipped A12) |
 | C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking**. **Scope corrected (2026-08-05):** the **investment-declaration intake** (table + UI + effective-dated read path + Feb/March lapse spread) is a **prerequisite** and the **larger half** — shipping the election without it is actively harmful (OLD with zero declarations is taxed worse than NEW). See "Two records (2026-08-05)". |
-| C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates, red/green tested); **C2-STRUCT pending** — **payroll-blocking**: half-yearly levy period (Kerala/TN/Puducherry), gender ingestion, month-specific rates, full-population + explicit-nil, TIER-1 exemptions (none ingested). See C2 scope |
-| C3 — ESI six-month contribution-period rule | New — Payroll | **DONE (2026-08-06, local — not pushed)** — ASYMMETRIC: entry assessed EVERY month (non-member joins the month wages drop to/under ₹21k), exit only at the 1-Apr/1-Oct boundary (member retained on actual gross). Grossed-up eligibility for part-month joiners. Membership state on `employees` (mig `0073`). 20 tests. First build wrongly assumed symmetry — see "C3 correction (2026-08-06)" + the looks-symmetric-isn't pattern. |
+| C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates); **gender/DOB/Tier-1-exemption ingestion ✅ done** (mig `0066`, read by `computePT`); **half-yearly levy period ✅ shipped for the pilot** (Kerala added + Tamil Nadu converted + full-period-or-flag guard — see "C2-STRUCT half-yearly PT (2026-08-07)"). **C2-STRUCT still pending** (non-pilot / deferred): month-specific **March** rates, full state population + explicit-nil, per-employee **YTD-PT cap ledger**. See C2 scope |
+| C3 — ESI six-month contribution-period rule | New — Payroll | **DONE — shipped & deployed (`9960fc9`, mig `0073`; CI run `31137358633` `Deploy to Vultr` green).** ASYMMETRIC: entry assessed EVERY month (non-member joins the month wages drop to/under ₹21k), exit only at the 1-Apr/1-Oct boundary (member retained on actual gross). Grossed-up eligibility for part-month joiners. Membership state on `employees`. First build wrongly assumed symmetry — see "C3 correction (2026-08-06)" + the looks-symmetric-isn't pattern. |
 | C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
 | C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
-| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (`0069`), C7-2 B2CL Table 5 ₹1L (`0070`), C7-3 credit/debit notes Table 9 parts 1–4 (`0071`) + **part 5 credit-note ledger (contra-revenue reversal) + s.34 time-limit/value-cap/rate-in-force** (`0072`). POS no work (validation caveat); Table 11 advances + debit-note ledger + multi-invoice/inventory out-of-scope. See "C7 build log (2026-08-06)". |
+| C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (`0069`), C7-2 B2CL Table 5 ₹1L (`0070`), C7-3 credit/debit notes Table 9 parts 1–4 (`0071`) + **part 5 credit-note ledger (contra-revenue reversal) + s.34 time-limit/value-cap/rate-in-force** (`0072`). **Debit-note ledger SHIPPED (`e74bfca`, CA-ruled, seed acct 4140) — the earlier "out of scope" note was stale.** POS no work (validation caveat); Table 11 advances + multi-invoice/inventory out-of-scope. See "C7 build log (2026-08-06)" + "Debit-note ledger…(2026-08-06)". |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
 | DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
@@ -1598,11 +1598,12 @@ plan/record edit only.**
       state-law ceiling, not Gujarat's. Caps are per-state statutory values, not derivable
       from the monthly rate — see the note below.)*
     - **Maharashtra** — added the **female bracket set** (`MAHARASHTRA_FEMALE`: nil to ₹25,000,
-      then ₹200, ₹300 in Feb) **behind the lookup**. **KNOWN LIMITATION (documented, not
-      silent):** gender is not yet a field on the employee record, so `computePT` cannot select
-      it today — every Maharashtra employee still resolves to the **male** set. No gender default
-      is guessed; absent gender = male set applies. The female config lands atomically with
-      gender ingestion under C2-STRUCT.
+      then ₹200, ₹300 in Feb) **behind the lookup**. **UPDATE (2026-08-07): the earlier "gender is
+      not yet a field" limitation is CLOSED** — gender is ingested (`employees.gender`, mig `0066`;
+      both mutations + both dialogs) and `computePT` selects `MAHARASHTRA_FEMALE` on
+      `ctx.gender === "female"` (`statutory-deductions.ts:384`). An unstated gender still falls to
+      the male set per the CA (never under-deduct); no default is guessed. See the corrected
+      structural-break #2 note below.
     - **February generalised** — the hardcoded Maharashtra-only Feb-₹300 branch now covers
       Maharashtra (male + female) **and Karnataka**, firing only for the top (₹200) band.
     - **Verified states unchanged:** Telangana, West Bengal, Delhi confirmed correct — their
@@ -1633,12 +1634,25 @@ plan/record edit only.**
      the three (Kerala, Tamil Nadu) are pilot states**, so this blocks the pilot.
 
   2. **Gender-differentiated slabs.** **Maharashtra** has separate male/female brackets —
-     **male pays from ₹7,501; female pays nil up to ₹25,000.** **Gender is not a field on
-     the employee record** (verified — `employees` table `packages/db/src/schema/hr.ts:105-168`
-     has no gender column). Maharashtra is also the **silent default for every employee with
-     no state set** (`payroll-run-aggregates.ts:58`), so this is **wrong for female employees
-     today**, not just a future concern — every female employee is currently charged the male
-     Maharashtra slab.
+     **male pays from ₹7,501; female pays nil up to ₹25,000.**
+     > **✅ CORRECTED (2026-08-07) — gender, DOB and the three PT-exemption flags are COMPLETE,
+     > end to end.** This break's original claim ("gender is not a field on the employee record")
+     > is **stale**. A read-only sweep confirmed: `employees.gender` (+ `date_of_birth`,
+     > `pt_exempt_armed_forces`/`_disability`/`_dependent_disability`) exist, added by **migration
+     > `0066_calm_bloodstrike`** (`packages/db/src/schema/hr.ts:193-214`); **both** `hr.employees.create`
+     > **and** `update` accept and write them (`apps/api/src/routers/hr.ts:287-292/376-380` and
+     > `:426-430`); **both** Add and Edit dialogs have the inputs (`apps/web/src/app/app/hr/page.tsx`,
+     > gender select + DOB + exemption checkboxes); and **`computePT` reads them at runtime** —
+     > `MAHARASHTRA_FEMALE` is selected on `ctx.gender === "female"`
+     > (`statutory-deductions.ts:384`), the composite Tier-1 `exempt` (age-over-65 from DOB via
+     > `ageInYearsAt`, plus the three declared flags) is built in `computeEmployeePayslip`
+     > (`payroll-cycle.ts:319-327`) and bypasses PT. So a female Maharashtra employee is NO LONGER
+     > charged the male slab. The remaining C2-STRUCT work is the levy-period / half-yearly / cap
+     > items, **not** gender/DOB/exemption ingestion — that is done.
+
+     (Historical note, now false: Maharashtra was the silent default for a stateless employee and
+     the male slab applied to every female. Both are fixed — state is required at create, and
+     gender is read.)
 
   3. **Month-specific rates.** Several states levy a **different amount in one month of the
      year** to true-up to the annual cap: **Karnataka & Maharashtra ₹300 in February**;
@@ -2884,6 +2898,23 @@ state, metro, PAN, UAN, bank, ESI IP — is a column the mutation never writes, 
 schema default. Only the **salary structure** (`payroll.salaryStructures.upsert`) and the org tax
 IDs have any real input path, and the org path is itself partial.
 
+> **⚠️ POINT-IN-TIME SNAPSHOT (2026-08-04) — OVERTAKEN BY LATER INGESTION WORK (verified
+> 2026-08-07).** This table records what had "no way in" *as of 2026-08-04*. Since then the
+> employee create/update mutation and both dialogs gained the statutory determinants, so several
+> "No — not settable" rows below are **stale**. Corrected:
+> - **C2 employee `state`** — now **REQUIRED** at `hr.employees.create` and accepted at `update`
+>   (`apps/api/src/routers/hr.ts:273/415`); written to the record. The Maharashtra fallback is gone.
+> - **C1 `taxRegime`** (the election field itself) — now accepted + written (`hr.ts:277/418`).
+> - **C6 PAN, UAN, ESI IP number, bank (no./IFSC/name)** — now accepted + written
+>   (`hr.ts:279-285/419-425`); inputs exist on both dialogs.
+> - **(also) gender, DOB, the three PT-exemption flags** — accepted, written, read by `computePT`
+>   (see the corrected C2 structural-break #2 note above).
+>
+> **NOT corrected — still open exactly as written:** the **C1 investment-declaration rows** (80C /
+> 80D / 80CCD1B / 24b / HRA-exempt / rent) remain hardcoded `0` with no intake table — that was
+> **not** re-verified in the 2026-08-07 sweep and stands as the larger half of C1. Treat the
+> determinant/identity rows as closed and the declaration rows as open.
+
 ### The table
 
 **Settable today?** = can a user/admin supply it via any form, mutation, or config screen right
@@ -2996,8 +3027,12 @@ filed without tripping any alarm.
   **GUJARAT**. For the pilot's three states:
   - **Karnataka — present** (`statutory-deductions.ts:208`). ✅ data entry only.
   - **Tamil Nadu — present** (`statutory-deductions.ts:216`). ✅ data entry only.
-  - **Kerala — ABSENT.** ❌ A Kerala employee falls through to the unknown-state branch and gets
-    **PT = 0** filed (`statutory-deductions.ts:269-270`), which is wrong — Kerala levies PT
+  - **Kerala — was ABSENT (NOW ADDED, 2026-08-07 — see the C2-STRUCT half-yearly build below).**
+    ❌ (as of 2026-08-04) A Kerala employee fell through to the unknown-state branch and got
+    **PT = 0** — but **NOT silently: F-PT-NIL had already made that ₹0 carry an `unknownState`
+    flag that raises a per-employee run warning** (the "filed silently" characterisation was
+    wrong; the run surfaced it before locking). Kerala now has its own half-yearly slabs, so it no
+    longer hits the unknown-state branch at all. Still wrong at 2026-08-04 because Kerala levies PT
     half-yearly. (Kerala appears only in `LWF_RATES`, `statutory-deductions.ts:303`, which is a
     different levy.) **Therefore C2 for the pilot is an engineering task** — add the Kerala PT slab
     set — **not merely populating a config with an existing schema.** Flagged as blocking for any
@@ -3049,18 +3084,27 @@ above as verified for FY 2025-26 and **provisionally** carried into FY 2026-27.
 
 ### D. NEW DEFECT — s.87A MARGINAL RELIEF at the rebate threshold (separate from surcharge relief)
 
+> **✅ CLOSED — VERIFIED PRESENT (2026-08-07). Not a defect; it shipped.** A read-only
+> verification sweep confirmed the rebate-cliff relief **is implemented and test-proven**, and has
+> been since the **PT5** increment (`7b2f0e6`; CONTEXT.md records "PT3/PT5 … surcharge cap + s.87A
+> marginal relief"). It lives in `computeTax` **Step 5b**
+> (`packages/payroll-math/src/tax-engine.ts:354-371`): when the ₹60,000 rebate drops away above
+> ₹12,00,000 taxable, tax is capped at the income earned above the threshold (₹12,00,001 → ₹1).
+> It is a **separate mechanism** from surcharge marginal relief (Step 6), at a different threshold —
+> not the surcharge relief wearing a different hat. Proven by the dedicated `PT5 — Section 87A
+> rebate marginal relief` block in `apps/api/src/__tests__/india-payroll-engine.test.ts:140-191`
+> (nil at ₹12L; ₹1 at ₹12,00,001; ₹50,000 at ₹12,50,000; relief tapering out ~₹12.72L; liability
+> never falls crossing the cliff). The "verify → defect if absent, never verified" framing below is
+> **stale** — the item was already closed under the PT5 label; it was simply never reconciled here.
+
 The CA raised this at the wrong threshold, but **the concept is real and independent of surcharge
 marginal relief.** Just above the rebate limit (₹12,00,000 taxable, new regime), **the tax must not
 exceed the amount of income earned above the limit.** Without it, an employee at **₹12,05,000**
 taxable faces a **cliff**: losing the full ₹60,000 rebate on ₹5,000 of extra income.
 
-- **Action:** confirm whether the engine implements marginal relief **on the rebate at ₹12,00,000**,
-  **separately** from marginal relief on surcharge (section B above). The two are different
-  mechanisms at different thresholds.
-- **If absent → record as a defect (cliff at the rebate boundary).** This is a **new item**,
-  distinct from PT3 (surcharge) and from the surcharge marginal-relief check in section B.
-- _(Open verification item — no code change here. If confirmed absent, it is payroll-blocking for
-  any employee with taxable income just above ₹12L.)_
+- **Verified present (see the CLOSED banner above):** the engine implements marginal relief **on the
+  rebate at ₹12,00,000** (Step 5b), **separately** from marginal relief on surcharge (section B).
+- ~~If absent → record as a defect.~~ **Not absent.** Confirmed implemented under PT5.
 
 ### E. CA RULINGS — recorded verbatim in intent (resolve open questions above)
 
@@ -3129,8 +3173,9 @@ Each ruling below is the CA's authoritative answer. Cross-references point to th
 
 ### F. THREE FAILURE POINTS the CA flagged — all NEW to the plan
 
-1. **s.87A marginal relief above the rebate threshold** — see section D above. Cliff at ₹12,00,001
-   taxable if absent. **New defect (verify → defect if absent).**
+1. **s.87A marginal relief above the rebate threshold** — see section D above. **✅ CLOSED —
+   verified present (2026-08-07), shipped under PT5 at `tax-engine.ts:354-371` (Step 5b),
+   test-proven. Not a defect.**
 2. **LWF collection cycles are ASYNCHRONOUS.** Some states monthly; **Maharashtra strictly twice
    yearly (June and December).** **Action: check what the engine assumes** for Labour Welfare Fund
    timing (`LWF_RATES`, `statutory-deductions.ts:303`) — if it treats LWF as uniformly monthly it
@@ -4123,3 +4168,80 @@ addition), so it does **not** belong in the seed reconciler as-is. Options to we
 (a) a scheduled job that seeds the upcoming year for every org before 1 Jan; (b) lazy
 seed-on-first-read for the requested year; (c) fold a *year-parameterised* holiday
 reconciler into the registry. **Not in scope for the reconciler build; tracked here.**
+
+---
+
+## C2-STRUCT half-yearly PT (2026-08-07) — levy period + full-period-or-flag
+
+**What shipped.** The professional-tax engine gained a **levy period** per state
+(`packages/payroll-math/src/statutory-deductions.ts`). Kerala and Tamil Nadu are now
+**half-yearly**; every other state stays monthly (unchanged). Specifically:
+- **A `levyPeriod` field** on each state's slab config (absent ⇒ monthly, so nothing else moved).
+- **Kerala added** from the CA matrix as half-yearly income bands (nil ≤ ₹11,999 … ₹600 above
+  ₹60,000). It no longer falls through the unknown-state branch.
+- **Tamil Nadu converted** to half-yearly — the amounts were already correct; only the income base
+  (half-yearly, not monthly) and the timing (once per period, not every month) were wrong before.
+- **Half-yearly income is derived from PAYSLIP HISTORY**, not a new table (same reasoning as C3/ESI):
+  the run sums the period's earlier months from `payslips` (`buildPtHalfYearlyContext` in
+  `apps/api/src/services/payroll-run-aggregates.ts`). Establish-question answered: no migration.
+- **FULL-PERIOD-OR-FLAG guard (the correctness core).** PT is assessed on the WHOLE six-month
+  period **or it flags and deducts ₹0** — it NEVER computes from a partial period (a lower income
+  lands in a lower bracket → silent under-collection, the employer's liability). "Partial" has two
+  causes, reported distinctly in the run warning (`errors[]`, the F-PT-NIL channel):
+  - **DATA** — an earlier period month is missing from history (migration gap).
+  - **TIMING** — a later period month has not yet elapsed (collection before the period end).
+  Single code path (`assessHalfYearlyPtAtCollection`); both `computePT` and the run go through it.
+  The two preview paths supply no period context and therefore also land in the flag branch — no
+  path reaches a computed amount from an incompletely-assessed period.
+- **Deposit-month constants** (`PT_HALF_YEARLY_DEPOSIT_MONTH`): H1 → Sep (6), H2 → Feb (11),
+  CA-pending, with a warning comment that a collection month earlier than the period end forces a
+  flag (correctness, not just timing).
+- **Also in this pass:** the two stale `MAHARASHTRA_FEMALE`-unreachable comments corrected (gender
+  selection is live), and the seven fix-plan/CONTEXT doc corrections recorded 2026-08-07.
+
+**THE KEY FINDING — H2 cannot be fully assessed under either CA-stated collection month.** The CA
+said Oct–Mar is collected "in January **or** February" — **both precede the H2 period end (March)**.
+So at collection time the six-month income is not yet known, and the guard flags (timing). Worked
+example (Tamil Nadu, ₹12,000/month): the **six-month** income is **₹72,000** → the **₹1,025** band,
+but **five months** (Oct–Feb) reads **₹60,000** → the **₹690** band — a ₹335 silent under-collection
+if assessed early. The engine refuses that and flags instead.
+
+**OPERATIONAL CONSEQUENCE — Kerala & Tamil Nadu PT is NOT automated in either period for the first
+cycle** (two of the three levying pilot states; Karnataka is monthly and fine, Delhi levies none):
+- **H1 (Apr–Sep)** flags on **missing migration history** — the pilots' first in-system run lands in
+  Aug/Sep with no Apr–Jul payslips (DATA cause).
+- **H2 (Oct–Mar)** flags on the **unelapsed March tail** under the Feb default (TIMING cause).
+Both are **handled manually** (record the period's PT by hand, or await the CA) until the CA answers.
+The run surfaces a per-employee warning naming the exact months and the cause each cycle.
+
+**Open CA questions (resolve before the first live half-yearly cycle):**
+1. **H2 reconciliation** — the Jan/Feb collection window precedes the March period end, so H2 cannot
+   be auto-assessed. Either collect in March, or rule the explicit assessment basis. Until then H2
+   flags for manual handling (never a guessed amount).
+2. **H1 Aug vs Sep** — default is Sep (period end, fully assessable). **August would flag** every
+   cycle (September tail unelapsed) — safe, not silently wrong, and proven by test. One-line change
+   in the constant table when the CA answers.
+3. **Kerala's `annualCap`** — encoded as `0`, a deliberate "unverified / not yet ruled" sentinel
+   (NOT a statutory figure, NOT "no PT"). Caps must not be derived from the rate (Punjab ₹2,400 vs
+   Gujarat ₹2,500). Inert today (no YTD ledger); `0` only slightly over-withholds TDS (recoverable).
+4. **Karnataka's `annualCap` ₹2,400 vs ₹2,500** — still with the CA; left untouched.
+5. **Mid-period joiner AND leaver treatment** — see below.
+
+**Mid-period joiners currently flag alongside migration gaps — deliberate.** The completeness check
+requires every earlier period month on record; a legitimate mid-period joiner (no earlier payroll,
+correctly) is therefore flagged just like a migration gap. This is the **loud-over-wrong** direction:
+better a recoverable flag than a silently-small filed amount. Excluding pre-join months from the
+required set (so genuine joiners don't false-flag), and the symmetric **leaver** case, are a **later
+refinement**, not this pass.
+
+**Not in scope (unchanged from the scoping pass):** gender-split slabs beyond Maharashtra (done and
+irrelevant to the pilot cohort), the other ~20 states + explicit non-levying markers, March-rate
+states (no pilot state needs one), and the cross-state YTD-PT cap ledger (only bites on a mid-year
+interstate transfer, none reported).
+
+**Tests (red before / green after).** Pure engine `packages/payroll-math/src/pt-half-yearly.test.ts`
+(18) + run-path `apps/api/src/__tests__/pt-half-yearly-run.test.ts` (4, DB-backed): full-period
+computes; H1-flipped-to-August flags on the unelapsed tail (proves the constant is safe to edit);
+H2/Feb flags on the March tail even with complete history; DATA-cause flags naming the missing month;
+Karnataka monthly + Feb ₹300 and Delhi silent nil unchanged. Red-before proven twice (disable the
+levy branch → 11 fail; disable the tail check → the 2 timing tests fail). `pnpm lint` 9/9.

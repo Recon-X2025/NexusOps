@@ -193,6 +193,17 @@ export interface EmployeePayrollInput {
   ptExemptArmedForces?: boolean;
   ptExemptDisability?: boolean;
   ptExemptDependentDisability?: boolean;
+  /**
+   * Half-yearly PT support (Kerala, Tamil Nadu). Supplied by the run/write path, which has
+   * payslip history: `ptPeriodPriorGross` is the summed gross of the current six-month
+   * period's EARLIER months the system holds, and `ptPeriodMissingMonths` lists the required
+   * earlier FY months (1=Apr … 12=Mar) with no payslip on record. Consulted only for a
+   * half-yearly state in its collection month; a monthly state ignores them. Left undefined
+   * by preview callers — the engine then flags the period incomplete rather than assessing
+   * from one month.
+   */
+  ptPeriodPriorGross?: number;
+  ptPeriodMissingMonths?: number[];
   // Salary structure
   basicMonthly: number;
   hraMonthly: number;
@@ -324,6 +335,10 @@ export function computeEmployeePayslip(
       emp.ptExemptArmedForces === true ||
       emp.ptExemptDisability === true ||
       emp.ptExemptDependentDisability === true,
+    // Half-yearly PT (Kerala, Tamil Nadu): the caller's payslip-derived period income and any
+    // missing months. Undefined for monthly states and for previews that don't supply them.
+    periodPriorGross: emp.ptPeriodPriorGross,
+    periodMissingMonths: emp.ptPeriodMissingMonths,
   };
 
   // Steps 3-6: Statutory deductions

@@ -61,10 +61,14 @@ export interface ESIPeriodContext {
   eligibilityGross?: number;
 }
 
+/** How a state levies PT: every month, or once per six-month period on half-yearly
+ *  income (Kerala, Tamil Nadu, Puducherry). Absent on a slab config ⇒ MONTHLY. */
+export type PtLevyPeriod = "MONTHLY" | "HALF_YEARLY";
+
 export interface PTComputation {
   state: string;
   grossMonthly: number;
-  ptAmount: number; // Monthly PT deduction
+  ptAmount: number; // PT deducted THIS month (0 in a half-yearly state's non-collection months)
   annualPT: number;
   /** True when PT was bypassed under a CA Tier-1 exemption (armed forces / disability /
    *  dependent-disability / age > 65). ptAmount and annualPT are 0 in that case. */
@@ -76,6 +80,25 @@ export interface PTComputation {
    *  exists with empty slabs): that 0 is correct and stays silent. Callers use this to
    *  surface the row rather than file a plausible-wrong ₹0 nobody sees. */
   unknownState?: boolean;
+  /** Levy period of the resolved state (MONTHLY unless the config marks it HALF_YEARLY). */
+  levyPeriod?: PtLevyPeriod;
+  /** Half-yearly states only: true in the collection month when the FULL six-month lump was
+   *  assessed and deducted; false in the five non-collection months, and false when the
+   *  period could not be fully assessed (see `incompletePeriod`). */
+  deposited?: boolean;
+  /** Half-yearly collection month reached, but the WHOLE six-month period could not be
+   *  assessed — either its earlier months are missing from history, or its later months have
+   *  not yet elapsed (a collection month before the period end). PT is left at 0 and flagged
+   *  so the caller warns: the engine NEVER files an amount computed from a partial period,
+   *  which would silently under-collect (a lower income lands in a lower bracket). */
+  incompletePeriod?: boolean;
+  /** DATA cause — earlier period months (1=Apr … 12=Mar) with no payslip on record (e.g. a
+   *  migrated employer's first run). Set only when `incompletePeriod` is true. */
+  incompleteMissingMonths?: number[];
+  /** TIMING cause — later period months not yet elapsed at the collection month (the
+   *  collection month falls before the period ends). Set only when `incompletePeriod` is
+   *  true. Distinguished from the data cause because the operator response differs. */
+  incompleteUnelapsedMonths?: number[];
 }
 
 /**
@@ -90,6 +113,16 @@ export interface PTComputation {
 export interface PTContext {
   gender?: "male" | "female" | "other" | null;
   exempt?: boolean;
+  /** Half-yearly levy support (Kerala, Tamil Nadu). Supplied by the run/write path, which
+   *  holds payslip history. `periodPriorGross` = the summed gross of the current period's
+   *  EARLIER months that the system holds; `periodMissingMonths` = the required earlier FY
+   *  months (1=Apr … 12=Mar) with NO payslip on record. Consulted ONLY for a half-yearly
+   *  state in its collection month; ignored otherwise. If a half-yearly state reaches its
+   *  collection month and `periodPriorGross` was not supplied at all, the engine treats the
+   *  period as incomplete (flags it) rather than assessing from the current month alone —
+   *  so a caller that forgets to wire this up fails loud, never silently small. */
+  periodPriorGross?: number;
+  periodMissingMonths?: number[];
 }
 
 export interface LWFComputation {
@@ -154,7 +187,7 @@ export interface TaxConfigOverride {
 export interface StatutoryCeilingOverrides {
   pfWageCeiling?: number;
   esiWageCeiling?: number;
-  ptSlabs?: Record<string, { slabs: PTSlab[]; annualCap: number }>;
+  ptSlabs?: Record<string, { slabs: PTSlab[]; annualCap: number; levyPeriod?: PtLevyPeriod }>;
   lwfRates?: Record<
     string,
     { employee: number; employer: number; frequency: "HALF_YEARLY" | "ANNUAL" }
@@ -282,15 +315,16 @@ export function computeESI(
 
 // ─── PROFESSIONAL TAX ──────────────────────────────────────────────────────────
 
-const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
+const PT_SLABS: Record<
+  string,
+  { slabs: PTSlab[]; annualCap: number; levyPeriod?: PtLevyPeriod }
+> = {
   // Maharashtra is GENDER-SPLIT (CA matrix). MAHARASHTRA below is the MALE set and
   // remains the default. MAHARASHTRA_FEMALE is the female set — nil to ₹25,000, then
-  // ₹200 (₹300 in Feb). KNOWN LIMITATION: gender is not yet a field on the employee
-  // record, so computePT cannot select the female set today. The female config is
-  // populated here so it lands atomically with gender ingestion (C2-STRUCT); until
-  // then every Maharashtra employee resolves to the MALE brackets. We do NOT guess a
-  // gender default — absent gender means the existing male set applies (documented,
-  // not silent). See reports/fix-plan.md → C2.
+  // ₹200 (₹300 in Feb). Gender IS ingested now (employees.gender → PTContext.gender),
+  // and computePT selects the female set below when `ctx.gender === "female"`. An unstated
+  // gender falls to the MALE (lower-threshold) set per the CA — never under-deduct on an
+  // absent gender. See reports/fix-plan.md → C2 and the selection at computePT.
   MAHARASHTRA: {
     annualCap: 2_500,
     slabs: [
@@ -302,7 +336,7 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
   MAHARASHTRA_FEMALE: {
     annualCap: 2_500,
     slabs: [
-      // UNREACHABLE until gender ingestion lands (see comment above / C2-STRUCT).
+      // Reached when PTContext.gender === "female" (gender ingestion is live).
       { from: 0, to: 25_000, monthly: 0 },
       { from: 25_001, to: Infinity, monthly: 200 }, // Feb = 300 to hit 2500/yr
     ],
@@ -316,7 +350,12 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
     ],
   },
   TAMIL_NADU: {
+    // HALF-YEARLY levy (CA matrix). The bands below are HALF-YEARLY INCOME, and each
+    // `monthly` value is the PT for the whole half-year (a misnomer kept only so PTSlab
+    // stays one shape — for a half-yearly state it is the per-period lump, deducted once).
+    // Amounts were already correct; only the income base + timing were wrong before C2-STRUCT.
     annualCap: 2_500,
+    levyPeriod: "HALF_YEARLY",
     slabs: [
       { from: 0, to: 21_000, monthly: 0 },
       { from: 21_001, to: 30_000, monthly: 135 },
@@ -324,6 +363,30 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
       { from: 45_001, to: 60_000, monthly: 690 },
       { from: 60_001, to: 75_000, monthly: 1_025 },
       { from: 75_001, to: Infinity, monthly: 1_250 },
+    ],
+  },
+  KERALA: {
+    // HALF-YEARLY levy (CA matrix). Bands are HALF-YEARLY INCOME; each `monthly` is the
+    // per-period lump (see the TAMIL_NADU note on the field name).
+    //
+    // annualCap = 0 is a DELIBERATE "UNVERIFIED / NOT YET RULED" sentinel, NOT a statutory
+    // figure and NOT "Kerala levies no PT" (the six slabs above DO levy). Statutory caps are
+    // per-state values that must NOT be derived from the rate — cf. Punjab ₹2,400 vs Gujarat
+    // ₹2,500 in reports/fix-plan.md — so an earlier derived ₹1,200 (= 2 × the ₹600 top slab)
+    // was wrong to encode as if verified and has been removed. The cap is INERT today (no
+    // per-employee YTD-PT ledger enforces it — out of C2-STRUCT scope); annualCap flows only
+    // to the annual-PT estimate in the tax profile, where 0 slightly OVER-withholds TDS for an
+    // old-regime Kerala employee (the conservative, recoverable direction). ⚠️ OPEN CA
+    // QUESTION: Kerala's statutory annual PT ceiling — confirm before enforcing any cap.
+    annualCap: 0,
+    levyPeriod: "HALF_YEARLY",
+    slabs: [
+      { from: 0, to: 11_999, monthly: 0 },
+      { from: 12_000, to: 17_999, monthly: 120 },
+      { from: 18_000, to: 29_999, monthly: 180 },
+      { from: 30_000, to: 44_999, monthly: 300 },
+      { from: 45_000, to: 59_999, monthly: 450 },
+      { from: 60_000, to: Infinity, monthly: 600 },
     ],
   },
   TELANGANA: {
@@ -361,11 +424,156 @@ const PT_SLABS: Record<string, { slabs: PTSlab[]; annualCap: number }> = {
   },
 };
 
+/** Normalise a free-text state to the PT_SLABS key ("Tamil Nadu" → "TAMIL_NADU"). */
+function normalizePtStateKey(state: string): string {
+  return state.toUpperCase().replace(/\s+/g, "_");
+}
+
+// ── Half-yearly PT collection timing ───────────────────────────────────────────
+// Kerala, Tamil Nadu (and Puducherry, not yet slabbed / not a pilot state) levy PT once
+// per six-month period on the period's income. FY months: Apr=1 … Mar=12.
+//   H1 = Apr–Sep (FY months 1–6)   H2 = Oct–Mar (FY months 7–12)
+//
+// ⚠️ CA RULING PENDING — the CA said Apr–Sep is collected "in August or September" and
+// Oct–Mar "in January or February" but has NOT chosen between them. Values below take the
+// LATER month of each window (Sep = 6, Feb = 11).
+//
+// ⚠️⚠️ CORRECTNESS, NOT JUST TIMING — READ BEFORE EDITING A VALUE. PT is assessed on the
+// WHOLE six-month income. A collection month EARLIER THAN THE PERIOD END means the period's
+// later months have not elapsed yet, so the full income is unknown at collection time — the
+// engine then FLAGS (deducts ₹0, warns), it does NOT assess a partial period (a lower income
+// would fall into a lower bracket → silent under-collection, the employer's liability). So:
+//   • H1 = Sep (period end, month 6) ⇒ fully assessable. Changing H1 to Aug (month 5) makes
+//     it flag every time (Sep tail unelapsed) — safe, not silently wrong. Verified by test.
+//   • H2 = Feb (month 11) is BEFORE the H2 period end (Mar, month 12), so H2 ALWAYS flags
+//     under this default (March tail). Jan (month 10) would too. This is an OPEN CA QUESTION:
+//     the CA's stated H2 window (Jan/Feb) precedes the period end, so H2 PT cannot be
+//     auto-assessed until the CA reconciles "assess full period" with "collect before it
+//     ends" (e.g. collect in March, or rule an explicit basis). Until then H2 flags for
+//     manual handling — deliberately, never a guessed amount.
+// When the CA answers, change the number HERE (this one table); no other edit is needed.
+const PT_HALF_YEARLY_DEPOSIT_MONTH: Record<string, { h1: number; h2: number }> = {
+  KERALA: { h1: 6 /* Sep — AWAITING CA; alt Aug=5 (would flag) */, h2: 11 /* Feb — AWAITING CA; H2 flags until reconciled */ },
+  TAMIL_NADU: { h1: 6 /* Sep — AWAITING CA; alt Aug=5 (would flag) */, h2: 11 /* Feb — AWAITING CA; H2 flags until reconciled */ },
+};
+
+function ptHalfOf(monthInFY: number): "H1" | "H2" {
+  return monthInFY <= 6 ? "H1" : "H2";
+}
+function ptPeriodStartMonth(half: "H1" | "H2"): number {
+  return half === "H1" ? 1 : 7;
+}
+function ptPeriodEndMonth(half: "H1" | "H2"): number {
+  return half === "H1" ? 6 : 12;
+}
+/** The collection (deposit) FY month for `state`'s half-yearly period containing
+ *  `monthInFY`, or null when the state does not levy half-yearly. */
+function ptDepositMonth(stateKey: string, monthInFY: number): number | null {
+  const cfg = PT_HALF_YEARLY_DEPOSIT_MONTH[stateKey];
+  if (!cfg) return null;
+  return ptHalfOf(monthInFY) === "H1" ? cfg.h1 : cfg.h2;
+}
+
+/** Period months (1=Apr … 12=Mar) AFTER `collectionMonthInFY` within its half-yearly period —
+ *  the "unelapsed tail". Non-empty ⇒ the collection month falls before the period end, so the
+ *  full six-month income is not yet known and the assessment must flag (TIMING cause). Empty
+ *  only when the collection month IS the period end (Sep for H1, Mar for H2). Exposed so the
+ *  collection-month choice (a CA-pending constant) can be exercised directly in tests. */
+export function ptUnelapsedTailMonths(collectionMonthInFY: number): number[] {
+  const end = ptPeriodEndMonth(ptHalfOf(collectionMonthInFY));
+  const tail: number[] = [];
+  for (let m = collectionMonthInFY + 1; m <= end; m++) tail.push(m);
+  return tail;
+}
+
+/** The pure half-yearly PT decision AT a collection month. Assumes `monthInFY` is the
+ *  collection month. Assesses the whole six-month period: the earlier months' gross the caller
+ *  supplies (`priorGross`), any earlier month it could not find (`missingHistory`, DATA cause),
+ *  plus this month's `currentGross`. It refuses to assess unless the period is WHOLE — every
+ *  earlier month on record AND no unelapsed tail — returning a flag with the two causes named
+ *  separately. Exposed so the collection-month constant can be exercised directly (e.g. testing
+ *  that an August H1 collection flags on the unelapsed September tail). */
+export function assessHalfYearlyPtAtCollection(
+  monthInFY: number,
+  slabs: PTSlab[],
+  currentGross: number,
+  priorGross: number | null | undefined,
+  missingHistory: number[] | undefined,
+): {
+  ptAmount: number;
+  deposited: boolean;
+  incompletePeriod: boolean;
+  incompleteMissingMonths: number[];
+  incompleteUnelapsedMonths: number[];
+} {
+  const start = ptPeriodStartMonth(ptHalfOf(monthInFY));
+  // DATA cause: when the caller supplied NO prior income at all, treat every earlier period
+  // month as absent (a preview / unwired caller must fail loud, never assess from one month).
+  const missing =
+    priorGross == null
+      ? Array.from({ length: monthInFY - start }, (_, i) => start + i)
+      : missingHistory ?? [];
+  // TIMING cause: period months not yet elapsed at this collection month.
+  const unelapsed = ptUnelapsedTailMonths(monthInFY);
+
+  if (missing.length > 0 || unelapsed.length > 0) {
+    return {
+      ptAmount: 0,
+      deposited: false,
+      incompletePeriod: true,
+      incompleteMissingMonths: missing,
+      incompleteUnelapsedMonths: unelapsed,
+    };
+  }
+
+  // Whole period assessable: earlier months (all on record) + this month = the six-month income.
+  const halfYearlyIncome = Math.round((priorGross ?? 0) + currentGross);
+  let lump = 0;
+  for (const slab of slabs) {
+    if (halfYearlyIncome >= slab.from && halfYearlyIncome <= slab.to) {
+      lump = slab.monthly;
+      break;
+    }
+  }
+  return {
+    ptAmount: lump,
+    deposited: true,
+    incompletePeriod: false,
+    incompleteMissingMonths: [],
+    incompleteUnelapsedMonths: [],
+  };
+}
+
+/**
+ * The FY months (1=Apr … 12=Mar) whose PAYSLIP gross a caller must gather to assess
+ * half-yearly PT at `monthInFY` — the current period's months from the period start up to
+ * (but NOT including) `monthInFY` itself; the engine adds the current month's live gross.
+ *
+ * Returns `[]` for a MONTHLY state, and for a half-yearly state in any month that is NOT its
+ * collection month — so a caller can cheaply skip the payslip lookup except in the one month
+ * it matters. The caller sums the gross for the returned months, reports any it cannot find
+ * as `periodMissingMonths`, and passes both to `computePT` via `PTContext`.
+ *
+ * Levy period is read from the in-code PT_SLABS (a structural property of the state, not a
+ * DB-overridable rate), so this is stable regardless of any effective-dated slab override.
+ */
+export function ptPriorPeriodMonths(state: string, monthInFY: number): number[] {
+  const stateKey = normalizePtStateKey(state);
+  const config = PT_SLABS[stateKey];
+  if (!config || (config.levyPeriod ?? "MONTHLY") !== "HALF_YEARLY") return [];
+  const deposit = ptDepositMonth(stateKey, monthInFY);
+  if (deposit == null || monthInFY !== deposit) return [];
+  const start = ptPeriodStartMonth(ptHalfOf(monthInFY));
+  const months: number[] = [];
+  for (let m = start; m < monthInFY; m++) months.push(m);
+  return months;
+}
+
 export function computePT(
   grossMonthly: number,
   state: string,
   monthInFY: number, // 1=April, 12=March
-  overrides?: Record<string, { slabs: PTSlab[]; annualCap: number }>,
+  overrides?: Record<string, { slabs: PTSlab[]; annualCap: number; levyPeriod?: PtLevyPeriod }>,
   ctx?: PTContext
 ): PTComputation {
   // CA Tier-1 exemption: if the employee qualifies under ANY of the four paths
@@ -376,7 +584,7 @@ export function computePT(
     return { state, grossMonthly, ptAmount: 0, annualPT: 0, exempt: true };
   }
 
-  let stateKey = state.toUpperCase().replace(/\s+/g, "_");
+  let stateKey = normalizePtStateKey(state);
 
   // Maharashtra is gender-split. Select the female bracket set only for a stated
   // `female`; unstated or `other` falls through to the male set (MAHARASHTRA), the
@@ -400,6 +608,46 @@ export function computePT(
     return { state, grossMonthly, ptAmount: 0, annualPT: 0 };
   }
 
+  // Levy period is a STRUCTURAL property of the state, so read it from the in-code base
+  // config — never from an effective-dated slab override, which carries no levy period and
+  // would otherwise silently turn a half-yearly state monthly. Slabs/cap still come from
+  // the override (`config`) when one is present.
+  const levyPeriod: PtLevyPeriod =
+    (overrides?.[stateKey]?.levyPeriod ?? PT_SLABS[stateKey]?.levyPeriod) ?? "MONTHLY";
+
+  // ── HALF-YEARLY levy (Kerala, Tamil Nadu) ─────────────────────────────────────
+  // PT is assessed once per six-month period on the WHOLE period's income and collected in
+  // ONE month; the other five deduct nothing. The bracket lookup uses half-yearly income, not
+  // monthly gross. The assessment refuses to compute unless the whole period is available —
+  // every earlier month on record AND no unelapsed tail — so it can never under-collect from a
+  // partial period. See assessHalfYearlyPtAtCollection.
+  if (levyPeriod === "HALF_YEARLY") {
+    const deposit = ptDepositMonth(stateKey, monthInFY);
+    if (deposit == null || monthInFY !== deposit) {
+      // Not the collection month → nothing is deducted this month.
+      return { state, grossMonthly, ptAmount: 0, annualPT: config.annualCap, levyPeriod, deposited: false };
+    }
+    const a = assessHalfYearlyPtAtCollection(
+      monthInFY,
+      config.slabs,
+      grossMonthly,
+      ctx?.periodPriorGross,
+      ctx?.periodMissingMonths,
+    );
+    return {
+      state,
+      grossMonthly,
+      ptAmount: a.ptAmount,
+      annualPT: config.annualCap,
+      levyPeriod,
+      deposited: a.deposited,
+      incompletePeriod: a.incompletePeriod || undefined,
+      incompleteMissingMonths: a.incompleteMissingMonths.length > 0 ? a.incompleteMissingMonths : undefined,
+      incompleteUnelapsedMonths: a.incompleteUnelapsedMonths.length > 0 ? a.incompleteUnelapsedMonths : undefined,
+    };
+  }
+
+  // ── MONTHLY levy (the default) ────────────────────────────────────────────────
   let ptAmount = 0;
   const roundedGross = Math.round(grossMonthly);
   for (const slab of config.slabs) {
@@ -423,6 +671,7 @@ export function computePT(
     grossMonthly,
     ptAmount,
     annualPT: config.annualCap,
+    levyPeriod: "MONTHLY",
   };
 }
 

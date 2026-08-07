@@ -67,11 +67,14 @@ function makeEmp(overrides: Partial<EmployeePayrollInput> = {}): EmployeePayroll
 // ── (i) State reaches the engine — Kerala is NOT filed as Maharashtra ───────────
 describe("state ingestion: the Maharashtra fallback is gone", () => {
   it("a Kerala employee resolves PT for Kerala, not Maharashtra", () => {
-    // Kerala is not in the PT slab tables yet, so a correct engine returns nil for
-    // Kerala. The regression this guards: the old `state ?? 'Maharashtra'` fallback
-    // would have charged ₹200 Maharashtra PT on this ₹50,000 gross. Nil ≠ ₹200 proves
-    // the real state reached the engine.
-    expect(computePT(50_000, "Kerala", APR).ptAmount).toBe(0);
+    // Kerala is now a KNOWN half-yearly PT state (C2-STRUCT). April (FY month 1) is not its
+    // collection month, so nothing is deducted this month — a levied nil, NOT the old
+    // "absent state" nil (Kerala is no longer flagged unknownState). The regression this
+    // guards: the old `state ?? 'Maharashtra'` fallback would have charged ₹200 Maharashtra
+    // PT on this ₹50,000 gross. Nil ≠ ₹200 proves the real state reached the engine.
+    const kerala = computePT(50_000, "Kerala", APR);
+    expect(kerala.ptAmount).toBe(0);
+    expect(kerala.unknownState).toBeFalsy(); // recognised, not an unresolved state
     // Sanity: the same gross under Maharashtra DOES charge — so nil above is Kerala,
     // not a universally-zero engine.
     expect(computePT(50_000, "Maharashtra", APR).ptAmount).toBe(200);
@@ -259,8 +262,9 @@ describe("payroll-run-aggregates: state ingestion", () => {
     const { emp, struct } = await seedEmp({ state: "Kerala" });
     const input = buildEmployeePayrollInput(emp, struct, MONTH, YEAR);
     expect(input.state).toBe("Kerala");
-    // And the resulting slip charges Kerala PT (nil — Kerala is not in the slab tables),
-    // NOT the ₹200 the old Maharashtra fallback would have produced at this gross.
+    // And the resulting slip charges Kerala PT (nil — MONTH is May, a non-collection month
+    // for Kerala's half-yearly levy), NOT the ₹200 the old Maharashtra fallback would have
+    // produced at this gross.
     const slip = computeEmployeePayslip(input, calendarToFyMonth(MONTH));
     expect(slip.professionalTax).toBe(0);
   });

@@ -43,6 +43,7 @@ import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 import { computeRetainUntil } from "../lib/retention";
 import {
   buildEmployeePayrollInput,
+  buildPtHalfYearlyContext,
   calendarToFyMonth,
   computePayrollRunTotals,
   esiContributionPeriodStart,
@@ -440,6 +441,9 @@ const runsRouter = router({
       );
       // G8: derive LOP from attendance so unpaid absence reduces gross pay.
       const lopMap = await computeAttendanceLopForPeriod(db, org!.id, row.month, row.year);
+      // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — period income from payslip history,
+      // resolved before the transaction (reads earlier months, untouched by this run's delete).
+      const ptHalfYearlyMap = await buildPtHalfYearlyContext(db, org!.id, empRows, row.month, row.year);
 
       await db.transaction(async (tx) => {
         await tx.delete(payslips).where(eq(payslips.payrollRunId, input.runId));
@@ -455,7 +459,7 @@ const runsRouter = router({
         let newTotalTds = 0;
 
         for (const { emp, st } of empRows) {
-          const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id));
+          const empInput = buildEmployeePayrollInput(emp, st, row.month, row.year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id));
           const slip = computeEmployeePayslip(empInput, fyMonth, ceilings);
 
           // ESI six-month rule: persist the membership the engine assessed so later

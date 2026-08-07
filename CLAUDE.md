@@ -116,10 +116,19 @@ scripts no longer exist; the demo company must not be re-introduced. The base se
 
 ## Deploy
 
-- **Deploy Vultr** is a manual `workflow_dispatch` GitHub Action (`.github/workflows/deploy-vultr.yml`): rsync + `scripts/push-to-vultr.sh`.
+- **The primary deploy is automatic and rides CI — a push to `main` deploys.** `ci.yml`
+  on a `main` push runs Lint → Test → E2E → **Build** (`build` needs `[lint, test, e2e]`;
+  publishes GHCR images web+api tagged `latest` / `main` / 7-char SHA) → **`Deploy to
+  Vultr`** (the terminal `deploy` job, `needs: [build]`, runs `scripts/push-to-vultr.sh`;
+  auto-skips if `VULTR_HOST` / `VULTR_SSH_PRIVATE_KEY` are absent). **"What is live" = the
+  `Deploy to Vultr` JOB inside the latest `main` CI run** (`gh run view <ci-run-id> --json
+  jobs`) — *not* CI "success" alone, and *not* the standalone workflow below.
+- **`deploy-vultr.yml` is a separate MANUAL `workflow_dispatch` fallback** (also rsync +
+  `scripts/push-to-vultr.sh`), idle since 2026-07-15. Do **not** read the live deploy
+  state off it — the automatic CI `deploy` job is the real route. (Mistaking the two led
+  a session to wrongly conclude "not deployed since Jul 15"; it was, via CI.)
 - Migrations auto-apply in prod via the `migrator` service in `docker-compose.prod.yml` (`node -e require('./dist/migrate.js')`); `api` waits for `migrator: service_completed_successfully`.
-- CI (`ci.yml`) build job needs `[lint, test, e2e]`; on `main` it publishes GHCR images (web+api) tagged `latest` / `main` / 7-char SHA.
-- **Always take a backup/snapshot before deploying.** Snapshots and deploy triggers require the user's cloud credentials — Claude cannot perform them.
+- **Always take a backup/snapshot before deploying.** Snapshots and deploy triggers require the user's cloud credentials — Claude cannot perform them. Because a `main` push auto-deploys, **treat pushing `main` as a deploy trigger** (get the user's go + snapshot first).
 
 ## Conventions & guardrails
 
@@ -233,12 +242,22 @@ _Snapshot — dated content below. For the live migration head always read
 `packages/db/drizzle/meta/_journal.json`, and for the live branch/HEAD run `git status`;
 do not trust a commit SHA or head number quoted here._
 
-**As of 2026-08-02:** active branch is **`fixes/phase-2`** (Phase-2 correctness run —
-A3/A4 DPDP notice routing + honest erasure, A6 custom-role save path, A9 goods-receipt
-create, A11 RLS wall on three tenant tables; migrations `0060`/`0061` landed on this
-branch). `origin/main` is at **`2baaa25`** (head `0059`); the Phase-2 work has **not**
-been merged to `main` yet. The prior `main` snapshot below is kept as history.
+**As of 2026-08-07:** active branch is **`main`**, in sync with `origin/main`
+(`git rev-list --left-right --count origin/main...HEAD` = `0 0`). HEAD is **`209e537`**
+(startup per-org **seed reconciler** / COA drift fix — a startup check, **no migration**);
+migration head **`0073_red_big_bertha`**. `209e537`'s deploy rides CI (run `31141327969`);
+the last **validated** deploy before it is **`9960fc9`** (C3 ESI six-month rule) via CI run
+`31137358633`'s `Deploy to Vultr` job. **The DB has 237 base tables** (verify: `pgTable`
+count in `packages/db/src/schema/*.ts`). **For the live hand-off read `docs/CONTEXT.md`;
+the source of truth for done/pending/blocked is `reports/fix-plan.md`** — both are kept
+current per commit. Shipped since the MFA fix: **C7 GSTR-1** structural completion
+(AATO + HSN Table 12, B2CL Table 5 at ₹1L, credit/debit notes with CA-ruled ledger
+postings — migs `0069`–`0072`), **C3 ESI** six-month contribution-period rule (asymmetric —
+entry monthly, exit only at a 1-Apr/1-Oct boundary; mig `0073`), employee-form F-DLG/
+F-PT-NIL fixes, and the seed reconciler. `apps/mobile` is **parked** (broken lint script
+removed, exclusion dropped).
 
+Older history (2026-08-02 and before, retained for decision-history):
 Prior snapshot: `main` was in sync with `origin/main` @ **`2baaa25`** (migration head
 `0059_volatile_midnight`). CI + Vultr deploy were **green** for that HEAD.
 - **MFA confirmEnroll fixed and shipped (`f365314` + `2baaa25`).** Root cause was in

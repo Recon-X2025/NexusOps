@@ -1,6 +1,6 @@
 # CONTEXT — session hand-off
 
-_Updated 2026-08-06. A quick-start map so a new session picks up cleanly.
+_Updated 2026-08-07. A quick-start map so a new session picks up cleanly.
 **Read `reports/fix-plan.md` first — it is the source of truth** for what is
 done, pending, and blocked. This file points you at it and summarises._
 
@@ -30,8 +30,13 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **Local `main` = `origin/main` = DEPLOYED = `9960fc9`** (C3 — ESI six-month rule).
-  Verified: `git fetch` then `git rev-list --left-right --count origin/main...HEAD` = `0 0`.
+- **HEAD is the C2-STRUCT half-yearly-PT commit** (this commit — levy period + Kerala +
+  Tamil Nadu converted + full-period-or-flag guard + seven doc corrections; **no migration**).
+  Its deploy **rides CI on this `main` push**; **advance the exit-point line to it once its
+  `Deploy to Vultr` JOB is green.** Verify HEAD with `git rev-parse HEAD`, not this prose.
+- **`209e537` (seed reconciler) is now confirmed LIVE** — CI run **`31141327969`** finished with
+  all five jobs green **including `Deploy to Vultr: success`** (verified 2026-08-07). It is the
+  **last VALIDATED deploy before this commit** (superseding `9960fc9`).
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
   Integration → E2E → Build Docker Images → **Deploy to Vultr**. It is **not** the standalone
@@ -40,11 +45,8 @@ quoted here without checking._
   read the primary deploy state off it). So the correct check for "what is live" is the
   **`Deploy to Vultr` JOB inside the latest `main` CI run**, via
   `gh run view <ci-run-id> --json jobs`.
-- **`9960fc9` is LIVE.** CI run **`31137358633`** (2026-08-07 01:14 UTC) — `gh run view`
-  confirms all five jobs green **including `Deploy to Vultr: success`**. Migrations
-  auto-apply in prod via the `migrator` service before `api` starts. (Earlier this session I
-  briefly mis-read the standalone `Deploy Vultr` action's idle history as "not deployed
-  since Jul 15" — wrong; the deploy rides CI. Corrected here.)
+- **`9960fc9` (C3 ESI) was LIVE** via CI run `31137358633` — now **superseded by `209e537`**
+  (above). Migrations auto-apply in prod via the `migrator` service before `api` starts.
 - **Migration head:** `0073_red_big_bertha` (`employees.esi_member` + `esi_member_period_start`).
   Recent: `0069` AATO, `0070` B2CL threshold, `0071` credit/debit-note linkage,
   `0072` financial-note flag, `0073` ESI membership state. (`e74bfca` also adds COA seed
@@ -57,6 +59,17 @@ quoted here without checking._
 Grouped by area; each item has full detail in `reports/fix-plan.md`.
 
 ### Payroll statutory
+- **C2-STRUCT half-yearly PT (this commit, no migration) — levy period + full-period-or-flag.**
+  Kerala added, Tamil Nadu converted to half-yearly, both assessed on the WHOLE six-month
+  income from payslip history or **flagged** (never a partial-period amount). Two flag causes —
+  DATA (missing migration history) and TIMING (unelapsed period tail). **Key finding: H2's
+  Jan/Feb collection precedes the March period end, so H2 cannot be auto-assessed** — worked
+  example: TN ₹12,000/mo, six months ₹72,000 (₹1,025 band) vs five months ₹60,000 (₹690 band).
+  Kerala & TN PT therefore **manual for the first cycle** (H1 flags on migration gap, H2 on the
+  tail). Full detail + open CA questions in `reports/fix-plan.md` → "C2-STRUCT half-yearly PT
+  (2026-08-07)". Also corrected 7 stale doc claims (gender/DOB/exemptions are shipped; s.87A
+  rebate relief is shipped as PT5; C3/C7-debit-note/A7-SCREEN statuses; Kerala was flagged not
+  silent).
 - **C3 (`9960fc9`, mig `0073`) — ESI six-month contribution-period rule (CA-ruled,
   ASYMMETRIC).** Was: eligibility decided purely on the current month's gross, so anyone
   crossing ₹21,000 was dropped. Now: **ENTRY assessed every month** (a non-member joins
@@ -170,12 +183,19 @@ C7 (GST) is **done**. The remaining go-live gates:
   today** (all investment relief is silently 0, over-deducting every old-regime
   employee). P-13 is folded here. Shipping the election without the intake is actively
   harmful.
-- **C2-STRUCT — professional-tax structure.** Half-yearly levy period (Kerala/TN/
-  Puducherry), gender ingestion, month-specific rates, full state population +
-  explicit-nil, tier-1 exemptions, per-FY YTD-PT ledger. **The state dropdown does NOT
-  close this** — it only stops typos; unpopulated states still nil.
-- **C3** — ESI six-month contribution-period rule (verify first).
-- **C4** — PF ₹1,800 ceiling / VPF / joint-declaration override (verify first).
+- **C2-STRUCT — professional-tax structure. PARTLY DONE (this commit + earlier).**
+  ✅ **Half-yearly levy period shipped for the pilot** (Kerala added, Tamil Nadu converted,
+  full-period-or-flag guard — see the half-yearly section above). ✅ **Gender / DOB / tier-1
+  exemption ingestion done** (mig `0066`, read by `computePT`). Still open (non-pilot /
+  deferred): month-specific **March** rates, full state population + explicit-nil, per-FY
+  **YTD-PT cap ledger**. **⚠️ Kerala & Tamil Nadu PT is NOT auto-computable for the first
+  cycle** — H1 flags on missing migration history, H2 flags on the unelapsed March tail
+  (Jan/Feb collection precedes the March period end) — both handled manually until the CA
+  reconciles. Open CA: H2 collection month, H1 Aug-vs-Sep, Kerala/Karnataka annualCaps.
+- **C3** — ✅ **DONE & DEPLOYED** (`9960fc9`, ESI six-month rule; superseded framing removed).
+- **C4** — PF ₹1,800 ceiling / VPF / joint-declaration override. **Verified: cap is correct
+  and enforced (both sides, basis Basic+DA); VPF is ABSENT and Para-26(6) has no ingestion —
+  those are a BUILD, not an "extend".**
 - **C6** — payslip mandatory statutory fields.
 - **A12-D** — LOP split-logic defect (CA correction, against shipped A12).
 

@@ -3,14 +3,110 @@
  * using `payroll-cycle` (India statutory + TDS). Used when locking a run.
  */
 
-import { employees, salaryStructures, eq, and } from "@coheronconnect/db";
-import { computeEmployeePayslip, type EmployeePayrollInput } from "../lib/payroll-cycle";
+import { employees, salaryStructures, payslips, eq, and, or } from "@coheronconnect/db";
+import {
+  computeEmployeePayslip,
+  ptPriorPeriodMonths,
+  type EmployeePayrollInput,
+} from "../lib/payroll-cycle";
 import { resolveStatutoryCeilings } from "../lib/india/statutory-ceilings";
 import { computeAttendanceLopForPeriod } from "../lib/india/attendance-lop";
 
 /** India FY month: April = 1 … March = 12 */
 export function calendarToFyMonth(calendarMonth: number): number {
   return calendarMonth >= 4 ? calendarMonth - 3 : calendarMonth + 9;
+}
+
+/** Inverse of `calendarToFyMonth`: an FY month (1=Apr … 12=Mar) plus the FY's START calendar
+ *  year → the calendar month/year. FY months 1–9 (Apr–Dec) sit in the start year; 10–12
+ *  (Jan–Mar) roll into the next. */
+export function fyMonthToCalendar(fyMonth: number, fyStartYear: number): { month: number; year: number } {
+  return fyMonth <= 9
+    ? { month: fyMonth + 3, year: fyStartYear }
+    : { month: fyMonth - 9, year: fyStartYear + 1 };
+}
+
+const FY_MONTH_NAMES = [
+  "April", "May", "June", "July", "August", "September",
+  "October", "November", "December", "January", "February", "March",
+];
+/** Human month name for an FY month (1=April … 12=March), for warning messages. */
+function fyMonthName(fyMonth: number): string {
+  return FY_MONTH_NAMES[fyMonth - 1] ?? `FY month ${fyMonth}`;
+}
+
+/** Per-employee half-yearly PT context (the prior-period income the system holds). */
+export type PtHalfYearlyContext = { periodPriorGross: number; periodMissingMonths: number[] };
+
+/**
+ * For a run in (`month`, `year`), determine each employee's half-yearly PT period income from
+ * PAYSLIP HISTORY. Returns a map keyed by employee id, populated ONLY for employees whose state
+ * levies PT half-yearly (Kerala, Tamil Nadu) AND whose run month is that state's collection
+ * month. For those, it sums the gross of the period's earlier months found in `payslips` and
+ * lists any required earlier month with no payslip on record (`periodMissingMonths`) — the
+ * migration case, where the six-month PT cannot be assessed and must be flagged, not guessed.
+ * Same reasoning as C3/ESI: the history already lives in payslips, so no new table is needed.
+ */
+export async function buildPtHalfYearlyContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  orgId: string,
+  empRows: Array<{ emp: typeof employees.$inferSelect }>,
+  month: number,
+  year: number,
+): Promise<Map<string, PtHalfYearlyContext>> {
+  const fyMonth = calendarToFyMonth(month);
+  const fyStartYear = month >= 4 ? year : year - 1;
+
+  // Which earlier FY months each employee needs (empty unless half-yearly + collection month).
+  const needByEmp = new Map<string, number[]>();
+  const neededFyMonths = new Set<number>();
+  for (const { emp } of empRows) {
+    const state = emp.state?.trim();
+    if (!state) continue;
+    const prior = ptPriorPeriodMonths(state, fyMonth);
+    if (prior.length === 0) continue;
+    needByEmp.set(emp.id, prior);
+    for (const m of prior) neededFyMonths.add(m);
+  }
+
+  const result = new Map<string, PtHalfYearlyContext>();
+  if (needByEmp.size === 0) return result;
+
+  // One query: every payslip for this org at the needed (calendar month, year) pairs.
+  const calPairs = [...neededFyMonths].map((fm) => fyMonthToCalendar(fm, fyStartYear));
+  const rows = await db
+    .select({
+      employeeId: payslips.employeeId,
+      month: payslips.month,
+      year: payslips.year,
+      gross: payslips.grossEarnings,
+    })
+    .from(payslips)
+    .where(
+      and(
+        eq(payslips.orgId, orgId),
+        or(...calPairs.map((p) => and(eq(payslips.month, p.month), eq(payslips.year, p.year)))),
+      ),
+    );
+
+  // Index the found gross by (employeeId, FY month).
+  const grossByEmpFy = new Map<string, number>();
+  for (const r of rows) {
+    grossByEmpFy.set(`${r.employeeId}:${calendarToFyMonth(r.month)}`, Number(r.gross || 0));
+  }
+
+  for (const [empId, prior] of needByEmp) {
+    let periodPriorGross = 0;
+    const periodMissingMonths: number[] = [];
+    for (const fm of prior) {
+      const g = grossByEmpFy.get(`${empId}:${fm}`);
+      if (g == null) periodMissingMonths.push(fm);
+      else periodPriorGross += g;
+    }
+    result.set(empId, { periodPriorGross, periodMissingMonths });
+  }
+  return result;
 }
 
 /**
@@ -61,6 +157,7 @@ export function buildEmployeePayrollInput(
   month: number,
   year: number,
   attendance?: { daysInMonth: number; daysWorked: number; lopDays: number },
+  ptHalfYearly?: PtHalfYearlyContext,
 ): EmployeePayrollInput {
   const ctc = Number(struct.ctcAnnual || 0);
   const basicPct = Number(struct.basicPercent ?? 40) / 100;
@@ -150,6 +247,11 @@ export function buildEmployeePayrollInput(
     ytdPF: 0,
     ytdTDS: 0,
     ytdNetPay: 0,
+    // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — the caller-resolved period income the
+    // system holds. Undefined for monthly states and non-collection months; the engine then
+    // deducts nothing (non-collection) or, in a collection month with no context, flags it.
+    ptPeriodPriorGross: ptHalfYearly?.periodPriorGross,
+    ptPeriodMissingMonths: ptHalfYearly?.periodMissingMonths,
     month,
     year,
   };
@@ -186,10 +288,13 @@ export async function computePayrollRunTotals(
   const ceilings = await resolveStatutoryCeilings(db, orgId, new Date(year, month - 1, 1));
   // G8: derive LOP from attendance for the period so previews match the run.
   const lopMap = await computeAttendanceLopForPeriod(db, orgId, month, year);
+  // C2-STRUCT: half-yearly PT (Kerala, Tamil Nadu) — the period income each employee's
+  // payslip history supports, only in a state's collection month (empty otherwise).
+  const ptHalfYearlyMap = await buildPtHalfYearlyContext(db, orgId, rows, month, year);
 
   for (const { emp, st } of rows) {
     try {
-      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id));
+      const input = buildEmployeePayrollInput(emp, st, month, year, lopMap.get(emp.id), ptHalfYearlyMap.get(emp.id));
       const slip = computeEmployeePayslip(input, fyMonth, ceilings);
 
       // An unknown/misspelled state (e.g. "Karnatak") resolves to ₹0 PT — the same
@@ -204,6 +309,39 @@ export async function computePayrollRunTotals(
           message:
             `Employee state "${emp.state ?? ""}" did not match any known professional-tax ` +
             `state, so PT was computed as ₹0. Verify the spelling before locking payroll.`,
+        });
+      }
+
+      // C2-STRUCT: a half-yearly PT state (Kerala, Tamil Nadu) reached its collection month but
+      // the WHOLE six-month period could not be assessed. PT was NOT deducted — surface it
+      // loudly rather than file a plausible-but-too-small amount computed from a partial period
+      // (a lower income lands in a lower bracket → silent under-collection, the employer's
+      // liability). The two causes need different operator action, so the message names each:
+      //   • DATA — earlier months missing from history (a migration gap): supply that payroll.
+      //   • TIMING — later months not yet elapsed (collection falls before the period ends):
+      //     the period cannot close yet; record this period's PT manually or await the CA's
+      //     ruling on the collection month.
+      const ptSlip = slip.statutoryDeductions.pt;
+      if (ptSlip.incompletePeriod) {
+        const missing = ptSlip.incompleteMissingMonths ?? [];
+        const unelapsed = ptSlip.incompleteUnelapsedMonths ?? [];
+        const causes: string[] = [];
+        if (missing.length > 0) {
+          causes.push(`earlier payroll is missing (${missing.map(fyMonthName).join(", ")}) — a data/migration gap`);
+        }
+        if (unelapsed.length > 0) {
+          causes.push(
+            `later month(s) have not yet elapsed (${unelapsed.map(fyMonthName).join(", ")}) — a timing issue, ` +
+              `the collection month falls before the six-month period ends`,
+          );
+        }
+        errors.push({
+          employeeId: emp.id,
+          message:
+            `Half-yearly professional tax for "${emp.state ?? ""}" could not be computed this ` +
+            `collection month because the full six-month income is not available: ` +
+            `${causes.join("; and ")}. No PT was deducted. ` +
+            `Supply the missing months' payroll and/or record this period's PT manually before locking.`,
         });
       }
 
