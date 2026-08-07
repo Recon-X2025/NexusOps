@@ -30,16 +30,15 @@ now structurally complete** (first live filing target 11 October). The remaining
 _Verify these with `git log` / `git rev-parse`, not prose — do not trust a SHA
 quoted here without checking._
 
-- **HEAD is the C6 commit** (this commit — payslip mandatory statutory fields: shared
-  payslip-view builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number,
-  ESI-member missing-identity run warning; **migration `0074`**). Its deploy **rides CI on this
-  `main` push**; **advance the exit-point line to it once its `Deploy to Vultr` JOB is green.**
-  This push also carries `5116cce` (the C2-STRUCT exit-point bookkeeping doc commit that was
-  kept local). Verify HEAD with `git rev-parse HEAD`.
-- **`e886a9c` (C2-STRUCT half-yearly PT) is LIVE** — CI run **`31147028089`** finished with all
-  five jobs green **including `Deploy to Vultr: success`**. It is the **last VALIDATED deploy
-  before this commit**.
-- **`209e537` (seed reconciler)** was live via CI `31141327969`; **superseded by `e886a9c`**.
+- **LIVE / `origin/main` = `d979038`** (C6 payslip mandatory statutory fields: shared payslip-view
+  builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number, ESI-member
+  missing-identity run warning; **migration `0074`**). **Confirmed LIVE** — CI run **`31162786896`**
+  finished with all five jobs green **including `Deploy to Vultr: success`** (see the exit-point
+  line). Verify with `git rev-parse HEAD`.
+- **NOTE on local vs origin:** the exit-point refresh below is a **docs-only commit kept LOCAL and
+  unpushed** (rule 6 — no docs-only deploy); it rides origin with the next code change, so local
+  `main` may read **one commit ahead** of `origin/main` (live code is `d979038` on both).
+- **`e886a9c` (C2-STRUCT half-yearly PT)** was live via CI `31147028089`; **superseded by `d979038`**.
 - **DEPLOY MECHANISM (clarified 2026-08-07 — this matters).** The Vultr deploy is the
   **terminal job of the `CI` (`ci.yml`) pipeline on every push to `main`**: Lint → Unit &
   Integration → E2E → Build Docker Images → **Deploy to Vultr**. It is **not** the standalone
@@ -306,18 +305,21 @@ Test DB is `coheronconnect_test` on port 5433 (`pnpm docker:test:up`)._
 
 ## Last validated deployment (exit point)
 
-**CI run `31147028089` — commit `e886a9c` (C2-STRUCT half-yearly PT: levy period,
-Kerala + Tamil Nadu, full-period-or-flag) — terminal `Deploy to Vultr` job `success` —
-2026-08-07 — migration head `0073_red_big_bertha` (no new migration this commit).**
-Verified via `gh run view 31147028089 --json jobs` (all five jobs green: Lint · Unit &
-Integration · E2E · Build Docker Images · **Deploy to Vultr**). This is what is LIVE on
-`connect.coheron.tech`. The deploy is the last job of the `main` CI pipeline — **not** the
-standalone `Deploy Vultr` workflow_dispatch (idle since Jul 15 / `dd1dad9`; a manual fallback
-only). Refresh this line with the next `main` CI run + its `Deploy to Vultr` job as part of
-the next code-change commit.
+**CI run `31162786896` — commit `d979038` (C6 payslip mandatory statutory fields: shared
+payslip-view builder, ESI reconciliation fix, tenant identity, paid/LOP days, ESI IP number,
+ESI-member missing-identity run warning) — terminal `Deploy to Vultr` job `success` —
+2026-08-08 — migration head `0074_ambiguous_rick_jones`.** Verified via `gh run view
+31162786896 --json jobs` (all five jobs green: Lint · Unit & Integration · E2E · Build Docker
+Images · **Deploy to Vultr**). This is what is LIVE on `connect.coheron.tech`. The deploy is
+the last job of the `main` CI pipeline — **not** the standalone `Deploy Vultr` workflow_dispatch
+(idle since Jul 15 / `dd1dad9`; a manual fallback only). Refresh this line with the next `main`
+CI run + its `Deploy to Vultr` job as part of the next code-change commit.
 
-_Prior validated deploys: `209e537` (seed reconciler) via CI `31141327969`; `9960fc9` (C3
-ESI) via CI `31137358633` — both superseded._
+_This exit-point refresh is a docs-only commit kept LOCAL and unpushed (rule 6 — no docs-only
+deploy); it rides origin with the next code change, so local `main` may read one commit ahead._
+
+_Prior validated deploys: `e886a9c` (C2-STRUCT half-yearly PT) via CI `31147028089`; `209e537`
+(seed reconciler) via CI `31141327969`; `9960fc9` (C3 ESI) via CI `31137358633` — all superseded._
 
 > **KNOWN LIVE GAP (2026-08-07) — being closed by the seed reconciler (this commit).**
 > COA accounts **4130** (Sales Returns) and **4140** (Supplementary Sales), which the
