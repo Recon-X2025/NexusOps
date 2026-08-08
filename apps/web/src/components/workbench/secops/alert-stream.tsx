@@ -79,7 +79,7 @@ export function AlertStream({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3 text-caption overflow-x-auto scrollbar-thin">
                         <Link
-                          href={`/app/security/incidents/${a.id}`}
+                          href={`/app/security/${a.id}`}
                           className="font-semibold text-rose-700 dark:text-rose-300 hover:underline shrink-0 whitespace-nowrap"
                         >
                           {a.number}

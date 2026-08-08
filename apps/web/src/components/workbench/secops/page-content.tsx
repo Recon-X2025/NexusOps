@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { ActionQueue } from "../shared/action-queue";
@@ -34,12 +33,9 @@ export function SecOpsContent() {
               <ul className="text-caption space-y-1.5">
                 {data.vulnerabilities.data.slice(0, 8).map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-3">
-                    <Link
-                      href={`/app/security/vulnerabilities/${v.id}`}
-                      className="min-w-0 flex-1 text-rose-700 dark:text-rose-300 hover:underline"
-                    >
+                    <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-200">
                       {v.cveId ?? v.title}
-                    </Link>
+                    </span>
                     <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                       CVSS {v.cvssScore ?? "—"}
                     </span>

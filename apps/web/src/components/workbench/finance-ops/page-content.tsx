@@ -36,7 +36,7 @@ export function FinanceOpsContent() {
               {data.approvalQueue.data.slice(0, 10).map((inv) => (
                 <li key={inv.id} className="flex items-center justify-between gap-3 py-1.5">
                   <Link
-                    href={`/app/finance/invoices/${inv.id}`}
+                    href={`/app/financial/invoices/${inv.id}`}
                     className="min-w-0 flex-1 text-slate-700 dark:text-slate-200 hover:underline"
                   >
                     {inv.invoiceNumber}

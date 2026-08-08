@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { ActionQueue } from "../shared/action-queue";
@@ -34,12 +33,9 @@ export function GrcContent() {
               <ul className="text-caption space-y-1.5">
                 {data.controlAge.data.slice(0, 8).map((c) => (
                   <li key={c.controlId} className="flex items-center justify-between gap-3">
-                    <Link
-                      href={`/app/security/controls/${c.controlId}`}
-                      className="min-w-0 flex-1 text-indigo-700 dark:text-indigo-300 hover:underline"
-                    >
+                    <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-200">
                       {c.controlNumber} — {c.title}
-                    </Link>
+                    </span>
                     <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                       {c.daysSinceEvidence != null ? `${c.daysSinceEvidence}d` : "never tested"}
                     </span>

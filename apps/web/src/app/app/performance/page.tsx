@@ -295,7 +295,7 @@ function PerformanceContent() {
                           <td className="px-4 py-3 text-muted-foreground">{review.reviewerName || "N/A"}</td>
                           <td className="px-4 py-3">
                             {review.reviewFormUrl ? (
-                              <a href="#" className="text-primary hover:underline">{review.reviewFormUrl}</a>
+                              <span className="text-foreground">{review.reviewFormUrl}</span>
                             ) : (
                               <span className="text-muted-foreground italic">None</span>
                             )}

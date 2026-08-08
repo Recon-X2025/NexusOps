@@ -569,7 +569,7 @@ export default function OnboardingWizardPage() {
 
           <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
             <a
-              href="/app/settings"
+              href="/app/admin"
               className="text-body-sm text-primary hover:underline font-medium"
             >
               Edit in Settings

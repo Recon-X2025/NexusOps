@@ -108,6 +108,17 @@ Full per-item detail is in `reports/fix-plan.md` under the dated sections named 
    a blend: current month on actual earned pay, every other FY month on contracted pay.
    Non-LOP byte-identical. Known blind spot: past months estimated at contracted because
    PR5 zeroes real YTD. ("Employee bulk importer + A12-D … (2026-08-08)".)
+9. **taxRegime required column on bulk import** (`3d416c7`, no migration). A file with no
+   taxRegime column is refused outright; a blank cell in a present column is a named row skip —
+   neither reaches the DB's `"new"` default, so a missing spreadsheet header can no longer
+   silently elect the regime for a workforce. `hr.employees.create` unchanged. Closes
+   TAX-REGIME-DEFAULT. ("TAX-REGIME-DEFAULT closed … (2026-08-08)".)
+10. **Dead-link sweep + route-integrity guard** (frontend only, no migration). Fixed/removed a
+   set of dead controls and links (path typos over real routes, 4 workflow-run links to a
+   route with no bare page, never-built detail links made non-interactive, handler-less buttons
+   removed). **Headline:** nothing verified internal links resolved — a new static guard
+   (`apps/web/src/lib/__tests__/route-integrity.test.ts`) now walks the source and fails the
+   build on any `/app/...` link with no matching `page.tsx`. ("Dead controls & links … (2026-08-08)".)
 
 ## ✅ THE 50% WAGE FLOOR — IMPLEMENTED AND WIRED (correction, 2026-08-08)
 

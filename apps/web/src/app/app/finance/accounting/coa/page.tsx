@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
     Plus, Search, RefreshCcw, Building2, Wallet,
-    ArrowRightLeft, TrendingUp, TrendingDown, ChevronRight,
+    ArrowRightLeft, TrendingUp, TrendingDown,
     Filter, Download, FileText, Settings2,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -152,11 +152,7 @@ export default function CoaPage() {
                                               <td className="px-4 py-3 text-right font-mono text-body-sm font-bold">
                                                   ₹{Number(acct.currentBalance).toLocaleString()}
                                               </td>
-                                              <td className="px-4 py-3 text-right">
-                                                  <button className="p-1.5 hover:bg-muted rounded transition-colors opacity-0 group-hover:opacity-100">
-                                                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                                  </button>
-                                              </td>
+                                              <td className="px-4 py-3 text-right" />
                                           </tr>
                                       ))}
                                   </tbody>

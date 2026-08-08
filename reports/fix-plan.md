@@ -4829,3 +4829,68 @@ deliberately unchanged (a single admin choosing through a form is choosing; the
   err toward **over-deduction, which is recoverable**; the **regime election is
   not**. They were considered and left as-is on purpose — only `taxRegime` was
   promoted to a required column.
+
+---
+
+## Dead controls & links + route-integrity guard (2026-08-08)
+
+Frontend only — no engine, router, migration, or statutory path. A read-only sweep found
+dead internal links and handler-less controls; this pass fixes them AND closes the reason
+they accumulated.
+
+### THE HEADLINE (record this, not the individual links)
+
+**Nothing in the repository verified that an internal link resolves.**
+`route-permissions.test.ts` checks RBAC *mapping* (which module a route needs), not whether a
+link's *target* exists; the Playwright specs exercise flows without crawling links. So dead
+`/app/...` links accumulated undetected — the individual dead links were symptoms; the missing
+guard was the defect.
+
+**The guard (`apps/web/src/lib/__tests__/route-integrity.test.ts`).** A STATIC source check
+(never runs the app): it walks `apps/web/src`, extracts every internal `/app/...` target from
+**JSX `href=`**, **object `href:` config**, and **`router.push()` literals**, and asserts a
+matching `…/page.tsx` exists on disk. Dynamic segments match `[param]` dirs
+(`/app/financial/invoices/${id}` → `financial/invoices/[id]/page.tsx`). It **fails the build**
+the moment a link points at a page that does not exist, naming the **file, line, and target**.
+
+**Proven to fail, not assumed to work.** A known dead path was reintroduced and the test named
+`components/workbench/finance-ops/page-content.tsx:39 → /app/finance/invoices/${inv.id}` before
+going green on restore.
+
+### The dead controls & links fixed or removed
+
+- **Path typos over routes that DO exist (fixed):** `finance-ops` invoice link
+  (`/app/finance/invoices` → `/app/financial/invoices`); `po-kanban` PO link
+  (`/app/procurement/po` → `/app/procurement/orders`); `secops/alert-stream` incident link
+  (`/app/security/incidents/[id]` → `/app/security/[id]`, the real incident-detail route).
+- **Workflow-run links to a route with no bare page (fixed — found by the guard):** four links
+  in `workflows/[id]/runs/[runId]/page.tsx` targeted `/app/workflows/${id}`, but
+  `/app/workflows/[id]` has no `page.tsx` (only `edit/` + `runs/`). Repointed to
+  `/app/workflows/${id}/edit`, the app's own convention.
+- **`/app/settings` (no bare index) → `/app/admin` (onboarding wizard):** the wizard's final-step
+  "Edit in Settings" pointed at a bare `/app/settings` with no page. The real settings/admin hub
+  is `/app/admin` (it has the SLA-Definitions + Legal-entities tabs the wizard summarises).
+- **Detail pages that were never built → now plain, non-interactive text (no 404):** `grc`
+  controls, `secops` vulnerabilities, `recruiter` offers, `company-secretary` meetings,
+  `hr/[id]` "Full Employee Record", `performance` review-form (`href="#"`). Styled non-interactive
+  — NOT a "coming soon" tooltip (a promise is how this defect class started).
+- **Handler-less controls removed:** the `coa` chart-of-accounts hover chevron (no `onClick`,
+  and no per-account view to wire it to) and the `hr/[id]` "Access Control Settings" button.
+
+### Implementation facts (before anyone edits the guard)
+
+1. **The app's primary nav defines hrefs as CONFIG OBJECTS (`href:`), not JSX literals** — the
+   sidebar (`lib/sidebar-config.ts`), command palette, and quick-actions. A JSX-`href=`-only
+   check would have missed the entire sidebar. The guard scans object `href:` too.
+2. **One exclusion, and it must stay minimal.** `app-header.tsx:160 → /app/${firstPageSlug}` is a
+   breadcrumb whose slug is `segments[1]` of the *current* pathname (only rendered when it maps to
+   a known section) — always a real route by construction, but a runtime value not resolvable to a
+   file statically. The exclusion list requires a per-entry comment and a `no-stale-exclusions`
+   test fails the build if an exclusion stops matching a currently-dead link. Keep it at one.
+
+### The gap the guard does NOT cover (recorded)
+
+The marketing-footer stubs (`src/app/page.tsx`: Privacy Policy, Terms of Service, and the
+Platform/Support columns) are `href="#"`, not `/app/...` targets, so the guard does not flag them
+— deliberately left (a fabricated privacy policy on a governance product is worse than an empty
+link; they get written before the site is public).

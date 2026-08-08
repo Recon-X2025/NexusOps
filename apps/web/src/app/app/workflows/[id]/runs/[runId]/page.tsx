@@ -205,7 +205,7 @@ export default function WorkflowRunPage() {
         <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-body-sm text-muted-foreground">Run not found or access denied.</p>
         <Link
-          href={`/app/workflows/${id}`}
+          href={`/app/workflows/${id}/edit`}
           className="text-body-sm text-indigo-600 hover:underline"
         >
           ← Back to workflow
@@ -229,9 +229,9 @@ export default function WorkflowRunPage() {
         <Link href="/app/workflows" className="hover:text-foreground">Workflows</Link>
         <ChevronRight className="h-3.5 w-3.5" />
         {wf ? (
-          <Link href={`/app/workflows/${id}`} className="hover:text-foreground">{wf.name}</Link>
+          <Link href={`/app/workflows/${id}/edit`} className="hover:text-foreground">{wf.name}</Link>
         ) : (
-          <Link href={`/app/workflows/${id}`} className="hover:text-foreground">Workflow</Link>
+          <Link href={`/app/workflows/${id}/edit`} className="hover:text-foreground">Workflow</Link>
         )}
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="text-foreground font-medium">Run</span>
@@ -248,7 +248,7 @@ export default function WorkflowRunPage() {
             <p className="mt-1 text-caption text-muted-foreground font-mono">{run.id}</p>
           </div>
           <Link
-            href={`/app/workflows/${id}`}
+            href={`/app/workflows/${id}/edit`}
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-body-sm hover:bg-accent"
           >
             <ArrowLeft className="h-3.5 w-3.5" />

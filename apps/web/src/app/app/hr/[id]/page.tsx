@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   UserCircle, ChevronLeft, CheckCircle2,
-  FileText, Send, Calendar, Building2, Shield, Users,
+  FileText, Send, Calendar, Building2, Users,
 } from "lucide-react";
 import { useRBAC, PermissionGate, AccessDenied } from "@/lib/rbac-context";
 import { formatRelativeTime, cn } from "@/lib/utils";
@@ -265,12 +264,9 @@ export default function HRCaseDetailPage() {
                   <div className="bg-muted/30 border border-border border-dashed rounded-xl p-5">
                     <h3 className="text-caption font-bold text-muted-foreground uppercase tracking-widest mb-4">Quick Links</h3>
                     <div className="flex flex-col gap-2">
-                      <Link href={`/app/hr/employees/${employee.id}`} className="text-caption font-medium text-primary hover:underline flex items-center gap-2">
+                      <span className="text-caption font-medium text-muted-foreground flex items-center gap-2">
                         <Users className="w-3.5 h-3.5" /> Full Employee Record
-                      </Link>
-                      <button className="text-caption font-medium text-primary hover:underline flex items-center gap-2 text-left">
-                        <Shield className="w-3.5 h-3.5" /> Access Control Settings
-                      </button>
+                      </span>
                     </div>
                   </div>
                 </div>

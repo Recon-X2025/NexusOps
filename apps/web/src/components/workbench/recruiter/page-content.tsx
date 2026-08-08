@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRBAC } from "@/lib/rbac-context";
 import { trpc } from "@/lib/trpc";
 import { ActionQueue } from "../shared/action-queue";
@@ -35,12 +34,9 @@ export function RecruiterContent() {
             <ul className="text-caption space-y-1.5">
               {data.offers.data.map((o) => (
                 <li key={o.id} className="flex items-center justify-between gap-3">
-                  <Link
-                    href={`/app/recruitment/offers/${o.id}`}
-                    className="min-w-0 flex-1 text-teal-700 dark:text-teal-300 hover:underline"
-                  >
+                  <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-200">
                     {o.title} — {o.candidateName ?? "—"}
-                  </Link>
+                  </span>
                   <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400 shrink-0">
                     Expires {formatDate(o.expiryDate)}
                   </span>

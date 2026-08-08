@@ -73,7 +73,7 @@ export function PoKanban({
                   {items.slice(0, 5).map((p) => (
                     <li key={p.id}>
                       <Link
-                        href={`/app/procurement/po/${p.id}`}
+                        href={`/app/procurement/orders/${p.id}`}
                         className="block rounded bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-1.5 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
                       >
                         <div className="text-[11px] font-medium text-orange-700 dark:text-orange-300">{p.poNumber}</div>
