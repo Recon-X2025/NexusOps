@@ -82,7 +82,7 @@ it is the summary; the item is the source of truth.
 | Ownership cluster (#5) — one shared guard | Bucket B | Pending |
 | Identity/session theme (B8–B11) | Bucket B | Pending |
 | Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 **Done** — folded into R-5) |
-| KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
+| KMS legacy theme (B14, B15) | Bucket B | Pending (legacy CBC re-wrap + SSO-token encryption still owed; H-2 PAN done — **employee-PAN backfill UNNECESSARY: prod audit 2026-08-08 found 0 plaintext employee PANs**) |
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
 | A12-D — LOP split-logic defect (CA correction) | New — Payroll | **DONE (2026-08-08).** Split-logic annual projection (current month actual + contracted for every other FY month) replaces `earned*12`; HRA cap on the same basis; non-LOP byte-identical. Known blind spot: past months estimated at contracted (PR5 zeroes real YTD). See "Employee bulk importer + A12-D … (2026-08-08)". |
 | Employee bulk importer — `ingest.importEmployees` | New — Onboarding | **DONE (2026-08-08, commit `0c77dbd`).** Tolerant CSV import, dry-run default, PAN encrypted, structure-by-name with reject-on-ambiguous, atomic EMP-NNNN across all 3 sites. See the dated section. |
@@ -108,6 +108,8 @@ it is the summary; the item is the source of truth.
 | SELF-SERVICE — no employee self-entry of statutory fields | New — Web (build item) | **Build item (2026-08-06)** — both portals read-only; PAN/UAN/bank/ESI/rent/80C all HR-keyed via the admin dialog; no joiner intake exists. Onboarding blocker for the 7 pilots (30–80 emp each) — outranks the bulk importer. See "Testing findings (2026-08-06)". |
 | RBAC-UI-SRV — server-side scoping of `hr.employees.list` | New — API (security) | **Open (2026-08-06)** — RBAC-UI **reduced, did not close** the read exposure: the list still returns the full org roster to any `hr:read` holder; the client only filters what it renders, so the roster crosses the wire and is visible in the network response. Consumers to check when scoping: `hr/expenses` + `payroll` (both read this list). See "RBAC-UI follow-ups (2026-08-06)". |
 | MOBILE-LINT — `apps/mobile` broken + near-abandoned lint target | New — Tooling | **Done — parked (2026-08-06)** — `apps/mobile` parked: removed its broken `eslint` lint script and dropped `--filter=!@coheronconnect/mobile` from the root lint, so the gate covers every workspace minus none. `pnpm lint` **and** raw `turbo run lint` both green (9/9). Revive → add `tsc --noEmit` lint. See "RBAC-UI follow-ups (2026-08-06)" + "Mobile parked (2026-08-06)". |
+| TAX-REGIME-DEFAULT — regime elected by a DB default | New — Payroll/Onboarding | **OPEN — recorded, NOT fixed (2026-08-08 sweep).** `taxRegime` `.optional()` at create (`hr.ts:288`) + importer (`ingest.ts:159`); column `notNull().default("new")` (`hr.ts:186`). Blank cell == absent column (both → `"new"`), nothing warns → a CSV with no regime column silently elects NEW for a whole workforce (Form 24Q/16). Fires at onboarding. **Product decision is the owner's.** See "Read-only sweep findings (2026-08-08)". |
+| INERT-ALLOWANCES — 3 salary-structure fields read nowhere | New — Payroll | **OPEN — recorded, NOT fixed (2026-08-08 sweep).** `bonusAnnual`/`medicalAllowanceAnnual`/`conveyanceAllowanceAnnual` written + editable, read nowhere in compute; payslip hardcodes medical/conveyance `"0"` (`payroll.ts:489-490`). Gross = `(ctc+lta)/12`, so mislabelled-not-lost within CTC framing — but `ltaAnnual` (same UI) is additive, so ambiguous. Bonus-Act path inert (`bonus` fed 0). See "Read-only sweep findings (2026-08-08)". |
 
 > **Phase 1 (Ratchets) is complete — all five are green.** R-1 (turned by A11,
 > migration 0061), R-2 (turned by A6, re-scoped), R-3 (turned by A3/A4), R-4
@@ -1916,7 +1918,8 @@ records the CA's steer — no code implied.)_
 - **Previously-tracked items still open (unchanged by the CA):** A5, A6-followups
   handled, A8, B1, A15, A16, A17, B16, B17, the ownership cluster (#5),
   identity/session theme (B8–B11), automation/reliability theme (B6/B7/B12/B13), KMS
-  legacy theme (B14/B15 — H-2 done, backfill owed), schema-tooling theme (#32), RBAC
+  legacy theme (B14/B15 — H-2 done; employee-PAN backfill UNNECESSARY per the 2026-08-08
+  prod audit, CBC re-wrap + SSO-token encryption still owed), schema-tooling theme (#32), RBAC
   theme. (A9 API path Done, screen deferred.)
 - **Unblocked by the CA:** **A7** (was Blocked-on-CA → now actionable).
 - **Expanded by the CA:** **A18** (now parse + map + self-service + bulk DSC signing).
@@ -2128,8 +2131,8 @@ Existence-driven, not deadline-driven. Without these there is no usable product 
 |---|---|---|
 | Payroll engine base (PF ₹1,800 cap, ESI, net pay) | **25 Aug** | **Working** — cap correct, ESI per-month correct |
 | Tenant onboarding / RLS isolation | **25 Aug** | **Done** (A11, migration 0061) |
-| **C6 — payslip mandatory statutory fields** | first payslip | **Absent** — blocking |
-| **B16/B17 — org identity on documents** | first payslip | Pending (payslip header hardcoded blank) |
+| **C6 — payslip mandatory statutory fields** | first payslip | **Done (2026-08-08, `d979038`, mig `0074`)** — was "Absent — blocking" on 2026-08-02; shipped (ESI-reconciliation defect fixed; tenant identity renders). |
+| **B16/B17 — org identity on documents** | first payslip | **B16 Done via C6** (name/TAN/EPF/CIN/ESI establishment render from stored values); **B17 still Pending** (no org full-address field). |
 
 ### Payroll cluster — correct by first run (~end Aug / early Sep)
 
@@ -2327,7 +2330,8 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
   (`encryptIntegrationConfigEnvelope`, `http/integration-oauth.ts:59`). B15 shares
   the vault/code area with the PAN encryption work — land it in the same
   encryption pass, per the triage note.
-  - **PAN encryption-at-rest (H-2) — DONE for new writes; backfill still owed.**
+  - **PAN encryption-at-rest (H-2) — DONE for new writes; employee-PAN backfill UNNECESSARY
+    (prod audit clean 2026-08-08 — see correction below); other-table status unverified.**
     `lib/pan.ts` now stores the raw `pan` as a KMS `v2:` envelope (async `panColumns`)
     and reads through `decryptPan` at every boundary (form16 ×2, hr, payslip-pdf,
     onboarding, secretarial ×2 lists + ×4 returns, india-compliance list + ×2 returns,
@@ -2340,6 +2344,16 @@ is one pass; the rest are the supporting themes from `audit-summary.md`.
     envelope. `decryptPan`'s `isEnvelope()` gate can be tightened/removed only once
     that backfill has run and no bare-plaintext rows remain. Pinned by
     `apps/api/src/__tests__/pan-encryption-at-rest.test.ts`.
+    - **✅ CORRECTION (2026-08-08): the EMPLOYEE-PAN portion of this backfill is
+      UNNECESSARY, not owed.** The read-only prod audit (`pan-prod-check.ts`, CI run
+      `31253488299`) classified every **employee** PAN in production as **1 correctly
+      encrypted, 0 plaintext, 0 double-encrypted, 0 undecryptable** — nothing to convert.
+      The "9/9 plaintext" that scoped the backfill was a **dev-DB census**, not production.
+      **Scope caveat:** the audit covers **employee PANs only**; the other five tables
+      (organizations, vendors, directors, shareCapital/shareholders, companyDirectors) were
+      **not** audited, so this correction is narrow to employees. (Separately, the vendor/
+      director/shareholder read paths decrypt correctly — see "Two out-of-scope DPDP
+      findings" — so they are not known to hold plaintext.)
     - **Two gaps surfaced during this pass (both now fixed):**
       1. **`vendors.create` / `vendors.update` bypassed `panColumns` entirely** —
          they spread the raw `pan` straight into the write, so they never stored the
@@ -4471,11 +4485,16 @@ reaches the host the same way the Deploy-to-Vultr job does, and runs **inside th
 the prod DB / `APP_SECRET` never leave the box. Proven locally against a throwaway copy seeded with
 all four classes (it correctly reported 1 double-encrypted + 1 undecryptable, no PAN printed).
 
-### ⚠️ OPEN — production PAN state is UNKNOWN until the check runs
-Production **may contain double-encrypted rows** (any employee whose edit dialog was opened + Saved
-after `5710dc2`). The check can only run **once this commit is deployed** (it executes inside the
-deployed image). **Until it reports, the state of production employee PANs is unknown.** Recovery for
-any affected row is **re-entry of the PAN from source — there is no computational recovery.**
+### ✅ RESOLVED — the production PAN audit RAN and came back CLEAN (2026-08-08)
+**Superseded.** This section originally said production PAN state was UNKNOWN until the check ran. **The
+check has since run (CI run `31253488299`'s workflow) and reported 1 row with a PAN, 0 plaintext, 1
+correctly encrypted, 0 double-encrypted, 0 undecryptable.** Production is clean — **no PAN was
+destroyed**, and there are **no double-encrypted rows**. The original text is kept below for history
+only:
+> Production **may contain double-encrypted rows** (any employee whose edit dialog was opened + Saved
+> after `5710dc2`). The check can only run **once this commit is deployed** (it executes inside the
+> deployed image). **Until it reports, the state of production employee PANs is unknown.** Recovery for
+> any affected row is **re-entry of the PAN from source — there is no computational recovery.**
 
 ### Two out-of-scope DPDP findings (recorded, NOT fixed)
 - **Director / shareholder / vendor forms render the FULL plaintext PAN unmasked** on read (secretarial
@@ -4523,11 +4542,18 @@ no PAN, runs inside the prod container so no secret reaches the runner. It is a 
 so it is runnable as soon as it lands on `main` — the audit script is already in the live image (no
 app deploy needed for the audit to work).
 
-**⚠️ STILL OPEN — the audit has NOT run.** Production employee-PAN state remains **unknown**: it is not
-yet established whether any record was double-encrypted between `5710dc2` (encryption deploy) and
-`2bb3bac` (the edit-dialog fix). This **gates the PAN backfill** — do not run the backfill until the
-audit has confirmed the double-encryption count (any double-encrypted row must be re-entered from
-source first; the backfill would otherwise re-encrypt a corrupted value).
+**✅ RESOLVED — the audit HAS run and came back CLEAN (2026-08-08).** The read-only PAN audit ran (CI
+run `31253488299`'s workflow) and reported **1 row with a PAN, 0 plaintext, 1 correctly encrypted, 0
+double-encrypted, 0 undecryptable** — no record was double-encrypted between `5710dc2` and `2bb3bac`.
+**The PAN backfill is UNNECESSARY, not deferred:** production holds no plaintext PAN, so there is
+nothing to convert (the backfill was scoped from a dev-DB census, 9/9 plaintext on dev, that did not
+reflect production history). Do **not** build the backfill. Original (now-superseded) text kept for
+history:
+> **⚠️ STILL OPEN — the audit has NOT run.** Production employee-PAN state remains **unknown**: it is
+> not yet established whether any record was double-encrypted between `5710dc2` (encryption deploy) and
+> `2bb3bac` (the edit-dialog fix). This **gates the PAN backfill** — do not run the backfill until the
+> audit has confirmed the double-encryption count (any double-encrypted row must be re-entered from
+> source first; the backfill would otherwise re-encrypt a corrupted value).
 
 ---
 
@@ -4691,3 +4717,115 @@ deployment**. Two recovery paths exist meanwhile: the **manual snapshot** and
 **redeploy from the last green build**. The residual gap is **granularity
 between snapshots**, not absence of backup. Trigger to revisit: **the first
 customer's data landing**, not a calendar date.
+
+---
+
+## Read-only sweep findings (2026-08-08)
+
+Two defects surfaced by a **read-only** verification sweep and confirmed first-hand in the
+code (`file:line` below). **Recorded, NOT fixed** — no code was changed. Both are new; neither
+was in the status table or a prior detail section.
+
+Also recorded here for the record: a **documentation correction, not a defect** — `docs/CONTEXT.md`'s
+former headline "50% WAGE FLOOR — largest unresolved risk" warning claimed the floor was **not wired**
+and PF was understated. That was **wrong**: `calculateLabourCodeWageBase` IS called in the live payslip
+path (`payroll-cycle.ts:322-324`) and the lifted base flows into `computePF` (`statutory-deductions.ts:723`);
+the ceiling that gates it is a platform default every org inherits (mig `0054`, `org_id NULL`). CONTEXT.md
+was corrected 2026-08-08. **No wage-floor "not wired" claim exists in THIS file** (fix-plan) to correct —
+the only `50% wage floor` mentions here (C4 row; the importer's structure-by-name note) correctly describe
+`basicPercent` as "under CA review," which remains true. The genuine residual open items (no floor on the
+`basicPercent` field itself; no DA component; CA sign-off + a new ceiling-ordering question) are logged in
+CONTEXT.md's rewritten section.
+
+### TAX-REGIME-DEFAULT — a statutory election made by a database default
+
+- **Written / defaulted where.** Column `taxRegime` is `notNull().default("new")`
+  (`packages/db/src/schema/hr.ts:186`). It is `.optional()` at `hr.employees.create`
+  (`apps/api/src/routers/hr.ts:288`, update `:433`) and at the bulk importer
+  (`apps/api/src/routers/ingest.ts:159`).
+- **Blank cell == absent column (the crux).** The importer maps `taxRegime =
+  optionalEnum(raw.taxRegime, TAX_REGIMES, …)` (`ingest.ts:642`); `optionalEnum` runs
+  `cleanStr` (`ingest.ts:188-191`, `"" → undefined`), so a **missing column** (`undefined`)
+  and a **blank cell** (`""`) **both resolve to `undefined`** → inserted as `taxRegime:
+  undefined` (`ingest.ts:696`) → the DB default `"new"` fills in. The two cases are
+  **indistinguishable in the code** — this constrains what any fix can even do.
+- **Nothing warns.** No regime warning in the run path (`payroll-run-aggregates.ts`,
+  `payroll.ts`), and none is structurally possible: by the time the run reads the field
+  (`payroll-run-aggregates.ts:216`) the column already holds `"new"` whether chosen or
+  defaulted — there is no "was-explicitly-set" marker.
+- **Consequence.** A customer CSV with no regime column **silently elects the NEW regime for
+  the entire workforce** — a statutory election filed on **Form 24Q and Form 16**. NEW
+  disallows HRA/80C/24b, so anyone who would elect OLD is taxed on the wrong basis. **Fires at
+  onboarding, on the importer just built.**
+- **The sibling defaults, verified.** `isMetroCity` default `false` (`hr.ts:149`) → non-metro
+  40% HRA cap → **over-deducted** TDS for an unset real-metro renter. `gender` NULL → male PT
+  set (`statutory-deductions.ts:592`, female set requires exactly `"female"`) → **over-deducted**
+  PT for an unset Maharashtra woman. Both err toward over-deduction (safe/recoverable), unlike
+  regime.
+- **Status: OPEN — product decision, owner's to make.** What the importer should do with a
+  missing/blank regime (reject, force a choice, warn-and-default, …) is **not** decided here and
+  must not be decided in code without the owner.
+
+### INERT-ALLOWANCES — three configurable fields the compute ignores
+
+- **Written / editable, read nowhere.** `bonusAnnual`, `medicalAllowanceAnnual`,
+  `conveyanceAllowanceAnnual` are declared (`hr.ts:109-111`), written by the salary-structure
+  create/update router (`payroll.ts:794-796, 893-895`), and editable in the payroll UI
+  (`apps/web/src/app/app/payroll/page.tsx:731-758`). They are **read nowhere in the compute
+  path** — the run mapper (`payroll-run-aggregates.ts`) never references them; the persisted
+  payslip **hardcodes** `medicalAllowance: "0"`, `conveyanceAllowance: "0"` (`payroll.ts:489-490`).
+- **What happens to the money (the ambiguity that sets severity).** `computeGross`
+  (`payroll-cycle.ts:269-277`) makes **gross = `(ctcAnnual + ltaAnnual)/12`**; special allowance
+  is the residual `max(0, ctc/12 − basic − hra)` (`payroll-run-aggregates.ts:173`). The three
+  columns **never enter gross**. So:
+  - Read as a **breakdown of CTC** → the money is still paid (absorbed into special allowance)
+    and only **mislabelled** on the payslip.
+  - Read as **on top of CTC** — which is exactly how the neighbouring `ltaAnnual` behaves, added
+    on top at `payroll-cycle.ts:267` — → every employee is **underpaid** by
+    `(medical+conveyance+bonus)/12` per month.
+  Which was intended is a **product question** the code cannot answer; the additive-LTA
+  inconsistency is the tell.
+- **Payment of Bonus Act path unreachable.** `bonus` is fed `0` (`payroll-run-aggregates.ts:236`),
+  so `effectiveBonus = bonusEligible ? emp.bonus : 0` (`payroll-cycle.ts:306`) is `0` on both
+  branches — the eligibility gate (`payroll-cycle.ts:302-305`) executes but is **inert**; a
+  statutory bonus can never be paid.
+- **Status: OPEN — product decision (breakdown vs additive) precedes any fix.** Recorded, not
+  built.
+
+---
+
+## TAX-REGIME-DEFAULT closed — required taxRegime column on bulk import (2026-08-08)
+
+Closes the **TAX-REGIME-DEFAULT** finding recorded in "Read-only sweep findings
+(2026-08-08)". Shipped with commit `3d416c7`; committed alongside the doc
+corrections (rule 6). Scope: the **importer only** — `hr.employees.create` is
+deliberately unchanged (a single admin choosing through a form is choosing; the
+`new` default is fine there).
+
+- **TAX-REGIME-DEFAULT is now closed.** The importer refuses a file with **no
+  taxRegime column** outright (whole request rejected, nothing processed); a
+  **blank cell in a present column** is a named row skip ("taxRegime is blank —
+  enter one of: old, new"), distinct from the invalid-value skip. **Neither can
+  reach the database default** — the silent NEW-regime election for a whole
+  workforce is no longer possible from a missing spreadsheet header.
+
+- **Architectural finding (constrains anything similar later).** The shared CSV
+  modal **drops blank cells before sending rows**, so a **missing column and an
+  all-blank column are indistinguishable server-side** — from `rows` alone the
+  mutation cannot tell them apart. **Column presence now travels to the mutation
+  as an explicit input** (`columns: string[]`, the header keys present in the
+  file). Any future importer that needs to enforce a **required column** inherits
+  this constraint and must do the same — a row-level check cannot substitute,
+  because the blank-vs-absent distinction is already gone by the time rows reach
+  the server.
+
+- **`CsvImportModal.onImport` now takes a second argument** carrying the
+  present-column list (`{ presentColumns }`). **Backward compatible** — existing
+  callers that take one parameter still typecheck (a narrower function is
+  assignable to the wider type) — but **vendors and CRM now receive a value they
+  ignore**. New callers that need column presence read it.
+
+- **`isMetroCity` and `gender` remain optional-with-default deliberately.** Both
+  err toward **over-deduction, which is recoverable**; the **regime election is
+  not**. They were considered and left as-is on purpose — only `taxRegime` was
+  promoted to a required column.

@@ -109,34 +109,55 @@ Full per-item detail is in `reports/fix-plan.md` under the dated sections named 
    Non-LOP byte-identical. Known blind spot: past months estimated at contracted because
    PR5 zeroes real YTD. ("Employee bulk importer + A12-D … (2026-08-08)".)
 
-## ⚠️ THE 50% WAGE FLOOR — the largest unresolved correctness risk in payroll
+## ✅ THE 50% WAGE FLOOR — IMPLEMENTED AND WIRED (correction, 2026-08-08)
 
-**Read this first if you touch payroll.** It was raised **verbally in an earlier session
-and never written into either document** — it appeared only as roadmap priority #10
-("Regulatory refresh (Labour Codes Nov-2025…)") and as a migration name. Recording it now.
+**⚠️ CORRECTION — the previous warning here was WRONG and was corrected 2026-08-08.**
+Through 2026-08-08 this section carried, as "the largest unresolved correctness risk,"
+that the 50% wage floor was **NOT wired** and that PF was therefore understated for every
+employee on a sub-50%-basic structure. **That was wrong, in the direction where acting on
+it does harm** — a reader could rebuild or double-apply a floor that already exists. A
+read-only verification against the code established the truth below. If you saw the old
+text, this is why it changed.
 
-- **The rule.** Under the Labour Codes (Code on Wages, 2019, in force from 2025-11-21),
-  "wages" must be **at least 50% of total remuneration**. If basic (the PF base) is set
-  below that floor, the floor is meant to lift the PF/ESI/gratuity wage base up to it.
-- **What the code does.** `salaryStructures.basicPercent` is a **free field**:
-  `decimal(5,2)` default `40`, validated only `min(0).max(100)` — **no floor**
-  (`packages/db/src/schema/hr.ts:106`; `payroll.ts:776/844`). PF computes on **whatever
-  basic that yields** (`payroll.ts:161` → `computePF(basicPlusDA, …)`).
-- **The consequence.** If the 50% floor binds, **every structure set below 50% basic
-  produces an understated PF wage base for every employee on it — employee AND employer
-  side — filed on every ECR/challan.** That is a wrong statutory amount, not a display
-  gap, replicated across a whole structure's population.
-- **Status: UNRESOLVED, pending the accountant.** There is a partial Code-on-Wages
-  s.2(y) 50%-inclusion proviso in `payroll-math` (`calculateLabourCodeWageBase`, gated on
-  a bonus-eligibility ceiling), but it is **not** wired to a `basicPercent` floor and it
-  is unclear it fully implements the rule. Do not assume it is handled.
-- **The customer input it needs** (see open questions): what is basic as a % of total for
-  each pilot's salary structures? If any are below 50%, this is a correctness build before
-  their first run.
+- **The rule.** Code on Wages, 2019 s.2(y) (Labour Codes, in force from 2025-11-21): if the
+  s.2(y)-excluded allowances (HRA, special, LTA, overtime, bonus, …) exceed **half of total
+  remuneration**, the excess is deemed wages and **added back**, lifting an artificially low
+  basic toward a 50%-of-total floor for the PF/ESI/bonus base.
+- **It IS implemented and wired to the CONTRIBUTION — not a display field. Do not rebuild
+  it.** `calculateLabourCodeWageBase(basicEarned, excludedAllowances)` is called in the live
+  payslip path at `payroll-cycle.ts:322-324`; the lifted `wageBase` flows through
+  `computeMonthlyStatutory` (`payroll-cycle.ts:345`) straight into `computePF(basicPlusDA,…)`
+  at `statutory-deductions.ts:723`, where it drives `employeePF = round(pfWageBase × 0.12)`
+  (`:229`) and the employer legs. Those numbers persist to `payslips.pf_*` and reach the ECR.
+- **The arithmetic is the s.2(y) mechanic verbatim** (`statutory-deductions.ts:803-824`):
+  `addBack = max(0, exclusions − totalRemuneration/2)`, `statutoryWageBase = core + addBack`.
+  When basic sits below 50% of total this resolves to **exactly total/2**; when exclusions
+  ≤ 50%, `addBack = 0` and a conventional salary is untouched.
+- **It is on for every org, automatically.** The gate is `labourCodesInForce`
+  (`payroll-cycle.ts:296` — true iff a `bonus_eligibility_ceiling` resolves). Migration
+  `0054` seeds that ceiling as a **platform default (`org_id NULL`, ₹21,000, effective
+  2025-11-21)**, which the resolver (`statutory-ceilings.ts:74-142`) applies to every tenant;
+  a newly created org inherits it with **no per-org seeding**. Dev DB confirms: one row,
+  `org_id NULL`, **0 orgs with their own row** — all covered. For any 2026 pay period the
+  floor is live.
+- **⚠️ THE NUANCE THE OLD WARNING MISSED — the affected population is narrow.** PF caps at
+  `min(basicPlusDA, 15000)` (`statutory-deductions.ts:227`). So the add-back changes the
+  contribution **only for employees whose basic falls below ₹15,000** — roughly **CTC under
+  ~₹37,500/month**. Above that, raw and lifted basic both clamp to the ₹15,000 ceiling and PF
+  is **identical either way**. The old "every employee on a sub-50% structure" claim was,
+  even in principle, bounded by that ceiling.
 
-**Beside it — the DA finding.** There is **no DA (dearness allowance) component** on the
-salary structure at all, so PF's `basicPlusDA` basis receives **basic alone**. If any
-pilot pays DA, PF is understated the same way. Also a customer question.
+**What genuinely remains open (narrower than the old claim, and different from it):**
+- **No floor on the `basicPercent` field itself.** Default `40`, validation only
+  `min(0).max(100)`, **no DB CHECK constraint** (`hr.ts:106`; `payroll.ts:776/844`; verified
+  against `pg_constraint`). The compute-time add-back corrects the PF *base*; it does **not**
+  stop a non-compliant structure being configured or shown on a payslip.
+- **No DA component.** `basicPlusDA` receives **basic alone** — there is no dearness-allowance
+  field on the salary structure. If a pilot pays DA it is representable nowhere.
+- **CA sign-off + a NEW ordering question.** The accountant has **not** confirmed the mechanic
+  fully implements the rule. A second question is now open: **should the ₹15,000 PF ceiling
+  apply BEFORE or AFTER the add-back?** The engine currently applies it **after**
+  (`min(core + addBack, 15000)`). Confirm with the CA.
 
 ## ✅ PAN — the production audit RAN and came back CLEAN (backfill unnecessary)
 
@@ -164,6 +185,35 @@ The employee bulk importer and A12-D shipped 2026-08-08.)_
    both currently omit the prior-employer / rent declaration figures precisely because they
    have no provenance status — C1 is where that intake belongs. See "Two records
    (2026-08-05)".
+
+## Two findings recorded 2026-08-08 (read-only sweep) — NOT fixed
+
+Both surfaced by a read-only sweep and verified in code. Recorded, not built — full
+detail + `file:line` in `reports/fix-plan.md` under "Read-only sweep findings (2026-08-08)".
+
+1. **TAX-REGIME-DEFAULT — a statutory election made by a database default.** `taxRegime` is
+   `.optional()` at `hr.employees.create` (`hr.ts:288`) and the importer (`ingest.ts:159`),
+   while the column is `notNull().default("new")` (`hr.ts:186`). A **blank cell and an absent
+   column are indistinguishable** — both resolve to `undefined` and the DB fills in `"new"`
+   (`cleanStr`/`optionalEnum`, `ingest.ts:188,199`). Nothing warns, and by run time
+   (`payroll-run-aggregates.ts:216`) there is no marker saying whether the regime was chosen.
+   So **a customer CSV with no regime column silently elects the NEW regime for an entire
+   workforce** — filed on Form 24Q and Form 16. This **fires at onboarding, on the importer
+   just built.** `isMetroCity` (default `false`) and `gender` (NULL→male PT set) default the
+   same way but **err toward over-deduction** (safe/recoverable). **The product decision about
+   what the importer should do is OPEN and is the owner's to make — do not decide it in code.**
+2. **INERT-ALLOWANCES — three configurable fields the compute ignores.** `bonusAnnual`,
+   `medicalAllowanceAnnual`, `conveyanceAllowanceAnnual` are declared (`hr.ts:109-111`),
+   written by the salary-structure router, and editable in the payroll UI — and **read nowhere
+   in the compute path**; the payslip hardcodes medical/conveyance to `"0"`
+   (`payroll.ts:489-490`). **Severity hinges on an ambiguity:** within a CTC framing the money
+   is preserved in gross and merely **mislabelled** (special allowance is the residual
+   `ctc/12 − basic − hra`, `payroll-run-aggregates.ts:173`). **But `ltaAnnual` — a field
+   beside these three in the same UI — is ADDITIVE on top of CTC** (`payroll-cycle.ts:267`),
+   so an admin reading the four fields consistently would **underpay** every employee by the
+   monthly value of the other three. Which behaviour was intended is a product question. Also:
+   the **Payment of Bonus Act path (`payroll-cycle.ts:302`) is unreachable** — `bonus` is
+   always fed `0` (`payroll-run-aggregates.ts:236`), so the eligibility gate runs but is inert.
 
 ## Every open question, split by who answers it
 
@@ -199,8 +249,11 @@ before the relevant live cycle):
 
 **The customers** (pilots):
 
-- **Basic as a percentage of total, per salary structure** — the input the 50%
-  wage-floor question turns on. If any structure is below 50%, PF is understated.
+- **Basic as a percentage of total, per salary structure** — needed to spot a
+  non-compliant structure (the `basicPercent` field itself has no floor) and to sanity-
+  check the wage-floor add-back with the CA. **Note: the PF *base* is already lifted at
+  compute time for sub-50% basics** (see "THE 50% WAGE FLOOR" above), so this is a
+  compliance/CA check, **not** a "PF is understated" fix — the old framing was wrong.
 - **Whether anyone receives DA** — if yes, a PF-basis correctness build.
 - **Whether anyone holds a VPF election or a Para 26(6) joint declaration** — neither has
   an ingestion path today (C4).
