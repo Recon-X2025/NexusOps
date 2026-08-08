@@ -365,18 +365,58 @@ export function computeEmployeePayslip(
       ? emp.joiningDate.getMonth() + 1 - 3 // Rough FY month
       : 1;
 
+  // ── A12-D: split-logic annual projection ──────────────────────────────────
+  // The shipped A12 annualised THIS month's LOP-reduced earnings ×12
+  // (`basicEarned*12 + …`), i.e. it assumed the pay cut REPEATS every month — so a
+  // single unpaid month depressed the whole year's income estimate and under-collected
+  // TDS. The CA-correct estimate is a BLEND: the current month on the actual earned
+  // (LOP-reduced) pay, and EVERY OTHER month of the FY on the ORIGINAL CONTRACTED pay
+  // (a one-off unpaid month must not be projected forward as a pay cut).
+  //
+  //   projected annual = contracted × (months before this one)   ← earnings to date
+  //                    + this month's actual earned              ← current month
+  //                    + contracted × (months remaining)         ← rest of the year
+  //
+  // FY-month arithmetic (fyMonth: 1 = April … 12 = March): April → 0 before / 11 after,
+  // March → 11 before / 0 after; clamped so an out-of-range fyMonth can't go negative.
+  //
+  // ⚠️ PR5 constraint: earnings-to-date CANNOT be read from prior payslips — the run
+  // passes ytd*=0 (`payroll-run-aggregates.ts`), so a real running FY total is not
+  // available at this point. Rather than build on that untrusted zero, the PAST months
+  // are ESTIMATED at contracted pay — the same assumption the CA applies to future
+  // months. This is exact for a one-off CURRENT-month LOP (the case that matters), and
+  // never reads the ytd figure. Its one blind spot: it cannot see a LOP in an EARLIER
+  // month of the same FY (it assumes every past month was full pay); correcting that
+  // needs the real prior-payslip YTD that PR5 is about. Still strictly better than the
+  // shipped `earned*12`, which mis-projected the current month across ALL 12.
+  //
+  // Contracted monthly is the per-component figure at lopFactor = 1, so when
+  // `lopDays == 0` the current month equals contracted and the blend collapses to
+  // `contracted × 12` — BYTE-IDENTICAL to A12 for every non-LOP payslip.
+  const fyMonthClamped = Math.min(12, Math.max(1, fyMonth));
+  const monthsBeforeCurrent = fyMonthClamped - 1; // April → 0 … March → 11
+  const monthsRemaining = 12 - fyMonthClamped; //    April → 11 … March → 0
+  /** Blend one salary component: contracted for every month but this one, actual now. */
+  const projectAnnualComponent = (contractedMonthly: number, earnedThisMonth: number): number =>
+    contractedMonthly * monthsBeforeCurrent + earnedThisMonth + contractedMonthly * monthsRemaining;
+  const annualBasic = projectAnnualComponent(Math.round(emp.basicMonthly), basicEarned);
+  const annualHra = projectAnnualComponent(Math.round(emp.hraMonthly), hraEarned);
+  const annualSpecial = projectAnnualComponent(Math.round(emp.specialAllowance), specialAllowanceEarned);
+  const annualLta = projectAnnualComponent(Math.round(emp.ltaAnnual / 12), ltaEarned);
+  const annualProjectedIncome = annualBasic + annualHra + annualSpecial + annualLta;
+
   // HRA exemption (s.10(13A)). Least of: HRA received, rent − 10% of basic, and
-  // 50%/40% of basic (metro/non-metro). Computed on the SAME LOP-earned, annualised
-  // basis as `annualCTC` above so the exemption tracks what is actually paid.
-  // `computeTax` applies this only under the OLD regime, so a value here never reduces
-  // new-regime tax. `computeHRAExemption` returns 0 when rent or HRA is 0, so an
-  // employee with no rent declared is unaffected. A caller-supplied `emp.hraExemption`
-  // (legacy/explicit override) still wins when it is non-zero.
+  // 50%/40% of basic (metro/non-metro). Computed on the SAME split-logic annual basis
+  // as `annualCTC` below (A12 deliberately coupled the two), so the exemption tracks the
+  // same projected income. `computeTax` applies this only under the OLD regime, so a
+  // value here never reduces new-regime tax. `computeHRAExemption` returns 0 when rent or
+  // HRA is 0, so an employee with no rent declared is unaffected. A caller-supplied
+  // `emp.hraExemption` (legacy/explicit override) still wins when it is non-zero.
   const computedHraExemption =
     emp.regime === "OLD"
       ? computeHRAExemption(
-          basicEarned * 12,
-          hraEarned * 12,
+          annualBasic,
+          annualHra,
           emp.rentPaid,
           emp.isMetro,
         )
@@ -385,14 +425,12 @@ export function computeEmployeePayslip(
 
   const taxProfile: EmployeeTaxProfile = {
     regime: emp.regime,
-    // Annualise on the LOP-EARNED components (A12 root cause), not the contractual
-    // salary. `computeGross` reduces this month's basic/HRA/special/LTA by
-    // `lopFactor = daysWorked/daysInMonth`; projecting those earned figures ×12 keeps
-    // TDS in step with what the employee is actually paid. Taxing contractual salary
-    // while gross is LOP-reduced pushed deductions above earnings and the net-pay
-    // floor silently discarded the excess. When `lopDays == 0` the earned figures
-    // equal the contractual ones, so this is byte-identical to the prior behaviour.
-    annualCTC: basicEarned * 12 + hraEarned * 12 + specialAllowanceEarned * 12 + ltaEarned * 12,
+    // A12-D: the split-logic annual projection computed above (current month on actual
+    // earned pay, every other FY month on contracted pay). This replaces A12's
+    // `earned*12`, which projected a single LOP month across the whole year and
+    // under-collected TDS. When `lopDays == 0` the blend equals `contracted*12`, so the
+    // non-LOP payslip is byte-identical to A12. See the split-logic block above.
+    annualCTC: annualProjectedIncome,
     basicMonthly: emp.basicMonthly,
     hraMonthly: emp.hraMonthly,
     specialAllowance: emp.specialAllowance,

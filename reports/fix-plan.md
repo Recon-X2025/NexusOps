@@ -77,24 +77,25 @@ it is the summary; the item is the source of truth.
 | A15 — one document-header source | Phase 3 build | Pending |
 | A17 — branded invoice / PO PDFs | Phase 3 build | Pending |
 | A18 — Form 16 TRACES import | Phase 3 build | Pending — **scope expanded** (CA: parse + map + self-service publish + bulk DSC signing; upstream Form 24Q dep — see A18) |
-| B16 — payslip hardcoded header | Bucket B (doc-header theme) | Pending |
+| B16 — payslip hardcoded header | Bucket B (doc-header theme) | **DONE via C6 (`d979038`).** The payslip now renders company name + TAN + EPF code + CIN + ESI establishment number from stored values (was hardcoded blank). See "C6 … (2026-08-08)". |
 | B17 — no org address field | Bucket B (doc-header theme) | Pending |
 | Ownership cluster (#5) — one shared guard | Bucket B | Pending |
 | Identity/session theme (B8–B11) | Bucket B | Pending |
 | Automation/reliability theme (B6, B7, B12, B13) | Bucket B | Pending (B5 **Done** — folded into R-5) |
 | KMS legacy theme (B14, B15) | Bucket B | Pending (H-2 PAN done; backfill owed) |
 | Test-hygiene — shift-schedule midnight flake | Bucket B | **Done** (clock pinned to noon; boundary-proof) |
-| A12-D — LOP split-logic defect (CA correction) | New — Payroll | Pending (against shipped A12) |
+| A12-D — LOP split-logic defect (CA correction) | New — Payroll | **DONE (2026-08-08).** Split-logic annual projection (current month actual + contracted for every other FY month) replaces `earned*12`; HRA cap on the same basis; non-LOP byte-identical. Known blind spot: past months estimated at contracted (PR5 zeroes real YTD). See "Employee bulk importer + A12-D … (2026-08-08)". |
+| Employee bulk importer — `ingest.importEmployees` | New — Onboarding | **DONE (2026-08-08, commit `0c77dbd`).** Tolerant CSV import, dry-run default, PAN encrypted, structure-by-name with reject-on-ambiguous, atomic EMP-NNNN across all 3 sites. See the dated section. |
 | C1 — Old vs New tax regime (s.115BAC) election | New — Payroll | Pending — **payroll-blocking**. **Scope corrected (2026-08-05):** the **investment-declaration intake** (table + UI + effective-dated read path + Feb/March lapse spread) is a **prerequisite** and the **larger half** — shipping the election without it is actively harmful (OLD with zero declarations is taxed worse than NEW). See "Two records (2026-08-05)". |
 | C2 — Professional tax full state matrix (REVISED) | New — Payroll | **C2-FIX ✅ done** (KA/GJ/MH-female slab corrections, Feb rates); **gender/DOB/Tier-1-exemption ingestion ✅ done** (mig `0066`, read by `computePT`); **half-yearly levy period ✅ shipped for the pilot** (Kerala added + Tamil Nadu converted + full-period-or-flag guard — see "C2-STRUCT half-yearly PT (2026-08-07)"). **C2-STRUCT still pending** (non-pilot / deferred): month-specific **March** rates, full state population + explicit-nil, per-employee **YTD-PT cap ledger**. See C2 scope |
 | C3 — ESI six-month contribution-period rule | New — Payroll | **DONE — shipped & deployed (`9960fc9`, mig `0073`; CI run `31137358633` `Deploy to Vultr` green).** ASYMMETRIC: entry assessed EVERY month (non-member joins the month wages drop to/under ₹21k), exit only at the 1-Apr/1-Oct boundary (member retained on actual gross). Grossed-up eligibility for part-month joiners. Membership state on `employees`. First build wrongly assumed symmetry — see "C3 correction (2026-08-06)" + the looks-symmetric-isn't pattern. |
-| C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | Pending (verify first) — **payroll-blocking** |
+| C4 — PF ₹1,800 ceiling (VPF / joint-declaration override) | New — Payroll | **Cap VERIFIED correct** (₹1,800 = 12% × ₹15,000, both employee + employer sides; basis Basic+DA — but DA is effectively 0, no DA component exists). **VPF is ABSENT** (no per-employee top-up) and **Para-26(6) joint-declaration has no ingestion** (an `isVoluntaryHigherPF` flag exists but is hardcoded false, and it uncaps rather than adds) — those are a BUILD, not an "extend". Payroll-blocking only for a pilot who actually holds a VPF/JD election (a customer question). See the CHECK 3 scoping. |
 | C5 — Statutory rates → config table (effective-dated) | New — Payroll infra | **Done (income-tax only)** — PF/ESI%/gratuity are an explicit follow-up |
-| C6 — Payslip mandatory statutory fields | New — Payroll | Pending — **payroll-blocking** |
+| C6 — Payslip mandatory statutory fields | New — Payroll | **DONE — shipped & deployed (`d979038`, mig `0074`).** Shared payslip-view builder feeds PDF + portal; ESI-reconciliation defect fixed (both renderers hardcoded ESI→₹0 while the total included it); tenant identity (TAN/EPF/CIN + new ESI establishment number) + paid/LOP days + ESI IP number render from stored values; ESI-member missing-identity run warning. Open (CA/customers): DA (PF-basis), B17 full address, ESI format, half-yearly PT note. See "C6 … (2026-08-08)". |
 | C7 — GSTR-1 structural gaps (B2B/B2CL/B2CS, HSN, state code, Tables 9 & 11) | New — GST | **DONE (2026-08-06)** — C7-1 AATO+HSN Table 12 (`0069`), C7-2 B2CL Table 5 ₹1L (`0070`), C7-3 credit/debit notes Table 9 parts 1–4 (`0071`) + **part 5 credit-note ledger (contra-revenue reversal) + s.34 time-limit/value-cap/rate-in-force** (`0072`). **Debit-note ledger SHIPPED (`e74bfca`, CA-ruled, seed acct 4140) — the earlier "out of scope" note was stale.** POS no work (validation caveat); Table 11 advances + multi-invoice/inventory out-of-scope. See "C7 build log (2026-08-06)" + "Debit-note ledger…(2026-08-06)". |
 | C8 — Tolerant filing-schema parsing | New — GST/Payroll infra | Pending — deferrable (robustness) |
 | C9 — Form 24Q quarterly filing (upstream of A18) | New — Payroll/filing | Pending — deferrable (gates A18, not go-live) |
-| DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | Pending — **payroll-blocking**. **LIVE, not dead** (dynamic imports from `hr.payroll.*`); `runMonthlyPayroll` **writes payslips + run totals** with a stale engine (C2-FIX PT bugs, non-effective-dated slabs, 37% new-regime surcharge/PT3, stale s.87A, HRA always 0). **Reconcile onto `payroll-math` or delete.** See "Two records (2026-08-05)". |
+| DUP-1 — second payroll engine (`india/payroll-engine.ts`) | New — Payroll | **DONE (`dd18e56` + `be88a02`).** The 416-line duplicate engine is DELETED (file gone) and `runMonthlyPayroll` is retired (`payroll.runs` is now the only payslip-writing path); the four surviving previews reroute onto `payroll-math`; the `#~#` ECR formatter was extracted verbatim (see open CA #1). Equivalence test guards reintroduction. Was payroll-blocking; now closed. |
 | P-15 — screen tax-preview ignores mid-year joiner's prior-employer income | New — Payroll | **Done (2026-08-05)** — `buildTaxProfileFromEmployee` now threads `previousEmployerIncome`/`Tds` **and** derives a real FY `joiningMonth` so the engine's mid-year branch fires (it was hardcoded `joiningMonth: 1`, so prior income was silently dropped from the on-screen projection while the run path included it). Red/green test `PT4-SCREEN`. See "Roadmap + correction records (2026-08-05)". |
 | P-14 — screen HRA relief vs payslip | New — Payroll | **CLOSED — already fixed** (premise stale). `buildTaxProfileFromEmployee` already computes HRA exemption from `rentPaidAnnual` (payroll.ts:185-193); screen and payslip agree. No code change. |
 | P-13 — declared 80C never reduces tax | New — Payroll | **Re-scoped → roadmap (not a thread).** Premise ("80C is form-captured and stored") is false: no `section80C…24b` column, **no form input**, no declarations table exist. Same build as **C1's investment-declaration intake** — folded there, not a one-line fix. |
@@ -4527,3 +4528,166 @@ yet established whether any record was double-encrypted between `5710dc2` (encry
 `2bb3bac` (the edit-dialog fix). This **gates the PAN backfill** — do not run the backfill until the
 audit has confirmed the double-encryption count (any double-encrypted row must be re-entered from
 source first; the backfill would otherwise re-encrypt a corrupted value).
+
+---
+
+## Employee bulk importer + A12-D LOP projection (2026-08-08)
+
+Two independent changes, shipped as two commits in one deploy (either revertible
+alone). Committed after a confirmed Vultr snapshot with the Actions tab clear.
+
+### Employee bulk importer — `ingest.importEmployees` (commit `0c77dbd`)
+
+Onboarding for the seven pilots is 30–80 employees each and there was **no bulk
+path** — only single-record `hr.employees.create`, i.e. 350–560 hand-keyed
+records each feeding a payroll run and a statutory filing. The importer closes
+that. It reuses the existing entity-agnostic `CsvImportModal`.
+
+**The six settled decisions (do NOT re-litigate):**
+1. **PAN encrypted** at rest via `panColumnsTolerant` — never plaintext.
+2. **email REQUIRED** — a unique-per-org `users` row is created per employee
+   (`employees.userId` is NOT NULL / unique); placeholder emails are refused.
+3. **salary structure resolved by NAME** to a family id — **not-found OR
+   ambiguous (two families share the name) is a named per-row skip, never an
+   unpayable employee**; structures are **never auto-created** from CSV columns
+   (a structure invented at import sets everyone's basic %, the figure under CA
+   review for the 50% wage floor).
+4. **skip-and-report per row with reasons** — the `importInvoices` shape, **not**
+   the batch-aborting `importVendors` — plus **dry run as the DEFAULT**
+   (`dryRun` defaults true; writing requires an explicit `dryRun:false`).
+5. **automation hooks suppressed for bulk** — `runEntityBusinessRules` /
+   `emitDomainEvent` are deliberately not fired (hundreds of fire-and-forget
+   evaluations during onboarding are load with no benefit).
+6. **EMP-NNNN allocation hardened** — a new atomic, delete-proof
+   `getNextEmployeeNumber` (seeds once from the max existing `EMP-` number, then
+   monotonic `+1` via `org_counters`), replacing `count(*)+1`.
+
+**Scoping correction — importVendors is NOT batch-tolerant.** The plan claimed
+it was; it validates a strict `z.array` before the mutation body, so one bad row
+rejects the whole request (its only tolerance is a PAN try/catch, and it returns
+no `skipped[]`). The importer copies `importInvoices` instead: a tolerant
+all-optional-string boundary, with every row validated inside the mutation.
+
+**DEFECT the scoping missed — a fourth EMP allocator.**
+`hr.onboarding.createOnboarding` **also** allocated `EMP-NNNN` by `count(*)+1`.
+Left as-is, two allocators would disagree after any delete and reproduce the
+exact collision the hardening exists to prevent. **All three runtime sites**
+(`hr.employees.create`, `hr.onboarding.createOnboarding`, `ingest.importEmployees`)
+now share `getNextEmployeeNumber`; the two `EMP-` seed scripts
+(`seed-modules.ts`, `seed-smb-analytics.ts`) are setup-time generators and the
+allocator self-seeds from the max existing number. **Proven red:** count-based
+allocation produced `EMP-0003` colliding with a survivor →
+`duplicate key value violates unique constraint "employees_org_employee_id_idx"`.
+
+**SECOND DEFECT — encryption failure could abort the whole batch.**
+`panColumnsTolerant`'s catch handles a *malformed* PAN by re-calling the
+encrypter, so an *encryption* failure (KMS / `APP_SECRET` outage) throws **twice**
+and escapes the helper as a plain `Error`. In the importer that escaped the
+per-row handler (which re-throws non-row errors) and **aborted the entire batch —
+including rows with no PAN at all**. A KMS outage mid-import would have taken the
+whole import down. Now the importer **guards the encrypt call per row**
+(failure → named skip, batch continues). **The shared helper itself was NOT
+changed** — only the importer guards it — so **any future caller of
+`panColumnsTolerant` inherits the same trap**. Proven red (unguarded: whole
+mutation rejects with the KMS error; the PAN-less row never imports).
+
+**Deliberately NOT imported — C1 declaration fields.**
+`previousEmployerIncome` / `previousEmployerTds` / `rentPaidAnnual` are dropped
+from the schema, the CSV spec, and the write. These are **C1
+declaration-intake** fields; C1 requires each figure to carry a **provenance
+status — provisional / proven / lapsed, with the Feb→Mar catch-up spread** —
+because a declared-but-never-proven relief must be withdrawn and the tax
+recovered. A CSV cell gives a number with **no status**, so C1 would inherit
+rows it cannot classify. **RECORDED SEPARATELY:** `hr.employees.create` has the
+**same gap** (it accepts these three figures with no provenance) — it was **not**
+changed in this pass and **must be addressed when C1 lands**.
+
+**PT exemption flags deliberately not importable.** `ptExemptArmedForces` /
+`ptExemptDisability` / `ptExemptDependentDisability` are omitted from the
+importer: the CA ruled they require **evidence** (military ID, Form 10-IA) and
+the **employer carries the liability** for a wrongly claimed exemption. They stay
+HR-keyed via the edit dialog.
+
+Tests: `apps/api/src/__tests__/employee-bulk-import.test.ts` (good row →
+encrypted PAN + masked columns + user + EMP-NNNN; malformed-PAN row skipped while
+the batch continues; missing email skipped; structure not-found and ambiguous
+skipped with no employee created; dry run writes nothing; EMP-NNNN correct across
+a batch and after a delete; encryption-failure row skipped, PAN-less row still
+imports). Full suite + affected regression green; `pnpm lint` 9/9.
+
+### A12-D — LOP split-logic tax projection (commit see below, payroll-math)
+
+The shipped A12 correctly stopped taxing an unpaid-leave employee as fully paid,
+but its projection method is wrong: it annualised **this month's LOP-reduced
+components × 12** (`basicEarned*12 + …`), i.e. it projected a single reduced
+month across the **whole year**, under-collecting TDS in any LOP month.
+
+**Old formula (`packages/payroll-math/src/payroll-cycle.ts`):**
+`annualCTC = basicEarned*12 + hraEarned*12 + specialAllowanceEarned*12 + ltaEarned*12`.
+
+**New (split-logic blend):**
+`annual = contracted × (months elapsed) + this month's actual earned + contracted × (months remaining)`,
+computed per component. FY-month arithmetic (`fyMonth` 1=Apr … 12=Mar):
+April → 0 before / 11 after, March → 11 before / 0 after; `fyMonth` clamped to
+[1,12] so remaining can't go negative. `taxComputation.grossSalary` (which is
+`annualCTC` for a full-year employee) is asserted directly in the tests.
+
+**Worked example** — contracted taxable **164,500/month**, half the month unpaid
+→ current actual **82,250**:
+
+| | projected annual |
+|---|---|
+| Old `earned×12` | 82,250 × 12 = **987,000** (under-projects; assumes LOP all year) |
+| New blend | 164,500 × 11 + 82,250 = **1,891,750** |
+| Full non-LOP year | 164,500 × 12 = **1,974,000** |
+
+Non-LOP is **byte-identical** (current == contracted → blend collapses to
+`contracted × 12` == the old `earned × 12`).
+
+**KNOWN BLIND SPOT (recorded plainly — not a bug):** the **past** months are
+**estimated at contracted pay**, not read from real payslips, because **PR5 is
+still open** — the run passes YTD figures as **zero**
+(`payroll-run-aggregates.ts`), so there is no trustworthy running FY total at
+this point and the fix does not build on that untrusted zero. Consequence: a
+**loss of pay in an EARLIER month of the same FY is invisible** to a later
+month's projection (it assumes every past month was full pay). Exact for the
+one-off current-month LOP that matters; correcting the multi-LOP case needs
+PR5's real running total. **Strictly better than what shipped, and not final.**
+
+**HRA exemption cap moved onto the same blended basis** — A12 explicitly tied the
+HRA-exemption annual basic/HRA to `annualCTC`'s basis, so leaving them divergent
+would create a new inconsistency. **Byte-identical for every non-LOP payslip**
+(and every existing HRA test, which are all full-attendance); only a LOP
+old-regime renter shifts, in the correct direction. LOP calculation and the
+attendance path are untouched.
+
+Tests: `apps/api/src/__tests__/payroll-lop-tax-floor.test.ts` — new describe
+"A12-D — split-logic annual projection" (LOP current-month blend asserted
+directly; non-LOP unchanged; April eleven-remaining; March zero-remaining with no
+off-by-one; the A12 net-pay floor still holds under the higher projection).
+Proven red against the pre-rebuild dist (`987,000`), green after
+(`1,891,750`). payroll-math rebuilt; `pnpm lint` 9/9.
+
+**QA release kit — Section 4** records A12-D as "close but not final" so testers
+do not raise it; that note comes out at the next kit revision.
+
+### CORRECTIONS to prior records
+
+- **Production PAN audit HAS run and came back CLEAN.** CI run
+  `31253488299`'s workflow reported **1 row with a PAN, 0 plaintext, 1 correctly
+  encrypted, 0 double-encrypted, 0 undecryptable.** No PAN was destroyed. The
+  "⚠️ STILL OPEN — the audit has NOT run" note above and in the PAN-ciphertext
+  section is **superseded**.
+- **PAN backfill is UNNECESSARY, not deferred.** Production holds **no plaintext
+  PAN**, so there is nothing to convert. The backfill was scoped from a
+  **dev-database census** (9/9 plaintext on dev) that did not reflect production
+  history. **Removed from the next-items list — do not build it.**
+
+### INFRASTRUCTURE — Vultr automatic backups (decision, not a gap)
+
+Vultr automatic backups are **deliberately OFF during testing** — the cost
+outweighs the value of test data — and will be **enabled per instance at
+deployment**. Two recovery paths exist meanwhile: the **manual snapshot** and
+**redeploy from the last green build**. The residual gap is **granularity
+between snapshots**, not absence of backup. Trigger to revisit: **the first
+customer's data landing**, not a calendar date.
